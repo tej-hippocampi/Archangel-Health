@@ -14,7 +14,11 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
+import re
 from typing import Any, Dict, List, Optional
+
+log = logging.getLogger("asclepius.adapters.lab_csv")
 
 # canonical field -> accepted header aliases (lowercase, punctuation-stripped).
 _ALIASES: Dict[str, tuple] = {
@@ -26,12 +30,59 @@ _ALIASES: Dict[str, tuple] = {
     "unit": ("unit", "units", "uom", "result_units"),
     "ref_low": ("ref_low", "reference_low", "low", "range_low", "normal_low", "ref_range_low"),
     "ref_high": ("ref_high", "reference_high", "high", "range_high", "normal_high", "ref_range_high"),
+    # A single combined range column ("1.9 - 2.5", "Up to 0.4", "< 7.90") is what
+    # real hospital exports actually ship — split below into ref_low/ref_high.
+    "ref_range": ("ref_range", "reference_range", "referencerange", "normal_range",
+                  "normal_ranges", "range", "reference_interval", "ref_interval",
+                  "biological_reference_interval"),
     "flag": ("flag", "abnormal_flag", "abnormal", "interpretation", "result_flag"),
+    # ``service_date`` was the real partner's column name and matched NOTHING, so
+    # every panel in a 14-month chart collapsed to ``collected_offset_days: 0`` —
+    # the entire timeline silently lost, while the file still ingested clean.
     "collected_at": ("collected_at", "collection_date", "collected", "drawn", "drawn_at",
-                     "specimen_date", "collection_datetime", "observation_date", "result_date"),
+                     "specimen_date", "collection_datetime", "observation_date", "result_date",
+                     "service_date", "servicedate", "date", "test_date", "report_date",
+                     "resulted_at", "sample_date", "specimen_collected_at", "obs_date",
+                     "performed_date", "encounter_date"),
 }
 
 _VALID_FLAGS = {"", "L", "H", "LL", "HH"}
+
+# "1.9 - 2.5" · "1.9-2.5" · "10 to 50" · "< 7.90" · "Up to 0.4" · "> 60" · "≥ 5".
+# Anything else (the prose ranges a photographed report carries, e.g.
+# "Male: 270; Female: 240; Children < 5 Yr: 60-321") is deliberately NOT guessed
+# at — a wrong reference range makes a normal value read as abnormal.
+_RANGE_PAIR_RE = re.compile(
+    r"^\s*(-?\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(-?\d+(?:\.\d+)?)\s*$", re.IGNORECASE)
+_RANGE_UPPER_RE = re.compile(r"^\s*(?:<|<=|≤|up\s+to|upto|less\s+than)\s*(-?\d+(?:\.\d+)?)\s*$",
+                             re.IGNORECASE)
+_RANGE_LOWER_RE = re.compile(r"^\s*(?:>|>=|≥|greater\s+than|above)\s*(-?\d+(?:\.\d+)?)\s*$",
+                             re.IGNORECASE)
+
+
+def _num_or_none(s: str) -> Any:
+    try:
+        return int(s) if s.lstrip("+-").isdigit() else float(s)
+    except (TypeError, ValueError):
+        return None
+
+
+def split_reference_range(raw: Any) -> tuple:
+    """A combined reference-range cell → ``(ref_low, ref_high)``; ``(None, None)``
+    when the cell is prose we refuse to interpret."""
+    s = str(raw or "").strip()
+    if not s:
+        return None, None
+    m = _RANGE_PAIR_RE.match(s)
+    if m:
+        return _num_or_none(m.group(1)), _num_or_none(m.group(2))
+    m = _RANGE_UPPER_RE.match(s)
+    if m:
+        return None, _num_or_none(m.group(1))
+    m = _RANGE_LOWER_RE.match(s)
+    if m:
+        return _num_or_none(m.group(1)), None
+    return None, None
 
 
 class LabCsvError(ValueError):
@@ -108,10 +159,25 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
         v = row.get(h) if h else None
         return v.strip() if isinstance(v, str) else v
 
+    # A CSV with no recognisable date column is NOT a clean ingest. Every panel
+    # collapses to day 0, the whole longitudinal trend disappears, and the file
+    # still reports success — which is exactly how a 14-month chart arrived as one
+    # undated blob. Say so loudly, in the log AND on the fragment, so the admin's
+    # column-mapping UI has something to show instead of a green row.
+    warnings: List[str] = []
+    if "collected_at" not in colmap:
+        msg = ("no collection-date column matched "
+               f"(headers seen: {', '.join(headers[:12])}); every panel will collapse "
+               "to a single undated timepoint and the trend will be lost — map the "
+               "date column explicitly via manifest.column_map.collected_at")
+        warnings.append(msg)
+        log.warning("lab_csv: %s", msg)
+
     # Group rows → one panel per (patient_key, panel name, collected_at).
     panels: Dict[tuple, Dict[str, Any]] = {}
     patient_keys: List[str] = []
     rows_used = 0
+    unparsed_ranges = 0
     for row in reader:
         analyte = cell(row, "analyte")
         if not analyte:
@@ -136,6 +202,10 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
         if cell(row, "unit"):
             result["unit"] = cell(row, "unit")
         lo, hi = _num(cell(row, "ref_low")), _num(cell(row, "ref_high"))
+        if lo is None and hi is None and colmap.get("ref_range"):
+            lo, hi = split_reference_range(cell(row, "ref_range"))
+            if lo is None and hi is None and cell(row, "ref_range"):
+                unparsed_ranges += 1
         if lo is not None:
             result["ref_low"] = lo
         if hi is not None:
@@ -154,4 +224,15 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
         panel = dict(panel)
         panel.pop("_patient_key", None)
         out_panels.append(panel)
-    return {"lab_panels": out_panels, "_patient_keys": patient_keys}
+    if unparsed_ranges:
+        msg = (f"{unparsed_ranges} reference-range cell(s) were prose we refuse to "
+               "interpret (e.g. per-sex or per-age bands); those results carry no "
+               "ref_low/ref_high rather than a guessed one")
+        warnings.append(msg)
+        log.info("lab_csv: %s", msg)
+    frag: Dict[str, Any] = {"lab_panels": out_panels, "_patient_keys": patient_keys}
+    if warnings:
+        # Underscore-prefixed: fragment metadata, stripped before the case body —
+        # it must never reach a model-visible field.
+        frag["_adapter_warnings"] = warnings
+    return frag

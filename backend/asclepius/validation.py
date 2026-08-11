@@ -45,9 +45,25 @@ _PHI_PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
     ("email", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
     ("phone", re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)")),
     ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
-    ("mrn", re.compile(r"\b(?:MRN|MBI|Medical Record(?:\s*Number)?)\s*[:#]?\s*[A-Za-z0-9\-]+\b", re.I)),
+    # Kept byte-identical in intent to ``gold.deid._MRN`` (the preferred scanner):
+    # the label may be plural and the value must contain a digit, so an export's own
+    # "…names, phone numbers, MRNs, national IDs…" disclaimer is not read as an MRN.
+    ("mrn", re.compile(r"\b(?:MRN|MBI|Medical Record(?:\s*Number)?)s?\s*[:#]?\s*"
+                       r"(?=[A-Za-z0-9\-]*\d)[A-Za-z0-9\-]{2,}", re.I)),
     ("date", re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")),
     ("date", re.compile(r"\b\d{4}-\d{2}-\d{2}\b")),
+]
+
+
+# The SPAN-finding set used by the de-id verifier (``deid_verify``), which needs
+# match positions so a quarantine can scrub the exact span. It is deliberately
+# derived from ``_PHI_PATTERNS`` rather than restated: a third hand-maintained copy
+# of the MRN/date regexes is how the verifier and the guard drift apart, and a
+# verifier that flags what the guard permits (or the reverse) is unexplainable to
+# an operator. ``long_number`` is verifier-only — it is a heuristic worth SHOWING a
+# human, not a hard reject.
+PHI_SPAN_PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = _PHI_PATTERNS + [
+    ("long_number", re.compile(r"\b\d{7,}\b")),
 ]
 
 

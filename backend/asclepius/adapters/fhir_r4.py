@@ -51,6 +51,64 @@ _NEVER_TRUSTED_EXTENSIONS = (
     "https://archangel.health/fhir/StructureDefinition/synthetic-patient",
 )
 
+# A de-identified export usually has NO ``Patient.birthDate`` — that is the point
+# of de-identifying it — and carries a pre-banded age extension instead. We only
+# read ``birthDate``, so ``age_band`` came out NULL on every real record, and a
+# case with no age is a case a physician cannot reason about. Read the extension
+# too; the Safe-Harbor 90+ collapse still applies (``age_to_band``), so an
+# extension declaring "94Y" still bands to "90+".
+_AGE_EXTENSION_URLS = (
+    "http://hl7.org/fhir/StructureDefinition/patient-age",
+    "https://hl7.org/fhir/StructureDefinition/patient-age",
+    "http://hl7.org/fhir/StructureDefinition/patient-ageBand",
+)
+# "45Y" · "45 y" · "45 years" · "45" · "89+" · "90+ Y". Months/days round to 0.
+_AGE_VALUE_RE = re.compile(r"^\s*(\d{1,3})\s*(\+)?\s*(y(?:ears?)?|m(?:onths?)?|d(?:ays?)?)?\s*\+?\s*$",
+                           re.IGNORECASE)
+
+
+# OCR/provenance parentheticals a document-derived export appends to every report
+# name ("LFT (source image 96)"). Provenance, not a panel name — and left in, every
+# panel in the chart is unique, so a trend across five LFTs never lines up.
+_PANEL_PROVENANCE_RE = re.compile(r"\s*\((?:source\s+image|page|image|scan|doc(?:ument)?)\s*[^)]*\)\s*$",
+                                  re.IGNORECASE)
+
+
+def _panel_name_of(report: Dict[str, Any]) -> str:
+    """A DiagnosticReport's clinical panel name, provenance suffix removed."""
+    return _PANEL_PROVENANCE_RE.sub("", _codeable_text(report.get("code")) or "").strip()
+
+
+def _reference_id(reference: Any) -> str:
+    """``"Observation/obs-2-1"`` / ``"#obs-2-1"`` / ``"urn:uuid:…"`` → the bare id."""
+    s = str(reference or "").strip().lstrip("#")
+    if not s:
+        return ""
+    if s.startswith("urn:uuid:"):
+        return s[len("urn:uuid:"):]
+    return s.rsplit("/", 1)[-1]
+
+
+def _age_years_from_extension(res: Dict[str, Any]) -> Optional[int]:
+    """Whole years from a Patient age extension, or None. Never an exact DOB."""
+    for ext in res.get("extension") or []:
+        if str((ext or {}).get("url") or "").strip() not in _AGE_EXTENSION_URLS:
+            continue
+        raw = ext.get("valueString")
+        if raw is None and isinstance(ext.get("valueAge"), dict):
+            va = ext["valueAge"]
+            raw = f"{va.get('value')}{(va.get('unit') or va.get('code') or 'Y')}"
+        if raw is None and ext.get("valueInteger") is not None:
+            raw = str(ext["valueInteger"])
+        m = _AGE_VALUE_RE.match(str(raw or ""))
+        if not m:
+            continue
+        unit = (m.group(3) or "y").lower()[0]
+        n = int(m.group(1))
+        # A sub-year age is a real age; it bands to "0-9" via age_to_band(0).
+        return n if unit == "y" else 0
+    return None
+
 # Explicit, allowlisted answer-key sealing (Buyer Response PRD §3 B1). A ``Basic``
 # resource we do not recognize is treated as potentially answer-bearing and
 # withheld — the asymmetry is deliberate: withholding a benign Basic costs one
@@ -501,18 +559,31 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
     }
 
     birth_date = None
+    declared_age_years: Optional[int] = None
     lab_by_key: Dict[tuple, Dict[str, Any]] = {}
-    report_names: Dict[str, str] = {}   # DiagnosticReport date → panel name
+    obs_report: Dict[str, Dict[str, Any]] = {}   # Observation id → owning report
     latest_obs = None
 
-    # First pass: DiagnosticReport names (so lab panels get real names) + latest date.
+    # First pass: DiagnosticReport MEMBERSHIP (so lab panels are reconstructed as
+    # the panels the lab actually ran) + latest date.
+    #
+    # Grouping by date alone put every result drawn on one day into one bucket and
+    # named it after whichever DiagnosticReport happened to be last that day —
+    # producing a panel called "RFT/renal" containing Magnesium, Calcium, CRP and
+    # Sodium. A DiagnosticReport declares its own members in ``result``, so use
+    # that: one panel per report, named by the report. Only observations no report
+    # claims fall back to the by-date bucket, and that bucket is named neutrally
+    # rather than borrowing a report's name it does not belong to.
     for res in resources:
         rt = res.get("resourceType")
         if rt == "DiagnosticReport":
             eff = _effective(res)
-            d = parse_datetime(eff)
-            if d and _codeable_text(res.get("code")):
-                report_names[str(d)] = _codeable_text(res.get("code"))
+            name = _panel_name_of(res)
+            rid = str(res.get("id") or "")
+            for ref in res.get("result") or []:
+                oid = _reference_id((ref or {}).get("reference"))
+                if oid:
+                    obs_report[oid] = {"id": rid, "name": name or "Labs", "at": eff}
         if rt in ("Observation", "DiagnosticReport"):
             d = parse_datetime(_effective(res))
             if d and (latest_obs is None or d > latest_obs):
@@ -563,6 +634,8 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
             if gender in ("male", "female"):
                 frag["demographics"]["sex"] = "M" if gender == "male" else "F"
             birth_date = parse_datetime(res.get("birthDate"))
+            if declared_age_years is None:
+                declared_age_years = _age_years_from_extension(res)
             # A partner-declared synthetic flag is METADATA, never a control signal
             # (Buyer Response PRD §2 A5): recorded for provenance, never branched on —
             # the de-id guard runs identically regardless.
@@ -596,10 +669,20 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
             if cat != "laboratory":
                 continue
             eff = _effective(res)
-            d = parse_datetime(eff)
-            key = (str(d) if d else "", )
+            owner = obs_report.get(str(res.get("id") or ""))
+            if owner:
+                # The report the lab itself grouped this result under.
+                eff = eff or owner.get("at")
+                key = ("report", owner["id"])
+                panel_name = owner["name"]
+            else:
+                # No report claims it: bucket by date, named neutrally. Borrowing
+                # a same-day report's name is what produced the mixed panels.
+                d = parse_datetime(eff)
+                key = ("date", str(d) if d else "")
+                panel_name = "Labs"
             panel = lab_by_key.setdefault(key, {
-                "panel": report_names.get(str(d), "Labs") if d else "Labs",
+                "panel": panel_name,
                 "results": [],
                 **({"collected_at": eff} if eff else {"collected_offset_days": 0}),
             })
@@ -626,9 +709,22 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                 # The chart-RECORDING date (distinct from clinical onset in ``since``)
                 # → timeline converts it to a relative offset so a problem recorded
                 # AFTER the decision point can be held out by V5 (it IS the answer).
+                #
+                # ``onsetDateTime`` is the documented fallback. A document-derived
+                # de-identified export routinely carries no ``recordedDate`` at all
+                # and sets onset to the date the problem was FIRST NOTED in the
+                # chart — which is a recording date. With no fallback the problem
+                # list has no timing, so it can neither be shown as history nor
+                # held out as the answer, and every generated case ships with an
+                # empty problem list. Onset ≤ recorded, so the fallback can only
+                # reveal a problem EARLIER than its true recording: acceptable for a
+                # first-noted export, and flagged on the item so a consumer can tell
+                # the two apart rather than trusting them equally.
                 recorded = res.get("recordedDate")
                 if recorded:
                     problem["recorded_at"] = str(recorded)
+                elif res.get("onsetDateTime"):
+                    problem["recorded_at"] = str(res["onsetDateTime"])
                 frag["problem_list"].append(problem)
 
         elif rt in ("MedicationStatement", "MedicationRequest"):
@@ -701,14 +797,19 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                           withheld_reason="interpretive_conclusion")
 
     # Age band: birthDate against the bundle's latest observation date — the age
-    # AT THE ENCOUNTER, banded (never an exact age or the birth date itself).
+    # AT THE ENCOUNTER, banded (never an exact age or the birth date itself). A
+    # de-identified export normally has no birthDate at all and declares a banded
+    # age extension instead, which is the ONLY age signal on a real partner record.
+    years: Optional[int] = None
     if birth_date and latest_obs:
         years = latest_obs.year - birth_date.year - (
             (latest_obs.month, latest_obs.day) < (birth_date.month, birth_date.day)
         )
-        band = age_to_band(years)
-        if band:
-            frag["demographics"]["age_band"] = band
+    elif declared_age_years is not None:
+        years = declared_age_years
+    band = age_to_band(years) if years is not None else None
+    if band:
+        frag["demographics"]["age_band"] = band
 
     frag["lab_panels"] = list(lab_by_key.values())
     # Suggested index anchor (PRD §7 "latest encounter/lab collection datetime"):

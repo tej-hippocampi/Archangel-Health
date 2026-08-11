@@ -147,6 +147,34 @@ class UploadPromoteRequest(BaseModel):
     independent_mode: Optional[str] = None
 
 
+class GenerateRealCasesRequest(BaseModel):  # noqa: D401  (see docstring)
+    """Build V4 tasks from ONE ingested real chart (Real-Case Generation PRD §5).
+
+    ``dry_run`` is not optional in spirit and defaults to True here: an admin
+    generating seven cases from a chart must be able to read every proposed
+    question, index event, tag and difficulty band BEFORE any of it reaches a
+    physician. Generating a wrong question at scale is how you burn physician
+    goodwill, and the plan is cheap — the dry run makes no model call at all
+    unless ``derive_questions`` asks for one."""
+
+    dry_run: bool = True
+    max_cases: Optional[int] = None
+    min_gap_days: int = 7
+    # Encounter indices to generate. Empty/None means "every generatable proposal",
+    # which is the batch button; a list is the per-case Generate button.
+    encounter_indices: Optional[List[int]] = None
+    # An admin who has read the chart outranks ``infer_specialty``. Must still be an
+    # ENABLED specialty — this cannot be used to smuggle in an unserved one.
+    specialty: Optional[str] = None
+    max_labels: int = 1
+    grounding_mode: Optional[str] = None
+    independent_mode: Optional[str] = None
+    # Off in a dry run by default: authoring a question is the one plan step that
+    # costs a model call, and an admin scanning encounter structure does not always
+    # want to pay for seven of them.
+    derive_questions: bool = True
+
+
 # ─── Evidence anchors (opt §1.2 — the medical premium) ────────────────────────
 class EvidenceAnchor(BaseModel):
     """A citation grounding a judgment/step in a clinical source.

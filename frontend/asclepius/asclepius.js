@@ -7643,6 +7643,7 @@
       sealed_key_unbound: 'Sealed answer key is unbound',
       completeness_unverified: 'Declared evidence could not be verified',
       deid_partner_flag_only: 'Image cleared on DICOM tags alone (no OCR)',
+      adapter_parse_gap: 'A parser gap degraded this case (e.g. an unmapped date column)',
     })[code] || code;
   }
 
@@ -7755,6 +7756,17 @@
         b.addEventListener('click', () => openPromoteReview(u, st));
         action = b;
       }
+      // Real-case GENERATION (Real-Case Generation PRD §5). A 14-month chart is
+      // not one case; it is a series of decision points. Preview is the whole
+      // point of the control — an admin must read every proposed question before
+      // it reaches a physician, because generating a wrong question at scale is
+      // how you burn physician goodwill. Preview writes nothing.
+      let previewAction = null;
+      if (ready && !(block && block.reason === 'brokering')) {
+        const pb = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, 'Preview cases');
+        pb.addEventListener('click', () => openCasePreview(u, st));
+        previewAction = pb;
+      }
 
       const sub = ready
         ? (u.ingested_case_count || 0) + ' case(s) ready · uploaded ' + fmtDate(u.created_at)
@@ -7771,8 +7783,9 @@
       const row = h('div', { class: 'asc-card-pad', style: 'border-top:1px solid var(--asc-line)' },
         h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center' },
           info,
-          h('div', { style: 'display:flex;gap:8px;align-items:center' },
+          h('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' },
             h('span', { class: 'asc-badge-real' }, 'real · V4'),
+            previewAction,
             action)));
       // The reason, inline and unmissable — a disabled button with only a
       // tooltip is a dead end for anyone who does not hover it.
@@ -7787,6 +7800,210 @@
       row.appendChild(st);
       listBox.appendChild(row);
     });
+  }
+
+  // ── Real-case generation: preview the plan, then generate (PRD §5) ─────────
+  // The dry run returns the FULL plan — every proposed case with its index event,
+  // question, tags and difficulty band — and writes nothing. Skipped encounters
+  // are shown with their reason: a preview that lists only the survivors reads as
+  // "this chart had two decision points" when it had twelve.
+  async function openCasePreview(upload, statusBox) {
+    clear(statusBox);
+    statusBox.appendChild(loadingCard('Segmenting the chart into decision points…'));
+    let cases = [];
+    try {
+      const data = await api('/ingestion/cases?status=ingested&upload_id='
+        + encodeURIComponent(upload.upload_id));
+      cases = data.cases || [];
+    } catch (e) {
+      clear(statusBox);
+      statusBox.appendChild(h('div', { class: 'asc-inline-error' },
+        e.message || 'Could not load the ingested cases for this file.'));
+      return;
+    }
+    if (!cases.length) {
+      clear(statusBox);
+      statusBox.appendChild(h('div', { class: 'asc-card-sub' },
+        'No ingested cases in this file.'));
+      return;
+    }
+    const ic = cases[0];
+    let plan;
+    try {
+      plan = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
+        { method: 'POST', body: { dry_run: true, derive_questions: true } });
+    } catch (e) {
+      clear(statusBox);
+      statusBox.appendChild(h('div', { class: 'asc-inline-error' },
+        (e && e.detail && e.detail.error) || e.message || 'Could not build a case plan.'));
+      return;
+    }
+    clear(statusBox);
+    statusBox.appendChild(h('div', { class: 'asc-card-sub' },
+      (ic.patient_key || 'chart') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
+      + (plan.generatable || 0) + ' generatable'));
+    openCasePlanModal(upload, ic, plan, statusBox);
+  }
+
+  const _diffBadgeClass = (band) => (
+    band === 'hard' ? 'asc-badge-red' : band === 'medium' ? 'asc-badge-amber' : 'asc-badge-gray');
+
+  function renderProposalRow(ic, p, refresh) {
+    const wrap = h('div', {
+      class: 'asc-card-pad',
+      style: 'border:1px solid var(--asc-line);border-radius:10px;margin-bottom:12px'
+        + (p.generatable ? '' : ';opacity:.72'),
+    });
+    const d = p.difficulty || {};
+    const head = h('div', { style: 'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center' },
+      h('div', {},
+        h('strong', {}, 'Encounter ' + p.encounter_index),
+        h('div', { class: 'asc-card-sub asc-mono' },
+          'index event day ' + p.index_event_offset
+          + ' · window ' + (p.encounter_span || []).join(' … ')
+          + ' · ' + (p.n_events || 0) + ' recorded events'),
+        h('div', { class: 'asc-card-sub' }, (p.index_rationale || {}).reason || '')),
+      h('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap' },
+        // The difficulty band is a CLAIM until it is measured, and the plan never
+        // measures — so the preview says so rather than showing a bare band.
+        h('span', { class: 'asc-badge ' + _diffBadgeClass(d.band) },
+          (d.band || '–') + (d.measured ? '' : ' · proposed')),
+        p.taxonomy_bucket ? h('span', { class: 'asc-badge asc-badge-gray' }, p.taxonomy_bucket) : null,
+        p.subtopic ? h('span', { class: 'asc-badge asc-badge-gray' }, p.subtopic) : null));
+    wrap.appendChild(head);
+
+    if (p.question) {
+      // ORANGE = model output. The proposed question is model output until a
+      // physician accepts it, and that distinction is the whole point of the
+      // console's colour semantics — green is physician-authored.
+      const modelAuthored = p.question_source === 'model';
+      wrap.appendChild(h('div', { class: 'asc-field', style: 'margin-top:10px' },
+        h('label', { class: 'asc-label' },
+          'Proposed question' + (modelAuthored ? ' · model output, not yet accepted'
+                                               : ' · derived from the chart')),
+        h('div', {
+          class: 'asc-readbox',
+          style: 'white-space:pre-wrap' + (modelAuthored
+            ? ';border-color:var(--orange-line);background:var(--orange-wash)' : ''),
+        }, p.question)));
+    }
+
+    const c = p.content || {};
+    wrap.appendChild(h('div', { class: 'asc-card-sub', style: 'margin-top:8px' },
+      (p.specialty || 'specialty not determined')
+      + (p.specialty_confidence != null ? ' (confidence ' + p.specialty_confidence + ')' : '')
+      + ' · ' + (c.lab_panels || 0) + ' panel(s) · ' + (c.notes || 0) + ' note(s) · '
+      + (c.medications || 0) + ' med(s) · ' + (c.problem_list || 0) + ' problem(s)'));
+
+    if (d.axes) {
+      wrap.appendChild(h('div', { class: 'asc-card-sub asc-mono', style: 'margin-top:4px' },
+        'difficulty ' + d.score + ' — '
+        + Object.keys(d.axes).map((k) => k + ' ' + d.axes[k]).join(' · ')));
+    }
+    if (d.gate_note) {
+      wrap.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top:6px' }, d.gate_note));
+    }
+
+    if (!p.generatable) {
+      // LIME = needs attention. A blocked proposal is not a failure, it is work
+      // an admin can act on (set the specialty, accept the thin encounter).
+      wrap.appendChild(h('div', {
+        class: 'asc-card-sub',
+        style: 'margin-top:8px;padding:8px 10px;border-radius:8px;'
+          + 'background:var(--lime-wash);border:1px solid var(--lime-line);color:var(--lime-deep)',
+      }, 'Not generatable: ' + (p.blockers || []).join(' · ')));
+      return wrap;
+    }
+
+    const status = h('div', { style: 'margin-top:10px' });
+    const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', style: 'margin-top:10px' },
+      'Generate this case');
+    btn.addEventListener('click', async () => {
+      btn.setAttribute('disabled', '');
+      btn.textContent = 'Measuring difficulty and generating…';
+      clear(status);
+      try {
+        const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate', {
+          method: 'POST',
+          body: { dry_run: false, encounter_indices: [p.encounter_index] },
+        });
+        const ok = (r.task_ids || []).length;
+        status.appendChild(h('div', { class: ok ? 'asc-inline-ok' : 'asc-inline-warn' },
+          ok ? 'Created task ' + r.task_ids[0]
+             : 'Gated: ' + JSON.stringify(((r.details || {}).gated || (r.details || {}).failed || []))));
+        if (ok && refresh) refresh();
+      } catch (e) {
+        status.appendChild(h('div', { class: 'asc-inline-error' },
+          (e && e.detail && e.detail.error) || e.message || 'Generation failed.'));
+      }
+      btn.removeAttribute('disabled');
+      btn.textContent = 'Generate this case';
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(status);
+    return wrap;
+  }
+
+  function openCasePlanModal(upload, ic, plan, statusBox) {
+    const overlay = h('div', {
+      class: 'call-team-overlay is-open',
+      onClick: (e) => { if (e.target === overlay) overlay.remove(); },
+    });
+    const list = h('div', {});
+    const proposals = plan.proposals || [];
+    proposals.forEach((p) => list.appendChild(
+      renderProposalRow(ic, p, () => loadIngestionLists())));
+
+    const status = h('div', { style: 'margin-top:12px' });
+    const nGen = plan.generatable || 0;
+    const allBtn = h('button', { class: 'asc-btn asc-btn-primary' },
+      'Generate all ' + nGen + ' case(s)');
+    if (!nGen) allBtn.setAttribute('disabled', '');
+    allBtn.addEventListener('click', async () => {
+      allBtn.setAttribute('disabled', '');
+      allBtn.textContent = 'Generating…';
+      clear(status);
+      try {
+        const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
+          { method: 'POST', body: { dry_run: false } });
+        overlay.remove();
+        clear(statusBox);
+        statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
+          'Generated ' + r.generated + ' V4 case(s)'
+          + (r.gated ? ' · ' + r.gated + ' gated' : '')
+          + (r.failed ? ' · ' + r.failed + ' failed' : '') + '.'));
+        toast('Generated ' + r.generated + ' case(s) from this chart.', 'success');
+        loadIngestionLists();
+      } catch (e) {
+        status.appendChild(h('div', { class: 'asc-inline-error' },
+          (e && e.detail && e.detail.error) || e.message || 'Generation failed.'));
+        allBtn.removeAttribute('disabled');
+        allBtn.textContent = 'Generate all ' + nGen + ' case(s)';
+      }
+    });
+
+    const popup = h('div', {
+      class: 'call-team-popup',
+      style: 'max-width:900px;max-height:90vh;overflow:auto;text-align:left',
+      onClick: (e) => e.stopPropagation(),
+    },
+      h('div', { class: 'call-team-title' },
+        'Proposed cases: ' + (upload.partner_label || upload.partner_id || 'partner')),
+      h('div', { class: 'call-team-sub' },
+        (ic.patient_key || '') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
+        + nGen + ' generatable'
+        + (plan.specialty_hint ? ' · specialty ' + plan.specialty_hint : '')),
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
+        'Nothing here has been written. Difficulty is measured only when you generate — '
+        + 'a band shown as "proposed" is the structural prior, not a frontier failure rate.'),
+      list,
+      status,
+      h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
+        allBtn,
+        h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto',
+                      onClick: () => overlay.remove() }, 'Close')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
   }
 
   // Prepare + review a sample case for an upload, then promote the rest.
@@ -7861,7 +8078,15 @@
         h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' }, s.question || 'n/a')),
       h('div', { class: 'asc-card-sub', style: 'margin:4px 0 14px' },
         (s.specialty || '') + ' · ' + (demo.age_band || '?') + ' ' + (demo.sex || '') + ' · ' +
-        (kase.lab_panels || []).length + ' lab panel(s) · ' + (kase.notes || []).length + ' note(s)'),
+        (kase.lab_panels || []).length + ' lab panel(s) · ' + (kase.notes || []).length + ' note(s)'
+        // The difficulty band is a CLAIM the admin is approving. Say whether it was
+        // measured against frontier models or is the structural prior.
+        + ((s.difficulty && s.difficulty.band)
+          ? (' · difficulty ' + s.difficulty.band
+             + (s.difficulty.measured
+               ? ' (measured, frontier failure ' + s.difficulty.model_failure_rate + ')'
+               : ' (proposed — no frontier measurement)'))
+          : '')),
       labs.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Lab panels'), h('div', {}, labs)) : null,
       notes.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Notes / EHR records'), h('div', {}, notes)) : null,
       cands.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Generated candidate answers'), h('div', {}, cands)) : null,

@@ -37,6 +37,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-01-hyponatremia-potomania",
         "title": "Severe hyponatremia — overcorrection trap (beer potomania + thiazide)",
         "ai_failure_mode": "anchoring (SIADH → 3% saline); overtreatment / osmotic demyelination risk",
+        "taxonomy_bucket": "electrolyte_acid_base",
+        "subtopic": "hyponatremia_ods",
         "question": "A patient presents with confusion and a serum sodium of 110. How do you classify this hyponatremia and how do you correct it safely?",
         "intended_flawed_id": "B",
         "candidate_answers": [
@@ -101,6 +103,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-02-hyponatremia-insufficient-data",
         "title": "Hyponatremia with insufficient data (context-seeking)",
         "ai_failure_mode": "failure to seek missing context — confabulates a diagnosis + plan from a bare sodium",
+        "taxonomy_bucket": "electrolyte_acid_base",
+        "subtopic": "hyponatremia_ods",
         "question": "A patient has a serum sodium of 118. What is the diagnosis and what treatment do you start?",
         "intended_flawed_id": "A",
         "candidate_answers": [
@@ -161,6 +165,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-03-hyperkalemia-pseudo-drugs",
         "title": "Hyperkalemia — pseudohyperkalemia + hidden drug drivers + normal ECG",
         "ai_failure_mode": "overtreatment (calcium on a hemolyzed value w/ normal ECG); anchoring on 'K 6.8 = emergency'",
+        "taxonomy_bucket": "electrolyte_acid_base",
+        "subtopic": "hyperkalemia_treatment",
         "question": "A patient's potassium is 6.8. Walk through your immediate management.",
         "intended_flawed_id": "A",
         "candidate_answers": [
@@ -228,6 +234,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-04-aki-fena-trap-ain",
         "title": "AKI — the FeNa trap on diuretics, masking acute interstitial nephritis",
         "ai_failure_mode": "right-answer-wrong-reason (FeNa 0.8% → 'pre-renal'); anchoring",
+        "taxonomy_bucket": "aki_critical_care",
+        "subtopic": None,
         "question": "A patient's creatinine has risen over the past few days. What is the cause of the AKI and how do you manage it?",
         "intended_flawed_id": "B",
         "candidate_answers": [
@@ -299,6 +307,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-05-cardiorenal-permissive-creatinine",
         "title": "Cardiorenal — the 'worsening creatinine' trap during decongestion",
         "ai_failure_mode": "anchoring on rising creatinine ('AKI, stop diuretics'); harmful reversal of needed therapy",
+        "taxonomy_bucket": "special_populations",
+        "subtopic": None,
         "question": "A patient admitted for decompensated heart failure now has a rising creatinine on IV diuretics. Do you continue or stop diuresis, and why?",
         "intended_flawed_id": "A",
         "candidate_answers": [
@@ -367,6 +377,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-06-hrs-vs-atn-albumin-challenge",
         "title": "Hepatorenal syndrome vs ATN vs pre-renal in cirrhosis (failed albumin challenge)",
         "ai_failure_mode": "anchoring ('cirrhosis + low urine Na = pre-renal, give fluid'); misses the failed albumin challenge",
+        "taxonomy_bucket": "aki_critical_care",
+        "subtopic": "hepatorenal",
         "question": "A patient with cirrhosis has a rising creatinine. What is the diagnosis and treatment?",
         "intended_flawed_id": "B",
         "candidate_answers": [
@@ -434,6 +446,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-07-transplant-bk-vs-rejection",
         "title": "Post-transplant rising creatinine — BK nephropathy vs rejection",
         "ai_failure_mode": "anchoring ('transplant + rising Cr = rejection → increase immunosuppression') — the exact opposite of correct, and harmful",
+        "taxonomy_bucket": "transplant",
+        "subtopic": "bk_cmv",
         "question": "A kidney transplant recipient has a rising creatinine several months post-transplant. What is your diagnosis and management?",
         "intended_flawed_id": "A",
         "candidate_answers": [
@@ -501,6 +515,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-08-ckd-mbd-calcium-sequencing",
         "title": "CKD-MBD — the calcium/sequencing trap",
         "ai_failure_mode": "sequencing error ('high PTH → more calcitriol/calcium') worsening hypercalcemia; anchoring on PTH alone",
+        "taxonomy_bucket": "dialysis_prescription",
+        "subtopic": "mineral_bone_disease",
         "question": "A CKD patient has a high parathyroid hormone. How do you adjust their mineral-bone therapy?",
         "intended_flawed_id": "B",
         "candidate_answers": [
@@ -566,6 +582,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-09-triple-acid-base-albumin",
         "title": "Triple acid-base disorder with albumin correction",
         "ai_failure_mode": "computation trap (uncorrected anion gap looks normal because albumin is low); misses concurrent metabolic alkalosis",
+        "taxonomy_bucket": "electrolyte_acid_base",
+        "subtopic": "mixed_acid_base",
         "question": "Interpret this patient's acid-base status and identify all disturbances present.",
         "intended_flawed_id": "B",
         "candidate_answers": [
@@ -634,6 +652,8 @@ GOLD_NEPHROLOGY_CASES: List[Dict[str, Any]] = [
         "case_id": "neph-gold-10-hypokalemia-alkalosis-gitelman-vs-vomiting",
         "title": "Refractory hypokalemia + metabolic alkalosis — Gitelman vs surreptitious vomiting/diuretic",
         "ai_failure_mode": "anchoring/availability ('hypokalemia + alkalosis + low Mg = Gitelman') without the discriminating urine studies",
+        "taxonomy_bucket": "electrolyte_acid_base",
+        "subtopic": None,
         "question": "A normotensive patient has persistent hypokalemia and metabolic alkalosis. What is the diagnosis and how do you confirm it?",
         "intended_flawed_id": "A",
         "candidate_answers": [

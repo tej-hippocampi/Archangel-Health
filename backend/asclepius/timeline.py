@@ -49,7 +49,12 @@ _MONTHS = {
 _ISO_RE = re.compile(
     r"\b(\d{4})-(\d{2})-(\d{2})(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\b"
 )
-_MDY_RE = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})(?!\d)")
+# A three-part slash date. Which component is the month depends on the record's
+# date order — see ``infer_date_order``; ``_MDY_RE`` is retained as an alias
+# because the module's public behaviour (and ``parse_datetime``) defaults to
+# month-first for structured fields.
+_SLASH_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})(?!\d)")
+_MDY_RE = _SLASH_DATE_RE
 _MONTHNAME_RE = re.compile(
     r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|"
     r"aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
@@ -77,8 +82,90 @@ _MONTHYEAR_NAME_RE = re.compile(
 # and documented; the hard deidentify() guard is unchanged.
 _DATELIKE_RE = re.compile(r"(?<!\d)(0?[1-9]|1[0-2])/(1[3-9]|2\d|3[01])(?:/\d{2,4})?(?!\d)")
 
+# ─── Clinical ratios are not dates (Real-Case Generation PRD §2.1) ────────────
+# A clinical score written out of a fixed small denominator is shaped exactly like
+# ``M/D``. A GCS of 10/15 parses as October 15th, ingestion records an unresolved
+# token, and the case quarantines FOREVER — a score can never be resolved into a
+# date by a human or a better manifest, so the case can never be released. That
+# made every stroke / seizure / TBI / ICU record unpromotable. Verified against
+# real ICU notes: 13 such hits in one chart.
+#
+# Two conditions, both required, because the denominator ALONE is not enough:
+# "3/15" is also a perfectly good ambiguous March-date, and silently exempting it
+# would turn a quarantine (recoverable) into a missed date (a breach). So the
+# match must ALSO sit next to a scale cue — GCS, an E/V/M breakdown, power, MRC,
+# Apgar, a pain score. A bare "10/15" with no cue anywhere still quarantines.
+_CLINICAL_RATIO_RE = re.compile(r"(?<!\d)\d{1,2}\s*/\s*(?:5|10|15)(?!\d)")
+_SCALE_CUE_RE = re.compile(
+    r"(?:\bgcs\b|\bapgar\b|\bmrc\b|\bpain\s*(?:score|scale)?\b|\bpower\b|\breflex\w*\b"
+    r"|\bmotor\b|\bverbal\b|\beye[\s-]*opening\b|\bscore\b"
+    r"|\b[EVM]\s*\d\b)",           # "E4 V2 M4" — the GCS breakdown, written bare
+    re.IGNORECASE,
+)
+# How far either side of the match we look for the cue. Generous on the left
+# ("Orientation: *2 / *2; GCS 12/15 / 12/15" — the second ratio is ~8 chars past
+# the cue) and short on the right ("3/5 power", "8/10 pain").
+_RATIO_CUE_BEFORE = 120
+_RATIO_CUE_AFTER = 40
+
+# ─── Day-first vs month-first (Real-Case Generation PRD §2.1, extended) ───────
+# ``12/03/2025`` is 12 March in most of the world and 3 December in the US. The
+# rewriter used to assume month-first unconditionally, which on a day-first chart
+# either produced a WRONG offset (04/03/2022 read as 3 April instead of 4 March —
+# "a wrong guess destroys clinical meaning") or failed to parse at all and left a
+# mangled residue behind. Measured on the real 14-month record: 321 tokens are
+# unambiguously day-first, 0 are unambiguously month-first.
+#
+# So the order is INFERRED per case from the tokens that can only be read one way
+# (a component > 12 fixes the order), majority wins. With no evidence either way
+# we keep the historical month-first default and say so in the report — every
+# such token is ambiguous by construction, and the residual risk is the one
+# already documented above for ``_DATELIKE_RE``.
+DATE_ORDER_MDY = "MDY"
+DATE_ORDER_DMY = "DMY"
+
 # Ages ≥90 collapse to the Safe-Harbor bucket (HIPAA §164.514(b)(2)(i)(C)).
 _AGE90_RE = re.compile(r"\b(9\d|1[0-1]\d)([\s-]*(?:years?[\s-]*old|y[/.]?o\b))", re.IGNORECASE)
+
+
+def _is_clinical_ratio(text: str, span: Tuple[int, int]) -> bool:
+    """True when the match at ``span`` sits inside a /5, /10 or /15 clinical score
+    AND a scale cue (GCS, E4 V2 M4, power, MRC, Apgar, pain) is nearby. Both
+    conditions are required — see ``_CLINICAL_RATIO_RE``."""
+    for m in _CLINICAL_RATIO_RE.finditer(text):
+        if m.start() <= span[0] and m.end() >= span[1]:
+            window = text[max(0, m.start() - _RATIO_CUE_BEFORE): m.end() + _RATIO_CUE_AFTER]
+            if _SCALE_CUE_RE.search(window):
+                return True
+    return False
+
+
+def _datelike_unresolved(text: str) -> List[str]:
+    """MASKED date-like tokens in ``text``, minus the clinical-score exemptions."""
+    return [_mask(m.group(0)) for m in _DATELIKE_RE.finditer(text or "")
+            if not _is_clinical_ratio(text or "", m.span())]
+
+
+def infer_date_order(texts: List[str], *, default: str = DATE_ORDER_MDY) -> Tuple[str, Dict[str, int]]:
+    """Infer whether slash dates in this record are day-first or month-first from
+    the tokens that can only be read one way. Returns ``(order, evidence)`` where
+    evidence counts the unambiguous tokens seen. Ties and no-evidence fall back to
+    ``default`` — never to a coin flip."""
+    day_first = month_first = 0
+    for t in texts or []:
+        for m in _SLASH_DATE_RE.finditer(t or ""):
+            a, b = int(m.group(1)), int(m.group(2))
+            if a > 12 and b <= 12:
+                day_first += 1
+            elif b > 12 and a <= 12:
+                month_first += 1
+    if day_first > month_first:
+        order = DATE_ORDER_DMY
+    elif month_first > day_first:
+        order = DATE_ORDER_MDY
+    else:
+        order = default
+    return order, {"day_first": day_first, "month_first": month_first}
 
 
 def _parse_token(text: str) -> Optional[date]:
@@ -125,14 +212,24 @@ def parse_datetime(value: Any) -> Optional[date]:
     return None
 
 
-def _mdy_to_date(m: "re.Match[str]") -> Optional[date]:
-    mo, d, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+def _mdy_to_date(m: "re.Match[str]", order: str = DATE_ORDER_MDY) -> Optional[date]:
+    """A three-part slash token → a date, read in the record's ``order``.
+
+    The order is a per-record property (``infer_date_order``), not a per-token
+    guess. When the token cannot be read in the record's order but CAN be read the
+    other way (a day-first chart carrying one stray "3/14/2031"), the unambiguous
+    reading wins — refusing it would leave a real date in the text."""
+    a, b, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
     if y < 100:
         y += 2000 if y <= 49 else 1900
-    try:
-        return date(y, mo, d)
-    except ValueError:
-        return None
+    pairs = [(b, a)] if order == DATE_ORDER_DMY else [(a, b)]
+    pairs.append((a, b) if order == DATE_ORDER_DMY else (b, a))
+    for mo, d in pairs:
+        try:
+            return date(y, mo, d)
+        except ValueError:
+            continue
+    return None
 
 
 def _monthname_to_date(m: "re.Match[str]", default_year: Optional[int]) -> Optional[date]:
@@ -156,14 +253,20 @@ def _offset_token(d: date, index: date) -> str:
     return f"[day {(d - index).days:+d}]".replace("+0]", "0]")
 
 
-def rewrite_note_dates(text: str, index: date) -> Tuple[str, int, List[str]]:
+def rewrite_note_dates(text: str, index: date,
+                       date_order: str = DATE_ORDER_MDY) -> Tuple[str, int, List[str]]:
     """Rewrite every confidently-parsed date in free text to its relative form
     (``[day -5]``) against ``index``; collapse ages ≥90. Returns
     ``(rewritten_text, dates_rewritten, unresolved_masked_snippets)``.
 
+    ``date_order`` is the record-level day-first/month-first reading inferred by
+    ``infer_date_order`` — a per-record property, never a per-token guess.
+
     Unresolved = date-LIKE tokens we refused to guess at (ambiguous partials like
     "3/14" with no year in a note whose year context we can't trust). They are
-    returned MASKED for the quarantine report — never a cleartext identifier."""
+    returned MASKED for the quarantine report — never a cleartext identifier.
+    Clinical scores out of a fixed denominator (a GCS of 10/15) are exempt: they
+    are not dates and no human could ever resolve them into one."""
     if not text:
         return text, 0, []
     n = {"count": 0}
@@ -177,7 +280,7 @@ def rewrite_note_dates(text: str, index: date) -> Tuple[str, int, List[str]]:
         return _offset_token(d, index)
 
     def _sub_mdy(m: "re.Match[str]") -> str:
-        d = _mdy_to_date(m)
+        d = _mdy_to_date(m, date_order)
         if d is None:
             return m.group(0)
         n["count"] += 1
@@ -216,7 +319,7 @@ def rewrite_note_dates(text: str, index: date) -> Tuple[str, int, List[str]]:
         return m.group(2)
 
     out = _ISO_RE.sub(_sub_iso, text)
-    out = _MDY_RE.sub(_sub_mdy, out)
+    out = _SLASH_DATE_RE.sub(_sub_mdy, out)
     out = _MONTHNAME_RE.sub(_sub_month, out)
     # AFTER the full-date passes (a "March 14, 2031" already rewrote); what's
     # left as month+year partials generalizes to the year.
@@ -226,8 +329,42 @@ def rewrite_note_dates(text: str, index: date) -> Tuple[str, int, List[str]]:
     # Ages ≥90 → the Safe-Harbor bucket.
     out = _AGE90_RE.sub(lambda m: "90+" + m.group(2), out)
 
-    unresolved = [_mask(m.group(0)) for m in _DATELIKE_RE.finditer(out)]
-    return out, n["count"], unresolved
+    return out, n["count"], _datelike_unresolved(out)
+
+
+#: Every free-text field the rewriter touches, as ``(collection_key, field_names)``.
+#: ONE declaration, used by both the date-order inference and the rewrite walk, so
+#: a field can never be inferred-from but not rewritten (or the reverse).
+_FREE_TEXT_FIELDS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ("notes", ("text",)),
+    ("studies", ("findings", "impression")),
+    # Real partner exports put whole order lines into ``medications[].drug`` and
+    # whole problem descriptions into ``problem_list[].condition`` — both carry
+    # calendar dates ("Date column: 04/03/2022"), and neither was ever rewritten.
+    # The case then cleared the timeline gate and died at ``deidentify()`` with
+    # "residual identifiers detected (date)" — a hard guard the admin override
+    # cannot bypass, so the case quarantined a SECOND time after the GCS fix.
+    ("medications", ("drug", "dose", "route", "freq")),
+    ("problem_list", ("condition",)),
+)
+
+
+def _free_text_fields(case: Dict[str, Any]) -> List[str]:
+    """Every free-text string in a case that the rewriter will touch, plus flat
+    string vitals. The inference pool for ``infer_date_order``."""
+    out: List[str] = []
+    for key, fields in _FREE_TEXT_FIELDS:
+        for item in (case or {}).get(key) or []:
+            if not isinstance(item, dict):
+                continue
+            for f in fields:
+                v = item.get(f)
+                if isinstance(v, str) and v:
+                    out.append(v)
+    for v in ((case or {}).get("vitals") or {}).values():
+        if isinstance(v, str) and v:
+            out.append(v)
+    return out
 
 
 def _collect_structured_dates(fragments: Dict[str, Any]) -> List[date]:
@@ -297,6 +434,13 @@ def normalize_timeline(
         "index_source": None, "panels_converted": 0,
         "note_dates_rewritten": 0, "unresolved": [],
     }
+
+    # Day-first vs month-first is decided ONCE, from every free-text field in the
+    # case, before a single token is rewritten. Deciding per token would let one
+    # chart carry both readings.
+    date_order, order_evidence = infer_date_order(_free_text_fields(case))
+    report["date_order"] = date_order
+    report["date_order_evidence"] = order_evidence
 
     index: Optional[date] = None
     if index_event:
@@ -385,38 +529,34 @@ def normalize_timeline(
     if studies:
         case["studies"] = studies
 
-    # Free-text rewriting (notes, study findings, and any string vitals values).
+    # Free-text rewriting. Driven by ``_FREE_TEXT_FIELDS`` so notes, study
+    # findings/impressions, medication order lines and problem descriptions are all
+    # rewritten on the same terms — a post-decision path report and a med order
+    # line are equally capable of carrying the outcome, and a calendar date in any
+    # of them is equally fatal at ``deidentify()``.
     if index is not None:
-        rewritten = []
-        for n in case.get("notes") or []:
-            n = dict(n)
-            new_text, k, unres = rewrite_note_dates(n.get("text") or "", index)
-            n["text"] = new_text
-            report["note_dates_rewritten"] += k
-            report["unresolved"].extend(unres)
-            rewritten.append(n)
-        if rewritten:
-            case["notes"] = rewritten
-        # A post-decision path/molecular report is where the outcome is written, so
-        # its free text is rewritten on the same terms as a note's.
-        rewritten_studies = []
-        for s in case.get("studies") or []:
-            s = dict(s)
-            for field in ("findings", "impression"):
-                if isinstance(s.get(field), str) and s.get(field):
-                    nv, c, unres = rewrite_note_dates(s[field], index)
-                    s[field] = nv
-                    report["note_dates_rewritten"] += c
-                    report["unresolved"].extend(unres)
-            rewritten_studies.append(s)
-        if rewritten_studies:
-            case["studies"] = rewritten_studies
+        for key, fields in _FREE_TEXT_FIELDS:
+            items = case.get(key) or []
+            if not items:
+                continue
+            rewritten = []
+            for item in items:
+                item = dict(item)
+                for field in fields:
+                    v = item.get(field)
+                    if isinstance(v, str) and v:
+                        nv, c, unres = rewrite_note_dates(v, index, date_order)
+                        item[field] = nv
+                        report["note_dates_rewritten"] += c
+                        report["unresolved"].extend(unres)
+                rewritten.append(item)
+            case[key] = rewritten
         vitals = case.get("vitals") or {}
         if vitals:
             vit = {}
             for k, v in vitals.items():
                 if isinstance(v, str):
-                    nv, c, unres = rewrite_note_dates(v, index)
+                    nv, c, unres = rewrite_note_dates(v, index, date_order)
                     report["note_dates_rewritten"] += c
                     report["unresolved"].extend(unres)
                     vit[k] = nv
@@ -440,19 +580,23 @@ def normalize_timeline(
     else:
         case.pop("_vitals_at", None)
         # No anchor: only acceptable when nothing carries a date at all. If any
-        # date-like token exists in the notes, we cannot rewrite → unresolved.
-        for n in case.get("notes") or []:
-            report["unresolved"].extend(datelike_leftovers_in_text(n.get("text") or ""))
+        # date-like token exists in the free text, we cannot rewrite → unresolved.
+        for text in _free_text_fields(case):
+            report["unresolved"].extend(datelike_leftovers_in_text(text))
 
     return case, report
 
 
 def datelike_leftovers_in_text(text: str) -> List[str]:
     """MASKED date/date-like tokens still present in a text — every shape the
-    rewriter knows (full dates, month/year partials, ambiguous partials)."""
+    rewriter knows (full dates, month/year partials, ambiguous partials). Applies
+    the SAME clinical-score exemption as the rewriter: if it did not count a GCS
+    as unresolved, the scrub re-check must not count it as a leftover either, or a
+    scrubbed case could never be released."""
     out: List[str] = []
-    for pat in (_ISO_RE, _MDY_RE, _MONTHYEAR_NUM_RE, _DATELIKE_RE):
+    for pat in (_ISO_RE, _SLASH_DATE_RE, _MONTHYEAR_NUM_RE):
         out.extend(_mask(m.group(0)) for m in pat.finditer(text or ""))
+    out.extend(_datelike_unresolved(text or ""))
     return out
 
 
@@ -463,11 +607,11 @@ def datelike_leftovers(case: Dict[str, Any]) -> List[str]:
     the ambiguous tokens are still in the text — scrub can't fix what only a
     human or a better manifest anchor can resolve)."""
     out: List[str] = []
-    for n_ in (case or {}).get("notes") or []:
-        out.extend(datelike_leftovers_in_text(n_.get("text") or ""))
-    for v in ((case or {}).get("vitals") or {}).values():
-        if isinstance(v, str):
-            out.extend(datelike_leftovers_in_text(v))
+    # Every field the rewriter touches (notes, studies, medication order lines,
+    # problem descriptions) plus string vitals — the scrub re-check and the
+    # rewriter must look at exactly the same surface.
+    for text in _free_text_fields(case or {}):
+        out.extend(datelike_leftovers_in_text(text))
     for p in (case or {}).get("problem_list") or []:
         if p.get("since") and parse_datetime(p["since"]) is not None:
             out.append(_mask(str(p["since"])))

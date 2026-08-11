@@ -43,7 +43,17 @@ _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
 _PHONE = re.compile(r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)")
 _SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 _MBI = re.compile(r"\b[0-9][A-Z][A-Z0-9]\d[A-Z][A-Z0-9]\d[A-Z]{2}\d{2}\b")
-_MRN = re.compile(r"\b(?:MRN|MBI|Medical Record(?:\s*Number)?)\s*[:#]?\s*[A-Za-z0-9-]+\b", re.I)
+# The value after the label must actually LOOK like a record number — i.e. contain
+# a digit — and the label may be plural. Without both, the prose that de-identified
+# exports write about themselves ("No names, phone numbers, MRNs, national IDs…")
+# matched as label "MRN" + value "s", so every partner bundle whose own README
+# says it removed MRNs was quarantined for containing one. MRN/MBI values are
+# alphanumeric by definition (an MBI always carries digits in fixed positions), so
+# requiring a digit costs no real identifier and removes the whole false-positive
+# class. Verified against a real hospital export.
+_MRN = re.compile(
+    r"\b(?:MRN|MBI|Medical Record(?:\s*Number)?)s?\s*[:#]?\s*"
+    r"(?=[A-Za-z0-9-]*\d)[A-Za-z0-9-]{2,}", re.I)
 _ZIP = re.compile(r"\b\d{5}(?:-\d{4})?\b")
 _LONG_NUM = re.compile(r"\b\d{7,}\b")
 _AGE_OVER_89 = re.compile(r"\b(9\d|1\d\d)\s*(?:years?\s*old|y/?o|yo)\b", re.I)

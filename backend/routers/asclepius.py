@@ -45,6 +45,7 @@ from asclepius import specialties as asc_specialties
 from asclepius import task_notify as asc_task_notify
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
+    ASCLEPIUS_ENGINE,
     ASCLEPIUS_TAXONOMY_VERSION,
     BUYER_REQUEST_STATUSES,
     CREDENTIAL_SUMMARY_LEGAL_DISCLAIMER,
@@ -117,6 +118,7 @@ from asclepius.schemas import (
     CiteRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
+    GenerateRealCasesRequest,
     PromoteCaseRequest,
     ReviewClearRequest,
     UploadPromoteRequest,
@@ -4133,7 +4135,11 @@ async def quarantine_scrub(
         from asclepius.cases import ClinicalCase as _CC
         safe = _cf.deidentify(scrubbed)
         case = _CC(**{**safe, "case_source": "real_deid",
-                      "specialty": safe.get("specialty") or ic.get("specialty") or "nephrology"}).model_dump()
+                      # Never a literal specialty (PRD-I §4.2): an override that
+                      # silently stamps nephrology on a stroke chart is the same
+                      # invisible mislabel the promote guards exist to prevent.
+                      "specialty": safe.get("specialty") or ic.get("specialty")
+                                   or "general"}).model_dump()
     except Exception as exc:
         store.update_ingest_case(ingest_case_id, case_json=scrubbed, report_json=report)
         return {"status": "quarantined", "reason": f"hard guard still rejects: {exc}"}
@@ -4165,7 +4171,11 @@ async def quarantine_override(
         from asclepius.cases import ClinicalCase as _CC
         safe = _cf.deidentify(ic.get("case") or {})
         case = _CC(**{**safe, "case_source": "real_deid",
-                      "specialty": safe.get("specialty") or ic.get("specialty") or "nephrology"}).model_dump()
+                      # Never a literal specialty (PRD-I §4.2): an override that
+                      # silently stamps nephrology on a stroke chart is the same
+                      # invisible mislabel the promote guards exist to prevent.
+                      "specialty": safe.get("specialty") or ic.get("specialty")
+                                   or "general"}).model_dump()
     except Exception as exc:
         raise HTTPException(
             status_code=409,
@@ -4182,27 +4192,30 @@ async def quarantine_override(
 @router.get("/ingestion/cases")
 async def list_ingestion_cases(
     status: Optional[str] = None,
+    upload_id: Optional[str] = None,
     _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
-    return {"cases": _store().list_ingest_cases(status=status)}
+    """``upload_id`` scopes the list to one partner file — what the admin's
+    per-upload "Preview cases" control needs, so it does not pull every ingest
+    case in the system to find the two it is about to plan."""
+    return {"cases": _store().list_ingest_cases(status=status, upload_id=upload_id)}
 
 
-_DEFAULT_CLINICAL_QUESTIONS = {
-    "nephrology": "Assess this patient's renal status: classify the primary kidney "
-                  "problem, identify its most likely cause, and recommend the single "
-                  "most important next step in management.",
-    "cardiology": "Assess this patient's cardiac status: identify the primary problem, "
-                  "its most likely cause, and recommend the single most important next "
-                  "step in management.",
-}
+def _default_clinical_question(ic: Dict[str, Any]) -> str:
+    """A CASE-SPECIFIC question derived from this chart, for the batch path where
+    the admin supplied none (Real-Case Generation PRD §3.3).
 
+    This replaces a two-key per-specialty dictionary plus a generic fallback. A
+    default question that says the same thing about every nephrology chart in a
+    partner file produces N identical prompts wrapped around N different cases,
+    and a physician answering the third one has stopped reading the question.
+    Deterministic — no model call — because this runs inside a batch promote that
+    already makes two per case."""
+    from asclepius import real_cases
 
-def _default_clinical_question(specialty: Optional[str]) -> str:
-    return _DEFAULT_CLINICAL_QUESTIONS.get(
-        (specialty or "").strip().lower(),
-        "Review this case, state the primary clinical problem and its most likely "
-        "cause, and recommend the single most important next step in management.",
-    )
+    case = ic.get("case") or {}
+    return real_cases._fallback_question(
+        case, ic.get("specialty") or case.get("specialty"))
 
 
 async def _convert_and_gate(store: Any, ic: Dict[str, Any], question: str) -> Dict[str, Any]:
@@ -4212,7 +4225,11 @@ async def _convert_and_gate(store: Any, ic: Dict[str, Any], question: str) -> Di
     gate. Returns a structured result the caller can preview or commit. Never
     inserts a task or mutates the case — that is the caller's decision."""
     case = ic.get("case") or {}
-    specialty = ic.get("specialty") or case.get("specialty") or "nephrology"
+    # No literal fallback (PRD-I §4.2, Real-Case Generation PRD §3.3). A wrong
+    # specialty routes the case to the wrong physician pool and mislabels it in
+    # the export, invisibly; "general" is the absence of a specialty and every
+    # caller of this function already refuses to promote on it.
+    specialty = ic.get("specialty") or case.get("specialty") or "general"
     prompt = asc_cases.render_case_prompt(case, question)
     out: Dict[str, Any] = {
         "ingest_case_id": ic.get("ingest_case_id"),
@@ -4227,12 +4244,32 @@ async def _convert_and_gate(store: Any, ic: Dict[str, Any], question: str) -> Di
         out["error"] = "Candidate generation unavailable (no LLM key configured?)."
         out["http_status"] = 503
         return out
+    from asclepius import real_cases
     from asclepius.critic import run_case_judge, run_hardness_judge
+    from asclepius.empirical_difficulty import measure_empirical_difficulty
+
+    # Difficulty is MEASURED here too (Real-Case Generation PRD §3.6). This path
+    # used to stamp the literal "hard" on every promoted real case and leave
+    # ``empirical_difficulty`` NULL — a claim we could not defend to a buyer, and
+    # the reason ``ASCLEPIUS_REQUIRE_MEASURED_DIFFICULTY=1`` emptied the V4 queue.
+    # Structure alone still cannot confer 'hard'; with no live frontier
+    # measurement the band is capped at medium and ``measured`` stays False.
+    empirical = await measure_empirical_difficulty(case, question)
+    difficulty = real_cases.score_difficulty(
+        case,
+        model_failure_rate=(empirical.get("value") if empirical.get("measured") else None),
+    )
+    out["difficulty"] = difficulty
     generation: Dict[str, Any] = {
         "mode": "real_case_promote", "ingest_case_id": ic.get("ingest_case_id"),
         "upload_id": ic.get("upload_id"), "case_source": "real_deid",
         "modality": "multimodal", "candidate_gen_model": cg.get("model"),
         "intended_flawed_id": cg.get("intended_flawed_id"),
+        "question": question,
+        "case_type": asc_cases.case_type_signature(case),
+        "empirical_difficulty": {**empirical, "declared": difficulty["score"],
+                                 "structural_axes": difficulty["axes"],
+                                 "band": difficulty["band"]},
     }
     hj = await run_hardness_judge(prompt, candidates)
     if not hj.get("skipped"):
@@ -4274,7 +4311,10 @@ def _commit_promoted_task(
 ) -> Dict[str, Any]:
     """Insert the gated conversion as a partner_ehr V4 task + mark the case promoted."""
     task = store.insert_task(
-        prompt=conv["prompt"], specialty=conv["specialty"], difficulty="hard",
+        prompt=conv["prompt"], specialty=conv["specialty"],
+        # The band from ``_convert_and_gate``'s composite, not the literal "hard"
+        # this used to stamp on every real case regardless of the chart.
+        difficulty=(conv.get("difficulty") or {}).get("band") or "medium",
         capture_reasoning=True, source="partner_ehr",
         candidate_answers=conv["candidates"], max_labels=max(1, int(max_labels or 1)),
         grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
@@ -4373,6 +4413,9 @@ def _sample_case_view(conv: Dict[str, Any]) -> Dict[str, Any]:
         "case": public,
         "candidates": conv.get("candidates") or [],
         "judges": conv.get("judges") or {},
+        # The band the task will actually carry, and whether it was measured. An
+        # admin approving a sample must see the claim they are approving.
+        "difficulty": conv.get("difficulty") or {},
         "tests_passed": bool(conv.get("ok")),
         "failures": conv.get("failures") or [],
         "error": conv.get("error"),
@@ -4412,7 +4455,7 @@ async def prepare_upload_promotion(
             detail="Specialty not determined for this case. Set the specialty on the "
                    "upload before promoting.")
     question = ((body.question or "").strip()
-                or _default_clinical_question(ic.get("specialty")))
+                or _default_clinical_question(ic))
     conv = await _convert_and_gate(store, ic, question)
     if conv["error"]:
         raise HTTPException(status_code=conv["http_status"], detail=conv["error"])
@@ -4480,7 +4523,7 @@ async def promote_upload_all(
                                        "upload before promoting"]})
             continue
         question = ((body.question or "").strip()
-                    or _default_clinical_question(ic.get("specialty")))
+                    or _default_clinical_question(ic))
         try:
             conv = await _convert_and_gate(store, ic, question)
         except Exception as exc:  # pragma: no cover - defensive per-case isolation
@@ -4512,3 +4555,336 @@ async def promote_upload_all(
                             {"ingest_case_id": c.get("ingest_case_id"),
                              "reason": "came in on a brokering link"}
                             for c in skipped_brokering]}}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Real-case GENERATION (Real-Case Generation PRD §5) — one chart → many V4 tasks
+# ═══════════════════════════════════════════════════════════════════════════════
+def _proposal_view(p: Dict[str, Any]) -> Dict[str, Any]:
+    """The admin-facing shape of one proposed case. Carries the PUBLIC case only:
+    a proposal's ``case`` holds the internal answer key (the chart's own subsequent
+    course), and this response is rendered in a browser."""
+    out = {
+        "encounter_index": p.get("encounter_index"),
+        "encounter_span": p.get("encounter_span"),
+        "n_events": p.get("n_events"),
+        "index_event_offset": p.get("index_event_offset"),
+        "index_rationale": p.get("index_rationale"),
+        "generatable": bool(p.get("generatable")),
+        "blockers": p.get("blockers") or [],
+        "question": p.get("question"),
+        # The proposed question is MODEL OUTPUT until a physician accepts it, and
+        # the console's colour semantics turn on exactly that distinction — the UI
+        # renders anything sourced 'model' in orange, physician-authored in green.
+        "question_source": p.get("question_source"),
+        "specialty": p.get("specialty"),
+        "specialty_confidence": p.get("specialty_confidence"),
+        "taxonomy_bucket": p.get("taxonomy_bucket"),
+        "subtopic": p.get("subtopic"),
+        "case_type": p.get("case_type"),
+        "difficulty": p.get("difficulty"),
+        "curation": p.get("curation"),
+    }
+    case = p.get("case")
+    if case is not None:
+        public = asc_cases.public_case(case) or {}
+        out["case"] = public
+        out["prompt"] = asc_cases.render_case_prompt(case, p.get("question") or "")
+        out["content"] = {
+            "lab_panels": len(public.get("lab_panels") or []),
+            "notes": len(public.get("notes") or []),
+            "medications": len(public.get("medications") or []),
+            "problem_list": len(public.get("problem_list") or []),
+            "studies": len(public.get("studies") or []),
+        }
+    return out
+
+
+async def _generate_one_real_case(
+    store: Any, ic: Dict[str, Any], p: Dict[str, Any], admin: Dict[str, Any], *,
+    max_labels: int, grounding_mode: Optional[str], independent_mode: Optional[str],
+) -> Dict[str, Any]:
+    """One proposed case → a gated, fully-tagged V4 task. Returns a result dict;
+    never raises for a per-case failure, so one bad encounter cannot fail a batch.
+
+    Ordering is load-bearing and mirrors the synthetic pipeline:
+      measure difficulty → derive the failure mode → generate candidates KEYED to
+      it → hardness → case judge (fail closed) → floors → content + leakage
+      assertions → insert.
+
+    Difficulty is measured BEFORE candidates because the failure mode is derived
+    from what the frontier models actually got wrong — a trap the models did not
+    fall for is not the trap, and keying the flawed answer to an invented one is
+    what makes an A/B pair two guesses instead of a preference pair.
+    """
+    from asclepius import real_cases
+    from asclepius.constants import (
+        case_coherence_min, case_divergence_min, case_mm_necessity_min,
+    )
+    from asclepius.critic import run_case_judge, run_hardness_judge
+    from asclepius.empirical_difficulty import measure_empirical_difficulty
+
+    case = p["case"]
+    specialty = p.get("specialty")
+    # A task with no question is a case with nothing asked of it. The plan may
+    # legitimately arrive without one (``derive_questions=false`` on a live run, or
+    # a model call that failed), so fall back to the deterministic case-specific
+    # question rather than inserting a prompt that asks nothing.
+    question = p.get("question") or ""
+    if not question.strip():
+        question = real_cases._fallback_question(case, specialty)
+        p["question_source"] = "deterministic"
+    result: Dict[str, Any] = {"encounter_index": p.get("encounter_index"),
+                              "task_id": None, "failures": [], "error": None}
+    if not specialty or not asc_specialties.is_enabled(specialty):
+        result["error"] = "specialty not served"
+        return result
+
+    # ── content + leakage assertions, on the REAL path this time ──────────────
+    # All three exist and none ran here before.
+    #
+    # ``assert_temporal_split`` is the primary guarantee on a real chart: the
+    # visible window is a total temporal split, so an item after day 0 means the
+    # split failed. ``assert_no_answer_leakage`` is the secondary check, and it is
+    # given the key it was designed for — what was NEWLY ESTABLISHED after the
+    # decision point plus the treatment then started. Handing it the chart's whole
+    # subsequent state instead fires on every chronic problem the visible chart
+    # legitimately names ("ascites" carried on the list for a year is context, not
+    # the answer), which would reject four cases in five for no safety gain.
+    held_out = p.get("held_out") or {}
+    sealed_key = {
+        "established": held_out.get("newly_established_problems") or [],
+        "treatment": held_out.get("newly_started_drugs") or [],
+    }
+    try:
+        asc_cases.assert_multimodal_content(case)
+        real_cases.assert_temporal_split(case)
+        asc_ingestion.assert_no_answer_leakage(case, {"answer_key": sealed_key})
+    except Exception as exc:
+        result["error"] = f"content/leakage gate: {exc}"
+        return result
+
+    # ── §3.6 difficulty, measured ────────────────────────────────────────────
+    empirical = await measure_empirical_difficulty(case, question)
+    failure_rate = empirical.get("value") if empirical.get("measured") else None
+    difficulty = real_cases.score_difficulty(
+        case, encounters_spanned=p.get("encounters_spanned") or 1,
+        bucket_id=p.get("taxonomy_bucket"), model_failure_rate=failure_rate)
+
+    # ── §3.7 the trap, then candidates keyed to it ───────────────────────────
+    failure_mode = real_cases.derive_ai_failure_mode(
+        case, difficulty, empirical.get("failure_reasons") or [])
+    prompt = asc_cases.render_case_prompt(case, question)
+    cg = await generate_candidates_ex(prompt, specialty=specialty,
+                                      ai_failure_mode=failure_mode)
+    candidates = cg.get("candidates") or []
+    if len(candidates) < 2:
+        result["error"] = "Candidate generation unavailable (no LLM key configured?)."
+        return result
+
+    # ── the gates that must stay ─────────────────────────────────────────────
+    hj = await run_hardness_judge(prompt, candidates)
+    hardness = (None if hj.get("skipped")
+                else {"score": hj.get("hardness_score"), "axes": hj.get("hardness_axes") or []})
+    cj = await run_case_judge(case, case_source="real_deid")
+    if cj.get("skipped"):
+        result["error"] = "Case judge unavailable. The real-case gate requires it; try again."
+        return result
+    case_judge = {k: cj.get(k) for k in (
+        "coherence", "multimodal_necessity", "reasoning_divergence_potential")}
+    failures: List[str] = []
+    for key, floor in (("coherence", case_coherence_min()),
+                       ("multimodal_necessity", case_mm_necessity_min()),
+                       ("reasoning_divergence_potential", case_divergence_min())):
+        if (cj.get(key) or 0.0) < floor:
+            failures.append(f"{key} {cj.get(key)} < {floor}")
+    if failures:
+        result["failures"] = failures
+        result["judges"] = {"case_judge": case_judge, "hardness": hardness}
+        return result
+
+    # ── §4 the tag contract — a generated V4 case is tagged like a V3 one ────
+    generation = {
+        "mode": "real_case_generated",
+        "engine": ASCLEPIUS_ENGINE,
+        "case_source": "real_deid",
+        "modality": "multimodal",
+        "case_type": asc_cases.case_type_signature(case),
+        "taxonomy_bucket": p.get("taxonomy_bucket"),
+        "subtopic": p.get("subtopic"),
+        "ai_failure_mode": failure_mode,
+        "question": question,
+        "question_source": p.get("question_source"),
+        "intended_flawed_id": cg.get("intended_flawed_id"),
+        "candidate_gen_model": cg.get("model"),
+        "empirical_difficulty": {
+            **empirical,
+            "declared": difficulty["score"],
+            "structural_axes": difficulty["axes"],
+            "band": difficulty["band"],
+            "note": (f"k={empirical.get('k')} × {empirical.get('n_models')} frontier "
+                     "model(s) vs the sealed held-out outcome; band composited with "
+                     "the structural prior (Real-Case Generation PRD §3.6)"),
+        },
+        "hardness": hardness,
+        "case_judge": case_judge,
+        "config_version": ASCLEPIUS_CONFIG_VERSION,
+        "generated_at": _utcnow_iso(),
+        # real-case provenance. NOT the index DATE: the resolved calendar anchor is
+        # a re-identification key back into the partner's shifted calendar, and
+        # ``timeline`` destroys it on purpose. The relative offset carries the same
+        # provenance with none of the exposure.
+        "ingest_case_id": ic.get("ingest_case_id"),
+        "upload_id": ic.get("upload_id"),
+        "encounter_index": p.get("encounter_index"),
+        "index_event_offset": p.get("index_event_offset"),
+        "index_rationale": p.get("index_rationale"),
+        "decision_offset_days": 0,
+        "specialty_confidence": p.get("specialty_confidence"),
+    }
+    task = store.insert_task(
+        prompt=prompt, specialty=specialty,
+        # MEASURED, not hardcoded. This is the line the PRD is about.
+        difficulty=difficulty["band"],
+        capture_reasoning=True, source="partner_ehr",
+        candidate_answers=candidates, max_labels=max(1, int(max_labels or 1)),
+        grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
+        independent_mode=independent_mode or DEFAULT_INDEPENDENT_MODE,
+        case=case, generation=generation, created_by=admin["id"],
+    )
+    store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
+                    event_type="real_case_generated", actor=admin["id"],
+                    payload={"task_id": task["task_id"],
+                             "encounter_index": p.get("encounter_index"),
+                             "difficulty": difficulty["band"],
+                             "measured": difficulty["measured"],
+                             "taxonomy_bucket": p.get("taxonomy_bucket")})
+    result["task_id"] = task["task_id"]
+    result["difficulty"] = difficulty
+    result["judges"] = {"case_judge": case_judge, "hardness": hardness}
+    return result
+
+
+@router.post("/ingestion/cases/{ingest_case_id}/generate")
+async def generate_real_cases(
+    ingest_case_id: str, body: GenerateRealCasesRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """One ingested real chart → many tagged V4 tasks (Real-Case Generation PRD §5).
+
+    ``dry_run`` (the default) returns the FULL plan — every proposed case with its
+    index event, question, tags and difficulty band — and writes nothing.
+
+    A live run is EXPENSIVE and synchronous: each case costs a k-sample frontier
+    difficulty probe plus a candidate generation, a hardness judge and a case
+    judge. Generating a whole chart in one request is deliberate (the admin asked
+    for the batch), but ``encounter_indices`` exists so the per-case button costs
+    one case, and ``max_cases`` bounds the batch.
+    """
+    from asclepius import real_cases
+
+    store = _store()
+    ic = store.get_ingest_case(ingest_case_id)
+    if not ic:
+        raise HTTPException(status_code=404, detail="Ingested case not found")
+    # PRD-I §4.1 — brokering data can never become a task. Checked BEFORE anything
+    # else, and before the dry run too: the plan renders the chart and sends it to
+    # a third-party model to author questions, which is the activity the rule
+    # exists to prevent whether or not a task comes out the other end.
+    if asc_ingestion.is_brokering(store.ingest_case_effective_purpose(ingest_case_id)):
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="generate_refused_brokering", actor=admin["id"])
+        raise HTTPException(
+            status_code=409,
+            detail="This case came in on a brokering link and cannot be generated from.")
+    if ic["status"] not in ("ingested", "promoted"):
+        raise HTTPException(status_code=409,
+                            detail=f"Case is {ic['status']!r}, not 'ingested'")
+
+    hint = (body.specialty or "").strip().lower() or None
+    if hint and not asc_specialties.is_enabled(hint):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Specialty {hint!r} is not enabled in this release "
+                   f"({sorted(s for s in asc_specialties.SPECIALTY_REGISTRY if asc_specialties.is_enabled(s))}).")
+    if hint is None and not asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
+        # The upload's declared specialty is an admin decision already made.
+        hint = str(ic["specialty"]).strip().lower()
+        if not asc_specialties.is_enabled(hint):
+            hint = None
+
+    try:
+        plan = await real_cases.plan_cases(
+            ic.get("case") or {}, max_cases=body.max_cases,
+            min_gap_days=max(1, int(body.min_gap_days or 7)),
+            specialty_hint=hint, derive_questions=body.derive_questions,
+            # On a live per-case generate, author ONLY the question we are about to
+            # use. A dry run authors all of them, which is the point of the preview.
+            question_indices=(None if body.dry_run else body.encounter_indices))
+    except real_cases.RealCaseError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    wanted = set(body.encounter_indices or [])
+    selected = [p for p in plan["proposals"]
+                if p.get("generatable") and (not wanted or p["encounter_index"] in wanted)]
+
+    response: Dict[str, Any] = {
+        "ingest_case_id": ingest_case_id,
+        "upload_id": ic.get("upload_id"),
+        "patient_key": ic.get("patient_key"),
+        "encounters": plan["encounters"],
+        "generatable": plan["generatable"],
+        "selected": len(selected),
+        "specialty_hint": hint,
+        "dry_run": bool(body.dry_run),
+        "proposals": [_proposal_view(p) for p in plan["proposals"]],
+    }
+    if body.dry_run:
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="real_case_plan_previewed", actor=admin["id"],
+                        payload={"encounters": plan["encounters"],
+                                 "generatable": plan["generatable"]})
+        return response
+
+    if not selected:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "nothing_generatable",
+                    "blockers": {p["encounter_index"]: p.get("blockers") or []
+                                 for p in plan["proposals"]}})
+
+    generated, gated, failed = [], [], []
+    for p in selected:
+        try:
+            r = await _generate_one_real_case(
+                store, ic, p, admin, max_labels=body.max_labels,
+                grounding_mode=body.grounding_mode,
+                independent_mode=body.independent_mode)
+        except Exception as exc:  # pragma: no cover - per-case isolation
+            log.warning("real-case generation failed for %s encounter %s: %s",
+                        ingest_case_id, p.get("encounter_index"), exc)
+            failed.append({"encounter_index": p.get("encounter_index"), "error": str(exc)})
+            continue
+        if r.get("task_id"):
+            generated.append(r)
+        elif r.get("failures"):
+            gated.append(r)
+        else:
+            failed.append(r)
+
+    if generated:
+        # The chart is promoted once, on the first task it produced. The ingest case
+        # keeps pointing at that task so the existing V4 wall (an unreviewed case
+        # must not be served) still resolves through it.
+        store.update_ingest_case(ingest_case_id, status="promoted",
+                                 task_id=generated[0]["task_id"])
+    store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                    event_type="real_cases_generated", actor=admin["id"],
+                    payload={"generated": len(generated), "gated": len(gated),
+                             "failed": len(failed)})
+    response.update({
+        "generated": len(generated), "gated": len(gated), "failed": len(failed),
+        "task_ids": [g["task_id"] for g in generated],
+        "details": {"generated": generated, "gated": gated, "failed": failed},
+    })
+    return response

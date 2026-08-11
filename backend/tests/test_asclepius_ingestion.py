@@ -676,7 +676,13 @@ def test_promote_creates_v4_task_served_only_to_v4(monkeypatch):
     body = r.json()
     assert body["case_source"] == "real_deid" and body["modality"] == "multimodal"
     task = _store().get_task(body["task_id"])
-    assert task["source"] == "partner_ehr" and task["difficulty"] == "hard"
+    # Difficulty is a COMPOSITE now, not the literal "hard" this path used to stamp
+    # on every promoted real case (Real-Case Generation PRD §3.6). With no live
+    # frontier measurement available in the test, structure alone cannot confer
+    # 'hard' — that gate is the product claim.
+    assert task["source"] == "partner_ehr"
+    assert task["difficulty"] in ("easy", "medium")
+    assert not task["difficulty_measured"]
     assert task["capture_reasoning"] is True
     assert "CLINICAL CASE" in task["prompt"] and "Sodium" in task["prompt"]
     assert (task["generation"] or {}).get("case_judge", {}).get("ground_truth_determinable") is None
