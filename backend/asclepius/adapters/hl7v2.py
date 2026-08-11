@@ -24,6 +24,28 @@ from asclepius.timeline import parse_datetime
 
 _VALID_FLAGS = {"L", "H", "LL", "HH"}
 
+# HL7 v2 escape sequences (§2.7). A real lab ships erythrocyte counts as
+# ``10\S\12/L`` and leukocytes as ``x 10\S\3/l`` — the ``\S\`` is the COMPONENT
+# separator escaped, not part of the unit. Undecoded, every CBC in the record
+# carried a corrupt unit string that reached the physician's prompt and the buyer
+# export verbatim. Decoded per the standard: \F\ field, \S\ component,
+# \T\ subcomponent, \R\ repeat, \E\ escape, plus the common formatting escapes.
+_HL7_ESCAPES = (
+    ("\\F\\", "|"), ("\\S\\", "^"), ("\\T\\", "&"), ("\\R\\", "~"),
+    ("\\X0D\\", "\r"), ("\\X0A\\", "\n"), ("\\.br\\", "\n"),
+)
+
+
+def unescape(value: str) -> str:
+    """Decode HL7 v2 escape sequences in one field/component value. ``\\E\\`` is
+    applied LAST so a decoded backslash is never re-read as another escape."""
+    s = str(value or "")
+    if "\\" not in s:
+        return s
+    for token, repl in _HL7_ESCAPES:
+        s = s.replace(token, repl)
+    return s.replace("\\E\\", "\\")
+
 
 class Hl7ParseError(ValueError):
     """Not a parseable HL7 v2 message — the bundle entry should quarantine."""
@@ -35,7 +57,7 @@ def _fields(segment: str) -> List[str]:
 
 def _comp(field: str, idx: int = 0) -> str:
     parts = (field or "").split("^")
-    return parts[idx].strip() if idx < len(parts) else ""
+    return unescape(parts[idx].strip()) if idx < len(parts) else ""
 
 
 def _flag(raw: str) -> str:
@@ -126,7 +148,7 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
 
         elif sid == "OBX" and len(f) > 5:
             analyte = _comp(f[3], 1) or _comp(f[3])
-            value = _num(f[5])
+            value = _num(unescape(f[5]))
             if not analyte or value is None:
                 continue
             result: Dict[str, Any] = {"analyte": analyte, "value": value}
@@ -138,7 +160,7 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
                     result["loinc"] = code
             if len(f) > 6 and f[6].strip():
                 result["unit"] = _comp(f[6])
-            lo, hi = _ref_range(f[7] if len(f) > 7 else "")
+            lo, hi = _ref_range(unescape(f[7]) if len(f) > 7 else "")
             if lo is not None:
                 result["ref_low"] = lo
             if hi is not None:
@@ -150,7 +172,7 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
             current_panel["results"].append(result)
 
         elif sid == "NTE" and len(f) > 3 and f[3].strip():
-            note_lines.append(f[3].strip())
+            note_lines.append(unescape(f[3].strip()))
 
     if note_lines:
         frag["notes"].append({

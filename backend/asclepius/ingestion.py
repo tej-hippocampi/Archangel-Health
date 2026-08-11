@@ -1135,6 +1135,10 @@ def _merge_fragments(parts: List[Dict[str, Any]]) -> Dict[str, Any]:
         if p.get("_case_provenance") and case_provenance is None:
             case_provenance = p["_case_provenance"]
         synthetic_declared = synthetic_declared or bool(p.get("_synthetic_declared"))
+        # Adapter warnings (e.g. "no collection-date column matched") ride to the
+        # ingest report so the operator sees the parser gap instead of a green row.
+        for w in p.get("_adapter_warnings") or []:
+            out.setdefault("_adapter_warnings", []).append(w)
         # the latest vital-sign date across fragments — the timing marker for the
         # merged (flat) vitals set, used by the V5 temporal gate.
         va = p.get("_vitals_at")
@@ -1236,17 +1240,21 @@ def _raise_review(reasons: List[Dict[str, Any]], reason: str, severity: str,
 
 
 def _upload_status_from_cases(ingested: int, quarantined: int, needs_review: int) -> str:
-    """Upload status is the WORST state among its cases, with needs_review ranked
-    ABOVE ingested (Audit PRD §21.3). A partner upload where one case needs review
-    must not render as a clean green row — an unreviewed blocking flag that looks
-    finished is exactly the failure this whole spec is about."""
+    """Upload status is the WORST state among its cases (Audit PRD §21.3;
+    Real-Case Generation PRD §2.3).
+
+    ``quarantined`` outranks both ``needs_review`` and ``ingested``. This used to
+    rank ``ingested`` above ``quarantined``, so the real 3-fragment record — one
+    labs-only case ingested, two cases carrying the ENTIRE narrative quarantined —
+    rendered as a clean green row. An operator seeing green over a 2-of-3 failure
+    is how that stayed hidden for a full record. Report the worst, not the best."""
     if ingested == 0 and quarantined == 0 and needs_review == 0:
         return "rejected"
+    if quarantined:
+        return "quarantined"
     if needs_review:
         return "needs_review"
-    if ingested:
-        return "ingested"
-    return "quarantined"
+    return "ingested"
 
 
 def cf_case_has_asset(study: Dict[str, Any]) -> bool:
@@ -1493,19 +1501,105 @@ def _sealed_leaf_strings(obj: Any) -> List[str]:
 
 
 def _patient_key_of(fragment: Dict[str, Any], entry_name: str, manifest: Dict[str, Any]) -> str:
+    return _patient_key_and_source(fragment, entry_name, manifest)[0]
+
+
+def _patient_key_and_source(
+    fragment: Dict[str, Any], entry_name: str, manifest: Dict[str, Any],
+) -> Tuple[str, str]:
+    """``(grouping_key, how_we_got_it)``. The source matters because reconciling
+    keys across formats (``unify_patient_keys``) is only safe when we know which
+    system minted each one."""
     # The manifest is the AUTHORITATIVE grouping hint (PRD §5): when the partner
     # declares a patient_key, every entry in the bundle belongs to that one case
     # (FHIR ids / CSV keys are per-system and would otherwise split the case).
     if manifest.get("patient_key"):
-        return str(manifest["patient_key"])
+        return str(manifest["patient_key"]), "manifest"
     keys = fragment.get("_patient_keys") or []
     if keys:
-        return str(keys[0])
+        return str(keys[0]), "adapter"
     # filename convention: "<patient>__anything.ext"
     base = os.path.basename(entry_name)
     if "__" in base:
-        return base.split("__", 1)[0]
-    return "default"
+        return base.split("__", 1)[0], "filename"
+    return "default", "default"
+
+
+# Which minting system wins when one physical patient carries several keys
+# (Real-Case Generation PRD §2.3). Most authoritative first.
+_KEY_SOURCE_PRECEDENCE = ("manifest", "fhir_r4", "hl7v2", "lab_csv", "note_text",
+                          "filename", "default")
+
+
+def unify_patient_keys(
+    per_patient: Dict[str, List[Dict[str, Any]]],
+    key_sources: Dict[str, str],
+    *, manifest: Optional[Dict[str, Any]] = None,
+) -> Tuple[Dict[str, List[Dict[str, Any]]], Optional[Dict[str, Any]]]:
+    """One physical patient is one case, regardless of how many formats the
+    hospital sent. Returns ``(per_patient, unification_report_or_None)``.
+
+    Without this, a FHIR bundle and its own HL7 export and its own lab CSV become
+    THREE ingest_cases from one chart — and if any of them quarantines, part of the
+    chart is silently lost. Measured on the real record: the FHIR fragment (164
+    notes, 159 meds, 10 problems — the entire narrative) and the notes+CSV fragment
+    both quarantined while the labs-only HL7 fragment ingested clean.
+
+    Precedence: ``manifest.patient_key`` > FHIR ``Patient.id`` > HL7 PID-3 hash >
+    CSV ``patient_key`` > filename convention > ``default``.
+
+    SAFETY — this only fires when the upload describes ONE patient. If any single
+    source minted two or more distinct identity keys (two FHIR Patient.ids, two
+    filename prefixes…), the bundle is multi-patient and the grouping is left
+    exactly as it was: merging two real patients into one case is far worse than
+    splitting one patient into two. A partner who genuinely needs a cross-format
+    crosswalk for a multi-patient bundle declares ``manifest.patient_key`` per
+    upload, which short-circuits this entirely.
+    """
+    if (manifest or {}).get("patient_key"):
+        return per_patient, None            # already one key by declaration
+    if len(per_patient) <= 1:
+        return per_patient, None
+
+    # "default" is the ABSENCE of an identity, not an identity — it never blocks
+    # unification and it never wins.
+    identity_by_source: Dict[str, set] = {}
+    for key in per_patient:
+        if key == "default":
+            continue
+        identity_by_source.setdefault(key_sources.get(key, "default"), set()).add(key)
+
+    if not identity_by_source:
+        return per_patient, None            # nothing but 'default' — nothing to do
+    for source, keys in identity_by_source.items():
+        if len(keys) > 1:
+            return per_patient, {
+                "unified": False,
+                "reason": f"{len(keys)} distinct patient keys from {source} — treating "
+                          "this as a multi-patient bundle rather than merging charts",
+                "sources": {s: len(k) for s, k in identity_by_source.items()},
+            }
+
+    winner_source = next(
+        (s for s in _KEY_SOURCE_PRECEDENCE if s in identity_by_source), None)
+    if winner_source is None:               # pragma: no cover - defensive
+        return per_patient, None
+    winner = sorted(identity_by_source[winner_source])[0]
+
+    merged: List[Dict[str, Any]] = []
+    for key in sorted(per_patient, key=lambda k: (k != winner, k)):
+        merged.extend(per_patient[key])
+    report = {
+        "unified": True,
+        "into_source": winner_source,
+        "into": opaque_patient_key(winner),
+        # Opaque forms only: a raw key may be an MRN and never passes the case-body
+        # PHI scan (see ``opaque_patient_key``).
+        "merged": [opaque_patient_key(k) for k in per_patient if k != winner],
+        "sources": {s: sorted(opaque_patient_key(k) for k in ks)
+                    for s, ks in identity_by_source.items()},
+    }
+    return {winner: merged}, report
 
 
 def opaque_patient_key(raw_key: str) -> str:
@@ -1628,8 +1722,11 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                  or (store.get_upload_link(upload["link_id"]) or {}).get("specialty")
                  or "general")
 
-    # Adapter pass: entry → fragments, grouped per patient.
+    # Adapter pass: entry → fragments, grouped per patient. ``key_sources`` records
+    # which minting system produced each grouping key so ``unify_patient_keys`` can
+    # reconcile one patient across formats without ever merging two real patients.
     per_patient: Dict[str, List[Dict[str, Any]]] = {}
+    key_sources: Dict[str, str] = {}
     file_outcomes: List[Dict[str, Any]] = []
     imaging_rejected = 0
     parsed_any = False
@@ -1648,6 +1745,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             d_outcomes = [{"name": e.get("name"), "kind": "dicom",
                            "outcome": f"rejected_unreadable: {exc}"} for e in dicom_entries]
         for pk, frags in d_per_patient.items():
+            key_sources.setdefault(pk, "dicom")
             per_patient.setdefault(pk, []).extend(frags)
         file_outcomes.extend(d_outcomes)
         parsed_any = parsed_any or d_produced
@@ -1667,7 +1765,12 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
         try:
             frag = cf.FORMATS[kind](e["data"], specialty=specialty, manifest=entry_manifest)
             parsed_any = True
-            pk = _patient_key_of(frag, name, manifest)
+            pk, how = _patient_key_and_source(frag, name, manifest)
+            # An adapter-minted key belongs to the FORMAT that minted it — that is
+            # what makes "two distinct FHIR Patient.ids" (multi-patient, do not
+            # merge) distinguishable from "a FHIR id and its own HL7 hash" (one
+            # patient, two systems).
+            key_sources.setdefault(pk, kind if how == "adapter" else how)
             per_patient.setdefault(pk, []).append(frag)
             file_outcomes.append({"name": name, "kind": kind, "outcome": "parsed",
                                   "patient_key": opaque_patient_key(pk)})
@@ -1690,11 +1793,26 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                          retain_raw=True)
         return _fail("no parseable clinical content in the bundle", retain_raw=True)
 
+    # Reconcile one physical patient across formats BEFORE the fragments merge
+    # (Real-Case Generation PRD §2.3). Runs here rather than inside the adapter
+    # pass because it needs the whole upload in view to tell a one-patient
+    # multi-format export from a genuinely multi-patient bundle.
+    per_patient, unify_report = unify_patient_keys(per_patient, key_sources,
+                                                   manifest=manifest)
+    if unify_report:
+        store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                        event_type="patient_keys_unified", payload=unify_report)
+
     # Per patient: assemble → normalize → verify → hard guard → land or quarantine.
     ingested, quarantined, needs_review = 0, 0, 0
     for pk, parts in per_patient.items():
         merged = _merge_fragments(parts)
         report: Dict[str, Any] = {"patient_key": opaque_patient_key(pk)}
+        if unify_report:
+            report["patient_key_unification"] = unify_report
+        adapter_warnings = list(merged.get("_adapter_warnings") or [])
+        if adapter_warnings:
+            report["adapter_warnings"] = adapter_warnings
         # Answer-adjacent + author metadata pulled OUT before assembling the body —
         # never merged into a model-visible field (Buyer Response PRD §2 A4, §3 B1).
         sealed = merged.get("_sealed_ground_truth")
@@ -1786,6 +1904,12 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                     _raise_review(review_reasons, "deid_partner_flag_only", "advisory",
                                   f"study '{st.get('label') or st.get('modality')}': "
                                   "OCR screening unavailable; cleared on DICOM tags alone")
+            for w in adapter_warnings:
+                # ADVISORY, not blocking: the case is clinically intact, but a
+                # parser gap silently degraded it (a lost timeline, a dropped
+                # reference range). Holding the case would rebuild the completeness
+                # bug; saying nothing is how the green row happened.
+                _raise_review(review_reasons, "adapter_parse_gap", "advisory", w)
             if comp["unresolved"]:
                 _raise_review(review_reasons, "completeness_unverified", "advisory",
                               "could not resolve declared modalities against delivered "
@@ -1878,7 +2002,11 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     if status == "needs_review":
         reason = "one or more cases held for admin review"
     elif status == "quarantined":
-        reason = "all cases quarantined — review findings"
+        # Partial-failure wording matters: "all cases quarantined" over a 2-of-3
+        # failure reads as a different (and smaller) problem than it is.
+        reason = ("all cases quarantined — review findings" if ingested == 0 and needs_review == 0
+                  else f"{quarantined} of {quarantined + ingested + needs_review} cases "
+                       "quarantined — review findings")
     elif status == "rejected":
         reason = "nothing ingested"
     store.update_ingest_upload(upload_id, status=status, reason=reason, files_json=file_outcomes)

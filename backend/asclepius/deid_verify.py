@@ -31,21 +31,15 @@ import os
 import re
 from typing import Any, Dict, List, Tuple
 
-from asclepius.validation import residual_identifiers
+from asclepius.validation import PHI_SPAN_PATTERNS, residual_identifiers
 
 log = logging.getLogger("asclepius.deid_verify")
 
-# Baseline span-finding patterns (mirrors validation._PHI_PATTERNS but returns
-# SPANS so quarantine can do a targeted scrub). Kinds match the scanner's names.
-_SPAN_PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
-    ("email", re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
-    ("phone", re.compile(r"(?<!\d)(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)")),
-    ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b")),
-    ("mrn", re.compile(r"\b(?:MRN|MBI|Medical Record(?:\s*Number)?)\s*[:#]?\s*[A-Za-z0-9\-]+\b", re.I)),
-    ("date", re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b")),
-    ("date", re.compile(r"\b\d{4}-\d{2}-\d{2}\b")),
-    ("long_number", re.compile(r"\b\d{7,}\b")),
-]
+# Baseline span-finding patterns. IMPORTED, not restated: these used to be a
+# hand-kept copy of ``validation._PHI_PATTERNS``, and the copies drifted — a
+# tightened MRN rule in the scanner left the verifier still flagging (and
+# quarantining) what the guard had stopped rejecting.
+_SPAN_PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = list(PHI_SPAN_PATTERNS)
 
 
 def _mask(s: str) -> str:

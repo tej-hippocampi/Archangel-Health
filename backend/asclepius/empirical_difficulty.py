@@ -164,6 +164,7 @@ async def measure_empirical_difficulty(
     models_with_draws = 0
     consistent_models = 0     # models whose k draws all agreed (all fail or all pass)
     mean_rates: List[float] = []
+    failure_reasons: List[Dict[str, Any]] = []
     for model in models:
         pm = per_provider.setdefault(model, {
             "n": 0, "failures": 0, "rate": None, "failed_any": False,
@@ -188,6 +189,15 @@ async def measure_empirical_difficulty(
             if failed:
                 n_failures += 1
                 pm["failures"] += 1
+                # WHY it failed, kept alongside the rate. The rate alone says a
+                # case is hard; this says what the trap is, which is what keys the
+                # flawed candidate answer to a real error instead of an invented
+                # one (Real-Case Generation PRD §3.7). Judge prose, so it is
+                # trimmed and capped rather than stored wholesale.
+                reason = str(verdict.get("explanation")
+                             or verdict.get("failure_reason") or "").strip()
+                if reason and len(failure_reasons) < 20:
+                    failure_reasons.append({"model": model, "failure_reason": reason[:600]})
         if pm["n"]:
             pm["rate"] = round(pm["failures"] / pm["n"], 3)
             pm["failed_any"] = any(draws)
@@ -203,7 +213,7 @@ async def measure_empirical_difficulty(
         return {
             "value": None, "measured": False, "both_axes": True,
             "n_attempts": 0, "n_failures": 0, "per_provider": per_provider,
-            "floor": floor, "k": per_model,
+            "failure_reasons": [], "floor": floor, "k": per_model,
             "note": "no live frontier measurement available (no key / unreachable); "
                     "kept declared difficulty (PRD §9)",
         }
@@ -222,7 +232,7 @@ async def measure_empirical_difficulty(
         "measured": True, "both_axes": True, "k": per_model,
         "n_attempts": n_attempts, "n_failures": n_failures,
         "n_models": models_with_draws,
-        "per_provider": per_provider, "floor": floor,
+        "per_provider": per_provider, "failure_reasons": failure_reasons, "floor": floor,
         # The gate uses the LOWER bound, not the point estimate: pricing a case as
         # frontier-hard off a point estimate whose interval runs low is a claim we
         # cannot support in diligence (Buyer Response PRD §10 G2).
