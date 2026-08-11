@@ -29,15 +29,22 @@ jobs:
   backend:
     name: Backend pytest
     runs-on: ubuntu-latest
-    # The suite is ~3,360 tests and ~13 min on a warm runner. The previous
-    # 20-minute cap was set when it was ~2,400 tests, and a run on main hit it —
-    # which reads in the UI as "the backend tests failed" when what actually
-    # happened is the job was killed mid-run at 19m38s. A cancelled job is worse
-    # than a slow one: it tells you nothing. 30 gives real headroom for a cold
-    # cache or a noisy runner while still catching a genuine hang.
+    # 20 minutes stopped being a ceiling and became a coin toss. The suite is
+    # ~3,350 tests and takes 13-20 minutes on a GitHub runner depending on how
+    # noisy the runner is; the push-to-main run for f684623 finished its 19m38s
+    # of testing and was killed at 20m16s with everything passing.
     #
-    # If this needs raising again, split the job (pytest-xdist, or one job per
-    # top-level area) rather than climbing toward the 6-hour ceiling.
+    # A timeout-killed job is reported as CANCELLED, not FAILED, and it writes
+    # no summary line — so the only artifact is a grey X on main and no
+    # indication of which test broke, because none did. That failure mode is
+    # worse than a slow build: it looks exactly like a real regression and
+    # costs someone an afternoon proving it isn't one.
+    #
+    # 30 is headroom, not a target. If the suite genuinely approaches it, the
+    # answer is to split this job (pytest-xdist or a matrix over test files),
+    # not to keep raising the number — but that is a real change, and it wants
+    # care around the websocket tests noted below, which get flakier under
+    # parallelism rather than faster.
     timeout-minutes: 30
     defaults:
       run:

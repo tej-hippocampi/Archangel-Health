@@ -72,8 +72,11 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
     <div className="route">
       <section className="section">
         <p className="crumb chrome reveal"><span className="root">Archangel</span><span className="sep">/</span><span className="here">04 · Physicians</span></p>
-        <div className="reveal">
+        <div className="route-header reveal">
           <h2>Your expertise will power the future of medicine.</h2>
+          <button type="button" className="btn btn-lime route-header-cta" onClick={actions.openPhysicianOnboard}>
+            Become a contributor
+          </button>
         </div>
 
         {/* Two ways to earn — annotate & refer, side by side, equal weight.
@@ -118,14 +121,6 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
               <p>{f.line}</p>
             </div>
           ))}
-        </div>
-
-        {/* Signup comes only after the offer. */}
-        <div className="route-cta reveal">
-          <button type="button" className="btn btn-primary" onClick={actions.openPhysicianOnboard}>
-            Become a contributor
-          </button>
-          <p className="cta-note">Onboarding takes a few minutes. Your personal link is created instantly. Refer colleagues from your dashboard once you're in.</p>
         </div>
       </section>
     </div>

@@ -550,6 +550,22 @@ export const routeStyles = `
 
 /* ============ /physicians ============ */
 
+.arch-landing .route-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+/* The page's only contributor CTA, so it carries the weight: bigger and broader
+   than a stock .btn, and lime rather than outlined. */
+.arch-landing .route-header-cta {
+  flex: none;
+  white-space: nowrap;
+  font-size: 1.05rem;
+  padding: 0.95em 2.2em;
+}
+
 /* Pay band — lede left, pay figure right. No card: "scale not boldness". */
 /* The band stacks: the lede, then the two ways to earn side by side below. */
 .arch-landing .pay-band {
@@ -757,6 +773,7 @@ export const routeStyles = `
   .arch-landing .rank-row { flex-wrap: wrap; }
   .arch-landing .rank-meta { margin-left: 0; width: 100%; justify-content: flex-start; }
   .arch-landing .rank-score { order: 2; margin-left: auto; }
+  .arch-landing .route-header { flex-direction: column; align-items: flex-start; }
 }
 
 /* ============ reduced motion ============ */
