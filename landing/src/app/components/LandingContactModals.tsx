@@ -34,14 +34,15 @@ type LeadCopy = {
 const COPY: Record<LeadKind, LeadCopy> = {
   request_data: {
     heading: "Request data",
-    subhead: "Tell us what you're building and we'll send a scoped sample.",
+    subhead:
+      "Tell us what you're building. We'll send our data book: the full menu of data we offer and what we can build for you.",
     emailLabel: "Work email",
     emailPlaceholder: "you@company.com",
     messageLabel: "What are you building, and what do you need?",
     messagePlaceholder:
       "e.g., improving our medical model's reasoning on hard cases, targeting HealthBench Hard",
     submit: "Request data →",
-    success: "Got it. We'll reply within 24h with a scoped sample.",
+    success: "Got it. We'll reply within 24h with our data book, the full menu of what we can offer.",
   },
   provide_data: {
     heading: "Provide de-identified data",
