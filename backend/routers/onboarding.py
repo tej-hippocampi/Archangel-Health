@@ -713,6 +713,10 @@ def _provision_asclepius_user(
             ) or None
         elif isinstance(first, str):
             board_cert = first
+    # Optional free-text niche / case-type description from onboarding. Stored
+    # verbatim (unlike primary_specialty, which is normalized to the registry);
+    # descriptive metadata only, never a scoring input.
+    specialty_niche = (creds.get("specialtyNiche") or "").strip() or None
     years = creds.get("yearsInActivePractice")
     try:
         years = int(years) if years not in (None, "") else None
@@ -727,6 +731,7 @@ def _provision_asclepius_user(
         org_name=org_name or None,
         clinical_role=clinical_role or None,
         specialty=primary_specialty,
+        specialty_niche=specialty_niche,
         board_cert=board_cert,
         # B-5.1: store the NORMALIZED NPI. Every lookup uses the cleaned form
         # (get_cached_npi_fetch, find_users_by_npi), so a value posted as

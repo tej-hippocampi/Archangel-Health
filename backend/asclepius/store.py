@@ -272,6 +272,7 @@ class AsclepiusStore:
                     password_hash   TEXT NOT NULL,
                     role            TEXT NOT NULL DEFAULT 'evaluator',
                     specialty       TEXT,
+                    specialty_niche TEXT,
                     board_cert      TEXT,
                     years_experience INTEGER,
                     organization    TEXT,
@@ -956,6 +957,10 @@ class AsclepiusStore:
                 ("org_name", "TEXT"),
                 ("clinical_role", "TEXT"),
                 ("npi", "TEXT"),
+                # Optional free-text specialty niche / case-type description
+                # captured in onboarding. Descriptive metadata only (same
+                # treatment as subspecialties), never a tiering/scoring input.
+                ("specialty_niche", "TEXT"),
                 ("credentials_json", "TEXT"),
                 ("attestations_json", "TEXT"),
                 # Mock/sandbox contributor (internal demo tool): submissions are
@@ -1977,6 +1982,7 @@ class AsclepiusStore:
         org_name: Optional[str] = None,
         clinical_role: Optional[str] = None,
         specialty: Optional[str] = None,
+        specialty_niche: Optional[str] = None,
         board_cert: Optional[str] = None,
         npi: Optional[str] = None,
         years_experience: Optional[int] = None,
@@ -1998,7 +2004,8 @@ class AsclepiusStore:
                 conn.execute(
                     """
                     UPDATE users SET
-                        password_hash = ?, role = ?, specialty = ?, board_cert = ?,
+                        password_hash = ?, role = ?, specialty = ?, specialty_niche = ?,
+                        board_cert = ?,
                         years_experience = ?, active = 1, full_name = ?, org_name = ?,
                         -- Keep the canonical organization in sync with the
                         -- health-system name, but never wipe a previously-set org
@@ -2008,7 +2015,7 @@ class AsclepiusStore:
                     WHERE email = ?
                     """,
                     (
-                        hash_password(password), role, specialty, board_cert,
+                        hash_password(password), role, specialty, specialty_niche, board_cert,
                         years_experience, full_name, org_name, org_name, clinical_role, npi,
                         creds_json, atts_json, email,
                     ),
@@ -2018,16 +2025,16 @@ class AsclepiusStore:
             id_hashed = hashlib.sha256(uid.encode("utf-8")).hexdigest()[:16]
             conn.execute(
                 """
-                INSERT INTO users (id, email, password_hash, role, specialty, board_cert,
-                                   years_experience, organization, id_hashed, active, full_name,
-                                   org_name, clinical_role, npi, credentials_json,
+                INSERT INTO users (id, email, password_hash, role, specialty, specialty_niche,
+                                   board_cert, years_experience, organization, id_hashed, active,
+                                   full_name, org_name, clinical_role, npi, credentials_json,
                                    attestations_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    uid, email, hash_password(password), role, specialty, board_cert,
-                    years_experience, org_name, id_hashed, full_name, org_name, clinical_role,
-                    npi, creds_json, atts_json, _utcnow_iso(),
+                    uid, email, hash_password(password), role, specialty, specialty_niche,
+                    board_cert, years_experience, org_name, id_hashed, full_name, org_name,
+                    clinical_role, npi, creds_json, atts_json, _utcnow_iso(),
                 ),
             )
         return self.get_user_by_id(uid)  # type: ignore[return-value]
