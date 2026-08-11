@@ -592,6 +592,27 @@ def test_a_named_referrer_is_the_subject_line_and_the_first_sentence():
     assert "follow up" not in plain
 
 
+def test_free_text_on_a_referral_is_bounded_and_collapsed():
+    """A name and a one-line note — not an upload channel. Bounded in the shared
+    module rather than on each router's model, so a third surface cannot ship
+    without the cap, and collapsed so a name with a newline in it cannot break
+    the row it renders in."""
+    referrer = _physician()
+    r = client.post("/api/asclepius/referrals",
+                    json={"email": _email(), "name": "Dr " + "X" * 500,
+                          "note": "N" * 5000},
+                    headers=A.headers_for(referrer))
+    assert r.status_code == 200, r.text
+
+    stored = _store().list_referrals_by_referrer(referrer["id"])[0]
+    assert len(stored["invitee_name"]) == 120
+    assert len(stored["note"]) == 500
+    assert _funnel(referrer)["referrals"][0]["invitee_display"] == stored["invitee_name"]
+
+    assert asc_referrals._clip("  Dr   Jane\n Chen  ", 120) == "Dr Jane Chen"
+    assert asc_referrals._clip("   ", 120) is None
+
+
 def test_a_crlf_in_a_display_name_cannot_reach_a_mime_header():
     """SendGrid's JSON transport is immune; the SMTP fallback assigns the string
     straight into a header, where a CR/LF is injection. "Only trusted people can

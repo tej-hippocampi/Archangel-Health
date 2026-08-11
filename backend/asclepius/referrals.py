@@ -311,6 +311,17 @@ OUTCOME_ALREADY_INVITED = "already_invited"
 OUTCOME_MEMBER = "member"
 
 
+#: Free-text bounds. A physician's name and a one-line "knows her from Stanford
+#: ortho" — not an essay, and not an upload channel.
+_NAME_MAX = 120
+_NOTE_MAX = 500
+
+
+def _clip(value: Optional[str], limit: int) -> Optional[str]:
+    text = " ".join((value or "").split())
+    return text[:limit] or None
+
+
 class ReferralRefused(Exception):
     """This invitation cannot be recorded at all. ``code`` is for the event log,
     ``detail`` is what the physician reads, ``status`` is the HTTP shape.
@@ -369,8 +380,13 @@ def create_referral(
             "Your referral link could not be created. Try again in a moment.",
             status=409)
 
-    name = (name or "").strip() or None
-    note = (note or "").strip() or None
+    # Bounded here rather than on each router's pydantic model, so both surfaces
+    # inherit it and a third one cannot ship without it. Neither field is
+    # validated beyond this — a name is a name — but an unbounded string on an
+    # endpoint a physician may hit 20 times a day is free storage for anyone who
+    # notices, and the display name also has to fit a table cell.
+    name = _clip(name, _NAME_MAX)
+    note = _clip(note, _NOTE_MAX)
 
     if store.has_referral_for_email(referrer["id"], email):
         existing = _latest_for(store, referrer["id"], email)
