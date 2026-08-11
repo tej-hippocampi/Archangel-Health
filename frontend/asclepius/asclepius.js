@@ -51,7 +51,7 @@
     adminTab: 'physicians',   // physicians | health | export | metrics
     pipelineFocus: null,      // upload_id deep-linked from a Health Systems bucket row
     adminSub: {               // active sub-tab per section
-      physicians: 'roster',   //   roster | verify | tasks | qa
+      physicians: 'roster',   //   roster | signups | verify | tasks | qa
       health: 'systems',      //   systems | pipeline
       export: 'bycase',       //   bycase | buyers | history
     },
@@ -6963,6 +6963,14 @@
         state.pipelineFocus = (entry && (entry.upload_id || entry.uploadId)) || null;
         renderAdminView();
       },
+      // Move the Physicians sub-tab strip from inside a section (the roster's
+      // "N mid-onboarding" notice links to Signups). The section owns its views;
+      // the shell owns which tab looks selected, so the jump has to come back
+      // through here or the two disagree.
+      openPhysiciansSub: (sub) => {
+        state.adminTab = 'physicians'; state.adminSub.physicians = sub;
+        renderAdminView();
+      },
     };
   }
 
@@ -7021,7 +7029,12 @@
   function renderAdminPhysiciansSection(body) {
     clear(body);
     body.appendChild(adminSubnav('physicians', [
-      ['roster', 'Roster'], ['verify', 'Verification'],
+      // Signups sits FIRST after the roster because it is the front of the
+      // funnel: a physician mid-wizard has no account yet, so they appear on
+      // none of the other three. Before this tab existed they appeared on no
+      // screen at all — the console showed one physician while the founder's
+      // inbox filled with signup notifications for people it could not name.
+      ['roster', 'Roster'], ['signups', 'Signups'], ['verify', 'Verification'],
       ['tasks', 'Tasks'], ['qa', 'QA'],
     ]));
     const inner = h('div', {});
@@ -7031,7 +7044,7 @@
     else if (sub === 'qa') renderAdminQA(inner);
     else if (window.AdminPhysiciansSection) {
       window.AdminPhysiciansSection.render(inner, adminSectionCtx(),
-        sub === 'verify' ? 'verify' : 'roster');
+        (sub === 'verify' || sub === 'signups') ? sub : 'roster');
     } else sectionModuleMissing(inner, 'The Physicians section');
   }
 

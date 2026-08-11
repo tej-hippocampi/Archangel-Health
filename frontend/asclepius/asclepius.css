@@ -2995,6 +2995,29 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-phys-chip.asc-chip-pending { border-color: #ec9440; }
 .asc-phys-chip.asc-chip-pending .asc-chip-count { color: #ec9440; }
 
+/* Signups: the stage badge is a SENTENCE ("Signed attestations — never pressed
+   finish"), not a one-word status, and .asc-badge capitalize-s every word — the
+   same defect that once Title-Cased the plain-language axis labels. Reset it
+   here rather than shortening the copy: the sentence IS the value of the
+   column, because it tells the operator which nudge this physician needs. */
+.asc-stage-badge { text-transform: none; white-space: normal; text-align: left; }
+
+/* Signups: the same chip shape reading as a STAT, not a filter. Default cursor
+   because nothing happens on click — a pointer on an inert chip is a promise
+   the surface does not keep. */
+.asc-phys-chip.asc-chip-stat { cursor: default; }
+.asc-phys-chip.asc-chip-stat:hover { border-color: #d7dad6; }
+.asc-phys-chip.asc-chip-stat .asc-chip-count { font-weight: 600; }
+.asc-phys-chip.asc-chip-stat.good .asc-chip-count { color: var(--green); }
+.asc-phys-chip.asc-chip-stat.warn .asc-chip-count { color: #ec9440; }
+.asc-phys-chip.asc-chip-stat.bad .asc-chip-count { color: var(--pink); }
+
+/* Signups: the roster's "N mid-onboarding" notice. Amber-washed, because an
+   empty roster beside a full inbox is the thing this card exists to explain. */
+.asc-signup-notice { border-color: rgba(236, 148, 64, 0.45);
+  background: rgba(236, 148, 64, 0.06); }
+.asc-signup-notice .asc-btn { margin-top: 10px; }
+
 /* Physicians: health-system grouping */
 .asc-phys-group summary { cursor: pointer; padding: 10px 14px; font-size: 14px;
   color: #1a1b1a; list-style: none; display: flex; align-items: center; gap: 10px; }

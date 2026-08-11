@@ -14,13 +14,17 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import re
 import secrets
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, EmailStr
+
+from onboarding_emails import build_asclepius_invite_email
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
@@ -733,6 +737,379 @@ async def physician_profile(
                           "created_at": s.get("created_at")} for s in submissions],
         "review_history": reviews,
     }
+
+
+# ═══ Signups in flight — the half of the funnel that had no screen ═══════════
+#
+# The roster above answers "who has an account". Nothing answered "who is
+# TRYING to get one", and those two questions are answered by two different
+# databases:
+#
+#   tenant store (team.db)      a physician clicks "Become a contributor" ->
+#                               health_systems row (+ asclepius_people for the
+#                               clinicians a director invites). Every wizard
+#                               step writes here.
+#   asclepius store             they press the LAST button (/asclepius/finish)
+#   (asclepius.db)              -> users row -> roster + verification queue.
+#
+# Only the second one had an admin surface. So a physician who requested a link
+# on Monday and stalled on the credentials step was, to this console, a person
+# who did not exist — while ``/api/onboarding/self-serve`` had already emailed
+# the founder "[Onboarding] Physician contributor started" about them. The
+# operator was being told about people the operator could not see, could not
+# count, and could not chase; the roster read "1 physician" beside an inbox
+# holding dozens. An empty screen is not the same claim as "nobody signed up",
+# and this endpoint is what stops the console from making the first look like
+# the second.
+#
+# These are NOT approvable and are deliberately kept out of the roster and the
+# verification queue: nobody here has submitted a complete credential record, so
+# folding them in would mean approving physicians on partial evidence — the one
+# thing the verification gate exists to prevent. They are a chase list.
+
+#: Wizard progress, in order. The last one is the painful case: everything was
+#: submitted and they simply never pressed the final button, so a single
+#: reminder converts them into an approvable signup.
+_SIGNUP_STAGES: List[tuple] = [
+    ("link_sent", "Link sent — not opened"),
+    ("identity", "Entered their name"),
+    ("email_verified", "Verified their email"),
+    ("institution", "Added practice details"),
+    ("credentials", "Submitted credentials"),
+    ("attestations", "Signed attestations — never pressed finish"),
+]
+_SIGNUP_STAGE_WORDS = dict(_SIGNUP_STAGES)
+_SIGNUP_STAGE_ORDER = [s for s, _ in _SIGNUP_STAGES]
+
+#: Days without a wizard write before a signup is "stalled". Three, because the
+#: link lives for a week or two — flagging on day one would mark every normal
+#: signup that got interrupted by a clinic day.
+_SIGNUP_STALLED_DAYS = 3
+
+
+def _team_store(request: Request) -> Any:
+    ts = getattr(request.app.state, "team_store", None)
+    if ts is None:  # pragma: no cover — the app always sets it at boot
+        raise HTTPException(status_code=503, detail="The onboarding store is unavailable.")
+    return ts
+
+
+def _landing_base() -> str:
+    """Must match ``routers/onboarding.py``'s ``_landing_base`` exactly.
+
+    The wizard is served by the LANDING app, not the backend — so falling back
+    to ``BASE_URL`` here (tempting: it is set everywhere) would mint
+    ``https://api.../onboard/<token>``, a link that 404s for the physician while
+    looking perfectly correct in the admin's confirmation toast.
+    """
+    return (os.getenv("LANDING_URL") or "http://localhost:5173").strip().rstrip("/")
+
+
+def _parse_iso(value: Any) -> Optional[datetime]:
+    """Parse a stored timestamp to a NAIVE UTC datetime.
+
+    Every writer in the tenant store is ``datetime.utcnow()`` (naive), and the
+    comparisons below are against ``utcnow()`` — so one offset-bearing value
+    ("...+00:00", from a legacy row, an import, or the day someone modernizes
+    ``_utcnow_iso`` to ``datetime.now(timezone.utc)``) raises TypeError on the
+    compare, not the parse, and 500s the entire Signups screen. Normalizing here
+    is the difference between a wrong-by-hours idle count and a dead page.
+    """
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _days_since(value: Any) -> Optional[int]:
+    dt = _parse_iso(value)
+    if dt is None:
+        return None
+    return max(0, (datetime.utcnow() - dt).days)
+
+
+def _link_expired(value: Any) -> bool:
+    """Expired means the token is DEAD — the physician clicking their emailed
+    link now gets a 404. NULL expiry is treated as expired for the same reason
+    ``onboarding_token_valid`` does: no expiry means no usable token."""
+    dt = _parse_iso(value)
+    if dt is None:
+        return True
+    return dt < datetime.utcnow()
+
+
+def _signup_stage(*, step: int, email_verified: bool,
+                  has_credentials: bool, has_attestations: bool) -> str:
+    """Furthest point reached, from what the wizard actually persisted.
+
+    Read newest-first rather than as a step counter: an invited clinician never
+    touches ``onboarding_step`` at all (it lives on the health system, not on
+    them), so a step-only reading would report every team member as "link sent"
+    forever, however much they had filled in.
+    """
+    if has_attestations:
+        return "attestations"
+    if has_credentials:
+        return "credentials"
+    if step >= 3:
+        return "institution"
+    if email_verified or step >= 2:
+        return "email_verified"
+    if step >= 1:
+        return "identity"
+    return "link_sent"
+
+
+def _signup_row(*, email: str, name: Optional[str], kind: str, hs: Dict[str, Any],
+                stage: str, started_at: Any, last_activity: Any,
+                expires_at: Any, credentials: Dict[str, Any]) -> Dict[str, Any]:
+    idle = _days_since(last_activity or started_at)
+    expired = _link_expired(expires_at)
+    return {
+        # health_system_id + email is the composite key the resend endpoint takes
+        # back; there is no single id, because a director is keyed by the health
+        # system row and an invited clinician by their address on it.
+        "health_system_id": hs.get("id"),
+        "email": email,
+        "name": (name or "").strip() or None,
+        # "director" is the self-serve physician who created the workspace —
+        # which, for a solo contributor signing up from the landing page, is
+        # every one of them. Not an operator role; see onboarding.py's note.
+        "kind": kind,
+        "org_name": (hs.get("name") or "").strip() or None,
+        "specialty": (hs.get("specialty") or "").strip() or None,
+        "npi": (str(credentials.get("npi") or "").strip() or None),
+        "stage": stage,
+        "stage_word": _SIGNUP_STAGE_WORDS[stage],
+        "stage_index": _SIGNUP_STAGE_ORDER.index(stage) + 1,
+        "stage_total": len(_SIGNUP_STAGE_ORDER),
+        # The one that converts with a single reminder: everything submitted,
+        # final button never pressed.
+        "ready_to_finish": stage == "attestations",
+        "started_at": started_at,
+        "last_activity": last_activity or started_at,
+        "days_idle": idle,
+        "stalled": bool(idle is not None and idle >= _SIGNUP_STALLED_DAYS and not expired),
+        "link_expires_at": expires_at,
+        # No token, ever. This is a list an operator reads; the link itself is
+        # only minted (fresh) by the resend endpoint, and only into the
+        # physician's own inbox.
+        "link_expired": expired,
+    }
+
+
+@router.get("/signups")
+async def list_signups(request: Request,
+                       _admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Every physician who started onboarding and does not yet have an account.
+
+    Sorted by most recent activity, because the person who touched the wizard an
+    hour ago is the one a nudge still reaches.
+    """
+    ts = _team_store(request)
+    store = _store()
+    # Anyone already provisioned belongs on the roster, not here — including a
+    # physician who re-onboards through a second link while holding an account.
+    provisioned = {(u.get("email") or "").lower().strip()
+                   for u in store.list_users() if u.get("email")}
+
+    # One query each, not one per workspace.
+    people_by_hs = ts.asclepius_people_by_health_system()
+    otp_activity = ts.latest_otp_activity()
+
+    rows: List[Dict[str, Any]] = []
+    for hs in ts.list_health_systems_admin():
+        if (hs.get("product") or "").strip().lower() != "asclepius":
+            continue  # clinical (CareGuide) onboarding is a different funnel
+        people = {(p.get("email") or "").lower().strip(): p
+                  for p in people_by_hs.get(hs["id"], [])}
+        step = int(hs.get("onboarding_step") or 0)
+
+        director_email = (hs.get("director_email") or "").lower().strip()
+        if (director_email and not hs.get("onboarding_completed_at")
+                and director_email not in provisioned):
+            person = people.get(director_email) or {}
+            creds = person.get("credentials") or {}
+            name = (person.get("full_name") or "").strip() or " ".join(
+                p for p in [(hs.get("director_first_name") or "").strip(),
+                            (hs.get("director_last_name") or "").strip()] if p)
+            rows.append(_signup_row(
+                email=director_email, name=name, kind="director", hs=hs,
+                stage=_signup_stage(step=step, email_verified=step >= 2,
+                                    has_credentials=bool(creds),
+                                    has_attestations=bool(person.get("attestations"))),
+                started_at=hs.get("created_at"),
+                # Newest of the three things this signup can timestamp. The
+                # health system row itself carries no updated_at, so the early
+                # steps (name, email verification) would otherwise date a
+                # physician by the day their LINK was issued — reporting someone
+                # who verified their email minutes ago as three weeks idle, and
+                # sending the operator to chase a person who is mid-signup.
+                last_activity=max(
+                    (t for t in (person.get("updated_at"),
+                                 otp_activity.get((hs["id"], director_email)),
+                                 hs.get("created_at")) if t),
+                    default=None),
+                expires_at=hs.get("onboarding_token_expires_at"),
+                credentials=creds,
+            ))
+
+        for email, person in people.items():
+            if person.get("is_director") or person.get("onboarding_completed_at"):
+                continue
+            if not email or email in provisioned:
+                continue
+            creds = person.get("credentials") or {}
+            rows.append(_signup_row(
+                email=email, name=person.get("full_name"), kind="invited", hs=hs,
+                # An invited clinician's own link carries them from their inbox
+                # to the same credential + attestation steps, so their progress
+                # is read off THEIR row, never the health system's step counter.
+                stage=_signup_stage(step=0,
+                                    email_verified=bool(person.get("email_verified_at")),
+                                    has_credentials=bool(creds),
+                                    has_attestations=bool(person.get("attestations"))),
+                started_at=person.get("created_at"),
+                last_activity=max(
+                    (t for t in (person.get("updated_at"),
+                                 otp_activity.get((hs["id"], email)),
+                                 person.get("created_at")) if t),
+                    default=None),
+                expires_at=person.get("member_token_expires_at"),
+                credentials=creds,
+            ))
+
+    rows.sort(key=lambda r: str(r.get("last_activity") or ""), reverse=True)
+    return {
+        "signups": rows,
+        "counts": {
+            "total": len(rows),
+            "ready_to_finish": sum(1 for r in rows if r["ready_to_finish"]),
+            "stalled": sum(1 for r in rows if r["stalled"]),
+            "expired": sum(1 for r in rows if r["link_expired"]),
+        },
+        # The number the operator actually came for: how many physicians can I
+        # approve RIGHT NOW. Carried here so the two halves of the funnel are
+        # legible in one read instead of one screen each.
+        "awaiting_review": len(store.list_verification_queue("pending")),
+        # Drives the resend button's disabled state rather than letting the
+        # admin discover the missing transport by pressing it.
+        "can_resend": is_email_transport_configured(),
+        "stalled_after_days": _SIGNUP_STALLED_DAYS,
+    }
+
+
+class SignupResendRequest(BaseModel):
+    health_system_id: str
+    email: EmailStr
+
+
+@router.post("/signups/resend")
+async def resend_signup_link(
+    body: SignupResendRequest,
+    request: Request,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Mail this physician their onboarding link again, resuming where they stopped.
+
+    Any new token is minted onto the SAME row, so a doctor who stalled after
+    entering their credentials returns to a wizard that still has them. A link
+    that is still alive is re-sent unchanged rather than replaced — see below.
+    The link goes to their address only, never back in the response body, so
+    this cannot be used to read out a live onboarding credential.
+    """
+    if not is_email_transport_configured():
+        raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
+    ts = _team_store(request)
+    email = str(body.email).lower().strip()
+    hs = ts.get_health_system_by_id(body.health_system_id)
+    if not hs or (hs.get("product") or "").strip().lower() != "asclepius":
+        raise HTTPException(status_code=404, detail="That signup no longer exists.")
+    store = _store()
+    if store.get_user_by_email(email):
+        raise HTTPException(
+            status_code=409,
+            detail="That physician already has an account — they're on the roster.")
+
+    director_email = (hs.get("director_email") or "").lower().strip()
+    org_name = (hs.get("name") or "").strip()
+    if email == director_email:
+        if hs.get("onboarding_completed_at"):
+            raise HTTPException(status_code=409, detail="They already finished onboarding.")
+        # Rotating unconditionally would kill a link the physician may have OPEN
+        # RIGHT NOW: an admin nudging someone who is mid-form turns their next
+        # click into "this onboarding link has expired". So a live token is
+        # re-sent as-is, and only a dead or missing one is replaced. The stored
+        # URL always matches the live token — both writers of
+        # onboarding_token_hash set last_generated_invite_url in the same
+        # statement — so re-sending it cannot mail a link that no longer works.
+        existing_url = (hs.get("last_generated_invite_url") or "").strip()
+        if existing_url and ts.onboarding_token_valid(hs):
+            invite = {"onboarding_url": existing_url,
+                      "expires_at": hs.get("onboarding_token_expires_at")}
+            rotated = False
+        else:
+            try:
+                invite = ts.reissue_onboarding_token(hs["id"], invite_base_url=_landing_base())
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            rotated = True
+        url = html.escape(invite["onboarding_url"])
+        subject = "Your Archangel Health onboarding link"
+        body_html = (
+            '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
+            'color:#1a1b1a;line-height:1.6">'
+            "<p>Here is your link to finish your Asclepius onboarding — it picks up "
+            "exactly where you left off:</p>"
+            f'<p><a href="{url}">{url}</a></p>'
+            "<p style='color:#8b8d89;font-size:13px'>If you didn&rsquo;t request this, "
+            "you can ignore this email.</p></div>"
+        )
+        expires_at = invite["expires_at"]
+    else:
+        person = ts.get_asclepius_person(hs["id"], email)
+        if not person or person.get("is_director"):
+            raise HTTPException(status_code=404, detail="That signup no longer exists.")
+        if person.get("onboarding_completed_at"):
+            raise HTTPException(status_code=409, detail="They already finished onboarding.")
+        # An invited clinician's link CANNOT be re-sent as-is the way a
+        # director's can: only the token's hash is stored, never the token, so
+        # there is nothing to re-send and a new one must be minted. That is the
+        # right security posture, and the cost is real — if they had the old
+        # link open, it stops working. Worth knowing before pressing the button
+        # on someone who is actively filling the form.
+        rotated = True
+        token = ts.issue_asclepius_member_token(hs["id"], email)
+        person = ts.get_asclepius_person(hs["id"], email) or person
+        full_name = (person.get("full_name") or "").strip()
+        director_name = " ".join(
+            p for p in [(hs.get("director_first_name") or "").strip(),
+                        (hs.get("director_last_name") or "").strip()] if p).strip()
+        subject = f"You're invited to label data with {org_name or 'your organization'}"
+        body_html = build_asclepius_invite_email(
+            invitee_first_name=full_name.split(" ", 1)[0] if full_name else "",
+            director_full_name=director_name,
+            role_label=(person.get("clinical_role") or "").replace("_", " ").title(),
+            org_name=org_name,
+            specialty=(hs.get("specialty") or "").strip(),
+            onboarding_url=f"{_landing_base()}/onboard/m/{token}",
+            invitee_email=email,
+        )
+        expires_at = person.get("member_token_expires_at")
+
+    if not await send_html_email(email, subject, body_html):
+        raise HTTPException(status_code=503,
+                            detail="Could not send that email — nothing was sent. Try again.")
+    store.log_event(entity_type="signup", entity_id=hs["id"],
+                    event_type="onboarding_link_resent", actor=admin["id"],
+                    payload={"email": email, "org": org_name or None, "rotated": rotated})
+    return {"ok": True, "email": email, "expires_at": expires_at, "rotated": rotated,
+            "message": f"A fresh onboarding link is on its way to {email}."}
 
 
 # ─── Health system detail: the pipeline in explicit buckets ──────────────────
