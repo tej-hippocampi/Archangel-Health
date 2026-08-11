@@ -6212,6 +6212,41 @@ async def startup_team_scheduler():
         raise
     except Exception:
         _auth_logger.warning("[storage] durability gate could not run", exc_info=True)
+
+    # The TENANT database (team.db) is the fourth store and was in none of the
+    # checks above, which only cover the Asclepius plane. It holds every
+    # onboarding in flight — the physicians the admin console's Signups view
+    # reads — so if it sits on ephemeral disk, a redeploy erases the signup
+    # funnel and the console goes back to showing an empty roster beside an
+    # inbox full of notifications: the exact failure the Signups view exists to
+    # end, reintroduced by a deploy setting rather than by code.
+    #
+    # WARN-only, deliberately: the fail-closed gate above is a deliberate
+    # production behaviour for the PHI stores, and quietly extending "refuses to
+    # start" to a fourth path would take down a running deployment on the next
+    # restart. Naming it is the job here; the operator sets TEAM_DB_PATH.
+    try:
+        from asclepius.constants import path_is_ephemeral as _path_is_ephemeral
+
+        _team_db = os.getenv("TEAM_DB_PATH") or _team_store.db_path
+        _team_dir = os.path.dirname(os.path.abspath(_team_db)) or "/"
+        if _path_is_ephemeral(_team_dir):
+            _auth_logger.error(
+                "[storage] tenant database %s is on EPHEMERAL storage — every "
+                "onboarding in flight (Admin > Physicians > Signups) is destroyed "
+                "on the next redeploy. Point TEAM_DB_PATH at the persistent volume.",
+                _team_db)
+        elif not (os.getenv("TEAM_DB_PATH") or "").strip():
+            _auth_logger.error(
+                "[storage] TEAM_DB_PATH is not set, so the tenant database lives "
+                "beside the code at %s and is REPLACED on every redeploy — losing "
+                "every physician mid-onboarding. Set it to a path on your "
+                "persistent volume.", _team_db)
+        else:
+            _auth_logger.info("[storage] tenant database durable (%s)", _team_db)
+    except Exception:
+        _auth_logger.warning("[storage] tenant-database durability check could not run",
+                             exc_info=True)
     # Asset reconciliation (PRD I-0 §F4) — what a PAST redeploy already took. Off
     # the event loop: it stats the whole blob tree and must never delay startup.
     try:

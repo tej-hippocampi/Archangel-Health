@@ -168,6 +168,15 @@ completions.
 is fully active — no other variable is needed. `ASCLEPIUS_DB_PATH` points at the
 persistent SQLite volume.
 
+`TEAM_DB_PATH` must point at that volume too. It is a **second** database, and the
+durability gate that refuses to boot on ephemeral storage covers only the Asclepius
+plane — `team.db` fails quietly. It holds every onboarding still in flight, which is
+what Admin › Physicians › **Signups** reads, so leaving it unset means each redeploy
+erases the physicians who were mid-signup and the console goes back to an empty
+roster beside an inbox full of "physician contributor started" notifications. Boot
+logs `[storage] tenant database durable (<path>)` when it is set correctly, and an
+ERROR naming the cause when it is not.
+
 **Everything else defaults correctly in code** — set a var only to override:
 
 | Var | Default (no env) | Purpose |

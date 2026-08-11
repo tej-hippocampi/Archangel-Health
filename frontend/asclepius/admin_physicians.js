@@ -29,7 +29,7 @@
   const TIERS = ['labeler', 'reviewer', 'advisor'];
 
   let activeChip = 'all';       // all | pending | labelers | reviewers | advisors | unassigned
-  let activeView = 'roster';    // roster | verify — driven by the shell's sub-tabs
+  let activeView = 'roster';    // roster | signups | verify — driven by the shell's sub-tabs
   let selectedId = null;        // physician profile view
   let cache = null;             // last /admin/physicians payload
   let rootEl = null;            // the section body we were mounted into
@@ -78,6 +78,7 @@
     const inner = h('div', {});
     body.appendChild(inner);
     if (activeView === 'verify') renderVerifyTab(inner, ctx);
+    else if (activeView === 'signups') renderSignups(inner, ctx);
     else if (selectedId) renderProfile(inner, ctx, selectedId);
     else renderRoster(inner, ctx);
   }
@@ -302,6 +303,165 @@
     while (el.firstChild) el.removeChild(el.firstChild);
   }
 
+  /* ─── Signups: the half of the funnel that had no screen ──────────────────
+   *
+   * A physician becomes an ACCOUNT — and therefore a roster row, and therefore
+   * approvable — only on the last click of the onboarding wizard. Everyone
+   * still walking it lives in the tenant store, which this console never read.
+   * Meanwhile the landing page emails the founder the moment someone requests a
+   * link, so the inbox counted signups the screen could not: "1 physician" on a
+   * roster, dozens of notifications in Gmail, and no way to tell which doctor
+   * was which. That gap is what this view closes.
+   *
+   * Nobody here can be approved — none of them has submitted a complete
+   * credential record — so this is a CHASE list, and it says so. The row that
+   * matters most is the one that signed the attestations and never pressed the
+   * final button: one reminder turns them into a verification-queue decision.
+   */
+  async function renderSignups(container, ctx) {
+    const { h, api, clear, loadingCard, fmtDate, toast } = ctx;
+    clear(container);
+    container.appendChild(loadingCard('Loading signups…'));
+    let data;
+    try {
+      data = await api('/admin/signups');
+    } catch (e) {
+      clear(container);
+      container.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' }, e.message || 'Could not load signups.'))));
+      return;
+    }
+    clear(container);
+    const rows = data.signups || [];
+    const counts = data.counts || {};
+
+    container.appendChild(h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Started onboarding · no account yet',
+          h('span', { class: 'asc-badge asc-badge-count', style: 'margin-left:8px' },
+            String(counts.total == null ? rows.length : counts.total))),
+        h('div', { class: 'asc-card-sub' },
+          'These physicians are mid-wizard, so they are not on the roster and '
+          + 'cannot be approved yet — they have not submitted a complete credential '
+          + 'record. ' + (data.awaiting_review || 0) + ' physician'
+          + ((data.awaiting_review === 1) ? ' is' : 's are')
+          + ' finished and waiting for your decision in Verification.'))),
+      h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-phys-chips' }, [
+        // Not filters — a standing read of where the funnel is losing people.
+        ['Ready to finish', counts.ready_to_finish, 'good'],
+        ['Idle ' + (data.stalled_after_days || 3) + '+ days', counts.stalled, 'warn'],
+        ['Link expired', counts.expired, 'bad'],
+      ].map(function (t) {
+        return h('span', { class: 'asc-phys-chip asc-chip-stat ' + t[2] }, t[0],
+          h('span', { class: 'asc-chip-count' }, String(t[1] == null ? 0 : t[1])));
+      })))));
+
+    if (!rows.length) {
+      container.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-empty' },
+          'Nobody is mid-onboarding right now. Every physician who started has '
+          + 'either finished or already been decided.'))));
+      return;
+    }
+
+    const card = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {},
+          h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Organization'),
+          h('th', {}, 'Specialty'), h('th', {}, 'Stopped at'), h('th', {}, 'Started'),
+          h('th', {}, 'Idle'), h('th', {}, 'Link'), h('th', {}, ''))),
+        h('tbody', {}, rows.map(function (s) {
+          return signupRow(ctx, container, s, data.can_resend !== false);
+        })))));
+    container.appendChild(card);
+
+    function signupRow(c, cont, s, canResend) {
+      const btn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm' }, 'Resend link');
+      if (!canResend) {
+        btn.setAttribute('disabled', '');
+        btn.setAttribute('title', 'Email is not configured on this server (SendGrid or SMTP).');
+      }
+      btn.addEventListener('click', function () {
+        btn.setAttribute('disabled', '');
+        btn.textContent = 'Sending…';
+        api('/admin/signups/resend', {
+          method: 'POST',
+          body: { health_system_id: s.health_system_id, email: s.email },
+        }).then(function (r) {
+          if (toast) toast((r && r.message) || ('Link resent to ' + s.email));
+          renderSignups(cont, c);      // re-read: the link's expiry just moved
+        }).catch(function (e) {
+          btn.removeAttribute('disabled');
+          btn.textContent = 'Resend link';
+          if (toast) toast(e.message || 'Could not resend that link.', 'error');
+        });
+      });
+      return h('tr', {},
+        h('td', {}, h('strong', {}, s.name || '—')),
+        h('td', {}, s.email || '—'),
+        h('td', {}, s.org_name || 'Independent'),
+        h('td', {}, s.specialty || '—'),
+        // The stage is the whole point of the row: it is what tells the operator
+        // whether this person needs a reminder or a phone call.
+        h('td', {}, stageBadge(c.h, s),
+          h('span', { class: 'asc-dim', style: 'margin-left:6px' },
+            'step ' + s.stage_index + '/' + s.stage_total)),
+        h('td', {}, s.started_at && fmtDate ? fmtDate(s.started_at) : (s.started_at || '—')),
+        h('td', {}, s.days_idle == null ? '—'
+          : (s.days_idle === 0 ? 'today' : s.days_idle + 'd')),
+        h('td', {}, s.link_expired
+          ? h('span', { class: 'asc-badge asc-badge-red' }, 'Expired')
+          : h('span', { class: 'asc-badge asc-badge-gray' }, 'Live')),
+        h('td', {}, btn));
+    }
+  }
+
+  function stageBadge(h, s) {
+    // Green for the one that converts on a single reminder; amber for a stall
+    // the operator can still rescue; grey for a signup that is simply young.
+    if (s.ready_to_finish) return h('span', { class: 'asc-badge asc-badge-green' }, s.stage_word);
+    if (s.stalled || s.link_expired) {
+      return h('span', { class: 'asc-badge asc-badge-amber' }, s.stage_word);
+    }
+    return h('span', { class: 'asc-badge asc-badge-gray' }, s.stage_word);
+  }
+
+  /* An empty roster used to read as "nobody signed up". It never meant that —
+   * it meant "nobody FINISHED" — so the roster now says which of the two it is
+   * and where the rest are.
+   *
+   * Fills a slot the roster already placed above the chips, rather than
+   * inserting itself once the fetch lands: the count this roster is NOT showing
+   * has to be read before the numbers that it is, and a card that appears at the
+   * top a moment later shifts everything the operator was about to click. */
+  async function renderSignupNotice(slot, ctx) {
+    const { h, api } = ctx;
+    let data;
+    try {
+      data = await api('/admin/signups');
+    } catch (e) {
+      return;  // the roster is the primary content here; never block it on this
+    }
+    const n = (data.counts || {}).total || 0;
+    if (!n) return;
+    const link = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm' }, 'Open Signups →');
+    link.addEventListener('click', function () {
+      // The sub-tab strip belongs to the shell (asclepius.js), so ask it to move
+      // — switching the view here alone would leave "Roster" looking selected
+      // while the Signups table rendered under it.
+      if (typeof ctx.openPhysiciansSub === 'function') ctx.openPhysiciansSub('signups');
+      else { activeView = 'signups'; rerender(); }
+    });
+    slot.appendChild(h('div', { class: 'asc-card asc-signup-notice', id: 'ascSignupNotice' },
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-card-title' },
+          n + ' physician' + (n === 1 ? '' : 's') + ' mid-onboarding, not on this roster'),
+        h('div', { class: 'asc-card-sub' },
+          'They requested a link and have not finished the wizard, so they have no '
+          + 'account yet. They cannot be approved from here.'),
+        link)));
+  }
+
   // ─── Roster ───────────────────────────────────────────────
   async function renderRoster(container, ctx) {
     const { h, api, clear, loadingCard } = ctx;
@@ -318,6 +478,12 @@
     clear(container);
     const rows = cache.physicians || [];
     const counts = cache.counts || {};
+
+    // Slot first, fill later: the roster must never wait on (or fail because
+    // of) the funnel count, but the notice still has to land ABOVE the chips.
+    const noticeSlot = h('div', {});
+    container.appendChild(noticeSlot);
+    renderSignupNotice(noticeSlot, ctx);
 
     // Filter chips with live counts — Pending is the launch-week job queue.
     const chips = [
