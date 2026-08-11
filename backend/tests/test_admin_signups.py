@@ -32,6 +32,9 @@ client = TestClient(A.app)
 #: Every stage of the self-serve wizard, in order. The last one FINISHES.
 _STAGES = ["link", "identity", "otp", "institution", "credentials", "attestations", "finish"]
 
+#: Read off the router so the threshold and the tests cannot drift apart.
+_SIGNUP_STALLED_DAYS_MIN = R._SIGNUP_STALLED_DAYS
+
 
 @pytest.fixture()
 def env(tmp_path, monkeypatch):
@@ -255,13 +258,12 @@ def test_signups_require_admin(env):
 
 
 # ─── Resend: turning an invisible stall into an approvable signup ────────────
-def test_resend_rotates_the_token_on_the_same_row(env):
+def test_resend_reaches_them_on_the_same_row(env):
     email = f"doc-{uuid.uuid4().hex[:6]}@hospital.org"
     _walk(email, "credentials")
     team = env["team"]
     hs = next(h for h in team.list_health_systems_admin()
               if (h.get("director_email") or "") == email)
-    before = hs["onboarding_token_hash"]
 
     r = client.post("/api/asclepius/admin/signups/resend", headers=env["headers"],
                     json={"health_system_id": hs["id"], "email": email})
@@ -271,13 +273,126 @@ def test_resend_rotates_the_token_on_the_same_row(env):
     assert "onboarding_url" not in r.json()
 
     after = team.get_health_system_by_id(hs["id"])
-    assert after["onboarding_token_hash"] != before          # fresh token
     assert team.onboarding_token_valid(after)
-    # Same row, so their credentials are still waiting when they come back —
-    # and the funnel count does not double.
+    # Same row — so their credentials are still waiting when they come back, and
+    # the funnel count does not double. (Whether the token itself is replaced
+    # depends on whether the old link was still alive; see the two tests below.)
     person = team.get_asclepius_person(hs["id"], email)
     assert person["credentials"]["npi"] == "1234567893"
     assert _signups(env["headers"])["counts"]["total"] == 1
+
+
+def test_resend_does_not_kill_a_link_the_physician_still_has_open(env):
+    """An admin nudging someone who is MID-FORM must not break their next click.
+
+    Minting a new token unconditionally invalidated the old one, so a resend
+    aimed at "give them a reminder" turned a live wizard tab into "this
+    onboarding link has expired" — punishing exactly the physician who was
+    already doing the thing the reminder asks for.
+    """
+    email = f"doc-{uuid.uuid4().hex[:6]}@hospital.org"
+    token = _walk(email, "credentials")
+    team = env["team"]
+    hs = next(h for h in team.list_health_systems_admin()
+              if (h.get("director_email") or "") == email)
+    before = hs["onboarding_token_hash"]
+    assert client.get("/api/onboarding/session", params={"token": token}).status_code == 200
+
+    r = client.post("/api/asclepius/admin/signups/resend", headers=env["headers"],
+                    json={"health_system_id": hs["id"], "email": email})
+    assert r.status_code == 200 and r.json()["rotated"] is False
+    # Their open tab still works, and the token was not touched.
+    assert client.get("/api/onboarding/session", params={"token": token}).status_code == 200
+    assert team.get_health_system_by_id(hs["id"])["onboarding_token_hash"] == before
+
+
+def test_resend_mints_a_new_link_only_when_the_old_one_is_dead(env):
+    email = f"doc-{uuid.uuid4().hex[:6]}@hospital.org"
+    token = _walk(email, "credentials")
+    team = env["team"]
+    hs = next(h for h in team.list_health_systems_admin()
+              if (h.get("director_email") or "") == email)
+    with team._conn() as conn:
+        conn.execute("UPDATE health_systems SET onboarding_token_expires_at = ? WHERE id = ?",
+                     ("2020-01-01T00:00:00", hs["id"]))
+
+    r = client.post("/api/asclepius/admin/signups/resend", headers=env["headers"],
+                    json={"health_system_id": hs["id"], "email": email})
+    assert r.status_code == 200 and r.json()["rotated"] is True
+    after = team.get_health_system_by_id(hs["id"])
+    assert after["onboarding_token_hash"] != hs["onboarding_token_hash"]
+    assert team.onboarding_token_valid(after)
+    assert client.get("/api/onboarding/session", params={"token": token}).status_code == 404
+    # ...and they still resume with what they already submitted.
+    assert team.get_asclepius_person(hs["id"], email)["credentials"]["npi"] == "1234567893"
+
+
+def test_idle_counts_the_last_thing_they_did_not_the_day_they_asked(env):
+    """A physician who verified their email minutes ago is not three weeks idle.
+
+    The health system row carries no updated_at, so the early wizard steps had
+    nothing newer than the link's creation date to be dated by — and the operator
+    was told to chase someone who was mid-signup.
+    """
+    email = f"doc-{uuid.uuid4().hex[:6]}@hospital.org"
+    token = client.post("/api/onboarding/self-serve",
+                        json={"email": email}).json()["onboarding_url"].rsplit("/", 1)[-1]
+    team = env["team"]
+    hs = team.get_health_system_by_onboarding_token(token)
+    with team._conn() as conn:  # link issued three weeks ago
+        conn.execute("UPDATE health_systems SET created_at = '2026-07-22T09:00:00' WHERE id = ?",
+                     (hs["id"],))
+    client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Ada", "last_name": "Lovelace", "email": email})
+    team.create_otp_challenge(hs["id"], email, "123456")   # ...but they verified TODAY
+    client.post("/api/onboarding/verify-otp", json={"token": token, "code": "123456"})
+
+    row = next(r for r in _signups(env["headers"])["signups"] if r["email"] == email)
+    assert row["stage"] == "email_verified"
+    assert row["days_idle"] == 0, "an active physician was reported as long-idle"
+    assert row["stalled"] is False
+    # The start date still says when they first asked — a different question.
+    assert str(row["started_at"]).startswith("2026-07-22")
+
+
+def test_a_members_activity_does_not_un_stall_the_director(env):
+    """Invited clinicians take their OTP through the director's health_system_id.
+
+    Keyed on the health system alone, a member requesting a code today would
+    reset the DIRECTOR's idle clock — quietly clearing the stall flag on the one
+    person the operator most needs to chase.
+    """
+    team = env["team"]
+    hs = team.create_health_system_invite(
+        invite_base_url="https://landing.test", director_email="dir@clinic.org",
+        product="asclepius")
+    hs_id = hs["health_system_id"]
+    with team._conn() as conn:   # the director went quiet three weeks ago
+        conn.execute("UPDATE health_systems SET created_at = '2026-07-22T09:00:00' WHERE id = ?",
+                     (hs_id,))
+    team.upsert_asclepius_person(hs_id, email="member@clinic.org", full_name="Grace Hopper",
+                                 clinical_role="attending", is_director=False)
+    team.create_otp_challenge(hs_id, "member@clinic.org", "123456")  # the MEMBER, today
+
+    by_email = {r["email"]: r for r in _signups(env["headers"])["signups"]}
+    assert by_email["dir@clinic.org"]["stalled"] is True, "a member's OTP un-stalled the director"
+    assert by_email["dir@clinic.org"]["days_idle"] >= _SIGNUP_STALLED_DAYS_MIN
+    assert by_email["member@clinic.org"]["days_idle"] == 0
+
+
+@pytest.mark.parametrize("stamp", [
+    "2020-01-01T00:00:00",        # what every writer in the tenant store emits
+    "2020-01-01T00:00:00+00:00",  # ...and what one legacy row or import is enough to add
+    "2020-01-01T00:00:00Z",
+    "2020-01-01T00:00:00-08:00",
+    "garbage", None, "",
+])
+def test_timestamp_parsing_never_takes_the_screen_down(stamp):
+    """An offset-bearing timestamp used to raise on the COMPARE, not the parse —
+    a TypeError out of the handler, so one odd row 500s the whole Signups page
+    rather than showing one odd date."""
+    assert R._link_expired(stamp) is True          # unknown/dead reads as dead
+    assert R._days_since(stamp) in (None, R._days_since("2020-01-01T00:00:00"))
 
 
 def test_resend_refuses_a_finished_signup(env):

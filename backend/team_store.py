@@ -1588,6 +1588,30 @@ class TeamStore:
             ).fetchall()
             return [self._shape_asclepius_person(r) for r in rows]
 
+    def latest_otp_activity(self) -> Dict[tuple, str]:
+        """Most recent OTP challenge per (health system, email), in ONE query.
+
+        The wizard's early steps (name, email verification) write only to the
+        health system row, which carries no ``updated_at`` — so the admin signups
+        view had nothing newer than ``created_at`` to date them by, and reported
+        a physician who verified their email minutes ago as idle since the day
+        their link was issued. Requesting a code is the one timestamped act those
+        steps leave behind.
+
+        Keyed by EMAIL as well as health system, because invited clinicians take
+        their OTP through the same table under the director's ``health_system_id``
+        (see ``member_request_otp``). Grouping by health system alone would credit
+        a member's activity to the director, quietly un-stalling the one person
+        the operator most needs to chase.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT health_system_id, lower(trim(email)) AS email, "
+                "MAX(created_at) AS last_at FROM otp_challenges "
+                "GROUP BY health_system_id, lower(trim(email))"
+            ).fetchall()
+        return {(r["health_system_id"], r["email"]): r["last_at"] for r in rows if r["last_at"]}
+
     def asclepius_people_by_health_system(self) -> Dict[str, List[Dict[str, Any]]]:
         """Every person, grouped by health system, in ONE query.
 

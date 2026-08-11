@@ -17,7 +17,7 @@ import logging
 import os
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -806,12 +806,24 @@ def _landing_base() -> str:
 
 
 def _parse_iso(value: Any) -> Optional[datetime]:
+    """Parse a stored timestamp to a NAIVE UTC datetime.
+
+    Every writer in the tenant store is ``datetime.utcnow()`` (naive), and the
+    comparisons below are against ``utcnow()`` — so one offset-bearing value
+    ("...+00:00", from a legacy row, an import, or the day someone modernizes
+    ``_utcnow_iso`` to ``datetime.now(timezone.utc)``) raises TypeError on the
+    compare, not the parse, and 500s the entire Signups screen. Normalizing here
+    is the difference between a wrong-by-hours idle count and a dead page.
+    """
     if not value:
         return None
     try:
-        return datetime.fromisoformat(str(value).replace("Z", ""))
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except (TypeError, ValueError):
         return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 def _days_since(value: Any) -> Optional[int]:
@@ -906,8 +918,9 @@ async def list_signups(request: Request,
     provisioned = {(u.get("email") or "").lower().strip()
                    for u in store.list_users() if u.get("email")}
 
-    # One query for every workspace's people, not one per workspace.
+    # One query each, not one per workspace.
     people_by_hs = ts.asclepius_people_by_health_system()
+    otp_activity = ts.latest_otp_activity()
 
     rows: List[Dict[str, Any]] = []
     for hs in ts.list_health_systems_admin():
@@ -931,7 +944,17 @@ async def list_signups(request: Request,
                                     has_credentials=bool(creds),
                                     has_attestations=bool(person.get("attestations"))),
                 started_at=hs.get("created_at"),
-                last_activity=person.get("updated_at") or hs.get("created_at"),
+                # Newest of the three things this signup can timestamp. The
+                # health system row itself carries no updated_at, so the early
+                # steps (name, email verification) would otherwise date a
+                # physician by the day their LINK was issued — reporting someone
+                # who verified their email minutes ago as three weeks idle, and
+                # sending the operator to chase a person who is mid-signup.
+                last_activity=max(
+                    (t for t in (person.get("updated_at"),
+                                 otp_activity.get((hs["id"], director_email)),
+                                 hs.get("created_at")) if t),
+                    default=None),
                 expires_at=hs.get("onboarding_token_expires_at"),
                 credentials=creds,
             ))
@@ -952,7 +975,11 @@ async def list_signups(request: Request,
                                     has_credentials=bool(creds),
                                     has_attestations=bool(person.get("attestations"))),
                 started_at=person.get("created_at"),
-                last_activity=person.get("updated_at") or person.get("created_at"),
+                last_activity=max(
+                    (t for t in (person.get("updated_at"),
+                                 otp_activity.get((hs["id"], email)),
+                                 person.get("created_at")) if t),
+                    default=None),
                 expires_at=person.get("member_token_expires_at"),
                 credentials=creds,
             ))
@@ -988,12 +1015,13 @@ async def resend_signup_link(
     request: Request,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
-    """Mail this physician a fresh onboarding link, resuming where they stopped.
+    """Mail this physician their onboarding link again, resuming where they stopped.
 
-    The token is rotated onto the SAME row, so a doctor who stalled after
-    entering their credentials returns to a wizard that still has them. The link
-    goes to their address only — never back in the response body — so this
-    cannot be used to read out a live onboarding credential.
+    Any new token is minted onto the SAME row, so a doctor who stalled after
+    entering their credentials returns to a wizard that still has them. A link
+    that is still alive is re-sent unchanged rather than replaced — see below.
+    The link goes to their address only, never back in the response body, so
+    this cannot be used to read out a live onboarding credential.
     """
     if not is_email_transport_configured():
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
@@ -1013,16 +1041,30 @@ async def resend_signup_link(
     if email == director_email:
         if hs.get("onboarding_completed_at"):
             raise HTTPException(status_code=409, detail="They already finished onboarding.")
-        try:
-            invite = ts.reissue_onboarding_token(hs["id"], invite_base_url=_landing_base())
-        except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        # Rotating unconditionally would kill a link the physician may have OPEN
+        # RIGHT NOW: an admin nudging someone who is mid-form turns their next
+        # click into "this onboarding link has expired". So a live token is
+        # re-sent as-is, and only a dead or missing one is replaced. The stored
+        # URL always matches the live token — both writers of
+        # onboarding_token_hash set last_generated_invite_url in the same
+        # statement — so re-sending it cannot mail a link that no longer works.
+        existing_url = (hs.get("last_generated_invite_url") or "").strip()
+        if existing_url and ts.onboarding_token_valid(hs):
+            invite = {"onboarding_url": existing_url,
+                      "expires_at": hs.get("onboarding_token_expires_at")}
+            rotated = False
+        else:
+            try:
+                invite = ts.reissue_onboarding_token(hs["id"], invite_base_url=_landing_base())
+            except ValueError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            rotated = True
         url = html.escape(invite["onboarding_url"])
         subject = "Your Archangel Health onboarding link"
         body_html = (
             '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
             'color:#1a1b1a;line-height:1.6">'
-            "<p>Here is a fresh link to finish your Asclepius onboarding — it picks up "
+            "<p>Here is your link to finish your Asclepius onboarding — it picks up "
             "exactly where you left off:</p>"
             f'<p><a href="{url}">{url}</a></p>'
             "<p style='color:#8b8d89;font-size:13px'>If you didn&rsquo;t request this, "
@@ -1035,6 +1077,13 @@ async def resend_signup_link(
             raise HTTPException(status_code=404, detail="That signup no longer exists.")
         if person.get("onboarding_completed_at"):
             raise HTTPException(status_code=409, detail="They already finished onboarding.")
+        # An invited clinician's link CANNOT be re-sent as-is the way a
+        # director's can: only the token's hash is stored, never the token, so
+        # there is nothing to re-send and a new one must be minted. That is the
+        # right security posture, and the cost is real — if they had the old
+        # link open, it stops working. Worth knowing before pressing the button
+        # on someone who is actively filling the form.
+        rotated = True
         token = ts.issue_asclepius_member_token(hs["id"], email)
         person = ts.get_asclepius_person(hs["id"], email) or person
         full_name = (person.get("full_name") or "").strip()
@@ -1058,8 +1107,8 @@ async def resend_signup_link(
                             detail="Could not send that email — nothing was sent. Try again.")
     store.log_event(entity_type="signup", entity_id=hs["id"],
                     event_type="onboarding_link_resent", actor=admin["id"],
-                    payload={"email": email, "org": org_name or None})
-    return {"ok": True, "email": email, "expires_at": expires_at,
+                    payload={"email": email, "org": org_name or None, "rotated": rotated})
+    return {"ok": True, "email": email, "expires_at": expires_at, "rotated": rotated,
             "message": f"A fresh onboarding link is on its way to {email}."}
 
 
