@@ -29,7 +29,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import secrets
 from typing import Any, Callable, Dict, List, Optional
 
@@ -40,6 +39,7 @@ from starlette.concurrency import run_in_threadpool
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius import export as asc_export
+from asclepius import referrals as asc_referrals
 from asclepius.cases import public_case
 from asclepius.store import get_store
 from ratelimit import rate_limiter
@@ -115,7 +115,10 @@ require_refer = _require(asc_caps.REFER)
 # mirroring the public self-serve endpoint this path parallels.
 _REFERRALS_PER_ADVISOR = (10, 3600)     # 10 per hour, per advisor account
 _REFERRALS_GLOBAL = (60, 3600)          # 60 per hour, fleet-wide
-_REFERRALS_PER_INVITEE_24H = 3          # same address, same cap as self-serve
+# The per-invitee cap is the SHARED one — two numbers for "how many times may one
+# inbox be invited" is how an address gets mailed six times by alternating
+# surfaces. Referenced rather than restated so it cannot drift.
+_REFERRALS_PER_INVITEE_24H = asc_referrals.REFERRALS_PER_INVITEE_24H
 
 
 def _throttle_referral(advisor: Dict[str, Any]) -> None:
@@ -384,22 +387,13 @@ async def my_referrals(advisor: Dict[str, Any] = Depends(require_refer)):
     }
 
 
-def _header_safe(text: str, *, limit: int = 120) -> str:
-    """A string safe to place in an email header. Collapses CR/LF (and the
-    unicode line separators an email library may normalize into them) to a
-    space, then bounds the length."""
-    collapsed = re.sub(r"[\r\n  ]+", " ", text or "")
-    return " ".join(collapsed.split())[:limit]
-
-
-def _portal_base() -> str:
-    return (os.getenv("ASCLEPIUS_PORTAL_URL") or os.getenv("LANDING_URL")
-            or os.getenv("BASE_URL") or "http://localhost:8000").strip().rstrip("/")
-
-
-def _landing_base() -> str:
-    return (os.getenv("LANDING_URL") or os.getenv("BASE_URL")
-            or "http://localhost:8000").strip().rstrip("/")
+# Header safety and the base URLs are ONE implementation, in the module that owns
+# referrals. A second copy of "collapse CR/LF before this reaches a Subject
+# header" is a second copy that can be fixed in one place and not the other —
+# which, for a header-injection guard, means believing it is fixed when it is not.
+_header_safe = asc_referrals.header_safe
+_portal_base = asc_referrals.portal_base
+_landing_base = asc_referrals.landing_base
 
 
 def _invite_url(code: Optional[str]) -> Optional[str]:
@@ -437,63 +431,52 @@ async def create_referral(
     """Invite a physician. Reuses the existing Asclepius invite email — there is
     exactly one invite email in this product — with one added line naming the
     referrer. A named referral converts several times better than a cold invite,
-    and that sentence is the entire mechanism (§3.2)."""
+    and that sentence is the entire mechanism (§3.2).
+
+    The POLICY behind this endpoint moved to ``asclepius/referrals.py`` when
+    referrals were generalised from the advisor tier to every approved physician
+    (PRD-REF §1). This handler is now a thin adapter over it — validation,
+    per-invitee cap, code minting, the member case and the email are all the same
+    code the physician surface runs. Two implementations of "record a referral"
+    is how a bounty gets paid twice, and one of them silently stops matching the
+    funnel the other renders.
+
+    What stays local is the RESPONSE SHAPE. This surface has a shipped client
+    (``frontend/asclepius/advisor.js``) that reads ``already`` and ``email_sent``,
+    and the physician surface deliberately returns neither — an identical
+    response either way is what closes the account-existence oracle for the much
+    larger population that can now call it. Narrowing this one to match would
+    break a working advisor console to no security benefit the advisor tier does
+    not already have.
+    """
     _throttle_referral(advisor)
     store = _store()
     email = str(body.email).lower().strip()
-    # Per-invitee cap, matching the public path's "3 pending per 24h": the same
-    # address must not be invitable without bound by rotating advisors.
-    if store.count_recent_referrals_for_email(email, hours=24) >= _REFERRALS_PER_INVITEE_24H:
-        raise HTTPException(
-            status_code=429,
-            detail="That address has already been invited several times recently.")
-    code = advisor.get("referral_code")
-    if not code:
-        # Every advisor gets a code at appointment; an advisor without one is a
-        # data problem, not a reason to silently skip attribution.
-        raise HTTPException(
-            status_code=409,
-            detail="Your referral code is missing. Ask an admin to re-run your "
-                   "appointment so a code is minted.")
+    try:
+        result = asc_referrals.create_referral(
+            store, referrer=advisor, email=email, name=body.name, note=body.note)
+    except asc_referrals.ReferralRefused as refused:
+        raise HTTPException(status_code=refused.status, detail=refused.detail)
 
-    existing_user = store.get_user_by_email(email)
-    # Only a PHYSICIAN account counts as "already a member" (audit M4).
-    # ``get_user_by_email`` spans every role, so an unfiltered check turned this
-    # endpoint into a clean account-existence oracle for admin, buyer and
-    # hospital-contact addresses — a probe any advisor could run, one address at
-    # a time, against a company inbox. A non-physician address gets the ordinary
-    # invited response and no account is created either way.
-    is_member = bool(existing_user and existing_user.get("role") == "evaluator"
-                     and not existing_user.get("is_mock"))
-    if store.has_referral_for_email(advisor["id"], email):
+    code = result["referral_code"]
+    if result["outcome"] == asc_referrals.OUTCOME_ALREADY_INVITED:
         return {"ok": True, "already": "invited",
                 "message": "You already invited this physician."}
-    if is_member:
-        # Not a failure — a fact. Record the referral so the advisor sees an
-        # honest row instead of an error, and never create a duplicate account.
-        ref = store.insert_referral(
-            referrer_id=advisor["id"], referral_code=code, invitee_email=email,
-            invitee_name=(body.name or "").strip() or None,
-            note=(body.note or "").strip() or None, status="signed_up")
-        store.advance_referral(ref["referral_id"], "signed_up")
+    if result["outcome"] == asc_referrals.OUTCOME_MEMBER:
         return {"ok": True, "already": "member",
                 "message": "That physician is already a member.",
-                "referral": _referral_public(store.get_referral(ref["referral_id"]))}
+                "referral": _referral_public(result["referral"])}
 
-    ref = store.insert_referral(
-        referrer_id=advisor["id"], referral_code=code, invitee_email=email,
-        invitee_name=(body.name or "").strip() or None,
-        note=(body.note or "").strip() or None, status="invited")
-
-    sent = await _send_referral_invite(request, advisor, body, email, code)
+    sent = await asc_referrals.send_invite(
+        referrer=advisor, email=email, name=body.name, code=code)
     store.log_event(
         entity_type="user", entity_id=advisor["id"], event_type="referral_invited",
         actor=advisor["email"],
-        payload={"referral_id": ref["referral_id"], "email_sent": sent},
+        payload={"referral_id": result["referral"]["referral_id"], "email_sent": sent},
     )
     return {
         "ok": True,
-        "referral": _referral_public(store.get_referral(ref["referral_id"])),
+        "referral": _referral_public(store.get_referral(result["referral"]["referral_id"])),
         "email_sent": sent,
         # Surfaced rather than swallowed: if email is not configured, the
         # advisor gets a link to send themselves instead of a silent no-op.
@@ -522,48 +505,17 @@ async def _send_referral_invite(request: Request, advisor: Dict[str, Any],
     their onboarding link from the guarded path like everybody else.
     Attribution does not suffer: the referral resolves on the invitee's email at
     provisioning time, not on a token surviving the round trip.
+
+    The body of this moved to ``referrals.send_invite`` when referrals were
+    generalised beyond the advisor tier (PRD-REF). It stays here as a named
+    seam — ``request`` and ``body`` are the shapes this surface holds — so that
+    there is exactly one place the invite is composed. In particular the rule
+    that the referrer's name NEVER falls back to their email address is enforced
+    once, in ``referrals.referrer_display_name``, rather than in two copies that
+    would drift.
     """
-    from email_utils import is_email_transport_configured, send_html_email
-    from onboarding_emails import build_asclepius_invite_email
-
-    if not is_email_transport_configured():
-        return False
-    # NEVER fall back to the advisor's email address here. This string goes into
-    # the subject line and body of a message to a THIRD PARTY, so an advisor
-    # appointed by email with no name on file would have had their address
-    # disclosed to every physician they invited — and "toby@gmail.com suggested
-    # you'd be a good fit" is not the sentence that makes a named referral work.
-    # No name means no named referral: the invite falls back to the ordinary
-    # copy rather than inventing or leaking one.
-    # Collapse any newline before this reaches a Subject header (audit L8).
-    # SendGrid's JSON transport is immune, but the SMTP fallback assigns the
-    # string straight into a MIME header, where a CR/LF is header injection.
-    # Only an admin can set a display name today, which is what keeps it low —
-    # but "the only person who can exploit this is trusted" is a fact about
-    # today's permissions, not a property of the code.
-    referrer_name = _header_safe((advisor.get("full_name") or "").strip())
-    onboarding_url = _invite_url(code) or _portal_base()
-
-    html_body = build_asclepius_invite_email(
-        invitee_first_name=((body.name or "").strip().split(" ")[0] if body.name else ""),
-        # The email's own copy says "<X> has invited you to join"; with no name
-        # on file, "a colleague" is the honest filler and reveals nothing.
-        director_full_name=referrer_name or "a colleague",
-        role_label="Physician contributor",
-        org_name="Archangel Health",
-        specialty=(advisor.get("specialty") or ""),
-        onboarding_url=onboarding_url,
-        invitee_email=email,
-        referrer_name=referrer_name,
-    )
-    subject = (f"{referrer_name} suggested you'd be a good fit for Asclepius"
-               if referrer_name
-               else "You're invited to contribute to Asclepius")
-    try:
-        return bool(await send_html_email(email, subject, html_body))
-    except Exception:
-        log.exception("[advisor] referral invite email failed (referral row stands)")
-        return False
+    return await asc_referrals.send_invite(
+        referrer=advisor, email=email, name=body.name, code=code)
 
 
 # ═══ Advisory sign-off (§4) ══════════════════════════════════════════════════

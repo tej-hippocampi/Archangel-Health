@@ -389,10 +389,24 @@ def build_asclepius_invite_email(
         rows.append(("Specialty", specialty, False))
 
     referral_line = ""
+    referral_exit = ""
     if (referrer_name or "").strip():
+        safe_referrer = html.escape(referrer_name.strip())
         referral_line = _p(
-            _strong(html.escape(referrer_name.strip()))
+            _strong(safe_referrer)
             + " suggested you&rsquo;d be a good fit."
+        )
+        # The exit line, and it is not politeness. A physician who cannot see how
+        # to decline a message from a name they may not recognise marks it spam,
+        # and ONE spam complaint costs the sending domain that every other
+        # physician's invite goes through. Giving the recipient a way out is the
+        # cheapest possible protection for the channel the whole referral
+        # mechanism runs on.
+        referral_exit = _p(
+            f"{safe_referrer} asked us to reach out. If this isn&rsquo;t for you, "
+            "ignore this and we won&rsquo;t follow up.",
+            muted=True,
+            small=True,
         )
 
     body = (
@@ -416,6 +430,7 @@ def build_asclepius_invite_email(
             muted=True,
             small=True,
         )
+        + referral_exit
     )
     subject = f"You're invited to label data with {(org_name or 'your organization').strip()}"
     return _shell(subject=subject, body_html=body)

@@ -99,6 +99,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from asclepius import capabilities as _caps
 from asclepius import compensation
+from asclepius import referrals as _referrals
 
 log = logging.getLogger("asclepius.payments")
 
@@ -125,6 +126,11 @@ class PaymentsDenied(Exception):
 # ─── Kinds ────────────────────────────────────────────────────────────────────
 KIND_TASK = "task"
 KIND_REVIEW_SESSION = "review_session"
+# A one-time bounty when a referred physician's FIRST task is approved. A third
+# kind rather than a second ledger, so ``UNIQUE(kind, ref_id)`` — the guard that
+# makes every other payout in this module un-double-payable — covers it too, with
+# ``ref_id`` being the referral_id.
+KIND_REFERRAL = "referral"
 SESSION_KIND_REVIEW = "review"
 
 # ─── Ledger states ────────────────────────────────────────────────────────────
@@ -198,6 +204,24 @@ def tr_session_cents() -> int:
 def tr_min_seconds() -> int:
     """20 minutes of continuous, server-measured time."""
     return _env_int("ASCLEPIUS_TR_MIN_SECONDS", 1200)
+
+
+def referral_bounty_cents() -> int:
+    """$150 when a physician you referred completes their first case.
+
+    A ONE-TIME BOUNTY, not a percentage of the colleague's ongoing work, and the
+    reasoning is worth keeping next to the number. A revenue share creates an
+    indefinite liability against every future task; it is a compliance question
+    the moment anyone asks whether physicians are being paid to recruit
+    physicians; and — the practical objection — it is unexplainable on a
+    dashboard. *"$150 when your colleague completes their first case"* is a
+    sentence a doctor can hold in their head. A trailing percentage is a
+    spreadsheet.
+
+    Like every other rate here it lives in env and is STAMPED ON THE LEDGER ROW
+    at accrual, so changing it can never restate a bounty already earned.
+    """
+    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 15000)
 
 
 def tl_auto_approve_days() -> int:
@@ -1161,6 +1185,10 @@ def reconcile_task_accruals(
     now = now or _now()
     rate = tl_rate_cents()
     counts = {"accrued": 0, "approved": 0, "voided": 0, "auto_approved": 0}
+    # Everyone whose task ledger this pass wrote a row for. Collected as the pass
+    # runs rather than re-queried afterwards, so the referral settlement in pass 4
+    # costs nothing on the overwhelmingly common case where nothing moved.
+    touched: set = set()
 
     # 1. Work with no ledger row yet. Unpayable authors are filtered in SQL, so
     #    an advisor's submissions never enter this set at all.
@@ -1180,6 +1208,8 @@ def reconcile_task_accruals(
         )
         if written is not None:
             counts["accrued"] += 1
+            if written["status"] == APPROVED:
+                touched.add(row["evaluator_id"])
             store.log_event(
                 entity_type="earning", entity_id=written["earning_id"],
                 event_type="earning_accrued", actor=row["evaluator_id"],
@@ -1197,6 +1227,7 @@ def reconcile_task_accruals(
                                      resolved_at=_ledger_ts(now),
                                      only_from=[ACCRUED, VOID]):
                 counts["approved"] += 1
+                touched.add(row.get("user_id") or user_id)
         elif implied == VOID and status == ACCRUED:
             if store.resolve_earning(kind=KIND_TASK, ref_id=ref, status=VOID,
                                      resolved_at=_ledger_ts(now),
@@ -1204,8 +1235,204 @@ def reconcile_task_accruals(
                 counts["voided"] += 1
 
     # 3. The backlog escape hatch.
-    counts["auto_approved"] = _auto_approve(store, now=now, user_id=user_id)
+    counts["auto_approved"] = _auto_approve(store, now=now, user_id=user_id,
+                                            touched=touched)
+
+    # 4. The referral bounty. Every physician whose ledger this pass touched may
+    #    have been referred by somebody, and their FIRST approved task is what
+    #    settles that bet. Derived here rather than hooked into a submit path for
+    #    exactly the reason stated at the top of this module: a read is a
+    #    contract-free dependency and this pass already has the set of people
+    #    whose money just moved.
+    #
+    #    ``touched`` is the union of everyone this pass wrote for, not only the
+    #    ones who moved to APPROVED, because pass 1 can insert a row that is
+    #    ALREADY approved (the verdict landed before the sweep noticed the
+    #    submission) and that is the common case for a fast reviewer.
+    counts["referral_bounties"] = 0
+    for referred_id in sorted(touched):
+        if accrue_referral_bounty(store, referred_user_id=referred_id, now=now):
+            counts["referral_bounties"] += 1
     return counts
+
+
+# ═══ The referral bounty ══════════════════════════════════════════════════════
+def accrue_referral_bounty(
+    store, *, referred_user_id: str, now: Optional[datetime] = None,
+) -> Optional[str]:
+    """Settle the bet, if this physician was referred and has now delivered.
+
+    Called when a task earning for ``referred_user_id`` reaches APPROVED.
+
+    **First APPROVED task, not first submission.** A submission a reviewer later
+    rejects must not pay a bounty — otherwise the cheapest way to earn $150 is to
+    refer someone who submits one thing and leaves. Approval is the first moment
+    the referral has produced anything a buyer would pay for.
+
+    Idempotent by construction rather than by checking first: ``earnings`` carries
+    ``UNIQUE(kind, ref_id)`` and ``ref_id`` is the referral_id, so a second call
+    is a no-op at the DATABASE level. The one thing that guard does NOT cover is
+    two different referral rows for the same invitee, so the winner-picking and
+    the duplicate marking happen inside one ``BEGIN IMMEDIATE`` in
+    ``store.settle_referral_bounty``.
+
+    Returns the earning id when this call is the one that paid, else None.
+
+    Three guards, all of them necessary and all of them checked HERE rather than
+    at invite time, because the world changes between the invitation and the
+    money:
+
+      * **The referrer must still be payable.** An advisor holds equity and does
+        not accrue cash — including on referrals. ``compensation.accrues_payment``
+        is the predicate; never write a second one.
+      * **No self-referral.** Checked at invite AND here, because email addresses
+        change: a physician who adds a second address to their own account after
+        being "referred" by themselves must not be able to collect.
+      * **An expired invitation cannot come back to life.** ``bounty_state`` is
+        already terminal on those rows, so they are never candidates.
+    """
+    if not referred_user_id:
+        return None
+    now = now or _now()
+    if not store.has_approved_task_earning(referred_user_id):
+        return None
+
+    rows = store.referrals_for_invitee(referred_user_id)
+    if not rows:
+        return None
+
+    invitee = store.get_user_by_id(referred_user_id)
+    invitee_label = _invitee_label(invitee, rows[0])
+
+    # Eligibility is resolved HERE, ahead of the settling transaction, and the
+    # answer is passed in as a list of referral ids. The store must not run a
+    # second connection's read while it holds the write lock, and deciding this
+    # needs the referrers' compensation models — so the policy stays in the
+    # module that owns money and the transaction stays a pure write.
+    #
+    # Cached per referrer: a popular invitee with four referrals costs four rows
+    # and not four lookups.
+    referrers: Dict[str, Optional[Dict[str, Any]]] = {}
+
+    def _eligible(referral: Dict[str, Any]) -> bool:
+        rid = referral.get("referrer_id") or ""
+        if rid == referred_user_id:
+            return False                      # self-referral, the patient version
+        if rid not in referrers:
+            referrers[rid] = store.get_user_by_id(rid or "")
+        return compensation.accrues_payment(referrers[rid])
+
+    stamp = _ledger_ts(now)
+    eligible_ids = []
+    for r in rows:
+        if r.get("bounty_state") is not None:
+            continue
+        if _eligible(r):
+            eligible_ids.append(r["referral_id"])
+        else:
+            # Settled explicitly rather than left pending forever. A funnel row
+            # that will never resolve is the same failure as an empty page: the
+            # referrer keeps waiting for something that is not coming.
+            store.set_referral_bounty_state(
+                r["referral_id"], store.BOUNTY_INELIGIBLE, resolved_at=stamp)
+
+    minted = _new_id("earn")
+    settled = store.settle_referral_bounty(
+        invitee_user_id=referred_user_id,
+        earning_id=minted,
+        amount_cents=referral_bounty_cents(),
+        accrued_at=stamp,
+        eligible_ids=eligible_ids,
+        note=f"Referral · {invitee_label} completed their first case",
+    )
+    if settled is None:
+        return None
+
+    earning = store.get_earning(kind=KIND_REFERRAL, ref_id=settled["referral_id"])
+    if earning is None:
+        return None
+    # The ledger row carries the id THIS call minted only when this call's INSERT
+    # is the one that won; every later pass reads back somebody else's id and
+    # says nothing. Comparing timestamps instead would double-log two calls
+    # inside the same second — which is exactly what a retry looks like.
+    if earning["earning_id"] != minted:
+        return None
+    store.log_event(
+        entity_type="earning", entity_id=earning["earning_id"],
+        event_type="referral_bounty_accrued", actor=None,
+        payload={"kind": KIND_REFERRAL, "referral_id": settled["referral_id"],
+                 "referrer_id": settled.get("referrer_id"),
+                 "referred_user_id": referred_user_id,
+                 "amount_cents": int(earning["amount_cents"])},
+    )
+    return earning["earning_id"]
+
+
+def _invitee_label(invitee: Optional[Dict[str, Any]], referral: Dict[str, Any]) -> str:
+    """How the referred physician is named on the referrer's ledger row.
+
+    Their real name if we have one, else the name the referrer typed, else the
+    MASKED address — never the raw one. The ledger note is read by the referrer,
+    and a colleague's address is not something they gain a right to because the
+    system now knows it.
+    """
+    name = ((invitee or {}).get("full_name") or "").strip()
+    if name:
+        return name
+    return _referrals.display_name(referral)
+
+
+def reconcile_referral_bounties(
+    store, *, referrer_id: str, now: Optional[datetime] = None,
+) -> Dict[str, int]:
+    """Bring ONE physician's referral funnel up to date, from their side.
+
+    The accrual above fires when the INVITEE's ledger moves, which is the prompt
+    path — but it depends on somebody having loaded the invitee's earnings (or an
+    admin having loaded the ledger) since their work was approved. That is a
+    scheduling assumption, and the one thing this feature must not do is make the
+    referrer wait on it: the whole premise is that a referrer never has to wonder
+    whether it worked.
+
+    So the referrer's own page load reconciles their own funnel. Bounded by their
+    referral count and capped, so a page load costs what that physician's funnel
+    costs and nothing more — the same scoping rule ``reconcile_task_accruals``
+    follows (audit M1).
+    """
+    now = now or _now()
+    counts = {"expired": 0, "accrued": 0}
+    rows = store.list_referrals_by_referrer(referrer_id)
+
+    # The sweep is a WRITE, and this function runs on every Earnings page load.
+    # Reading first means the overwhelmingly common case — a physician with no
+    # unclaimed invitations outstanding — costs one indexed SELECT and takes no
+    # write lock at all.
+    if any(r.get("bounty_state") is None and not r.get("user_id") for r in rows):
+        counts["expired"] = _referrals.sweep_expiries(
+            store, referrer_id=referrer_id, now=now)
+
+    pending = [r for r in rows if r.get("bounty_state") is None and r.get("user_id")]
+    for referral in pending[:_REFERRAL_RECONCILE_CAP]:
+        invitee_id = referral["user_id"]
+        try:
+            # The invitee's own accruals may not be materialised yet — their work
+            # is approved on review, but the ledger row that says so is written by
+            # whoever next reads their earnings. Scoped to that one physician, so
+            # this is their backlog and nobody else's.
+            reconcile_task_accruals(store, user_id=invitee_id, now=now)
+            if accrue_referral_bounty(store, referred_user_id=invitee_id, now=now):
+                counts["accrued"] += 1
+        except Exception:
+            # One unresolvable referral must never take the Earnings page down.
+            log.exception("asclepius.payments: referral bounty reconcile failed for %s",
+                          referral.get("referral_id"))
+    return counts
+
+
+#: How many pending referrals one page load will chase. Twenty is already an
+#: unusual funnel for a real physician; past that the tail resolves on the next
+#: load rather than making one request pay for all of it.
+_REFERRAL_RECONCILE_CAP = 20
 
 
 def _reject_note(row: Dict[str, Any]) -> str:
@@ -1217,7 +1444,8 @@ def _reject_note(row: Dict[str, Any]) -> str:
     return f"{base}: {note}" if note else base
 
 
-def _auto_approve(store, *, now: datetime, user_id: Optional[str] = None) -> int:
+def _auto_approve(store, *, now: datetime, user_id: Optional[str] = None,
+                  touched: Optional[set] = None) -> int:
     """A labeler is never held hostage by a review backlog: if nobody reviews
     their work within the window, it approves.
 
@@ -1234,6 +1462,11 @@ def _auto_approve(store, *, now: datetime, user_id: Optional[str] = None) -> int
             note=f"Auto-approved after {days} days without a review",
         ):
             moved += 1
+            # An auto-approval is an approval: a physician whose referrer has been
+            # waiting fourteen days for a review that never came still delivered,
+            # and the bounty settles on the same event the labeler's money does.
+            if touched is not None and row["kind"] == KIND_TASK and row.get("user_id"):
+                touched.add(row["user_id"])
             store.log_event(
                 entity_type="earning", entity_id=row["earning_id"],
                 event_type="earning_auto_approved", actor=None,
@@ -1300,7 +1533,8 @@ def mark_paid(
 
 
 # ═══ The Earnings read model ══════════════════════════════════════════════════
-_KIND_LABELS = {KIND_TASK: "Task", KIND_REVIEW_SESSION: "Review session"}
+_KIND_LABELS = {KIND_TASK: "Task", KIND_REVIEW_SESSION: "Review session",
+                KIND_REFERRAL: "Referral"}
 # Words, not tokens — a raw status string never reaches a human.
 STATUS_WORDS = {
     ACCRUED: "Pending review",
@@ -1354,6 +1588,17 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
         # beats showing an error. Logged loudly because it IS a defect.
         log.exception("asclepius.payments: accrual reconciliation failed; serving the ledger as-is")
 
+    # And their own referral funnel, from their side. A SEPARATE try/except on
+    # purpose: a referral that cannot be settled must never stop the reconcile
+    # that pays this physician for their OWN work, and the funnel is the half
+    # more likely to hit something unexpected (it reaches other people's rows).
+    try:
+        reconcile_referral_bounties(store, referrer_id=user_id)
+    except Exception:
+        log.exception("asclepius.payments: referral reconciliation failed; "
+                      "serving the funnel as-is")
+
+    user = store.get_user_by_id(user_id)
     totals = store.earnings_totals_for_user(user_id)
     rows = store.earnings_for_user(user_id, limit=limit)
     sessions = {s["session_id"]: s for s in store.work_sessions_for_user(user_id, limit=limit)}
@@ -1399,6 +1644,40 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
                 item["detail"] = f"{spec} case"
         recent.append(item)
 
+    bounty_cents = referral_bounty_cents()
+    referral_block = _referral_block(store, user=user, bounty_cents=bounty_cents)
+    lines = [
+        _line(totals, KIND_TASK, "Tasks labeled", tl_rate_cents()),
+        _line(totals, KIND_REVIEW_SESSION, "Review sessions", tr_session_cents()),
+    ]
+    # The referral line only exists once there is a referral to report. A doctor
+    # who has never referred anyone should not be shown a third rate they are not
+    # participating in — the card below does the asking, and a permanent
+    # "Referrals 0 × $150 · $0" row is the growth-loop instinct this feature is
+    # supposed to resist.
+    #
+    # The second clause is the one that keeps the arithmetic honest: a bounty
+    # already earned is inside ``approved_cents`` whatever happens to the funnel
+    # afterwards, so if the block is missing (a physician who may no longer
+    # refer) the line must still appear or the breakdown stops summing to the
+    # headline above it — a number that does not add up on a payments page.
+    earned_referral_money = bool(totals.get(APPROVED, {}).get(KIND_REFERRAL)
+                                 or totals.get(PAID, {}).get(KIND_REFERRAL))
+    if (referral_block and referral_block["total"]) or earned_referral_money:
+        referral_line = _line(totals, KIND_REFERRAL, "Referrals", bounty_cents)
+        # PENDING here is NOT an ``accrued`` ledger row — a bounty has no accrued
+        # state, because there is nothing to review. It is a referral in flight:
+        # somebody invited, not yet at their first case. That distinction is why
+        # this line's pending half is computed from the FUNNEL and not from the
+        # ledger totals, and why it has to be carried at all: without it the
+        # doctor sees nothing and assumes nothing happened.
+        in_flight = referral_block["pending_count"] if referral_block else 0
+        referral_line["pending_count"] = in_flight
+        referral_line["pending_cents"] = (
+            referral_block["pending_cents"] if referral_block else 0)
+        referral_line["pending_label"] = _pending_referral_label(in_flight)
+        lines.append(referral_line)
+
     return {
         "currency": "USD",
         "approved_cents": approved_cents,
@@ -1415,14 +1694,16 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
         # the thing that pays them. The counts now come from the same states as
         # the money beside them, and the pending half is carried explicitly rather
         # than being left for the reader to reconcile.
-        "lines": [
-            _line(totals, KIND_TASK, "Tasks labeled", tl_rate_cents()),
-            _line(totals, KIND_REVIEW_SESSION, "Review sessions", tr_session_cents()),
-        ],
+        "lines": lines,
         "recent": recent,
+        # The referral card's whole payload: the funnel, what it is worth, and
+        # whether this physician may refer at all. Absent (None) rather than an
+        # empty block for someone who cannot, so the page renders nothing rather
+        # than an inert form.
+        "referrals": referral_block,
         # Present so the page can say, honestly, "you are not paid per task" to an
         # advisor rather than showing them an unexplained $0.
-        "accrues_payment": compensation.accrues_payment(store.get_user_by_id(user_id)),
+        "accrues_payment": compensation.accrues_payment(user),
         # The live session, if one is open, so the Earnings page can render the
         # countdown without the reviewer having to be on the review tab. Read-only:
         # the NONCE is deliberately withheld, because the tab that is beating is
@@ -1431,6 +1712,35 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
         "open_session": _open_session_view(store, user_id=user_id),
         "params": client_params(),
     }
+
+
+def _referral_block(
+    store, *, user: Optional[Dict[str, Any]], bounty_cents: int,
+) -> Optional[Dict[str, Any]]:
+    """The referral card's payload, or None for a physician who cannot refer.
+
+    Wrapped because the funnel reaches rows this request did not create, and a
+    referral read failing must not turn a doctor's own ledger into a 500.
+    """
+    if user is None or not _referrals.can_refer(user):
+        return None
+    try:
+        return _referrals.funnel(store, referrer=user, bounty_cents=bounty_cents)
+    except Exception:
+        log.exception("asclepius.payments: referral funnel failed for %s", user.get("id"))
+        return None
+
+
+def _pending_referral_label(n: int) -> str:
+    """"1 invited, awaiting their first case" — the sub-line that IS the design.
+
+    A count with no sentence is a number a physician has to interpret; the whole
+    point of this row is that the wait is legible without interpretation.
+    """
+    if n <= 0:
+        return ""
+    who = "1 invited" if n == 1 else f"{n} invited"
+    return f"{who}, awaiting their first case"
 
 
 def _open_session_view(store, *, user_id: str) -> Optional[Dict[str, Any]]:

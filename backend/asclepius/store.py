@@ -1863,6 +1863,42 @@ class AsclepiusStore:
                 "CREATE INDEX IF NOT EXISTS idx_earnings_sweep ON earnings(status, accrued_at)")
             # ═══ END PRD-P ═══
 
+            # ═══ PRD-REF — the referral bounty (physician referrals from Earnings) ═══
+            # NO NEW TABLE. ``referrals`` already exists (PRD-D above) and the
+            # ledger already carries UNIQUE(kind, ref_id), which is the whole
+            # double-pay guard. What is missing is a place to record the MONEY
+            # state of a referral, and that is deliberately NOT ``referrals.status``.
+            #
+            # ``status`` is a state machine about a PERSON — invited, signed up,
+            # verified, approved — and it is driven from the verification routes
+            # via ``advance_referral_for_user``. Writing 'paid_out' into it would
+            # mean a later NPI recheck or a re-onboard calling
+            # ``advance_referral_for_user(uid, 'approved')`` walks a PAID referral
+            # back to 'approved': ``advance_referral``'s monotonicity guard only
+            # covers values that are IN the ladder, so an out-of-ladder value is
+            # overwritten silently. A row that has been paid must never be
+            # rewritable by an event about credentialing, so the money gets its
+            # own columns and the funnel keeps its own.
+            #
+            # No DEFAULT on any of them — the rule that holds everywhere in this
+            # file. NULL on ``bounty_state`` means "nothing has been decided yet",
+            # which is exactly the pending state the Earnings page must render as
+            # "+$150 pending" rather than as absence.
+            for _col, _ddl in (
+                # NULL | earned | duplicate | expired | ineligible
+                ("bounty_state",       "TEXT"),
+                ("bounty_earning_id",  "TEXT"),   # the earnings row that paid it
+                ("bounty_resolved_at", "TEXT"),
+            ):
+                if _col not in cols("referrals"):
+                    conn.execute(f"ALTER TABLE referrals ADD COLUMN {_col} {_ddl}")
+            # The bounty resolves FROM the invitee: "this physician's first task
+            # was approved — who referred them?". Unindexed that is a full scan of
+            # the referrals table on every task approval, forever.
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_referrals_user ON referrals(user_id)")
+            # ═══ END PRD-REF ═══
+
             # ── Specialty-tagged task notifications (outbox + drain) ─────────
             # One row per (recipient, specialty, upload batch): the admin request
             # enqueues these synchronously (fast, transactional) and a background
@@ -8666,6 +8702,7 @@ class AsclepiusStore:
             rows = conn.execute(
                 """
                 SELECT e.ref_id AS submission_id,
+                       e.user_id,
                        e.status,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = e.ref_id
@@ -8726,6 +8763,307 @@ class AsclepiusStore:
             rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
     # ═══ END PRD-P STORE METHODS ═══
+
+    # ═══ PRD-REF STORE METHODS — the referral bounty ═════════════════════════
+    # Appended per START_HERE §3.2: nothing above is modified. Everything here
+    # operates on the EXISTING ``referrals`` table and the EXISTING ``earnings``
+    # ledger. There is no second referral store, because two referral tables is
+    # how a bounty gets paid twice.
+
+    #: Bounty states. NULL is the fifth and it is the important one: "not
+    #: decided yet", which the Earnings page renders as pending money rather
+    #: than as silence.
+    BOUNTY_EARNED = "earned"
+    BOUNTY_DUPLICATE = "duplicate"
+    BOUNTY_EXPIRED = "expired"
+    BOUNTY_INELIGIBLE = "ineligible"
+    BOUNTY_STATES = (BOUNTY_EARNED, BOUNTY_DUPLICATE, BOUNTY_EXPIRED, BOUNTY_INELIGIBLE)
+
+    def ensure_referral_code(self, user_id: str) -> Optional[str]:
+        """This physician's referral code, minting one if they have none.
+
+        Every advisor gets a code at appointment. An ordinary physician does not,
+        and ``referrals.referral_code`` is NOT NULL — so generalising referrals
+        beyond the advisor tier needs a code minted on first use rather than an
+        error page on the one action that recruits a colleague.
+
+        Idempotent, and safe under a race: the partial unique index on
+        ``users(referral_code)`` is the guarantee, the SELECT inside
+        ``_mint_referral_code`` is only an optimisation, and a lost race is
+        retried rather than surfaced as a 500 (the same reasoning as
+        ``appoint_advisor``).
+        """
+        if not user_id:
+            return None
+        for _ in range(3):
+            with self._conn() as conn:
+                row = conn.execute(
+                    "SELECT referral_code FROM users WHERE id = ?", (user_id,)).fetchone()
+                if row is None:
+                    return None
+                if row["referral_code"]:
+                    return str(row["referral_code"])
+                code = self._mint_referral_code(conn)
+                try:
+                    conn.execute(
+                        "UPDATE users SET referral_code = ? "
+                        "WHERE id = ? AND referral_code IS NULL", (code, user_id))
+                except sqlite3.IntegrityError:
+                    continue
+            fresh = self.get_user_by_id(user_id)
+            if fresh and fresh.get("referral_code"):
+                return str(fresh["referral_code"])
+        return None
+
+    def referrals_for_invitee(self, user_id: str) -> List[Dict[str, Any]]:
+        """Every referral that claimed this physician, earliest invite first.
+
+        Plural because ``claim_referral_for_signup`` is plural: two physicians
+        can both refer the same colleague, and a well-connected candidate is
+        exactly who gets referred twice. Ordering is (invited_at, referral_id) so
+        "who referred them first" is a total order and not a coin toss — the
+        bounty winner is picked off the front of this list.
+        """
+        if not user_id:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM referrals WHERE user_id = ? "
+                "ORDER BY invited_at ASC, referral_id ASC", (user_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def referral_bounty_amounts(self, referral_ids: List[str]) -> Dict[str, int]:
+        """``{referral_id: amount_cents}`` for bounties that were actually paid.
+
+        The funnel must report what the LEDGER says a referral earned, not what
+        the current rate would pay for it today. Every rate in this system is
+        stamped on the row at accrual precisely so a change to
+        ``ASCLEPIUS_REFERRAL_BOUNTY_CENTS`` can never restate a past earning —
+        and a funnel that multiplied its earned count by the live constant would
+        restate exactly that, on the one surface where the doctor reads it.
+
+        One query for the page rather than one per row.
+        """
+        ids = [i for i in (referral_ids or []) if i]
+        out: Dict[str, int] = {}
+        if not ids:
+            return out
+        with self._conn() as conn:
+            for i in range(0, len(ids), 400):
+                chunk = ids[i:i + 400]
+                rows = conn.execute(
+                    "SELECT ref_id, amount_cents FROM earnings WHERE kind = 'referral' "
+                    "AND ref_id IN (%s)" % ",".join("?" * len(chunk)), chunk).fetchall()
+                for r in rows:
+                    out[r["ref_id"]] = int(r["amount_cents"])
+        return out
+
+    def has_approved_task_earning(self, user_id: str) -> bool:
+        """Has this physician had at least one TASK earning reach a settled,
+        earned state? ``paid`` counts: money that has already left the building
+        is not less approved than money that has not.
+
+        This is the bounty's trigger read, and it deliberately asks the LEDGER
+        rather than re-deriving "approved" from review verdicts. ``payments``
+        owns exactly one definition of when a task is worth money
+        (``_verdict_status`` plus the auto-approve sweep), and a second one here
+        would drift from it the first time either changes.
+        """
+        if not user_id:
+            return False
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM earnings WHERE user_id = ? AND kind = 'task' "
+                "AND status IN ('approved', 'paid') LIMIT 1", (user_id,)).fetchone()
+        return row is not None
+
+    def expire_stale_referrals(
+        self, *, referrer_id: str, cutoff: str, resolved_at: str,
+    ) -> int:
+        """Retire invitations that were never taken up. Returns the number moved.
+
+        Without this a physician's funnel becomes a graveyard of two-year-old
+        invitations and the page stops meaning anything — which is the same
+        failure as showing nothing, arrived at from the other direction.
+
+        Scoped to ONE referrer (a page load must not sweep the company) and
+        narrow on purpose: only a row that nobody ever signed up against
+        (``user_id IS NULL``), that is still sitting at the first rung of the
+        funnel, and whose bounty has not already been decided. An expired row
+        keeps its ``invited_at`` — the record of the invitation is not deleted,
+        it is settled.
+        """
+        if not referrer_id:
+            return 0
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                UPDATE referrals
+                   SET status = 'expired',
+                       bounty_state = 'expired',
+                       bounty_resolved_at = ?,
+                       resolved_at = COALESCE(resolved_at, ?)
+                 WHERE referrer_id = ?
+                   AND user_id IS NULL
+                   AND bounty_state IS NULL
+                   AND (status IS NULL OR status = 'invited')
+                   AND invited_at < ?
+                """,
+                (resolved_at, resolved_at, referrer_id, cutoff))
+            return int(cur.rowcount or 0)
+
+    def set_referral_bounty_state(
+        self, referral_id: str, state: str, *, resolved_at: str,
+    ) -> bool:
+        """Record a terminal bounty decision that is NOT a payment — a
+        self-referral, or a referrer who holds equity instead of a cash rate.
+
+        Compare-and-set on ``bounty_state IS NULL`` so a decision can never
+        overwrite a payment that already happened. Returns True when a row moved.
+        """
+        if not referral_id or state not in self.BOUNTY_STATES:
+            return False
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE referrals SET bounty_state = ?, bounty_resolved_at = ? "
+                "WHERE referral_id = ? AND bounty_state IS NULL",
+                (state, resolved_at, referral_id))
+            return bool(cur.rowcount)
+
+    def settle_referral_bounty(
+        self,
+        *,
+        invitee_user_id: str,
+        earning_id: str,
+        amount_cents: int,
+        accrued_at: str,
+        eligible_ids: Optional[List[str]] = None,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Pay AT MOST ONE bounty for this physician, ever — atomically.
+
+        ``UNIQUE(kind, ref_id)`` on the ledger already makes a second payment
+        against the SAME referral row impossible. It does nothing about two
+        DIFFERENT referral rows for the same invitee, which is the case that
+        actually costs money: two physicians both refer Dr Chen, both rows are
+        claimed by ``claim_referral_for_signup`` (correctly — they both did refer
+        her), and a naive per-row accrual pays $300 for one physician.
+
+        So the whole decision — which row wins, which rows are duplicates,
+        whether a bounty already exists — happens inside one BEGIN IMMEDIATE.
+        Five concurrent callers cannot interleave a read and a write here; four
+        of them find the winner already settled and return it unchanged.
+
+        ``eligible_ids`` is the caller's whitelist of referral rows that may be
+        paid, in preference order — resolved by ``payments`` BEFORE this call,
+        because deciding it needs the referrers' compensation models and this
+        transaction must not issue a second connection's read while it holds the
+        write lock. A stale whitelist is acceptable and a deadlock is not: the
+        window is microseconds and the worst case is a bounty that settles on the
+        next pass. ``None`` means "any unsettled row".
+
+        Returns the winning referral row (with its bounty state) or None when no
+        row was eligible. Idempotent: a second call returns the same row.
+        """
+        if not self.referrals_for_invitee(invitee_user_id):
+            return None
+        allowed = None if eligible_ids is None else set(eligible_ids)
+        order = {rid: i for i, rid in enumerate(eligible_ids or [])}
+
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            fresh = [dict(r) for r in conn.execute(
+                "SELECT * FROM referrals WHERE user_id = ? "
+                "ORDER BY invited_at ASC, referral_id ASC", (invitee_user_id,)).fetchall()]
+
+            # Already settled? Return the row that carries the payment. Checked
+            # against the LEDGER as well as the column, because the ledger is the
+            # authority on whether money exists and the column is a projection of
+            # it — if they ever disagree, the ledger wins.
+            paid = None
+            for r in fresh:
+                if r.get("bounty_state") == self.BOUNTY_EARNED:
+                    paid = r
+                    break
+                existing = conn.execute(
+                    "SELECT earning_id FROM earnings WHERE kind = 'referral' AND ref_id = ?",
+                    (r["referral_id"],)).fetchone()
+                if existing is not None:
+                    conn.execute(
+                        "UPDATE referrals SET bounty_state = ?, bounty_earning_id = ?, "
+                        "bounty_resolved_at = COALESCE(bounty_resolved_at, ?) "
+                        "WHERE referral_id = ?",
+                        (self.BOUNTY_EARNED, existing["earning_id"], accrued_at,
+                         r["referral_id"]))
+                    paid = dict(r, bounty_state=self.BOUNTY_EARNED,
+                                bounty_earning_id=existing["earning_id"])
+                    break
+
+            if paid is None:
+                candidates = [r for r in fresh
+                              if r.get("bounty_state") is None
+                              and (allowed is None or r["referral_id"] in allowed)]
+                # The caller's preference order wins where it expressed one;
+                # (invited_at, referral_id) breaks any remaining tie, so "who
+                # referred them first" is a total order and not a coin toss.
+                candidates.sort(key=lambda r: order.get(r["referral_id"], len(order)))
+                if not candidates:
+                    conn.execute("COMMIT")
+                    return None
+                winner = candidates[0]
+                conn.execute(
+                    "INSERT OR IGNORE INTO earnings "
+                    "(earning_id, user_id, kind, ref_id, amount_cents, rate_cents, "
+                    " status, accrued_at, resolved_at, note) "
+                    "VALUES (?, ?, 'referral', ?, ?, ?, 'approved', ?, ?, ?)",
+                    (earning_id, winner["referrer_id"], winner["referral_id"],
+                     int(amount_cents), int(amount_cents), accrued_at, accrued_at, note))
+                # Read the id back rather than trusting the INSERT: OR IGNORE
+                # means the row may predate this call.
+                written = conn.execute(
+                    "SELECT earning_id FROM earnings WHERE kind = 'referral' AND ref_id = ?",
+                    (winner["referral_id"],)).fetchone()
+                conn.execute(
+                    "UPDATE referrals SET bounty_state = ?, bounty_earning_id = ?, "
+                    "bounty_resolved_at = ? WHERE referral_id = ?",
+                    (self.BOUNTY_EARNED, written["earning_id"] if written else earning_id,
+                     accrued_at, winner["referral_id"]))
+                paid = dict(winner, bounty_state=self.BOUNTY_EARNED,
+                            bounty_earning_id=written["earning_id"] if written else earning_id)
+
+            # Everyone else is a DUPLICATE, not a row left at 'invited' forever.
+            # That stranding is the advisor bug repeating: a referrer whose
+            # colleague demonstrably joined and worked should never be looking at
+            # a funnel that still says "awaiting their first case".
+            #
+            # ONLY rows the caller said were payable. A row outside the whitelist
+            # lost for a different reason — an equity-holding referrer, a
+            # self-referral — and the caller has already stamped it with the
+            # reason that is true of it. Marking it 'duplicate' here would
+            # overwrite an accurate answer with a plausible one.
+            for r in fresh:
+                if r["referral_id"] == paid["referral_id"]:
+                    continue
+                if r.get("bounty_state") is not None:
+                    continue
+                if allowed is not None and r["referral_id"] not in allowed:
+                    continue
+                conn.execute(
+                    "UPDATE referrals SET bounty_state = ?, bounty_resolved_at = ? "
+                    "WHERE referral_id = ? AND bounty_state IS NULL",
+                    (self.BOUNTY_DUPLICATE, accrued_at, r["referral_id"]))
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return self.get_referral(paid["referral_id"])
+    # ═══ END PRD-REF STORE METHODS ═══
 
 
 # ─── PRD-I §F3: database durability ───────────────────────────────────────────
