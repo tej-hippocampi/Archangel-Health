@@ -919,6 +919,61 @@ def test_every_gold_case_carries_a_registry_bucket():
                 (c["case_id"], bucket, subtopic)
 
 
+def test_promote_does_not_spend_frontier_tokens_unless_measurement_is_enabled(monkeypatch):
+    """Live measurement spends real frontier tokens per case, so it is opt-in —
+    the same flag synthetic generation honours. Calling it unconditionally on the
+    promote path billed 2 models × k attempts of answers AND judge calls on every
+    promote an admin made, and on CI (where the network is real and the key is
+    absent) each of those became a TLS round trip plus a retry sleep."""
+    from asclepius import critic as asc_critic
+    from asclepius import empirical_difficulty as ed
+    import routers.asclepius as router_mod
+
+    calls = []
+
+    async def _spy(case, question, **kw):
+        calls.append(question)
+        return {"value": 0.9, "measured": True, "k": 5, "per_provider": {},
+                "failure_reasons": []}
+
+    async def _candidates(prompt, *, specialty="general", ai_failure_mode=None):
+        return {"candidates": [{"id": "A", "text": "a"}, {"id": "B", "text": "b"}],
+                "model": "m", "intended_flawed_id": "B"}
+
+    async def _hardness(prompt, candidates):
+        return {"skipped": True}
+
+    async def _judge(case, case_source="synthetic"):
+        return {"skipped": False, "coherence": 0.9, "multimodal_necessity": 0.9,
+                "reasoning_divergence_potential": 0.9}
+
+    monkeypatch.setattr(ed, "measure_empirical_difficulty", _spy)
+    monkeypatch.setattr(router_mod, "generate_candidates_ex", _candidates)
+    monkeypatch.setattr(asc_critic, "run_hardness_judge", _hardness)
+    monkeypatch.setattr(asc_critic, "run_case_judge", _judge)
+
+    admin_h = _admin_h()
+    ic = _ingest_a_chart(admin_h)
+
+    monkeypatch.delenv("ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY", raising=False)
+    r = client.post(f"/api/asclepius/ingestion/cases/{ic['ingest_case_id']}/promote",
+                    headers=admin_h, json={"question": "What is the next step here?"})
+    assert r.status_code == 200, r.text
+    assert calls == [], "promote must not measure while measurement is disabled"
+    task = _store().get_task(r.json()["task_id"])
+    assert not task["difficulty_measured"]
+    assert task["difficulty"] in ("easy", "medium")     # structure cannot confer hard
+
+    # …and with the flag on, it measures.
+    monkeypatch.setenv("ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY", "1")
+    ic2 = _ingest_a_chart(admin_h)
+    r2 = client.post(f"/api/asclepius/ingestion/cases/{ic2['ingest_case_id']}/promote",
+                     headers=admin_h, json={"question": "What is the next step here?"})
+    assert r2.status_code == 200, r2.text
+    assert len(calls) == 1
+    assert _store().get_task(r2.json()["task_id"])["difficulty_measured"] == 1
+
+
 def test_a_task_is_never_created_with_an_empty_question(monkeypatch):
     """``derive_questions=false`` on a LIVE run must not insert a prompt that asks
     nothing — the deterministic question is the floor, not an optional extra."""
