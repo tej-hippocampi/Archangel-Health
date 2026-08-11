@@ -21,10 +21,11 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from asclepius import auth as asc_auth
 from asclepius import payments as asc_payments
+from asclepius import referrals as asc_referrals
 from asclepius.store import get_store
 from ratelimit import rate_limiter
 
@@ -43,6 +44,152 @@ async def my_earnings(user: Dict[str, Any] = Depends(asc_auth.get_current_user))
     """Summary + recent ledger for the signed-in physician. Own rows only —
     the user id comes from the token and from nowhere else."""
     return asc_payments.earnings_summary(_store(), user_id=user["id"])
+
+
+# ─── Referrals (PRD-REF §3) ───────────────────────────────────────────────────
+# Both routes are SESSION-SCOPED and take no id of any kind: a physician reads
+# their own funnel and nobody else's, and that is a property of the route shape
+# rather than of a check somebody remembered to write. They live on the payments
+# router because the earnings surface is where the referral card renders and
+# because the bounty is a ledger row; the POLICY lives in ``asclepius.referrals``
+# and the advisor router calls the same functions.
+def _require_referrer(
+    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+) -> Dict[str, Any]:
+    """Any approved physician, or an advisor holding REFER.
+
+    Not a tier literal — see ``referrals.can_refer``. A physician awaiting
+    credential review has already been refused by ``get_current_user``; this is
+    the second gate, at the boundary that sends mail to a third party.
+    """
+    if not asc_referrals.can_refer(user):
+        raise HTTPException(
+            status_code=403,
+            detail="Referrals are for approved physicians. If you believe this is "
+                   "wrong, contact your workspace admin.")
+    return user
+
+
+@router.get("/api/asclepius/referrals")
+async def my_referrals(user: Dict[str, Any] = Depends(_require_referrer)):
+    """This physician's own funnel. No id parameter exists to tamper with."""
+    store = _store()
+    try:
+        asc_payments.reconcile_referral_bounties(store, referrer_id=user["id"])
+    except Exception:
+        # The funnel that already exists is still the truth. Never a 500 on the
+        # surface whose entire job is to prove the referral did not vanish.
+        log.exception("asclepius.payments: referral reconcile failed for %s", user["id"])
+    return asc_referrals.funnel(
+        store, referrer=store.get_user_by_id(user["id"]) or user,
+        bounty_cents=asc_payments.referral_bounty_cents())
+
+
+class ReferralBody(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+    note: Optional[str] = None
+
+
+def _throttle_referral(user: Dict[str, Any]) -> None:
+    """Per-USER and fleet-wide limits (defect 1). Raises 429.
+
+    Keyed on ``user["id"]``, never on the IP. A hospital NATs — the eleventh
+    referral out of one building would get a 429 while the actual threat, a
+    stolen token rotated across a proxy pool, went unthrottled. The IP limit on
+    the route below stays as a cheap outer wall; this is the one that means
+    anything.
+    """
+    from ratelimit import check, is_enabled
+
+    if not is_enabled():
+        return
+    for key, (limit, window) in asc_referrals.throttle_keys(user["id"]):
+        allowed, retry_after = check(key, limit, window)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many invitations sent recently. Try again shortly.",
+                headers={"Retry-After": str(retry_after)},
+            )
+
+
+@router.post(
+    "/api/asclepius/referrals",
+    dependencies=[Depends(rate_limiter("asclepius_referral_ip", 60, 600))],
+)
+async def create_referral(
+    body: ReferralBody,
+    user: Dict[str, Any] = Depends(_require_referrer),
+):
+    """Refer a colleague.
+
+    **The response is byte-identical whether or not the address already has an
+    account** (defect 2). The advisor path narrowed its oracle to physician
+    accounts, which closed the worst version of it, but it still answered "does
+    this doctor have an account here?" one address at a time to anyone who could
+    call it — and generalising the endpoint to every physician multiplies who
+    that is. The referral is recorded either way and the FUNNEL reports the
+    outcome, which loses the referrer nothing: they see the row on their own
+    page, where the answer is about their own referral rather than about a
+    stranger's account.
+
+    **The residual, stated rather than hidden:** a new address sends an email and
+    an existing member does not, so the two paths differ in RESPONSE TIME by a
+    SendGrid round trip. That is a real side channel and it is left in place
+    knowingly — closing it means either firing the send blind (losing the
+    delivery signal and every send error with it) or padding the fast path, both
+    of which cost more than they buy against a probe that is already bounded to
+    20 attempts a day per account and 3 per address across the whole fleet.
+    """
+    _throttle_referral(user)
+    store = _store()
+    referrer = store.get_user_by_id(user["id"]) or user
+    try:
+        result = asc_referrals.create_referral(
+            store, referrer=referrer, email=str(body.email),
+            name=body.name, note=body.note)
+    except asc_referrals.ReferralRefused as refused:
+        store.log_event(
+            entity_type="user", entity_id=referrer["id"],
+            event_type="referral_refused", actor=referrer.get("email"),
+            payload={"reason": refused.code},
+        )
+        raise HTTPException(status_code=refused.status, detail=refused.detail)
+
+    sent = False
+    if result["outcome"] == asc_referrals.OUTCOME_INVITED:
+        sent = await asc_referrals.send_invite(
+            referrer=referrer, email=str(body.email).lower().strip(),
+            name=body.name, code=result["referral_code"])
+    # An existing member already has an account, so their first task may already
+    # be approved — settle immediately rather than making the referrer wait for a
+    # sweep that has nothing left to trigger it.
+    if result.get("invitee_user_id"):
+        try:
+            asc_payments.accrue_referral_bounty(
+                store, referred_user_id=result["invitee_user_id"])
+        except Exception:
+            log.exception("asclepius.payments: immediate bounty settle failed")
+
+    store.log_event(
+        entity_type="user", entity_id=referrer["id"], event_type="referral_invited",
+        actor=referrer.get("email"),
+        payload={"referral_id": (result.get("referral") or {}).get("referral_id"),
+                 # The outcome is recorded for US, and deliberately not returned.
+                 "outcome": result["outcome"], "email_sent": sent},
+    )
+
+    # ONE response, always — the same KEYS and the same VALUES. No `already`, no
+    # `email_sent`, and deliberately not the funnel either: returning the funnel
+    # here would put the new row's status ("Invited" vs "Signed up") in the same
+    # response and move the oracle rather than close it. The client refetches
+    # ``GET /referrals``, where the answer is about the referrer's own funnel a
+    # request later and behind the same per-user throttle.
+    return {
+        "ok": True,
+        "message": "Invitation recorded. You'll see them in your referrals below.",
+    }
 
 
 # ─── Sessions ─────────────────────────────────────────────────────────────────

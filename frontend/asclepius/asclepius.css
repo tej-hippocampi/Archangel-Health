@@ -3268,6 +3268,121 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 }
 .asc-guide-switch-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 @media print { .asc-guide-switch { display: none; } }
+
+/* ─── PRD-REF — refer a physician, from the Earnings tab ─────────────────────
+   Sits between the breakdown and the ledger, which is the seam where "there is
+   another way to earn here" continues the sentence the doctor is already
+   reading rather than interrupting it.
+
+   Accent semantics, held exactly as the rest of this block holds them:
+     green  earned      — the bounty landed. Green means physician-authored
+                          value in this product, and a referral is the one line
+                          on the page earned by a physician's JUDGMENT about
+                          another physician rather than by an hour of labour.
+     lime   in flight   — invited, not yet at their first case. Lime is "watch
+                          this", never "fix this".
+     grey   settled     — expired, duplicate, or a referrer who holds equity.
+
+   NEVER pink. A referral that has not converted is not a safety event, and
+   colouring it like one will make a doctor think they did something wrong. */
+.asc-ref-card {
+  border: 1px solid var(--asc-line);
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 18px 20px 16px;
+  margin: 0 0 28px;
+  max-width: 72ch;
+}
+.asc-ref-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--asc-muted);
+  margin-bottom: 10px;
+}
+.asc-ref-pitch {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--asc-text);
+  max-width: 54ch;
+}
+.asc-ref-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 14px 0 4px;
+}
+.asc-ref-input {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--asc-text);
+  background: var(--card-in);
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-sm);
+  padding: 9px 12px;
+}
+.asc-ref-input::placeholder { color: var(--ink-faint); }
+.asc-ref-input:hover:not(:disabled) { border-color: var(--asc-line-strong); }
+.asc-ref-input:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.asc-ref-input:disabled { opacity: .6; }
+.asc-ref-send { white-space: nowrap; }
+/* Both outcomes are VISIBLE. A silent failure on this control is how a doctor
+   concludes the feature is broken and never refers again — which is the exact
+   loss this whole feature is designed against. */
+.asc-ref-msg  { font-size: 12px; color: var(--green-deep); line-height: 1.5; margin-top: 8px; }
+.asc-ref-error { font-size: 12px; color: var(--asc-text); line-height: 1.5; margin-top: 8px; }
+
+.asc-ref-listtitle {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--asc-muted);
+  margin: 20px 0 4px;
+}
+.asc-ref-list { border-top: 1px solid var(--asc-line); }
+.asc-ref-row {
+  display: grid;
+  grid-template-columns: 1fr 62px minmax(0, 1.4fr) 128px;
+  gap: 14px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--asc-line);
+}
+.asc-ref-who { font-size: 13px; color: var(--asc-text); }
+.asc-ref-when { font-family: var(--mono); font-size: 11px; color: var(--asc-muted); }
+/* A sentence, not a token, and not a progress bar: a bar implies a predictable
+   duration and this one depends on a colleague's schedule. */
+.asc-ref-state { font-size: 12px; color: var(--asc-muted); line-height: 1.4; }
+.asc-ref-amount {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--asc-muted);
+}
+.asc-ref-earned { color: var(--green-deep); }
+.asc-ref-flight { color: var(--lime-deep); }
+.asc-ref-quiet  { color: var(--ink-faint); }
+.asc-ref-empty {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--asc-muted);
+  padding: 12px 0 2px;
+  max-width: 54ch;
+}
+/* The referral line in the breakdown, green for the same reason. */
+.asc-pay-line-referral .asc-pay-line-total { color: var(--green-deep); }
+
+@media (max-width: 720px) {
+  .asc-ref-row { grid-template-columns: 1fr 62px; }
+  .asc-ref-row .asc-ref-state { grid-column: 1 / -1; }
+  .asc-ref-row .asc-ref-amount { grid-column: 1 / -1; text-align: left; }
+}
 /* ═══ END PRD-P ═══ */
 
 /* ═══ PRD-R: the paired review surface ═══════════════════════════════════════
