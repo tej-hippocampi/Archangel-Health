@@ -133,13 +133,12 @@ async def flush_pending(
                 )
             )
         if rows:
-            body = (
-                "<p>While you were away in the Asclepius Community:</p>"
-                "<ul>" + "".join(rows) + "</ul>"
-                "<p><a href='{}/community'>Open the community</a> to reply.</p>"
-                "<p style='color:#8b8d89;font-size:12px'>Colleague discussion only — "
-                "no patient-identifiable information is permitted in the community.</p>"
-            ).format(html.escape(os.getenv("PUBLIC_BASE_URL", "").rstrip("/")))
+            from onboarding_emails import build_community_digest_email  # noqa: PLC0415
+
+            body = build_community_digest_email(
+                activity_rows_html="".join(rows),
+                community_url=os.getenv("PUBLIC_BASE_URL", "").rstrip("/") + "/community",
+            )
             ok = await send_html_email(
                 member["email"],
                 "Asclepius Community — new activity for you",
