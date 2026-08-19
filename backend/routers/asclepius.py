@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request,
+    APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Query, Request,
     UploadFile,
 )
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -111,6 +111,7 @@ from asclepius.constants import (
     min_empirical_difficulty,
 )
 from asclepius.schemas import (
+    AscPortalHandoffConsumeRequest,
     BatchFromRequest,
     BuyerIn,
     BuyerRequestIn,
@@ -335,6 +336,61 @@ async def sso(body: SsoRequest):
         actor=user["id"],
     )
     return {"token": asc_auth.create_token(user), "user": asc_auth.public_user(user)}
+
+
+# ─── Landing → Asclepius portal handoff ──────────────────────────────────────
+# Mirrors main.py's doctor-portal handoff (POST /api/auth/portal-handoff /
+# .../consume), but scoped to this plane: an Asclepius token is signed with its
+# own secret and decoded by asclepius.auth.decode_token, so the landing/tenant
+# handoff (which depends on get_staff_context_optional) cannot resolve one.
+# Rather than putting the raw JWT in a URL query param (browser history, server
+# access logs, Referer headers), the landing SPA trades the token for a
+# short-lived, single-use, server-held code here, and the Asclepius frontend
+# consumes it on load (see asclepius.js consumeHandoffFromUrl).
+_ASC_HANDOFF_TTL_SECONDS = 60
+_ASC_HANDOFF_STORE: Dict[str, Dict[str, Any]] = {}
+
+
+def _cleanup_asc_handoffs(now: Optional[datetime] = None) -> None:
+    now = now or datetime.utcnow()
+    expired = [k for k, v in _ASC_HANDOFF_STORE.items() if v.get("expires_at") and v["expires_at"] <= now]
+    for key in expired:
+        _ASC_HANDOFF_STORE.pop(key, None)
+
+
+@router.post("/auth/portal-handoff")
+async def create_asclepius_portal_handoff(
+    authorization: Optional[str] = Header(None),
+    # get_current_user_optional, NOT get_current_user: minting a handoff must
+    # not itself enforce the verification gate. /auth/login already hands a
+    # pending physician a valid token unconditionally (the gate only bites on
+    # subsequent calls) — this endpoint must not be stricter than login itself,
+    # or a pending physician signing in correctly from the landing page would
+    # be blocked one hop earlier than signing in directly on /asclepius.
+    user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_user_optional),
+):
+    if user is None or not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+    _cleanup_asc_handoffs()
+    token = authorization.removeprefix("Bearer ").strip()
+    code = secrets.token_urlsafe(24)
+    _ASC_HANDOFF_STORE[code] = {
+        "token": token,
+        "expires_at": datetime.utcnow() + timedelta(seconds=_ASC_HANDOFF_TTL_SECONDS),
+    }
+    return {"handoff_code": code, "expires_in_seconds": _ASC_HANDOFF_TTL_SECONDS}
+
+
+@router.post("/auth/portal-handoff/consume")
+async def consume_asclepius_portal_handoff(body: AscPortalHandoffConsumeRequest):
+    _cleanup_asc_handoffs()
+    code = (body.handoff_code or "").strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="handoff_code is required")
+    entry = _ASC_HANDOFF_STORE.pop(code, None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Handoff code not found or expired")
+    return {"token": entry["token"]}
 
 
 @router.get("/auth/me")

@@ -18,9 +18,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from ratelimit import rate_limiter
 from demo_credentials import list_demo_credentials
 from tenant_constants import DEMO_HEALTH_SYSTEM_ID
+from email_utils import is_email_transport_configured, send_html_email
+from onboarding_emails import build_asclepius_admin_invite_email
+from routers.onboarding import _SELF_SERVE_EMAIL_CAP as _ASCLEPIUS_INVITE_EMAIL_CAP
 import jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -395,6 +398,63 @@ async def admin_create_health_system_invite(
     ).strip().rstrip("/")
     ts = request.app.state.team_store
     return ts.create_health_system_invite(invite_base_url=invite_base)
+
+
+class AsclepiusAdminInviteRequest(BaseModel):
+    name: str
+    email: EmailStr
+
+
+@router.post("/asclepius/invite")
+async def admin_create_asclepius_invite(
+    body: AsclepiusAdminInviteRequest,
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    """Mint + send a personal Asclepius (physician-evaluator) onboarding link
+    on behalf of a named lead (internal admin only). Unlike
+    ``/health-systems/invite`` above (which mints a generic, unpersonalized
+    link for the clinical/TEAM product), this locks the invite to
+    ``product="asclepius"`` and ties it to one email, reusing the exact
+    minting + cap logic the public self-serve endpoint uses
+    (``routers.onboarding.self_serve_invite``) so an admin-sent invite and a
+    physician-typed-their-own-email invite share one counter and one shape.
+    """
+    _verify_token(authorization)
+    ts = request.app.state.team_store
+    email = str(body.email).lower().strip()
+    name = body.name.strip()
+    if ts.count_recent_pending_invites_for_email(email, hours=24) >= _ASCLEPIUS_INVITE_EMAIL_CAP:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "An onboarding link was already created for this email recently. "
+                "Check the health-systems table, or wait and try again."
+            ),
+        )
+    invite_base = (
+        os.getenv("LANDING_URL") or os.getenv("BASE_URL") or "http://localhost:5173"
+    ).strip().rstrip("/")
+    invite = ts.create_health_system_invite(
+        invite_base_url=invite_base,
+        director_email=email,
+        product="asclepius",
+    )
+    email_sent = False
+    if is_email_transport_configured():
+        html_body = build_asclepius_admin_invite_email(
+            invitee_name=name,
+            onboarding_url=invite["onboarding_url"],
+        )
+        email_sent = bool(
+            await send_html_email(email, "Your Archangel Health onboarding link", html_body)
+        )
+    return {
+        "ok": True,
+        "onboarding_url": invite["onboarding_url"],
+        "expires_at": invite["expires_at"],
+        "email_sent": email_sent,
+    }
 
 
 @router.get("/health-systems")

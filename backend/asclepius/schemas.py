@@ -57,6 +57,14 @@ class SsoRequest(BaseModel):
     token: str
 
 
+class AscPortalHandoffConsumeRequest(BaseModel):
+    """Trade a short-lived handoff code (minted by POST /auth/portal-handoff)
+    for the Asclepius session token it was issued for — see main.py's
+    doctor-portal handoff for the pattern this mirrors."""
+
+    handoff_code: str
+
+
 class UserOut(BaseModel):
     id: str
     email: str
