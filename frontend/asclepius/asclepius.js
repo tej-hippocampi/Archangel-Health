@@ -1054,7 +1054,38 @@
     };
   }
 
+  // Landing → Asclepius sign-in handoff (mirrors doctor-sign-in.html's own
+  // consumeHandoffFromUrl for the tenant plane). The landing SPA can be a
+  // different origin, so it can't write localStorage['asclepius_token']
+  // directly — it trades the token for a short-lived, single-use code
+  // (POST /api/asclepius/auth/portal-handoff) and redirects here with
+  // ?asc_handoff=<code>; this consumes it and stores the real token before
+  // the normal boot sequence below runs.
+  async function consumeHandoffFromUrl() {
+    const url = new URL(window.location.href);
+    const code = (url.searchParams.get('asc_handoff') || '').trim();
+    if (!code) return;
+    url.searchParams.delete('asc_handoff');
+    const qs = url.searchParams.toString();
+    window.history.replaceState(null, '', url.pathname + (qs ? '?' + qs : '') + url.hash);
+    try {
+      const res = await fetch(API_BASE + '/auth/portal-handoff/consume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handoff_code: code }),
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (data && data.token) {
+        state.token = data.token;
+        try { localStorage.setItem(TOKEN_KEY, data.token); } catch (_) { /* ignore quota */ }
+        try { localStorage.removeItem(SUPPRESS_SSO_KEY); } catch (_) { /* ignore */ }
+      }
+    } catch (_) { /* network error — fall through to the normal boot sequence */ }
+  }
+
   async function boot() {
+    await consumeHandoffFromUrl();
     // 1) Resume an existing Asclepius session if the stored token is still valid.
     if (state.token) {
       try {

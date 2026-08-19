@@ -255,6 +255,53 @@ export async function redirectToDoctorPortal(accessToken: string): Promise<void>
   window.location.href = `${signIn}?handoff=${encodeURIComponent(handoff.handoff_code)}`;
 }
 
+export type AsclepiusLoginResponse = {
+  token: string;
+  user: Record<string, unknown>;
+};
+
+/**
+ * Sign in against Asclepius's own auth plane (own secret, own user table —
+ * completely separate from the landing/tenant login above). Used by the
+ * "Doctor" step so a physician who completed the Asclepius onboarding wizard
+ * can come back to the landing page and sign into their real workspace.
+ */
+export async function asclepiusLogin(email: string, password: string): Promise<AsclepiusLoginResponse> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/asclepius/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    throw networkError();
+  }
+  if (!res.ok) {
+    throw new Error(await errorDetail(res, "Sign in failed"));
+  }
+  return res.json();
+}
+
+/**
+ * Same cross-origin handoff pattern as createPortalHandoff/redirectToDoctorPortal
+ * above, but against the Asclepius plane's own handoff endpoints — an Asclepius
+ * token can't be traded through the landing/tenant handoff (different secret,
+ * different decoder). Lands on /asclepius already signed in.
+ */
+export async function redirectToAsclepiusPortal(token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/asclepius/auth/portal-handoff`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("Could not open Asclepius workspace.");
+  }
+  const handoff = (await res.json()) as PortalHandoffResponse;
+  if (!handoff.handoff_code) throw new Error("Could not open Asclepius workspace.");
+  window.location.href = `${asclepiusPortalUrl()}?asc_handoff=${encodeURIComponent(handoff.handoff_code)}`;
+}
+
 export async function login(email: string, password: string): Promise<LoginResult> {
   let res: Response;
   try {
