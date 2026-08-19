@@ -21,7 +21,9 @@ from onboarding_emails import (
     build_asclepius_complete_email,
     build_asclepius_invite_email,
     build_complete_email,
+    build_internal_signup_alert,
     build_invite_email,
+    build_self_serve_link_email,
     build_verification_email,
 )
 from tenant_utils import generate_secure_password
@@ -365,33 +367,22 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
     except Exception:
         pass
     if _email_configured():
-        safe_email = html.escape(email)
-        safe_url = html.escape(invite["onboarding_url"])
         try:
             await send_html_email(
                 email,
                 "Your Archangel Health onboarding link",
-                (
-                    '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
-                    'color:#1a1b1a;line-height:1.6">'
-                    "<p>Here is your personal onboarding link — it stays valid for "
-                    f"{_SELF_SERVE_EXPIRES_DAYS} days, and you can return to it any time "
-                    "to resume where you left off:</p>"
-                    f'<p><a href="{safe_url}">{safe_url}</a></p>'
-                    "<p style='color:#8b8d89;font-size:13px'>If you didn't request this, "
-                    "you can ignore this email.</p></div>"
+                build_self_serve_link_email(
+                    onboarding_url=invite["onboarding_url"],
+                    expires_days=_SELF_SERVE_EXPIRES_DAYS,
                 ),
             )
             await send_html_email(
                 (os.getenv("LEAD_NOTIFY_EMAIL") or "tejpatel@berkeley.edu").strip(),
-                f"[Onboarding] Physician contributor started — {email}",
-                (
-                    '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
-                    'color:#1a1b1a;line-height:1.6">'
-                    f"<p><strong>{safe_email}</strong> requested a physician-contributor "
-                    "onboarding link from the landing page.</p>"
-                    f"<p>Pending row: <code>{html.escape(invite['slug'])}</code> · "
-                    f"expires {html.escape(invite['expires_at'])}</p></div>"
+                f"[Onboarding] Physician contributor started: {email}",
+                build_internal_signup_alert(
+                    physician_email=email,
+                    slug=invite["slug"],
+                    expires_at=invite["expires_at"],
                 ),
             )
         except Exception:
