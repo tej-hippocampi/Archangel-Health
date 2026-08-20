@@ -32,6 +32,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
+from asclepius import passwords as asc_passwords
 from asclepius import capabilities as asc_caps
 from asclepius import cases as asc_cases
 from asclepius import citations as asc_citations
@@ -112,16 +113,19 @@ from asclepius.constants import (
 )
 from asclepius.schemas import (
     AscPortalHandoffConsumeRequest,
+    ChangePasswordRequest,
     BatchFromRequest,
     BuyerIn,
     BuyerRequestIn,
     BuyerRequestStatusUpdate,
     CandidateGenRequest,
     CiteRequest,
+    ForgotPasswordRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
     GenerateRealCasesRequest,
     PromoteCaseRequest,
+    ResetPasswordRequest,
     ReviewClearRequest,
     UploadPromoteRequest,
     QuarantineOverrideRequest,
@@ -148,7 +152,12 @@ from asclepius.tutorial_case import (
     grade_tutorial_submission,
     tutorial_raw_task,
 )
-from asclepius.store import get_store, _utcnow_iso
+from asclepius.store import get_store, verify_password as _verify_password, _utcnow_iso
+from email_utils import is_email_transport_configured, send_html_email
+from onboarding_emails import (
+    build_asclepius_password_changed_email,
+    build_asclepius_password_reset_email,
+)
 from ratelimit import rate_limiter
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
 
@@ -274,6 +283,178 @@ async def login(body: LoginRequest):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     store.log_event(entity_type="user", entity_id=user["id"], event_type="login", actor=user["id"])
     return {"token": asc_auth.create_token(user), "user": asc_auth.public_user(user)}
+
+
+# ─── Password: forgot, reset, change ─────────────────────────────────────────
+# The forgot endpoint answers identically whether or not the address has an
+# account. That is not politeness: an endpoint that says "no such user" is an
+# account-enumeration oracle, and this plane already takes care not to be one
+# (both auth planes return the same generic 401, which is why SignInDialog
+# swallows the Asclepius attempt rather than reporting which plane matched).
+#
+# Uniform BODY is only half of it. The send is queued on BackgroundTasks and
+# never awaited inline, so the found and not-found branches do not differ in
+# latency either. A timing difference is an oracle just the same.
+
+_FORGOT_ANSWER = {
+    "ok": True,
+    "message": (
+        "If that email has an Asclepius account, we've sent a reset link. "
+        "It expires in 60 minutes."
+    ),
+}
+
+
+async def _mail_password_reset(email: str, raw_token: str) -> None:
+    if not is_email_transport_configured():
+        return
+    try:
+        await send_html_email(
+            email,
+            "Reset your Archangel Health password",
+            build_asclepius_password_reset_email(
+                email=email,
+                reset_url=asc_passwords.reset_url(raw_token),
+                expires_minutes=asc_passwords.RESET_TTL_MINUTES,
+            ),
+        )
+    except Exception:
+        log.exception("[asclepius] password reset email failed")
+
+
+async def _mail_password_changed(email: str) -> None:
+    if not is_email_transport_configured():
+        return
+    try:
+        await send_html_email(
+            email,
+            "Your Archangel Health password was changed",
+            build_asclepius_password_changed_email(email=email),
+        )
+    except Exception:
+        log.exception("[asclepius] password-changed notice failed")
+
+
+@router.post(
+    "/auth/password/forgot",
+    dependencies=[Depends(rate_limiter("asclepius_pw_forgot", 5, 900))],
+)
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    background: BackgroundTasks,
+    request: Request,
+):
+    store = _store()
+    email = (body.email or "").strip().lower()
+    user = store.get_user_by_email(email) if email else None
+
+    if user and user.get("active"):
+        # A rejected account still gets a working link. Refusing here would be
+        # the loudest oracle in the set, and the reset grants them nothing that
+        # the verification gate does not already refuse.
+        if store.count_live_password_resets(user["id"]) < asc_passwords.MAX_LIVE_RESETS:
+            raw, hashed = asc_passwords.new_reset_token()
+            store.create_password_reset(
+                user_id=user["id"],
+                token_hash=hashed,
+                expires_at=asc_passwords.reset_expires_at(),
+                requested_ip=(request.client.host if request.client else None),
+            )
+            store.log_event(
+                entity_type="user",
+                entity_id=user["id"],
+                event_type="password_reset_requested",
+                actor=user["id"],
+            )
+            background.add_task(_mail_password_reset, user["email"], raw)
+    else:
+        # Recorded WITHOUT an entity_id, so the provenance log never implies an
+        # account exists for an address that has none.
+        store.log_event(
+            entity_type="user",
+            entity_id=None,
+            event_type="password_reset_requested_unknown",
+            actor=None,
+            payload={"domain": email.split("@")[-1] if "@" in email else ""},
+        )
+    return _FORGOT_ANSWER
+
+
+@router.post(
+    "/auth/password/reset",
+    dependencies=[Depends(rate_limiter("asclepius_pw_reset", 10, 900))],
+)
+async def reset_password(body: ResetPasswordRequest, background: BackgroundTasks):
+    store = _store()
+    token = (body.token or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="This reset link is no longer valid. Request a new one.")
+
+    row = store.get_password_reset_by_token_hash(asc_passwords.hash_reset_token(token))
+    user = store.get_user_by_id(row["user_id"]) if row else None
+
+    # Validate the password BEFORE consuming, so a rejected password does not
+    # burn the single use and strand someone with a dead link.
+    try:
+        asc_passwords.validate(body.new_password, email=(user or {}).get("email", ""))
+    except asc_passwords.PasswordRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Expired, already used, superseded and never-existed all collapse to one
+    # sentence: the holder of a bad link learns nothing about which it was.
+    if not row or not user or not store.consume_password_reset(row["id"]):
+        raise HTTPException(status_code=400, detail="This reset link is no longer valid. Request a new one.")
+
+    store.set_user_password(user["id"], body.new_password)
+    store.invalidate_password_resets_for_user(user["id"])
+    store.log_event(
+        entity_type="user",
+        entity_id=user["id"],
+        event_type="password_reset_completed",
+        actor=user["id"],
+    )
+    background.add_task(_mail_password_changed, user["email"])
+
+    # Sign them in. They just proved mailbox control and typed the password
+    # eight seconds ago; making them retype it is how a recovery flow gets
+    # abandoned halfway.
+    fresh = store.get_user_by_id(user["id"])
+    return {"ok": True, "token": asc_auth.create_token(fresh), "user": asc_auth.public_user(fresh)}
+
+
+@router.post(
+    "/auth/password/change",
+    dependencies=[Depends(rate_limiter("asclepius_pw_change", 10, 300))],
+)
+async def change_password(
+    body: ChangePasswordRequest,
+    background: BackgroundTasks,
+    # get_current_user_optional, not get_current_user: a physician still
+    # awaiting verification must always be able to change their own password.
+    user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_user_optional),
+):
+    if user is None:
+        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+    store = _store()
+    if not _verify_password(body.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="That is not your current password.")
+    try:
+        asc_passwords.validate(body.new_password, email=user.get("email", ""))
+    except asc_passwords.PasswordRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    store.set_user_password(user["id"], body.new_password)
+    store.invalidate_password_resets_for_user(user["id"])
+    store.log_event(
+        entity_type="user",
+        entity_id=user["id"],
+        event_type="password_changed",
+        actor=user["id"],
+    )
+    background.add_task(_mail_password_changed, user["email"])
+    # The write just invalidated the caller's own token, so hand back a fresh one.
+    fresh = store.get_user_by_id(user["id"])
+    return {"ok": True, "token": asc_auth.create_token(fresh)}
 
 
 @router.post("/auth/sso")

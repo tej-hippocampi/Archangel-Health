@@ -14,7 +14,7 @@ import logging
 import os
 import secrets
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 import jwt
@@ -65,16 +65,56 @@ def get_asclepius_secret() -> str:
 
 
 def create_token(user: Dict[str, Any]) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    now = datetime.utcnow()
+    expire = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "typ": "asclepius",
         "sub": user["id"],
         "email": user["email"],
         "role": user["role"],
         "jti": uuid.uuid4().hex,
+        # Issued-at, checked against users.password_changed_at on every request.
+        # Without it a password reset changes only what the owner types next
+        # time: an attacker holding a token keeps the account for the remaining
+        # seven days, which is most of what a reset is supposed to stop.
+        "iat": _epoch_utc(now),
         "exp": expire,
     }
     return jwt.encode(payload, get_asclepius_secret(), algorithm=ALGORITHM)
+
+
+def _epoch_utc(dt: datetime) -> int:
+    """Epoch seconds for a NAIVE datetime that is already UTC.
+
+    ``datetime.utcnow()`` returns UTC wall-clock with no tzinfo, and calling
+    ``.timestamp()`` on that reads it as LOCAL time. West of UTC that puts the
+    claim in the future and PyJWT refuses the token; east of it the revocation
+    comparison silently skews. Attach UTC explicitly instead of assuming.
+    """
+    return int(dt.replace(tzinfo=timezone.utc).timestamp())
+
+
+def _token_predates_password_change(payload: Dict[str, Any], user: Dict[str, Any]) -> bool:
+    """True when this token was minted before the account's password last changed.
+
+    Both halves fail open by design, and each for its own reason. A token with
+    no ``iat`` predates this feature, and a user with no ``password_changed_at``
+    has never used the chosen-password flow, which is every account that existed
+    before it shipped. Treating either as suspect would log out the entire user
+    base on deploy.
+    """
+    changed = (user.get("password_changed_at") or "").strip()
+    iat = payload.get("iat")
+    if not changed or not isinstance(iat, (int, float)):
+        return False
+    try:
+        changed_at = datetime.fromisoformat(changed)
+    except ValueError:
+        return False
+    # One second of slack: the stamp is written at second resolution, so a token
+    # minted in the same second as the change (the reset endpoint signs the user
+    # straight back in) must not invalidate itself.
+    return float(iat) < (_epoch_utc(changed_at) - 1)
 
 
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
@@ -166,6 +206,8 @@ def get_current_user_optional(
         return None
     user = get_store().get_user_by_id(payload.get("sub", ""))
     if not user or not user.get("active"):
+        return None
+    if _token_predates_password_change(payload, user):
         return None
     return user
 
