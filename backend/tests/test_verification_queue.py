@@ -14,6 +14,7 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from asclepius import auth as asc_auth
 from tests._asclepius import app, fresh_store, headers_for, make_user
 
 import routers.onboarding as onboarding_module
@@ -446,7 +447,11 @@ def test_sso_first_arrival_lands_pending_and_cannot_draw_tasks(client: TestClien
 
     hdrs = {"Authorization": f"Bearer {tok}"}
     assert client.get("/api/asclepius/tasks/next", headers=hdrs).status_code == 403
-    assert client.get("/api/asclepius/auth/me", headers=hdrs).status_code == 403
+    # /auth/me is open now: a first arrival lands INSIDE the product and waits
+    # there. Only the real-work surface stays shut.
+    me = client.get("/api/asclepius/auth/me", headers=hdrs)
+    assert me.status_code == 200
+    assert me.json()["access_level"] == "provisional"
 
 
 def test_sso_does_not_backfill_or_relock_existing_users(client: TestClient):
@@ -478,8 +483,11 @@ def test_pending_evaluator_cannot_draw_tasks_or_use_portal(client: TestClient):
     store.set_verification_status(u["id"], "pending")
     r = client.get("/api/asclepius/tasks/next", headers=headers_for(u))
     assert r.status_code == 403
-    assert "verification" in r.json()["detail"].lower()
-    assert client.get("/api/asclepius/auth/me", headers=headers_for(u)).status_code == 403
+    # The machine-readable state, not the prose. Matching on copy breaks the
+    # moment a writer rewords it, which is the whole reason this header exists.
+    assert r.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending"
+    # In the product while they wait.
+    assert client.get("/api/asclepius/auth/me", headers=headers_for(u)).status_code == 200
 
 
 def test_rejected_evaluator_is_blocked_with_distinct_message(client: TestClient):
@@ -729,8 +737,9 @@ def test_approve_sets_tier_verified_by_and_at_and_unlocks_portal(client: TestCli
     store = fresh_store()
     admin = make_user(store, role="admin")
     u = _pending_physician(store)
-    # locked while pending
-    assert client.get("/api/asclepius/auth/me", headers=headers_for(u)).status_code == 403
+    # In the product, but real work is locked while pending.
+    assert client.get("/api/asclepius/auth/me", headers=headers_for(u)).status_code == 200
+    assert client.get("/api/asclepius/tasks/next", headers=headers_for(u)).status_code == 403
     r = client.post(f"/api/asclepius/verify/queue/{u['id']}/approve",
                     json={"tier": "reviewer", "note": "strong NPPES + 12y"},
                     headers=headers_for(admin))

@@ -117,13 +117,17 @@ def test_gate_approval_path_enters_without_vault_row():
 
 def test_gate_pending_rejected_and_undecided_denied():
     astore, _, _ = setup_world()
-    for status in ("pending", "rejected"):
+    # 'pending' is now ADMITTED: the community is the most useful thing we can
+    # offer during a one-to-two day credential check, and a physician who cannot
+    # introduce themselves does not come back. 'rejected' is a final decision
+    # and still gets nothing.
+    for status, expected in (("pending", 200), ("rejected", 403)):
         u = astore.create_user(email=f"dr-{uniq()}@x.com", password="pw-12345678",
                                role="evaluator", specialty="cardiology")
         astore.record_verification_decision(
             u["id"], status=status, decided_by="admin@test")
         r = client.get(f"{BASE}/me", headers=headers_for(astore.get_user_by_id(u["id"])))
-        assert r.status_code == 403, status
+        assert r.status_code == expected, status
     # NULL verification_status + no vault row: still out
     u = astore.create_user(email=f"dr-{uniq()}@x.com", password="pw-12345678",
                            role="evaluator")

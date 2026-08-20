@@ -240,7 +240,7 @@ def _task_answers(task: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 # ─── Meta ─────────────────────────────────────────────────────────────────────
 @router.get("/taxonomy")
-async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_taxonomy(_user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE))):
     return {
         "taxonomy_version": ASCLEPIUS_TAXONOMY_VERSION,
         "config_version": ASCLEPIUS_CONFIG_VERSION,
@@ -575,13 +575,13 @@ async def consume_asclepius_portal_handoff(body: AscPortalHandoffConsumeRequest)
 
 
 @router.get("/auth/me")
-async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
     return asc_auth.public_user(user)
 
 
 @router.patch("/me/tutorial")
 async def update_my_tutorial(
-    body: TutorialStateUpdate, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: TutorialStateUpdate, user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
 ):
     """One transition on the caller's own first-run tutorial state.
 
@@ -650,7 +650,7 @@ async def update_my_tutorial(
 # agreement, and value metrics is therefore structural (those all read the DB),
 # not a filter that someone can forget. Only ``events`` rows are written.
 @router.get("/tutorial/task")
-async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))):
     """The practice case, blinded EXACTLY like a real task (same
     ``_blind_task`` path: ground_truth stripped, answer texts withheld)."""
     return {"task": _blind_task(tutorial_raw_task())}
@@ -658,7 +658,7 @@ async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.get_current_
 
 @router.post("/tutorial/reveal")
 async def tutorial_reveal(
-    body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
 ):
     """Mirror of ``POST /tasks/{id}/reveal`` minus persistence: the same
     non-empty-instinct gate (the tutorial teaches the real rule), but no
@@ -682,7 +682,7 @@ async def tutorial_reveal(
 
 @router.post("/tutorial/submit")
 async def tutorial_submit(
-    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
 ):
     """Grade the practice submission against the answer key and stamp the
     caller's tutorial state completed. Never touches the real submit pipeline —
@@ -1103,7 +1103,7 @@ async def get_seed_corpus(
 
 
 @router.get("/specialties")
-async def list_specialties(_user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def list_specialties(_user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE))):
     return {"specialties": asc_specialties.list_specialties()}
 
 
@@ -1639,7 +1639,14 @@ def _ensure_gold_cases(store: Any, user: Dict[str, Any], specialty: Optional[str
 # Same gate shape as the advisor router's ``_require`` — admins pass, as
 # everywhere else. Accounts that predate tiering are backfilled to ``labeler`` in
 # the store migration, so this locks nobody out of work they are already doing.
-def require_label(user: Dict[str, Any] = Depends(asc_auth.get_current_user)) -> Dict[str, Any]:
+def require_label(
+    # BOTH axes, because they answer different questions. require_surface says
+    # this account may touch real patient data at all; asc_caps.can says the
+    # tier it was assigned includes labelling. Neither implies the other, and
+    # relying on the coincidence that a provisional user's tier is NULL would be
+    # relying on a coincidence.
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.REAL_WORK)),
+) -> Dict[str, Any]:
     if not asc_caps.can(user, asc_caps.LABEL):
         raise HTTPException(
             status_code=403,

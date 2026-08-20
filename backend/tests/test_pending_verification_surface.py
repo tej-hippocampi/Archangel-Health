@@ -85,7 +85,13 @@ def test_the_gate_403_carries_a_machine_readable_state(client, status):
     user = make_user(store, role="evaluator")
     store.set_verification_status(user["id"], status)
 
-    res = client.get("/api/asclepius/auth/me", headers=headers_for(user))
+    # /auth/me is deliberately open to a physician awaiting verification (they
+    # are inside the product now), so the gate is asserted where it actually
+    # bites: the real-work surface.
+    probe = (
+        "/api/asclepius/auth/me" if status == "rejected" else "/api/asclepius/tasks/next"
+    )
+    res = client.get(probe, headers=headers_for(user))
     assert res.status_code == 403
     assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == status, (
         "the portal shows a different screen for 'still waiting' than for "
@@ -96,17 +102,37 @@ def test_the_gate_403_carries_a_machine_readable_state(client, status):
     assert isinstance(res.json()["detail"], str) and res.json()["detail"].strip()
 
 
-def test_the_taxonomy_call_is_gated_too_and_says_so(client):
-    """The boot sequence is /auth/me then /taxonomy, and the login form's submit
-    handler only reaches the gate via /taxonomy. Both have to carry the state or
-    one of the two entry points still shows a bare form."""
+def test_taxonomy_is_open_to_a_physician_awaiting_verification(client):
+    """The boot sequence is /auth/me then /taxonomy. Both are now open while we
+    check credentials: a signup lands IN the product and waits there, instead of
+    bouncing off a wall in front of it."""
     store = fresh_store()
     user = make_user(store, role="evaluator")
     store.set_verification_status(user["id"], "pending")
 
     res = client.get("/api/asclepius/taxonomy", headers=headers_for(user))
-    assert res.status_code == 403
-    assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending"
+    assert res.status_code == 200
+
+    me = client.get("/api/asclepius/auth/me", headers=headers_for(user))
+    assert me.status_code == 200
+    assert me.json()["access_level"] == "provisional"
+    # verification_status stays on the wire verbatim: four states must remain
+    # distinguishable for the admin queue even though the gate sees three.
+    assert me.json()["verification_status"] == "pending"
+
+
+def test_the_real_work_surface_is_still_shut_for_the_same_physician(client):
+    """The other half of the same change. Getting in must not mean getting
+    patient data or money."""
+    store = fresh_store()
+    user = make_user(store, role="evaluator")
+    store.set_verification_status(user["id"], "pending")
+
+    for path in ("/api/asclepius/tasks/next", "/api/asclepius/tasks/available",
+                 "/api/asclepius/me/stats", "/api/asclepius/earnings"):
+        res = client.get(path, headers=headers_for(user))
+        assert res.status_code == 403, path
+        assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending", path
 
 
 def test_a_role_gate_403_carries_no_verification_state(client):
@@ -131,7 +157,7 @@ def test_an_admin_is_exempt_and_sees_no_gate(client):
 
 
 # ─── The SSO loop this was actually reported as ───────────────────────────────
-def test_sso_mints_a_token_for_a_pending_clinician_and_the_next_call_403s(client):
+def test_sso_mints_a_token_for_a_pending_clinician_who_lands_inside_the_product(client):
     """The exact sequence behind "the login just doesn't work".
 
     /auth/sso does not run the verification gate, so it returns 200 + a valid
@@ -160,10 +186,11 @@ def test_sso_mints_a_token_for_a_pending_clinician_and_the_next_call_403s(client
     # …and provisions the account pending, on purpose.
     assert body["user"]["verification_status"] == "pending"
 
-    gated = client.get(
-        "/api/asclepius/taxonomy",
-        headers={"Authorization": "Bearer " + body["token"]},
-    )
+    hdrs = {"Authorization": "Bearer " + body["token"]}
+    # They are in the product: this used to 403 and drop them on a waiting wall.
+    assert client.get("/api/asclepius/taxonomy", headers=hdrs).status_code == 200
+    # And still cannot draw real work.
+    gated = client.get("/api/asclepius/tasks/next", headers=hdrs)
     assert gated.status_code == 403
     assert gated.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending"
 
