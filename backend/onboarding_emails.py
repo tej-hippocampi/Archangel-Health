@@ -484,7 +484,6 @@ def build_asclepius_complete_email(
     role_label: str,
     org_name: str,
     specialty: str,
-    temporary_password: str,
     workspace_url: str,
     is_director: bool,
     team_count: int = 0,
@@ -506,7 +505,7 @@ def build_asclepius_complete_email(
     ]
     if is_director and team_count > 0:
         rows.append(("Team", f"{team_count} {'person' if team_count == 1 else 'people'}", False))
-    rows.append(("Password (access key)", temporary_password, True))
+
 
     intro = (
         html.escape(safe_org)
@@ -539,8 +538,8 @@ def build_asclepius_complete_email(
             "&#11088; "
             + _strong("Star this email")
             + " — everything you need to contribute data lives here. Your password is "
-            "your standing access key: it does not expire, and you&rsquo;ll use this "
-            "email + password every time you sign in to your workspace.",
+            "the password you chose during sign-up. Forgot it? Use the reset link on the "
+            "sign-in page and we will email you a new one.",
             small=True,
         )
     )

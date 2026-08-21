@@ -39,6 +39,7 @@ import {
   ASCLEPIUS_ROLE_LABELS,
   Step1NameEmail,
   Step2Verify,
+  StepChoosePassword,
   Step3Org,
   Step4Institution,
   Step4YourTeam,
@@ -64,6 +65,7 @@ type Props = { token: string; mode?: Mode };
 type StepKey =
   | "identity"
   | "verify"
+  | "password"
   | "org"
   | "team"
   | "signin"
@@ -77,6 +79,7 @@ type StepKey =
 const STEP_LABELS: Partial<Record<StepKey, string>> = {
   identity: "You",
   verify: "Verify",
+  password: "Password",
   org: "Health system",
   team: "Your TEAM",
   signin: "Sign in",
@@ -91,8 +94,19 @@ const STEP_LABELS: Partial<Record<StepKey, string>> = {
  * pre-locked to "asclepius"; admin-generated health-system links default to
  * "archangel") — the wizard never asks the signer to choose. */
 function orderFor(mode: Mode, product: Product | ""): StepKey[] {
-  if (mode === "member") return ["credentials", "attestations", "verify", "ascSuccess"];
-  const head: StepKey[] = ["identity", "verify"];
+  // "password" always comes immediately AFTER "verify", never before it, and
+  // never on the credentials screen. Two reasons, in order of weight:
+  //
+  //  1. Member mode verifies LAST. Capturing a password before the mailbox is
+  //     proven would let a typo'd address end up with an account whose password
+  //     was set by someone who cannot receive its mail.
+  //  2. The credentials screen is the longest in the flow and the most likely
+  //     to 400 on a field; a re-render there would clear the password pair.
+  //
+  // The OTP step is also the natural "you are who you say you are, now claim
+  // the account" moment.
+  if (mode === "member") return ["credentials", "attestations", "verify", "password", "ascSuccess"];
+  const head: StepKey[] = ["identity", "verify", "password"];
   if (product === "asclepius") {
     // Team invites moved to the dashboard, so sign-up ends at attestations.
     return [...head, "institution", "credentials", "attestations", "ascSuccess"];
@@ -670,6 +684,34 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         setStepError(formatApiError(body) || "Invalid code");
         return false;
       }
+      // Finishing moved OUT of here: the physician still has to choose a
+      // password, and that step deliberately comes after the mailbox is proven.
+      setStep("password");
+      return true;
+    },
+    [token, setData],
+  );
+
+  /** POST the chosen password, then finish. One handler for both flows: the
+   *  only difference is which endpoint pair they hit. */
+  const submitPassword = useCallback(
+    async (password: string) => {
+      setStepError("");
+      const isMember = mode === "member";
+      const r = await api(
+        isMember ? "/api/onboarding/member/password" : "/api/onboarding/asclepius/password",
+        { method: "POST", body: JSON.stringify({ token, password }) },
+      );
+      const body = await readResponseJson(r);
+      if (!r.ok) {
+        setStepError(formatApiError(body) || "Could not save that password");
+        return false;
+      }
+      if (!isMember) {
+        // The director still has institution, credentials and attestations to go.
+        setStep("institution");
+        return true;
+      }
       const fr = await api("/api/onboarding/member/finish", {
         method: "POST",
         body: JSON.stringify({ token }),
@@ -684,7 +726,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStep("ascSuccess");
       return true;
     },
-    [token, setData],
+    [mode, token, setData],
   );
 
   const openAsclepiusWorkspace = useCallback(() => {
@@ -733,6 +775,16 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             onBack={goBack}
             error={stepError}
             eyebrow={mode === "member" ? "Step 3 of 3" : "Step 2"}
+          />
+        );
+      case "password":
+        return (
+          <StepChoosePassword
+            data={data}
+            onSubmit={submitPassword}
+            onBack={goBack}
+            error={stepError}
+            eyebrow={mode === "member" ? "Step 4 of 4" : "Step 3"}
           />
         );
       // Archangel

@@ -498,3 +498,40 @@ export async function getPatientByCodes(
   }
   return res.json();
 }
+
+/* ─── Asclepius password recovery ────────────────────────────────────────────
+   The forgot endpoint answers identically whether or not the address has an
+   account, so there is nothing here to branch on and nothing to report back
+   beyond "we have taken your request". Do not add an "unknown email" path:
+   that would rebuild, in the client, the enumeration oracle the server was
+   written to avoid. */
+
+export async function asclepiusForgotPassword(email: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE}/api/asclepius/auth/password/forgot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const body = await res.json().catch(() => ({}));
+  return {
+    message:
+      (body && body.message) ||
+      "If that email has an Asclepius account, we've sent a reset link.",
+  };
+}
+
+export async function asclepiusResetPassword(
+  token: string,
+  newPassword: string,
+): Promise<{ token: string }> {
+  const res = await fetch(`${API_BASE}/api/asclepius/auth/password/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body && body.detail) || "This reset link is no longer valid.");
+  }
+  return { token: (body && body.token) || "" };
+}

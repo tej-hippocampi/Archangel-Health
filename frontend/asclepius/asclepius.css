@@ -3582,3 +3582,15 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-verif-open ul { margin: var(--sp-2) 0 0; padding-left: 1.1rem; }
 .asc-verif-open li { margin: var(--sp-1) 0; color: var(--ink-soft); }
 .asc-dash-cta { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); flex-wrap: wrap; }
+
+/* Recovery affordance on the portal login. A button, not an anchor: it performs
+   an action (mails a reset) rather than navigating anywhere. */
+.asc-login-forgot { margin-top: var(--sp-2); text-align: center; }
+.asc-linkish {
+  background: none; border: 0; padding: 0; font: inherit;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer;
+}
+.asc-linkish:hover { color: var(--ink); }

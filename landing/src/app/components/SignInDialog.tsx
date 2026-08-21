@@ -15,6 +15,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
   const [step, setStep] = React.useState<Step>("role");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [notice, setNotice] = React.useState("");
   const [clinicCode, setClinicCode] = React.useState("");
   const [resourceCode, setResourceCode] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -35,6 +36,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
     setStep("role");
     setEmail("");
     setPassword("");
+    setNotice("");
     setClinicCode("");
     setResourceCode("");
     setApiError(null);
@@ -216,7 +218,25 @@ export function SignInDialog({ open, onOpenChange }: Props) {
                   required
                   autoComplete="current-password"
                 />
+                {/* The endpoint answers identically for a known and an unknown
+                    address, so this is safe to offer without knowing which
+                    plane the email belongs to. */}
+                <button
+                  type="button"
+                  className="adg-linkish"
+                  style={{ marginTop: 8 }}
+                  onClick={async () => {
+                    const addr = email.trim();
+                    if (!addr) { setError("Enter your email above first."); return; }
+                    const { message } = await authApi.asclepiusForgotPassword(addr);
+                    setError("");
+                    setNotice(message);
+                  }}
+                >
+                  Forgot password?
+                </button>
               </div>
+              {notice ? <div className="adg-notice">{notice}</div> : null}
               <div className="adg-actions">
                 <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("role")}>
                   Back
