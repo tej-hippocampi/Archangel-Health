@@ -168,6 +168,15 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         "tier": user.get("tier"),
         "tier_word": _caps.tier_word(user.get("tier")),
         "capabilities": sorted(_caps.granted(user)),
+        # The second axis. ``capabilities`` keeps its exact current meaning
+        # (what the TIER grants) so the portal's existing sessionCan() is
+        # untouched; these two say what the ACCESS LEVEL grants, which is what
+        # the rail needs to decide between hiding a surface and showing it
+        # locked. verification_status is still shipped verbatim above: four
+        # states must stay distinguishable for the admin queue even though the
+        # gate only cares about three.
+        "access_level": _caps.access_level(user),
+        "surfaces": sorted(_caps.surfaces(user)),
     }
 
 
@@ -212,9 +221,17 @@ def get_current_user_optional(
     return user
 
 
-def get_current_user(
+def get_current_account(
     user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ) -> Dict[str, Any]:
+    """Identity and plane only. Says nothing about verification beyond "not
+    refused".
+
+    This is the dependency for everything a physician awaiting verification may
+    still reach: their own profile, the practice case, the community, their own
+    password. It is deliberately NOT the default, so a new endpoint that forgets
+    to pick one is restrictive rather than open.
+    """
     if user is None:
         raise HTTPException(status_code=401, detail="Asclepius authentication required")
     # Deny-by-default (EHR PRD §4): a ``data_partner`` may use ONLY the locked-down
@@ -234,36 +251,73 @@ def get_current_user(
             status_code=403,
             detail="This account can only use the buyer data workspace.",
         )
-    # PRD-B verification gate: a signup awaiting (or refused) human credential
-    # review cannot use the evaluator surface — which is what makes "a pending
-    # user cannot draw tasks" enforceable server-side, in one place, exactly
-    # like the role gates above. Three states, deliberately:
-    #   NULL             -> pre-verification-era account, passes untouched
-    #   pending/rejected -> blocked with a clear reason
-    #   approved         -> passes
-    # Admins are exempt so a workspace director is never locked out of the
-    # workspace they just created, and so a bootstrap admin can always act.
-    status = user.get("verification_status")
-    if status in ("pending", "rejected") and user.get("role") != "admin":
+    # A refused account is a final decision, not a wait. It gets nothing, and it
+    # is the ONE state that never reaches any surface.
+    if _caps.access_level(user) == _caps.NONE and user.get("role") != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="This account was not approved for the evaluator portal.",
+            headers={AUTH_GATE_HEADER: "rejected"},
+        )
+    return user
+
+
+def require_full_access(
+    user: Dict[str, Any] = Depends(get_current_account),
+) -> Dict[str, Any]:
+    """Everything ``get_current_account`` refuses, plus: no provisional users.
+
+    Aliased as ``get_current_user`` below, so the ~120 admin / QA / advisor /
+    review endpoints that already depend on that name keep their exact current
+    behavior and the restrictive option stays the default.
+    """
+    if _caps.access_level(user) == _caps.PROVISIONAL and user.get("role") != "admin":
         raise HTTPException(
             status_code=403,
             detail=(
-                "Your account is awaiting credential verification — you'll hear "
-                "from us within 24 hours."
-                if status == "pending"
-                else "This account was not approved for the evaluator portal."
+                "We are still verifying your credentials. This opens as soon as "
+                "that is done, usually within one to two business days."
             ),
-            # The portal has to tell these two states apart to show the right
-            # screen — a waiting physician gets "here is what is happening and
-            # how long it takes", a refused one must not. Prose is not a
-            # protocol: matching on the detail string would break the moment the
-            # copy is edited. The state travels in a header so `detail` keeps its
-            # shape for every existing consumer. Same-origin by construction (the
-            # portal is served by this app); a client that cannot read it falls
-            # back to showing `detail` alone, which is still correct.
-            headers={AUTH_GATE_HEADER: status},
+            # The portal tells "still waiting" from "refused" apart to show the
+            # right screen. Prose is not a protocol: matching on the detail
+            # string would break the moment the copy is edited, so the state
+            # travels in a header and `detail` keeps its shape for every
+            # existing consumer.
+            headers={AUTH_GATE_HEADER: "pending"},
         )
     return user
+
+
+def require_surface(surface: str):
+    """Dependency factory: authenticated, not refused, and allowed this surface.
+
+    The policy lives in ``capabilities._BY_ACCESS``, so widening what a
+    provisional physician may reach is one edit in one table rather than a hunt
+    for every endpoint that happened to name a status string.
+    """
+
+    def _dep(user: Dict[str, Any] = Depends(get_current_account)) -> Dict[str, Any]:
+        if not _caps.can_surface(user, surface):
+            level = _caps.access_level(user)
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "We are still verifying your credentials. This opens as soon "
+                    "as that is done, usually within one to two business days."
+                    if level == _caps.PROVISIONAL
+                    else "This account was not approved for the evaluator portal."
+                ),
+                headers={AUTH_GATE_HEADER: ("pending" if level == _caps.PROVISIONAL else "rejected")},
+            )
+        return user
+
+    return _dep
+
+
+#: Back-compat alias. Every existing ``Depends(asc_auth.get_current_user)`` keeps
+#: meaning "fully verified", so this change cannot quietly widen an endpoint that
+#: was not reviewed as part of it.
+get_current_user = require_full_access
 
 
 def require_data_partner(

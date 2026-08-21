@@ -267,12 +267,14 @@
       window.open('/asclepius/review', '_blank', 'noopener');
       return;
     }
-    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor' && dest !== 'earnings') return;
+    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor' && dest !== 'earnings'
+        && dest !== 'verification') return;
     // Server-gated destinations are re-checked here, not only hidden in the
     // rail: a stale deep link or a hand-typed state change must not open a
     // section the session was never granted. (The API 403s regardless: this
     // just avoids rendering an empty shell over it.)
     if (dest === 'advisor' && !sessionCan('refer')) return;
+    if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
     // Leaving the Guide: stop the scroll-spy observer so it never watches the
@@ -346,13 +348,21 @@
   }
 
   const RAIL_ITEMS = [
-    { dest: 'tasks',     label: 'Tasks' },
+    // `surface` is the access-level axis (see backend asclepius/capabilities.py).
+    // It behaves differently from `capability` on purpose: a capability the
+    // session lacks HIDES the item (a labeler should never see a Review tab they
+    // will not get), whereas a surface it lacks SHOWS IT LOCKED. A physician
+    // waiting on credentials is going to get these in a day or two, and hiding
+    // them makes the product look empty at exactly the moment we are trying to
+    // show them what they joined.
+    { dest: 'tasks',     label: 'Tasks', surface: 'real_work',
+      lockedHint: 'Opens when your credentials clear' },
     // PRD-R: without this entry the review console has no route from the portal
     // at all, so a promoted reviewer signs in and never finds the surface. Same
     // capability gate as Advisor below, for the same reason: the client reads
     // the server's capability list and never re-derives a tier.
     { dest: 'review',    label: 'Review', capability: 'review', external: true },
-    { dest: 'community', label: 'Community', external: true },
+    { dest: 'community', label: 'Community', surface: 'community_read', external: true },
     // Advisor PRD §6.2: shown only to a session whose SERVER-supplied
     // capabilities include 'refer'. The gate is `capability`, never a tier
     // string: re-deriving "is this an advisor?" in the client would push the
@@ -361,7 +371,8 @@
     // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
     // made is not a privileged surface, and every endpoint behind it scopes from
     // the session, so there is nothing here to gate on a capability.
-    { dest: 'earnings',  label: 'Earnings' },
+    { dest: 'earnings',  label: 'Earnings', surface: 'earnings',
+      lockedHint: 'Opens when your credentials clear' },
     { dest: 'guide',     label: 'Guide' },
   ];
 
@@ -372,8 +383,27 @@
     return caps.indexOf(capability) !== -1;
   }
 
+  // The surface list the server put on the session. Absent means deny, exactly
+  // like sessionCan: an older token or a cached payload must not be read as
+  // permission.
+  function sessionHasSurface(surface) {
+    const list = (state.user && state.user.surfaces) || [];
+    return list.indexOf(surface) !== -1;
+  }
+
+  // True while credentials are under review: in the product, but not yet on
+  // real cases. Read from the server's access_level, never re-derived from
+  // verification_status here.
+  function sessionIsProvisional() {
+    return !!(state.user && state.user.access_level === 'provisional');
+  }
+
   function visibleRailItems() {
-    return RAIL_ITEMS.filter((it) => !it.capability || sessionCan(it.capability));
+    return RAIL_ITEMS
+      .filter((it) => !it.capability || sessionCan(it.capability))
+      .map((it) => Object.assign({}, it, {
+        locked: !!it.surface && !sessionHasSurface(it.surface),
+      }));
   }
 
   let chromeMetricsBound = false;
@@ -546,15 +576,21 @@
         h('span', { class: 'asc-rail-label' }, item.label),
       ];
       if (item.dest === 'community') children.push(communityBadgeEl());
+      if (item.locked) children.push(h('span', { class: 'asc-rail-lock', 'aria-hidden': 'true' }, '\u00b7'));
       nav.appendChild(h('button', {
         type: 'button',
-        class: 'asc-rail-item' + (active ? ' active' : ''),
+        class: 'asc-rail-item' + (active ? ' active' : '') + (item.locked ? ' locked' : ''),
         'aria-current': active ? 'page' : null,
+        'aria-disabled': item.locked ? 'true' : null,
         // aria-label carries the accessible name even in the icon-collapsed rail,
         // where the visible label span is display:none (and thus off the a11y tree).
         'aria-label': item.external ? item.label + ' (opens in a new tab)' : item.label,
         title: item.external ? item.label + ' (opens in a new tab)' : item.label,
-        onClick: () => setPanel(item.dest),
+        onClick: () => {
+          // A locked surface opens the explanation, not a 403.
+          if (item.locked) { setPanel('verification'); return; }
+          setPanel(item.dest);
+        },
       }, children));
     });
 
@@ -1546,6 +1582,55 @@
         ))));
   }
 
+  // ─── Verification status, INSIDE the product ────────────────────────────────
+  // This used to be a wall in front of the app: a physician finished a five-step
+  // signup and got a screen telling them to come back tomorrow. The same words
+  // are worth saying, but from inside, next to the things they CAN do.
+
+  function provisionalBannerEl() {
+    if (!sessionIsProvisional()) return null;
+    return h('div', { class: 'asc-provisional-banner', role: 'status' },
+      h('span', { class: 'asc-provisional-dot', 'aria-hidden': 'true' }),
+      h('div', { class: 'asc-provisional-copy' },
+        h('strong', {}, 'We are verifying your credentials.'),
+        ' Usually one to two business days. Try the practice case and meet '
+        + 'colleagues in the community while you wait. Real cases and earnings '
+        + 'open as soon as we are done.'),
+      h('button', {
+        type: 'button',
+        class: 'asc-btn asc-btn-ghost asc-btn-sm',
+        onClick: () => setPanel('verification'),
+      }, 'What happens next'));
+  }
+
+  // The panel a locked rail item opens. Built from the SAME manual section the
+  // old waiting screen used (id 'awaiting-verification'), so the copy has one
+  // home and the guide and this panel cannot drift apart.
+  function renderVerificationPanel() {
+    state.view = 'verification';
+    renderHeader();
+    const sec = awaitingVerificationSection();
+    const rows = (sec && sec.rows) || [];
+    const card = h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-chrome' }, 'Verification'),
+      h('h2', { class: 'asc-verif-title' }, 'We are checking your credentials.'),
+      h('p', {},
+        'This usually takes one to two business days. You do not need to do '
+        + 'anything, and we will email you either way.'),
+      rows.length
+        ? h('div', { class: 'asc-verif-rows' }, ...rows.map((r) => h('div', { class: 'asc-verif-row' },
+            h('div', { class: 'asc-chrome' }, r.label || ''),
+            h('div', {}, r.body || ''))))
+        : null,
+      h('div', { class: 'asc-verif-open' },
+        h('div', { class: 'asc-chrome' }, 'Open to you now'),
+        h('ul', {},
+          h('li', {}, 'The practice case, start to finish.'),
+          h('li', {}, 'The community: introduce yourself and follow the medical-AI digest.'),
+          h('li', {}, 'The guide, so you know how the work runs before your first real case.')))));
+    setRoot(h('div', { class: 'asc-wrap' }, card));
+  }
+
   // ─── Dashboard (home) ───────────────────────────────────────────────────────
   // The landing surface after login: shows the cases this reviewer can pick right
   // now, a "start next case" CTA, or a reassuring empty state. It routes into the
@@ -1571,7 +1656,14 @@
     let data = { tasks: [] };
     let stats = null;
     let queueError = null;
+    // A physician whose credentials are still being checked has no real queue
+    // and no earnings, and BOTH endpoints below are on the real-work surface.
+    // Asking anyway would produce two 403s and render "we could not load your
+    // queue", which is a bug report, not the truth. The truth is that the queue
+    // does not exist for them yet, and the banner says so.
+    const provisional = sessionIsProvisional();
     try {
+      if (provisional) throw { __provisional: true };
       const [tasksRes, statsRes] = await Promise.all([
         api('/tasks/available?portal_version=' + encodeURIComponent(ver)
           + '&specialty=' + encodeURIComponent(spec)),
@@ -1580,6 +1672,8 @@
       data = tasksRes;
       stats = statsRes;
     } catch (e) {
+      if (e && e.__provisional) { data = { tasks: [] }; stats = null; }
+      else {
       if (e.status === 401) return;
       // Everything else used to fall through to the empty state, so a 403, a
       // 500 and a dead backend all rendered "You are all set. No cases to grade
@@ -1587,10 +1681,13 @@
       // "We could not load your queue" and "your queue is empty" are different
       // facts and must never look the same to a physician.
       queueError = e;
+      }
     }
     const tasks = data.tasks || [];
 
     const wrap = h('div', { class: 'asc-wrap' });
+    const banner = provisionalBannerEl();
+    if (banner) wrap.appendChild(banner);
     wrap.appendChild(h('div', { class: 'asc-dash-head' },
       h('div', {},
         h('h2', { class: 'asc-dash-hello' }, 'Your dashboard'),
@@ -1601,6 +1698,22 @@
 
     if (queueError) {
       main.appendChild(renderDashboardError(queueError));
+    } else if (provisional) {
+      main.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Your first real case is waiting on us, not on you.'),
+        h('p', {},
+          'Real ' + specLabel + ' cases appear here the moment your credentials '
+          + 'clear. In the meantime the practice case is the real interface with '
+          + 'a case we wrote for it, so nothing about it is a mock-up.'),
+        h('div', { class: 'asc-dash-cta' },
+          h('button', {
+            class: 'asc-btn asc-btn-primary',
+            onClick: () => startTutorial({ replay: true }),
+          }, 'Open the practice case'),
+          h('button', {
+            class: 'asc-btn asc-btn-ghost',
+            onClick: () => setPanel('community'),
+          }, 'Meet the community')))));
     } else if (!tasks.length) {
       main.appendChild(renderDashboardEmpty(specLabel));
     } else {

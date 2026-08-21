@@ -2473,14 +2473,31 @@ class AsclepiusStore:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
 
-    def list_evaluators_by_specialty(self, specialty: str) -> List[Dict[str, Any]]:
+    def list_evaluators_by_specialty(
+        self, specialty: str, *, include_provisional: bool = False
+    ) -> List[Dict[str, Any]]:
         """Active evaluators whose specialty matches, for task-notify recipient
         resolution. Mirrors ``next_task_for_evaluator``'s match (equality on
         ``specialty``), just inverted: users for a specialty instead of a task
-        for a user."""
+        for a user.
+
+        Excludes physicians still awaiting verification by default. They cannot
+        draw the work (``require_label``), so mailing them "12 new Nephrology
+        tasks are ready" is an invitation to a 403. The kwarg exists so the
+        exclusion is stated at the call site rather than discovered later.
+
+        NULL verification_status is INCLUDED: those are pre-verification-era
+        accounts that have always been able to work, not pending ones.
+        """
+        clause = (
+            ""
+            if include_provisional
+            else "AND (verification_status IS NULL OR verification_status = 'approved') "
+        )
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM users WHERE role = 'evaluator' AND active = 1 "
+                f"{clause}"
                 "AND lower(trim(specialty)) = lower(trim(?))",
                 (specialty,),
             ).fetchall()

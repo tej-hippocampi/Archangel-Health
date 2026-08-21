@@ -27,6 +27,7 @@ from fastapi import (
 from fastapi.responses import Response
 
 from asclepius import auth as asc_auth
+from asclepius import capabilities as asc_caps
 from asclepius.credentials import generalized_blurb, find_tier_b_leak
 from asclepius.constants import TIER_B_FORBIDDEN_KEYS
 from asclepius.store import get_store as get_asclepius_store
@@ -113,6 +114,25 @@ def _passes_gate(user: Optional[Dict[str, Any]]) -> bool:
         return True
     if role != "evaluator":
         return False
+    # A physician awaiting verification is admitted. The community is the most
+    # valuable thing we can hand someone during a one-to-two day wait, and a
+    # read-only member is a lurker who does not come back. They have already
+    # cleared an OTP on their institutional mailbox, submitted an NPI, and
+    # signed the confidentiality and independent-judgment attestations, which is
+    # more identity proof than most professional forums ask for before a first
+    # post. DMs and attachments still wait: see require_verified_member.
+    #
+    # _verified_colleague keeps its exact meaning and is still consulted, so a
+    # vault-verified contributor carrying a NULL status passes as it always did.
+    # It is now a BADGE input as well as a gate input; do not change it.
+    # ONLY 'pending' is added here, not "anything the surface table allows".
+    # access_level deliberately folds NULL in with 'approved', which is right for
+    # the evaluator surface (a pre-verification-era account has always been able
+    # to work) and wrong here: the community has always required a positive
+    # signal, and a NULL account with no vault row has never been let in. Adding
+    # it now would widen this gate as a side effect of a change about pending.
+    if user.get("verification_status") == "pending":
+        return True
     cred = _astore().get_contributor_credentials(user.get("id_hashed") or "")
     return _verified_colleague(user, cred)
 
@@ -124,6 +144,27 @@ def require_member(
         raise HTTPException(status_code=401, detail="Sign in through the doctor portal to open the community.")
     if not _passes_gate(user):
         raise HTTPException(status_code=403, detail=GATE_MESSAGE)
+    return user
+
+
+def require_verified_member(
+    user: Dict[str, Any] = Depends(require_member),
+) -> Dict[str, Any]:
+    """A member whose credentials have actually cleared.
+
+    Channel posts are open to a physician still under review; direct messages
+    and file uploads are not. Those two are the unsolicited-contact and the PHI
+    vectors respectively, and they are the two worth making someone wait a day
+    for. Everything else in the community is the same for both.
+    """
+    if asc_caps.access_level(user) != asc_caps.FULL and user.get("role") not in ("admin", "qa_reviewer"):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Direct messages and file uploads open once your credentials are "
+                "verified. You can post in any channel in the meantime."
+            ),
+        )
     return user
 
 
@@ -189,13 +230,26 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
             cred = astore.get_contributor_credentials(user["id_hashed"])
         # Same bridge as the gate — an approval-path member (no vault row)
         # must serialize as a member, not a ghost, and appear in the directory.
+        # _verified_colleague keeps its exact original meaning. access_level
+        # folds NULL in with 'approved', so using it here would mark every
+        # pre-verification-era evaluator as a verified colleague, which is the
+        # widening the gate above deliberately refuses.
         verified = _verified_colleague(user, cred)
+        # A provisional physician can post, so they must also resolve in the
+        # directory: a member who appears in a channel but in no member list is
+        # exactly the ghost this function was written to avoid.
+        provisional = (
+            role == "evaluator"
+            and not verified
+            and user.get("verification_status") == "pending"
+        )
         if role in ("admin", "qa_reviewer"):
             is_staff = True
-        elif role == "evaluator" and verified:
+        elif role == "evaluator" and (verified or provisional):
             is_staff = False
         else:
             continue
+        verification_state = "verified" if verified else "provisional"
         ship = (cred or {}).get("ship") or {}
         specialty = ship.get("primary_specialty") or user.get("specialty")
         years = ship.get("years_in_active_practice")
@@ -860,7 +914,7 @@ async def list_dms(user: Dict[str, Any] = Depends(require_member)):
 async def open_dm(
     body: DmOpen,
     request: Request,
-    user: Dict[str, Any] = Depends(require_member),
+    user: Dict[str, Any] = Depends(require_verified_member),
 ):
     """Get-or-create the conversation with another member. The peer must pass
     the same §1 gate (verified contributor or staff) — you cannot DM an
@@ -907,7 +961,7 @@ async def post_dm_message(
     dm_id: str,
     body: DmMessageIn,
     request: Request,
-    user: Dict[str, Any] = Depends(require_member),
+    user: Dict[str, Any] = Depends(require_verified_member),
 ):
     dm = _dm_or_404(dm_id, user)
     text = (body.body or "").strip()
@@ -1014,7 +1068,7 @@ async def search(
 async def upload_attachment(
     request: Request,
     file: UploadFile = File(...),
-    user: Dict[str, Any] = Depends(require_member),
+    user: Dict[str, Any] = Depends(require_verified_member),
 ):
     data = await file.read()
     mime = file.content_type or ""

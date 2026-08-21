@@ -3528,3 +3528,57 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   border-left: 2px solid var(--pink);
   padding-left: 8px;
 }
+
+/* ─── Provisional access: in the product, credentials still being checked ──── */
+/* Deliberately a NOTICE, not an alarm. Orange is the model/attention accent in
+   this palette; pink means PHI or critical and would be wrong here, because
+   nothing has gone wrong. The physician is fine, they are just early. */
+.asc-provisional-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-5);
+  background: var(--orange-wash);
+  border: 1px solid var(--orange-line);
+  border-radius: var(--r-md);
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+}
+.asc-provisional-banner strong { color: var(--ink); font-weight: 600; }
+.asc-provisional-banner .asc-btn { flex: none; margin-left: auto; }
+.asc-provisional-copy { flex: 1 1 auto; }
+.asc-provisional-dot {
+  flex: none;
+  width: 8px; height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--orange);
+}
+
+/* A rail item for a surface that opens once credentials clear. Shown, not
+   hidden: hiding it makes the product look empty at exactly the moment we are
+   trying to show a new physician what they joined. */
+.asc-rail-item.locked { opacity: 0.55; }
+.asc-rail-item.locked:hover { opacity: 0.8; }
+.asc-rail-lock {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-size: var(--t-chrome);
+}
+
+.asc-verif-title { margin: var(--sp-2) 0 var(--sp-3); font-weight: 500; }
+.asc-verif-rows { margin-top: var(--sp-4); }
+.asc-verif-row {
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--hairline);
+}
+.asc-verif-open {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--hairline);
+}
+.asc-verif-open ul { margin: var(--sp-2) 0 0; padding-left: 1.1rem; }
+.asc-verif-open li { margin: var(--sp-1) 0; color: var(--ink-soft); }
+.asc-dash-cta { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); flex-wrap: wrap; }
