@@ -980,3 +980,52 @@ def build_asclepius_password_changed_email(*, email: str) -> str:
         )
     )
     return _shell(subject="Your Archangel Health password was changed", body_html=body)
+
+
+def build_asclepius_admin_signup_alert(
+    *,
+    physician_name: str,
+    email: str,
+    specialty: str,
+    decision: str,
+    recommendation: str,
+    reasons: Iterable[str] = (),
+) -> str:
+    """Internal: a physician signed up, and what the verification agent made of it.
+
+    Sent for EVERY signup, enriched in place when the agent reports. Before this
+    the only signal an admin got was the pending-count chip on a screen they had
+    to already be looking at.
+    """
+    reason_list = [r for r in (reasons or []) if r]
+    body = (
+        _eyebrow("Internal · Verification")
+        + _h1(f"{html.escape(decision)}: {html.escape(physician_name)}")
+        + _inset_card(
+            _detail_rows(
+                [
+                    ("Physician", physician_name, False),
+                    ("Email", email, True),
+                    ("Specialty", specialty or "Not given", False),
+                    ("Decision", decision, False),
+                ]
+            )
+        )
+        + _p(html.escape(recommendation) if recommendation else "No recommendation recorded.")
+        + (
+            "<ul style=\"margin:0 0 16px;padding-left:20px;font-family:"
+            + _SANS
+            + f";font-size:14px;line-height:1.7;color:{_INK_SOFT};\">"
+            + "".join(f"<li>{html.escape(r)}</li>" for r in reason_list)
+            + "</ul>"
+            if reason_list
+            else ""
+        )
+        + _p(
+            "Open the verification queue in the admin console to see the full "
+            "dossier, including the NPPES record and the parsed CV.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject=f"[Asclepius] {decision}: {physician_name}", body_html=body)

@@ -28,6 +28,15 @@ os.environ.setdefault("ASCLEPIUS_AUTH_SECRET", "asclepius-test-secret-0123456789
 # path itself is exercised explicitly where needed via
 # ``monkeypatch.setattr(pipeline, "_should_sample", lambda: True)``.
 os.environ["ASCLEPIUS_QA_SAMPLE_PCT"] = "0"
+# The verification agent is a background loop that polls verification_jobs on a
+# timer. Every TestClient(app) in this suite runs the startup hooks, so leaving
+# it on means dozens of pollers running against a store the tests keep
+# rebinding under them via fresh_store(). Hard-assign (not setdefault) for the
+# same reason as the sampling flag above: a value in the CI runner's
+# environment must not be able to re-enable it. The agent's own behavior is
+# exercised directly in tests/test_auto_verification.py, which calls run_one()
+# rather than waiting on the loop.
+os.environ["ASCLEPIUS_VERIFY_AGENT_ENABLED"] = "0"
 # V3 multimodal-by-default is ON in production. It's now a PREFERENCE (serve a
 # structured case when one exists, else fall back to the hard text queue), so the
 # existing V3 text-serving tests would pass either way — but hard-assign OFF for a

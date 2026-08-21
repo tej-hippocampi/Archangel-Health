@@ -725,6 +725,29 @@ async def _run_task_notification_pass() -> None:
         )
 
 
+async def _drain_admin_notifications() -> None:
+    """Send queued admin alerts whose grace window has passed.
+
+    Drained by the SAME loop as task notifications rather than a second one, so
+    there is one background sender to reason about instead of two that can stop
+    independently.
+    """
+    from asclepius.store import get_store as _asc_store  # noqa: PLC0415
+    from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
+
+    if not is_email_transport_configured():
+        return
+    store = _asc_store()
+    for row in store.due_admin_notifications():
+        try:
+            ok = await send_html_email(
+                row["recipient_email"], row["subject"], row["body_html"],
+            )
+            store.mark_admin_notification_sent(row["id"], ok=bool(ok))
+        except Exception as exc:
+            store.mark_admin_notification_sent(row["id"], ok=False, error=str(exc))
+
+
 async def _task_notification_loop() -> None:
     interval = int(os.getenv("TASK_NOTIFICATION_INTERVAL_SECONDS", "60"))
     while True:
@@ -732,6 +755,10 @@ async def _task_notification_loop() -> None:
             await _run_task_notification_pass()
         except Exception as e:
             print(f"[task-notify] error: {e}")
+        try:
+            await _drain_admin_notifications()
+        except Exception as e:
+            print(f"[admin-notify] error: {e}")
         await asyncio.sleep(interval)
 
 SURVEY_DAY_CONFIG = {7: 6, 14: 13, 30: 29}  # days from open_date
@@ -6318,6 +6345,18 @@ async def startup_team_scheduler():
     app.state.postop_lost_contact_task = asyncio.create_task(_postop_lost_contact_watcher_loop())
     app.state.postop_nightly_task = asyncio.create_task(_postop_nightly_retier_loop())
     app.state.task_notification_task = asyncio.create_task(_task_notification_loop())
+    # The verification agent drains its own durable queue. Same in-process
+    # pattern as the notification loop above: this repo has no scheduler, and
+    # this is not the change that introduces one. Guarded so a failure here can
+    # never take startup down with it.
+    try:
+        from asclepius import verification_agent as _asc_verify_agent
+
+        app.state.verification_agent_task = asyncio.create_task(
+            _asc_verify_agent.run_agent_loop()
+        )
+    except Exception:
+        _auth_logger.warning("[asclepius] verification agent failed to start", exc_info=True)
 
 
 @app.on_event("startup")
