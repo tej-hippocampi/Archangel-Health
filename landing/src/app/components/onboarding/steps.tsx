@@ -273,10 +273,37 @@ export function Step1NameEmail({
   onNext: () => Promise<boolean>;
   error?: string;
 }) {
+  // Each screen gates ONLY on what it asks for. Gating screen 1 on a licence
+  // number it never showed is how a Continue button goes dead with no
+  // explanation anywhere on the page.
+  const identityValid =
+    c.fullLegalName.trim().length > 0 &&
+    /^\d{10}$/.test(c.npi.trim()) &&
+    // The physician's own phone is required (PRD Phase 4). Their mobile is
+    // how verification actually gets resolved when NPPES is ambiguous.
+    c.phone.trim().length >= 7 &&
+    c.degree.trim().length > 0 &&
+    c.primarySpecialty.trim().length > 0 &&
+    c.currentlyActive !== null;
+
+  const trainingValid =
+    // Gate A2 needs both halves; gate A4 needs the attestation. Required at the
+    // form rather than surfaced later as an "unresolved gate" in the admin queue,
+    // because a physician can answer these in five seconds and an admin cannot.
+    c.licenseNumber.trim().length > 0 &&
+    c.licenseState.trim().length === 2 &&
+    c.residencyCompleted !== null &&
+    // AUDIT H1: required, because the alternative is inferring it from a blank or a
+    // zero — and inferring "not practising" from the zero a physician on parental
+    // leave types is the exact defect this field exists to close.
+    c.practiceStatus !== "";
+
+  // Screen 3 is entirely optional by design, so it never blocks.
   const valid =
-    data.firstName.trim().length > 0 &&
-    data.lastName.trim().length > 0 &&
-    /\S+@\S+\.\S+/.test(data.email);
+    phase === 1 ? identityValid
+    : phase === 2 ? trainingValid
+    : phase === 3 ? true
+    : identityValid && trainingValid;
 
   const isAsclepius = data.product === "asclepius";
 
@@ -1262,7 +1289,7 @@ export function Step4Institution({
   const valid = true;
   return (
     <OnboardingCard
-      eyebrow="Step 3 of 5"
+      eyebrow="Step 4 of 8"
       title="Name your workspace."
       lede="You're signing up on your own today. If you'd like colleagues from your practice to join later, give your workspace a name so they land in the same place. If not, skip this."
     >
@@ -1466,6 +1493,7 @@ export function Step5Credentials({
   error,
   eyebrow,
   memberMode = false,
+  phase,
 }: {
   data: OnboardingData;
   setData: (patch: Partial<OnboardingData>) => void;
@@ -1474,9 +1502,14 @@ export function Step5Credentials({
   error?: string;
   eyebrow: string;
   memberMode?: boolean;
+  /** 1 = who you are, 2 = your training, 3 = what makes you rare.
+   *  Omitted renders every field on one screen, which is what member mode
+   *  still does: an invited clinician arrives already expecting a form. */
+  phase?: 1 | 2 | 3;
 }) {
   const c = data.credentials;
   const set = (patch: Partial<Credentials>) => setData({ credentials: { ...c, ...patch } });
+  const show = (n: 1 | 2 | 3) => phase === undefined || phase === n;
 
   const valid =
     c.fullLegalName.trim().length > 0 &&
@@ -1502,15 +1535,24 @@ export function Step5Credentials({
     <OnboardingCard
       maxWidth={720}
       eyebrow={eyebrow}
-      title={memberMode ? "Confirm your credentials." : "Your credentials."}
+      title={
+        phase === 1 ? "Who you are."
+        : phase === 2 ? "Your training."
+        : phase === 3 ? "What makes you rare."
+        : memberMode ? "Confirm your credentials." : "Your credentials."
+      }
       lede={
-        memberMode
+        phase === 1 ? "About a minute. We use your NPI to fill in as much of the next screen as we can."
+        : phase === 2 ? "Confirm what we found, and add anything we missed."
+        : phase === 3 ? "All optional. This is the screen that decides what work reaches you."
+        : memberMode
           ? "Your verified credentials are attached to the data you label — this is what makes it valuable. Please be accurate."
           : "As Director of Data Training, your credentials anchor the dataset your team produces."
       }
     >
       <InlineError>{error}</InlineError>
 
+      {show(1) && (<>
       <TextField
         label="Full legal name"
         placeholder="Dr. Tej Patel"
@@ -1560,28 +1602,7 @@ export function Step5Credentials({
               : undefined
           }
         />
-        <TextField
-          label="LinkedIn profile"
-          optional
-          placeholder="linkedin.com/in/yourname"
-          value={c.linkedinUrl}
-          onChange={(v) => set({ linkedinUrl: v })}
-          hint="A link our team opens during review."
-        />
       </div>
-
-      <TextField
-        label="Health system or practice"
-        optional
-        placeholder="Northridge Nephrology Associates"
-        value={c.healthSystem}
-        onChange={(v) => set({ healthSystem: v })}
-      />
-
-      <CvUploadField
-        filename={c.cvFilename}
-        onUploaded={(filename) => set({ cvFilename: filename })}
-      />
 
       <YesNoToggle
         label="Currently in active practice?"
@@ -1589,6 +1610,9 @@ export function Step5Credentials({
         onChange={(v) => set({ currentlyActive: v })}
       />
 
+      </>)}
+
+      {show(2) && (<>
       {/* Board certifications */}
       <SectionHeading
         title="Board certifications"
@@ -1807,6 +1831,43 @@ export function Step5Credentials({
           hint="Averaged over the last 12 months. Part-time practice counts — this is not a threshold you either clear or fail."
         />
       )}
+      </>)}
+
+      {show(3) && (<>
+      <div style={RARE_INTRO}>
+        <div style={RARE_EYEBROW}>Every answer here raises what we can pay you</div>
+        <p style={RARE_BODY}>
+          All optional, and you can add them later. We ask because this is how work
+          finds you. A physician who reads French gets the French cases. A paediatric
+          nephrologist gets paediatric nephrology. Specialist and multilingual work
+          pays materially more than general review, and we can only route it to you
+          if we know it about you.
+        </p>
+      </div>
+
+      <TextField
+        label="LinkedIn profile"
+        optional
+        placeholder="linkedin.com/in/yourname"
+        value={c.linkedinUrl}
+        onChange={(v) => set({ linkedinUrl: v })}
+        hint="Helps us confirm who you are faster, which shortens the wait."
+      />
+
+      <TextField
+        label="Health system or practice"
+        optional
+        placeholder="Northridge Nephrology Associates"
+        value={c.healthSystem}
+        onChange={(v) => set({ healthSystem: v })}
+        hint="Institution-linked work is some of the best paid we route."
+      />
+
+      <CvUploadField
+        filename={c.cvFilename}
+        onUploaded={(filename) => set({ cvFilename: filename })}
+      />
+
       <YesNoToggle
         label="Participating in continuing certification (MOC/CC)?"
         value={c.continuingCertification}
@@ -1856,10 +1917,17 @@ export function Step5Credentials({
         suggestions={LANGUAGE_SUGGESTIONS}
       />
 
+      </>)}
+
       <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
-        Continue
+        {phase === 3 ? "Finish and continue" : "Continue"}
       </PrimaryButton>
+      {phase === 3 && (
+        <button type="button" style={SKIP_LINK} onClick={onNext}>
+          Skip for now, add these from my profile later
+        </button>
+      )}
       <div style={CARD_FOOTER_BACK}>
         <BackLink onClick={onBack} />
       </div>
@@ -2626,3 +2694,42 @@ export function StepChoosePassword({
     </OnboardingCard>
   );
 }
+/* Styles for the "what makes you rare" screen. It leads with the reason rather
+   than the fields, because the fields have always been there and nobody filled
+   them in: the old screen marked four of thirteen optional fields with a faint
+   grey "Optional" and said nothing about why any of them mattered. */
+const RARE_INTRO: React.CSSProperties = {
+  background: "var(--card-in)",
+  border: "1px solid var(--hairline)",
+  borderRadius: 18,
+  padding: "16px 18px",
+  margin: "0 0 22px",
+};
+const RARE_EYEBROW: React.CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: "0.68rem",
+  letterSpacing: "0.09em",
+  textTransform: "uppercase",
+  color: "var(--ah-green-deep, #3c7a31)",
+  marginBottom: 8,
+};
+const RARE_BODY: React.CSSProperties = {
+  margin: 0,
+  fontSize: "0.9rem",
+  lineHeight: 1.6,
+  color: "var(--ink-soft)",
+};
+const SKIP_LINK: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  marginTop: 12,
+  background: "none",
+  border: 0,
+  padding: 0,
+  font: "inherit",
+  fontSize: "0.85rem",
+  color: "var(--ink-faint)",
+  textDecoration: "underline",
+  textUnderlineOffset: 3,
+  cursor: "pointer",
+};

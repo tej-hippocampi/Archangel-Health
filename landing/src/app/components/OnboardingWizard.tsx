@@ -72,6 +72,8 @@ type StepKey =
   | "success"
   | "institution"
   | "credentials"
+  | "credTraining"
+  | "credRare"
   | "attestations"
   | "ascTeam"
   | "ascSuccess";
@@ -84,7 +86,9 @@ const STEP_LABELS: Partial<Record<StepKey, string>> = {
   team: "Your TEAM",
   signin: "Sign in",
   institution: "Institution",
-  credentials: "Credentials",
+  credentials: "You",
+  credTraining: "Training",
+  credRare: "Detail",
   attestations: "Attestations",
   ascTeam: "Team",
 };
@@ -109,7 +113,8 @@ function orderFor(mode: Mode, product: Product | ""): StepKey[] {
   const head: StepKey[] = ["identity", "verify", "password"];
   if (product === "asclepius") {
     // Team invites moved to the dashboard, so sign-up ends at attestations.
-    return [...head, "institution", "credentials", "attestations", "ascSuccess"];
+    return [...head, "institution", "credentials", "credTraining", "credRare",
+            "attestations", "ascSuccess"];
   }
   return [...head, "org", "team", "signin", "success"];
 }
@@ -338,6 +343,17 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
 
   const order = useMemo(() => orderFor(mode, data.product), [mode, data.product]);
 
+  /** Advance one step along the ACTIVE order.
+   *  Credentials is three screens now, so a handler that hardcodes its
+   *  destination silently skips two of them. */
+  const goNext = useCallback(() => {
+    setStepError("");
+    setStep((cur) => {
+      const idx = order.indexOf(cur);
+      return idx >= 0 && idx < order.length - 1 ? order[idx + 1] : cur;
+    });
+  }, [order]);
+
   const goBack = useCallback(() => {
     setStepError("");
     setStep((cur) => {
@@ -551,10 +567,13 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   );
 
   const submitCredentials = useCallback(async () => {
+    // Saves the whole credentials blob every time (the endpoint is an
+    // idempotent upsert), so stopping after any of the three screens keeps
+    // what was already typed.
     const ok = await saveCredentials("/api/onboarding/asclepius/credentials");
-    if (ok) setStep("attestations");
+    if (ok) goNext();
     return ok;
-  }, [saveCredentials]);
+  }, [saveCredentials, goNext]);
 
   const submitAttestations = useCallback(async () => {
     setStepError("");
@@ -809,17 +828,30 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       case "institution":
         return <Step4Institution data={data} setData={setData} onNext={submitInstitution} onBack={goBack} error={stepError} />;
       case "credentials":
+      case "credTraining":
+      case "credRare": {
+        const phase = step === "credentials" ? 1 : step === "credTraining" ? 2 : 3;
+        const eyebrows: Record<number, string> = {
+          1: "Step 5 of 8",
+          2: "Step 6 of 8",
+          3: "Step 7 of 8",
+        };
         return (
           <Step5Credentials
             data={data}
             setData={setData}
+            // Every screen saves. The endpoint is an idempotent upsert of the
+            // whole credentials blob, so a physician who stops after screen 2
+            // finds screens 1 and 2 already filled when they come back.
             onNext={mode === "member" ? submitMemberCredentials : submitCredentials}
             onBack={goBack}
             error={stepError}
-            eyebrow={mode === "member" ? "Step 1 of 3" : "Step 4 of 5"}
+            eyebrow={mode === "member" ? "Step 1 of 4" : eyebrows[phase]}
             memberMode={mode === "member"}
+            phase={mode === "member" ? undefined : (phase as 1 | 2 | 3)}
           />
         );
+      }
       case "attestations":
         return (
           <Step6Attestations
@@ -828,7 +860,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             onNext={mode === "member" ? submitMemberAttestations : submitAttestations}
             onBack={goBack}
             error={stepError}
-            eyebrow={mode === "member" ? "Step 2 of 3" : "Step 5 of 5"}
+            eyebrow={mode === "member" ? "Step 2 of 4" : "Step 8 of 8"}
             finishLabel={mode === "member" ? "Sign & continue" : "Sign & open my workspace"}
           />
         );
