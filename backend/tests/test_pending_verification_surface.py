@@ -240,3 +240,47 @@ def test_the_gate_header_is_exposed_to_cross_origin_readers():
     assert asc_auth.AUTH_GATE_HEADER in exposed, (
         f"CORS must expose {asc_auth.AUTH_GATE_HEADER!r}; exposed={exposed}"
     )
+
+
+# ─── The portal renders the new state, rather than merely tolerating it ───────
+#
+# Source assertions, same reason as the block above: there is no DOM harness
+# here, and the failure being guarded is "nobody wired it up", which is exactly
+# what shipped last time.
+
+def test_the_portal_reads_the_surface_list_and_denies_on_absent():
+    src = _PORTAL_JS.read_text(encoding="utf-8")
+    assert "function sessionHasSurface" in src
+    # Deny-on-absent: an older token or a cached payload carrying no surface
+    # list must not be read as permission.
+    i = src.index("function sessionHasSurface")
+    body = src[i:i + 400]
+    assert "|| []" in body and "indexOf" in body
+
+
+def test_a_locked_rail_item_is_shown_not_hidden():
+    """Hiding the surfaces a provisional physician is about to get makes the
+    product look empty at exactly the moment we are showing them what they
+    joined. Capability-gated items still hide; surface-gated ones lock."""
+    src = _PORTAL_JS.read_text(encoding="utf-8")
+    assert "locked: !!it.surface && !sessionHasSurface(it.surface)" in src
+    assert "'aria-disabled': item.locked ? 'true' : null" in src
+    # A locked item opens the explanation instead of a destination that 403s.
+    assert "if (item.locked) { setPanel('verification'); return; }" in src
+
+
+def test_the_dashboard_does_not_call_gated_endpoints_while_provisional():
+    """Two 403s would render 'we could not load your queue', which is a bug
+    report. The truth is the queue does not exist for them yet."""
+    src = _PORTAL_JS.read_text(encoding="utf-8")
+    assert "const provisional = sessionIsProvisional();" in src
+    assert "if (provisional) throw { __provisional: true };" in src
+
+
+def test_the_waiting_copy_now_lives_inside_the_product():
+    src = _PORTAL_JS.read_text(encoding="utf-8")
+    assert "function provisionalBannerEl" in src
+    assert "function renderVerificationPanel" in src
+    # Built from the SAME manual section the old wall used, so the guide and the
+    # panel cannot drift apart.
+    assert "awaitingVerificationSection()" in src[src.index("function renderVerificationPanel"):]

@@ -230,7 +230,11 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
             cred = astore.get_contributor_credentials(user["id_hashed"])
         # Same bridge as the gate — an approval-path member (no vault row)
         # must serialize as a member, not a ghost, and appear in the directory.
-        verified = _verified_colleague(user, cred) or asc_caps.access_level(user) == asc_caps.FULL
+        # _verified_colleague keeps its exact original meaning. access_level
+        # folds NULL in with 'approved', so using it here would mark every
+        # pre-verification-era evaluator as a verified colleague, which is the
+        # widening the gate above deliberately refuses.
+        verified = _verified_colleague(user, cred)
         # A provisional physician can post, so they must also resolve in the
         # directory: a member who appears in a channel but in no member list is
         # exactly the ghost this function was written to avoid.
