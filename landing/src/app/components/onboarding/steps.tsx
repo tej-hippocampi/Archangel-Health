@@ -2510,3 +2510,119 @@ export function Step8AsclepiusSuccess({
     </OnboardingCard>
   );
 }
+
+/* ─────────────────────────────────────────────────────────────
+   StepChoosePassword — the physician picks their own credential.
+
+   This sits immediately after the OTP, never on the credentials screen.
+   Two reasons: member mode verifies LAST, so capturing a password earlier
+   would let a typo'd address end up with an account whose credential was
+   chosen by someone who cannot receive its mail; and the credentials screen
+   is the longest in the flow, where a 400 on any field would re-render and
+   clear the pair.
+
+   Requirements are shown as a live checklist rather than enforced by a
+   regex error after the fact. Composition rules are deliberately absent:
+   "one symbol and one digit" reliably produces Password1! and nothing safer.
+   ───────────────────────────────────────────────────────────── */
+
+const PASSWORD_MIN = 12;
+
+export function StepChoosePassword({
+  data,
+  onSubmit,
+  onBack,
+  error,
+  eyebrow = "Step 3",
+}: {
+  data: OnboardingData;
+  /** POST /api/onboarding/asclepius/password (or /member/password). Resolve false to stay put. */
+  onSubmit: (password: string) => Promise<boolean>;
+  onBack: () => void;
+  error?: string;
+  eyebrow?: string;
+}) {
+  const [pw, setPw] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  const longEnough = pw.length >= PASSWORD_MIN;
+  const notEmail = !!pw && pw.toLowerCase() !== (data.email || "").toLowerCase();
+  const varied = new Set(pw).size >= 5;
+  const matches = !!pw && pw === confirm;
+  const valid = longEnough && notEmail && varied && matches;
+
+  const check = (ok: boolean, label: string) => (
+    <li
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        color: ok ? "var(--ah-green-deep)" : "var(--ink-faint)",
+        margin: "4px 0",
+        fontSize: "0.85rem",
+      }}
+    >
+      <span aria-hidden="true" style={{ width: 12 }}>{ok ? "✓" : "·"}</span>
+      {label}
+    </li>
+  );
+
+  return (
+    <OnboardingCard
+      eyebrow={eyebrow}
+      title="Choose your password."
+      lede={
+        <>
+          You&apos;ll use this with <span style={{ color: "var(--ah-green-deep)" }}>{data.email}</span> to
+          sign in. We won&apos;t email it to you, and you can change or reset it any time.
+        </>
+      }
+    >
+      <InlineError>{error}</InlineError>
+
+      <FieldLabel>Password</FieldLabel>
+      <TextField
+        type="password"
+        value={pw}
+        onChange={setPw}
+        onBlur={() => setTouched(true)}
+        autoComplete="new-password"
+        placeholder="At least 12 characters"
+      />
+
+      <div style={{ marginTop: 10 }}>
+        <FieldLabel>Confirm password</FieldLabel>
+        <TextField
+          type="password"
+          value={confirm}
+          onChange={setConfirm}
+          autoComplete="new-password"
+          placeholder="Type it again"
+        />
+      </div>
+
+      <ul style={{ listStyle: "none", padding: 0, margin: "14px 0 0" }}>
+        {check(longEnough, `${PASSWORD_MIN} characters or more`)}
+        {check(varied, "A mix of characters, not one repeated")}
+        {check(notEmail, "Not your email address")}
+        {check(matches, "Both entries match")}
+      </ul>
+
+      <div style={{ marginTop: 22 }}>
+        <PrimaryButton
+          disabled={!valid}
+          onClick={async () => {
+            setTouched(true);
+            if (!valid) return false;
+            return onSubmit(pw);
+          }}
+        >
+          Continue
+        </PrimaryButton>
+      </div>
+
+      <BackLink onClick={onBack} />
+    </OnboardingCard>
+  );
+}

@@ -8,6 +8,7 @@ import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
 import OnboardingWizard from "@/app/components/OnboardingWizard";
 import TenantSignIn from "@/app/components/TenantSignIn";
 import VerifyEmailPage from "@/app/components/VerifyEmailPage";
+import ResetPasswordPage from "@/app/components/ResetPasswordPage";
 
 // Lazy so the landing's ~535KB of embedded-font CSS becomes a landing-only
 // chunk instead of render-blocking every other route (calculator, onboarding…).
@@ -51,6 +52,12 @@ export default function App() {
   const verifyEmailMatch = path.match(/^\/verify-email\/([^/]+)\/?$/);
   if (verifyEmailMatch) {
     return <VerifyEmailPage token={decodeURIComponent(verifyEmailMatch[1])} />;
+  }
+  // The reset link carries its token in a query param rather than the path, so
+  // it survives an email client that rewrites or wraps the URL path.
+  if (/^\/reset-password\/?$/.test(path)) {
+    const t = new URLSearchParams(window.location.search).get("token") || "";
+    return <ResetPasswordPage token={t} />;
   }
   const tenantSignInMatch = path.match(/^\/t\/([^/]+)\/sign-in\/?$/);
   if (tenantSignInMatch) {

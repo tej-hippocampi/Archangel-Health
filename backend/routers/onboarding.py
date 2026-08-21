@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
 from email_utils import is_email_transport_configured, send_html_email
+from asclepius import passwords as asc_passwords
 from onboarding_emails import (
     build_asclepius_complete_email,
     build_asclepius_invite_email,
@@ -648,6 +649,10 @@ class AsclepiusAttestationsBody(OnboardTokenBody):
     attestations: Dict[str, Any]
 
 
+class AsclepiusPasswordBody(OnboardTokenBody):
+    password: str
+
+
 class AsclepiusAddMemberBody(OnboardTokenBody):
     full_name: str
     email: EmailStr
@@ -671,7 +676,8 @@ def _provision_asclepius_user(
     request: Request,
     *,
     email: str,
-    password: str,
+    password: Optional[str] = None,
+    password_hash: Optional[str] = None,
     role: str,
     full_name: str,
     org_name: str,
@@ -717,6 +723,7 @@ def _provision_asclepius_user(
     user = store.provision_user(
         email=email,
         password=password,
+        password_hash=password_hash,
         role=role,
         full_name=full_name or None,
         org_name=org_name or None,
@@ -921,6 +928,64 @@ async def asclepius_attestations(body: AsclepiusAttestationsBody, request: Reque
     if not director_email or not ts.get_asclepius_person(row["id"], director_email):
         raise HTTPException(status_code=400, detail="Complete your institution details first.")
     ts.save_asclepius_attestations(row["id"], director_email, body.attestations)
+    return {"ok": True}
+
+
+@router.post(
+    "/asclepius/password",
+    dependencies=[Depends(rate_limiter("onboarding_password", 10, 60))],
+)
+async def asclepius_set_password(body: AsclepiusPasswordBody, request: Request):
+    """The physician chooses their own password, right after the OTP.
+
+    Persisted here rather than carried in React state because the wizard
+    resumes from SERVER state (onboarding_step), so a refresh would otherwise
+    drop the password and land the user past the step that collects it.
+    """
+    ts = _ts(request)
+    row = _load_hs(request, body.token)
+    _reject_if_completed(row)
+    if not ts.onboarding_token_valid(row):
+        raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    row = ts.get_health_system_by_id(row["id"]) or row
+    _require_asclepius(row)
+    # The mailbox must be proven first. Setting a password before the OTP would
+    # let a typo'd address end up with an account whose credential was chosen by
+    # someone who cannot receive its mail.
+    if int(row.get("onboarding_step") or 0) < 2:
+        raise HTTPException(status_code=403, detail="Verify your email first.")
+    director_email = (row.get("director_email") or "").strip()
+    if not director_email or not ts.get_asclepius_person(row["id"], director_email):
+        raise HTTPException(status_code=400, detail="Start your onboarding first.")
+    try:
+        asc_passwords.validate(body.password, email=director_email)
+    except asc_passwords.PasswordRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    ts.set_asclepius_person_password_hash(
+        row["id"], director_email, ts.hash_team_password(body.password)
+    )
+    return {"ok": True}
+
+
+@router.post(
+    "/member/password",
+    dependencies=[Depends(rate_limiter("onboarding_password", 10, 60))],
+)
+async def member_set_password(body: AsclepiusPasswordBody, request: Request):
+    ts = _ts(request)
+    person = ts.get_asclepius_person_by_member_token((body.token or "").strip())
+    if not person:
+        raise HTTPException(status_code=404, detail="This invite link has expired.")
+    if not person.get("email_verified_at"):
+        raise HTTPException(status_code=403, detail="Verify your email first.")
+    email = (person.get("email") or "").strip()
+    try:
+        asc_passwords.validate(body.password, email=email)
+    except asc_passwords.PasswordRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    ts.set_asclepius_person_password_hash(
+        person["health_system_id"], email, ts.hash_team_password(body.password)
+    )
     return {"ok": True}
 
 
@@ -1140,7 +1205,11 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     if not director.get("attestations"):
         raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
 
-    director_pwd = generate_secure_password()
+    # The physician chose this several steps ago (POST /asclepius/password).
+    # Nothing is generated here any more, and nothing is mailed to them.
+    director_hash = (director.get("password_hash") or "").strip()
+    if not director_hash:
+        raise HTTPException(status_code=400, detail="Choose a password before finishing.")
     org_name = (row.get("name") or "").strip()
     specialty = (row.get("specialty") or "").strip()
     # B-1.1: _provision_asclepius_user is synchronous and reaches a synchronous
@@ -1170,7 +1239,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         _provision_asclepius_user,
         request,
         email=director_email,
-        password=director_pwd,
+        password_hash=director_hash,
         role="evaluator",
         full_name=director.get("full_name") or "",
         org_name=org_name,
@@ -1179,9 +1248,8 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         credentials=director.get("credentials") or {},
         attestations=director.get("attestations") or {},
     )
-    ts.finalize_asclepius_person(
-        row["id"], director_email, password_hash=ts.hash_team_password(director_pwd)
-    )
+    # The hash is already on the row; finalize only stamps completion.
+    ts.finalize_asclepius_person(row["id"], director_email, password_hash=director_hash)
     ts.complete_asclepius_onboarding(row["id"])
 
     # Mint an Asclepius session token so the wizard drops the doctor straight into
@@ -1204,7 +1272,6 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         role_label=_ASCLEPIUS_DIRECTOR_ROLE_LABEL,
         org_name=org_name,
         specialty=specialty,
-        temporary_password=director_pwd,
         workspace_url=workspace_url,
         is_director=True,
         team_count=len(invited),
@@ -1327,7 +1394,9 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
     if not person.get("email_verified_at"):
         raise HTTPException(status_code=403, detail="Please verify your email before finishing onboarding.")
-    member_pwd = generate_secure_password()
+    member_hash = (person.get("password_hash") or "").strip()
+    if not member_hash:
+        raise HTTPException(status_code=400, detail="Choose a password before finishing.")
     org_name = (hs.get("name") or "").strip()
     specialty = (hs.get("specialty") or "").strip()
     role = (person.get("clinical_role") or "").strip().lower()
@@ -1337,7 +1406,7 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         _provision_asclepius_user,
         request,
         email=person["email"],
-        password=member_pwd,
+        password_hash=member_hash,
         role="evaluator",
         full_name=person.get("full_name") or "",
         org_name=org_name,
@@ -1346,9 +1415,7 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         credentials=person.get("credentials") or {},
         attestations=person.get("attestations") or {},
     )
-    ts.finalize_asclepius_person(
-        hs["id"], person["email"], password_hash=ts.hash_team_password(member_pwd)
-    )
+    ts.finalize_asclepius_person(hs["id"], person["email"], password_hash=member_hash)
     workspace_url = _asclepius_workspace_url()
     html_body = build_asclepius_complete_email(
         email=person["email"],
@@ -1356,7 +1423,6 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         role_label=_ASCLEPIUS_MEMBER_ROLES.get(role, role.replace("_", " ").title()),
         org_name=org_name,
         specialty=specialty,
-        temporary_password=member_pwd,
         workspace_url=workspace_url,
         is_director=False,
         verification_notice=True,

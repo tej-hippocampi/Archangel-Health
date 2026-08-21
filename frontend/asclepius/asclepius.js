@@ -1366,8 +1366,36 @@
       submitBtn,
     );
 
+    // Recovery. Until this existed the only route back into a forgotten account
+    // was to ask someone to re-run onboarding, which silently replaced the
+    // password. The endpoint answers identically for a known and an unknown
+    // address, so there is nothing to branch on here and nothing to leak.
+    const forgot = h('button', {
+      type: 'button',
+      class: 'asc-linkish',
+      onClick: async () => {
+        const addr = (emailInput && emailInput.value || '').trim();
+        if (!addr) { errBox.classList.add('asc-login-notice'); errBox.textContent = 'Enter your email above first.'; return; }
+        try {
+          const res = await fetch(API_BASE + '/auth/password/forgot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: addr }),
+          });
+          const data = await res.json().catch(() => null);
+          errBox.classList.add('asc-login-notice');
+          errBox.textContent = (data && data.message)
+            || "If that email has an Asclepius account, we've sent a reset link.";
+        } catch (_) {
+          errBox.classList.add('asc-login-notice');
+          errBox.textContent = 'Could not reach the server. Try again in a moment.';
+        }
+      },
+    }, 'Forgot your password?');
+
     const body = h('div', { class: 'asc-login-body' },
       form,
+      h('div', { class: 'asc-login-forgot' }, forgot),
       h('p', { class: 'asc-login-hint' }, 'Board-certified clinician access only. Contact your program administrator for credentials.'),
     );
     // Escape hatch for clinicians who reach the portal from the doctor portal:
