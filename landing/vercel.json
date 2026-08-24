@@ -95,6 +95,14 @@
     {
       "source": "/t/:slug/sign-in/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/reset-password/",
+      "destination": "/index.html"
     }
   ]
 }

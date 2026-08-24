@@ -1,3 +1,30 @@
+/* Appended: the recovery affordances. `linkish` is a button that reads as a
+   link, because it performs an action (mails a reset) rather than navigating. */
+export const authRecoveryStyles = `
+.adg-linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink-soft, #5c5e5a);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.adg-linkish:hover { color: var(--ink, #1a1b1a); }
+.adg-notice {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(76, 166, 60, 0.10);
+  border: 1px solid rgba(76, 166, 60, 0.38);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ink-soft, #5c5e5a);
+}
+`;
+
 /**
  * Archangel Health — console-system styles for the sign-in / sign-up dialogs.
  *
@@ -282,4 +309,7 @@ export const authDialogStyles = `
 @media (prefers-reduced-motion: reduce) {
   .adg-scrim * { transition-duration: 0.01ms !important; }
 }
+
+${authRecoveryStyles}
 `;
+

@@ -98,6 +98,10 @@ def test_director_full_asclepius_flow_provisions_admin(client: TestClient):
     assert r.json().get("slug")
 
     assert client.post("/api/onboarding/asclepius/credentials", json={"token": token, "credentials": CREDS}).status_code == 200
+    # The physician chooses their own password (right after the OTP). Nothing is
+    # generated for them and nothing is mailed to them any more.
+    assert client.post("/api/onboarding/asclepius/password",
+                       json={"token": token, "password": "correct-horse-battery-1"}).status_code == 200
     assert client.post("/api/onboarding/asclepius/attestations", json={"token": token, "attestations": ATTS}).status_code == 200
 
     r = client.post(
@@ -190,6 +194,8 @@ def test_invited_member_flow_provisions_evaluator(client: TestClient, monkeypatc
     monkeypatch.setattr(onboarding_module.secrets, "choice", lambda seq: seq[0])
     assert client.post("/api/onboarding/member/request-otp", json={"token": mtoken}).status_code == 200
     assert client.post("/api/onboarding/member/verify-otp", json={"token": mtoken, "code": "0" * 6}).status_code == 200
+    assert client.post("/api/onboarding/member/password",
+                       json={"token": mtoken, "password": "correct-horse-battery-1"}).status_code == 200
 
     r = client.post("/api/onboarding/member/finish", json={"token": mtoken})
     assert r.status_code == 200, r.text

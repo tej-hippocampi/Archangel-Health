@@ -141,6 +141,10 @@ def _run_director_signup(client: TestClient, creds=None):
                        ).status_code == 200
     assert client.post("/api/onboarding/asclepius/attestations",
                        json={"token": token, "attestations": ATTS}).status_code == 200
+    # The physician now chooses their own password mid-wizard; finish refuses
+    # without one, because nothing is generated for them any more.
+    assert client.post("/api/onboarding/asclepius/password",
+                       json={"token": token, "password": "correct-horse-battery-1"}).status_code == 200
     r = client.post("/api/onboarding/asclepius/finish", json={"token": token})
     assert r.status_code == 200, r.text
     return token, hs_id, director_email, creds
@@ -172,6 +176,10 @@ def test_slow_nppes_does_not_delay_other_requests(client: TestClient, monkeypatc
                        json={"token": token, "credentials": _creds()}).status_code == 200
     assert client.post("/api/onboarding/asclepius/attestations",
                        json={"token": token, "attestations": ATTS}).status_code == 200
+    # The physician now chooses their own password mid-wizard; finish refuses
+    # without one, because nothing is generated for them any more.
+    assert client.post("/api/onboarding/asclepius/password",
+                       json={"token": token, "password": "correct-horse-battery-1"}).status_code == 200
 
     SLEEP = 3.0
     def _slow_nppes(npi, timeout=6.0):
@@ -268,6 +276,10 @@ def test_every_seam4_field_lands_on_the_user_row(client: TestClient):
                        json={"token": token, "credentials": creds}).status_code == 200
     assert client.post("/api/onboarding/asclepius/attestations",
                        json={"token": token, "attestations": ATTS}).status_code == 200
+    # The physician now chooses their own password mid-wizard; finish refuses
+    # without one, because nothing is generated for them any more.
+    assert client.post("/api/onboarding/asclepius/password",
+                       json={"token": token, "password": "correct-horse-battery-1"}).status_code == 200
     assert client.post("/api/onboarding/asclepius/finish",
                        json={"token": token}).status_code == 200
 
@@ -316,6 +328,10 @@ def test_seam4_fields_reach_the_admin_dossier(client: TestClient):
     ).status_code == 200
     assert client.post("/api/onboarding/asclepius/attestations",
                        json={"token": token, "attestations": ATTS}).status_code == 200
+    # The physician now chooses their own password mid-wizard; finish refuses
+    # without one, because nothing is generated for them any more.
+    assert client.post("/api/onboarding/asclepius/password",
+                       json={"token": token, "password": "correct-horse-battery-1"}).status_code == 200
     assert client.post("/api/onboarding/asclepius/finish",
                        json={"token": token}).status_code == 200
 
@@ -550,6 +566,8 @@ def test_cv_upload_roundtrip_through_signup(client: TestClient):
                        json={"token": ts_token, "credentials": _creds()}).status_code == 200
     assert client.post("/api/onboarding/asclepius/attestations",
                        json={"token": ts_token, "attestations": ATTS}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/password",
+                       json={"token": ts_token, "password": "correct-horse-battery-1"}).status_code == 200
     assert client.post("/api/onboarding/asclepius/finish",
                        json={"token": ts_token}).status_code == 200
 
@@ -612,6 +630,10 @@ def test_unparseable_cv_never_blocks_upload_or_signup(client: TestClient, monkey
                        json={"token": token, "credentials": _creds()}).status_code == 200
     assert client.post("/api/onboarding/asclepius/attestations",
                        json={"token": token, "attestations": ATTS}).status_code == 200
+    # The physician now chooses their own password mid-wizard; finish refuses
+    # without one, because nothing is generated for them any more.
+    assert client.post("/api/onboarding/asclepius/password",
+                       json={"token": token, "password": "correct-horse-battery-1"}).status_code == 200
     assert client.post("/api/onboarding/asclepius/finish",
                        json={"token": token}).status_code == 200
 

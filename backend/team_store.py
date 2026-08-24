@@ -1682,6 +1682,23 @@ class TeamStore:
                 (password_hash, now, now, hs_id, email.lower().strip()),
             )
 
+    def set_asclepius_person_password_hash(
+        self, hs_id: str, email: str, password_hash: str
+    ) -> None:
+        """Store the password the physician chose mid-wizard.
+
+        Separate from ``finalize_asclepius_person`` on purpose: the password is
+        captured right after the OTP, several steps before the flow completes,
+        and completion must not be implied by having chosen one.
+        """
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE asclepius_people SET password_hash = ?, updated_at = ? "
+                "WHERE health_system_id = ? AND email = ?",
+                (password_hash, now, hs_id, email.lower().strip()),
+            )
+
     def complete_asclepius_onboarding(self, hs_id: str) -> None:
         """Mark the Asclepius workspace active once the director finishes."""
         now = _utcnow_iso()

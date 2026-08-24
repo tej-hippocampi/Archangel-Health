@@ -95,6 +95,9 @@ def _walk(email: str, stop_at: str) -> str:
 
     assert client.post("/api/onboarding/asclepius/attestations", json={
         "token": token, "attestations": {"accurate": True, "noPhi": True}}).status_code == 200
+    # The physician chooses their own password now; finish refuses without one.
+    assert client.post("/api/onboarding/asclepius/password", json={
+        "token": token, "password": "correct-horse-battery-1"}).status_code == 200
     if stop_at == "attestations":
         return token
 
