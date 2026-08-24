@@ -85,25 +85,18 @@ def build_ics(event: Dict[str, Any]) -> str:
 
 # ─── Reminder email ───────────────────────────────────────────────────────────
 def _reminder_html(event: Dict[str, Any], member_name: str) -> str:
+    from onboarding_emails import build_community_event_reminder_email  # noqa: PLC0415
+
     base = (os.getenv("PUBLIC_BASE_URL", "") or "").rstrip("/")
-    title = html_lib.escape(event.get("title") or "an event")
-    when = html_lib.escape(event.get("starts_at") or "")
-    tz = html_lib.escape(event.get("timezone") or "UTC")
-    loc = html_lib.escape(event.get("location") or "")
-    host = html_lib.escape(event.get("host") or "")
-    first = html_lib.escape((member_name or "there").split()[0])
-    loc_line = f"<p><strong>Where:</strong> {loc}</p>" if loc else ""
-    host_line = f"<p><strong>Host:</strong> {host}</p>" if host else ""
-    return (
-        f"<p>Hi {first},</p>"
-        f"<p><strong>{title}</strong> is coming up soon.</p>"
-        f"<p><strong>When:</strong> {when} ({tz})</p>"
-        f"{loc_line}{host_line}"
-        f"<p><a href='{html_lib.escape(base)}/community'>Open the community</a> "
-        f"for the details and the discussion.</p>"
-        f"<p style='color:#8b8d89;font-size:12px'>You're getting this because you "
-        f"tapped Interested. Colleague discussion only — no patient-identifiable "
-        f"information in the community.</p>"
+    name = (member_name or "").strip()
+    return build_community_event_reminder_email(
+        first_name=name.split()[0] if name else "there",
+        title=event.get("title") or "an event",
+        when_label=event.get("starts_at") or "",
+        timezone_label=event.get("timezone") or "UTC",
+        community_url=f"{base}/community",
+        location=event.get("location") or "",
+        host=event.get("host") or "",
     )
 
 

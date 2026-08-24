@@ -84,25 +84,18 @@ def _subject() -> str:
 
 
 def _html_body(display_name: Optional[str], filename: Optional[str], outcome: str) -> str:
-    who = html.escape(display_name) if display_name else "there"
-    fname = html.escape(filename) if filename else "your file"
-    # A high-level, non-technical line — never the internal reason string.
+    from onboarding_emails import build_upload_failed_email  # noqa: PLC0415
+
+    # A high-level, non-technical line. NEVER the internal reason string: this
+    # email goes to an external data partner and must not describe our pipeline.
     what = ("we couldn't finish processing it, so it was not added to our system"
             if outcome != "lost" else
             "it could not be retrieved for processing, so it was not added to our system")
-    return f"""\
-<div style="font-family:Inter,system-ui,Arial,sans-serif;font-size:15px;color:#111827;line-height:1.6">
-  <p>Hi {who},</p>
-  <p>We received your recent upload (<strong>{fname}</strong>), but {what}.
-     <strong>It has not been ingested.</strong></p>
-  <p style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:12px 14px;color:#065f46">
-     Your data is safe. <strong>Nothing was leaked and there was no data breach</strong> —
-     the file simply did not make it through our intake, and any partial copy has been discarded.
-  </p>
-  <p><strong>What to do next:</strong> please re-send the bundle using your secure upload link.
-     If the link has expired or you need a fresh one, just reply to this email and we'll issue a new link.</p>
-  <p>Thanks for helping us get this right,<br>The Archangel Health team</p>
-</div>"""
+    return build_upload_failed_email(
+        recipient_name=display_name or "there",
+        filename=filename or "your file",
+        reason=what,
+    )
 
 
 def notify_upload_failed(

@@ -1,23 +1,31 @@
-"""
-HTML transactional emails for the Archangel Health onboarding flow.
+"""HTML transactional emails for Archangel Health.
 
-Visual spec: design_handoff_onboarding_flow/README.md → "Emails"
+These are the only surface where the product speaks to a physician outside the
+product, and for a self-serve signup they are the FIRST thing they ever see of
+us. So they are built from the same tokens as the app and the landing site:
+canvas #eef0ef, ink #1a1b1a, one hairline, and the four accents. Nothing here
+is invented for email.
 
-Three emails, all sharing the dark cinematic-blue body shell:
-  1. build_verification_email — 6-digit code mailed during step 2.
-  2. build_invite_email       — standing access key mailed when the director
-                                adds a team member on step 4.
-  3. build_complete_email     — welcome / credentials mailed on /finish.
+Shared shell + composable atoms; every builder below is
+``_shell(subject=..., body_html=_eyebrow(...) + _h1(...) + ...)``. Changing the
+look means changing the tokens here, once, and all of them follow.
 
-Email body == the dark-blue inner shell. The Gmail/iOS Mail "from / subject"
-chrome is added by the inbox client, never by us (per handoff README).
+Design laws inherited from frontend/asclepius/_tokens.css (they are load-bearing,
+not decoration):
+  - air is the design, scale not boldness (headings are weight 400, not bold)
+  - zero black fills (--ink-hover exists so hover is never #000)
+  - gradients only as blurred auras, never as a surface
+  - mono chrome = wayfinding (eyebrows and data are mono; prose is not)
+  - the accents are SEMANTIC: green = physician-verified, orange = model output,
+    pink = PHI/critical, lime = new/active. Never decorative.
 
-Implementation notes for client compatibility:
-  - Layout uses <table>/<td> + inline `style=""` for Outlook safety.
-  - Fraunces is loaded via Google Fonts <link>. Apple Mail / iOS Mail / Gmail
-    web honor it; Outlook ignores it and falls back to Georgia (acceptable).
-  - SVG brandmark renders in modern clients; Outlook shows the gradient tile
-    without the inner shield, which is graceful.
+Client compatibility:
+  - <table>/<td> + inline style="" throughout, for Outlook.
+  - NO webfonts. Instrument Sans and IBM Plex Mono are base64-embedded in the
+    app and are not on a CDN, and a webfont <link> is blocked by most mail
+    clients anyway. System stacks carry the design; the palette does the work.
+  - Gradients are set as background-image over a background-color, so a client
+    that drops them lands on the flat token rather than on nothing.
 """
 
 from __future__ import annotations
@@ -25,43 +33,56 @@ from __future__ import annotations
 import html
 from typing import Iterable, Tuple
 
-# ─── Shared design tokens (mirror of the React prototype) ───────────────────
+# ─── Tokens ─────────────────────────────────────────────────────────────────
+# Mirror of frontend/asclepius/_tokens.css §2.1 (itself a copy of the landing
+# app's arch/baseStyles.ts consolePalette). Do not introduce a hex here that is
+# not in that file.
 
-_GOOGLE_FONTS_HEAD = (
-    '<link rel="preconnect" href="https://fonts.googleapis.com">'
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-    '<link rel="stylesheet" '
-    'href="https://fonts.googleapis.com/css2?'
-    "family=Inter:wght@400;500;600;700"
-    "&amp;family=Fraunces:opsz,wght@9..144,500"
-    '&amp;display=swap">'
-)
+_CANVAS = "#eef0ef"
+_CARD = "#fbfcfa"
+_CARD_IN = "#f4f5f3"
+_HAIRLINE = "rgba(26, 27, 26, 0.08)"
+_HAIRLINE_STRONG = "rgba(26, 27, 26, 0.16)"
+_INK = "#1a1b1a"
+_INK_SOFT = "#5c5e5a"
+_INK_FAINT = "#8b8d89"
+_GREEN = "#4ca63c"
+_GREEN_DEEP = "#3c7a31"   # AA-contrast green for text on a light surface
+_ORANGE = "#ec9440"
+_PINK = "#e8447b"
+_LIME = "#d5e14e"
 
-_INTER = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-_FRAUNCES = "'Fraunces', 'Iowan Old Style', 'Charter', Georgia, serif"
-_MONO = "ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace"
+# No webfonts in email. See the module docstring.
+_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+_MONO = "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"
+
+# Kept as aliases so the builders below (and anything vendored against them)
+# keep working; both now resolve to the system stacks above.
+_INTER = _SANS
+_FRAUNCES = _SANS
 
 _FOOTER_TEXT = (
-    "Archangel Health · Confidential. This email and any attached files are "
+    "Archangel Health &middot; Confidential. This email and any attached files are "
     "intended only for the named recipient."
 )
 
-# Inline SVG used inside the 32×32 brand tile in the email header.
+# The brandmark, at 20px. Ink strokes with a single green node. Green is the
+# "physician-verified" accent, which is the one claim the mark should make.
 _SHIELD_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" '
-    'width="18" height="18" fill="none" aria-hidden="true">'
-    '<rect x="58" y="20" width="4" height="80" fill="#fff" rx="2"/>'
-    '<circle cx="60" cy="28" r="4" fill="#67E8F9" opacity="0.95"/>'
-    '<path d="M60 45 Q50 50 48 58 Q46 66 54 70" stroke="#fff" stroke-width="2.5" '
+    'width="20" height="20" fill="none" aria-hidden="true">'
+    f'<rect x="58" y="20" width="4" height="80" fill="{_INK}" rx="2"/>'
+    f'<circle cx="60" cy="28" r="5" fill="{_GREEN}"/>'
+    f'<path d="M60 45 Q50 50 48 58 Q46 66 54 70" stroke="{_INK}" stroke-width="2.5" '
     'fill="none" stroke-linecap="round"/>'
-    '<path d="M60 55 Q70 60 72 68 Q74 76 66 80" stroke="#fff" stroke-width="2.5" '
+    f'<path d="M60 55 Q70 60 72 68 Q74 76 66 80" stroke="{_INK}" stroke-width="2.5" '
     'fill="none" stroke-linecap="round"/>'
     "</svg>"
 )
 
 
 def _shell(*, subject: str, body_html: str) -> str:
-    """Wrap inner body content in the dark cinematic-blue email shell."""
+    """Wrap body content in the console shell: canvas ground, one card, hairlines."""
     safe_subject = html.escape(subject, quote=True)
     return f"""<!doctype html>
 <html lang="en">
@@ -69,24 +90,21 @@ def _shell(*, subject: str, body_html: str) -> str:
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
-<meta name="color-scheme" content="dark">
-<meta name="supported-color-schemes" content="dark">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>{safe_subject}</title>
-{_GOOGLE_FONTS_HEAD}
 </head>
-<body style="margin:0;padding:0;background:#06080F;font-family:{_INTER};color:#E6EAF2;-webkit-font-smoothing:antialiased;">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#06080F;">
+<body style="margin:0;padding:0;background:{_CANVAS};font-family:{_SANS};color:{_INK_SOFT};-webkit-font-smoothing:antialiased;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:{_CANVAS};">
   <tr>
-    <td align="center" style="padding:32px 12px;">
-      <table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;width:100%;background:#0B1220;border-radius:14px;overflow:hidden;border:1px solid rgba(103,232,249,0.10);box-shadow:0 24px 60px rgba(0,0,0,0.40);">
+    <td align="center" style="padding:40px 12px;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;width:100%;background:{_CARD};border-radius:18px;overflow:hidden;border:1px solid {_HAIRLINE};box-shadow:0 1px 2px rgba(26,27,26,0.03);">
         <tr>
-          <td style="padding:40px 48px 48px;background:radial-gradient(ellipse 800px 500px at 50% -10%, rgba(38,99,235,0.18) 0%, transparent 55%), radial-gradient(ellipse 600px 400px at 100% 100%, rgba(103,232,249,0.08) 0%, transparent 60%), #0B1220;">
-            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:28px;">
+          <td style="padding:36px 44px 40px;background-color:{_CARD};background-image:radial-gradient(36rem 24rem at 8% -10%, rgba(76,166,60,0.05), transparent 70%), radial-gradient(30rem 22rem at 100% 8%, rgba(236,148,64,0.045), transparent 70%);">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:30px;">
               <tr>
-                <td style="vertical-align:middle;">
-                  <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#1A3C8F 0%,#2563EB 100%);box-shadow:0 0 0 1px rgba(103,232,249,0.25),0 4px 14px rgba(38,99,235,0.30);text-align:center;line-height:32px;">{_SHIELD_SVG}</div>
-                </td>
-                <td style="padding-left:10px;vertical-align:middle;font-family:{_INTER};font-size:12px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#F5F5F7;">
+                <td style="vertical-align:middle;line-height:1;">{_SHIELD_SVG}</td>
+                <td style="padding-left:9px;vertical-align:middle;font-family:{_MONO};font-size:11px;font-weight:500;letter-spacing:0.09em;text-transform:uppercase;color:{_INK_SOFT};">
                   Archangel Health
                 </td>
               </tr>
@@ -95,7 +113,7 @@ def _shell(*, subject: str, body_html: str) -> str:
           </td>
         </tr>
         <tr>
-          <td style="background:rgba(7,11,21,0.65);padding:18px 48px;font-family:{_INTER};font-size:11px;color:rgba(230,234,242,0.45);line-height:1.6;border-top:1px solid rgba(103,232,249,0.08);">
+          <td style="background:{_CARD_IN};padding:18px 44px;font-family:{_SANS};font-size:11px;color:{_INK_FAINT};line-height:1.6;border-top:1px solid {_HAIRLINE};">
             {_FOOTER_TEXT}
           </td>
         </tr>
@@ -108,42 +126,45 @@ def _shell(*, subject: str, body_html: str) -> str:
 
 
 def _eyebrow(text: str) -> str:
+    """Mono chrome: the wayfinding line above a heading."""
     return (
-        f'<div style="font-family:{_INTER};font-size:11px;font-weight:700;'
-        'letter-spacing:0.14em;text-transform:uppercase;color:#67E8F9;'
-        'margin-bottom:12px;">'
+        f'<div style="font-family:{_MONO};font-size:11px;font-weight:500;'
+        f'letter-spacing:0.09em;text-transform:uppercase;color:{_INK_FAINT};'
+        'margin-bottom:14px;">'
         f"{html.escape(text)}</div>"
     )
 
 
 def _h1(text: str) -> str:
+    """Scale, not boldness: weight 400, negative tracking, ink."""
     return (
-        f'<h1 style="margin:0 0 14px;font-family:{_FRAUNCES};font-size:30px;'
-        'font-weight:500;letter-spacing:-0.02em;color:#F5F5F7;line-height:1.15;">'
+        f'<h1 style="margin:0 0 16px;font-family:{_SANS};font-size:30px;'
+        f'font-weight:400;letter-spacing:-0.015em;color:{_INK};line-height:1.2;">'
         f"{text}</h1>"
     )
 
 
 def _p(html_content: str, *, muted: bool = False, small: bool = False) -> str:
-    color = "rgba(230,234,242,0.5)" if muted else "rgba(230,234,242,0.78)"
+    color = _INK_FAINT if muted else _INK_SOFT
     size = "13px" if small else "15px"
     return (
-        f'<p style="margin:0 0 16px;font-family:{_INTER};font-size:{size};'
-        f'line-height:1.65;color:{color};">{html_content}</p>'
+        f'<p style="margin:0 0 16px;font-family:{_SANS};font-size:{size};'
+        f'line-height:1.6;color:{color};">{html_content}</p>'
     )
 
 
 def _strong(text: str) -> str:
-    return f'<strong style="color:#F5F5F7;font-weight:600;">{html.escape(text)}</strong>'
+    return f'<strong style="color:{_INK};font-weight:600;">{html.escape(text)}</strong>'
 
 
 def _cta(href: str, label: str) -> str:
+    """The product's emphatic button: a lime pill with ink text (.btn-lime)."""
     safe_href = html.escape(href, quote=True)
     safe_label = html.escape(label)
-    return f"""<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:22px 0 18px;">
+    return f"""<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:24px 0 20px;">
   <tr>
-    <td>
-      <a href="{safe_href}" style="display:inline-block;padding:14px 24px;border-radius:10px;background:#67E8F9;color:#07070A;font-family:{_INTER};font-size:14px;font-weight:600;text-decoration:none;letter-spacing:-0.005em;box-shadow:0 4px 16px rgba(103,232,249,0.30),0 0 0 1px rgba(103,232,249,0.45);">
+    <td style="border-radius:999px;background:{_LIME};">
+      <a href="{safe_href}" style="display:inline-block;padding:13px 26px;border-radius:999px;background:{_LIME};color:{_INK};font-family:{_SANS};font-size:15px;font-weight:700;text-decoration:none;letter-spacing:-0.005em;">
         {safe_label}
       </a>
     </td>
@@ -152,8 +173,16 @@ def _cta(href: str, label: str) -> str:
 
 
 def _inset_card(inner_html: str) -> str:
-    return f"""<div style="background:rgba(15,23,42,0.65);border:1px solid rgba(103,232,249,0.18);border-radius:12px;padding:18px 22px;margin:20px 0;">
+    return f"""<div style="background:{_CARD_IN};border:1px solid {_HAIRLINE};border-radius:14px;padding:18px 22px;margin:22px 0;">
   {inner_html}
+</div>"""
+
+
+def _code_block(code: str, *, size: int = 40) -> str:
+    """A one-time code, rendered as data: mono, generous tracking, no glow."""
+    safe = html.escape(code)
+    return f"""<div style="background:{_CARD_IN};border:1px solid {_HAIRLINE_STRONG};border-radius:14px;padding:26px 24px;text-align:center;margin:24px 0;">
+  <div style="font-family:{_MONO};font-size:{size}px;font-weight:500;letter-spacing:0.28em;color:{_INK};padding-left:0.28em;">{safe}</div>
 </div>"""
 
 
@@ -163,17 +192,17 @@ def _detail_rows(rows: Iterable[Tuple[str, str, bool]]) -> str:
     out = []
     for i, (label, value, mono) in enumerate(rows_list):
         last = i == len(rows_list) - 1
-        border = "" if last else "border-bottom:1px solid rgba(103,232,249,0.08);"
-        value_font = _MONO if mono else _INTER
+        border = "" if last else f"border-bottom:1px solid {_HAIRLINE};"
+        value_font = _MONO if mono else _SANS
         out.append(
             f'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" '
             f'style="{border}">'
             "<tr>"
-            f'<td style="padding:10px 0;font-family:{_INTER};font-size:12px;font-weight:700;'
-            f'letter-spacing:0.10em;text-transform:uppercase;color:rgba(230,234,242,0.5);">'
+            f'<td style="padding:11px 0;font-family:{_MONO};font-size:11px;font-weight:500;'
+            f'letter-spacing:0.09em;text-transform:uppercase;color:{_INK_FAINT};">'
             f"{html.escape(label)}</td>"
-            f'<td align="right" style="padding:10px 0;font-family:{value_font};font-size:14px;'
-            f'font-weight:500;color:#F5F5F7;text-align:right;">{html.escape(value)}</td>'
+            f'<td align="right" style="padding:11px 0;font-family:{value_font};font-size:14px;'
+            f'font-weight:500;color:{_INK};text-align:right;">{html.escape(value)}</td>'
             "</tr></table>"
         )
     return "".join(out)
@@ -183,7 +212,7 @@ def _detail_rows(rows: Iterable[Tuple[str, str, bool]]) -> str:
 
 
 def build_verification_email(*, code: str) -> str:
-    """Email 1 — 6-digit verification code, large cyan Fraunces digits."""
+    """Email 1: the 6-digit code mailed during onboarding step 2."""
     safe_code = html.escape(code)
     body = (
         _eyebrow("Verification code")
@@ -192,15 +221,7 @@ def build_verification_email(*, code: str) -> str:
             "Enter this code in your browser to continue setting up your "
             "health system on Archangel Health."
         )
-        + (
-            '<div style="background:rgba(15,23,42,0.65);border:1px solid rgba(103,232,249,0.25);'
-            'border-radius:14px;padding:28px 24px;text-align:center;margin:24px 0;'
-            'box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 0 32px rgba(103,232,249,0.08);">'
-            f'<div style="font-family:{_FRAUNCES};font-size:44px;font-weight:500;'
-            'letter-spacing:0.32em;color:#67E8F9;padding-left:0.32em;'
-            f'text-shadow:0 0 24px rgba(103,232,249,0.35);">{safe_code}</div>'
-            "</div>"
-        )
+        + _code_block(safe_code, size=40)
         + _p(
             "This code expires in 15 minutes. If you didn&rsquo;t request it, "
             "ignore this email.",
@@ -229,15 +250,7 @@ def build_doctor_verification_email(*, code: str, magic_link_url: str) -> str:
             muted=True,
             small=True,
         )
-        + (
-            '<div style="background:rgba(15,23,42,0.65);border:1px solid rgba(103,232,249,0.25);'
-            'border-radius:14px;padding:22px 24px;text-align:center;margin:16px 0 24px;'
-            'box-shadow:inset 0 1px 0 rgba(255,255,255,0.04),0 0 32px rgba(103,232,249,0.08);">'
-            f'<div style="font-family:{_FRAUNCES};font-size:36px;font-weight:500;'
-            'letter-spacing:0.32em;color:#67E8F9;padding-left:0.32em;'
-            f'text-shadow:0 0 24px rgba(103,232,249,0.35);">{safe_code}</div>'
-            "</div>"
-        )
+        + _code_block(safe_code, size=32)
         + _p(
             "This link and code expire in 15 minutes. If you didn&rsquo;t request "
             "this, ignore this email.",
@@ -441,18 +454,18 @@ def build_asclepius_admin_invite_email(
     invitee_name: str,
     onboarding_url: str,
 ) -> str:
-    """Admin-initiated Asclepius onboarding invite — the cold, personalized
-    first touch for an outreach lead (e.g. from a one-pager). Distinct from
-    ``build_asclepius_invite_email`` above, which is a director inviting a
-    team member *mid-onboarding* (references an org/specialty that doesn't
-    exist yet here, since this recipient hasn't started onboarding at all)."""
+    """Admin-initiated Asclepius onboarding invite: the cold, personalized first
+    touch for an outreach lead. Distinct from ``build_asclepius_invite_email``
+    above, which is a director inviting a team member *mid-onboarding* (that one
+    references an org and specialty which do not exist yet here, since this
+    recipient has not started onboarding at all)."""
     body = (
         _eyebrow("Invitation · Asclepius")
         + _h1(f"Welcome to Asclepius, {html.escape(invitee_name or 'there')}.")
         + _p(
-            "You&rsquo;ve been invited to join Asclepius — Archangel Health&rsquo;s "
-            "expert data-training product, where physicians review and label AI "
-            "answers in their specialty."
+            "You have been invited to join Asclepius, Archangel Health&rsquo;s expert "
+            "data-training product, where physicians review and label AI answers in "
+            "their specialty."
         )
         + _cta(onboarding_url, "Start your onboarding →")
         + _p(
@@ -506,7 +519,7 @@ def build_asclepius_complete_email(
     # about tiers — the admin has not decided yet, and the score is advice.
     verification_html = (
         _p(
-            _strong("We&rsquo;re verifying your credentials")
+            _strong("We’re verifying your credentials")
             + " — you&rsquo;ll hear from us within 24 hours. Your account opens "
             "for evaluation work as soon as our clinical team completes the "
             "review.",
@@ -661,7 +674,7 @@ def build_buyer_delivery_email(
     if record_count:
         rows.append(("Records", str(record_count), False))
 
-    greeting = ("Hi " + _strong(html.escape(buyer_name.strip())) + ", ") if (buyer_name or "").strip() else ""
+    greeting = ("Hi " + _strong(buyer_name.strip()) + ", ") if (buyer_name or "").strip() else ""
     intro = (
         greeting
         + "a dataset has been exported to you by " + _strong("Archangel Health")
@@ -762,3 +775,163 @@ def build_complete_email(
         subject="Welcome to Archangel Health — onboarding complete",
         body_html=body,
     )
+
+
+# ─── Physician-facing emails that used to be authored inline ────────────────
+# Each of these was a hand-rolled <div> in the router that sent it, which is how
+# five different palettes ended up in production. They live here now so they
+# inherit the shell like everything else.
+
+
+def build_self_serve_link_email(*, onboarding_url: str, expires_days: int) -> str:
+    """The onboarding link a physician asks for from the landing page.
+
+    For a self-serve signup this is the FIRST thing we ever send them, so it is
+    the email most worth getting right.
+    """
+    safe_url = html.escape(onboarding_url, quote=True)
+    body = (
+        _eyebrow("Onboarding · Asclepius")
+        + _h1("Your onboarding link.")
+        + _p(
+            "Pick up where you left off any time. This link stays valid for "
+            f"{_strong(str(expires_days) + ' days')} and remembers your progress, "
+            "so you can stop after any step and come back later."
+        )
+        + _cta(onboarding_url, "Continue onboarding →")
+        + _p(
+            f'If the button does not work, paste this into your browser:<br>'
+            f'<a href="{safe_url}" style="color:{_GREEN_DEEP};">{html.escape(onboarding_url)}</a>',
+            muted=True,
+            small=True,
+        )
+        + _p(
+            "If you did not request this, you can ignore this email.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Your Archangel Health onboarding link", body_html=body)
+
+
+def build_internal_signup_alert(*, physician_email: str, slug: str, expires_at: str) -> str:
+    """Internal notice that someone started physician onboarding."""
+    body = (
+        _eyebrow("Internal · New signup")
+        + _h1("A physician started onboarding.")
+        + _inset_card(
+            _detail_rows(
+                [
+                    ("Email", physician_email, True),
+                    ("Pending row", slug, True),
+                    ("Link expires", expires_at, True),
+                ]
+            )
+        )
+        + _p(
+            "They requested a contributor onboarding link from the landing page. "
+            "They will not appear on the roster until they finish the wizard.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject=f"[Onboarding] Physician contributor started: {physician_email}", body_html=body)
+
+
+def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str:
+    """Credential verification passed and the account is open for real work."""
+    first = (full_name or "").strip() or "Doctor"
+    body = (
+        _eyebrow("Verified · Asclepius")
+        + _h1("You&rsquo;re approved.")
+        + _p(
+            f"{_strong(first)}, your credentials have been verified and your Asclepius "
+            "account is now open for evaluation work."
+        )
+        + _cta(workspace_url, "Open your workspace →")
+        + _p(
+            "Your seat in the "
+            + _strong("Asclepius Community")
+            + " is open too, a private space for verified physicians. Find it in the "
+            "side panel: introduce yourself, follow the medical-AI digest, and meet the "
+            "colleagues you will be working alongside."
+        )
+        + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
+    )
+    return _shell(subject="You're approved for Asclepius", body_html=body)
+
+
+def build_community_digest_email(*, activity_rows_html: str, community_url: str) -> str:
+    """Batched community activity: mentions, DMs, announcements, broadcasts."""
+    body = (
+        _eyebrow("Community · Asclepius")
+        + _h1("While you were away.")
+        + f'<ul style="margin:0 0 18px;padding-left:20px;font-family:{_SANS};font-size:15px;'
+        f'line-height:1.7;color:{_INK_SOFT};">{activity_rows_html}</ul>'
+        + _cta(community_url, "Open the community →")
+        + _p(
+            "Colleague discussion only. No patient-identifiable information is "
+            "permitted in the community.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Asclepius Community: new activity for you", body_html=body)
+
+
+def build_community_event_reminder_email(
+    *,
+    first_name: str,
+    title: str,
+    when_label: str,
+    timezone_label: str,
+    community_url: str,
+    location: str = "",
+    host: str = "",
+) -> str:
+    """An event the member marked Interested is starting soon."""
+    rows = [("When", f"{when_label} ({timezone_label})", False)]
+    if (location or "").strip():
+        rows.append(("Where", location.strip(), False))
+    if (host or "").strip():
+        rows.append(("Host", host.strip(), False))
+    body = (
+        _eyebrow("Event · Asclepius")
+        + _h1(html.escape(title))
+        + _p(f"Hi {_strong(first_name or 'there')}, this is starting soon.")
+        + _inset_card(_detail_rows(rows))
+        + _cta(community_url, "Open the community →")
+        + _p(
+            "You are getting this because you tapped Interested.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject=f"Reminder: {title} is coming up", body_html=body)
+
+
+def build_upload_failed_email(*, recipient_name: str, filename: str, reason: str) -> str:
+    """An upload did not process. The job of this email is reassurance first."""
+    body = (
+        _eyebrow("Upload · Archangel Health")
+        + _h1("Your upload did not go through.")
+        + _p(
+            f"Hi {_strong(recipient_name or 'there')}, we received your recent upload "
+            f"({_strong(filename)}), but {html.escape(reason)}. "
+            + _strong("It has not been ingested.")
+        )
+        + _inset_card(
+            _p(
+                _strong("Your data is safe.")
+                + " Nothing was leaked and there was no data breach. The file simply did "
+                "not make it through our intake, and any partial copy has been discarded."
+            )
+        )
+        + _p(
+            _strong("What to do next: ")
+            + "please re-send the bundle using your secure upload link. If the link has "
+            "expired or you need a fresh one, reply to this email and we will issue a new one."
+        )
+        + _p("Thanks for helping us get this right.", muted=True, small=True)
+    )
+    return _shell(subject="Your upload to Archangel Health didn't go through", body_html=body)

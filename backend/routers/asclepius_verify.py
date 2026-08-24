@@ -28,6 +28,7 @@ from asclepius import specialties as asc_specialties
 from asclepius import tiering as asc_tiering
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
+from onboarding_emails import build_asclepius_approved_email
 
 log = logging.getLogger("asclepius.verify")
 
@@ -398,28 +399,6 @@ class RejectBody(BaseModel):
     note: Optional[str] = None
 
 
-def _welcome_email_html(user: Dict[str, Any]) -> str:
-    name = html_mod.escape((user.get("full_name") or "").strip() or "Doctor")
-    url = html_mod.escape(_portal_base() + "/asclepius")
-    return (
-        f"<div style=\"font-family:Georgia,serif;max-width:560px;margin:0 auto;"
-        f"padding:24px;color:#1a2b3c\">"
-        f"<h2 style=\"margin:0 0 12px\">You&rsquo;re approved.</h2>"
-        f"<p>{name}, our clinical team has verified your credentials and your "
-        f"Asclepius account is now open for evaluation work.</p>"
-        f"<p>Sign in with your email and your standing access key:</p>"
-        f"<p><a href=\"{url}\" style=\"display:inline-block;background:#1a2b3c;"
-        f"color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none\">"
-        f"Open your workspace &rarr;</a></p>"
-        f"<p>Your seat in the <strong>Asclepius Community</strong> is open too — a "
-        f"private space for verified physicians only. Find it in your portal's side "
-        f"panel: introduce yourself, follow the medical-AI digest, and meet the "
-        f"colleagues you'll be working alongside.</p>"
-        f"<p style=\"font-size:13px;color:#5a6b7c\">Questions? Just reply to this "
-        f"email.</p></div>"
-    )
-
-
 @router.post("/queue/{user_id}/approve")
 async def approve_signup(
     user_id: str,
@@ -520,8 +499,11 @@ async def approve_signup(
     if is_email_transport_configured():
         try:
             await send_html_email(
-                user["email"], "You're approved — welcome to Asclepius",
-                _welcome_email_html(user), importance_headers=True)
+                user["email"], "You're approved for Asclepius",
+                build_asclepius_approved_email(
+                    full_name=(user.get('full_name') or '').strip(),
+                    workspace_url=_portal_base() + '/asclepius',
+                ), importance_headers=True)
         except Exception:
             log.exception("[verify] welcome email failed (decision stands)")
     return {"ok": True, "user_id": user_id, "tier": tier,
