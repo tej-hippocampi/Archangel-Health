@@ -24,7 +24,7 @@ from fastapi import (
     APIRouter, Depends, File, HTTPException, Query, Request, UploadFile,
     WebSocket, WebSocketDisconnect,
 )
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
@@ -38,6 +38,7 @@ from community import phi_gate
 from community.schema import (
     DmMessageIn, DmOpen, HandoffRedeem, MessageEdit, MessageIn, ReactionIn, ReadIn,
 )
+from community import store as cstore_mod
 from community.store import get_community_store
 from community.ws import hub
 from ratelimit import rate_limiter
@@ -853,6 +854,60 @@ async def mark_read(
         "ok": True,
         "unread": cstore.unread_counts(user["id"], channels=visible_channels(members)),
     }
+
+
+@router.get("/prefs")
+async def get_email_prefs(user: Dict[str, Any] = Depends(require_member)):
+    prefs = _cstore().email_prefs(user["id"])
+    return {
+        "news_frequency": prefs["news_frequency"],
+        "options": list(cstore_mod.NEWS_FREQUENCIES),
+    }
+
+
+@router.post("/prefs")
+async def set_email_prefs(body: Dict[str, Any], user: Dict[str, Any] = Depends(require_member)):
+    freq = str((body or {}).get("news_frequency") or "").strip()
+    try:
+        prefs = _cstore().set_news_frequency(user["id"], freq)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Choose one of: {', '.join(cstore_mod.NEWS_FREQUENCIES)}.",
+        )
+    return {"ok": True, "news_frequency": prefs["news_frequency"]}
+
+
+@router.get("/unsubscribe")
+async def unsubscribe(token: str = ""):
+    """One click, no sign-in required.
+
+    An unsubscribe link that makes someone log in first is an unsubscribe link
+    that gets a spam complaint instead, and one complaint costs the sending
+    domain that every other physician's mail goes through. The token only ever
+    turns mail OFF, so the worst a leaked one can do is stop an email.
+    """
+    uid = _cstore().unsubscribe_by_token(token)
+    body = (
+        "You will not get the medical AI digest any more."
+        if uid
+        else "That link has already been used, or is not valid any more."
+    )
+    return HTMLResponse(
+        "<!doctype html><meta charset=utf-8>"
+        "<meta name=viewport content='width=device-width,initial-scale=1'>"
+        "<title>Email preferences</title>"
+        "<body style=\"margin:0;background:#eef0ef;color:#1a1b1a;"
+        "font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;\">"
+        "<div style=\"max-width:34rem;margin:12vh auto;padding:32px;background:#fbfcfa;"
+        "border:1px solid rgba(26,27,26,0.08);border-radius:18px;\">"
+        "<h1 style=\"font-weight:400;font-size:1.6rem;margin:0 0 10px;\">Email preferences</h1>"
+        f"<p style=\"color:#5c5e5a;line-height:1.6;margin:0 0 18px;\">{body}</p>"
+        "<p style=\"color:#8b8d89;font-size:0.85rem;line-height:1.6;margin:0;\">"
+        "You are still a member of the community, and nothing else has changed. "
+        "You can turn the digest back on from your community preferences at any time.</p>"
+        "</div></body>"
+    )
 
 
 @router.get("/badge")

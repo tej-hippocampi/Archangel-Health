@@ -1029,3 +1029,57 @@ def build_asclepius_admin_signup_alert(
         )
     )
     return _shell(subject=f"[Asclepius] {decision}: {physician_name}", body_html=body)
+
+
+def build_community_news_digest_email(
+    *,
+    first_name: str,
+    headline: str,
+    body_markdown: str,
+    community_url: str,
+    unsubscribe_url: str,
+) -> str:
+    """The daily medical-AI digest.
+
+    Carries a one-click unsubscribe in the body, not only in a header. A
+    physician who cannot find how to stop a daily email marks it as spam
+    instead, and one complaint costs the sending domain that every other
+    physician's mail goes through.
+    """
+    # The digest body is composed by the model as light markdown. Escape first,
+    # then re-introduce only the two inline forms it is asked to produce, so a
+    # story title containing a bracket cannot inject markup.
+    safe = html.escape(body_markdown or "")
+    lines: list[str] = []
+    for raw in safe.split("\n"):
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("- ") or line.startswith("* "):
+            lines.append(
+                f'<li style="margin:0 0 10px;">{line[2:].strip()}</li>'
+            )
+        else:
+            lines.append(f"</ul>{_p(line)}<ul style=\"margin:0 0 16px;padding-left:20px;\">")
+    inner = (
+        f'<ul style="margin:0 0 16px;padding-left:20px;font-family:{_SANS};'
+        f'font-size:15px;line-height:1.65;color:{_INK_SOFT};">'
+        + "".join(lines)
+        + "</ul>"
+    ).replace("<ul style=\"margin:0 0 16px;padding-left:20px;\"></ul>", "")
+
+    body = (
+        _eyebrow("Medical AI · Today")
+        + _h1(html.escape(headline or "What moved in medical AI"))
+        + _p(f"Morning {_strong(first_name or 'there')}.")
+        + inner
+        + _cta(community_url, "Discuss in the community →")
+        + _p(
+            f'You get this because you are an Asclepius contributor. '
+            f'<a href="{html.escape(unsubscribe_url, quote=True)}" '
+            f'style="color:{_GREEN_DEEP};">Change how often, or stop these</a>.',
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject=f"Medical AI: {headline or 'today'}", body_html=body)

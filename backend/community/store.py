@@ -112,6 +112,12 @@ def specialty_channel_defs() -> List[Dict[str, Any]]:
     return out
 
 
+#: How often the news digest is emailed. 'off' still leaves the in-app channel
+#: readable: unsubscribing from email is not leaving the community.
+NEWS_FREQUENCIES = ("daily", "weekly", "off")
+DEFAULT_NEWS_FREQUENCY = "daily"
+
+
 def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
@@ -320,6 +326,26 @@ class CommunityStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cbookmark_channel
                     ON community_bookmarks(channel_id, position);
+
+                -- Email preferences, one row per member.
+                --
+                -- A row is written lazily on the first read, so ABSENCE means
+                -- "never asked", not "opted out". The default lives in one
+                -- place (DEFAULT_NEWS_FREQUENCY) rather than being implied by a
+                -- missing row, because a missing row is also what a failed
+                -- write looks like.
+                --
+                -- unsubscribe_token is a bearer credential that turns off mail
+                -- for one person, so it is per-user, long, and rotated whenever
+                -- preferences change from inside the product.
+                CREATE TABLE IF NOT EXISTS community_email_prefs (
+                    user_id            TEXT PRIMARY KEY,
+                    news_frequency     TEXT NOT NULL DEFAULT 'daily',
+                    unsubscribe_token  TEXT NOT NULL UNIQUE,
+                    updated_at         TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_cprefs_freq
+                    ON community_email_prefs(news_frequency);
                 """
             )
             # Column migrations for tables that predate Community v2 —
@@ -877,6 +903,84 @@ class CommunityStore:
                 "SELECT 1 FROM community_bans WHERE user_id = ?", (user_id,)
             ).fetchone()
         return bool(row)
+
+    # ── Email preferences ────────────────────────────────────────────────
+
+    def email_prefs(self, user_id: str) -> Dict[str, Any]:
+        """Preferences for one member, created on first read.
+
+        Lazily written rather than defaulted in Python so the unsubscribe token
+        exists the moment anyone could receive an email carrying it.
+        """
+        import secrets as _secrets  # noqa: PLC0415
+
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM community_email_prefs WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            if row:
+                return dict(row)
+            token = _secrets.token_urlsafe(32)
+            conn.execute(
+                "INSERT OR IGNORE INTO community_email_prefs "
+                "(user_id, news_frequency, unsubscribe_token, updated_at) VALUES (?,?,?,?)",
+                (user_id, DEFAULT_NEWS_FREQUENCY, token, _utcnow_iso()),
+            )
+            row = conn.execute(
+                "SELECT * FROM community_email_prefs WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return dict(row)
+
+    def set_news_frequency(self, user_id: str, frequency: str) -> Dict[str, Any]:
+        if frequency not in NEWS_FREQUENCIES:
+            raise ValueError(f"unknown frequency {frequency!r}")
+        self.email_prefs(user_id)  # ensure the row and its token exist
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE community_email_prefs SET news_frequency = ?, updated_at = ? "
+                "WHERE user_id = ?",
+                (frequency, _utcnow_iso(), user_id),
+            )
+        return self.email_prefs(user_id)
+
+    def unsubscribe_by_token(self, token: str) -> Optional[str]:
+        """One click, no sign-in. Returns the user_id it turned off, or None.
+
+        Deliberately does NOT require a session: an unsubscribe link that makes
+        someone log in first is an unsubscribe link that gets a spam complaint
+        instead, and one complaint costs the sending domain that every other
+        physician's mail goes through.
+        """
+        tok = (token or "").strip()
+        if not tok:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT user_id FROM community_email_prefs WHERE unsubscribe_token = ?",
+                (tok,),
+            ).fetchone()
+            if not row:
+                return None
+            conn.execute(
+                "UPDATE community_email_prefs SET news_frequency = 'off', updated_at = ? "
+                "WHERE unsubscribe_token = ?",
+                (_utcnow_iso(), tok),
+            )
+            return row["user_id"]
+
+    def news_email_recipients(self, *, weekly: bool) -> List[Dict[str, Any]]:
+        """Members due a news email on this run.
+
+        A weekly run takes 'weekly' only; a daily run takes 'daily' only. 'off'
+        is never included, and members with no row yet are handled by the caller
+        (which reads their prefs, creating the row and its token).
+        """
+        want = "weekly" if weekly else "daily"
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM community_email_prefs WHERE news_frequency = ?", (want,)
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def banned_user_ids(self) -> List[str]:
         with self._conn() as conn:
