@@ -739,3 +739,23 @@ class TutorialStateUpdate(BaseModel):
     action: Literal["start", "advance", "skip", "complete", "reset"]
     step: Optional[str] = None
     version: Optional[int] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    """POST /auth/password/forgot — start a reset. Always answers the same way."""
+
+    email: EmailLike
+
+
+class ResetPasswordRequest(BaseModel):
+    """POST /auth/password/reset — redeem a mailed token for a new password."""
+
+    token: str
+    new_password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    """POST /auth/password/change — signed-in password change."""
+
+    current_password: str
+    new_password: str

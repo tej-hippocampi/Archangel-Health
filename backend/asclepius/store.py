@@ -1026,6 +1026,12 @@ class AsclepiusStore:
             # distinguishable from a decided value — a DEFAULT here would mark
             # every pre-existing user as pending/approved, which is wrong.
             for _col, _ddl in (
+                # Stamped whenever the password hash is deliberately rewritten
+                # (chosen at onboarding, reset, or changed). NULL for every
+                # account that predates the chosen-password flow, which is what
+                # makes the token-revocation check below a no-op for them
+                # rather than a mass logout on deploy.
+                ("password_changed_at", "TEXT"),
                 ("phone",               "TEXT"),
                 # Enumerated ONCE in asclepius/capabilities.py (TIERS). A stale
                 # comment here is how the next person reintroduces a two-state
@@ -1863,6 +1869,37 @@ class AsclepiusStore:
                 "CREATE INDEX IF NOT EXISTS idx_earnings_sweep ON earnings(status, accrued_at)")
             # ═══ END PRD-P ═══
 
+            # ═══ Password resets ═══════════════════════════════════════
+            # A reset token is a bearer credential for the account, so only its
+            # sha256 lands here: a database read cannot be replayed against the
+            # reset endpoint. Same choice already made for
+            # ``ingest_upload_links.token_hash``.
+            #
+            # ``consumed_at`` is the single-use arbiter and ``invalidated_at``
+            # the supersede/rotate one. Both are timestamps rather than a status
+            # column so "when" survives for an audit, and both are checked in the
+            # same guarded UPDATE that consumes the row, which is what makes the
+            # single-use guarantee hold under more than one worker.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS password_resets (
+                    id             TEXT PRIMARY KEY,
+                    user_id        TEXT NOT NULL,
+                    token_hash     TEXT NOT NULL UNIQUE,
+                    requested_ip   TEXT,
+                    requested_at   TEXT NOT NULL,
+                    expires_at     TEXT NOT NULL,
+                    consumed_at    TEXT,
+                    invalidated_at TEXT,
+                    created_via    TEXT NOT NULL DEFAULT 'self'
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_password_resets_user "
+                "ON password_resets(user_id, requested_at)"
+            )
+
             # ═══ PRD-REF — the referral bounty (physician referrals from Earnings) ═══
             # NO NEW TABLE. ``referrals`` already exists (PRD-D above) and the
             # ledger already carries UNIQUE(kind, ref_id), which is the whole
@@ -2012,7 +2049,8 @@ class AsclepiusStore:
         self,
         *,
         email: str,
-        password: str,
+        password: Optional[str] = None,
+        password_hash: Optional[str] = None,
         role: str = "evaluator",
         full_name: Optional[str] = None,
         org_name: Optional[str] = None,
@@ -2029,31 +2067,54 @@ class AsclepiusStore:
 
         Creates the portal account (or updates it if the person re-onboards),
         carrying the full credential + attestation record collected during
-        onboarding. ``password`` is the standing access key mailed to the user.
+        onboarding.
+
+        Pass ``password_hash`` when the physician already chose a password
+        earlier in the wizard (it was hashed at that step), or ``password`` to
+        have one hashed here.
+
+        Passing NEITHER on a re-onboard leaves the existing hash alone. That is
+        the important case: this used to rewrite ``password_hash``
+        unconditionally, so any re-run of onboarding silently replaced a live
+        physician's chosen password with one nobody knew, locking them out of
+        an account they were actively working in.
         """
         email = email.lower().strip()
+        if password_hash is None and password is not None:
+            password_hash = hash_password(password)
         creds_json = json.dumps(credentials or {})
         atts_json = json.dumps(attestations or {})
         existing = self.get_user_by_email(email)
         with self._conn() as conn:
             if existing:
+                # password_hash is set in its own clause, and only when supplied,
+                # so a re-onboard that carries no password cannot blank or
+                # replace the one the physician is signing in with today.
+                pw_clause = "password_hash = ?, " if password_hash is not None else ""
+                pw_param = (password_hash,) if password_hash is not None else ()
+                pw_stamp = ", password_changed_at = ?" if password_hash is not None else ""
+                pw_stamp_param = (
+                    (datetime.utcnow().replace(microsecond=0).isoformat(),)
+                    if password_hash is not None
+                    else ()
+                )
                 conn.execute(
-                    """
+                    f"""
                     UPDATE users SET
-                        password_hash = ?, role = ?, specialty = ?, specialty_niche = ?,
+                        {pw_clause}role = ?, specialty = ?, specialty_niche = ?,
                         board_cert = ?,
                         years_experience = ?, active = 1, full_name = ?, org_name = ?,
                         -- Keep the canonical organization in sync with the
                         -- health-system name, but never wipe a previously-set org
                         -- if a re-onboard omits it (COALESCE keeps the old value).
                         organization = COALESCE(?, organization), clinical_role = ?,
-                        npi = ?, credentials_json = ?, attestations_json = ?
+                        npi = ?, credentials_json = ?, attestations_json = ?{pw_stamp}
                     WHERE email = ?
                     """,
                     (
-                        hash_password(password), role, specialty, specialty_niche, board_cert,
+                        *pw_param, role, specialty, specialty_niche, board_cert,
                         years_experience, full_name, org_name, org_name, clinical_role, npi,
-                        creds_json, atts_json, email,
+                        creds_json, atts_json, *pw_stamp_param, email,
                     ),
                 )
                 return self.get_user_by_email(email)  # type: ignore[return-value]
@@ -2068,7 +2129,7 @@ class AsclepiusStore:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    uid, email, hash_password(password), role, specialty, specialty_niche,
+                    uid, email, password_hash or hash_password(secrets.token_urlsafe(32)), role, specialty, specialty_niche,
                     board_cert, years_experience, org_name, id_hashed, full_name, org_name,
                     clinical_role, npi, creds_json, atts_json, _utcnow_iso(),
                 ),
@@ -2087,13 +2148,95 @@ class AsclepiusStore:
             row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
             return dict(row) if row else None
 
-    def set_user_password(self, user_id: str, new_password: str) -> None:
-        """Set a user's password hash (data-provider forced first-login reset)."""
+    def set_user_password(self, user_id: str, new_password: str, *, stamp_changed: bool = True) -> None:
+        """Set a user's password hash.
+
+        ``stamp_changed`` writes ``password_changed_at``, which every token
+        minted before that instant is checked against (asclepius/auth.py). That
+        is what makes a reset actually end an attacker's existing session
+        instead of merely changing what they would have to type next time.
+        """
+        now = datetime.utcnow().replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            if stamp_changed:
+                conn.execute(
+                    "UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?",
+                    (hash_password(new_password), now, user_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                    (hash_password(new_password), user_id),
+                )
+
+    # ── Password resets ──────────────────────────────────────────────────────
+
+    def create_password_reset(
+        self,
+        *,
+        user_id: str,
+        token_hash: str,
+        expires_at: str,
+        requested_ip: Optional[str] = None,
+        created_via: str = "self",
+    ) -> Dict[str, Any]:
+        rid = "pr_" + uuid.uuid4().hex
+        now = datetime.utcnow().replace(microsecond=0).isoformat()
         with self._conn() as conn:
             conn.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
-                (hash_password(new_password), user_id),
+                "INSERT INTO password_resets (id, user_id, token_hash, requested_ip, "
+                "requested_at, expires_at, created_via) VALUES (?,?,?,?,?,?,?)",
+                (rid, user_id, token_hash, requested_ip, now, expires_at, created_via),
             )
+            row = conn.execute("SELECT * FROM password_resets WHERE id = ?", (rid,)).fetchone()
+        return dict(row)
+
+    def get_password_reset_by_token_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM password_resets WHERE token_hash = ?", (token_hash,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def consume_password_reset(self, reset_id: str) -> bool:
+        """Claim a reset exactly once. The rowcount IS the arbiter.
+
+        One guarded UPDATE, never SELECT-then-UPDATE: expiry, prior use and
+        supersede are all checked in the same statement, so two workers racing
+        the same link cannot both win. Same discipline as ``consume_upload_link``.
+        """
+        now = datetime.utcnow().replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE password_resets SET consumed_at = ? "
+                "WHERE id = ? AND consumed_at IS NULL AND invalidated_at IS NULL "
+                "AND expires_at > ?",
+                (now, reset_id, now),
+            )
+            return cur.rowcount > 0
+
+    def invalidate_password_resets_for_user(self, user_id: str) -> int:
+        """Kill every live reset for a user. Called after any password write, so
+        a second link mailed earlier cannot be used to take the account back."""
+        now = datetime.utcnow().replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE password_resets SET invalidated_at = ? "
+                "WHERE user_id = ? AND consumed_at IS NULL AND invalidated_at IS NULL",
+                (now, user_id),
+            )
+            return cur.rowcount
+
+    def count_live_password_resets(self, user_id: str) -> int:
+        now = datetime.utcnow().replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM password_resets "
+                "WHERE user_id = ? AND consumed_at IS NULL AND invalidated_at IS NULL "
+                "AND expires_at > ?",
+                (user_id, now),
+            ).fetchone()
+            return int(row["n"] if row else 0)
 
     # ── Data-provider accounts (email+password door, EHR PRD §4) ────────────
     @staticmethod

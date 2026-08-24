@@ -935,3 +935,49 @@ def build_upload_failed_email(*, recipient_name: str, filename: str, reason: str
         + _p("Thanks for helping us get this right.", muted=True, small=True)
     )
     return _shell(subject="Your upload to Archangel Health didn't go through", body_html=body)
+
+
+def build_asclepius_password_reset_email(*, email: str, reset_url: str, expires_minutes: int) -> str:
+    """A reset link. Carries no credential and names no account detail beyond
+    the address it was sent to, because it is mailed on request from anyone who
+    can type an email address."""
+    safe_url = html.escape(reset_url, quote=True)
+    body = (
+        _eyebrow("Password reset · Asclepius")
+        + _h1("Set a new password.")
+        + _p(
+            f"Use the button below to choose a new password for {_strong(email)}. "
+            f"This link works once and expires in {_strong(str(expires_minutes) + ' minutes')}."
+        )
+        + _cta(reset_url, "Choose a new password →")
+        + _p(
+            f'If the button does not work, paste this into your browser:<br>'
+            f'<a href="{safe_url}" style="color:{_GREEN_DEEP};">{html.escape(reset_url)}</a>',
+            muted=True,
+            small=True,
+        )
+        + _p(
+            "If you did not ask for this, ignore this email. Your password has not "
+            "changed and nobody has been given access to your account.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Reset your Archangel Health password", body_html=body)
+
+
+def build_asclepius_password_changed_email(*, email: str) -> str:
+    """Notification, not an action. This is the only channel by which a
+    physician finds out their account was taken over, so it is sent on every
+    password write and never suppressed."""
+    body = (
+        _eyebrow("Security · Asclepius")
+        + _h1("Your password was changed.")
+        + _p(f"The password for {_strong(email)} has just been changed.")
+        + _p(
+            _strong("If this was not you")
+            + ", reply to this email straight away. We will lock the account while "
+            "we sort it out."
+        )
+    )
+    return _shell(subject="Your Archangel Health password was changed", body_html=body)
