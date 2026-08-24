@@ -10583,10 +10583,129 @@
     pop.appendChild(frac);
   }
 
+  // ─── First run: what this is, before the first case ────────────────────────
+  // A physician arriving here has signed up for something they read about on a
+  // landing page and has never seen the product. The old flow put them straight
+  // into "One practice case, about 4 minutes", which explains the exercise but
+  // not the job.
+  //
+  // Written in the second person and deliberately short: four panels, skippable
+  // from any of them, shown once. It states what the work is and what it is for
+  // and then gets out of the way. No dollar figures here on purpose — rates
+  // depend on tier, specialty and language, they live on the Earnings page, and
+  // a number invented for an onboarding slide is a number we would have to
+  // honour.
+  const FIRST_RUN_PANELS = [
+    {
+      chrome: 'WHAT THIS IS',
+      title: 'AI is already answering clinical questions.',
+      body: 'It is confident, it is fluent, and when it is wrong it is wrong in ways '
+          + 'that read exactly like being right. You are here to find those. The '
+          + 'goal we are working toward is AI that is safe enough to practise '
+          + 'medicine, and there is no way to get there without physicians saying '
+          + 'where it fails.',
+    },
+    {
+      chrome: 'WHAT YOU ACTUALLY DO',
+      title: 'You read a case and mark up two AI answers.',
+      body: 'A real clinical case, then two model answers to it. You give your own '
+          + 'read first, so the models cannot anchor you, then say what each one '
+          + 'got right, what it got wrong, and which is better. It is the same '
+          + 'judgment you use on a consult note, written down.',
+    },
+    {
+      chrome: 'WHY IT MATTERS',
+      title: 'Your reasoning is the product, not your verdict.',
+      body: 'A score on its own teaches a model very little. "This misses the '
+          + 'cardiorenal picture, and here is the finding that gives it away" '
+          + 'teaches it a great deal. That is why the work is worth paying a '
+          + 'specialist for, and why we ask you to write rather than click.',
+    },
+    {
+      chrome: 'WHAT YOU GET',
+      title: 'You are paid per case, and it goes up.',
+      body: 'Every case you complete is tracked on your Earnings page, along with '
+          + 'what you are owed and when it pays. Rates rise with your tier and with '
+          + 'how rare your expertise is: subspecialty work and languages we are '
+          + 'short of pay more than general review. Refer a colleague and there is '
+          + 'a bounty on that too.',
+    },
+  ];
+
+  const FIRST_RUN_SEEN_KEY = 'asclepius_first_run_seen';
+
+  function firstRunAlreadySeen() {
+    try { return localStorage.getItem(FIRST_RUN_SEEN_KEY) === '1'; } catch (_) { return false; }
+  }
+
+  function markFirstRunSeen() {
+    try { localStorage.setItem(FIRST_RUN_SEEN_KEY, '1'); } catch (_) { /* ignore quota */ }
+  }
+
+  /** Four panels, then the practice case. `done` is called either way, so
+   *  skipping the intro still lands on the case rather than nowhere. */
+  function renderFirstRunIntro(done) {
+    if (document.getElementById('ascFirstRun')) return;
+    let idx = 0;
+    const overlay = h('div', {
+      class: 'call-team-overlay is-open asc-tour-interstitial',
+      id: 'ascFirstRun',
+    });
+    const popup = h('div', {
+      class: 'call-team-popup asc-tour-inter-pop asc-firstrun-pop',
+      onClick: (e) => e.stopPropagation(),
+    });
+
+    function finish() {
+      markFirstRunSeen();
+      overlay.remove();
+      done();
+    }
+
+    function paint() {
+      const panel = FIRST_RUN_PANELS[idx];
+      clear(popup);
+      popup.appendChild(h('div', { class: 'asc-tour-chrome' }, panel.chrome));
+      popup.appendChild(h('div', { class: 'call-team-title' }, panel.title));
+      popup.appendChild(h('p', { class: 'asc-help asc-firstrun-body' }, panel.body));
+
+      const dots = h('div', { class: 'asc-firstrun-dots', 'aria-hidden': 'true' });
+      FIRST_RUN_PANELS.forEach((_, i) => {
+        dots.appendChild(h('span', { class: 'asc-firstrun-dot' + (i === idx ? ' on' : '') }));
+      });
+
+      const last = idx === FIRST_RUN_PANELS.length - 1;
+      popup.appendChild(h('div', { class: 'asc-firstrun-foot' },
+        dots,
+        h('div', { class: 'asc-firstrun-actions' },
+          idx > 0
+            ? h('button', { class: 'asc-btn-link', type: 'button',
+                onClick: () => { idx -= 1; paint(); } }, 'Back')
+            : null,
+          h('button', {
+            class: 'asc-btn asc-btn-primary', type: 'button',
+            onClick: () => { if (last) { finish(); } else { idx += 1; paint(); } },
+          }, last ? 'Show me a case →' : 'Next'),
+        )));
+
+      popup.appendChild(h('button', {
+        class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: finish,
+      }, 'Skip the intro'));
+    }
+
+    paint();
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+  }
+
   // ─── Welcome screen (the ONLY interstitial: then an uninterrupted flow) ───
   function renderTourWelcome() {
     hideTourLayer();
     if (document.getElementById('ascTourInterstitial')) return;
+    if (!firstRunAlreadySeen() && !(state.tutorial && state.tutorial.replay)) {
+      renderFirstRunIntro(renderTourWelcome);
+      return;
+    }
     const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascTourInterstitial' });
     const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
       h('div', { class: 'asc-tour-chrome' }, 'CALIBRATION CASE 1'),

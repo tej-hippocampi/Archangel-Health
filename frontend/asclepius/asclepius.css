@@ -3594,3 +3594,32 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   cursor: pointer;
 }
 .asc-linkish:hover { color: var(--ink); }
+
+/* ─── First-run intro ───────────────────────────────────────────────────────
+   Four panels shown once, before the first practice case. Same interstitial
+   chrome as the tour welcome it precedes, so it reads as one sequence rather
+   than as a different product bolted on the front. */
+.asc-firstrun-pop { max-width: 30rem; }
+.asc-firstrun-body {
+  margin: 8px 0 22px;
+  line-height: var(--lh-body);
+}
+.asc-firstrun-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.asc-firstrun-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+}
+.asc-firstrun-dots { display: flex; gap: 6px; }
+.asc-firstrun-dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--hairline-strong);
+  transition: background 0.2s ease;
+}
+.asc-firstrun-dot.on { background: var(--ink); }
