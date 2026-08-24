@@ -69,6 +69,17 @@ export function SignInDialog({ open, onOpenChange }: Props) {
         await authApi.redirectToDoctorPortal(data.access_token);
         return;
       }
+      try {
+        const asc = await authApi.asclepiusLogin(trimmedEmail, password);
+        resetAndClose();
+        await authApi.redirectToAsclepiusPortal(asc.token);
+        return;
+      } catch {
+        // Not an Asclepius account, or the wrong password for one — Asclepius
+        // and the landing table return the same generic 401 for both cases
+        // (no account-enumeration leak), so we can't tell which. Fall through
+        // to the landing plane; its own error is still accurate either way.
+      }
       await login(trimmedEmail, password);
       resetAndClose();
     } catch (err) {

@@ -559,6 +559,26 @@
           </div>
           <div class="data-section" style="margin-top:24px;">
             <div class="data-section-header">
+              <h3>Invite a Physician to Asclepius</h3>
+            </div>
+            <p style="font-size:0.88rem;color:var(--gray-500);margin-bottom:12px;">
+              Mints a personal onboarding link for Asclepius (physician-evaluator) signup and emails it directly.
+            </p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:0.82rem;color:var(--gray-500);">
+                Full name
+                <input type="text" id="asc-invite-name" placeholder="Dr. Jane Smith" style="min-width:220px;" />
+              </label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:0.82rem;color:var(--gray-500);">
+                Email
+                <input type="email" id="asc-invite-email" placeholder="jane@hospital.org" style="min-width:260px;" />
+              </label>
+              <button class="refresh-btn" type="button" id="asc-invite-btn">Generate &amp; send</button>
+            </div>
+            <div id="asc-invite-result" style="font-size:0.9rem;"></div>
+          </div>
+          <div class="data-section" style="margin-top:24px;">
+            <div class="data-section-header">
               <h3>All health systems</h3>
             </div>
             <div id="hs-table-wrap"><div class="empty-table">Loading…</div></div>
@@ -1472,6 +1492,39 @@
   }
 
   document.getElementById('hs-generate-btn').addEventListener('click', () => createHealthSystemInvite());
+
+  async function createAsclepiusInvite() {
+    const nameEl = document.getElementById('asc-invite-name');
+    const emailEl = document.getElementById('asc-invite-email');
+    const el = document.getElementById('asc-invite-result');
+    const name = (nameEl.value || '').trim();
+    const email = (emailEl.value || '').trim();
+    if (!email) { el.textContent = 'Enter an email first.'; return; }
+    el.textContent = 'Generating…';
+    try {
+      const res = await fetch('/admin/asclepius/invite', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ name, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data && data.detail) || 'Failed to generate');
+      const url = data.onboarding_url || '';
+      const sentLine = data.email_sent
+        ? '<span style="color:var(--gray-500);">Email sent to ' + esc(email) + '.</span>'
+        : '<span style="color:var(--gray-500);">Email not sent (transport not configured) — copy the link and send it manually.</span>';
+      el.innerHTML = '<div style="word-break:break-all;margin-bottom:8px;"><strong>Onboarding URL</strong><br/>' + esc(url) + '</div>' +
+        '<div style="margin-bottom:8px;">' + sentLine + '</div>' +
+        '<button type="button" class="refresh-btn" id="asc-invite-copy-btn">Copy link</button>';
+      document.getElementById('asc-invite-copy-btn').addEventListener('click', () => {
+        if (url) navigator.clipboard.writeText(url);
+      });
+    } catch (e) {
+      el.textContent = e.message || 'Error';
+    }
+  }
+
+  document.getElementById('asc-invite-btn').addEventListener('click', () => createAsclepiusInvite());
 
   async function loadHealthSystems() {
     const wrap = document.getElementById('hs-table-wrap');

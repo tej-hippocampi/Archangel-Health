@@ -436,6 +436,34 @@ def build_asclepius_invite_email(
     return _shell(subject=subject, body_html=body)
 
 
+def build_asclepius_admin_invite_email(
+    *,
+    invitee_name: str,
+    onboarding_url: str,
+) -> str:
+    """Admin-initiated Asclepius onboarding invite — the cold, personalized
+    first touch for an outreach lead (e.g. from a one-pager). Distinct from
+    ``build_asclepius_invite_email`` above, which is a director inviting a
+    team member *mid-onboarding* (references an org/specialty that doesn't
+    exist yet here, since this recipient hasn't started onboarding at all)."""
+    body = (
+        _eyebrow("Invitation · Asclepius")
+        + _h1(f"Welcome to Asclepius, {html.escape(invitee_name or 'there')}.")
+        + _p(
+            "You&rsquo;ve been invited to join Asclepius — Archangel Health&rsquo;s "
+            "expert data-training product, where physicians review and label AI "
+            "answers in their specialty."
+        )
+        + _cta(onboarding_url, "Start your onboarding →")
+        + _p(
+            "This link is personal to you and expires in 30 days.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Your Archangel Health onboarding link", body_html=body)
+
+
 def build_asclepius_complete_email(
     *,
     email: str,

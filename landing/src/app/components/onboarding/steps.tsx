@@ -278,11 +278,17 @@ export function Step1NameEmail({
     data.lastName.trim().length > 0 &&
     /\S+@\S+\.\S+/.test(data.email);
 
+  const isAsclepius = data.product === "asclepius";
+
   return (
     <OnboardingCard
       eyebrow="Step 1"
-      title="Let's get you set up."
-      lede="A few minutes to bring your health system online. We'll start with you."
+      title={isAsclepius ? "Welcome to Asclepius — let's start your journey." : "Let's get you set up."}
+      lede={
+        isAsclepius
+          ? "A few minutes to get your evaluator workspace ready. We'll start with you."
+          : "A few minutes to bring your health system online. We'll start with you."
+      }
     >
       <InlineError>{error}</InlineError>
       <div style={TWO_COL}>
