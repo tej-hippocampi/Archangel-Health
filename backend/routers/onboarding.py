@@ -6,7 +6,7 @@ import logging
 import os
 import string
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import secrets
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
@@ -672,6 +672,68 @@ def _require_asclepius(row: Dict[str, Any]) -> None:
         raise HTTPException(status_code=409, detail="This workspace is not an Asclepius workspace.")
 
 
+#: Grace window before a signup alert sends. The agent normally reports in well
+#: under this (NPPES is its only network call) and rewrites the row with its
+#: findings. If it is broken or the process died, the plain version still goes
+#: out, so a broken agent costs detail rather than the notification itself.
+_ADMIN_ALERT_GRACE_SECONDS = int(os.getenv("ASCLEPIUS_ADMIN_ALERT_GRACE_SECONDS", "120") or 120)
+
+
+def _admin_alert_recipients(store: Any) -> List[str]:
+    """Explicit list, then the bootstrap admin, then every active admin account.
+
+    The chain matters: a notification feature that silently no-ops because one
+    env var is unset is worse than not having one.
+    """
+    raw = (os.getenv("ASCLEPIUS_ADMIN_NOTIFY_EMAILS") or "").strip()
+    if raw:
+        return [e.strip() for e in raw.split(",") if e.strip()]
+    single = (os.getenv("ASCLEPIUS_ADMIN_EMAIL") or "").strip()
+    if single:
+        return [single]
+    try:
+        return [
+            u["email"] for u in (store.list_users() or [])
+            if u.get("role") == "admin" and u.get("active") and u.get("email")
+        ]
+    except Exception:
+        return []
+
+
+def _queue_verification_and_alert(store: Any, user_id: str) -> None:
+    """Queue the agent run, and queue the admin alert it will later enrich."""
+    from datetime import timedelta as _td  # noqa: PLC0415
+    from onboarding_emails import build_asclepius_admin_signup_alert  # noqa: PLC0415
+
+    store.enqueue_verification_job(user_id)
+    user = store.get_user_by_id(user_id) or {}
+    name = (user.get("full_name") or user.get("email") or "A physician").strip()
+    send_after = (
+        datetime.utcnow() + _td(seconds=_ADMIN_ALERT_GRACE_SECONDS)
+    ).replace(microsecond=0).isoformat()
+    body = build_asclepius_admin_signup_alert(
+        physician_name=name,
+        email=user.get("email") or "",
+        specialty=user.get("specialty") or "",
+        decision="New signup",
+        recommendation="The verification agent has not reported yet.",
+        reasons=[],
+    )
+    recipients = _admin_alert_recipients(store)
+    for addr in recipients:
+        store.enqueue_admin_notification(
+            # One recipient keeps the bare key, because that is the key the
+            # agent rewrites when it reports. With several, each gets its own.
+            idempotency_key=(f"signup|{user_id}" if len(recipients) == 1
+                             else f"signup|{user_id}|{addr}"),
+            kind="signup",
+            subject=f"[Asclepius] New signup: {name}",
+            body_html=body,
+            recipient_email=addr,
+            send_after=send_after,
+        )
+
+
 def _provision_asclepius_user(
     request: Request,
     *,
@@ -828,6 +890,13 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
         current = store.get_user_by_id(uid) or {}
         if current.get("verification_status") in (None, "pending"):
             store.set_verification_status(uid, "pending")
+            # Every signup gets an agent run and an admin alert, queued at the
+            # one place that decides someone is pending, so "every signup is
+            # looked at" is a fact rather than a hope.
+            try:
+                _queue_verification_and_alert(store, uid)
+            except Exception:
+                log.exception("[onboarding] could not queue verification for %s", uid)
             store.log_event(
                 entity_type="user",
                 entity_id=uid,

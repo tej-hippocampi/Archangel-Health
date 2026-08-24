@@ -1869,6 +1869,63 @@ class AsclepiusStore:
                 "CREATE INDEX IF NOT EXISTS idx_earnings_sweep ON earnings(status, accrued_at)")
             # ═══ END PRD-P ═══
 
+            # ═══ Verification jobs ═════════════════════════════════════
+            # One row per signup, drained by an in-process loop (main.py). There
+            # is no scheduler in this repo and this is not the change that
+            # introduces one: same durable-outbox shape as task_notify_outbox.
+            #
+            # UNIQUE(user_id) so a re-onboard cannot queue a second live job.
+            # Claiming is a single guarded UPDATE with the rowcount as arbiter,
+            # never SELECT-then-UPDATE, which is what makes it correct if this
+            # ever runs on more than one worker AND what lets a crashed job be
+            # reclaimed once its claim ages out.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS verification_jobs (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id      TEXT NOT NULL UNIQUE,
+                    status       TEXT NOT NULL DEFAULT 'queued',
+                    attempts     INTEGER NOT NULL DEFAULT 0,
+                    last_error   TEXT,
+                    outcome      TEXT,
+                    dossier_json TEXT,
+                    claimed_at   TEXT,
+                    queued_at    TEXT NOT NULL,
+                    finished_at  TEXT
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_verification_jobs_status "
+                "ON verification_jobs(status, queued_at)"
+            )
+
+            # ═══ Admin notifications ═══════════════════════════════════════
+            # Same shape as task_notify_outbox so it drains in the SAME loop
+            # rather than adding a second thing that can silently stop.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS admin_notify_outbox (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    kind            TEXT NOT NULL,
+                    subject         TEXT NOT NULL,
+                    body_html       TEXT NOT NULL,
+                    recipient_email TEXT NOT NULL,
+                    send_after      TEXT,
+                    status          TEXT NOT NULL DEFAULT 'pending',
+                    send_attempts   INTEGER NOT NULL DEFAULT 0,
+                    last_error      TEXT,
+                    sent_at         TEXT,
+                    created_at      TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_admin_notify_status "
+                "ON admin_notify_outbox(status, send_after)"
+            )
+
             # ═══ Password resets ═══════════════════════════════════════
             # A reset token is a bearer credential for the account, so only its
             # sha256 lands here: a database read cannot be replayed against the
@@ -2226,6 +2283,135 @@ class AsclepiusStore:
                 (now, user_id),
             )
             return cur.rowcount
+
+    # ── Verification jobs ────────────────────────────────────────────────
+
+    def enqueue_verification_job(self, user_id: str) -> bool:
+        """Queue a signup for the agent. Idempotent per user: a re-onboard
+        re-queues only if the previous job already finished."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO verification_jobs (user_id, status, queued_at) "
+                "VALUES (?, 'queued', ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET "
+                "  status='queued', queued_at=excluded.queued_at, claimed_at=NULL, "
+                "  attempts=0, last_error=NULL, outcome=NULL, finished_at=NULL "
+                "WHERE verification_jobs.status IN ('done','failed')",
+                (user_id, now),
+            )
+            return cur.rowcount > 0
+
+    def claim_verification_job(self, *, stale_after_seconds: int = 900) -> Optional[Dict[str, Any]]:
+        """Claim the next job in ONE guarded UPDATE.
+
+        Also reclaims a job whose worker died mid-run: its row is left 'running'
+        with a claimed_at that ages out, so a restart picks it up instead of
+        leaving a physician's signup unverified forever.
+        """
+        now = datetime.utcnow().replace(microsecond=0)
+        stale = (now - timedelta(seconds=max(1, stale_after_seconds))).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "UPDATE verification_jobs SET status='running', claimed_at=?, "
+                "attempts=attempts+1 "
+                "WHERE id = (SELECT id FROM verification_jobs "
+                "            WHERE status='queued' "
+                "               OR (status='running' AND claimed_at <= ?) "
+                "            ORDER BY queued_at LIMIT 1) "
+                "RETURNING *",
+                (now.isoformat(), stale),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def finish_verification_job(self, job_id: int, *, outcome: str, dossier: Dict[str, Any]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE verification_jobs SET status='done', outcome=?, dossier_json=?, "
+                "finished_at=? WHERE id = ?",
+                (outcome, json.dumps(dossier or {}), _utcnow_iso(), job_id),
+            )
+
+    def fail_verification_job(self, job_id: int, error: str, *, max_attempts: int = 3) -> None:
+        """Mark a run failed. After max_attempts it stops retrying and is
+        referred to a human, because an agent that cannot decide is exactly the
+        case the admin queue exists for."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE verification_jobs SET "
+                "  status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'queued' END, "
+                "  last_error = ?, claimed_at = NULL, "
+                "  finished_at = CASE WHEN attempts >= ? THEN ? ELSE NULL END "
+                "WHERE id = ?",
+                (max_attempts, (error or "")[:500], max_attempts, _utcnow_iso(), job_id),
+            )
+
+    def get_verification_job(self, user_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM verification_jobs WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    # ── Admin notifications ──────────────────────────────────────────────
+
+    def enqueue_admin_notification(
+        self, *, idempotency_key: str, kind: str, subject: str, body_html: str,
+        recipient_email: str, send_after: Optional[str] = None,
+    ) -> Optional[int]:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO admin_notify_outbox "
+                "(idempotency_key, kind, subject, body_html, recipient_email, "
+                " send_after, status, created_at) VALUES (?,?,?,?,?,?,'pending',?)",
+                (idempotency_key, kind, subject, body_html, recipient_email,
+                 send_after, _utcnow_iso()),
+            )
+            return int(cur.lastrowid) if cur.rowcount else None
+
+    def update_pending_admin_notification(
+        self, idempotency_key: str, *, subject: str, body_html: str
+    ) -> bool:
+        """Enrich a queued alert in place.
+
+        The alert is queued at signup with a short grace window and a plain
+        body; when the agent reports, it rewrites that same row. One email per
+        signup either way, so a broken agent costs detail rather than the
+        notification itself.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE admin_notify_outbox SET subject = ?, body_html = ? "
+                "WHERE idempotency_key = ? AND status = 'pending'",
+                (subject, body_html, idempotency_key),
+            )
+            return cur.rowcount > 0
+
+    def due_admin_notifications(self, limit: int = 50) -> List[Dict[str, Any]]:
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM admin_notify_outbox WHERE status='pending' "
+                "AND (send_after IS NULL OR send_after <= ?) "
+                "ORDER BY id LIMIT ?",
+                (now, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def mark_admin_notification_sent(self, row_id: int, *, ok: bool, error: str = "") -> None:
+        with self._conn() as conn:
+            if ok:
+                conn.execute(
+                    "UPDATE admin_notify_outbox SET status='sent', sent_at=?, "
+                    "send_attempts=send_attempts+1 WHERE id=?",
+                    (_utcnow_iso(), row_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE admin_notify_outbox SET send_attempts=send_attempts+1, "
+                    "last_error=? WHERE id=?",
+                    ((error or "")[:500], row_id),
+                )
 
     def count_live_password_resets(self, user_id: str) -> int:
         now = datetime.utcnow().replace(microsecond=0).isoformat()
