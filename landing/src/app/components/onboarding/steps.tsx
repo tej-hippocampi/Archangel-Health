@@ -276,34 +276,10 @@ export function Step1NameEmail({
   // Each screen gates ONLY on what it asks for. Gating screen 1 on a licence
   // number it never showed is how a Continue button goes dead with no
   // explanation anywhere on the page.
-  const identityValid =
-    c.fullLegalName.trim().length > 0 &&
-    /^\d{10}$/.test(c.npi.trim()) &&
-    // The physician's own phone is required (PRD Phase 4). Their mobile is
-    // how verification actually gets resolved when NPPES is ambiguous.
-    c.phone.trim().length >= 7 &&
-    c.degree.trim().length > 0 &&
-    c.primarySpecialty.trim().length > 0 &&
-    c.currentlyActive !== null;
-
-  const trainingValid =
-    // Gate A2 needs both halves; gate A4 needs the attestation. Required at the
-    // form rather than surfaced later as an "unresolved gate" in the admin queue,
-    // because a physician can answer these in five seconds and an admin cannot.
-    c.licenseNumber.trim().length > 0 &&
-    c.licenseState.trim().length === 2 &&
-    c.residencyCompleted !== null &&
-    // AUDIT H1: required, because the alternative is inferring it from a blank or a
-    // zero — and inferring "not practising" from the zero a physician on parental
-    // leave types is the exact defect this field exists to close.
-    c.practiceStatus !== "";
-
-  // Screen 3 is entirely optional by design, so it never blocks.
   const valid =
-    phase === 1 ? identityValid
-    : phase === 2 ? trainingValid
-    : phase === 3 ? true
-    : identityValid && trainingValid;
+    data.firstName.trim().length > 0 &&
+    data.lastName.trim().length > 0 &&
+    /\S+@\S+\.\S+/.test(data.email.trim());
 
   const isAsclepius = data.product === "asclepius";
 
@@ -1511,7 +1487,10 @@ export function Step5Credentials({
   const set = (patch: Partial<Credentials>) => setData({ credentials: { ...c, ...patch } });
   const show = (n: 1 | 2 | 3) => phase === undefined || phase === n;
 
-  const valid =
+  // Each screen gates ONLY on what it asks for. Gating screen 1 on a licence
+  // number it never showed is how a Continue button goes dead with no
+  // explanation anywhere on the page.
+  const identityValid =
     c.fullLegalName.trim().length > 0 &&
     /^\d{10}$/.test(c.npi.trim()) &&
     // The physician's own phone is required (PRD Phase 4). Their mobile is
@@ -1519,7 +1498,9 @@ export function Step5Credentials({
     c.phone.trim().length >= 7 &&
     c.degree.trim().length > 0 &&
     c.primarySpecialty.trim().length > 0 &&
-    c.currentlyActive !== null &&
+    c.currentlyActive !== null;
+
+  const trainingValid =
     // Gate A2 needs both halves; gate A4 needs the attestation. Required at the
     // form rather than surfaced later as an "unresolved gate" in the admin queue,
     // because a physician can answer these in five seconds and an admin cannot.
@@ -1530,6 +1511,14 @@ export function Step5Credentials({
     // zero — and inferring "not practising" from the zero a physician on parental
     // leave types is the exact defect this field exists to close.
     c.practiceStatus !== "";
+
+  // Screen 3 is entirely optional by design, so it never blocks. Member mode
+  // (phase undefined) renders every field at once and so gates on both.
+  const valid =
+    phase === 1 ? identityValid
+    : phase === 2 ? trainingValid
+    : phase === 3 ? true
+    : identityValid && trainingValid;
 
   return (
     <OnboardingCard

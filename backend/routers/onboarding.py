@@ -1024,8 +1024,28 @@ async def asclepius_set_password(body: AsclepiusPasswordBody, request: Request):
     if int(row.get("onboarding_step") or 0) < 2:
         raise HTTPException(status_code=403, detail="Verify your email first.")
     director_email = (row.get("director_email") or "").strip()
-    if not director_email or not ts.get_asclepius_person(row["id"], director_email):
+    if not director_email:
         raise HTTPException(status_code=400, detail="Start your onboarding first.")
+    # Seed the director's person row if the institution step has not run yet.
+    # This step deliberately sits BEFORE institution (the password is chosen as
+    # soon as the mailbox is proven), so it cannot rely on institution having
+    # created the row — doing so made the self-serve door unfinishable: the
+    # password 400'd here, and /asclepius/finish then refused with "Choose a
+    # password before finishing" with no way back. Same upsert institution does.
+    if not ts.get_asclepius_person(row["id"], director_email):
+        director_name = " ".join(
+            part for part in [
+                (row.get("director_first_name") or "").strip(),
+                (row.get("director_last_name") or "").strip(),
+            ] if part
+        ).strip()
+        ts.upsert_asclepius_person(
+            row["id"],
+            email=director_email,
+            full_name=director_name,
+            clinical_role="director",
+            is_director=True,
+        )
     try:
         asc_passwords.validate(body.password, email=director_email)
     except asc_passwords.PasswordRejected as exc:

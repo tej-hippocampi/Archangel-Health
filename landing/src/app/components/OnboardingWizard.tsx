@@ -413,7 +413,12 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       }
       // Product was decided server-side at invite creation — go straight to
       // the right branch instead of asking the signer to choose.
-      setStep(data.product === "asclepius" ? "institution" : "org");
+      // The password step comes AFTER the mailbox is proven, for the self-serve
+      // door exactly as it does for member mode; submitPassword then hands off
+      // to "institution". Skipping it stranded the physician on the final step,
+      // where /asclepius/finish rejects with "Choose a password before
+      // finishing" and the wizard offers no route back to set one.
+      setStep(data.product === "asclepius" ? "password" : "org");
       return true;
     },
     [token, data.product],

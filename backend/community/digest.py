@@ -15,7 +15,7 @@ Failure policy: every run is recorded in ``community_digest_runs``
 scheduler loop can never crash. Three consecutive failures of a kind logs a
 grep-able ``ADMIN ATTENTION`` line.
 
-The scheduled loop ships OFF (``COMMUNITY_NEWS_ENABLED=1`` opts in); the
+The scheduled loop ships ON (``COMMUNITY_NEWS_ENABLED=0`` opts out); the
 internal trigger endpoint fires a run on demand either way.
 """
 
@@ -197,6 +197,64 @@ async def _fetch(kind: str) -> List[Dict[str, Any]]:
     return _keyword_filter(items, require=True)
 
 
+def _headline_from(body: str) -> str:
+    """First non-empty, non-bullet line, trimmed. The model is asked for a lead
+    line; this is the fallback that keeps a subject from being empty."""
+    for raw in (body or "").split("\n"):
+        line = raw.strip().lstrip("#").strip()
+        if line and not line.startswith(("-", "*")):
+            return line[:120]
+    return "What moved in medical AI"
+
+
+async def _email_digest(kind: str, body: str) -> int:
+    """Mail the digest to members whose preference matches this run.
+
+    News is the daily habit; papers ride the weekly preference. Members who have
+    never been asked get the default the moment their prefs row is created,
+    which happens here on first read.
+    """
+    from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
+    from onboarding_emails import build_community_news_digest_email  # noqa: PLC0415
+    from community.router import member_map  # noqa: PLC0415
+
+    if not is_email_transport_configured():
+        return 0
+    cstore = get_community_store()
+    base = (os.getenv("PUBLIC_BASE_URL", "") or "").rstrip("/")
+    weekly = kind == "papers"
+    headline = _headline_from(body)
+
+    sent = 0
+    for uid, member in (member_map(include_email=True) or {}).items():
+        email = (member or {}).get("email")
+        if not email:
+            continue
+        prefs = cstore.email_prefs(uid)
+        want = "weekly" if weekly else "daily"
+        if prefs.get("news_frequency") != want:
+            continue
+        unsub = f"{base}/community/unsubscribe?token={prefs['unsubscribe_token']}"
+        try:
+            ok = await send_html_email(
+                email,
+                f"Medical AI: {headline}",
+                build_community_news_digest_email(
+                    first_name=((member.get("display_name") or "").split() or ["there"])[0],
+                    headline=headline,
+                    body_markdown=body,
+                    community_url=f"{base}/community",
+                    unsubscribe_url=unsub,
+                ),
+            )
+            if ok:
+                sent += 1
+        except Exception:
+            log.warning("[digest] email failed for one recipient", exc_info=True)
+    log.info("[digest] %s emailed to %d member(s)", kind, sent)
+    return sent
+
+
 async def run_digest(kind: str) -> Dict[str, Any]:
     """One full digest run. Never raises — the outcome lands in
     ``community_digest_runs`` and the returned summary dict."""
@@ -219,7 +277,8 @@ async def run_digest(kind: str) -> Dict[str, Any]:
         if not fresh:
             cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
             log.info("[digest] %s run: nothing fresh (%d fetched) — no post", kind, fetched)
-            return {"ok": True, "kind": kind, "fetched": fetched, "fresh": 0, "posted": 0}
+            return {"ok": True, "kind": kind, "fetched": fetched, "fresh": 0,
+                    "posted": 0, "emailed": 0}
 
         body, summaries = await _curate(kind, fresh)
         if body is None:
@@ -229,7 +288,7 @@ async def run_digest(kind: str) -> Dict[str, Any]:
             cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
             log.info("[digest] %s run: %d fresh, none kept — no post", kind, len(fresh))
             return {"ok": True, "kind": kind, "fetched": fetched,
-                    "fresh": len(fresh), "posted": 0}
+                    "fresh": len(fresh), "posted": 0, "emailed": 0}
 
         posted = await post_system_message(
             channel_slug=DIGEST_CHANNEL, body=body,
@@ -237,6 +296,15 @@ async def run_digest(kind: str) -> Dict[str, Any]:
         )
         if posted is None:
             raise RuntimeError("system post was skipped (channel or PHI gate)")
+
+        # Email fan-out, AFTER the in-app post succeeded. Ordering matters: the
+        # channel post is the durable record, and mailing a digest that failed
+        # to post would point people at a discussion that does not exist.
+        emailed = 0
+        try:
+            emailed = await _email_digest(kind, body)
+        except Exception:
+            log.exception("[digest] email fan-out failed (the post stands)")
 
         kept_ids = [iid for iid, s in summaries.items() if s.get("kept")]
         other_ids = [it["id"] for it in fresh if it["id"] not in set(kept_ids)]
@@ -248,7 +316,7 @@ async def run_digest(kind: str) -> Dict[str, Any]:
         log.info("[digest] %s run: posted %d of %d fresh (message %s)",
                  kind, len(kept_ids), len(fresh), posted["id"])
         return {"ok": True, "kind": kind, "fetched": fetched, "fresh": len(fresh),
-                "posted": len(kept_ids), "message_id": posted["id"]}
+                "posted": len(kept_ids), "emailed": emailed, "message_id": posted["id"]}
     except Exception as exc:
         cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
                                  error=str(exc)[:500])
@@ -260,9 +328,12 @@ async def run_digest(kind: str) -> Dict[str, Any]:
         return {"ok": False, "kind": kind, "error": str(exc)[:500]}
 
 
-# ─── Scheduler (in-process, restart-safe, OFF by default) ─────────────────────
+# ─── Scheduler (in-process, restart-safe, news ON by default) ────────────────
 def news_enabled() -> bool:
-    return (os.getenv("COMMUNITY_NEWS_ENABLED") or "0").strip() == "1"
+    # ON by default now. The digest is the daily reason a physician comes back,
+    # and it was built, tested and then left switched off. Set
+    # COMMUNITY_NEWS_ENABLED=0 to stop it.
+    return (os.getenv("COMMUNITY_NEWS_ENABLED") or "1").strip() not in ("0", "false", "no", "off")
 
 
 def _news_hour_utc() -> int:
