@@ -590,12 +590,21 @@ def _authorize_session(store, *, user_id: str, kind: str) -> Dict[str, Any]:
     user is not a reviewer" is a legitimate answer for a labeler, so nothing logs
     and the advisor tier quietly loses a surface it is entitled to.
 
-    ``auth.get_current_user`` already refuses ``pending``/``rejected`` across the
-    whole evaluator surface, so through the HTTP route the verification check here
-    is redundant — deliberately. It is repeated at the money boundary because R
-    calls ``open_session`` without going through that dependency at all, and
-    because a payment gate should not be one refactor of somebody else's
-    middleware away from opening.
+    THE VERIFICATION CHECK BELOW IS NOT REDUNDANT. It used to be: every
+    evaluator route went through ``auth.get_current_user``, which refused
+    ``pending`` outright, and this was defence in depth.
+
+    A physician awaiting verification now reaches the product (they get the
+    practice case and the community while we check their credentials), so
+    ``pending`` no longer bounces off the shared dependency. Earnings and
+    billable sessions are held shut by the EARNINGS surface on the HTTP routes
+    and by THIS CHECK for every caller that does not come through one, which
+    includes ``open_session`` called directly.
+
+    Do not delete this as duplicated logic. A payment gate should never be one
+    refactor of somebody else's middleware away from opening, and today it is
+    the only verification check standing between a provisional account and the
+    money ledger.
     """
     user = store.get_user_by_id(user_id or "")
     if user is None:

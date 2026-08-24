@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
 
 from asclepius import auth as asc_auth
+from asclepius import capabilities as asc_caps
 from asclepius import payments as asc_payments
 from asclepius import referrals as asc_referrals
 from asclepius.store import get_store
@@ -40,7 +41,7 @@ def _store():
 
 # ─── Earnings ─────────────────────────────────────────────────────────────────
 @router.get("/api/asclepius/earnings")
-async def my_earnings(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def my_earnings(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS))):
     """Summary + recent ledger for the signed-in physician. Own rows only —
     the user id comes from the token and from nowhere else."""
     return asc_payments.earnings_summary(_store(), user_id=user["id"])
@@ -54,7 +55,7 @@ async def my_earnings(user: Dict[str, Any] = Depends(asc_auth.get_current_user))
 # because the bounty is a ledger row; the POLICY lives in ``asclepius.referrals``
 # and the advisor router calls the same functions.
 def _require_referrer(
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
 ) -> Dict[str, Any]:
     """Any approved physician, or an advisor holding REFER.
 
@@ -203,7 +204,7 @@ class OpenSessionBody(BaseModel):
 )
 async def open_session(
     body: OpenSessionBody,
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
 ):
     """Open (or resume) a billable session. Idempotent — a client that opens twice
     gets the same session back, with the nonce it must beat with."""
@@ -259,7 +260,7 @@ RESUME_RATE_LIMIT = (4, 600)
 async def session_heartbeat(
     session_id: str,
     body: HeartbeatBody,
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
 ):
     result = asc_payments.heartbeat(
         _store(), session_id=_owned(session_id, user), nonce=body.nonce,
@@ -291,7 +292,7 @@ class CloseSessionBody(BaseModel):
 async def close_session(
     session_id: str,
     body: CloseSessionBody,
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
 ):
     """Close a session and settle it. Safe to call repeatedly — and it will be,
     because the client closes on both ``visibilitychange`` and ``pagehide``."""
@@ -308,7 +309,7 @@ async def close_session(
 )
 async def resume_session(
     session_id: str,
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
 ):
     """Re-issue a beating credential to a client that legitimately lost one — a
     physician who reloaded the page mid-session.
@@ -331,7 +332,7 @@ async def resume_session(
 @router.get("/api/asclepius/sessions/{session_id}")
 async def session_state(
     session_id: str,
-    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
 ):
     """Server-authoritative state, for a client that reloaded mid-session and
     needs the truth back — including a fresh nonce to resume beating with."""
