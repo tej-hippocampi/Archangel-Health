@@ -31,6 +31,7 @@ Client compatibility:
 from __future__ import annotations
 
 import html
+import re
 from typing import Iterable, Tuple
 
 # ─── Tokens ─────────────────────────────────────────────────────────────────
@@ -186,6 +187,62 @@ def _code_block(code: str, *, size: int = 40) -> str:
 </div>"""
 
 
+_LONG_DASH_RE = re.compile(r"\s*[–—]+\s*")
+
+
+def _scrub_dashes(text: str) -> str:
+    """Model-composed digest text tends to lean on long dashes as separators,
+    which read as clutter in a mail client and are banned by house style."""
+    return _LONG_DASH_RE.sub(", ", text or "")
+
+
+def _split_lead(escaped_text: str) -> Tuple[str, str]:
+    """Split one digest item into a bold lead phrase and the rest.
+
+    The lead is what a scanning reader gets; whitespace and weight carry the
+    hierarchy, so no separator glyph is ever rendered between the two parts.
+    Input must already be HTML-escaped (split points all contain a space, so a
+    split can never land inside an entity).
+    """
+    t = escaped_text.strip()
+    for stop in (". ", "? ", "! "):
+        idx = t.find(stop)
+        if 0 < idx <= 90:
+            return t[: idx + 1], t[idx + 2 :]
+    idx = t.find(": ")
+    if 0 < idx <= 60:
+        return t[:idx], t[idx + 2 :]
+    words = t.split()
+    if len(words) > 8:
+        return " ".join(words[:7]), " ".join(words[7:])
+    return t, ""
+
+
+def _lead_list(items: Iterable[Tuple[str, str]]) -> str:
+    """Digest items as table rows: bold lead-in phrase, plain remainder,
+    hairline between rows. Replaces <ul> entirely; mail clients render tables
+    far more consistently than lists, and there is no bullet glyph to argue
+    about. Both parts of each item must already be HTML-escaped."""
+    rows = []
+    for i, (lead, rest) in enumerate(items):
+        border = "" if i == 0 else f"border-top:1px solid {_HAIRLINE};"
+        rest_html = (
+            f' <span style="color:{_INK_SOFT};font-weight:400;">{rest}</span>'
+            if rest
+            else ""
+        )
+        rows.append(
+            f'<tr><td style="padding:14px 0;{border}font-family:{_SANS};'
+            f"font-size:15px;line-height:1.6;color:{_INK_SOFT};\">"
+            f'<strong style="color:{_INK};font-weight:600;">{lead}</strong>'
+            f"{rest_html}</td></tr>"
+        )
+    return (
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" '
+        'border="0" style="margin:4px 0 14px;">' + "".join(rows) + "</table>"
+    )
+
+
 def _detail_rows(rows: Iterable[Tuple[str, str, bool]]) -> str:
     """Render <label, value, mono?> rows separated by hairlines (last row has no border)."""
     rows_list = list(rows)
@@ -258,7 +315,7 @@ def build_doctor_verification_email(*, code: str, magic_link_url: str) -> str:
             small=True,
         )
     )
-    return _shell(subject="Verify your email — Archangel Health", body_html=body)
+    return _shell(subject="Verify your email for Archangel Health", body_html=body)
 
 
 def build_task_notification_email(
@@ -272,24 +329,27 @@ def build_task_notification_email(
     PHI can end up in a non-BAA-covered email transport (see
     backend/compliance/subprocessors.py)."""
     if is_escalation:
-        eyebrow, headline, lede = (
+        eyebrow, headline, lede, subject = (
             "Escalation",
             "This still needs your review.",
             "An item assigned to you in CareGuide has been waiting for a while. "
             "Please take a look when you can.",
+            "This still needs your review in CareGuide",
         )
     elif is_reminder:
-        eyebrow, headline, lede = (
+        eyebrow, headline, lede, subject = (
             "Reminder",
             "You have a pending item.",
             "You have a new item to review in CareGuide that hasn&rsquo;t been "
             "opened yet.",
+            "You have a pending item in CareGuide",
         )
     else:
-        eyebrow, headline, lede = (
+        eyebrow, headline, lede, subject = (
             "New item",
             "You have a new item to review.",
             "You have a new item to review in CareGuide.",
+            "You have a new item to review in CareGuide",
         )
     body = (
         _eyebrow(eyebrow)
@@ -302,7 +362,7 @@ def build_task_notification_email(
             small=True,
         )
     )
-    return _shell(subject=f"CareGuide — {headline}", body_html=body)
+    return _shell(subject=subject, body_html=body)
 
 
 def build_invite_email(
@@ -347,7 +407,7 @@ def build_invite_email(
         + _inset_card(_detail_rows(cred_rows))
         + _cta(sign_in_url, f"Sign in to {department} workspace →" if department else "Sign in to your workspace →")
         + _p(
-            "Keep this email — your password is your standing access key and stays "
+            "Keep this email. Your password is your standing access key and stays "
             "valid for future sign-ins.",
             muted=True,
             small=True,
@@ -397,7 +457,7 @@ def build_asclepius_invite_email(
     if invitee_email:
         rows.append(("Email", invitee_email, True))
     rows.append(("Role", role_label, False))
-    rows.append(("Organization", org_name or "—", False))
+    rows.append(("Organization", org_name or "Not given", False))
     if specialty:
         rows.append(("Specialty", specialty, False))
 
@@ -431,7 +491,7 @@ def build_asclepius_invite_email(
             + _strong(director_full_name or "your director")
             + " has invited you to join "
             + _strong((org_name or "your organization"))
-            + " on Asclepius — Archangel Health&rsquo;s expert data-training product, where "
+            + " on Asclepius, Archangel Health&rsquo;s expert data-training product, where "
             "clinicians review and label AI answers in their specialty."
         )
         + _inset_card(_detail_rows(rows))
@@ -501,7 +561,7 @@ def build_asclepius_complete_email(
         ("Email", email, True),
         ("Role", role_label, False),
         ("Organization", safe_org, False),
-        ("Specialty", safe_spec or "—", False),
+        ("Specialty", safe_spec or "Not given", False),
     ]
     if is_director and team_count > 0:
         rows.append(("Team", f"{team_count} {'person' if team_count == 1 else 'people'}", False))
@@ -519,7 +579,7 @@ def build_asclepius_complete_email(
     verification_html = (
         _p(
             _strong("We’re verifying your credentials")
-            + " — you&rsquo;ll hear from us within 24 hours. Your account opens "
+            + ". You&rsquo;ll hear from us within 24 hours. Your account opens "
             "for evaluation work as soon as our clinical team completes the "
             "review.",
         )
@@ -537,7 +597,7 @@ def build_asclepius_complete_email(
         + _p(
             "&#11088; "
             + _strong("Star this email")
-            + " — everything you need to contribute data lives here. Your password is "
+            + ". Everything you need to contribute data lives here. Your password is "
             "the password you chose during sign-up. Forgot it? Use the reset link on the "
             "sign-in page and we will email you a new one.",
             small=True,
@@ -607,7 +667,7 @@ def build_data_provider_invite_email(
         + _strong("Already de-identified and date-shifted.")
         + " Optionally include a <code>manifest.json</code> "
         "(<code>patient_key</code>, <code>index_event</code>, "
-        "<code>specialty</code>) — it makes ingestion far more reliable. "
+        "<code>specialty</code>). It makes ingestion far more reliable. "
         + _strong("No imaging."),
         small=True,
     )
@@ -615,7 +675,7 @@ def build_data_provider_invite_email(
     intro = (
         "You&rsquo;ve been invited to securely send your de-identified clinical "
         "data to " + _strong("Archangel Health") + ". Your upload portal is ready "
-        "and a locked-down account has been created for you — the credentials are "
+        "and a locked-down account has been created for you. The credentials are "
         "below."
     )
     if note:
@@ -638,7 +698,7 @@ def build_data_provider_invite_email(
             small=True,
         )
     )
-    subject = "Send us your clinical data — your Archangel Health upload access"
+    subject = "Your Archangel Health upload access is ready"
     return _shell(subject=subject, body_html=body)
 
 
@@ -677,7 +737,7 @@ def build_buyer_delivery_email(
     intro = (
         greeting
         + "a dataset has been exported to you by " + _strong("Archangel Health")
-        + ". It&rsquo;s waiting in your secure workspace — open it with the "
+        + ". It&rsquo;s waiting in your secure workspace. Open it with the "
         "button below and it will always be there when you sign in."
     )
     if note:
@@ -688,12 +748,12 @@ def build_buyer_delivery_email(
             "For your security this is a " + _strong("temporary password")
             + f": you&rsquo;ll reset it on first sign-in, and this invite expires in "
             f"{int(invite_ttl_days)} days. Every future delivery to this email lands "
-            "in the same workspace — no new account needed.",
+            "in the same workspace, no new account needed.",
             muted=True, small=True,
         )
     else:
         security = _p(
-            "Sign in with your existing workspace password — this new dataset is "
+            "Sign in with your existing workspace password. This new dataset is "
             "already waiting alongside your previous deliveries.",
             muted=True, small=True,
         )
@@ -751,10 +811,10 @@ def build_complete_email(
                     ("Email", director_email, True),
                     ("Role", "Director of TEAM Initiative", False),
                     ("Health system", safe_org, False),
-                    ("Department", safe_dept or "—", False),
+                    ("Department", safe_dept or "Not given", False),
                     (
                         "Pod",
-                        f"{pod_total} of 4 — {composition}",
+                        f"{pod_total} of 4, {composition}",
                         False,
                     ),
                     ("Password (access key)", temporary_password, True),
@@ -764,14 +824,14 @@ def build_complete_email(
         + _cta(workspace_url, "Open your workspace →")
         + _p(
             "Your team members have been sent their own credentials. Keep this "
-            "email — your password is your standing access key and stays valid for "
+            "email. Your password is your standing access key and stays valid for "
             "future sign-ins.",
             muted=True,
             small=True,
         )
     )
     return _shell(
-        subject="Welcome to Archangel Health — onboarding complete",
+        subject="Welcome to Archangel Health, onboarding is complete",
         body_html=body,
     )
 
@@ -860,13 +920,23 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str
     return _shell(subject="You're approved for Asclepius", body_html=body)
 
 
-def build_community_digest_email(*, activity_rows_html: str, community_url: str) -> str:
-    """Batched community activity: mentions, DMs, announcements, broadcasts."""
+def build_community_digest_email(
+    *, activity_items: Iterable[Tuple[str, str]], community_url: str
+) -> str:
+    """Batched community activity: mentions, DMs, announcements, broadcasts.
+
+    ``activity_items`` is (lead, detail) pairs of PLAIN text, e.g.
+    ("Dr. Chen mentioned you", "the cardiology thread about troponin cutoffs").
+    Escaping happens here; callers never hand this function HTML.
+    """
+    items = [
+        (html.escape(_scrub_dashes(lead).strip()), html.escape(_scrub_dashes(rest).strip()))
+        for lead, rest in activity_items
+    ]
     body = (
         _eyebrow("Community · Asclepius")
         + _h1("While you were away.")
-        + f'<ul style="margin:0 0 18px;padding-left:20px;font-family:{_SANS};font-size:15px;'
-        f'line-height:1.7;color:{_INK_SOFT};">{activity_rows_html}</ul>'
+        + _lead_list(items)
         + _cta(community_url, "Open the community →")
         + _p(
             "Colleague discussion only. No patient-identifiable information is "
@@ -875,7 +945,7 @@ def build_community_digest_email(*, activity_rows_html: str, community_url: str)
             small=True,
         )
     )
-    return _shell(subject="Asclepius Community: new activity for you", body_html=body)
+    return _shell(subject="New activity in your Asclepius community", body_html=body)
 
 
 def build_community_event_reminder_email(
@@ -1046,31 +1116,44 @@ def build_community_news_digest_email(
     instead, and one complaint costs the sending domain that every other
     physician's mail goes through.
     """
-    # The digest body is composed by the model as light markdown. Escape first,
-    # then re-introduce only the two inline forms it is asked to produce, so a
-    # story title containing a bracket cannot inject markup.
-    safe = html.escape(body_markdown or "")
-    lines: list[str] = []
-    for raw in safe.split("\n"):
-        line = raw.strip()
+    # The digest body is composed by the model as light markdown, so it is
+    # untrusted text arriving from the open web. Every branch below escapes
+    # its line before any markup is added, so a story title containing a
+    # bracket cannot inject markup. The layout is deliberately list-free:
+    # bullet runs become _lead_list tables (bold lead phrase, plain remainder,
+    # hairline between rows), headings become eyebrows, and anything else is a
+    # paragraph. No <ul>, no bullet glyphs, no dash separators.
+    parts: list[str] = []
+    items: list[Tuple[str, str]] = []
+
+    def _flush() -> None:
+        if items:
+            parts.append(_lead_list(items))
+            items.clear()
+
+    for raw in (body_markdown or "").split("\n"):
+        line = _scrub_dashes(raw).strip().lstrip(",").strip()
         if not line:
             continue
-        if line.startswith("- ") or line.startswith("* "):
-            lines.append(
-                f'<li style="margin:0 0 10px;">{line[2:].strip()}</li>'
-            )
-        else:
-            lines.append(f"</ul>{_p(line)}<ul style=\"margin:0 0 16px;padding-left:20px;\">")
-    inner = (
-        f'<ul style="margin:0 0 16px;padding-left:20px;font-family:{_SANS};'
-        f'font-size:15px;line-height:1.65;color:{_INK_SOFT};">'
-        + "".join(lines)
-        + "</ul>"
-    ).replace("<ul style=\"margin:0 0 16px;padding-left:20px;\"></ul>", "")
+        if line.startswith(("- ", "* ")):
+            items.append(_split_lead(html.escape(line[2:].strip())))
+            continue
+        if line.startswith("•"):
+            items.append(_split_lead(html.escape(line.lstrip("•").strip())))
+            continue
+        if line.startswith("#"):
+            _flush()
+            parts.append(_eyebrow(line.lstrip("#").strip()))
+            continue
+        _flush()
+        parts.append(_p(html.escape(line)))
+    _flush()
+    inner = "".join(parts)
 
+    safe_headline = _scrub_dashes(headline or "").strip() or "What moved in medical AI"
     body = (
         _eyebrow("Medical AI · Today")
-        + _h1(html.escape(headline or "What moved in medical AI"))
+        + _h1(html.escape(safe_headline))
         + _p(f"Morning {_strong(first_name or 'there')}.")
         + inner
         + _cta(community_url, "Discuss in the community →")
@@ -1082,4 +1165,4 @@ def build_community_news_digest_email(
             small=True,
         )
     )
-    return _shell(subject=f"Medical AI: {headline or 'today'}", body_html=body)
+    return _shell(subject=safe_headline, body_html=body)

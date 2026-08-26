@@ -12,7 +12,6 @@ and the snippet is capped anyway.
 from __future__ import annotations
 
 import asyncio
-import html
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -115,7 +114,7 @@ async def flush_pending(
             # mark handled so the queue can't grow unboundedly.
             cstore.mark_notifications_sent([n["id"] for n in items])
             continue
-        rows: List[str] = []
+        rows: List[tuple] = []
         handled_ids: List[int] = []
         for n in items:
             handled_ids.append(n["id"])
@@ -125,23 +124,19 @@ async def flush_pending(
             actor = resolve_member(msg["author_user_id"]) if resolve_member else None
             actor_name = (actor or {}).get("display_name") or "A colleague"
             label = _KIND_LABELS.get(n["kind"], "posted")
-            rows.append(
-                "<li style='margin:6px 0'><strong>{}</strong> {}: {}</li>".format(
-                    html.escape(actor_name),
-                    html.escape(label),
-                    html.escape(_snippet(msg.get("body") or "")),
-                )
-            )
+            # Plain-text (lead, detail) pairs; the email builder owns escaping
+            # and layout, so no HTML is composed here.
+            rows.append((f"{actor_name} {label}", _snippet(msg.get("body") or "")))
         if rows:
             from onboarding_emails import build_community_digest_email  # noqa: PLC0415
 
             body = build_community_digest_email(
-                activity_rows_html="".join(rows),
+                activity_items=rows,
                 community_url=os.getenv("PUBLIC_BASE_URL", "").rstrip("/") + "/community",
             )
             ok = await send_html_email(
                 member["email"],
-                "Asclepius Community — new activity for you",
+                "New activity in your Asclepius community",
                 body,
             )
             if ok:

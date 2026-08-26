@@ -238,7 +238,7 @@ async def _email_digest(kind: str, body: str) -> int:
         try:
             ok = await send_html_email(
                 email,
-                f"Medical AI: {headline}",
+                headline,
                 build_community_news_digest_email(
                     first_name=((member.get("display_name") or "").split() or ["there"])[0],
                     headline=headline,
