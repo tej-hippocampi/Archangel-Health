@@ -68,9 +68,15 @@ _LINKEDIN_RE = re.compile(
     re.I,
 )
 
-#: Nobody practising today qualified before this, and a year after now is a
-#: typo or a plan, not a credential.
+#: Nobody practising today qualified before this.
 _EARLIEST_PLAUSIBLE_YEAR = 1940
+
+#: How far ahead a training date may sit. Residents and fellows are doctors
+#: who have not finished yet, and "I expect to finish in 2029" is a fact about
+#: them rather than a typo -- a residency runs three to seven years and a
+#: fellowship follows it, so the far edge of a plausible answer is most of a
+#: decade out. Beyond that it is a slip, and worth a glance.
+_TRAINING_YEARS_AHEAD = 10
 
 
 def _now_year() -> int:
@@ -275,7 +281,11 @@ def flags(
                 f"“{institution[:60]}”",
             ))
         year_raw = block.get("year")
-        if str(year_raw or "").strip() and plausible_year(year_raw) is None:
+        # Training years may be in the future: a resident entering the year
+        # they expect to finish is answering the question correctly, and
+        # flagging them would turn every trainee into a suspicious signup.
+        if str(year_raw or "").strip() and plausible_year(
+                year_raw, allow_future=_TRAINING_YEARS_AHEAD) is None:
             out.append(_flag(
                 f"{field}_year", "not_a_possible_year", SEVERITY_HIGH,
                 f"“{str(year_raw)[:20]}”",
@@ -331,7 +341,7 @@ def _timeline_flags(user: Dict[str, Any], creds: Dict[str, Any]) -> List[Dict[st
         block = creds.get(block_key)
         if not isinstance(block, dict):
             return None
-        return plausible_year(block.get("year"))
+        return plausible_year(block.get("year"), allow_future=_TRAINING_YEARS_AHEAD)
 
     residency = year_of("residency")
     fellowship = year_of("fellowship")

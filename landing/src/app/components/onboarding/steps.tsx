@@ -207,6 +207,11 @@ export type Attestations = {
      a single combined checkbox cannot be revoked or audited separately. */
   attestConfidentiality: boolean;
   attestNoDisciplinaryAction: boolean;
+  /* Work has to meet the rubric to be paid for. Said plainly, and signed for,
+     BEFORE anyone does a case -- a physician finding this out from a payout
+     that did not arrive would be right to be angry, and would be hearing our
+     quality bar for the first time at the worst possible moment. */
+  attestWorkQuality: boolean;
   signedInitials: string;
 };
 
@@ -271,6 +276,7 @@ export function emptyAttestations(): Attestations {
     noPhi: false,
     attestConfidentiality: false,
     attestNoDisciplinaryAction: false,
+    attestWorkQuality: false,
     signedInitials: "",
   };
 }
@@ -1965,7 +1971,10 @@ export function Step5Credentials({
       />
 
       {/* Residency */}
-      <SectionHeading title="Residency" sub="Institution + year." />
+      <SectionHeading
+        title="Residency"
+        sub="Institution + year. Still in training? Put the year you expect to finish."
+      />
       {c.residency.map((r, i) => (
         <RepeatableCard
           key={i}
@@ -2029,16 +2038,22 @@ export function Step5Credentials({
       </div>
 
       <YesNoToggle
-        label="Residency complete — not currently in training?"
+        label="Have you finished residency?"
         value={c.residencyCompleted}
         onChange={(v) => set({ residencyCompleted: v })}
       />
       <TextField
-        label="Year you completed residency"
-        placeholder="2010"
+        label={c.residencyCompleted === false
+          ? "Year you expect to finish"
+          : "Year you finished residency"}
+        placeholder={c.residencyCompleted === false ? "2028" : "2010"}
         value={c.residencyCompletionYear}
         onChange={(v) => set({ residencyCompletionYear: v.replace(/\D/g, "").slice(0, 4) })}
-        hint="Used once, as a yes/no: at least three years post-residency. It is never scored as a number of years."
+        hint={c.residencyCompleted === false
+          ? "A future year is expected here. Residents and fellows are welcome; "
+            + "put down when you expect to finish."
+          : "Used once, as a yes/no: at least three years post-residency. It is "
+            + "never scored as a number of years."}
       />
 
       <SelectField
@@ -2260,7 +2275,7 @@ export function Step6Attestations({
   const initials = a.signedInitials.trim();
   const allChecked =
     a.consentCredentialShare && a.attestIndependentJudgment && a.ipAssignment && a.noPhi &&
-    a.attestConfidentiality && a.attestNoDisciplinaryAction;
+    a.attestConfidentiality && a.attestNoDisciplinaryAction && a.attestWorkQuality;
   const valid = allChecked && initials.length >= 2;
   const setAll = (checked: boolean) =>
     set({
@@ -2268,6 +2283,7 @@ export function Step6Attestations({
       attestIndependentJudgment: checked,
       ipAssignment: checked,
       noPhi: checked,
+      attestWorkQuality: checked,
       attestConfidentiality: checked,
       attestNoDisciplinaryAction: checked,
     });
@@ -2320,6 +2336,12 @@ export function Step6Attestations({
         onToggle={() => set({ attestIndependentJudgment: !a.attestIndependentJudgment })}
         title="Independent professional judgment"
         body="I attest that my labels reflect my own independent professional judgment as a licensed clinician."
+      />
+      <CheckRow
+        checked={a.attestWorkQuality}
+        onToggle={() => set({ attestWorkQuality: !a.attestWorkQuality })}
+        title="Work is paid when it meets the rubric"
+        body="I understand that each case is reviewed, and that work which does not follow the rubric, or is rushed or incomplete, may not be paid. If a case is not paid I will be told which one and why, and I can ask for it to be looked at again."
       />
       <CheckRow
         checked={a.ipAssignment}

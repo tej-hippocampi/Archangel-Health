@@ -248,3 +248,38 @@ def test_an_unusual_registration_format_is_a_note_not_a_blocker():
     })
     entry = next(f for f in found if f["field"] == "registration_number")
     assert entry["severity"] == plausibility.SEVERITY_MEDIUM
+
+
+# ─── Residents and fellows ───────────────────────────────────────────────────
+def test_a_resident_expecting_to_finish_in_the_future_is_not_flagged():
+    """They are doctors who have not finished yet, and the year they expect to
+    finish is them answering the question correctly. Flagging it would turn
+    every trainee into a suspicious signup."""
+    from datetime import datetime, timezone
+
+    future = datetime.now(timezone.utc).year + 3
+    found = plausibility.flags({}, {
+        "residency": {"institution": "Mass General", "year": str(future)},
+        "residencyCompleted": False,
+    })
+    assert not any(f["field"] == "residency_year" for f in found)
+
+
+def test_a_fellowship_that_follows_a_future_residency_is_not_flagged():
+    from datetime import datetime, timezone
+
+    year = datetime.now(timezone.utc).year
+    found = plausibility.flags({}, {
+        "residency": {"institution": "Mass General", "year": str(year + 2)},
+        "fellowship": {"institution": "Stanford", "year": str(year + 5)},
+    })
+    assert found == []
+
+
+def test_a_year_far_beyond_any_training_programme_is_still_flagged():
+    """"Not finished yet" stretches to about a decade. 7689 is a typo."""
+    from datetime import datetime, timezone
+
+    absurd = datetime.now(timezone.utc).year + 40
+    found = plausibility.flags({}, {"residency": {"year": str(absurd)}})
+    assert any(f["field"] == "residency_year" for f in found)

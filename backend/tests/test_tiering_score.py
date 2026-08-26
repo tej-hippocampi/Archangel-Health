@@ -11,6 +11,8 @@ times.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -196,9 +198,10 @@ def test_specialty_only_match_scores_half_not_full():
 
 # ═══ DoD §7.2 — a hard gate is never overridden by a high score ═══════════════
 
+# A4 is deliberately NOT in this list. "Still in training" is a true statement
+# about a resident, not a defect in their record -- see the test below.
 @pytest.mark.parametrize("gate,creds_patch,atts_patch", [
     ("A3", {"degree": "RN"}, {}),
-    ("A4", {"residencyCompleted": False}, {}),
     ("A6", {}, {"attestNoDisciplinaryAction": False}),
     ("A7", {}, {"attestConfidentiality": False}),
 ])
@@ -213,6 +216,35 @@ def test_a_failed_gate_blocks_regardless_of_score(gate, creds_patch, atts_patch)
     # The score is still computed and still high — the gate is what stops it, not a low score.
     assert out["score"] > tiering.TR_THRESHOLD
     assert any(r.startswith("BLOCKER") for r in out["reasons"])
+
+
+def test_a_resident_is_unresolved_not_blocked():
+    """A resident is a doctor who has not finished yet.
+
+    A4 used to FAIL them, and FAIL is read downstream as "this record does not
+    qualify" -- which would have turned every trainee into a rejected signup
+    rather than a colleague who is not reviewer-eligible yet. UNKNOWN keeps
+    them out of the reviewer tier (eligibility needs every gate to PASS) while
+    leaving them a perfectly good labeler.
+    """
+    store = fresh_store()
+    doc = _physician(store, creds=_credentials(residencyCompleted=False))
+    out = _propose(store, doc, "nephrology")
+    assert out["gates"]["A4"]["state"] == tiering.UNKNOWN
+    assert out["band"] != "blocked"
+
+
+def test_a_future_completion_year_reads_as_in_training():
+    """A resident entering the year they expect to finish is answering the
+    question correctly, and the queue should say so in words."""
+    store = fresh_store()
+    future = datetime.utcnow().year + 3
+    doc = _physician(store, creds=_credentials(
+        residencyCompleted=False, residencyCompletionYear=str(future)))
+    gate = _propose(store, doc, "nephrology")["gates"]["A4"]
+    assert gate["state"] == tiering.UNKNOWN
+    assert str(future) in gate["detail"]
+    assert "training" in gate["detail"].lower()
 
 
 def test_npi_not_found_is_a_gate_failure_not_a_scoring_note():

@@ -352,14 +352,24 @@ def hard_gates(
     # ── A4 · Residency complete ─────────────────────────────────────────────────────────
     # Attestation + year. The YEAR is consumed here and at post_residency_ge_3yr, and is
     # discarded at both — it never reaches a feature as a continuous value (finding 2).
+    # Still in training is UNKNOWN, not FAIL. A resident or fellow is a doctor
+    # who has not finished yet, and a completion year in the future is them
+    # answering the question correctly. FAIL means "this record does not
+    # qualify" and is read that way everywhere downstream, which would turn
+    # every trainee into a rejected signup instead of a colleague who is not
+    # reviewer-eligible yet. UNKNOWN keeps them out of the reviewer tier --
+    # eligibility still needs every gate to PASS -- while leaving them a
+    # perfectly good labeler.
     done = _truthy(creds.get("residencyCompleted"))
     end_year = _int_or_none(creds.get("residencyCompletionYear"))
     if done is False:
-        put("A4", FAIL, "Currently in training")
+        detail = (f"In training; expects to finish in {end_year}" if end_year
+                  else "Currently in training")
+        put("A4", UNKNOWN, detail)
     elif done is None and end_year is None:
         put("A4", UNKNOWN, "Residency completion not attested")
     elif end_year is not None and end_year > now_year:
-        put("A4", FAIL, f"Residency completes in {end_year} — still in training")
+        put("A4", UNKNOWN, f"In training; expects to finish in {end_year}")
     else:
         put("A4", PASS, f"Residency complete{f' ({end_year})' if end_year else ''}")
 

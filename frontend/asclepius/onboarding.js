@@ -460,6 +460,26 @@
     return box;
   }
 
+  /* The terms a physician signed, by name. An admin declining to pay for a
+     case should be able to see that the doctor agreed to the quality term
+     before they did the work, without opening a JSON blob. */
+  var ATTESTATION_LABELS = {
+    consentCredentialShare: 'credential sharing',
+    attestIndependentJudgment: 'independent judgment',
+    ipAssignment: 'IP assignment',
+    noPhi: 'no PHI',
+    attestWorkQuality: 'paid only if it meets the rubric',
+    attestConfidentiality: 'confidentiality',
+    attestNoDisciplinaryAction: 'no disciplinary action',
+  };
+
+  function signedTerms(a) {
+    var names = Object.keys(ATTESTATION_LABELS)
+      .filter(function (k) { return a[k] === true; })
+      .map(function (k) { return ATTESTATION_LABELS[k]; });
+    return names.length ? names.join(', ') : null;
+  }
+
   function credentialsAsTyped(c, a) {
     var rows = [];
     function push(k, v) { if (v !== null && v !== undefined && v !== '') rows.push([k, String(v)]); }
@@ -489,6 +509,7 @@
            [b.board, b.specialty, b.subspecialty].filter(Boolean).join(', '));
     });
     push('Signed with', a.signedInitials);
+    push('Terms signed', signedTerms(a));
     if (!rows.length) return null;
     var box = h('div', { class: 'vq-typed' });
     box.appendChild(h('div', { class: 'vq-section-label' }, 'Credentials as typed'));

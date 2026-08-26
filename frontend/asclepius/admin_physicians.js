@@ -779,6 +779,26 @@
     return card;
   }
 
+  /* The terms a physician signed, by name. An admin declining to pay for a
+     case should be able to see that the doctor agreed to the quality term
+     before they did the work, without opening a JSON blob. */
+  const ATTESTATION_LABELS = {
+    consentCredentialShare: 'credential sharing',
+    attestIndependentJudgment: 'independent judgment',
+    ipAssignment: 'IP assignment',
+    noPhi: 'no PHI',
+    attestWorkQuality: 'paid only if it meets the rubric',
+    attestConfidentiality: 'confidentiality',
+    attestNoDisciplinaryAction: 'no disciplinary action',
+  };
+
+  function signedTerms(a) {
+    const names = Object.keys(ATTESTATION_LABELS)
+      .filter(function (k) { return a[k] === true; })
+      .map(function (k) { return ATTESTATION_LABELS[k]; });
+    return names.length ? names.join(', ') : null;
+  }
+
   function credentialsAsTyped(h, c, a) {
     const rows = [];
     const push = (k, v) => { if (v != null && v !== '') rows.push([k, String(v)]); };
@@ -806,6 +826,7 @@
     // The signature. Collected since the first version of this form and shown
     // to nobody, including the person who signed it.
     push('Signed with', a.signedInitials);
+    push('Terms signed', signedTerms(a));
     if (!rows.length) return null;
     return h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' },
