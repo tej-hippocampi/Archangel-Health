@@ -1680,6 +1680,7 @@
 
     let data = { tasks: [] };
     let stats = null;
+    let scoreInfo = null;
     let queueError = null;
     // A physician whose credentials are still being checked has no real queue
     // and no earnings, and BOTH endpoints below are on the real-work surface.
@@ -1687,6 +1688,10 @@
     // queue", which is a bug report, not the truth. The truth is that the queue
     // does not exist for them yet, and the banner says so.
     const provisional = sessionIsProvisional();
+    // The score is browse-gated on purpose: a provisional physician's "in
+    // review" state renders FROM it, so it is fetched outside the real-work
+    // try below and never blocks anything.
+    const scorePromise = api('/score').catch(() => null);
     try {
       if (provisional) throw { __provisional: true };
       const [tasksRes, statsRes] = await Promise.all([
@@ -1709,6 +1714,7 @@
       }
     }
     const tasks = data.tasks || [];
+    scoreInfo = await scorePromise;
 
     const wrap = h('div', { class: 'asc-wrap' });
     const banner = provisionalBannerEl();
@@ -1771,9 +1777,68 @@
       }
     }
     cols.appendChild(main);
-    cols.appendChild(renderDashboardWidget(stats));
+    const side = h('div', { class: 'asc-dash-side' });
+    const scoreWidget = renderScoreWidget(scoreInfo);
+    if (scoreWidget) side.appendChild(scoreWidget);
+    side.appendChild(renderDashboardWidget(stats));
+    cols.appendChild(side);
     wrap.appendChild(cols);
     setRoot(wrap);
+  }
+
+  // ─── The contributor-score widget (PRD-SCORE) ───────────────────────────────
+  // The one number a physician watches: their initial rating out of 100, then
+  // the blended score as graded cases fold in. Rendered from GET /score and
+  // NEVER computed client-side; absent payload = absent widget, not a zero.
+  function renderScoreWidget(info) {
+    if (!info || info.score == null) return null;
+    const inReview = !!info.in_review;
+    const widget = h('div', { class: 'asc-dash-widget asc-score-widget' },
+      h('div', { class: 'asc-dash-widget-title' }, 'Your rating'),
+      h('div', { class: 'asc-score-line' },
+        h('span', { class: 'asc-score-value' }, String(info.score)),
+        h('span', { class: 'asc-score-band' }, info.band || '')),
+      inReview
+        ? h('div', { class: 'asc-score-review' },
+            'Your profile is currently in review.')
+        : (info.n_cases
+            ? h('div', { class: 'asc-score-note' },
+                'Across ' + info.n_cases + (info.n_cases === 1 ? ' graded case' : ' graded cases') + '.')
+            : h('div', { class: 'asc-score-note' },
+                'Your initial rating, from your profile.')),
+      h('button', {
+        class: 'asc-linkish asc-score-more', type: 'button',
+        onClick: () => openScoreInfo(info),
+      }, 'What is this?'));
+    return widget;
+  }
+
+  function openScoreInfo(info) {
+    if (document.getElementById('ascScoreInfo')) return;
+    const bands = info.bands || { reviewer: 70, labeler: 30 };
+    const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascScoreInfo' });
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', close);
+    const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'asc-tour-chrome' }, 'YOUR RATING'),
+      h('div', { class: 'call-team-title' }, String(info.score) + ' out of 100'),
+      h('p', { class: 'asc-help', style: 'margin:6px 0 10px' },
+        info.in_review
+          ? 'Your profile is currently in review. This number is your initial '
+            + 'rating, built from what you told us: years of experience, board '
+            + 'certification, training, and the credentials we could verify.'
+          : 'Your rating starts from your profile (experience, certification, '
+            + 'training) and updates after every completed, QA-graded case: the '
+            + 'grade, the evidence you cite, the depth of your reasoning, and '
+            + 'the care you take relative to the case\u2019s difficulty all move it.'),
+      h('p', { class: 'asc-help', style: 'margin:0 0 16px' },
+        'At ' + bands.reviewer + ' and above you can review other physicians\u2019 '
+        + 'casework as well as label your own. Everyone can label. Nothing here '
+        + 'is ever shown to other physicians.'),
+      h('div', { style: 'display:flex;gap:10px;align-items:center' },
+        h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: close }, 'Got it')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
   }
 
   // ─── "Your activity" tracking widget (side column) ──────────────────────────

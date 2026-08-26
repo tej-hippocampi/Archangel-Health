@@ -618,6 +618,40 @@
           ['Notes', p.verification_notes],
         ]))));
 
+    // Contributor score (PRD-SCORE): the blended rating, its component
+    // breakdown and the per-case trajectory. Best-effort: an absent score is
+    // an absent card, never an error over a profile that loaded fine.
+    try {
+      const sc = await api('/admin/scores/' + encodeURIComponent(id));
+      const rows = [
+        ['Current score', sc.score != null ? String(sc.score) + ' · ' + (sc.band || '') : null],
+        ['Initial rating', sc.prior != null ? String(sc.prior) + ' (' + (sc.prior_source || '') + ')' : null],
+        ['Graded cases', String(sc.n_cases || 0)],
+      ];
+      const card = h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-head' }, h('div', {},
+          h('div', { class: 'asc-card-title' }, 'Contributor score'),
+          h('div', { class: 'asc-card-sub' },
+            'Starts from the credential rating; every QA-graded case folds in.'))),
+        h('div', { class: 'asc-card-pad asc-phys-profile-grid' },
+          kvBlock(h, 'Rating', rows),
+          kvBlock(h, 'Latest case',
+            (sc.cases && sc.cases.length)
+              ? Object.entries(sc.cases[sc.cases.length - 1].components || {}).map(
+                  ([k, v]) => [k.replace(/_/g, ' '), v == null ? null : String(v)])
+              : [['No graded cases yet', ' ']])));
+      if (sc.history && sc.history.length) {
+        card.appendChild(h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-card-sub' }, 'Trajectory (newest first)'),
+          h('div', {}, sc.history.slice(0, 10).map((row) =>
+            h('div', { class: 'asc-score-hist-row' },
+              h('span', { class: 'asc-mono' }, String(row.score)),
+              h('span', {}, row.case_score != null ? 'case ' + row.case_score : 'initial'),
+              h('span', { class: 'asc-mono' }, row.created_at ? fmtDate(row.created_at) : ''))))));
+      }
+      container.appendChild(card);
+    } catch (e) { /* score endpoint unavailable: the profile stands alone */ }
+
     // NPPES payload (raw registry answer) — shown when the NPI was checked.
     if (data.npi_payload) {
       const pre = h('pre', { class: 'asc-mono', style: 'font-size:12px;overflow:auto;max-height:280px' });

@@ -588,11 +588,36 @@
 }
 .asc-dash-more:hover { border-color: var(--hairline-strong); color: var(--ink); }
 
-.asc-dash-widget {
+.asc-dash-side {
   position: sticky; top: 76px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.asc-dash-widget {
   padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
   background: var(--card); border: 1px solid var(--asc-line); border-radius: var(--r-lg);
 }
+
+/* ── The contributor-score widget (PRD-SCORE). The one Doto numeral outside
+   money: the rating is the number a physician watches. ── */
+.asc-score-widget { gap: 8px; }
+.asc-score-line { display: flex; align-items: baseline; gap: 10px; }
+.asc-score-value {
+  font-family: var(--doto);
+  font-size: 34px; font-weight: 700; color: var(--ink);
+}
+.asc-score-band {
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--green-deep);
+}
+.asc-score-review {
+  font-size: 12.5px; line-height: 1.55; color: var(--ink);
+  background: var(--orange-wash, var(--card-in));
+  border: 1px solid var(--orange-line, var(--hairline));
+  border-radius: 10px; padding: 8px 10px;
+}
+.asc-score-note { font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
+.asc-score-more { align-self: flex-start; }
 .asc-dash-widget-title {
   font-family: var(--mono); font-size: var(--t-chrome); text-transform: uppercase;
   letter-spacing: 0.08em; color: var(--ink-faint);
@@ -3654,3 +3679,14 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   cursor: pointer;
 }
 .asc-linkish:hover { color: var(--ink); }
+
+/* ── Admin profile: the score trajectory rows (PRD-SCORE). ── */
+.asc-score-hist-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
