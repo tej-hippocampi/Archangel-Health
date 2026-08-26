@@ -3733,3 +3733,31 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 }
 .asc-linkish:hover { color: var(--ink); }
 
+
+/* ═══ Profile ════════════════════════════════════════════════════════════════
+   A physician reading their own record. Two kinds of row: the ones they can
+   change, and the ones that were checked at signup and are shown so they can
+   see what we hold rather than being asked to take it on trust. */
+.asc-prof-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13.5px;
+}
+.asc-prof-row:last-child { border-bottom: 0; }
+.asc-prof-label {
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.asc-prof-value {
+  color: var(--ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.asc-prof-field { margin: 10px 0; }
+.asc-prof-field > .asc-prof-label { display: block; margin-bottom: 5px; }
+.asc-prof-field > .asc-ref-input { width: 100%; }

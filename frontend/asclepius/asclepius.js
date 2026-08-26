@@ -270,11 +270,11 @@
       return;
     }
     if (dest !== 'tasks' && dest !== 'guide' && dest !== 'earnings'
-        && dest !== 'referral' && dest !== 'verification') return;
+        && dest !== 'referral' && dest !== 'profile' && dest !== 'verification') return;
     // Server-gated destinations are re-checked here, not only hidden in the
     // rail: a stale deep link or a hand-typed state change must not open a
     // section the session was never granted. (The API 403s regardless.)
-    if (dest === 'referral' && !sessionCan('refer')) return;
+    if (dest === 'referral' && !sessionHasSurface('referral')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
@@ -285,6 +285,8 @@
     renderSidePanel();
     if (dest === 'referral') {
       renderReferralView();
+    } else if (dest === 'profile') {
+      renderProfileView();
     } else if (dest === 'earnings') {
       renderEarningsView();
     } else if (dest === 'guide') {
@@ -373,6 +375,11 @@
     // zero before verification, which is true rather than hidden.
     { dest: 'earnings',  label: 'Earnings', surface: 'earnings' },
     { dest: 'guide',     label: 'Guide' },
+    // Profile. No gate: a physician can always read what we hold about them
+    // and correct their own contact details, including while they are waiting
+    // on verification -- they are the people most likely to have just noticed
+    // a typo in what they submitted.
+    { dest: 'profile',   label: 'Profile' },
   ];
 
   // The capability list the server put on the session. Absent (an older token,
@@ -7053,6 +7060,172 @@
         'The Referral section failed to load. Reload the page; if it persists, '
         + 'this is a deploy problem: check that referral.js is included in '
         + 'index.html. Your referrals and bounties are unaffected.'))));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  PROFILE
+  //
+  //  Everything we hold about a physician, and the short list of it that is
+  //  theirs to change. Until this existed a doctor could not see their own
+  //  record at all: it was visible to admins and to nobody else, including
+  //  them, and a mistyped phone number could only be fixed by writing to us.
+  //
+  //  Credential fields render read-only rather than being withheld. Someone
+  //  should be able to read what they submitted and see plainly which parts
+  //  are settled -- and settled is the right word, because those were checked
+  //  against a registry or attested to, and a form that let their holder edit
+  //  them afterwards would make the check meaningless.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function renderProfileView() {
+    stopTimer();
+    updateHeaderProgress();
+    const body = h('div', { id: 'ascProfileBody' });
+    setRoot(h('div', { class: 'asc-wrap' }, body));
+    body.appendChild(h('div', { class: 'asc-pay-loading' }, 'Loading your profile…'));
+    api('/me/profile').then((data) => {
+      clear(body);
+      body.appendChild(h('h2', { class: 'asc-pay-title' }, 'Profile'));
+      body.appendChild(profileStandingCard(data.standing || {}));
+      body.appendChild(profileEditCard(data.editable || {}));
+      body.appendChild(profileCredentialsCard(data.credentials || {}));
+      body.appendChild(profilePasswordCard());
+    }).catch((err) => {
+      clear(body);
+      body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' },
+          'Your profile could not be loaded. '
+          + ((err && (err.detail || err.message)) || 'The server did not respond.')
+          + ' Reload the page.'))));
+    });
+  }
+
+  function profileRow(label, value) {
+    return h('div', { class: 'asc-prof-row' },
+      h('span', { class: 'asc-prof-label' }, label),
+      h('span', { class: 'asc-prof-value' }, value || '—'));
+  }
+
+  function profileStandingCard(s) {
+    const status = s.verification_status || 'pending';
+    const words = { approved: 'Verified', pending: 'In review',
+                    rejected: 'Not approved' };
+    const card = h('div', { class: 'asc-ref-card' });
+    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Standing'));
+    card.appendChild(profileRow('Verification', words[status] || 'In review'));
+    card.appendChild(profileRow('Tier', s.tier_word || 'Unassigned'));
+    if (s.score != null) {
+      card.appendChild(profileRow('Contributor score',
+        String(s.score) + (s.band ? ' · ' + s.band : '')));
+    }
+    if (s.referral_code) card.appendChild(profileRow('Referral code', s.referral_code));
+    return card;
+  }
+
+  function profileEditCard(editable) {
+    const card = h('div', { class: 'asc-ref-card' });
+    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Your details'));
+    card.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'Yours to change whenever they change.'));
+
+    const fields = [
+      { key: 'full_name', label: 'Full name' },
+      { key: 'phone', label: 'Mobile' },
+      { key: 'linkedin_url', label: 'LinkedIn' },
+      { key: 'specialty_niche', label: 'What you focus on' },
+    ];
+    const inputs = {};
+    fields.forEach((f) => {
+      const input = h('input', { class: 'asc-ref-input', type: 'text' });
+      input.value = editable[f.key] || '';
+      inputs[f.key] = input;
+      card.appendChild(h('div', { class: 'asc-prof-field' },
+        h('label', { class: 'asc-prof-label' }, f.label), input));
+    });
+
+    const note = h('div', { class: 'asc-ref-msg', style: 'display:none' });
+    const save = h('button', { class: 'asc-btn asc-btn-sm asc-btn-primary', type: 'button' }, 'Save');
+    save.addEventListener('click', () => {
+      save.disabled = true;
+      save.textContent = 'Saving…';
+      const payload = {};
+      fields.forEach((f) => { payload[f.key] = inputs[f.key].value; });
+      api('/me/profile', { method: 'PATCH', body: payload }).then(() => {
+        note.textContent = 'Saved.';
+        note.style.display = '';
+      }).catch((err) => {
+        note.textContent = 'Could not save. '
+          + ((err && (err.detail || err.message)) || 'Try again.');
+        note.style.display = '';
+      }).then(() => {
+        save.disabled = false;
+        save.textContent = 'Save';
+      });
+    });
+    card.appendChild(h('div', { class: 'asc-ref-form' }, save));
+    card.appendChild(note);
+    return card;
+  }
+
+  function profileCredentialsCard(c) {
+    const card = h('div', { class: 'asc-ref-card' });
+    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Credentials on file'));
+    card.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'Checked at signup, so these are not editable here. If something is '
+      + 'wrong, write to us and a person will correct it.'));
+    card.appendChild(profileRow('Email', c.email));
+    card.appendChild(profileRow('Specialty', c.specialty));
+    card.appendChild(profileRow('Qualification', c.qualification));
+    card.appendChild(profileRow('Board certification', c.board_cert));
+    card.appendChild(profileRow('Years in practice',
+      c.years_experience == null ? '' : String(c.years_experience)));
+    card.appendChild(profileRow('Institution', c.organization));
+    if (c.npi) {
+      card.appendChild(profileRow('NPI', c.npi));
+    } else {
+      card.appendChild(profileRow(c.registry_name || 'Registration',
+        c.registration_number));
+    }
+    if (c.country_of_practice) {
+      card.appendChild(profileRow('Practising in', c.country_of_practice));
+    }
+    if (c.signed_initials) {
+      card.appendChild(profileRow('Signed attestations', c.signed_initials));
+    }
+    return card;
+  }
+
+  function profilePasswordCard() {
+    const card = h('div', { class: 'asc-ref-card' });
+    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Password'));
+    const current = h('input', { class: 'asc-ref-input', type: 'password',
+                                 placeholder: 'Current password' });
+    const next = h('input', { class: 'asc-ref-input', type: 'password',
+                              placeholder: 'New password (at least 8 characters)' });
+    const note = h('div', { class: 'asc-ref-msg', style: 'display:none' });
+    const button = h('button', { class: 'asc-btn asc-btn-sm', type: 'button' }, 'Change password');
+    button.addEventListener('click', () => {
+      note.style.display = 'none';
+      button.disabled = true;
+      button.textContent = 'Changing…';
+      api('/me/password', { method: 'POST', body: {
+        current_password: current.value, new_password: next.value,
+      } }).then(() => {
+        note.textContent = 'Password changed.';
+        note.style.display = '';
+        current.value = ''; next.value = '';
+      }).catch((err) => {
+        note.textContent = (err && (err.detail || err.message)) || 'Could not change it.';
+        note.style.display = '';
+      }).then(() => {
+        button.disabled = false;
+        button.textContent = 'Change password';
+      });
+    });
+    card.appendChild(h('div', { class: 'asc-prof-field' }, current));
+    card.appendChild(h('div', { class: 'asc-prof-field' }, next));
+    card.appendChild(h('div', { class: 'asc-ref-form' }, button));
+    card.appendChild(note);
+    return card;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

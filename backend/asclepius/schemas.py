@@ -741,6 +741,33 @@ class TutorialStateUpdate(BaseModel):
     version: Optional[int] = None
 
 
+class ProfileUpdate(BaseModel):
+    """PATCH /me/profile — the fields a physician may correct about themselves.
+
+    Deliberately short, and deliberately not the credential fields: those were
+    checked against a registry or attested to, and letting someone edit them
+    after approval would make the check meaningless. Every field is optional
+    because a partial update is the normal case; ``None`` leaves a column
+    alone, while an empty string clears it.
+    """
+
+    full_name: Optional[str] = Field(default=None, max_length=200)
+    phone: Optional[str] = Field(default=None, max_length=40)
+    linkedin_url: Optional[str] = Field(default=None, max_length=300)
+    specialty_niche: Optional[str] = Field(default=None, max_length=300)
+
+
+class PasswordChange(BaseModel):
+    """POST /me/password — change a password from inside the product.
+
+    The current one is required: a session left open on a ward computer should
+    not be enough to take the account.
+    """
+
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
 class ForgotPasswordRequest(BaseModel):
     """POST /auth/password/forgot — start a reset. Always answers the same way."""
 

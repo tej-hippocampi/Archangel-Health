@@ -5495,6 +5495,43 @@ class AsclepiusStore:
                 (flag, json.dumps(result or {}), _utcnow_iso(), user_id),
             )
 
+    def update_own_profile(
+        self, user_id: str, *, full_name: Optional[str] = None,
+        phone: Optional[str] = None, linkedin_url: Optional[str] = None,
+        specialty_niche: Optional[str] = None,
+    ) -> None:
+        """The fields a physician may correct about themselves.
+
+        Deliberately short. Everything a credential decision rests on -- the
+        registration number, the country, the degree, the board certification,
+        the verification status and the tier -- is NOT here: those were checked
+        against a registry and attested to, and a surface that let someone edit
+        them after approval would make the check meaningless. Correcting one is
+        a conversation with an admin, which is the point.
+
+        ``None`` means "not submitted" and leaves the column alone; an empty
+        string means "clear this", which is a thing someone may legitimately
+        want to do with a LinkedIn URL.
+        """
+        sets: List[str] = []
+        params: List[Any] = []
+        for column, value in (
+            ("full_name", full_name),
+            ("phone", phone),
+            ("linkedin_url", linkedin_url),
+            ("specialty_niche", specialty_niche),
+        ):
+            if value is None:
+                continue
+            cleaned = value.strip()
+            sets.append(f"{column} = ?")
+            params.append(cleaned or None)
+        if not sets:
+            return
+        params.append(user_id)
+        with self._conn() as conn:
+            conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = ?", tuple(params))
+
     def set_registry_country(
         self, user_id: str, *, practice: Optional[str], licensure: Optional[str],
         registry_id: Optional[str],
