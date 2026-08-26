@@ -2915,7 +2915,7 @@
     // V3 variant carries no timer; this header owns #ascTimer in every stage.
     const timer = (d.stage === 'compare' && !isV3())
       ? null
-      : h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed()));
+      : h('span', { class: 'asc-timer', id: 'ascTimer', 'data-tour-ignore': '1' }, formatTime(getElapsed()));
     // §16: the step counter reads from taskProgress(); the same single source
     // of truth as the header bar. V1/V2's 3-stage list yields the same "Step N
     // of 3" text as before; V3/V4 span the full substage flow.
@@ -6690,7 +6690,7 @@
       h('div', { class: 'asc-conf-group' },
         h('span', { class: 'asc-label' }, 'Confidence'), confPills),
       h('div', { class: 'asc-submit-right' },
-        h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed())),
+        h('span', { class: 'asc-timer', id: 'ascTimer', 'data-tour-ignore': '1' }, formatTime(getElapsed())),
         hint,
         submitBtn));
   }
@@ -10421,6 +10421,12 @@
 
   function tutPersistStep(stepId) {
     if (!state.tutorial || state.tutorial.replay) return;
+    // resolveTourIndex walks the pointer back to the real blocker while the
+    // fast-forward loop walks it on; when they disagree the pointer can settle
+    // on the same step repeatedly. Only write when the position actually
+    // changed, so that never becomes a stream of PATCHes.
+    if (state.tutorial.persistedStep === stepId) return;
+    state.tutorial.persistedStep = stepId;
     clearTimeout(_tourPatchTimer);
     _tourPatchTimer = setTimeout(() => {
       api('/me/tutorial', { method: 'PATCH', body: { action: 'advance', step: stepId } })
@@ -10487,13 +10493,26 @@
     _tourTickTimer = setTimeout(tutTick, 80);
   }
 
+  // Nodes that rewrite themselves on a timer, not because the doctor did
+  // anything: the case clock ticks once a second, inside #ascRoot, forever.
+  // Treating those writes as "the app changed" re-ticked the tour every
+  // second, which tore the tooltip down and rebuilt it under the cursor —
+  // clicks landed mid-rebuild, focus and hover reset, and the aria-live copy
+  // re-announced itself endlessly. Mark such nodes [data-tour-ignore].
+  function tourIgnoredNode(n) {
+    const el = n && n.nodeType === 3 ? n.parentElement : n;
+    if (!el || !el.closest) return false;
+    return !!(el.closest('#ascTourLayer') || el.closest('#ascInstrDrawer')
+      || el.closest('[data-tour-ignore]'));
+  }
+
   function mountTourEngine() {
     if (_tourObserver) return;
     _tourObserver = new MutationObserver((muts) => {
-      // Ignore mutations inside the tour's own layer or the drawer.
+      // Ignore mutations inside the tour's own layer, the drawer, or any
+      // self-ticking node.
       for (const m of muts) {
-        const n = m.target;
-        if (n && n.closest && (n.closest('#ascTourLayer') || n.closest('#ascInstrDrawer'))) continue;
+        if (tourIgnoredNode(m.target)) continue;
         scheduleTutTick();
         return;
       }
@@ -10512,6 +10531,9 @@
     document.removeEventListener('click', tutClickAdvance, true);
     document.removeEventListener('keydown', tutKeydown, true);
     clearTimeout(_tourTickTimer);
+    clearTimeout(_tourPatchTimer);
+    TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
+    _tourScrolledFor = null;
     const layer = document.getElementById('ascTourLayer');
     if (layer) layer.remove();
     state.tutorial = null;
@@ -10567,21 +10589,19 @@
       // Target not rendered yet. NEVER block the app here: the section may be
       // gated on work the doctor still has to do (e.g. after "Skip this step"),
       // so masks stay off and the popover waits quietly in the corner.
-      // Auto-skip applies ONLY to DOM-gated steps (click / manual): if a UI
-      // redesign removed their target, the step is dead and must not brick the
-      // tutorial. State-gated steps wait indefinitely: their predicate (or the
+      // A DOM-gated step (click / manual) whose target never appears would
+      // otherwise strand the doctor, so after a while we offer a way past it.
+      // OFFER, not take: this used to auto-advance after 8s, which moved the
+      // tour on its own while someone was still reading, and read as the
+      // tutorial running away from them. Nothing here advances without a
+      // click. State-gated steps wait indefinitely: their predicate (or the
       // fast-forward loop) advances them the moment the doctor gets there.
       const domGated = !!(step.advanceOn && (step.advanceOn.click || step.advanceOn.manual));
       if (!step._waitSince) step._waitSince = Date.now();
-      if (domGated && Date.now() - step._waitSince > 8000) {
-        try { console.warn('[tutorial] target missing, skipping step:', step.id, step.target); } catch (e) { /* ok */ }
-        step._waitSince = null;
-        tutAdvance();
-        return;
-      }
+      const stuck = domGated && Date.now() - step._waitSince > 10000;
       layer.style.display = '';
       hideMasks(layer);
-      renderTourPop(pop, step, true);
+      renderTourPop(pop, step, true, false, stuck);
       pop.style.transform = '';
       pop.style.top = 'auto';
       pop.style.left = '16px';
@@ -10654,8 +10674,15 @@
     pop.style.left = left + 'px';
   }
 
-  function renderTourPop(pop, step, waiting, bounced) {
+  function renderTourPop(pop, step, waiting, bounced, stuck) {
     const num = tutStepNumber(step);
+    // Rebuild only when the tooltip would actually differ. Ticks are cheap but
+    // a rebuild is not: it destroys the buttons the doctor is reaching for and
+    // re-fires the aria-live region. Repositioning still happens every tick.
+    const sig = [step.id, waiting ? 'wait' : 'live', bounced ? 'bounced' : '',
+                 stuck ? 'stuck' : ''].join('|');
+    if (pop.dataset.tourSig === sig) return;
+    pop.dataset.tourSig = sig;
     clear(pop);
     pop.appendChild(h('div', { class: 'asc-tour-chrome' },
       'STEP ' + num.n + ' OF ' + num.total + ' · ' + step.chapter.title.toUpperCase()));
@@ -10667,7 +10694,15 @@
     } else if (!waiting && step.chapterFirst && step.chapter.intro) {
       pop.appendChild(h('div', { class: 'asc-tour-sub' }, step.chapter.intro));
     }
+    if (stuck) {
+      pop.appendChild(h('div', { class: 'asc-tour-sub' },
+        'This part of the page has not appeared. You can move on whenever you like.'));
+    }
     const row = h('div', { class: 'asc-tour-actions' });
+    if (stuck) {
+      row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
+        onClick: tutAdvance }, 'Move on →'));
+    }
     if (step.advanceOn && step.advanceOn.manual && !waiting) {
       row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
         onClick: tutAdvance }, 'Next →'));
@@ -10734,7 +10769,22 @@
       api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
         .then((u) => { state.user = u; }).catch(() => { /* best-effort */ });
     }
-    state.tutorial = { active: true, replay: !!opts.replay, idx: 0, welcomed: false };
+    // Resume where the server says they stopped. The saved position used to be
+    // written and never read, so a doctor who got halfway on their laptop
+    // started again at step 1 on their phone; only the local draft made resume
+    // look like it worked. The fast-forward loop still corrects this downward
+    // if the draft shows less progress than the pointer claims.
+    let startIdx = 0;
+    if (opts.resume && opts.resumeStep) {
+      const i = TUTORIAL_STEPS.findIndex((s) => s.id === opts.resumeStep);
+      if (i > 0) startIdx = i;
+    }
+    // Step objects are module-level and shared across runs: a stale wait clock
+    // or scroll marker from a previous run would misfire on this one.
+    TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
+    _tourScrolledFor = null;
+    state.tutorial = { active: true, replay: !!opts.replay, idx: startIdx,
+                       welcomed: startIdx > 0 };
     state.portalChosen = true;
     state.specialtyChosen = true;
     const wrap = h('div', { class: 'asc-wrap' },
