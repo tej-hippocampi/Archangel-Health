@@ -599,7 +599,6 @@ def _display_name(u: Dict[str, Any]) -> str:
 _TIER_COUNT_KEYS = {
     asc_caps.LABELER: "labelers",
     asc_caps.REVIEWER: "reviewers",
-    asc_caps.ADVISOR: "advisors",
 }
 
 
@@ -629,7 +628,7 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     hs_names = _hs_name_map(store)
     out: List[Dict[str, Any]] = []
     counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0,
-              "advisors": 0, "unassigned": 0}
+              "unassigned": 0}
     for u in _physician_users(store):
         tier = u.get("tier")
         verification = u.get("verification_status")
@@ -655,22 +654,7 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "tier_word": asc_caps.tier_word(tier),
             "verification_status": verification,
             "slack_joined": _tri_state(u.get("slack_joined")),
-            # Advisor PRD §6.1: the Slack LABEL, not a bool. Surfaced beside
-            # slack_joined so whoever sends the invite sets the role correctly —
-            # this is not a Slack integration and is not pretending to be one.
-            "slack_role": u.get("slack_role"),
-            "advisor_since": u.get("advisor_since"),
             "compensation_model": u.get("compensation_model"),
-            # A tier change does not clear the advisory footprint — the equity
-            # and the signed agreement survive it by design (compensation.py).
-            # So a demoted advisor's row would show tier "Reviewer" next to a
-            # Slack role of "Medical Advisor" with nothing to explain it (audit
-            # M7). This flag is what turns two contradictory-looking fields into
-            # one legible fact: the tier changed, the relationship did not.
-            "former_advisor": bool(
-                tier != asc_caps.ADVISOR
-                and (u.get("advisor_since") or u.get("advisor_agreement_ref")
-                     or u.get("compensation_model") == "equity_only")),
             "health_system_id": hs_id,
             "health_system_name": hs_names.get(hs_id) if hs_id else None,
             "active": bool(u.get("active", 1)),

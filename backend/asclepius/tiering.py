@@ -822,10 +822,9 @@ def propose(
         proposed = None
         band = "admin"
 
-    if proposed == caps.ADVISOR:  # pragma: no cover — guard against a future edit
+    if proposed not in (None, TR, TL):  # pragma: no cover — guard against a future edit
         raise AssertionError(
-            "propose() must never propose 'advisor': an advisory relationship is negotiated "
-            "and carries equity, not scored.")
+            "propose() may only propose reviewer, labeler, or defer to the admin.")
 
     return {
         "case_domain": normalize_domain(case_domain or "") or (case_domain or None),

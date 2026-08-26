@@ -1450,6 +1450,30 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN signoff_status TEXT")
             if "signoff_status" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN signoff_status TEXT")
+            # The advisor tier is retired: advisors are ordinary users now.
+            # Remaining rows migrate to reviewer (advisor was a strict superset
+            # of reviewer, so nothing they could do is lost) and become payable
+            # per-task like everyone else (equity_only is cleared). Guarded on
+            # the values themselves, so this is idempotent-quiet: a store with
+            # no advisor rows left runs zero writes here. The advisory columns
+            # and tables stay as dead schema, which is this store's convention
+            # for retirement (additive migrations only, no destructive DDL).
+            migrated = conn.execute(
+                "UPDATE users SET tier = 'reviewer', "
+                "tier_assigned_by = 'migration:advisor_retired' "
+                "WHERE tier = 'advisor'").rowcount
+            cleared = conn.execute(
+                "UPDATE users SET compensation_model = NULL "
+                "WHERE compensation_model = 'equity_only'").rowcount
+            if migrated or cleared:
+                conn.execute(
+                    "INSERT INTO events (entity_type, entity_id, event_type, actor, "
+                    "occurred_at, payload_json) VALUES ('store', 'users', "
+                    "'advisor_tier_retired', 'migration', ?, ?)",
+                    (_utcnow_iso(),
+                     json.dumps({"tiers_migrated": migrated,
+                                 "compensation_cleared": cleared})),
+                )
             # ═══ END PRD-D ═══
             # ═══ PRD-I INGESTION SCHEMA — owned by Agent I, do not edit from other PRDs ═══
             # Purpose (PRD-I §2.1). 'task_creation' | 'brokering' | NULL.
@@ -6935,9 +6959,9 @@ class AsclepiusStore:
             out.append(d)
         return out
     # ═══ END PRD-C STORE METHODS ═══
-    # ═══ PRD-D ADVISOR STORE METHODS — owned by the advisor tier, do not edit from other PRDs ═══
-    # Appointment, referrals, and advisory sign-off. Appended per START_HERE
-    # §3.2 — existing methods above are never modified.
+    # ═══ REFERRAL STORE METHODS (PRD-REF) ═══
+    # The referral spine. Shipped with the retired advisor tier and kept:
+    # every verified physician refers now.
 
     # ─── Appointment ─────────────────────────────────────────────────────────
     def _mint_referral_code(self, conn: sqlite3.Connection) -> str:
@@ -6962,124 +6986,6 @@ class AsclepiusStore:
         # (a code column full of one value), and a silent duplicate would break
         # referral attribution invisibly.
         raise RuntimeError("could not mint a unique referral code")
-
-    def appoint_advisor(
-        self,
-        user_id: str,
-        *,
-        agreement_ref: str,
-        appointed_by: str,
-        approve: bool = False,
-        note: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Promote a user to the advisor tier — the WHOLE appointment, atomically.
-
-        Every term of the relationship is one decision and therefore one
-        statement: ``tier='advisor'``, ``compensation_model='equity_only'`` (an
-        advisor is not paid per task — see compensation.py), the appointment
-        stamp, the signed-agreement reference, the referral code and the Slack
-        label. With ``approve=True`` the verification stamp
-        (``verification_status``/``verified_by``/``verified_at``) lands in the
-        SAME update.
-
-        That single-statement property is the point, not a tidiness preference
-        (audit H1). Both appointment doors previously did two writes, and the
-        verification-queue door did them in the order where a crash in between
-        leaves an account APPROVED and LIVE with ``tier='advisor'``, no
-        agreement on file, and ``compensation_model`` NULL — full advisory
-        capability, no signed agreement, and a payment predicate that would
-        happily pay an equity-only advisor. There is no ordering of two writes
-        that is safe, so there is one write.
-
-        Idempotent on the referral code: re-appointing keeps the code an advisor
-        may already have handed out. ``agreement_ref`` is re-checked here — the
-        routers check it too, but this method is the last line and an advisor
-        with equity and no agreement on file is a liability.
-        """
-        agreement_ref = (agreement_ref or "").strip()
-        if not agreement_ref:
-            raise ValueError("appoint_advisor requires a signed agreement reference")
-        # A lost code race is retried rather than surfaced (audit L7): the
-        # unique index is the guarantee, and two admins appointing at the same
-        # moment should not produce a 500 on the action that mints an advisor.
-        for attempt in range(3):
-            try:
-                return self._appoint_advisor_once(
-                    user_id, agreement_ref=agreement_ref, appointed_by=appointed_by,
-                    approve=approve, note=note)
-            except sqlite3.IntegrityError:
-                if attempt == 2:
-                    raise
-        return None  # pragma: no cover - unreachable; the loop returns or raises
-
-    def _appoint_advisor_once(
-        self,
-        user_id: str,
-        *,
-        agreement_ref: str,
-        appointed_by: str,
-        approve: bool = False,
-        note: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        now = _utcnow_iso()
-        with self._conn() as conn:
-            row = conn.execute(
-                "SELECT referral_code, advisor_since FROM users WHERE id = ?",
-                (user_id,)).fetchone()
-            if row is None:
-                return None
-            code = row["referral_code"] or self._mint_referral_code(conn)
-            approval_sql = ""
-            params: List[Any] = [now, appointed_by, now, agreement_ref, code]
-            if approve:
-                # Appended to the same UPDATE rather than issued as a second
-                # statement — see the docstring. ``verification_notes`` APPENDS
-                # (audit H5): the reason a physician was previously rejected is
-                # the most important note in the table and must not be
-                # overwritten by an appointment.
-                approval_sql = (
-                    ", verification_status = 'approved'"
-                    ", verified_by = ?"
-                    ", verified_at = ?"
-                    ", verification_notes = CASE"
-                    "    WHEN ? IS NULL THEN verification_notes"
-                    "    WHEN verification_notes IS NULL OR TRIM(verification_notes) = ''"
-                    "      THEN ?"
-                    "    ELSE verification_notes || char(10) || ?"
-                    "  END"
-                )
-                params.extend([appointed_by, now, note, note, note])
-            params.append(user_id)
-            conn.execute(
-                f"""
-                UPDATE users SET
-                    tier = 'advisor',
-                    tier_assigned_at = ?,
-                    tier_assigned_by = ?,
-                    compensation_model = 'equity_only',
-                    advisor_since = COALESCE(advisor_since, ?),
-                    advisor_agreement_ref = ?,
-                    referral_code = ?,
-                    slack_role = 'Medical Advisor'
-                    {approval_sql}
-                WHERE id = ?
-                """,
-                tuple(params),
-            )
-        return self.get_user_by_id(user_id)
-
-    def set_advisor_display_name(self, user_id: str, full_name: str) -> None:
-        """Fill in a name the appointment supplied, WITHOUT overwriting one the
-        physician already gave us. COALESCE on the existing value, not the new
-        one: an admin typing a name into the appointment form must never
-        clobber the verified legal name on a credential record."""
-        name = (full_name or "").strip()
-        if not name:
-            return
-        with self._conn() as conn:
-            conn.execute(
-                "UPDATE users SET full_name = COALESCE(NULLIF(TRIM(full_name), ''), ?) "
-                "WHERE id = ?", (name, user_id))
 
     def get_user_by_referral_code(self, code: str) -> Optional[Dict[str, Any]]:
         code = (code or "").strip().upper()
@@ -7157,19 +7063,6 @@ class AsclepiusStore:
                 tuple(ids)).fetchall()
         return {r["referrer_id"]: {"total": int(r["total"] or 0),
                                    "active": int(r["active"] or 0)} for r in rows}
-
-    def signoff_counts_by_advisor(self, advisor_ids: List[str]) -> Dict[str, int]:
-        """{advisor_id: n} in one query — same reason as above."""
-        ids = [i for i in (advisor_ids or []) if i]
-        if not ids:
-            return {}
-        placeholders = ",".join("?" for _ in ids)
-        with self._conn() as conn:
-            rows = conn.execute(
-                f"SELECT advisor_id, COUNT(*) AS n FROM advisory_signoffs "
-                f"WHERE advisor_id IN ({placeholders}) GROUP BY advisor_id",
-                tuple(ids)).fetchall()
-        return {r["advisor_id"]: int(r["n"] or 0) for r in rows}
 
     def find_open_referral_for_email(self, email: str) -> Optional[Dict[str, Any]]:
         """The newest referral for this email that has not yet been claimed by a
@@ -7288,249 +7181,6 @@ class AsclepiusStore:
             out = self.advance_referral(row["referral_id"], status) or out
         return out
 
-    # ─── Advisory sign-off (PRD §4) ──────────────────────────────────────────
-    def insert_advisory_signoff(
-        self,
-        *,
-        artifact_type: str,
-        artifact_id: str,
-        advisor_id: str,
-        verdict: str,
-        comments: Optional[str],
-        relationship: str,
-        subject_ids: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
-        """Record one advisory verdict. ``relationship`` is supplied by the
-        ROUTER from the advisor's own user row and is never accepted from the
-        client — the disclosure is only worth something if the subject of it
-        cannot write it.
-
-        ``subject_ids`` pins WHAT was signed off (audit M3), which matters for
-        artifact ids that are derived rather than stored: a task batch is
-        ``specialty:YYYY-MM-DD`` over open tasks, so without this the membership
-        keeps changing after the attestation and later work inherits an approval
-        nobody gave it.
-        """
-        sid = _new_id("sgn")
-        ids = [str(i) for i in (subject_ids or []) if i]
-        with self._conn() as conn:
-            conn.execute(
-                """
-                INSERT INTO advisory_signoffs (signoff_id, artifact_type, artifact_id,
-                                               advisor_id, verdict, comments,
-                                               relationship, created_at,
-                                               subject_ids, subject_n)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (sid, artifact_type, artifact_id, advisor_id, verdict,
-                 (comments or "").strip() or None, relationship, _utcnow_iso(),
-                 json.dumps(ids) if ids else None, len(ids) if ids else None),
-            )
-        return self.get_advisory_signoff(sid)  # type: ignore[return-value]
-
-    @staticmethod
-    def _signoff_row(row: sqlite3.Row) -> Dict[str, Any]:
-        rec = dict(row)
-        raw = rec.pop("subject_ids", None)
-        rec["subject_ids"] = json.loads(raw) if raw else []
-        return rec
-
-    def get_advisory_signoff(self, signoff_id: str) -> Optional[Dict[str, Any]]:
-        with self._conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM advisory_signoffs WHERE signoff_id = ?",
-                (signoff_id,)).fetchone()
-        return self._signoff_row(row) if row else None
-
-    def list_advisory_signoffs(
-        self,
-        *,
-        artifact_type: Optional[str] = None,
-        artifact_id: Optional[str] = None,
-        advisor_id: Optional[str] = None,
-        limit: int = 200,
-    ) -> List[Dict[str, Any]]:
-        clauses, params = [], []
-        if artifact_type:
-            clauses.append("artifact_type = ?")
-            params.append(artifact_type)
-        if artifact_id:
-            clauses.append("artifact_id = ?")
-            params.append(artifact_id)
-        if advisor_id:
-            clauses.append("advisor_id = ?")
-            params.append(advisor_id)
-        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
-        params.append(limit)
-        with self._conn() as conn:
-            rows = conn.execute(
-                f"SELECT * FROM advisory_signoffs {where} ORDER BY created_at DESC LIMIT ?",
-                tuple(params)).fetchall()
-        return [self._signoff_row(r) for r in rows]
-
-    # Verdict severity, worst first. The operator-facing status must reflect the
-    # WORST outstanding verdict, not the most recent one (audit M2): with two
-    # advisors, one approving after another requested changes would otherwise
-    # erase the objection from the field an operator reads before shipping.
-    # ``created_at`` is second-granularity, so "most recent" is not even
-    # well-defined for same-second writes.
-    _VERDICT_SEVERITY = {"changes_requested": 2, "approved_with_comments": 1, "approved": 0}
-
-    @classmethod
-    def worst_verdict(cls, verdicts: List[str]) -> Optional[str]:
-        """The verdict an operator needs to see. Unknown values sort worst —
-        an unrecognized verdict is not evidence of approval."""
-        known = [v for v in verdicts if v]
-        if not known:
-            return None
-        return max(known, key=lambda v: cls._VERDICT_SEVERITY.get(v, 99))
-
-    def signoff_summary(self, artifact_type: str, artifact_ids: List[str]) -> Dict[str, Dict[str, Any]]:
-        """{artifact_id: {n, verdict, latest_verdict, latest_at, verdicts}} for a
-        page of artifacts — one query, not one per row, so the admin list does
-        not degrade with the number of exports.
-
-        ``verdict`` is the WORST outstanding verdict and is the one to display;
-        ``latest_verdict`` is kept for anyone who genuinely wants recency, and
-        the full list rides along so a caller can render "2 approved · 1 change
-        requested" without a second query.
-        """
-        ids = [i for i in (artifact_ids or []) if i]
-        if not ids:
-            return {}
-        out: Dict[str, Dict[str, Any]] = {}
-        placeholders = ",".join("?" for _ in ids)
-        with self._conn() as conn:
-            rows = conn.execute(
-                f"SELECT artifact_id, verdict, created_at FROM advisory_signoffs "
-                f"WHERE artifact_type = ? AND artifact_id IN ({placeholders}) "
-                f"ORDER BY created_at ASC",
-                tuple([artifact_type] + ids)).fetchall()
-        for r in rows:
-            cur = out.setdefault(r["artifact_id"], {"n": 0, "verdict": None,
-                                                    "latest_verdict": None,
-                                                    "latest_at": None, "verdicts": []})
-            cur["n"] += 1
-            cur["verdicts"].append(r["verdict"])
-            cur["latest_verdict"] = r["verdict"]   # ASC order -> last write wins
-            cur["latest_at"] = r["created_at"]
-        for cur in out.values():
-            cur["verdict"] = self.worst_verdict(cur["verdicts"])
-        return out
-
-    def set_signoff_status(self, table: str, id_column: str, artifact_id: str,
-                           status: Optional[str]) -> None:
-        """Mirror the latest verdict onto the artifact's own row so admin lists
-        can show it without a join. Advisory only — nothing reads this to decide
-        whether work may proceed (PRD §4.4 as amended: sign-off never blocks an
-        export or a shipment)."""
-        allowed = {
-            "exports": "export_id",
-            "tasks": "task_id",
-            "ingest_uploads": "upload_id",
-        }
-        # The table/column names are interpolated into SQL, so they are checked
-        # against a literal allowlist rather than trusted from the caller.
-        if allowed.get(table) != id_column:
-            raise ValueError(f"refusing to write signoff_status to {table}.{id_column}")
-        with self._conn() as conn:
-            conn.execute(
-                f"UPDATE {table} SET signoff_status = ? WHERE {id_column} = ?",
-                (status, artifact_id))
-
-    # ─── Task batches (PRD §4.2, artifact_type='task_batch') ─────────────────
-    # There is no persisted generation-batch id on ``tasks``, and inventing one
-    # would need a backfill that could only guess at history. The batch key is
-    # DERIVED instead — specialty plus generation date over still-open tasks —
-    # so it is stable, re-derivable, and means something to a human ("the
-    # nephrology cases from the 3rd"). If a real batch id is ever persisted,
-    # this method is the single place that changes.
-    @staticmethod
-    def task_batch_key(task: Dict[str, Any]) -> str:
-        created = str(task.get("created_at") or "")[:10] or "unknown"
-        return f"{task.get('specialty') or 'general'}:{created}"
-
-    def list_open_task_batches(self, *, limit: int = 200) -> List[Dict[str, Any]]:
-        """Open (not yet labeled out) tasks grouped into previewable batches.
-
-        Counted with GROUP BY rather than by scanning a capped list of tasks and
-        tallying in Python (audit M3). The old form applied a global 500-task
-        cap and then grouped, so with enough open work a batch's ``n_tasks``
-        silently under-reported — and the artifact view applied a *different*
-        cap, so the same batch was two different sizes depending on which screen
-        you were looking at. ``limit`` here bounds the number of BATCHES
-        returned, not the count within one.
-
-        Deliberately NO ``signoff_status``: a batch spans many task rows and the
-        sign-off is not mirrored onto any of them, so reporting one row's column
-        as the batch's status would be a field that looks authoritative and is
-        whichever task happened to sort first. Callers read ``signoff_summary``.
-        """
-        with self._conn() as conn:
-            rows = conn.execute(
-                """
-                SELECT specialty,
-                       substr(created_at, 1, 10) AS created_on,
-                       COUNT(*)                  AS n_tasks
-                FROM tasks
-                WHERE status = 'open'
-                GROUP BY specialty, substr(created_at, 1, 10)
-                ORDER BY created_on DESC, specialty ASC
-                LIMIT ?
-                """,
-                (limit,)).fetchall()
-        return [
-            {"batch_key": f"{r['specialty'] or 'general'}:{r['created_on'] or 'unknown'}",
-             "specialty": r["specialty"],
-             "created_on": r["created_on"],
-             "n_tasks": r["n_tasks"]}
-            for r in rows
-        ]
-
-    def list_tasks_in_batch(self, batch_key: str, *, limit: int = 50) -> List[Dict[str, Any]]:
-        """Open tasks belonging to a derived batch key.
-
-        The key is ``specialty:YYYY-MM-DD``, so both halves are pushed into SQL
-        rather than filtered in Python: this is called on every sign-off POST
-        (to prove the artifact exists) and scanning every open task each time
-        would put an avoidable full scan on the single SQLite writer that
-        labeler submissions also need.
-        """
-        specialty, _, created_on = (batch_key or "").rpartition(":")
-        if not specialty or not created_on:
-            return []
-        with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT * FROM tasks WHERE status = 'open' AND specialty = ? "
-                "AND substr(created_at, 1, 10) = ? ORDER BY created_at DESC LIMIT ?",
-                (specialty, created_on, limit)).fetchall()
-        return [self._task_row(r) for r in rows]
-
-    # ─── Product specs (PRD §4.2, artifact_type='product_spec') ──────────────
-    def insert_product_spec(self, *, title: str, body_md: str,
-                            created_by: Optional[str]) -> Dict[str, Any]:
-        sid = _new_id("spec")
-        with self._conn() as conn:
-            conn.execute(
-                "INSERT INTO product_specs (spec_id, title, body_md, created_by, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (sid, title, body_md, created_by, _utcnow_iso()))
-        return self.get_product_spec(sid)  # type: ignore[return-value]
-
-    def get_product_spec(self, spec_id: str) -> Optional[Dict[str, Any]]:
-        with self._conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM product_specs WHERE spec_id = ?", (spec_id,)).fetchone()
-        return dict(row) if row else None
-
-    def list_product_specs(self, *, limit: int = 100) -> List[Dict[str, Any]]:
-        with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT * FROM product_specs ORDER BY created_at DESC LIMIT ?",
-                (limit,)).fetchall()
-        return [dict(r) for r in rows]
-
-    # ─── Compensation (PRD §2.4) ─────────────────────────────────────────────
     def submissions_for_payment(self, *, limit: int = 1000) -> List[Dict[str, Any]]:
         """Completed submissions that should accrue money.
 

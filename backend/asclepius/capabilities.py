@@ -1,18 +1,18 @@
-"""Who can do what, derived from tier — in one place (Advisor PRD §2.2).
+"""Who can do what, derived from tier, in one place.
 
-Before this module, ``tier == "reviewer"`` was written inline at every gate.
-Adding a third tier to that world means finding every literal, and the ones you
-miss fail SILENTLY: "this user is not a reviewer" is a legitimate answer for a
-labeler, so nothing logs and nothing 500s. The advisor just cannot click the
-button, and nobody finds out until they say so.
+Before this module, ``tier == "reviewer"`` was written inline at every gate,
+and a tier added to that world means finding every literal; the ones you miss
+fail SILENTLY: "this user is not a reviewer" is a legitimate answer for a
+labeler, so nothing logs and nothing 500s. So every gate routes through
+``can()``, and ``TIERS`` is the single enumeration of what the ``users.tier``
+column may hold. ``tests/test_tier_capabilities.py`` asserts ``_BY_TIER``
+covers ``TIERS`` exactly, so a new tier added without a capability row fails
+loudly here instead of denying quietly in production.
 
-That is the same failure shape the last audit found four times — a check that
-squeezes three states into two — so the fix is structural rather than another
-``or tier == "advisor"`` at each call site: every gate routes through ``can()``,
-and ``TIERS`` is the single enumeration of what the ``users.tier`` column may
-hold. ``tests/test_advisor_tier.py`` asserts ``_BY_TIER`` covers ``TIERS``
-exactly, so a fourth tier added without a capability row fails loudly here
-instead of denying quietly in production.
+The advisor tier that used to live here is retired: advisors are ordinary
+users now, and referral minting (``refer``) belongs to every verified
+physician. Rows that still say ``tier='advisor'`` are migrated to reviewer on
+boot (store.py).
 """
 
 from __future__ import annotations
@@ -20,26 +20,19 @@ from __future__ import annotations
 from typing import Any, Dict, FrozenSet, Optional
 
 # ─── Capabilities ─────────────────────────────────────────────────────────────
-LABEL = "label"                    # draw and complete a task from scratch
-REVIEW = "review"                  # grade another physician's submission
-REFER = "refer"                    # mint referral invites
-SIGNOFF_TASKS = "signoff_tasks"    # preview + approve new task batches
-SIGNOFF_EXPORT = "signoff_export"  # inspect outbound buyer bundles
-SIGNOFF_INTAKE = "signoff_intake"  # inspect inbound hospital metadata
-SIGNOFF_SPEC = "signoff_spec"      # comment on a product spec
+LABEL = "label"    # draw and complete a task from scratch
+REVIEW = "review"  # grade another physician's submission
+REFER = "refer"    # mint referral invites and hold a referral link
 
-CAPABILITIES = (
-    LABEL, REVIEW, REFER, SIGNOFF_TASKS, SIGNOFF_EXPORT, SIGNOFF_INTAKE, SIGNOFF_SPEC,
-)
+CAPABILITIES = (LABEL, REVIEW, REFER)
 
 # ─── Tiers ────────────────────────────────────────────────────────────────────
 # The ONLY values ``users.tier`` may hold, besides NULL ("not yet assigned").
-# Imported by routers/asclepius_verify.py (_TIERS), the admin roster chips and
-# the appointment endpoint so no second list of tier strings can drift from it.
+# Imported by routers/asclepius_verify.py (_TIERS) and the admin roster chips
+# so no second list of tier strings can drift from it.
 LABELER = "labeler"
 REVIEWER = "reviewer"
-ADVISOR = "advisor"
-TIERS = (LABELER, REVIEWER, ADVISOR)
+TIERS = (LABELER, REVIEWER)
 
 # Display words, so a raw token never reaches a human (PRD C §3 vocabulary
 # rule). The frontend keeps its own map for offline rendering; this one is for
@@ -47,18 +40,15 @@ TIERS = (LABELER, REVIEWER, ADVISOR)
 TIER_WORDS = {
     LABELER: "Labeler",
     REVIEWER: "Reviewer",
-    ADVISOR: "Medical Advisor",
 }
 
-# An advisor is NOT "a reviewer with more buttons" — it is a third tier that
-# happens to be a superset of the second. The superset is a fact about today's
-# product, not a promise: keep the sets literal so narrowing one later is a
-# one-line edit here rather than an archaeology exercise across six routers.
+# Every verified physician can refer: the tier decides the KIND of casework,
+# not whether a colleague's name is worth money to us. Keep the sets literal so
+# narrowing one later is a one-line edit here rather than an archaeology
+# exercise across six routers.
 _BY_TIER: Dict[str, FrozenSet[str]] = {
-    LABELER: frozenset({LABEL}),
-    REVIEWER: frozenset({LABEL, REVIEW}),
-    ADVISOR: frozenset({LABEL, REVIEW, REFER,
-                        SIGNOFF_TASKS, SIGNOFF_EXPORT, SIGNOFF_INTAKE, SIGNOFF_SPEC}),
+    LABELER: frozenset({LABEL, REFER}),
+    REVIEWER: frozenset({LABEL, REVIEW, REFER}),
 }
 
 

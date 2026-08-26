@@ -52,7 +52,7 @@ def test_nothing_auto_approves_while_the_exclusion_list_is_unloaded():
 
 def test_auto_approval_grants_the_base_tier_and_never_more():
     """The property that bounds the blast radius of every other mistake."""
-    for proposed in (caps.LABELER, caps.REVIEWER, caps.ADVISOR):
+    for proposed in (caps.LABELER, caps.REVIEWER):
         v = agent.decide(_clean_dossier(
             proposal={"proposed_tier": proposed, "was_exploration": False, "margin": 2.0}))
         assert v["decision"] == "auto_approve"

@@ -86,18 +86,17 @@ def test_a_reviewer_can_open_a_billable_session():
     assert body["min_seconds"] == 1200
 
 
-def test_an_advisor_can_open_a_billable_session():
-    """An advisor holds REVIEW. They earn nothing (compensation.accrues_payment
-    decides that, elsewhere) but they are entitled to the surface and to the
-    countdown — being unpaid is not the same as being unauthorized."""
+def test_an_unpaid_reviewer_can_still_open_a_billable_session():
+    """A reviewer on an equity_only compensation model (a legacy advisor row)
+    holds REVIEW. They earn nothing (compensation.accrues_payment decides that,
+    elsewhere) but they are entitled to the surface and to the countdown:
+    being unpaid is not the same as being unauthorized."""
     store = _store()
     u = A.make_user(store, role="evaluator", specialty="nephrology")
-    advisor = store.appoint_advisor(u["id"], agreement_ref="AGR-1",
-                                    appointed_by="admin@asclepius.test")
     with store._conn() as conn:
-        conn.execute("UPDATE users SET verification_status = 'approved' WHERE id = ?",
-                     (advisor["id"],))
-    _open(store.get_user_by_id(advisor["id"]))
+        conn.execute("UPDATE users SET tier = 'reviewer', verification_status = 'approved', "
+                     "compensation_model = 'equity_only' WHERE id = ?", (u["id"],))
+    _open(store.get_user_by_id(u["id"]))
 
 
 def test_a_labeler_cannot_open_a_billable_session():

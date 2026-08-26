@@ -54,7 +54,9 @@ def test_no_claude_literals_outside_model_config():
     backend_dir = Path(__file__).resolve().parent.parent
     offenders: list[str] = []
     for py_file in backend_dir.rglob("*.py"):
-        if "tests" in py_file.parts:
+        # A local virtualenv inside backend/ carries the SDK's own model
+        # literals; only first-party code is in scope.
+        if "tests" in py_file.parts or ".venv" in py_file.parts:
             continue
         rel = py_file.relative_to(backend_dir.parent).as_posix()
         if rel == "backend/ai/model_config.py":

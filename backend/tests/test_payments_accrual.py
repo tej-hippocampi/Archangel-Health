@@ -91,12 +91,18 @@ def _reviewer():
     return store.get_user_by_id(u["id"])
 
 
-def _advisor():
+def _equity_only_reviewer():
+    """A reviewer whose compensation model is equity_only. The advisor tier
+    that used to mint this combination is retired; the compensation rule it
+    exercised (equity_only accrues nothing) is still load-bearing for any
+    legacy row the migration has not yet cleared."""
     store = _store()
     u = A.make_user(store, role="evaluator", specialty="nephrology",
                     board_cert="board_certified_nephrology", years_experience=20)
-    return store.appoint_advisor(u["id"], agreement_ref="AGR-2026-02",
-                                 appointed_by="admin@asclepius.test")
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET tier = 'reviewer', verification_status = 'approved', "
+                     "compensation_model = 'equity_only' WHERE id = ?", (u["id"],))
+    return store.get_user_by_id(u["id"])
 
 
 def _create_task(admin_h):
@@ -396,7 +402,7 @@ def test_an_advisors_submissions_never_occupy_the_scan_window():
     Python would leave their submissions in the scan set forever, eventually
     starving real work against the limit. They are excluded in SQL."""
     admin_h = A.headers_for(_admin())
-    advisor = _advisor()
+    advisor = _equity_only_reviewer()
     for _ in range(3):
         _submit(_create_task(admin_h), advisor)
     asc_payments.reconcile_task_accruals(_store())
@@ -478,7 +484,7 @@ def test_an_advisor_submission_accrues_nothing():
     """An equity-holding advisor labels a case. The work counts everywhere
     quality is measured; the money does not exist."""
     admin_h = A.headers_for(_admin())
-    advisor = _advisor()
+    advisor = _equity_only_reviewer()
     sid = _submit(_create_task(admin_h), advisor)
 
     payload = _earnings(advisor)
@@ -493,7 +499,7 @@ def test_an_advisor_submission_accrues_nothing():
 
 def test_an_advisor_accrues_nothing_even_after_an_accepting_review():
     admin_h = A.headers_for(_admin())
-    advisor = _advisor()
+    advisor = _equity_only_reviewer()
     sid = _submit(_create_task(admin_h), advisor)
     _review(sid, _reviewer(), "accept")
 

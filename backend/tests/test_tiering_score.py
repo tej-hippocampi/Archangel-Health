@@ -348,13 +348,17 @@ def test_a_fresh_graduate_does_not_clear_the_three_year_gate():
     assert "3 years post-residency" in out["tr_missing"]
 
 
-def test_advisor_is_never_proposed():
-    """A medical advisor is a negotiated relationship with equity attached. It is not the
-    output of an NPI check, and the ladder must not be extended upward."""
+def test_only_ladder_tiers_are_ever_proposed():
+    """The ladder proposes reviewer or labeler (or defers to the admin), and
+    nothing outside capabilities.TIERS. The retired advisor tier must never
+    come back through this door: an advisory relationship was negotiated, not
+    scored, and the same holds for any future off-ladder tier."""
     store = fresh_store()
     doc = _physician(store)
     for domain in ("nephrology", "cardiology", "oncology", None):
-        assert _propose(store, doc, domain)["proposed_tier"] != capabilities.ADVISOR
+        proposed = _propose(store, doc, domain)["proposed_tier"]
+        assert proposed is None or proposed in capabilities.TIERS
+        assert proposed != "advisor"
 
 
 def test_tier_vocabulary_comes_from_capabilities():
