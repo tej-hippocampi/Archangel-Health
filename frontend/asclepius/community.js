@@ -689,6 +689,41 @@
       author.years_in_practice != null ? ' · ' + author.years_in_practice + ' yrs' : null);
   }
 
+  /* Link cards under a bot post: what the thing is, where it is, and enough
+     of a summary to decide from here whether it is worth the click. Built
+     with h() like everything else -- the title and summary come from someone
+     else's web page by way of a model, so they are text nodes, never markup.
+
+     No preview images. The CSP is img-src 'self' and loosening it for
+     arbitrary news domains, or building a proxy to launder them, is real
+     attack surface for decoration. The domain initial does the same job. */
+  function cardsEl(cards) {
+    if (!cards || !cards.length) return null;
+    const wrap = h('div', { class: 'cm-cards' });
+    for (const c of cards) {
+      if (!c || !c.title) continue;
+      const url = String(c.url || '');
+      const safe = /^https?:\/\//i.test(url);
+      const mono = h('span', { class: 'cm-card-mono' },
+        (c.domain || c.title || '?').charAt(0).toUpperCase());
+      const title = safe
+        ? h('a', { class: 'cm-card-title', href: url, target: '_blank',
+                   rel: 'noopener noreferrer' }, c.title)
+        : h('span', { class: 'cm-card-title' }, c.title);
+      const meta = h('div', { class: 'cm-card-meta' });
+      if (c.domain) meta.appendChild(h('span', { class: 'cm-card-domain' }, c.domain));
+      if (c.meta) meta.appendChild(h('span', {}, c.meta));
+      const col = h('div', { class: 'cm-card-col' }, title);
+      if (c.description) {
+        col.appendChild(h('div', { class: 'cm-card-desc' }, c.description));
+      }
+      if (c.meta || c.domain) col.appendChild(meta);
+      if (c.prompt) col.appendChild(h('div', { class: 'cm-card-prompt' }, c.prompt));
+      wrap.appendChild(h('div', { class: 'cm-card' }, mono, col));
+    }
+    return wrap.childNodes.length ? wrap : null;
+  }
+
   function messageEl(m, opts) {
     opts = opts || {};
     // DMs have no threads, so the reply affordances hide there like in the
@@ -740,6 +775,7 @@
         h('span', { class: 'cm-msg-time' }, fmtTime(m.created_at),
           m.edited_at ? h('span', { class: 'cm-msg-edited' }, '(edited)') : null)),
       state.editing === m.id ? editBoxEl(m) : bodyEl,
+      cardsEl(m.cards),
       m.poll ? pollCardEl(m) : null,
       attachmentsEl(m),
       reactionsEl(m),

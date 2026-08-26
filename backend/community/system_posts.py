@@ -69,6 +69,7 @@ async def post_system_message(
     mention_user_ids: Optional[List[str]] = None,
     notify: bool = False,
     announce: bool = False,
+    cards: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Post as the system author into an ACTIVE channel. Returns the
     serialized message, or ``None`` when skipped (unknown/inactive channel,
@@ -77,6 +78,11 @@ async def post_system_message(
     Notification policy: when ``notify`` is set, ONLY the mentioned users get
     a digest entry (the welcome ping). Digest posts otherwise rely on the
     unread badge.
+
+    ``cards`` are link cards rendered under the body: title, url, domain, a
+    one-line summary and an optional discussion prompt. Their human-visible
+    text is scanned exactly like the body -- an external page's title is
+    untrusted text and this is where it enters the product.
 
     ``announce`` opts one call into the standard fan-out rule in
     ``notify.queue_for_message`` — which blasts every member only for a
@@ -100,7 +106,26 @@ async def post_system_message(
     # (PMIDs, DOIs) that pattern-match MRN/account-number rules, and a URL is
     # structural metadata, not patient text. Every human-visible character —
     # titles, one-liners, headers — is still scanned verbatim.
-    findings = phi_gate.scan_text(_mask_urls(text))
+    # An events listing has to carry the date of the event, and "March 14"
+    # trips exact_date -- the right rule for a message that might be about a
+    # patient, the wrong one for a conference assembled from public web pages.
+    # Narrow on purpose: one category, two kinds, and it is recorded below.
+    exempt: tuple = ()
+    if kind in ("morning_events", "morning_brief"):
+        exempt = ("exact_date",)
+
+    # Card text is human-visible and comes from somewhere else's page, so it
+    # is scanned with the body rather than trusted because a bot assembled it.
+    card_text = ""
+    if cards:
+        card_text = "\n".join(
+            " ".join(str(c.get(k) or "") for k in ("title", "description", "meta", "prompt"))
+            for c in cards
+        )
+    findings = phi_gate.scan_text(
+        _mask_urls(text + ("\n" + card_text if card_text else "")),
+        exempt_categories=exempt,
+    )
     if findings:
         # Categories only — never the text (§7). Nothing persisted.
         cstore.record_block_event(
@@ -112,7 +137,8 @@ async def post_system_message(
             action="community.phi_block", outcome="blocked",
             resource_type="community", resource=channel["slug"],
             detail={"surface": "system_post", "kind": kind,
-                    "categories": phi_gate.categories_of(findings)},
+                    "categories": phi_gate.categories_of(findings),
+                    "exempted": list(exempt)},
         )
         log.error("[system-post] PHI gate blocked a %s post to #%s — skipped (fail-closed)",
                   kind, channel_slug)
@@ -132,6 +158,7 @@ async def post_system_message(
         mentions=mentions,
         attachments=[],
         kind=kind,
+        cards=cards or None,
     )
     audit_log.record(
         actor_type="system", actor_id=SYSTEM_USER_ID,

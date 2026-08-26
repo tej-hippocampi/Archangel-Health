@@ -900,3 +900,64 @@
   .cm-side { transition: none; }
   .cm-poll-fill { transition: none; }
 }
+
+/* ═══ Link cards ═════════════════════════════════════════════════════════════
+   Under a bot post: what the thing is, where it is, and enough summary to
+   decide from here whether it is worth the click. No preview images by
+   design -- the CSP is img-src 'self', and loosening it for arbitrary news
+   domains (or proxying them) is real attack surface for decoration. The
+   domain initial carries the same recognition at none of the cost. */
+.cm-cards { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 2px; }
+.cm-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cm-line, rgba(26,27,26,.10));
+  border-radius: 10px;
+  background: var(--cm-surface, rgba(26,27,26,.02));
+}
+.cm-card-mono {
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3c7a31;
+  background: rgba(60,122,49,.10);
+}
+.cm-card-col { min-width: 0; flex: 1; }
+.cm-card-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3c7a31;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.cm-card-title:hover { text-decoration: underline; }
+.cm-card-desc {
+  font-size: 13px;
+  line-height: 1.55;
+  margin-top: 3px;
+  color: var(--cm-ink-soft, #5c5e5a);
+}
+.cm-card-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--cm-ink-faint, #8b8d89);
+}
+.cm-card-domain { text-transform: lowercase; }
+.cm-card-prompt {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--cm-line, rgba(26,27,26,.08));
+  font-size: 13px;
+  font-style: italic;
+  color: var(--cm-ink-soft, #5c5e5a);
+}

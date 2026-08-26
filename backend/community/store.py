@@ -481,6 +481,7 @@ class CommunityStore:
         mentions: Optional[List[str]] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         kind: Optional[str] = None,
+        cards: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         now = _utcnow_iso()
         with self._conn() as conn:
@@ -488,8 +489,8 @@ class CommunityStore:
                 """
                 INSERT INTO community_messages
                     (channel_id, author_user_id, parent_message_id, body,
-                     mentions_json, attachments_json, kind, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     mentions_json, attachments_json, kind, cards_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     channel_id,
@@ -499,6 +500,7 @@ class CommunityStore:
                     json.dumps(mentions or []),
                     "[]",
                     kind,
+                    json.dumps(cards) if cards else None,
                     now,
                 ),
             )
@@ -533,6 +535,21 @@ class CommunityStore:
                 "SELECT * FROM community_messages WHERE id = ?", (message_id,)
             ).fetchone()
         return self._message_row(row) if row else None
+
+    def has_system_post_of_kind(self, channel_id: str, kind: str) -> bool:
+        """Has the bot already posted this kind of message in this channel?
+
+        What makes the pinned channel-topic post idempotent: it is written once
+        and then left alone, however many times the morning run fires.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM community_messages WHERE channel_id = ? "
+                "AND author_user_id = 'u-system' AND kind = ? "
+                "AND deleted_at IS NULL LIMIT 1",
+                (channel_id, kind),
+            ).fetchone()
+        return row is not None
 
     def system_post_exists_since(
         self, *, channel_id: str, kind: str, body: str, since_iso: str

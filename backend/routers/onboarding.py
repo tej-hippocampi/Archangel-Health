@@ -890,6 +890,27 @@ def _provision_asclepius_user(
     _run_signup_verification(store, user, creds)
 
 
+async def _welcome_into_community(email: str) -> None:
+    """Introduce a new physician in #introductions.
+
+    Fired at signup, not only at approval. A provisional physician is already
+    inside the community -- they can read and post from the moment they finish
+    the form -- so waiting for the credential check meant the room said nothing
+    while they were in it, and then introduced them days later to people they
+    had already been talking to. Idempotent: the welcome flag is claimed before
+    the post, so the approval path will not repeat it.
+    """
+    try:
+        from asclepius.store import get_store as _get_astore  # noqa: PLC0415
+        from community.onboard import welcome_new_member  # noqa: PLC0415
+
+        user = _get_astore().get_user_by_email(email)
+        if user:
+            await welcome_new_member(user)
+    except Exception:
+        log.exception("[community] welcome post failed (non-fatal)")
+
+
 def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, Any]) -> None:
     """Capture PRD-B identity fields and run the NPI check for a fresh signup.
 
@@ -1453,6 +1474,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     # The hash is already on the row; finalize only stamps completion.
     ts.finalize_asclepius_person(row["id"], director_email, password_hash=director_hash)
     ts.complete_asclepius_onboarding(row["id"])
+    await _welcome_into_community(director_email)
 
     # Mint an Asclepius session token so the wizard drops the doctor straight into
     # their workspace with no re-login (mirrors the doctor-portal auto-auth). The

@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import html
 import re
-from typing import Iterable, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 # ─── Tokens ─────────────────────────────────────────────────────────────────
 # Mirror of frontend/asclepius/_tokens.css §2.1 (itself a copy of the landing
@@ -1198,3 +1198,77 @@ def build_community_news_digest_email(
         )
     )
     return _shell(subject=safe_headline, body_html=body)
+
+
+def build_community_morning_email(
+    *,
+    first_name: Optional[str],
+    sections: List[Dict[str, Any]],
+    task_line: str,
+    community_url: str,
+    unsubscribe_url: str,
+) -> str:
+    """The daily morning email: what landed in this doctor's rooms overnight,
+    and whether there is work waiting.
+
+    The cards are the point. A physician should be able to decide from the
+    email whether anything here is worth their time, which means the summary
+    travels with the link rather than living behind it.
+
+    Every string below arrives from an external web page by way of the model,
+    so it is escaped before any markup is added, exactly as the news digest
+    does with its composed body.
+    """
+    parts: List[str] = []
+
+    if task_line:
+        parts.append(_p(_strong(html.escape(_scrub_dashes(task_line)))))
+
+    seen_channels: List[str] = []
+    for section in sections or []:
+        channel = str(section.get("channel") or "").strip()
+        cards = section.get("cards") or []
+        if not cards:
+            continue
+        if channel and channel not in seen_channels:
+            seen_channels.append(channel)
+            parts.append(_eyebrow(html.escape("#" + channel)))
+        rows: List[Tuple[str, str]] = []
+        for card in cards:
+            title = _scrub_dashes(str(card.get("title") or "")).strip()
+            if not title:
+                continue
+            url = str(card.get("url") or "").strip()
+            description = _scrub_dashes(str(card.get("description") or "")).strip()
+            meta = _scrub_dashes(str(card.get("meta") or "")).strip()
+            lead = (
+                f'<a href="{html.escape(url, quote=True)}" '
+                f'style="color:{_GREEN_DEEP};text-decoration:none;">'
+                f'{html.escape(title)}</a>'
+                if url.lower().startswith(("http://", "https://"))
+                else html.escape(title)
+            )
+            rest = " ".join(p for p in (html.escape(meta), html.escape(description)) if p)
+            rows.append((lead, rest))
+        if rows:
+            parts.append(_lead_list(rows))
+
+    if not parts:
+        # run_newsletter refuses to send an empty one; this is the belt.
+        parts.append(_p("Nothing new this morning."))
+
+    body = (
+        _eyebrow("Your morning")
+        + _h1("What is new for you")
+        + _p(f"Morning {_strong(html.escape(first_name or 'there'))}.")
+        + "".join(parts)
+        + _cta(community_url, "Open the community →")
+        + _p(
+            'You get this because you are an Archangel contributor. '
+            f'<a href="{html.escape(unsubscribe_url, quote=True)}" '
+            f'style="color:{_GREEN_DEEP};">Change how often, or stop these</a>.',
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Your morning in Archangel", body_html=body)

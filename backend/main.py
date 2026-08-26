@@ -6474,6 +6474,39 @@ async def internal_run_community_digest(
     return {**result, "ran_at": _utcnow_iso()}
 
 
+@app.post("/internal/community/run-morning", include_in_schema=False)
+async def internal_run_community_morning(
+    only: Optional[str] = None,
+    force: bool = False,
+    authorization: Optional[str] = Header(None),
+):
+    """The morning routine.
+
+    Called hourly by a scheduled job; every scope decides for itself whether
+    its own local 7am has passed without a successful run today, so calling
+    this every hour, twice, or by hand still posts one brief per channel per
+    day. ``force`` bypasses the due check for testing, ``only`` limits the run
+    to one scope key or channel.
+    """
+    _check_internal_auth(authorization)
+    from community import morning as _cmorning
+
+    result = await _cmorning.run_morning(only=only, force=force)
+    return {**result, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-newsletter", include_in_schema=False)
+async def internal_run_community_newsletter(
+    force: bool = False, authorization: Optional[str] = Header(None)
+):
+    """The per-doctor morning email. Same due-by-cohort rule as the channels."""
+    _check_internal_auth(authorization)
+    from community import newsletter as _cnewsletter
+
+    result = await _cnewsletter.run_newsletter(force=force)
+    return {**result, "ran_at": _utcnow_iso()}
+
+
 @app.post("/internal/community/purge", include_in_schema=False)
 async def internal_purge_community(authorization: Optional[str] = Header(None)):
     """One-shot cleanup: hard-delete bot-authored posts (news digests,
