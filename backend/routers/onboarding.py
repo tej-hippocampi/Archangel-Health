@@ -184,8 +184,12 @@ class SelfServeBody(BaseModel):
     company_website: str = Field(default="", max_length=200)
     # /join extras, all optional so the landing's email-only modal keeps its
     # exact contract. Names prefill wizard step 1; the referral code attributes
-    # a link signup; flavor='general' relaxes the MD credential screens for an
-    # invited non-clinical signer (e.g. a business advisor).
+    # a link signup. ``flavor`` says which door they came through:
+    #   general   an invited non-clinical signer
+    #   advisor   a non-clinical supporter who will mostly refer
+    #   referrer  someone who holds a referral link and nothing else
+    # All three relax the MD credential screens, which exist to check a
+    # physician and have nothing to ask a person who is not claiming to be one.
     first_name: str = Field(default="", max_length=120)
     last_name: str = Field(default="", max_length=120)
     referral_code: str = Field(default="", max_length=32)
@@ -799,6 +803,15 @@ def _queue_verification_and_alert(store: Any, user_id: str) -> None:
         )
 
 
+ACCOUNT_KIND_BY_FLAVOR = {
+    "advisor": "advisor",
+    "referrer": "referrer",
+}
+
+#: Link flavors that skip the physician credential screens.
+NON_CLINICAL_FLAVORS = ("general", "advisor", "referrer")
+
+
 def _provision_asclepius_user(
     request: Request,
     *,
@@ -812,6 +825,7 @@ def _provision_asclepius_user(
     clinical_role: str,
     credentials: Dict[str, Any],
     attestations: Dict[str, Any],
+    account_kind: Optional[str] = None,
 ) -> None:
     """Create/refresh the person's account in the Asclepius plane (asclepius.db)."""
     from asclepius import specialties as asc_specialties
@@ -866,6 +880,7 @@ def _provision_asclepius_user(
         years_experience=years,
         credentials=creds,
         attestations=attestations or {},
+        account_kind=account_kind,
     )
     # Attach this signup to whichever physician referred
     # them. Resolution is by the address the invite was addressed to — see
@@ -1470,6 +1485,9 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         clinical_role="director",
         credentials=director.get("credentials") or {},
         attestations=director.get("attestations") or {},
+        # Which door they came through decides what kind of account this is.
+        account_kind=ACCOUNT_KIND_BY_FLAVOR.get(
+            (row.get("signup_flavor") or "").strip().lower()),
     )
     # The hash is already on the row; finalize only stamps completion.
     ts.finalize_asclepius_person(row["id"], director_email, password_hash=director_hash)

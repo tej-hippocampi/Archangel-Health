@@ -392,6 +392,14 @@
   // The surface list the server put on the session. Absent means deny, exactly
   // like sessionCan: an older token or a cached payload must not be read as
   // permission.
+  /* A referral-only account holds a link and nothing else. Showing them the
+     rail every physician sees, with four locked doors and a hint about
+     credentials clearing, promises a product they were never given and cannot
+     get. They see what they actually have. */
+  function isReferralOnly() {
+    return !!(state.user && state.user.account_kind === 'referrer');
+  }
+
   function sessionHasSurface(surface) {
     const list = (state.user && state.user.surfaces) || [];
     return list.indexOf(surface) !== -1;
@@ -405,11 +413,17 @@
   }
 
   function visibleRailItems() {
-    return RAIL_ITEMS
+    const items = RAIL_ITEMS
       .filter((it) => !it.capability || sessionCan(it.capability))
       .map((it) => Object.assign({}, it, {
         locked: !!it.surface && !sessionHasSurface(it.surface),
       }));
+    // A referral-only account gets the rail it can use, not the physician's
+    // rail with four locked doors on it.
+    if (isReferralOnly()) {
+      return items.filter((it) => ['referral', 'guide', 'profile'].includes(it.dest));
+    }
+    return items;
   }
 
   let chromeMetricsBound = false;
@@ -1247,6 +1261,7 @@
     // First-run tutorial gate (Calibration Case 1): a brand-new evaluator lands
     // in the practice case; in_progress resumes it. completed/skipped NEVER
     // re-trigger (server-authoritative via PATCH /me/tutorial). Admin/QA skip it.
+    if (isReferralOnly()) { setPanel('referral'); return; }
     const tut = (state.user && state.user.tutorial) || {};
     if (state.user.role === 'evaluator'
         && (tut.status === 'not_started' || tut.status === 'in_progress')) {
