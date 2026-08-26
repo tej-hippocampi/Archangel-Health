@@ -360,15 +360,18 @@
     { dest: 'tasks',     label: 'Tasks', surface: 'real_work',
       lockedHint: 'Opens when your credentials clear' },
     { dest: 'community', label: 'Community', surface: 'community_read', external: true },
-    // Referral (PRD-REF): shown to a session whose SERVER-supplied
-    // capabilities include 'refer' — every verified physician. The gate is
-    // `capability`, never a tier string.
-    { dest: 'referral',  label: 'Referral', capability: 'refer' },
+    // Referral (PRD-REF). Gated on the SURFACE, which every live account holds
+    // including one still under review. It used to gate on the 'refer'
+    // capability, which comes from a tier, which is only assigned at approval —
+    // so a physician who had just signed up had the tab filtered out of their
+    // rail entirely, and the most enthusiastic moment they will ever have about
+    // this place passed with nothing to act on.
+    { dest: 'referral',  label: 'Referral', surface: 'referral' },
     // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
     // made is not a privileged surface, and every endpoint behind it scopes from
-    // the session, so there is nothing here to gate on a capability.
-    { dest: 'earnings',  label: 'Earnings', surface: 'earnings',
-      lockedHint: 'Opens when your credentials clear' },
+    // the session, so there is nothing here to gate on a capability. It reads
+    // zero before verification, which is true rather than hidden.
+    { dest: 'earnings',  label: 'Earnings', surface: 'earnings' },
     { dest: 'guide',     label: 'Guide' },
   ];
 

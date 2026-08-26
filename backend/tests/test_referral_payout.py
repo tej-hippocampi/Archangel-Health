@@ -523,9 +523,16 @@ def test_one_physician_cannot_read_anothers_funnel_by_any_parameter():
         assert body["total"] == 0, f"leaked B's funnel via {query!r}"
 
 
-def test_a_physician_awaiting_verification_cannot_refer():
-    """The gate is re-checked at the boundary that sends mail to a third party,
-    even though ``get_current_user`` already refuses these accounts."""
+def test_a_physician_awaiting_verification_can_refer():
+    """Referring is not work, so it does not wait on the credential check.
+
+    This used to be refused, which read as prudence and behaved as a leak: a
+    tier only arrives when the queue approves an account, so a physician who
+    had just signed up held no capability, the Referral tab was filtered out
+    of their rail entirely, and the most enthusiastic moment they will ever
+    have about this place passed with nothing to act on. Nothing is paid out
+    any earlier for allowing it -- the bounty still waits on the person they
+    referred being verified with a case accepted."""
     store = _store()
     pending = A.make_user(store, role="evaluator", tier=None)
     with store._conn() as conn:
@@ -533,8 +540,18 @@ def test_a_physician_awaiting_verification_cannot_refer():
                      (pending["id"],))
     r = client.post("/api/asclepius/referrals", json={"email": _email()},
                     headers=A.headers_for(store.get_user_by_id(pending["id"])))
-    assert r.status_code == 403
-    assert asc_referrals.can_refer(store.get_user_by_id(pending["id"])) is False
+    assert r.status_code == 200
+    assert asc_referrals.can_refer(store.get_user_by_id(pending["id"])) is True
+
+
+def test_a_rejected_physician_still_cannot_refer():
+    """A closed door, not an open question."""
+    store = _store()
+    refused = A.make_user(store, role="evaluator", tier=None)
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET verification_status = 'rejected' WHERE id = ?",
+                     (refused["id"],))
+    assert asc_referrals.can_refer(store.get_user_by_id(refused["id"])) is False
 
 
 # ═══ 12 · The email ══════════════════════════════════════════════════════════

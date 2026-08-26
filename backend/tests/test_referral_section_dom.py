@@ -204,7 +204,10 @@ def test_the_module_is_registered_and_routed():
     portal = _PORTAL_JS.read_text(encoding="utf-8")
     assert "dest: 'referral'" in portal
     assert "window.ReferralSection" in portal
-    assert "capability: 'refer'" in portal
+    # Gated on the SURFACE, which a physician holds from signup, not on the
+    # 'refer' capability, which arrives with a tier at approval and so hid the
+    # tab from every doctor who had just joined.
+    assert "surface: 'referral'" in portal
 
 
 def test_no_innerhtml_and_no_long_dashes_in_the_copy():
@@ -319,9 +322,16 @@ def test_the_enterprise_note_posts_to_its_endpoint():
 
 
 def test_the_health_system_pitch_names_large_payouts():
+    """An institutional introduction is the most valuable one a physician can
+    make, and "large payouts" told them nothing about how much. The example is
+    marked as an example: these are negotiated individually, and a doctor who
+    read a flat promise and was paid less would be right to feel misled."""
     out = _render_and("console.log(JSON.stringify({text: textOf(body)}));")
-    assert "health system" in out["text"].lower()
-    assert "large payouts" in out["text"]
+    text = out["text"]
+    assert "health system" in text.lower()
+    assert "$150,000" in text and "$200,000" in text
+    assert "For example" in text
+    assert "agreed in writing" in text
 
 
 # ─── The accent rule ──────────────────────────────────────────────────────────

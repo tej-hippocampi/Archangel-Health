@@ -3509,6 +3509,39 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   color: var(--ink-faint);
   line-height: 1.6;
 }
+/* One tap to wherever the conversation already is. Wraps to as many rows as
+   the width needs -- a doctor on a phone is the likeliest person to use it. */
+.asc-ref-sharerow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.asc-ref-sharerow > a { text-decoration: none; }
+/* The worked example under the health-system pitch. Set apart from the pitch
+   so it reads as an illustration, which is what it is. */
+.asc-ref-example {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 2px 0 12px;
+  padding: 10px 12px;
+  background: var(--card-in);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.asc-ref-example-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
 .asc-ref-note { min-height: 76px; resize: vertical; }
 .asc-ref-noteform { align-items: flex-start; }
 /* ═══ END PRD-P ═══ */

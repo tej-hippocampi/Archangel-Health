@@ -123,16 +123,38 @@ def test_taxonomy_is_open_to_a_physician_awaiting_verification(client):
 
 def test_the_real_work_surface_is_still_shut_for_the_same_physician(client):
     """The other half of the same change. Getting in must not mean getting
-    patient data or money."""
+    patient data."""
     store = fresh_store()
     user = make_user(store, role="evaluator")
     store.set_verification_status(user["id"], "pending")
 
     for path in ("/api/asclepius/tasks/next", "/api/asclepius/tasks/available",
-                 "/api/asclepius/me/stats", "/api/asclepius/earnings"):
+                 "/api/asclepius/me/stats"):
         res = client.get(path, headers=headers_for(user))
         assert res.status_code == 403, path
         assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending", path
+
+
+def test_the_money_surfaces_open_and_read_zero(client):
+    """Money is protected by there being none, not by hiding the page.
+
+    A physician awaiting verification cannot draw a case, so cannot earn from
+    one; their ledger reads zero because zero is true. Locking the tab as well
+    made the product look empty at the exact moment we were trying to show
+    them what they had joined -- and locking Referral cost us the referral,
+    since the bounty pays on the referred doctor's first accepted case no
+    matter when the introduction was made."""
+    store = fresh_store()
+    user = make_user(store, role="evaluator")
+    store.set_verification_status(user["id"], "pending")
+
+    earnings = client.get("/api/asclepius/earnings", headers=headers_for(user))
+    assert earnings.status_code == 200
+    assert earnings.json()["approved_cents"] == 0
+
+    referrals = client.get("/api/asclepius/referrals", headers=headers_for(user))
+    assert referrals.status_code == 200
+    assert referrals.json()["invite_url"]
 
 
 def test_a_role_gate_403_carries_no_verification_state(client):
