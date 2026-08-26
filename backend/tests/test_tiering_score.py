@@ -297,6 +297,20 @@ def test_no_calibration_means_not_TR_eligible():
     ("practiceZip", ["02115", "39530"]),
     ("nameOrigin", ["anglo", "south_asian"]),
     ("selfRatedExpertise", [1, 10]),
+    # International onboarding collects where a doctor practises, where they
+    # are licensed, and the number that licence carries. Those route the
+    # verification -- which registry answers, which documents to ask for --
+    # and nothing else. Country is one step from imgStatus, which is already
+    # on this list, so it is pinned here the same way: a doctor licensed in
+    # Riyadh and one licensed in Boston score identically, and the only thing
+    # that moves the score is whether identity was established.
+    ("countryOfPractice", ["US", "SA"]),
+    ("countryOfLicensure", ["US", "IN"]),
+    ("countryOfDegree", ["US", "PK"]),
+    ("registrationNumber", ["81910-P", "45678"]),
+    ("registryExtras", [{"stateCouncil": "Maharashtra Medical Council"},
+                        {"stateCouncil": "Delhi Medical Council"}]),
+    ("qualification", ["MD", "MBBS"]),
 ])
 def test_forbidden_credential_keys_change_the_score_by_exactly_zero(key, values):
     """A property test over the encoder, not a code-review convention.

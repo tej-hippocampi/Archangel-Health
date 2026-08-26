@@ -11,6 +11,8 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
+import { API_BASE } from "@/lib/auth-api";
+
 import {
   Avatar,
   BackLink,
@@ -92,6 +94,33 @@ export type Credentials = {
      asset store. */
   cvFilename: string;
   npi: string;
+  /* ── Where this doctor practises and where they are licensed ────────────
+     The form used to require a 10-digit NPI and a two-letter US state, so a
+     doctor registered with SCFHS or an Indian state council could not finish
+     it — not because we would turn them away, but because there was nowhere
+     to put what they hold.
+
+     These route the VERIFICATION and nothing else: which registry answers,
+     which document to ask for, what an admin opens to check by hand. Country
+     is one step from IMG status, which §3.3 forbids as a score input, so it
+     is pinned immobile at the encoder alongside it — see the forbidden-key
+     property test in test_tiering_score.py. Note what is still absent below:
+     medical school and graduation year stay off this type. */
+  countryOfPractice: string;   // ISO 3166-1 alpha-2
+  countryOfLicensure: string;
+  countryOfDegree: string;
+  /* The non-US twin of `npi`: SCFHS number, state council registration, GMC
+     reference. Kept separate so `npi` keeps meaning exactly one thing. */
+  registrationNumber: string;
+  /* Whatever else that country's registry needs before it will answer — the
+     Indian state council, for instance. Keyed by RegistryConfig.FieldSpec. */
+  registryExtras: Record<string, string>;
+  /* Primary medical qualification as the doctor names it. "MD" means the
+     primary degree across much of Europe and a POSTGRADUATE specialty degree
+     in India, so the word is recorded rather than interpreted. */
+  qualification: string;
+  /* UI state only, like cvFilename; the sha is recorded server-side. */
+  licenseDocFilename: string;
   degree: string;
   boardCertifications: BoardCert[];
   fellowship: Fellowship[];
@@ -189,6 +218,16 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     healthSystem: "",
     cvFilename: "",
     npi: "",
+    // Defaults to the US so the form opens exactly as it always has for the
+    // doctors who are most of the traffic; changing the country is what opens
+    // the rest of the world's fields.
+    countryOfPractice: "US",
+    countryOfLicensure: "US",
+    countryOfDegree: "US",
+    registrationNumber: "",
+    registryExtras: {},
+    qualification: "",
+    licenseDocFilename: "",
     degree: "",
     boardCertifications: [{ board: "", specialty: "", subspecialty: "", active: true }],
     fellowship: [{ institution: "", specialty: "", year: "" }],
@@ -1329,6 +1368,70 @@ const DEGREE_OPTIONS = [
   { value: "MBBS", label: "MBBS" },
   { value: "Other", label: "Other" },
 ];
+
+/* ── What each country's registry needs ────────────────────────────────────
+   Served by GET /api/onboarding/credential-config, whose source of truth is
+   backend/asclepius/registry/config.py. Fetched once when the credentials
+   screen mounts rather than per country change: the whole table is a few
+   kilobytes, and a round trip every time somebody scrolls the country list
+   would make the form feel broken on a hotel wifi.
+
+   The fallback below is not a copy of that table — it is the US, the path the
+   large majority of signups take, so a doctor whose config request fails still
+   has a working form instead of an empty picker. */
+export type RegistryFieldSpec = {
+  key: string;
+  label: string;
+  kind: "text" | "select" | "date";
+  options: string[];
+  required: boolean;
+  hint: string;
+};
+
+export type RegistryCountry = {
+  country: string;
+  country_name: string;
+  registry_name: string;
+  id_label: string;
+  id_regex: string | null;
+  id_hint: string;
+  method: string;
+  extra_fields: RegistryFieldSpec[];
+};
+
+type CredentialConfig = {
+  countries: RegistryCountry[];
+  default: { id_label: string; id_hint: string; method: string };
+  qualifications: string[];
+};
+
+const CREDENTIAL_CONFIG_FALLBACK: CredentialConfig = {
+  countries: [{
+    country: "US", country_name: "United States",
+    registry_name: "NPPES (CMS National Provider Identifier)",
+    id_label: "NPI number", id_regex: "^[12]\\d{9}$", id_hint: "10 digits",
+    method: "api", extra_fields: [],
+  }],
+  default: { id_label: "Medical registration number", id_hint: "", method: "document" },
+  qualifications: ["MD", "DO", "MBBS", "MBChB", "MBBCh", "BMBS", "Staatsexamen", "Other"],
+};
+
+function useCredentialConfig(): CredentialConfig {
+  const [cfg, setCfg] = useState<CredentialConfig>(CREDENTIAL_CONFIG_FALLBACK);
+  useEffect(() => {
+    let live = true;
+    fetch(`${API_BASE}/api/onboarding/credential-config`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (live && data && Array.isArray(data.countries) && data.countries.length) {
+          setCfg(data);
+        }
+      })
+      .catch(() => { /* the fallback is a working US form, not an error state */ });
+    return () => { live = false; };
+  }, []);
+  return cfg;
+}
 const PRACTICE_SETTING_SUGGESTIONS = [
   "Academic",
   "Private practice",
@@ -1368,9 +1471,11 @@ const CV_ACCEPT = ".pdf,.txt,application/pdf,text/plain";
  *  upload. */
 function CvUploadField({
   filename,
+  documentRequired = false,
   onUploaded,
 }: {
   filename: string;
+  documentRequired?: boolean;
   onUploaded: (filename: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -1409,7 +1514,13 @@ function CvUploadField({
 
   return (
     <div style={{ marginBottom: 20 }}>
-      <FieldLabel optional>CV or résumé</FieldLabel>
+      {/* For a doctor whose national register we cannot query, this file IS
+          the verification — so it is asked for by name and marked required
+          rather than sitting there as an optional CV they have no reason to
+          attach. Same upload, same store; only the ask changes. */}
+      <FieldLabel optional={!documentRequired}>
+        {documentRequired ? "Registration certificate or licence card" : "CV or résumé"}
+      </FieldLabel>
       <div
         style={{
           display: "flex",
@@ -1441,7 +1552,11 @@ function CvUploadField({
           {busy ? "Attaching…" : filename ? "Replace file" : "Attach a file"}
         </button>
         <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
-          {filename ? `${filename} attached` : "PDF or text, up to 10 MB. Optional."}
+          {filename
+            ? `${filename} attached`
+            : documentRequired
+              ? "PDF or image, up to 10 MB. This is how we verify you."
+              : "PDF or text, up to 10 MB. Optional."}
         </span>
         <input
           ref={inputRef}
@@ -1495,13 +1610,37 @@ export function Step5Credentials({
   // Each screen gates ONLY on what it asks for. Gating screen 1 on a licence
   // number it never showed is how a Continue button goes dead with no
   // explanation anywhere on the page.
+  // A doctor licensed outside the US has no NPI and no two-letter state, and
+  // requiring them was the whole reason a Saudi consultant could not finish
+  // this form. What replaces them is that country's own registration number —
+  // required to be present, never required to match a shape, because several
+  // countries publish no format and a doctor should not lose an evening to our
+  // guess about punctuation. The registry check reports; a human decides.
+  const isUS = (c.countryOfLicensure || "US").toUpperCase() === "US";
+  const cfg = useCredentialConfig();
+  const countryOptions = cfg.countries.map((x) => ({
+    value: x.country, label: x.country_name,
+  }));
+  const registry = cfg.countries.find(
+    (x) => x.country === (c.countryOfLicensure || "US").toUpperCase(),
+  ) || { ...cfg.default, country: "", country_name: "", registry_name: "",
+         id_regex: null, extra_fields: [] as RegistryFieldSpec[] };
+  const qualificationOptions = cfg.qualifications.map((q) => ({ value: q, label: q }));
+  const registryFormatWarning =
+    !isUS && registry.id_regex && c.registrationNumber.trim().length > 0 &&
+    !new RegExp(registry.id_regex).test(c.registrationNumber.trim())
+      ? "That does not look like the usual format — worth a second check, but you can continue."
+      : "";
+
   const identityValid =
     c.fullLegalName.trim().length > 0 &&
-    /^\d{10}$/.test(c.npi.trim()) &&
+    (isUS
+      ? /^\d{10}$/.test(c.npi.trim())
+      : c.registrationNumber.trim().length > 0) &&
     // The physician's own phone is required (PRD Phase 4). Their mobile is
-    // how verification actually gets resolved when NPPES is ambiguous.
+    // how verification actually gets resolved when the registry is ambiguous.
     c.phone.trim().length >= 7 &&
-    c.degree.trim().length > 0 &&
+    (isUS ? c.degree.trim().length > 0 : c.qualification.trim().length > 0) &&
     c.primarySpecialty.trim().length > 0 &&
     c.currentlyActive !== null;
 
@@ -1509,8 +1648,9 @@ export function Step5Credentials({
     // Gate A2 needs both halves; gate A4 needs the attestation. Required at the
     // form rather than surfaced later as an "unresolved gate" in the admin queue,
     // because a physician can answer these in five seconds and an admin cannot.
-    c.licenseNumber.trim().length > 0 &&
-    c.licenseState.trim().length === 2 &&
+    // Outside the US registration IS the licence, and A1 already judged it, so
+    // there is no second number to ask for here.
+    (!isUS || (c.licenseNumber.trim().length > 0 && c.licenseState.trim().length === 2)) &&
     c.residencyCompleted !== null &&
     // AUDIT H1: required, because the alternative is inferring it from a blank or a
     // zero — and inferring "not practising" from the zero a physician on parental
@@ -1571,23 +1711,107 @@ export function Step5Credentials({
         value={c.fullLegalName}
         onChange={(v) => set({ fullLegalName: v })}
       />
+
+      {/* Where they practise and where they are licensed, asked separately
+          because they routinely differ — and asked FIRST, because the answer
+          decides what the rest of this screen is allowed to ask for. */}
       <div style={TWO_COL}>
-        <TextField
-          label="NPI number"
-          placeholder="10-digit NPI"
-          value={c.npi}
-          onChange={(v) => set({ npi: v.replace(/\D/g, "").slice(0, 10) })}
-          hint="National Provider Identifier (10 digits)."
-          error={c.npi.length > 0 && !/^\d{10}$/.test(c.npi) ? "NPI must be 10 digits." : undefined}
+        <SelectField
+          label="Where do you practise?"
+          placeholder="Select country"
+          value={c.countryOfPractice}
+          onChange={(v) => set({
+            countryOfPractice: v,
+            // Licensed where you practise is the common case; the field below
+            // is there for everyone else.
+            ...(c.countryOfLicensure === c.countryOfPractice
+              ? { countryOfLicensure: v, countryOfDegree: c.countryOfDegree || v }
+              : {}),
+          })}
+          options={countryOptions}
         />
         <SelectField
-          label="Degree"
-          placeholder="Select degree"
-          value={c.degree}
-          onChange={(v) => set({ degree: v })}
-          options={DEGREE_OPTIONS}
+          label="Where are you licensed?"
+          placeholder="Select country"
+          value={c.countryOfLicensure}
+          onChange={(v) => set({ countryOfLicensure: v, registrationNumber: "", registryExtras: {} })}
+          options={countryOptions}
         />
       </div>
+
+      <div style={TWO_COL}>
+        {isUS ? (
+          <TextField
+            label="NPI number"
+            placeholder="10-digit NPI"
+            value={c.npi}
+            onChange={(v) => set({ npi: v.replace(/\D/g, "").slice(0, 10) })}
+            hint="National Provider Identifier (10 digits)."
+            error={c.npi.length > 0 && !/^\d{10}$/.test(c.npi) ? "NPI must be 10 digits." : undefined}
+          />
+        ) : (
+          <TextField
+            label={registry.id_label}
+            placeholder={registry.id_hint || "Registration number"}
+            value={c.registrationNumber}
+            onChange={(v) => set({ registrationNumber: v })}
+            // The format note is advisory and shares the hint line: plenty of
+            // countries publish no format, and a doctor whose real number looks
+            // unusual to us still gets through. It never becomes `error`,
+            // which would disable Continue.
+            hint={[
+              registry.registry_name
+                ? `As registered with ${registry.registry_name}.`
+                : "As printed on your registration certificate.",
+              registryFormatWarning,
+            ].filter(Boolean).join(" ")}
+          />
+        )}
+        <SelectField
+          label={isUS ? "Degree" : "Primary medical qualification"}
+          placeholder="Select qualification"
+          value={isUS ? c.degree : c.qualification}
+          onChange={(v) => set(isUS ? { degree: v } : { qualification: v, degree: v })}
+          options={isUS ? DEGREE_OPTIONS : qualificationOptions}
+        />
+      </div>
+
+      {/* Whatever else this country's registry needs before it will answer —
+          India cannot be searched without knowing the state council. */}
+      {!isUS && registry.extra_fields.map((f) => (
+        <div key={f.key}>
+          {f.kind === "select" ? (
+            <SelectField
+              label={f.label}
+              placeholder={f.hint || "Select"}
+              value={c.registryExtras[f.key] || ""}
+              onChange={(v) => set({ registryExtras: { ...c.registryExtras, [f.key]: v } })}
+              options={f.options.map((o) => ({ value: o, label: o }))}
+            />
+          ) : (
+            <TextField
+              label={f.label}
+              placeholder={f.hint || ""}
+              value={c.registryExtras[f.key] || ""}
+              onChange={(v) => set({ registryExtras: { ...c.registryExtras, [f.key]: v } })}
+            />
+          )}
+        </div>
+      ))}
+
+      {/* Countries whose registers are captcha-walled, priced or simply absent
+          are verified from the certificate instead. Say so plainly here rather
+          than letting the doctor wonder why nothing happened. */}
+      {!isUS && registry.method === "document" && (
+        <div style={RARE_INTRO}>
+          <p style={{ ...RARE_BODY, margin: 0 }}>
+            <strong style={RARE_STRONG}>We verify {registry.country_name || "your country"} by document.</strong>{" "}
+            {registry.registry_name} has no register we can check automatically, so
+            upload your registration certificate or licence card on the next screen
+            and a person here reads it. It does not slow your account down.
+          </p>
+        </div>
+      )}
 
       <TextField
         label="Primary specialty"
@@ -1880,6 +2104,7 @@ export function Step5Credentials({
 
       <CvUploadField
         filename={c.cvFilename}
+        documentRequired={!isUS && registry.method === "document"}
         onUploaded={(filename) => set({ cvFilename: filename })}
       />
 

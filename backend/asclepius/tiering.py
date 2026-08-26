@@ -184,6 +184,15 @@ GATE_LABELS: Dict[str, str] = {
 _DEGREES_OK = {
     "md", "do", "mbbs", "mbchb", "mb bs", "mb chb", "bmbs", "mbbch", "md/phd", "do/phd",
     "m.d.", "d.o.", "mbbs (img)", "img", "img-equivalent",
+    # Primary medical qualifications that are not called any of the above.
+    # Germany awards no degree in the usual sense: physicians finish with the
+    # Staatsexamen and practise on the Approbation, while "Dr. med." is an
+    # optional research thesis. "MD" also means different things by country --
+    # the primary qualification across much of Europe, a POSTGRADUATE specialty
+    # degree in India -- so this list accepts the words doctors actually hold
+    # and leaves judging them to A1 and the registry behind it.
+    "staatsexamen", "approbation", "mbchb (img)", "bm", "bm bch", "mb bchir",
+    "cand med", "licenciado en medicina", "laurea in medicina", "mudr",
 }
 
 
@@ -248,19 +257,51 @@ def hard_gates(
     def put(gid: str, state: str, detail: str) -> None:
         g[gid] = {"state": state, "label": GATE_LABELS[gid], "detail": detail}
 
-    # ── A1 · NPI ────────────────────────────────────────────────────────────────────────
+    # ── A1 · Primary medical-registry identity ──────────────────────────────────────────
     # Reads the persisted tri-state, never re-derives it. npi_verified is 1 / 0 / NULL and
     # NULL genuinely means "not checked" — collapsing it here would undo the whole of §1.1.
+    #
+    # For a doctor licensed outside the US the answering registry is theirs, not NPPES, and
+    # the outcomes do not map one-to-one. A miss in a register that admits it is incomplete
+    # (INCONCLUSIVE), or a country with no queryable register at all (DOCUMENT_ONLY), is
+    # UNKNOWN — not yet established — and lands in the admin queue with the certificate to
+    # read. Neither may ever be a FAIL: that would reject a real physician for the sins of
+    # someone else's database.
     npi_flag = user.get("npi_verified")
     npi_payload = credentialing._json_field(user, "npi_payload_json")
-    if duplicate_npi:
-        put("A1", FAIL, "Another account already claims this NPI")
-    elif npi_flag == 1:
-        put("A1", PASS, "NPPES: individual, active, family name matches")
-    elif npi_flag == 0:
-        put("A1", FAIL, f"NPPES: {npi_payload.get('reason') or 'no corroborating record'}")
+    licensure = str(user.get("country_of_licensure") or "US").strip().upper() or "US"
+    if licensure == "US":
+        if duplicate_npi:
+            put("A1", FAIL, "Another account already claims this NPI")
+        elif npi_flag == 1:
+            put("A1", PASS, "NPPES: individual, active, family name matches")
+        elif npi_flag == 0:
+            put("A1", FAIL, f"NPPES: {npi_payload.get('reason') or 'no corroborating record'}")
+        else:
+            put("A1", UNKNOWN, "NPI not yet checked — registry unreachable or check pending")
     else:
-        put("A1", UNKNOWN, "NPI not yet checked — registry unreachable or check pending")
+        registry_payload = credentialing._json_field(user, "registry_payload_json")
+        registry_name = registry_payload.get("registry") or "the national registry"
+        outcome = registry_payload.get("result")
+        registry_flag = user.get("registry_verified")
+        if duplicate_npi:
+            put("A1", FAIL, "Another account already claims this registration number")
+        elif registry_flag == 1:
+            put("A1", PASS, f"{registry_name}: registration corroborates the signup")
+        elif outcome == "mismatch":
+            put("A1", FAIL,
+                f"{registry_name}: {registry_payload.get('reason') or 'record does not corroborate'}")
+        elif outcome == "not_found":
+            put("A1", FAIL, f"{registry_name}: no registration record")
+        elif outcome == "document_only":
+            put("A1", UNKNOWN,
+                f"{registry_name} has no register we can query — verify from the uploaded document")
+        elif outcome in ("inconclusive", "unavailable"):
+            put("A1", UNKNOWN,
+                f"{registry_name} could not confirm ({registry_payload.get('reason') or 'no match'})"
+                " — routed to document review")
+        else:
+            put("A1", UNKNOWN, f"{registry_name} check pending")
 
     # ── A2 · State licence ──────────────────────────────────────────────────────────────
     # NPPES returns taxonomies[].license and .state for free, so the cross-check costs nothing.
@@ -271,7 +312,19 @@ def hard_gates(
     reg_tax = (npi_payload.get("record") or {}).get("taxonomy") or {}
     reg_lic = str(reg_tax.get("license") or "").strip()
     reg_state = str(reg_tax.get("state") or "").strip().upper()
-    if not lic or not lic_state:
+    if licensure != "US":
+        # There is no state licence to hold: registration IS the licence in most
+        # of the world, and A1 already judged it. Asking twice would mean a
+        # doctor could clear their own registry and still be marked incomplete
+        # for lacking a document their country does not issue.
+        registration = str(creds.get("registrationNumber") or user.get("registry_id") or "").strip()
+        if not registration:
+            put("A2", UNKNOWN, "No registration number on file")
+        elif user.get("registry_verified") == 1:
+            put("A2", PASS, f"Registration {registration} confirmed by the national registry")
+        else:
+            put("A2", UNKNOWN, f"Registration {registration} on file — pending registry or document review")
+    elif not lic or not lic_state:
         put("A2", UNKNOWN, "No licence number / state on file")
     elif reg_lic and reg_state and (
             reg_lic.casefold() != lic.casefold() or reg_state != lic_state):
@@ -315,8 +368,15 @@ def hard_gates(
     # could not load is not a clean physician, and it is certainly not an excluded one.
     if leie_status == "excluded":
         put("A5", FAIL, "Listed on the OIG LEIE exclusion list")
-    elif leie_status == "clear":
+    elif leie_status == "clear" and licensure == "US":
         put("A5", PASS, "Not on the OIG LEIE list")
+    elif licensure != "US":
+        # The LEIE is a list of people excluded from US federal health
+        # programmes. Absence from it says nothing about a doctor who was never
+        # in them, so this cannot PASS on their behalf — and being unresolved
+        # here is precisely why an international signup always reaches a human.
+        put("A5", UNKNOWN,
+            "OIG LEIE is US-only — no equivalent exclusion check for this country")
     else:
         put("A5", UNKNOWN, "OIG LEIE list not loaded — cannot check")
 

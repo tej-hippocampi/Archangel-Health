@@ -5495,6 +5495,105 @@ class AsclepiusStore:
                 (flag, json.dumps(result or {}), _utcnow_iso(), user_id),
             )
 
+    def set_registry_country(
+        self, user_id: str, *, practice: Optional[str], licensure: Optional[str],
+        registry_id: Optional[str],
+    ) -> None:
+        """Where this doctor practises, where they are licensed, and the number
+        that licence carries. Written once at signup; NULL keeps meaning "US"
+        for every row that predates the question."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET country_of_practice = ?, country_of_licensure = ?, "
+                "registry_id = ? WHERE id = ?",
+                ((practice or None), (licensure or None), (registry_id or None), user_id),
+            )
+
+    def set_registry_result(self, user_id: str, result: Dict[str, Any]) -> None:
+        """Persist a national-registry check, on the same three-state rule as
+        ``set_npi_result``.
+
+          verified              -> registry_verified = 1
+          mismatch / not_found  -> registry_verified = 0   (definitive)
+          anything else         -> registry_verified = NULL, recorded as an
+                                   ATTEMPT so it cannot erase evidence
+
+        The non-definitive set is wider here than it is for NPPES: it holds
+        ``inconclusive`` (searched a register that admits it is incomplete) and
+        ``document_only`` (that country has no register to search). Neither is
+        a finding about the doctor, and writing either one through would clear
+        a real verification on the next retry.
+        """
+        outcome = (result or {}).get("result")
+        if outcome == "verified":
+            flag: Optional[int] = 1
+        elif outcome in ("mismatch", "not_found"):
+            flag = 0
+        else:
+            flag = None
+
+        if flag is None:
+            with self._conn() as conn:
+                conn.execute(
+                    "UPDATE users SET registry_last_attempt_json = ?, "
+                    "registry_last_attempt_at = ? WHERE id = ?",
+                    (json.dumps(result or {}), _utcnow_iso(), user_id),
+                )
+                # ...but a doctor whose country has no register at all is not
+                # waiting on a retry, and the queue has to be able to say so.
+                if outcome in ("document_only", "queued"):
+                    conn.execute(
+                        "UPDATE users SET registry_payload_json = ? WHERE id = ?",
+                        (json.dumps(result or {}), user_id),
+                    )
+            return
+
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET registry_verified = ?, registry_payload_json = ?, "
+                "registry_checked_at = ?, registry_last_attempt_json = NULL, "
+                "registry_last_attempt_at = NULL WHERE id = ?",
+                (flag, json.dumps(result or {}), _utcnow_iso(), user_id),
+            )
+
+    def set_signup_flags(self, user_id: str, findings: List[Dict[str, str]]) -> None:
+        """Record what does not hold together about a signup.
+
+        A flag routes to a human; it is not a rejection and nothing downstream
+        may treat it as one. Always written, including the empty case, so
+        "assessed and clean" is distinguishable from "never assessed".
+        """
+        from asclepius import plausibility
+
+        flagged = 1 if plausibility.should_flag(findings or []) else 0
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET flagged = ?, flags_json = ? WHERE id = ?",
+                (flagged, json.dumps(findings or []), user_id),
+            )
+
+    def find_users_by_registry_id(
+        self, registry_id: str, country: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Other accounts claiming this registration number.
+
+        Scoped per country: a PMDC number and an NMC number that happen to
+        share digits are not the same credential, and treating them as a
+        duplicate would accuse two unrelated doctors.
+        """
+        value = (registry_id or "").strip()
+        if not value:
+            return []
+        sql = ("SELECT * FROM users WHERE registry_id IS NOT NULL "
+               "AND UPPER(TRIM(registry_id)) = UPPER(?)")
+        params: List[Any] = [value]
+        if country:
+            sql += " AND UPPER(COALESCE(country_of_licensure, '')) = UPPER(?)"
+            params.append(country)
+        with self._conn() as conn:
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        return [dict(r) for r in rows]
+
     def get_cached_npi_fetch(self, npi: str, max_age_days: int = 30) -> Optional[Dict[str, Any]]:
         """A fresh definitive NPPES answer for this NPI, if any user row holds
         one — shaped like ``credentialing.fetch_npi_record`` output so the
