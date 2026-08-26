@@ -268,7 +268,11 @@
       return;
     }
     if (dest !== 'tasks' && dest !== 'guide' && dest !== 'earnings'
-        && dest !== 'verification') return;
+        && dest !== 'referral' && dest !== 'verification') return;
+    // Server-gated destinations are re-checked here, not only hidden in the
+    // rail: a stale deep link or a hand-typed state change must not open a
+    // section the session was never granted. (The API 403s regardless.)
+    if (dest === 'referral' && !sessionCan('refer')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
@@ -277,7 +281,9 @@
     if (dest !== 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     state.panel = dest;
     renderSidePanel();
-    if (dest === 'earnings') {
+    if (dest === 'referral') {
+      renderReferralView();
+    } else if (dest === 'earnings') {
       renderEarningsView();
     } else if (dest === 'guide') {
       renderGuide();
@@ -300,6 +306,8 @@
   const RAIL_ICONS = {
     tasks: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 4h9M7 10h9M7 16h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M3.2 4.2l1 1 1.4-1.7M3.2 10.2l1 1 1.4-1.7M3.2 16.2l1 1 1.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     community: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 15V6a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0116 6v5.5A1.5 1.5 0 0114.5 13H7l-3 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 8.5h5M7.5 10.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    // A colleague joining a colleague: one figure, one plus.
+    referral: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8" cy="7" r="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M3.4 16c.6-2.6 2.4-4 4.6-4s4 1.4 4.6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M15 6v5M12.5 8.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     // PRD-R: two panels side by side, the shape of the paired review.
     review: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.8" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><rect x="11.2" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><path d="M4.6 8.2h2.4M4.6 11h2.4M13 8.2h2.4M13 11h2.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
     guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
@@ -355,6 +363,10 @@
     // never re-derives a tier.
     { dest: 'review',    label: 'Review', capability: 'review', external: true },
     { dest: 'community', label: 'Community', surface: 'community_read', external: true },
+    // Referral (PRD-REF): shown to a session whose SERVER-supplied
+    // capabilities include 'refer' — every verified physician. The gate is
+    // `capability`, never a tier string.
+    { dest: 'referral',  label: 'Referral', capability: 'refer' },
     // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
     // made is not a privileged surface, and every endpoint behind it scopes from
     // the session, so there is nothing here to gate on a capability.
@@ -420,6 +432,7 @@
 
   function railItemActive(dest) {
     if (dest === 'guide') return state.panel === 'guide';
+    if (dest === 'referral') return state.panel === 'referral';
     if (dest === 'earnings') return state.panel === 'earnings';
     return state.panel === 'tasks' && dest === 'tasks';
   }
@@ -6926,6 +6939,29 @@
       };
     }
     return payload;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  REFERRAL SECTION (PRD-REF)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Lives in its own file (frontend/asclepius/referral.js) and is mounted here
+  // the way EarningsSection is.
+  function renderReferralView() {
+    stopTimer();
+    updateHeaderProgress();
+    const body = h('div', { id: 'ascReferralBody' });
+    setRoot(h('div', { class: 'asc-wrap' }, body));
+    if (window.ReferralSection && typeof window.ReferralSection.render === 'function') {
+      window.ReferralSection.render(body, adminSectionCtx());
+      return;
+    }
+    // A VISIBLE error, never a quiet placeholder: a silent fallback is how a
+    // shipped feature stays invisible for a build round.
+    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-error' },
+        'The Referral section failed to load. Reload the page; if it persists, '
+        + 'this is a deploy problem: check that referral.js is included in '
+        + 'index.html. Your referrals and bounties are unaffected.'))));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

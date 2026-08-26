@@ -489,12 +489,6 @@
 
   function render(body, ctx) {
     rootEl = body; rootCtx = ctx;
-    // A fresh MOUNT is a fresh visit. The portal shell never calls reset(), so
-    // without this a half-typed colleague would outlive a logout and be sitting
-    // in the field for whoever signs in next on the same machine. `rerender()`
-    // — the path a heartbeat and the session poll take — deliberately does NOT
-    // clear it; that is the whole point of holding it here.
-    refDraft = ''; refBusy = false; refMessage = null; refError = null;
     ctx.clear(body);
     body.appendChild(ctx.h('div', { class: 'asc-pay-loading' }, 'Loading your earnings…'));
     load();
@@ -645,151 +639,18 @@
      physician checking their pay. A referral mechanic that feels
      like a growth loop makes the product feel like one, and the
      entire competitive argument is that we are not that. */
-  var refDraft = '';          // survives a re-render (see below)
-  var refBusy = false;
-  var refMessage = null;
-  var refError = null;
-
-  // green earned · lime in flight · muted grey settled-without-money.
-  // NEVER pink: a referral that has not converted is not a safety event, and
-  // colouring it like one will make a doctor think they did something wrong.
-  var BOUNTY_CLASS = {
-    earned: 'asc-ref-earned',
-    pending: 'asc-ref-flight',
-    expired: 'asc-ref-quiet',
-    duplicate: 'asc-ref-quiet',
-    ineligible: 'asc-ref-quiet',
-    // The invitee was not verified, so no first case is coming. Grey and
-    // silent — NOT "+$150 pending", which would be the page lying, and not
-    // pink, which would suggest the referrer did something wrong.
-    closed: 'asc-ref-quiet',
-  };
-
   function referralCard(h) {
+    // The full referral surface (link, composer, funnel, enterprise note)
+    // lives on the Referral tab now. This card is a pointer, kept here
+    // because Earnings is where the money question naturally arises.
     var block = data.referrals;
-    if (!block || !block.can_refer) return null;
-    var bounty = money(block.bounty_cents || 15000);
-
+    if (block && block.can_refer === false) return null;
     var card = h('div', { class: 'asc-ref-card' });
     card.appendChild(h('div', { class: 'asc-ref-title' }, 'Refer a physician'));
     card.appendChild(h('div', { class: 'asc-ref-pitch' },
-      block.earns_bounty
-        ? bounty + ' when a colleague you refer completes their first case.'
-        : 'Invite a colleague to contribute. Your account is on an equity '
-          + 'arrangement, so a referral does not accrue a bounty.'));
-
-    card.appendChild(referralForm(h));
-    if (refError) card.appendChild(h('div', { class: 'asc-ref-error' }, refError));
-    else if (refMessage) card.appendChild(h('div', { class: 'asc-ref-msg' }, refMessage));
-
-    card.appendChild(h('div', { class: 'asc-ref-listtitle' }, 'Your referrals'));
-    var rows = block.referrals || [];
-    if (!rows.length) {
-      // Names the next action instead of shrugging — and it is true, which is
-      // what makes it the strongest thing we can say about our own network. It
-      // persuades without a call to action shouting at a doctor who came here
-      // to check their pay.
-      card.appendChild(h('div', { class: 'asc-ref-empty' },
-        'No referrals yet. Almost every physician here came through another '
-        + 'physician.'));
-      return card;
-    }
-    var list = h('div', { class: 'asc-ref-list' });
-    rows.forEach(function (r) {
-      var state = r.bounty_state || 'pending';
-      // An EARNED row is worth what the ledger actually paid it, which is not
-      // necessarily what the rate is today — every rate here is stamped at
-      // accrual so a change can never restate a past earning, and this column is
-      // where a doctor would read the restatement.
-      var rowAmount = money(r.bounty_cents == null ? block.bounty_cents : r.bounty_cents);
-      var row = h('div', { class: 'asc-ref-row' },
-        h('span', { class: 'asc-ref-who' }, r.invitee_display || '—'),
-        h('span', { class: 'asc-ref-when' }, shortDate(r.invited_at)),
-        // A SENTENCE, never a token. A physician should not have to learn our
-        // state machine to know whether their friend is nearly there — and
-        // `signed_up` on screen is exactly that demand.
-        h('span', { class: 'asc-ref-state ' + (BOUNTY_CLASS[state] || '') },
-          r.status_sentence || 'Invited'),
-        h('span', { class: 'asc-ref-amount ' + (BOUNTY_CLASS[state] || '') },
-          !block.earns_bounty ? ''
-            : state === 'earned' ? rowAmount
-              : state === 'pending' ? '+' + rowAmount + ' pending'
-                : ''));
-      list.appendChild(row);
-    });
-    card.appendChild(list);
+      'Your link, your invitations and what each referral is worth moved to '
+      + 'the Referral tab in the side panel.'));
     return card;
-  }
-
-  function referralForm(h) {
-    var form = h('div', { class: 'asc-ref-form' });
-    // `value` is restored from module state on every build, because this section
-    // re-renders on every heartbeat response and on every read-only session
-    // poll. Without it, a doctor typing a colleague's address while a review
-    // session beats in another tab watches the field empty itself every 15
-    // seconds — a bug that only appears in the exact situation the card exists
-    // for (they are on this page because they are looking at their pay).
-    var input = h('input', {
-      class: 'asc-ref-input',
-      type: 'email',
-      placeholder: 'colleague@hospital.org',
-      value: refDraft,
-      disabled: refBusy,
-    });
-    input.addEventListener('input', function () { refDraft = input.value; });
-    input.addEventListener('keydown', function (ev) {
-      if (ev && ev.key === 'Enter') { ev.preventDefault(); submitReferral(input.value); }
-    });
-    var button = h('button', {
-      class: 'asc-btn asc-btn-sm asc-ref-send',
-      type: 'button',
-      disabled: refBusy,
-    }, refBusy ? 'Sending…' : 'Send invitation');
-    button.addEventListener('click', function () { submitReferral(input.value); });
-    form.appendChild(input);
-    form.appendChild(button);
-    return form;
-  }
-
-  function submitReferral(value) {
-    if (refBusy) return;
-    var email = String(value == null ? '' : value).trim();
-    refDraft = email;
-    if (!email || email.indexOf('@') === -1) {
-      refError = 'Enter your colleague’s email address.';
-      refMessage = null;
-      rerender();
-      return;
-    }
-    refBusy = true; refError = null; refMessage = null;
-    rerender();
-    rootCtx.api('/referrals', { method: 'POST', body: { email: email } })
-      .then(function (res) {
-        refBusy = false;
-        refDraft = '';
-        // The server's message is the same sentence whether or not that address
-        // already has an account — the response cannot be used to find out, and
-        // this page must not invent a distinction the API refused to make.
-        refMessage = (res && res.message)
-          || 'Invitation recorded. You’ll see them in your referrals below.';
-        refError = null;
-        // Refetch rather than patching local state: the funnel is the server's
-        // answer, and a card that renders an optimistic row is a card that can
-        // disagree with the ledger beside it.
-        return rootCtx.api('/referrals').then(function (funnel) {
-          if (data) data.referrals = funnel;
-          rerender();
-        }).catch(function () { rerender(); });
-      })
-      .catch(function (err) {
-        refBusy = false;
-        refMessage = null;
-        // A VISIBLE failure. A silent one on this control is how a physician
-        // concludes the feature is broken and never refers again.
-        refError = (err && (err.detail || err.message))
-          || 'That invitation could not be sent. Try again in a moment.';
-        rerender();
-      });
   }
 
   function recent(h) {
@@ -928,7 +789,6 @@
       data = null; loadError = null;
       // The referral form's draft is per-visit state. Leaving it behind would
       // put one physician's half-typed colleague in front of the next render.
-      refDraft = ''; refBusy = false; refMessage = null; refError = null;
-    },
+      },
   };
 })();
