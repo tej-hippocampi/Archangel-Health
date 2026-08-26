@@ -748,6 +748,16 @@
     return rows;
   }
 
+  /* Severity to class, spelled out rather than concatenated. Building a class
+     name out of a data field puts whatever that field contains into the DOM
+     and leaves the stylesheet's own classes unsearchable, which is what
+     test_no_new_component_vocabulary_beyond_the_prd exists to catch. */
+  const FLAG_SEVERITY_CLASS = {
+    high: 'asc-phys-flag-high',
+    medium: 'asc-phys-flag-medium',
+    low: 'asc-phys-flag-low',
+  };
+
   /* What did not hold together about this signup. Review flags, never
      rejections: the point is that a person looks. */
   function flagsCard(h, flags) {
@@ -757,8 +767,10 @@
     const pad = h('div', { class: 'asc-card-pad' });
     flags.forEach((f) => {
       pad.appendChild(h('div', { class: 'asc-phys-flag' },
-        h('span', { class: 'asc-phys-flag-sev asc-phys-flag-' + (f.severity || 'low') },
-          (f.severity || 'low').toUpperCase()),
+        h('span', {
+          class: 'asc-phys-flag-sev '
+            + (FLAG_SEVERITY_CLASS[f.severity] || FLAG_SEVERITY_CLASS.low),
+        }, (f.severity || 'low').toUpperCase()),
         h('span', {}, String(f.field || '').replace(/_/g, ' ') + ': '
           + String(f.issue || '').replace(/_/g, ' ')
           + (f.detail ? ': ' + f.detail : ''))));

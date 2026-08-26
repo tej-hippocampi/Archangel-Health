@@ -3786,6 +3786,7 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 }
 .asc-phys-flag-high { color: var(--asc-warn); border-color: currentColor; }
 .asc-phys-flag-medium { color: var(--asc-muted); }
+.asc-phys-flag-low { color: var(--asc-muted); }
 
 /* Verification queue: the international registry line, the review flags, and
    the credentials a doctor actually typed. That last block existed on the
@@ -3827,6 +3828,8 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   color: var(--asc-muted);
 }
 .vq-flag-high { color: var(--asc-warn); border-color: currentColor; }
+.vq-flag-medium { color: var(--asc-muted); }
+.vq-flag-low { color: var(--asc-muted); }
 .vq-npi-inconclusive, .vq-npi-document_only, .vq-npi-queued, .vq-npi-pending {
   color: var(--asc-muted);
 }

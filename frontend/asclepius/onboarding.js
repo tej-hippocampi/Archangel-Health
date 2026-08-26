@@ -438,6 +438,10 @@
 
   /* What did not hold together about this signup. Never a rejection: these
      suppress the automatic proposal and put a person in front of it. */
+  var FLAG_SEVERITY_CLASS = {
+    high: 'vq-flag-high', medium: 'vq-flag-medium', low: 'vq-flag-low',
+  };
+
   function flagsBlock(flags) {
     if (!flags || !flags.length) return null;
     var box = h('div', { class: 'vq-flags' });
@@ -445,8 +449,10 @@
       'Worth a look (' + flags.length + ')'));
     flags.forEach(function (f) {
       box.appendChild(h('div', { class: 'vq-flag' },
-        h('span', { class: 'vq-flag-sev vq-flag-' + (f.severity || 'low') },
-          (f.severity || 'low').toUpperCase()),
+        h('span', {
+          class: 'vq-flag-sev '
+            + (FLAG_SEVERITY_CLASS[f.severity] || FLAG_SEVERITY_CLASS.low),
+        }, (f.severity || 'low').toUpperCase()),
         ' ' + String(f.field || '').replace(/_/g, ' ') + ': '
         + String(f.issue || '').replace(/_/g, ' ')
         + (f.detail ? ' ' + f.detail : '')));
