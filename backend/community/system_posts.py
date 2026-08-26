@@ -68,16 +68,23 @@ async def post_system_message(
     kind: str,
     mention_user_ids: Optional[List[str]] = None,
     notify: bool = False,
+    announce: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Post as the system author into an ACTIVE channel. Returns the
     serialized message, or ``None`` when skipped (unknown/inactive channel,
     PHI finding, empty body).
 
     Notification policy: when ``notify`` is set, ONLY the mentioned users get
-    a digest entry (the welcome ping). A system post never triggers the
-    all-member announcement blast — digest posts rely on the unread badge, and
-    the existing blast fires solely for #task-announcements, which system
-    posts do not target.
+    a digest entry (the welcome ping). Digest posts otherwise rely on the
+    unread badge.
+
+    ``announce`` opts one call into the standard fan-out rule in
+    ``notify.queue_for_message`` — which blasts every member only for a
+    top-level #task-announcements post. It exists because task announcements
+    are authored by the bot (an announcement signed by whichever admin
+    happened to upload renders as "Former member" once that account is gone),
+    and losing their email fan-out in the move would be a silent regression.
+    Callers that are not #task-announcements gain nothing by setting it.
     """
     text = (body or "").strip()
     if not text:
@@ -137,6 +144,13 @@ async def post_system_message(
     if notify and mentions:
         for uid in mentions:
             cstore.enqueue_notification(user_id=uid, kind="mention", message_id=msg["id"])
+
+    if announce:
+        from community import notify as cnotify  # noqa: PLC0415 - avoid an import cycle
+
+        cnotify.queue_for_message(
+            cstore, message=msg, channel=channel, member_ids=list(members.keys())
+        )
 
     serialized = _serialize_messages([msg], members, channel["slug"])[0]
     await hub.broadcast({"type": "message.created", "message": serialized})

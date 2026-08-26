@@ -499,6 +499,23 @@ class CommunityStore:
             ).fetchone()
         return self._message_row(row) if row else None
 
+    def system_post_exists_since(
+        self, *, channel_id: str, kind: str, body: str, since_iso: str
+    ) -> bool:
+        """Has the bot already posted this exact text in this channel since
+        ``since_iso``? Guards the repeat-announcement case: ten uploads of one
+        nephrology task in an afternoon are one piece of news, not ten.
+        Exact-body match on purpose — a different count is different news.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM community_messages "
+                "WHERE channel_id = ? AND author_user_id = 'u-system' AND kind = ? "
+                "AND body = ? AND created_at >= ? AND deleted_at IS NULL LIMIT 1",
+                (channel_id, kind, (body or "").strip(), since_iso),
+            ).fetchone()
+        return row is not None
+
     @staticmethod
     def _message_row(row: sqlite3.Row) -> Dict[str, Any]:
         d = dict(row)
@@ -914,8 +931,13 @@ class CommunityStore:
         when ``valid_user_ids`` is given, everything by an author id with no
         account in the users plane (demo-seeded doctors). Replies nested under
         a purged message go with it, because a human answer to a deleted bot
-        post is context-free noise. Channels, DMs, reads, prefs and human
-        top-level posts survive.
+        post is context-free noise. Channels, DMs and human top-level posts
+        survive, as do the read markers and email prefs of members who still
+        have an account.
+
+        When ``valid_user_ids`` is given, the read markers and email prefs of
+        authors with no account go too: they are per-user rows pointing at
+        users who do not exist, left behind by the same synthetic traffic.
 
         Hard delete, not the soft delete moderation uses: these rows are
         synthetic and carry no audit value, and the point of the purge is that
@@ -924,7 +946,8 @@ class CommunityStore:
         """
         valid = set(valid_user_ids) if valid_user_ids is not None else None
         counts = {"messages": 0, "reactions": 0, "pins": 0,
-                  "notifications": 0, "attachments": 0}
+                  "notifications": 0, "attachments": 0,
+                  "reads": 0, "email_prefs": 0}
         with self._conn() as conn:
             authors = [
                 r["author_user_id"]
@@ -936,6 +959,30 @@ class CommunityStore:
                 a for a in authors
                 if a == "u-system" or (valid is not None and a not in valid)
             }
+            if valid is not None:
+                # Keyed off the rows themselves rather than off message authors:
+                # a ghost's read markers outlive the messages that revealed them,
+                # so deriving the sweep from `targets` would strand them once the
+                # posts are gone. This way a second run finishes what a first left.
+                for table, key in (
+                    ("community_reads", "reads"),
+                    ("community_email_prefs", "email_prefs"),
+                ):
+                    ghosts = [
+                        r["user_id"]
+                        for r in conn.execute(
+                            f"SELECT DISTINCT user_id FROM {table}"
+                        ).fetchall()
+                        if r["user_id"] != "u-system" and r["user_id"] not in valid
+                    ]
+                    if not ghosts:
+                        continue
+                    ghost_marks = ",".join("?" for _ in ghosts)
+                    cur = conn.execute(
+                        f"DELETE FROM {table} WHERE user_id IN ({ghost_marks})",
+                        tuple(ghosts),
+                    )
+                    counts[key] = cur.rowcount
             if not targets:
                 return counts
             marks = ",".join("?" for _ in targets)

@@ -13,11 +13,16 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
 from asclepius.ingest_notify import _run_coro
 
 log = logging.getLogger("asclepius.task_notify")
+
+# Message ``kind`` for the in-app announcement. Distinct from the email
+# outbox rows above; the dedupe query keys on it.
+_ANNOUNCEMENT_KIND = "task_batch"
 
 
 def _app_base() -> str:
@@ -154,24 +159,29 @@ def _announcement_text(created_tasks: List[Dict[str, Any]]) -> str:
     return f"{joined} {verb} ready to review."
 
 
-def post_community_announcement(
+async def post_community_announcement(
     store: Any, *, admin_user_id: str, created_tasks: List[Dict[str, Any]],
 ) -> bool:
-    """Post a one-line system announcement to #task-announcements (as the
-    uploading admin) when new tasks land, so contributors see it in-app —
-    not just via email. #task-announcements already fans out an email digest
-    to every member on a top-level post (community/notify.py), so this is
-    the whole integration; no new channel/membership model needed. Never
-    raises — a community-post problem must not break task upload."""
+    """Post a one-line announcement to #task-announcements when new tasks land,
+    so contributors see it in-app — not just via email.
+
+    Authored by the Archangel bot, not by the uploading admin. An admin-signed
+    announcement renders as "Former member" to everyone the moment that account
+    is deprovisioned, and the platform — not a person — is what is speaking
+    here. ``announce=True`` keeps the channel's all-member email fan-out, which
+    is the rest of this integration; no new channel/membership model needed.
+
+    Same text already posted today is skipped: repeated uploads of one task are
+    one piece of news. Never raises — a community-post problem must not break
+    task upload.
+    """
     try:
         text = _announcement_text(created_tasks)
-        if not text or not admin_user_id:
+        if not text:
             return False
 
-        from community import notify as cnotify
-        from community import phi_gate
-        from community.router import member_map
         from community.store import get_community_store
+        from community.system_posts import post_system_message
 
         cstore = get_community_store()
         channel = cstore.get_channel_by_slug("task-announcements")
@@ -179,21 +189,26 @@ def post_community_announcement(
             log.warning("task_notify: #task-announcements channel missing")
             return False
 
-        # Server-generated boilerplate (specialty names + counts), but the
-        # PHI gate is cheap and every other write path into this channel
-        # runs it — stay consistent rather than assume this text is exempt.
-        if phi_gate.scan_text(text):
-            log.warning("task_notify: announcement text unexpectedly flagged by PHI gate, skipping post")
+        since = (datetime.now(timezone.utc) - timedelta(days=1)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        if cstore.system_post_exists_since(
+            channel_id=channel["id"], kind=_ANNOUNCEMENT_KIND, body=text, since_iso=since
+        ):
+            log.info("task_notify: identical announcement already posted today, skipping")
             return False
 
-        members = member_map()
-        msg = cstore.insert_message(
-            channel_id=channel["id"], author_user_id=admin_user_id, body=text,
+        # The PHI gate runs inside post_system_message. This text is
+        # server-generated boilerplate (specialty names + counts), but every
+        # write path into this channel is scanned — stay consistent rather
+        # than assume this one is exempt.
+        msg = await post_system_message(
+            channel_slug="task-announcements",
+            body=text,
+            kind=_ANNOUNCEMENT_KIND,
+            announce=True,
         )
-        cstore.set_read(admin_user_id, channel["id"], msg["id"])
-        cnotify.queue_for_message(
-            cstore, message=msg, channel=channel, member_ids=list(members.keys())
-        )
+        if not msg:
+            return False
+
         store.log_event(
             entity_type="task_notify", event_type="task_notification_community_posted",
             actor=admin_user_id, payload={"message_id": msg["id"], "text": text},

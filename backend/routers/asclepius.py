@@ -833,19 +833,25 @@ def _insert_tasks_from_dicts(
     return created
 
 
-def _notify_new_tasks(
+async def _notify_new_tasks(
     store: Any, background_tasks: BackgroundTasks, created: List[Dict[str, Any]], *, admin_id: str,
 ) -> None:
     """Enqueue the outbox rows synchronously (fast), then drain in the
     background so the admin's request never blocks on ~1000 emails. Also
     posts a one-line announcement to #task-announcements (in-app, plus the
-    channel's existing digest-email fan-out) — cheap enough to do inline."""
+    channel's existing digest-email fan-out) — cheap enough to do inline.
+
+    Awaited rather than bridged through a worker-thread loop: the announcement
+    ends in a WebSocket broadcast, and the hub's sockets belong to this loop.
+    """
     if not created:
         return
     batch_id = uuid.uuid4().hex
     asc_task_notify.enqueue_for_batch(store, batch_id=batch_id, created_tasks=created)
     background_tasks.add_task(asc_task_notify.drain_outbox, store)
-    asc_task_notify.post_community_announcement(store, admin_user_id=admin_id, created_tasks=created)
+    await asc_task_notify.post_community_announcement(
+        store, admin_user_id=admin_id, created_tasks=created
+    )
 
 
 @router.post("/tasks")
@@ -858,7 +864,7 @@ async def upload_tasks(
     store.log_event(
         entity_type="task", event_type="tasks_uploaded", actor=admin["id"], payload={"count": len(created)}
     )
-    _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
+    await _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
     return {"created": [t["task_id"] for t in created], "count": len(created)}
 
 
@@ -893,7 +899,7 @@ async def upload_tasks_file(
         entity_type="task", event_type="tasks_uploaded_file", actor=admin["id"],
         payload={"count": len(created), "filename": file.filename},
     )
-    _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
+    await _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
     return {"created": [t["task_id"] for t in created], "count": len(created)}
 
 
