@@ -599,7 +599,6 @@ def _display_name(u: Dict[str, Any]) -> str:
 _TIER_COUNT_KEYS = {
     asc_caps.LABELER: "labelers",
     asc_caps.REVIEWER: "reviewers",
-    asc_caps.ADVISOR: "advisors",
 }
 
 
@@ -629,7 +628,7 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     hs_names = _hs_name_map(store)
     out: List[Dict[str, Any]] = []
     counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0,
-              "advisors": 0, "unassigned": 0}
+              "unassigned": 0}
     for u in _physician_users(store):
         tier = u.get("tier")
         verification = u.get("verification_status")
@@ -655,22 +654,7 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "tier_word": asc_caps.tier_word(tier),
             "verification_status": verification,
             "slack_joined": _tri_state(u.get("slack_joined")),
-            # Advisor PRD §6.1: the Slack LABEL, not a bool. Surfaced beside
-            # slack_joined so whoever sends the invite sets the role correctly —
-            # this is not a Slack integration and is not pretending to be one.
-            "slack_role": u.get("slack_role"),
-            "advisor_since": u.get("advisor_since"),
             "compensation_model": u.get("compensation_model"),
-            # A tier change does not clear the advisory footprint — the equity
-            # and the signed agreement survive it by design (compensation.py).
-            # So a demoted advisor's row would show tier "Reviewer" next to a
-            # Slack role of "Medical Advisor" with nothing to explain it (audit
-            # M7). This flag is what turns two contradictory-looking fields into
-            # one legible fact: the tier changed, the relationship did not.
-            "former_advisor": bool(
-                tier != asc_caps.ADVISOR
-                and (u.get("advisor_since") or u.get("advisor_agreement_ref")
-                     or u.get("compensation_model") == "equity_only")),
             "health_system_id": hs_id,
             "health_system_name": hs_names.get(hs_id) if hs_id else None,
             "active": bool(u.get("active", 1)),
@@ -881,6 +865,9 @@ def _signup_row(*, email: str, name: Optional[str], kind: str, hs: Dict[str, Any
         # which, for a solo contributor signing up from the landing page, is
         # every one of them. Not an operator role; see onboarding.py's note.
         "kind": kind,
+        # 'general' marks a /join?flavor=general signup (an invited
+        # non-clinical signer): the admin should not wait on an NPI for them.
+        "signup_flavor": (hs.get("signup_flavor") or "").strip() or None,
         "org_name": (hs.get("name") or "").strip() or None,
         "specialty": (hs.get("specialty") or "").strip() or None,
         "npi": (str(credentials.get("npi") or "").strip() or None),
@@ -901,6 +888,47 @@ def _signup_row(*, email: str, name: Optional[str], kind: str, hs: Dict[str, Any
         # physician's own inbox.
         "link_expired": expired,
     }
+
+
+class RoleBody(BaseModel):
+    role: str
+
+
+@router.post("/users/{user_id}/role")
+async def set_user_role(
+    user_id: str,
+    body: RoleBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Grant or revoke the admin role on one account.
+
+    This is how the second founder becomes an admin without touching env
+    vars: the env-bootstrapped admin promotes their existing account once
+    from the roster. Two roles only; every other role is provisioned by its
+    own flow and must not be reachable from a console button. Self-demotion
+    is refused so the console cannot lock its last operator out.
+    """
+    role = (body.role or "").strip().lower()
+    if role not in ("admin", "evaluator"):
+        raise HTTPException(status_code=422, detail="Role must be admin or evaluator.")
+    store = _store()
+    target = store.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="No such account.")
+    if target["id"] == admin["id"] and role != "admin":
+        raise HTTPException(
+            status_code=422,
+            detail="You cannot demote your own account. Ask the other admin.")
+    if target.get("role") not in ("admin", "evaluator"):
+        raise HTTPException(
+            status_code=422,
+            detail="Only physician or admin accounts can move between those roles.")
+    updated = store.set_user_role(user_id, role)
+    store.log_event(
+        entity_type="user", entity_id=user_id, event_type="role_changed",
+        actor=admin.get("email"),
+        payload={"from": target.get("role"), "to": role})
+    return {"ok": True, "user_id": user_id, "role": (updated or {}).get("role")}
 
 
 @router.get("/signups")

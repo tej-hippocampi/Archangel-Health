@@ -449,6 +449,11 @@ async def submit_review(
             "task_id": sub["task_id"],
         },
     )
+    # The verdict just graded the labeler's work: fold it into their
+    # contributor score. Best-effort inside; a scoring failure never takes
+    # the review down with it.
+    from asclepius import contributor_score as _cscore  # noqa: PLC0415
+    _cscore.recompute_for_submission(store, submission_id)
     return {
         "review": review,
         "review_status": "reviewed",
@@ -577,6 +582,12 @@ async def submit_pair_review(
         payload={"review_id": review["review_id"], "verdict": body.verdict,
                  "stronger": body.stronger},
     )
+    # The adjudication just graded both labelers' work: fold it into their
+    # contributor scores. Best-effort inside; never takes the review down.
+    from asclepius import contributor_score as _cscore  # noqa: PLC0415
+    for sid in (pair_a, pair_b):
+        if sid:
+            _cscore.recompute_for_submission(store, sid)
     return {
         "review": review,
         "review_status": "reviewed",

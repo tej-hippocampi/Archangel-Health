@@ -552,7 +552,7 @@ def test_announcement_queues_digest_for_all_members(capsys):
     assert sent == 2
     assert cstore.unsent_notifications() == []
     out = capsys.readouterr().out
-    assert "Asclepius Community" in out
+    assert "New activity in your Asclepius community" in out
 
 
 # ─── Attachments (§7.4) ───────────────────────────────────────────────────────

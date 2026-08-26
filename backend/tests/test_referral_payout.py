@@ -66,10 +66,16 @@ def _physician(**kw):
     return store.get_user_by_id(u["id"])
 
 
-def _advisor():
+def _equity_only_reviewer():
+    """A reviewer carrying compensation_model='equity_only' (a legacy advisor
+    row the boot migration has not yet cleared). The rule under test survives
+    the retired tier: equity_only accrues no cash, bounties included."""
     store = _store()
     u = A.make_user(store, role="evaluator", specialty="nephrology")
-    return store.appoint_advisor(u["id"], agreement_ref="AGR-1", appointed_by="admin@x")
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET tier = 'reviewer', verification_status = 'approved', "
+                     "compensation_model = 'equity_only' WHERE id = ?", (u["id"],))
+    return store.get_user_by_id(u["id"])
 
 
 def _refer(referrer, email, name=None, expect=200):
@@ -227,11 +233,11 @@ def test_five_concurrent_accruals_still_write_exactly_one_row():
 
 
 # ═══ 5-6 · Who may be paid ═══════════════════════════════════════════════════
-def test_an_equity_only_advisor_referrer_accrues_nothing():
+def test_an_equity_only_referrer_accrues_nothing():
     """``compensation.accrues_payment`` is the predicate, and it holds on
-    referrals exactly as it holds on tasks and sessions. An advisor holds equity
-    instead of a cash rate; a bounty is cash."""
-    advisor = _advisor()
+    referrals exactly as it holds on tasks and sessions. An equity_only row
+    holds equity instead of a cash rate; a bounty is cash."""
+    advisor = _equity_only_reviewer()
     assert advisor["compensation_model"] == "equity_only"
     email = _email()
     r = client.post("/api/asclepius/referrals", json={"email": email},

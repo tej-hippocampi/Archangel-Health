@@ -54,14 +54,17 @@ def _reviewer(**kw):
     return store.get_user_by_id(u["id"])
 
 
-def _advisor():
-    """A real appointed advisor, minted through the real appointment path — which
-    is what sets ``compensation_model='equity_only'``. Faking the column with an
-    UPDATE would test the predicate and not the rule."""
+def _equity_only_reviewer():
+    """A reviewer carrying ``compensation_model='equity_only'``. The advisor
+    appointment path that used to mint this combination is retired; the column
+    write here IS the scenario now (a legacy row the migration has not yet
+    cleared), and the rule under test is that it accrues nothing."""
     store = _store()
     u = A.make_user(store, role="evaluator", specialty="nephrology")
-    return store.appoint_advisor(u["id"], agreement_ref="AGR-2026-01",
-                                 appointed_by="admin@asclepius.test")
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET tier = 'reviewer', verification_status = 'approved', "
+                     "compensation_model = 'equity_only' WHERE id = ?", (u["id"],))
+    return store.get_user_by_id(u["id"])
 
 
 class Clock:
@@ -406,7 +409,7 @@ def test_an_advisor_accrues_nothing(monkeypatch):
     """An equity-holding advisor works a full qualifying session: the session
     closes, the seconds are recorded, and no money exists."""
     clock = Clock(monkeypatch)
-    advisor = _advisor()
+    advisor = _equity_only_reviewer()
     assert advisor["compensation_model"] == asc_comp.EQUITY_ONLY
     assert asc_comp.accrues_payment(advisor) is False
     h = A.headers_for(advisor)
@@ -512,7 +515,7 @@ def test_an_advisors_open_session_still_appears_on_their_earnings_page(monkeypat
     """The countdown is about TIME, which an advisor works like anyone else. Only
     the money is excluded."""
     clock = Clock(monkeypatch)
-    h = A.headers_for(_advisor())
+    h = A.headers_for(_equity_only_reviewer())
     session = _open(h)
     _run(h, clock, session, beats=4)
 

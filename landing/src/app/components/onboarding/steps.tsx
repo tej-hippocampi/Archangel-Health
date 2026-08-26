@@ -1470,6 +1470,7 @@ export function Step5Credentials({
   eyebrow,
   memberMode = false,
   phase,
+  relaxed = false,
 }: {
   data: OnboardingData;
   setData: (patch: Partial<OnboardingData>) => void;
@@ -1482,6 +1483,10 @@ export function Step5Credentials({
    *  Omitted renders every field on one screen, which is what member mode
    *  still does: an invited clinician arrives already expecting a form. */
   phase?: 1 | 2 | 3;
+  /** /join?flavor=general: the signer may not be a practicing MD, so nothing
+   *  on these screens blocks. Fields stay visible for an MD who wants their
+   *  credentials on file; a non-MD continues past them untouched. */
+  relaxed?: boolean;
 }) {
   const c = data.credentials;
   const set = (patch: Partial<Credentials>) => setData({ credentials: { ...c, ...patch } });
@@ -1513,9 +1518,11 @@ export function Step5Credentials({
     c.practiceStatus !== "";
 
   // Screen 3 is entirely optional by design, so it never blocks. Member mode
-  // (phase undefined) renders every field at once and so gates on both.
-  const valid =
-    phase === 1 ? identityValid
+  // (phase undefined) renders every field at once and so gates on both. A
+  // relaxed (general-flavor) signup never blocks at all: the signer may not
+  // be a practicing MD, and verification decides access either way.
+  const valid = relaxed ? true
+    : phase === 1 ? identityValid
     : phase === 2 ? trainingValid
     : phase === 3 ? true
     : identityValid && trainingValid;
@@ -1533,13 +1540,29 @@ export function Step5Credentials({
       lede={
         phase === 1 ? "About a minute. We use your NPI to fill in as much of the next screen as we can."
         : phase === 2 ? "Confirm what we found, and add anything we missed."
-        : phase === 3 ? "All optional. This is the screen that decides what work reaches you."
+        : phase === 3 ? (
+            <>
+              <strong style={{ color: "var(--ink)", fontWeight: 650 }}>All optional.</strong>{" "}
+              This is the screen that decides what work reaches you.
+            </>
+          )
         : memberMode
           ? "Your verified credentials are attached to the data you label — this is what makes it valuable. Please be accurate."
           : "As Director of Data Training, your credentials anchor the dataset your team produces."
       }
     >
       <InlineError>{error}</InlineError>
+
+      {relaxed && show(1) && (
+        <div style={RARE_INTRO}>
+          <p style={{ ...RARE_BODY, margin: 0 }}>
+            <strong style={RARE_STRONG}>Not a practicing physician?</strong>{" "}
+            Nothing on this screen or the next blocks you. If you are an MD,
+            filling these in gets your credentials verified and opens paid
+            casework; otherwise just continue.
+          </p>
+        </div>
+      )}
 
       {show(1) && (<>
       <TextField
@@ -1826,11 +1849,14 @@ export function Step5Credentials({
       <div style={RARE_INTRO}>
         <div style={RARE_EYEBROW}>Every answer here raises what we can pay you</div>
         <p style={RARE_BODY}>
-          All optional, and you can add them later. We ask because this is how work
-          finds you. A physician who reads French gets the French cases. A paediatric
-          nephrologist gets paediatric nephrology. Specialist and multilingual work
-          pays materially more than general review, and we can only route it to you
-          if we know it about you.
+          <strong style={RARE_STRONG}>All optional, and you can add them later.</strong>{" "}
+          We ask because this is how work finds you. A physician who reads French gets
+          the French cases. A paediatric nephrologist gets paediatric nephrology.{" "}
+          <strong style={RARE_STRONG}>
+            Specialist and multilingual work pays materially more than general review
+          </strong>
+          , and we can only route it to you if we know it about you. Every field you
+          fill makes your profile stronger.
         </p>
       </div>
 
@@ -2011,6 +2037,15 @@ export function Step6Attestations({
     a.consentCredentialShare && a.attestIndependentJudgment && a.ipAssignment && a.noPhi &&
     a.attestConfidentiality && a.attestNoDisciplinaryAction;
   const valid = allChecked && initials.length >= 2;
+  const setAll = (checked: boolean) =>
+    set({
+      consentCredentialShare: checked,
+      attestIndependentJudgment: checked,
+      ipAssignment: checked,
+      noPhi: checked,
+      attestConfidentiality: checked,
+      attestNoDisciplinaryAction: checked,
+    });
 
   return (
     <OnboardingCard
@@ -2020,6 +2055,34 @@ export function Step6Attestations({
       lede="A few legal must-haves before you label data. Read each, then sign with your initials."
     >
       <InlineError>{error}</InlineError>
+
+      {/* One tap for a reader who has read the six and agrees to all of them.
+          The initials signature below is still the actual act of signing. */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <button
+          type="button"
+          onClick={() => setAll(!allChecked)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "8px 14px",
+            borderRadius: 999,
+            border: "1px solid " + (allChecked ? "var(--ah-green-line)" : "var(--hairline-strong)"),
+            background: allChecked ? "var(--ah-green-wash)" : "var(--card-in)",
+            color: "var(--ink)",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={allChecked ? "var(--green)" : "var(--ink-faint)"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          {allChecked ? "Clear all six" : "Agree to all six"}
+        </button>
+      </div>
 
       <CheckRow
         checked={a.consentCredentialShare}
@@ -2688,11 +2751,15 @@ export function StepChoosePassword({
    them in: the old screen marked four of thirteen optional fields with a faint
    grey "Optional" and said nothing about why any of them mattered. */
 const RARE_INTRO: React.CSSProperties = {
-  background: "var(--card-in)",
-  border: "1px solid var(--hairline)",
+  background: "var(--ah-green-wash, var(--card-in))",
+  border: "1px solid var(--ah-green-line, var(--hairline))",
   borderRadius: 18,
   padding: "16px 18px",
   margin: "0 0 22px",
+};
+const RARE_STRONG: React.CSSProperties = {
+  color: "var(--ink)",
+  fontWeight: 650,
 };
 const RARE_EYEBROW: React.CSSProperties = {
   fontFamily: "var(--mono)",

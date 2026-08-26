@@ -35,7 +35,7 @@ log = logging.getLogger("asclepius.verify")
 router = APIRouter(prefix="/api/asclepius/verify", tags=["asclepius-verify"])
 
 # The tier vocabulary is NOT written here. It is imported from the capability
-# layer (Advisor PRD §2.2) so this router and every access gate can never
+# layer so this router and every access gate can never
 # disagree about what the ``users.tier`` column may hold — the Seam-1 failure
 # mode (B validates one set of strings, A's gate compares against another).
 _TIERS = asc_caps.TIERS
@@ -304,8 +304,7 @@ async def verification_queue(
     rows = [_queue_row(store, u, dupe_counts, mq_map, weights) for u in page]
     return {
         "status": status,
-        # Approval offers all three tiers (advisor included, since the queue must not be a
-        # dead end for someone already agreed as an advisor). Served as words, never tokens.
+        # Approval offers the tier vocabulary as words, never tokens.
         "tier_words": {t: asc_caps.tier_word(t) for t in _TIERS},
         "count": len(rows),
         "total": len(all_rows),
@@ -386,12 +385,8 @@ async def verification_cv(
 class ApproveBody(BaseModel):
     tier: Optional[str] = None
     note: Optional[str] = None
-    # Required ONLY when tier == 'advisor' (Advisor PRD §2.3). An advisor holds
-    # equity, so an advisor with no signed agreement on file is a liability, and
-    # a required field is the cheapest possible enforcement. The PRD states that
-    # rule on the appointment endpoint; it is enforced here too because this is
-    # the second door into the same tier, and a rule enforced at one of two
-    # doors is not a rule.
+    # Accepted and ignored: the retired advisor tier required it, and an old
+    # console version may still send the field. Ignoring beats a 422.
     agreement_ref: Optional[str] = None
 
 
@@ -416,13 +411,6 @@ async def approve_signup(
         raise HTTPException(
             status_code=400,
             detail=f"Approval requires an explicit tier: {allowed}.")
-    agreement_ref = (body.agreement_ref or "").strip()
-    if tier == asc_caps.ADVISOR and not agreement_ref:
-        raise HTTPException(
-            status_code=400,
-            detail="Appointing an advisor requires agreement_ref — the signed "
-                   "advisor agreement on file. An advisor holds equity; an "
-                   "advisor with no agreement is a liability, not a shortcut.")
     store = _store()
     user = _load_user_or_404(user_id)
     prop = _proposal(store, user)
@@ -452,36 +440,23 @@ async def approve_signup(
         store.stamp_fairness_tier(user_id, tier, features=tprop.get("features"))
     except Exception:
         log.exception("[tiering] could not record the decision (approval stands)")
-    if tier == asc_caps.ADVISOR:
-        # The SAME single transactional write the appointment endpoint uses —
-        # not "approve, then also set the advisor terms" (audit H1). Done as two
-        # statements in this order, a crash in between left the account approved
-        # and LIVE with advisory capability, no agreement on file and a NULL
-        # compensation model. Two doors, one write.
-        updated = store.appoint_advisor(
-            user_id, agreement_ref=agreement_ref, appointed_by=admin["email"],
-            approve=True,
-            note=(body.note or f"Approved as medical advisor · agreement {agreement_ref}"),
-        )
-    else:
-        updated = store.record_verification_decision(
-            user_id,
-            status="approved",
-            decided_by=admin["email"],
-            tier=tier,
-            tier_score=float(prop["score"]),
-            note=(body.note or None),
-        )
+    updated = store.record_verification_decision(
+        user_id,
+        status="approved",
+        decided_by=admin["email"],
+        tier=tier,
+        tier_score=float(prop["score"]),
+        note=(body.note or None),
+    )
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="verification_approved",
         actor=admin["email"],
         payload={"tier": tier, "score": prop["score"],
                  "proposed_tier": prop["proposed_tier"],
                  "followed_proposal": prop["proposed_tier"] == tier,
-                 "agreement_ref": agreement_ref or None,
                  "note": body.note or None},
     )
-    # Advisor PRD §3.2 step 4: a referred physician reaching 'approved' is the
+    # A referred physician reaching 'approved' is the
     # end of their referrer's funnel. Best-effort — a referral bookkeeping
     # failure must never undo an approval that already committed.
     try:

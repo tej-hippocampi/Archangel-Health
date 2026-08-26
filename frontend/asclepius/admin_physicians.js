@@ -26,9 +26,9 @@
 
   // Mirrors asclepius/capabilities.py TIERS. The one list this file filters,
   // counts and labels against.
-  const TIERS = ['labeler', 'reviewer', 'advisor'];
+  const TIERS = ['labeler', 'reviewer'];
 
-  let activeChip = 'all';       // all | pending | labelers | reviewers | advisors | unassigned
+  let activeChip = 'all';       // all | pending | labelers | reviewers | unassigned
   let activeView = 'roster';    // roster | signups | verify — driven by the shell's sub-tabs
   let selectedId = null;        // physician profile view
   let cache = null;             // last /admin/physicians payload
@@ -36,23 +36,19 @@
   let rootCtx = null;
 
   // ─── Vocabulary (four-state verification; tier words) ─────
-  // THREE tiers, not two. A missing case here does not throw — it silently
-  // renders "Unassigned" over a real advisor, which is the same class of bug
-  // as the backend's `tier === 'reviewer'` equality: wrong, quiet, and only
-  // discovered when the person tells you. Keep this map aligned with
+  // A missing case here does not throw — it silently renders "Unassigned"
+  // over a real physician, which is the same class of bug as the backend's
+  // `tier === 'reviewer'` equality: wrong, quiet, and only discovered when
+  // the person tells you. Keep this map aligned with
   // asclepius/capabilities.py TIER_WORDS.
   function tierWord(t) {
     if (t === 'labeler') return 'Labeler';
     if (t === 'reviewer') return 'Reviewer';
-    if (t === 'advisor') return 'Medical Advisor';
     return 'Unassigned';
   }
   function tierBadge(h, t) {
     if (t === 'labeler') return h('span', { class: 'asc-badge asc-badge-primary' }, 'Labeler');
     if (t === 'reviewer') return h('span', { class: 'asc-badge asc-badge-green' }, 'Reviewer');
-    // Advisors are three people among fifty and you want to find them in one
-    // glance — lime is the "new/notable" token from the locked design system.
-    if (t === 'advisor') return h('span', { class: 'asc-badge asc-badge-lime' }, 'Advisor');
     return h('span', { class: 'asc-badge asc-badge-gray' }, 'Unassigned');
   }
   function verificationBadge(h, v) {
@@ -498,7 +494,6 @@
       ['pending', 'Pending', counts.pending],
       ['labelers', 'Labelers', counts.labelers],
       ['reviewers', 'Reviewers', counts.reviewers],
-      ['advisors', 'Advisors', counts.advisors],
       ['unassigned', 'Unassigned', counts.unassigned],
     ];
     const chipRow = h('div', { class: 'asc-phys-chips' }, chips.map(([id, label, n]) => {
@@ -515,7 +510,6 @@
       if (activeChip === 'pending') return p.verification_status === 'pending';
       if (activeChip === 'labelers') return p.tier === 'labeler';
       if (activeChip === 'reviewers') return p.tier === 'reviewer';
-      if (activeChip === 'advisors') return p.tier === 'advisor';
       // "Unassigned" means NO tier — not "a tier this filter forgot about".
       // Written as an explicit membership test so a fourth tier shows up in
       // its own chip rather than quietly swelling this one.
@@ -568,16 +562,8 @@
       h('td', {}, p.specialty || '—'),
       h('td', {}, tierBadge(h, p.tier)),
       h('td', {}, verificationBadge(h, p.verification_status)),
-      // A former advisor's Slack role still reads "Medical Advisor" while their
-      // tier reads "Reviewer" — because the equity and the agreement survive a
-      // tier change by design. Say so, rather than showing two fields that look
-      // like a bug.
       h('td', {}, p.slack_role ? slackText(p.slack_joined) + ' · ' + p.slack_role
-        : slackText(p.slack_joined),
-        p.former_advisor
-          ? h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left:6px' },
-              'Former advisor · equity on file')
-          : null),
+        : slackText(p.slack_joined)),
       h('td', {}, p.health_system_name || 'Independent'));
     tr.addEventListener('click', () => { selectedId = p.id; rerender(); });
     return tr;
@@ -603,6 +589,27 @@
     const backBtn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm' }, '← All physicians');
     backBtn.addEventListener('click', () => { selectedId = null; rerender(); });
 
+    // Role grant (one button, two roles): how the second founder becomes an
+    // admin without touching env vars. Confirm() because this is the one
+    // console action that changes who can operate the console.
+    const isAdmin = (p.role || data.role) === 'admin';
+    const roleBtn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm' },
+      isAdmin ? 'Revoke admin' : 'Make admin');
+    roleBtn.addEventListener('click', async () => {
+      const next = isAdmin ? 'evaluator' : 'admin';
+      if (!window.confirm(
+        next === 'admin'
+          ? 'Grant this account the admin role? They will see and operate the whole console.'
+          : 'Revoke this account\u2019s admin role?')) return;
+      try {
+        await api('/admin/users/' + encodeURIComponent(id) + '/role',
+                  { method: 'POST', body: { role: next } });
+        rerender();
+      } catch (e) {
+        window.alert((e && (e.detail || e.message)) || 'That did not save.');
+      }
+    });
+
     container.appendChild(h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' },
         h('div', {},
@@ -610,7 +617,7 @@
           h('div', { class: 'asc-card-sub' },
             tierWord(p.tier), ' · ', p.specialty || 'No specialty', ' · ',
             p.health_system_name || 'Independent')),
-        backBtn),
+        h('div', { style: 'display:flex;gap:8px' }, roleBtn, backBtn)),
       h('div', { class: 'asc-card-pad asc-phys-profile-grid' },
         kvBlock(h, 'Identity', [
           ['Email', p.email], ['Phone', p.phone],
@@ -632,6 +639,40 @@
           ['Notes', p.verification_notes],
         ]))));
 
+    // Contributor score (PRD-SCORE): the blended rating, its component
+    // breakdown and the per-case trajectory. Best-effort: an absent score is
+    // an absent card, never an error over a profile that loaded fine.
+    try {
+      const sc = await api('/admin/scores/' + encodeURIComponent(id));
+      const rows = [
+        ['Current score', sc.score != null ? String(sc.score) + ' · ' + (sc.band || '') : null],
+        ['Initial rating', sc.prior != null ? String(sc.prior) + ' (' + (sc.prior_source || '') + ')' : null],
+        ['Graded cases', String(sc.n_cases || 0)],
+      ];
+      const card = h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-head' }, h('div', {},
+          h('div', { class: 'asc-card-title' }, 'Contributor score'),
+          h('div', { class: 'asc-card-sub' },
+            'Starts from the credential rating; every QA-graded case folds in.'))),
+        h('div', { class: 'asc-card-pad asc-phys-profile-grid' },
+          kvBlock(h, 'Rating', rows),
+          kvBlock(h, 'Latest case',
+            (sc.cases && sc.cases.length)
+              ? Object.entries(sc.cases[sc.cases.length - 1].components || {}).map(
+                  ([k, v]) => [k.replace(/_/g, ' '), v == null ? null : String(v)])
+              : [['No graded cases yet', ' ']])));
+      if (sc.history && sc.history.length) {
+        card.appendChild(h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-card-sub' }, 'Trajectory (newest first)'),
+          h('div', {}, sc.history.slice(0, 10).map((row) =>
+            h('div', { class: 'asc-score-hist-row' },
+              h('span', { class: 'asc-mono' }, String(row.score)),
+              h('span', {}, row.case_score != null ? 'case ' + row.case_score : 'initial'),
+              h('span', { class: 'asc-mono' }, row.created_at ? fmtDate(row.created_at) : ''))))));
+      }
+      container.appendChild(card);
+    } catch (e) { /* score endpoint unavailable: the profile stands alone */ }
+
     // NPPES payload (raw registry answer) — shown when the NPI was checked.
     if (data.npi_payload) {
       const pre = h('pre', { class: 'asc-mono', style: 'font-size:12px;overflow:auto;max-height:280px' });
@@ -647,10 +688,8 @@
       ['When', 'Task', 'Status'],
       (data.task_history || []).map((t) => [
         t.created_at ? fmtDate(t.created_at) : '—', t.task_id || '—', t.status || '—'])));
-    // Advisors review too (they hold the REVIEW capability), so gating this on
-    // `tier === 'reviewer'` would hide a real advisor's review history from the
-    // admin who needs it — the two-state check, one more time.
-    if (p.tier === 'reviewer' || p.tier === 'advisor') {
+    // Review history renders for the tier that holds the REVIEW capability.
+    if (p.tier === 'reviewer') {
       container.appendChild(historyCard(ctx, 'Review history',
         ['When', 'Submission', 'Verdict'],
         (data.review_history || []).map((r) => [

@@ -30,12 +30,12 @@
    job — a reviewer should open the Guide and read a manual about reviewing, not a
    manual about labeling with the labeling parts hidden.
 
-     window.ASC_MANUALS = { labeler, reviewer, advisor }
+     window.ASC_MANUALS = { labeler, reviewer }
      window.ASC_MANUAL  = window.ASC_MANUALS.labeler   // back-compat, kept
 
-   `renderGuide` picks by CAPABILITY, not by tier: an advisor labels and reviews
-   and signs off, so they hold all three and get a switcher. Nobody is shown a
-   manual for work they cannot do.
+   `renderGuide` picks by CAPABILITY, not by tier: what a physician can DO
+   decides the documents they hold, and holders of both get a switcher. Nobody
+   is shown a manual for work they cannot do.
 
    `showWhen` is the one conditional field, and it exists for exactly one section
    (the waiting state). If you find yourself reaching for it a second time, you
@@ -516,107 +516,7 @@
   };
 
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  //  ADVISOR — PRD M §3
-  //
-  //  An advisor holds every capability, so they also see the labeler and reviewer
-  //  manuals through the switcher. This document covers ONLY the four things that
-  //  have no home in either of those, plus the disclosure.
-  // ═══════════════════════════════════════════════════════════════════════════
-  var ADVISOR = {
-    title: 'How to advise',
-    subtitle: 'A three-minute guide to the four things an advisor does.',
-    readingTimeMin: 3,
-    metaHint: 'Advisory surface',
-
-    sections: [
-      {
-        id: 'your-role',
-        num: '00',
-        chromeLabel: 'WHAT AN ADVISOR DOES',
-        title: 'What an advisor does',
-        what: 'Four jobs: refer physicians, sign off on batches, review outbound bundles, inspect intake.',
-        why: 'Each one puts a physician between a decision and a buyer, which is what we sell.',
-        how: 'Work the Advisor section. You can also label and review \u2014 both manuals are above.',
-        detail: [
-          'You hold every capability in the product, so the switcher above gives you all three manuals. This one covers only the work that is yours alone.',
-          'Nothing here blocks a shipment. One advisor with a day job must never sit on the revenue path, so an export always builds and always ships; your verdict and comments travel alongside it.',
-        ],
-      },
-      {
-        id: 'referrals',
-        num: '01',
-        chromeLabel: 'REFERRING PHYSICIANS',
-        title: 'Referring physicians',
-        what: 'Your own referral link, and the funnel of everyone who has used it.',
-        why: 'A physician who vouches for us converts better than any advertisement we could buy.',
-        how: 'Send the link. Add a note about who they are so we can prioritise their review.',
-        detail: [
-          'Invited means you sent it. Signed up means they made an account. Verified means their credentials cleared. Approved means they can work.',
-          'A referral that stalls at signed up is usually waiting on a document, not on us \u2014 a nudge from you moves it faster than an email from us.',
-        ],
-      },
-      {
-        id: 'signoff',
-        num: '02',
-        chromeLabel: 'SIGNING OFF',
-        title: 'Signing off',
-        what: 'Approve, approve with comments, or request changes on a batch, bundle, upload, or spec.',
-        why: 'A physician attesting that work is fit to ship is the claim a buyer is paying for.',
-        how: 'Request changes only with a reason. A verdict without one cannot be acted on.',
-        example: {
-          good: 'Changes requested \u2014 four cases in this batch share one prompt template and will correlate.',
-          weak: 'Changes requested \u2014 this does not look quite right to me.',
-        },
-        detail: [
-          'What you signed off on is resolved and recorded at the moment you sign. A batch is a moving target otherwise, and an attestation whose subject changed afterwards is not an attestation.',
-          'Approve with comments is the common case: fit to ship, and here is what to do better next time.',
-        ],
-      },
-      {
-        id: 'bundles',
-        num: '03',
-        chromeLabel: 'REVIEWING WHAT SHIPS',
-        title: 'Reviewing what ships',
-        what: 'The packaged export a buyer receives: records, credentials, provenance, statistics.',
-        why: 'You are the last physician to see it before a lab does, and the first they will ask about.',
-        how: 'Read it as the buyer will. Check the statistics match what the records support.',
-        detail: [
-          'Look for the claim that outruns its evidence: an agreement figure computed on too few blind pairs, an acceptance rate presented as though it were kappa, a credential that reads stronger than the record behind it.',
-          'Those two statistics are different numbers and must never be shown as the same one. If a bundle blurs them, that is worth requesting changes over.',
-        ],
-      },
-      {
-        id: 'intake',
-        num: '04',
-        chromeLabel: 'REVIEWING HOSPITAL INTAKE',
-        title: 'Reviewing hospital intake',
-        what: 'De-identified cases arriving from health systems, with the identifier scan attached.',
-        why: 'A de-identification miss reaching a buyer is the one mistake we could not recover from.',
-        how: 'Read the flagged cases. Raw uploads are admin-only and you will not see them.',
-        detail: [
-          'You see the case after de-identification and the scanner\u2019s findings next to it. That is deliberate: the fewer people who touch raw patient data, the smaller the surface, and your clinical read does not need the raw file.',
-          'The scanner catches shapes \u2014 names, dates, long numbers. It does not catch a case that is identifying because of how rare it is. That judgment is yours.',
-        ],
-      },
-      {
-        // PRD M §3.1 — the disclosure, in the advisor's own manual.
-        id: 'equity',
-        num: '05',
-        chromeLabel: 'YOUR RELATIONSHIP, DISCLOSED',
-        title: 'Your relationship, disclosed',
-        what: 'Advisors hold equity and are not paid per task, and every record you touch says so.',
-        why: 'A buyer auditing our provenance should learn this from us, not discover it themselves.',
-        how: 'Nothing to do. Your credential and the relationship ship together on every record.',
-        detail: [
-          'Records you annotate carry your verified board certification and a related_party flag. The credential is real; the flag qualifies it. Both are true and both are stated.',
-          'Your labels and reviews count everywhere quality is measured. Only money is excluded.',
-        ],
-      },
-    ],
-  };
-
-  window.ASC_MANUALS = { labeler: LABELER, reviewer: REVIEWER, advisor: ADVISOR };
+  window.ASC_MANUALS = { labeler: LABELER, reviewer: REVIEWER };
   // Kept so anything that referenced the old global keeps working mid-merge.
   window.ASC_MANUAL = window.ASC_MANUALS.labeler;
 })();

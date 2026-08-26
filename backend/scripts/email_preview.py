@@ -63,7 +63,7 @@ def _cases() -> list[tuple[str, str, str, str]]:
             oe.build_asclepius_complete_email(
                 email="a.okafor@riverside.example.org", full_name="Dr. Amara Okafor",
                 role_label="Evaluator", org_name="Riverside Nephrology",
-                specialty="Nephrology", temporary_password="Kf3-tQ92mXbW7p",
+                specialty="Nephrology",
                 workspace_url=WORKSPACE, is_director=True, team_count=0,
                 verification_notice=True),
         ),
@@ -119,11 +119,12 @@ def _cases() -> list[tuple[str, str, str, str]]:
             "14-community-digest", "Community activity digest",
             "Batched mentions, DMs, announcements and broadcasts.",
             oe.build_community_digest_email(
-                activity_rows_html=(
-                    "<li><strong>Dr. Elena Vasquez</strong> mentioned you: "
-                    "&ldquo;curious what nephrology thinks of this one&rdquo;</li>"
-                    "<li><strong>Archangel</strong> posted in #task-announcements: "
-                    "&ldquo;12 new Nephrology tasks are ready to review.&rdquo;</li>"),
+                activity_items=[
+                    ("Dr. Elena Vasquez mentioned you",
+                     "curious what nephrology thinks of this one"),
+                    ("Archangel posted in #task-announcements",
+                     "12 new Nephrology tasks are ready to review."),
+                ],
                 community_url=WORKSPACE.replace("/asclepius", "/community")),
         ),
         (
@@ -157,6 +158,17 @@ def _cases() -> list[tuple[str, str, str, str]]:
                 temporary_password="Kf3-tQ92mXbW7p", buyer_name="Lab Example",
                 datasets_label="Nephrology reasoning traces", data_format="JSONL",
                 record_count=4820),
+        ),
+        (
+            "18-enterprise-note", "Internal: enterprise note",
+            "A physician flags a health-system data or labeling deal.",
+            oe.build_enterprise_note_email(
+                sender_name="Dr. Amara Okafor",
+                sender_email="a.okafor@riverside.example.org",
+                specialty="Nephrology", organization="Riverside Nephrology",
+                note="Our health system is consolidating its data governance "
+                     "committee and there is appetite for a de-identified data "
+                     "partnership. Happy to make an introduction to our CMIO."),
         ),
     ]
 

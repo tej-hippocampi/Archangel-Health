@@ -48,12 +48,14 @@
     // PRD-C admin restructure: sections mirror the assets the company owns
     // (Physicians · Health Systems · Export · Metrics); the old stage-named
     // views live on as sub-tabs inside them.
-    adminTab: 'physicians',   // physicians | health | export | metrics
-    pipelineFocus: null,      // upload_id deep-linked from a Health Systems bucket row
+    adminTab: 'physicians',   // physicians | work | money | data
+    pipelineFocus: null,      // upload_id deep-linked from a Data bucket row
     adminSub: {               // active sub-tab per section
-      physicians: 'roster',   //   roster | signups | verify | tasks | qa
-      health: 'systems',      //   systems | pipeline
-      export: 'bycase',       //   bycase | buyers | history
+      physicians: 'roster',   //   roster | signups | verify | qa
+      work: 'tasks',          //   tasks | metrics
+      money: 'earnings',      //   earnings | referrals
+      data: 'systems',        //   systems | pipeline | export
+      export: 'bycase',       //   bycase | buyers | history (inside Data > Export)
     },
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
@@ -267,13 +269,12 @@
       window.open('/asclepius/review', '_blank', 'noopener');
       return;
     }
-    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor' && dest !== 'earnings'
-        && dest !== 'verification') return;
+    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'earnings'
+        && dest !== 'referral' && dest !== 'verification') return;
     // Server-gated destinations are re-checked here, not only hidden in the
     // rail: a stale deep link or a hand-typed state change must not open a
-    // section the session was never granted. (The API 403s regardless: this
-    // just avoids rendering an empty shell over it.)
-    if (dest === 'advisor' && !sessionCan('refer')) return;
+    // section the session was never granted. (The API 403s regardless.)
+    if (dest === 'referral' && !sessionCan('refer')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
@@ -282,8 +283,8 @@
     if (dest !== 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     state.panel = dest;
     renderSidePanel();
-    if (dest === 'advisor') {
-      renderAdvisorView();
+    if (dest === 'referral') {
+      renderReferralView();
     } else if (dest === 'earnings') {
       renderEarningsView();
     } else if (dest === 'guide') {
@@ -306,8 +307,9 @@
   // Inline, token-palette icons (stroke = currentColor, no fills). 20×20 grid.
   const RAIL_ICONS = {
     tasks: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 4h9M7 10h9M7 16h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M3.2 4.2l1 1 1.4-1.7M3.2 10.2l1 1 1.4-1.7M3.2 16.2l1 1 1.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    advisor: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.8l5.4 2.1v4.4c0 3.2-2.2 6-5.4 7-3.2-1-5.4-3.8-5.4-7V4.9L10 2.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.7 9.9l1.6 1.7 3-3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     community: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 15V6a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0116 6v5.5A1.5 1.5 0 0114.5 13H7l-3 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 8.5h5M7.5 10.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    // A colleague joining a colleague: one figure, one plus.
+    referral: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8" cy="7" r="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M3.4 16c.6-2.6 2.4-4 4.6-4s4 1.4 4.6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M15 6v5M12.5 8.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     // PRD-R: two panels side by side, the shape of the paired review.
     review: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.8" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><rect x="11.2" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><path d="M4.6 8.2h2.4M4.6 11h2.4M13 8.2h2.4M13 11h2.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
     guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
@@ -357,17 +359,11 @@
     // show them what they joined.
     { dest: 'tasks',     label: 'Tasks', surface: 'real_work',
       lockedHint: 'Opens when your credentials clear' },
-    // PRD-R: without this entry the review console has no route from the portal
-    // at all, so a promoted reviewer signs in and never finds the surface. Same
-    // capability gate as Advisor below, for the same reason: the client reads
-    // the server's capability list and never re-derives a tier.
-    { dest: 'review',    label: 'Review', capability: 'review', external: true },
     { dest: 'community', label: 'Community', surface: 'community_read', external: true },
-    // Advisor PRD §6.2: shown only to a session whose SERVER-supplied
-    // capabilities include 'refer'. The gate is `capability`, never a tier
-    // string: re-deriving "is this an advisor?" in the client would push the
-    // exact two-state check this build removed back into the frontend.
-    { dest: 'advisor',   label: 'Advisor', capability: 'refer' },
+    // Referral (PRD-REF): shown to a session whose SERVER-supplied
+    // capabilities include 'refer' — every verified physician. The gate is
+    // `capability`, never a tier string.
+    { dest: 'referral',  label: 'Referral', capability: 'refer' },
     // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
     // made is not a privileged surface, and every endpoint behind it scopes from
     // the session, so there is nothing here to gate on a capability.
@@ -433,7 +429,7 @@
 
   function railItemActive(dest) {
     if (dest === 'guide') return state.panel === 'guide';
-    if (dest === 'advisor') return state.panel === 'advisor';
+    if (dest === 'referral') return state.panel === 'referral';
     if (dest === 'earnings') return state.panel === 'earnings';
     return state.panel === 'tasks' && dest === 'tasks';
   }
@@ -755,14 +751,12 @@
 
   let guideObserver = null;
 
-  // PRD M — three scoped manuals, picked by CAPABILITY rather than by tier. An
-  // advisor labels and reviews and signs off, so a tier does not map to one
-  // document; what a physician can DO does. Order is least to most, so the
+  // PRD M — scoped manuals, picked by CAPABILITY rather than by tier: what a
+  // physician can DO decides the document. Order is least to most, so the
   // default is the most senior manual they hold.
   const MANUAL_ROLES = [
     { key: 'labeler', capability: 'label', label: 'Labeling' },
     { key: 'reviewer', capability: 'review', label: 'Reviewing' },
-    { key: 'advisor', capability: 'refer', label: 'Advising' },
   ];
 
   function heldManuals() {
@@ -1447,7 +1441,7 @@
   // showing it "most decisions take one to two business days" would be a lie.
   function awaitingVerificationSection() {
     const manuals = window.ASC_MANUALS || {};
-    const order = [manuals.labeler, manuals.reviewer, manuals.advisor, window.ASC_MANUAL];
+    const order = [manuals.labeler, manuals.reviewer, window.ASC_MANUAL];
     for (let i = 0; i < order.length; i++) {
       const secs = (order[i] && order[i].sections) || [];
       for (let j = 0; j < secs.length; j++) {
@@ -1683,6 +1677,7 @@
 
     let data = { tasks: [] };
     let stats = null;
+    let scoreInfo = null;
     let queueError = null;
     // A physician whose credentials are still being checked has no real queue
     // and no earnings, and BOTH endpoints below are on the real-work surface.
@@ -1690,6 +1685,17 @@
     // queue", which is a bug report, not the truth. The truth is that the queue
     // does not exist for them yet, and the banner says so.
     const provisional = sessionIsProvisional();
+    // The score is browse-gated on purpose: a provisional physician's "in
+    // review" state renders FROM it, so it is fetched outside the real-work
+    // try below and never blocks anything.
+    const scorePromise = api('/score').catch(() => null);
+    // One Tasks surface for every kind of work: a reviewer's queue arrives
+    // here as a distinct card instead of a separate nav tab. The card is the
+    // console's route now, so it renders for every reviewer, count or no
+    // count, and the stats fetch is best-effort.
+    const reviewPromise = sessionCan('review')
+      ? api('/review/stats').catch(() => null)
+      : Promise.resolve(null);
     try {
       if (provisional) throw { __provisional: true };
       const [tasksRes, statsRes] = await Promise.all([
@@ -1712,6 +1718,8 @@
       }
     }
     const tasks = data.tasks || [];
+    scoreInfo = await scorePromise;
+    const reviewStats = await reviewPromise;
 
     const wrap = h('div', { class: 'asc-wrap' });
     const banner = provisionalBannerEl();
@@ -1723,6 +1731,24 @@
 
     const cols = h('div', { class: 'asc-dash-cols' });
     const main = h('div', { class: 'asc-dash-main' });
+
+    if (sessionCan('review')) {
+      const ready = reviewStats ? Number(reviewStats.review_ready || 0) : null;
+      main.appendChild(h('button', {
+        class: 'asc-dash-card asc-dash-card-review', type: 'button',
+        onClick: () => setPanel('review'),
+      },
+        h('div', { class: 'asc-dash-card-main' },
+          h('span', { class: 'asc-chip asc-chip-specialty asc-chip-pink' },
+            h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
+            h('span', {}, 'Review work')),
+          h('span', { class: 'asc-dash-card-meta' },
+            ready == null ? 'Open the review console'
+              : ready === 0 ? 'No pairs waiting right now'
+                : ready === 1 ? '1 pair waiting for your adjudication'
+                  : ready + ' pairs waiting for your adjudication')),
+        h('span', { class: 'asc-dash-card-go', 'aria-hidden': 'true' }, '\u2192')));
+    }
 
     if (queueError) {
       main.appendChild(renderDashboardError(queueError));
@@ -1774,9 +1800,68 @@
       }
     }
     cols.appendChild(main);
-    cols.appendChild(renderDashboardWidget(stats));
+    const side = h('div', { class: 'asc-dash-side' });
+    const scoreWidget = renderScoreWidget(scoreInfo);
+    if (scoreWidget) side.appendChild(scoreWidget);
+    side.appendChild(renderDashboardWidget(stats));
+    cols.appendChild(side);
     wrap.appendChild(cols);
     setRoot(wrap);
+  }
+
+  // ─── The contributor-score widget (PRD-SCORE) ───────────────────────────────
+  // The one number a physician watches: their initial rating out of 100, then
+  // the blended score as graded cases fold in. Rendered from GET /score and
+  // NEVER computed client-side; absent payload = absent widget, not a zero.
+  function renderScoreWidget(info) {
+    if (!info || info.score == null) return null;
+    const inReview = !!info.in_review;
+    const widget = h('div', { class: 'asc-dash-widget asc-score-widget' },
+      h('div', { class: 'asc-dash-widget-title' }, 'Your rating'),
+      h('div', { class: 'asc-score-line' },
+        h('span', { class: 'asc-score-value' }, String(info.score)),
+        h('span', { class: 'asc-score-band' }, info.band || '')),
+      inReview
+        ? h('div', { class: 'asc-score-review' },
+            'Your profile is currently in review.')
+        : (info.n_cases
+            ? h('div', { class: 'asc-score-note' },
+                'Across ' + info.n_cases + (info.n_cases === 1 ? ' graded case' : ' graded cases') + '.')
+            : h('div', { class: 'asc-score-note' },
+                'Your initial rating, from your profile.')),
+      h('button', {
+        class: 'asc-linkish asc-score-more', type: 'button',
+        onClick: () => openScoreInfo(info),
+      }, 'What is this?'));
+    return widget;
+  }
+
+  function openScoreInfo(info) {
+    if (document.getElementById('ascScoreInfo')) return;
+    const bands = info.bands || { reviewer: 70, labeler: 30 };
+    const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascScoreInfo' });
+    const close = () => overlay.remove();
+    overlay.addEventListener('click', close);
+    const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
+      h('div', { class: 'asc-tour-chrome' }, 'YOUR RATING'),
+      h('div', { class: 'call-team-title' }, String(info.score) + ' out of 100'),
+      h('p', { class: 'asc-help', style: 'margin:6px 0 10px' },
+        info.in_review
+          ? 'Your profile is currently in review. This number is your initial '
+            + 'rating, built from what you told us: years of experience, board '
+            + 'certification, training, and the credentials we could verify.'
+          : 'Your rating starts from your profile (experience, certification, '
+            + 'training) and updates after every completed, QA-graded case: the '
+            + 'grade, the evidence you cite, the depth of your reasoning, and '
+            + 'the care you take relative to the case\u2019s difficulty all move it.'),
+      h('p', { class: 'asc-help', style: 'margin:0 0 16px' },
+        'At ' + bands.reviewer + ' and above you can review other physicians\u2019 '
+        + 'casework as well as label your own. Everyone can label. Nothing here '
+        + 'is ever shown to other physicians.'),
+      h('div', { style: 'display:flex;gap:10px;align-items:center' },
+        h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: close }, 'Got it')));
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
   }
 
   // ─── "Your activity" tracking widget (side column) ──────────────────────────
@@ -6945,35 +7030,33 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  ADVISOR SECTION (Advisor PRD §6.2)
+  //  REFERRAL SECTION (PRD-REF)
   // ═══════════════════════════════════════════════════════════════════════════
-  // Lives in its own file (frontend/asclepius/advisor.js) and is mounted here
-  // the same way AdminPhysiciansSection is: this file is already 8,000 lines
-  // and does not need 400 more.
-  function renderAdvisorView() {
+  // Lives in its own file (frontend/asclepius/referral.js) and is mounted here
+  // the way EarningsSection is.
+  function renderReferralView() {
     stopTimer();
     updateHeaderProgress();
-    const body = h('div', { id: 'ascAdvisorBody' });
+    const body = h('div', { id: 'ascReferralBody' });
     setRoot(h('div', { class: 'asc-wrap' }, body));
-    if (window.AdvisorSection && typeof window.AdvisorSection.render === 'function') {
-      window.AdvisorSection.render(body, adminSectionCtx());
+    if (window.ReferralSection && typeof window.ReferralSection.render === 'function') {
+      window.ReferralSection.render(body, adminSectionCtx());
       return;
     }
-    // A VISIBLE error, never a quiet placeholder. A silent fallback is how a
-    // shipped feature stayed invisible for an entire build round: the advisor
-    // must be able to see that something is broken and say so.
+    // A VISIBLE error, never a quiet placeholder: a silent fallback is how a
+    // shipped feature stays invisible for a build round.
     body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
       h('div', { class: 'asc-error' },
-        'The Advisor section failed to load. Reload the page; if it persists, '
-        + 'this is a deploy problem: check that advisor.js is included in '
-        + 'index.html. Your referrals and sign-offs are unaffected.'))));
+        'The Referral section failed to load. Reload the page; if it persists, '
+        + 'this is a deploy problem: check that referral.js is included in '
+        + 'index.html. Your referrals and bounties are unaffected.'))));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  EARNINGS SECTION (PRD-P §5)
   // ═══════════════════════════════════════════════════════════════════════════
   // Lives in its own file (frontend/asclepius/earnings.js) and is mounted here
-  // exactly the way AdvisorSection is. Payment logic never enters this file.
+  // exactly the way AdminPhysiciansSection is. Payment logic never enters this file.
   function renderEarningsView() {
     stopTimer();
     updateHeaderProgress();
@@ -6999,9 +7082,11 @@
   // ═══════════════════════════════════════════════════════════════════════════
   // Legacy tab ids (deep links, stale state) → new section + sub-tab.
   const ADMIN_TAB_ALIASES = {
-    tasks: ['physicians', 'tasks'], qa: ['physicians', 'qa'],
-    ingestion: ['health', 'pipeline'], buyers: ['export', 'buyers'],
-    exports: ['export', 'history'],
+    tasks: ['work', 'tasks'], qa: ['physicians', 'qa'],
+    metrics: ['work', 'metrics'],
+    ingestion: ['data', 'pipeline'], health: ['data', 'systems'],
+    export: ['data', 'export'], buyers: ['data', 'export'],
+    exports: ['data', 'export'],
   };
 
   // ─── Specialty resolution for an ingest upload ─────────────────────────────
@@ -7131,7 +7216,7 @@
       // switch tabs, so the operator had to re-find the upload they had just
       // clicked on.
       openPipeline: (entry) => {
-        state.adminTab = 'health'; state.adminSub.health = 'pipeline';
+        state.adminTab = 'data'; state.adminSub.data = 'pipeline';
         state.pipelineFocus = (entry && (entry.upload_id || entry.uploadId)) || null;
         renderAdminView();
       },
@@ -7153,9 +7238,9 @@
     if (alias) { state.adminTab = alias[0]; state.adminSub[alias[0]] = alias[1]; }
     const tabs = [
       ['physicians', 'Physicians'],
-      ['health', 'Health Systems'],
-      ['export', 'Export'],
-      ['metrics', 'Metrics'],
+      ['work', 'Work'],
+      ['money', 'Money'],
+      ['data', 'Data'],
     ];
     const subnav = h('div', { class: 'asc-subnav' },
       tabs.map(([id, label]) => {
@@ -7175,9 +7260,9 @@
     refreshQaBadge();
 
     if (state.adminTab === 'physicians') renderAdminPhysiciansSection(body);
-    else if (state.adminTab === 'health') renderAdminHealthSection(body);
-    else if (state.adminTab === 'export') renderAdminExportSection(body);
-    else if (state.adminTab === 'metrics') renderAdminMetrics(body);
+    else if (state.adminTab === 'work') renderAdminWorkSection(body);
+    else if (state.adminTab === 'money') renderAdminMoneySection(body);
+    else if (state.adminTab === 'data') renderAdminDataSection(body);
   }
 
   // Sub-tab strip shared by the three restructured sections.
@@ -7207,30 +7292,62 @@
       // screen at all — the console showed one physician while the founder's
       // inbox filled with signup notifications for people it could not name.
       ['roster', 'Roster'], ['signups', 'Signups'], ['verify', 'Verification'],
-      ['tasks', 'Tasks'], ['qa', 'QA'],
+      ['qa', 'QA'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
     const sub = state.adminSub.physicians;
-    if (sub === 'tasks') renderAdminTasks(inner);
-    else if (sub === 'qa') renderAdminQA(inner);
+    if (sub === 'qa') renderAdminQA(inner);
     else if (window.AdminPhysiciansSection) {
       window.AdminPhysiciansSection.render(inner, adminSectionCtx(),
         (sub === 'verify' || sub === 'signups') ? sub : 'roster');
     } else sectionModuleMissing(inner, 'The Physicians section');
   }
 
-  // Health Systems: who supplies our data. The ingestion review/promote surface
-  // lives here as "Pipeline tools".
-  function renderAdminHealthSection(body) {
+  // Work: what gets labeled and how it is going. Task import/generation
+  // beside the metrics that report on it.
+  function renderAdminWorkSection(body) {
     clear(body);
-    body.appendChild(adminSubnav('health', [
-      ['systems', 'Systems'], ['pipeline', 'Pipeline tools'],
+    body.appendChild(adminSubnav('work', [
+      ['tasks', 'Tasks'], ['metrics', 'Metrics'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
-    if (state.adminSub.health === 'pipeline') renderAdminIngestion(inner);
-    else if (window.AdminHealthSection) window.AdminHealthSection.render(inner, adminSectionCtx());
+    if (state.adminSub.work === 'metrics') renderAdminMetrics(inner);
+    else renderAdminTasks(inner);
+  }
+
+  // Money: the ledger and the referral book. Both were API-only for a while;
+  // an admin should never need curl to see what the product owes people.
+  function renderAdminMoneySection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('money', [
+      ['earnings', 'Earnings'], ['referrals', 'Referrals'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    if (window.AdminEarningsSection) {
+      window.AdminEarningsSection.render(inner, adminSectionCtx(),
+        state.adminSub.money === 'referrals' ? 'referrals' : 'earnings');
+    } else sectionModuleMissing(inner, 'The Money section');
+  }
+
+  // Data: who supplies it, the pipeline that ingests it, and what ships out.
+  function renderAdminDataSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('data', [
+      ['systems', 'Systems'], ['pipeline', 'Pipeline tools'], ['export', 'Export'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    if (state.adminSub.data === 'pipeline') renderAdminIngestion(inner);
+    else if (state.adminSub.data === 'export') renderAdminExportSection(inner);
+    else renderAdminHealthSection(inner);
+  }
+
+  // Health Systems (inside Data): who supplies our data.
+  function renderAdminHealthSection(inner) {
+    if (window.AdminHealthSection) window.AdminHealthSection.render(inner, adminSectionCtx());
     else sectionModuleMissing(inner, 'The Health Systems section');
   }
 
@@ -10583,129 +10700,10 @@
     pop.appendChild(frac);
   }
 
-  // ─── First run: what this is, before the first case ────────────────────────
-  // A physician arriving here has signed up for something they read about on a
-  // landing page and has never seen the product. The old flow put them straight
-  // into "One practice case, about 4 minutes", which explains the exercise but
-  // not the job.
-  //
-  // Written in the second person and deliberately short: four panels, skippable
-  // from any of them, shown once. It states what the work is and what it is for
-  // and then gets out of the way. No dollar figures here on purpose — rates
-  // depend on tier, specialty and language, they live on the Earnings page, and
-  // a number invented for an onboarding slide is a number we would have to
-  // honour.
-  const FIRST_RUN_PANELS = [
-    {
-      chrome: 'WHAT THIS IS',
-      title: 'AI is already answering clinical questions.',
-      body: 'It is confident, it is fluent, and when it is wrong it is wrong in ways '
-          + 'that read exactly like being right. You are here to find those. The '
-          + 'goal we are working toward is AI that is safe enough to practise '
-          + 'medicine, and there is no way to get there without physicians saying '
-          + 'where it fails.',
-    },
-    {
-      chrome: 'WHAT YOU ACTUALLY DO',
-      title: 'You read a case and mark up two AI answers.',
-      body: 'A real clinical case, then two model answers to it. You give your own '
-          + 'read first, so the models cannot anchor you, then say what each one '
-          + 'got right, what it got wrong, and which is better. It is the same '
-          + 'judgment you use on a consult note, written down.',
-    },
-    {
-      chrome: 'WHY IT MATTERS',
-      title: 'Your reasoning is the product, not your verdict.',
-      body: 'A score on its own teaches a model very little. "This misses the '
-          + 'cardiorenal picture, and here is the finding that gives it away" '
-          + 'teaches it a great deal. That is why the work is worth paying a '
-          + 'specialist for, and why we ask you to write rather than click.',
-    },
-    {
-      chrome: 'WHAT YOU GET',
-      title: 'You are paid per case, and it goes up.',
-      body: 'Every case you complete is tracked on your Earnings page, along with '
-          + 'what you are owed and when it pays. Rates rise with your tier and with '
-          + 'how rare your expertise is: subspecialty work and languages we are '
-          + 'short of pay more than general review. Refer a colleague and there is '
-          + 'a bounty on that too.',
-    },
-  ];
-
-  const FIRST_RUN_SEEN_KEY = 'asclepius_first_run_seen';
-
-  function firstRunAlreadySeen() {
-    try { return localStorage.getItem(FIRST_RUN_SEEN_KEY) === '1'; } catch (_) { return false; }
-  }
-
-  function markFirstRunSeen() {
-    try { localStorage.setItem(FIRST_RUN_SEEN_KEY, '1'); } catch (_) { /* ignore quota */ }
-  }
-
-  /** Four panels, then the practice case. `done` is called either way, so
-   *  skipping the intro still lands on the case rather than nowhere. */
-  function renderFirstRunIntro(done) {
-    if (document.getElementById('ascFirstRun')) return;
-    let idx = 0;
-    const overlay = h('div', {
-      class: 'call-team-overlay is-open asc-tour-interstitial',
-      id: 'ascFirstRun',
-    });
-    const popup = h('div', {
-      class: 'call-team-popup asc-tour-inter-pop asc-firstrun-pop',
-      onClick: (e) => e.stopPropagation(),
-    });
-
-    function finish() {
-      markFirstRunSeen();
-      overlay.remove();
-      done();
-    }
-
-    function paint() {
-      const panel = FIRST_RUN_PANELS[idx];
-      clear(popup);
-      popup.appendChild(h('div', { class: 'asc-tour-chrome' }, panel.chrome));
-      popup.appendChild(h('div', { class: 'call-team-title' }, panel.title));
-      popup.appendChild(h('p', { class: 'asc-help asc-firstrun-body' }, panel.body));
-
-      const dots = h('div', { class: 'asc-firstrun-dots', 'aria-hidden': 'true' });
-      FIRST_RUN_PANELS.forEach((_, i) => {
-        dots.appendChild(h('span', { class: 'asc-firstrun-dot' + (i === idx ? ' on' : '') }));
-      });
-
-      const last = idx === FIRST_RUN_PANELS.length - 1;
-      popup.appendChild(h('div', { class: 'asc-firstrun-foot' },
-        dots,
-        h('div', { class: 'asc-firstrun-actions' },
-          idx > 0
-            ? h('button', { class: 'asc-btn-link', type: 'button',
-                onClick: () => { idx -= 1; paint(); } }, 'Back')
-            : null,
-          h('button', {
-            class: 'asc-btn asc-btn-primary', type: 'button',
-            onClick: () => { if (last) { finish(); } else { idx += 1; paint(); } },
-          }, last ? 'Show me a case →' : 'Next'),
-        )));
-
-      popup.appendChild(h('button', {
-        class: 'asc-btn-link asc-tour-skip', type: 'button', onClick: finish,
-      }, 'Skip the intro'));
-    }
-
-    paint();
-    overlay.appendChild(popup);
-    document.body.appendChild(overlay);
-  }
-
   // ─── Welcome screen (the ONLY interstitial: then an uninterrupted flow) ───
   function renderTourWelcome() {
     hideTourLayer();
     if (document.getElementById('ascTourInterstitial')) return;
-    if (!firstRunAlreadySeen() && !(state.tutorial && state.tutorial.replay)) {
-      renderFirstRunIntro(renderTourWelcome);
-      return;
-    }
     const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascTourInterstitial' });
     const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
       h('div', { class: 'asc-tour-chrome' }, 'CALIBRATION CASE 1'),

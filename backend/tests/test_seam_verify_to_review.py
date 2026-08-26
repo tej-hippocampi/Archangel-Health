@@ -165,7 +165,7 @@ def test_the_two_modules_share_one_tier_vocabulary():
     from asclepius import capabilities as asc_caps
 
     assert "reviewer" in verify._TIERS
-    assert "advisor" in verify._TIERS
+    assert "advisor" not in verify._TIERS  # the advisor tier is retired
     # B's writable vocabulary and the capability table must be the same set —
     # neither may carry a value the other has never heard of.
     assert set(verify._TIERS) == set(asc_caps._BY_TIER)

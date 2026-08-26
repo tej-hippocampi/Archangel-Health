@@ -15,8 +15,10 @@ Failure policy: every run is recorded in ``community_digest_runs``
 scheduler loop can never crash. Three consecutive failures of a kind logs a
 grep-able ``ADMIN ATTENTION`` line.
 
-The scheduled loop ships ON (``COMMUNITY_NEWS_ENABLED=0`` opts out); the
-internal trigger endpoint fires a run on demand either way.
+The scheduled loop ships OFF (set ``COMMUNITY_NEWS_ENABLED=1`` to enable);
+the internal trigger endpoint fires a run on demand either way. It is off
+because the community starts empty by policy: automated news posting comes
+back when the dedicated news software replaces this pipeline.
 """
 
 from __future__ import annotations
@@ -238,7 +240,7 @@ async def _email_digest(kind: str, body: str) -> int:
         try:
             ok = await send_html_email(
                 email,
-                f"Medical AI: {headline}",
+                headline,
                 build_community_news_digest_email(
                     first_name=((member.get("display_name") or "").split() or ["there"])[0],
                     headline=headline,
@@ -328,12 +330,12 @@ async def run_digest(kind: str) -> Dict[str, Any]:
         return {"ok": False, "kind": kind, "error": str(exc)[:500]}
 
 
-# ─── Scheduler (in-process, restart-safe, news ON by default) ────────────────
+# ─── Scheduler (in-process, restart-safe, news OFF by default) ───────────────
 def news_enabled() -> bool:
-    # ON by default now. The digest is the daily reason a physician comes back,
-    # and it was built, tested and then left switched off. Set
-    # COMMUNITY_NEWS_ENABLED=0 to stop it.
-    return (os.getenv("COMMUNITY_NEWS_ENABLED") or "1").strip() not in ("0", "false", "no", "off")
+    # OFF by default. The community starts empty by policy: no bot-authored
+    # news posts until the dedicated news software replaces this pipeline.
+    # Set COMMUNITY_NEWS_ENABLED=1 to run the scheduled loop anyway.
+    return (os.getenv("COMMUNITY_NEWS_ENABLED") or "0").strip() in ("1", "true", "yes", "on")
 
 
 def _news_hour_utc() -> int:

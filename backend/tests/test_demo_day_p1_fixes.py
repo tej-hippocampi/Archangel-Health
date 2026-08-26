@@ -65,7 +65,7 @@ def test_a_tierless_account_cannot_submit():
     assert r.status_code == 403, r.text
 
 
-@pytest.mark.parametrize("tier", [asc_caps.LABELER, asc_caps.REVIEWER, asc_caps.ADVISOR])
+@pytest.mark.parametrize("tier", list(asc_caps.TIERS))
 def test_every_real_tier_can_still_label(tier):
     """LABEL belongs to all three tiers. A gate that let only labelers through
     would silently stop reviewers and advisors from doing their own labeling —
@@ -442,11 +442,11 @@ def test_the_downloaded_zip_never_carries_internal_identity_either():
     assert shipped["export_id"] == "e-1" and shipped["record_count"] == 2
 
 
-def test_the_two_manifest_strip_lists_are_one_list():
-    """The advisor view and the shipped bundle stripped the same three keys from
-    two places. Two copies of one rule is how the fourth key gets added to one."""
+def test_the_manifest_strip_list_holds():
+    """The advisor view that duplicated this rule is retired; the shipped
+    bundle's strip list is the one copy left, and it still strips the
+    operator-only keys."""
     from asclepius.export import _shippable_manifest
-    from routers.asclepius_advisor import _public_manifest
 
     full = {"keep": 1, "created_by": "u", "dir_path": "/p", "destination": "d"}
-    assert _public_manifest(full) == _shippable_manifest(full) == {"keep": 1}
+    assert _shippable_manifest(full) == {"keep": 1}

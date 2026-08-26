@@ -182,6 +182,14 @@ class SelfServeBody(BaseModel):
     email: EmailStr
     # Honeypot — real users never see or fill this; a non-empty value is a bot.
     company_website: str = Field(default="", max_length=200)
+    # /join extras, all optional so the landing's email-only modal keeps its
+    # exact contract. Names prefill wizard step 1; the referral code attributes
+    # a link signup; flavor='general' relaxes the MD credential screens for an
+    # invited non-clinical signer (e.g. a business advisor).
+    first_name: str = Field(default="", max_length=120)
+    last_name: str = Field(default="", max_length=120)
+    referral_code: str = Field(default="", max_length=32)
+    flavor: str = Field(default="", max_length=20)
 
 
 # Outstanding self-serve links one inbox can hold at once (rolling 24h).
@@ -242,6 +250,7 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
     director_email = (row.get("director_email") or "").strip()
     out = {
         "product": product,
+        "signup_flavor": (row.get("signup_flavor") or "").strip() or None,
         "director_first_name": (row.get("director_first_name") or "").strip(),
         "director_last_name": (row.get("director_last_name") or "").strip(),
         "director_email": director_email,
@@ -354,6 +363,35 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         director_email=email,
         product="asclepius",
     )
+
+    # /join extras, all best-effort: the link is the deliverable and none of
+    # these may fail the mint. Names land on the row through the same setter
+    # step 1 uses, so the wizard hydrates them prefilled; the flavor rides the
+    # row into the session payload; the referral code records attribution
+    # (email-keyed claiming still binds it at provisioning, like every invite).
+    first = (body.first_name or "").strip()
+    last = (body.last_name or "").strip()
+    if first or last:
+        try:
+            ts.update_health_system_director_identity(
+                invite["health_system_id"],
+                first_name=first, last_name=last, email=email)
+        except Exception:
+            pass
+    if (body.flavor or "").strip():
+        try:
+            ts.set_health_system_signup_flavor(invite["health_system_id"], body.flavor)
+        except Exception:
+            pass
+    if (body.referral_code or "").strip():
+        try:
+            from asclepius import referrals as asc_referrals  # noqa: PLC0415
+            from asclepius.store import get_store as _asc_store  # noqa: PLC0415
+            asc_referrals.attach_link_signup(
+                _asc_store(), referral_code=body.referral_code,
+                email=email, ip=client_ip(request))
+        except Exception:
+            pass
 
     # Best-effort provenance + founder visibility. Never fail the request on
     # either — the returned link is the deliverable.
@@ -802,7 +840,7 @@ def _provision_asclepius_user(
         credentials=creds,
         attestations=attestations or {},
     )
-    # Advisor PRD §3.2 step 3: attach this signup to whichever advisor referred
+    # Attach this signup to whichever physician referred
     # them. Resolution is by the address the invite was addressed to — see
     # ``store.find_open_referral_for_email``. Best-effort: a referral that
     # cannot be claimed must never cost a physician their account.
@@ -868,7 +906,7 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
             result = credentialing.verify_npi(npi, family_name, cached=cached)
             store.set_npi_result(uid, result)
             if result.get("result") == "verified":
-                # Advisor PRD §3.2 step 4: the referrer's funnel follows the
+                # The referrer's funnel follows the
                 # invitee. 'verified' is the NPI coming back clean; 'approved'
                 # is the admin's decision and is stamped from the verify router.
                 try:

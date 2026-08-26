@@ -5,6 +5,7 @@ import TeamCalculator from "@/app/components/TeamCalculator";
 import TeamWhitepaperPage from "@/app/components/TeamWhitepaperPage";
 import PodcastAndBlogsPage from "@/app/components/PodcastAndBlogsPage";
 import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
+import JoinEntry from "@/app/components/JoinEntry";
 import OnboardingWizard from "@/app/components/OnboardingWizard";
 import TenantSignIn from "@/app/components/TenantSignIn";
 import VerifyEmailPage from "@/app/components/VerifyEmailPage";
@@ -38,6 +39,15 @@ export default function App() {
     return (
       <AuthProvider>
         <OnboardingWizard token={decodeURIComponent(memberOnboardMatch[1])} mode="member" />
+      </AuthProvider>
+    );
+  }
+  // The shareable get-started entry: prefilled by query params, straight into
+  // the wizard on submit. No token — it mints one through /self-serve.
+  if (/^\/join$/.test(path)) {
+    return (
+      <AuthProvider>
+        <JoinEntry />
       </AuthProvider>
     );
   }

@@ -18,6 +18,7 @@ imports nothing from ``review.py`` or ``routing.py``.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -83,7 +84,9 @@ async def my_referrals(user: Dict[str, Any] = Depends(_require_referrer)):
         log.exception("asclepius.payments: referral reconcile failed for %s", user["id"])
     return asc_referrals.funnel(
         store, referrer=store.get_user_by_id(user["id"]) or user,
-        bounty_cents=asc_payments.referral_bounty_cents())
+        bounty_cents=asc_payments.referral_bounty_cents(),
+        referee_bonus_cents=asc_payments.referee_bonus_cents(),
+        cap_cents=asc_payments.referral_cap_cents())
 
 
 class ReferralBody(BaseModel):
@@ -191,6 +194,73 @@ async def create_referral(
         "ok": True,
         "message": "Invitation recorded. You'll see them in your referrals below.",
     }
+
+
+class EnterpriseNoteBody(BaseModel):
+    note: str
+
+
+@router.post(
+    "/api/asclepius/referrals/enterprise-note",
+    dependencies=[Depends(rate_limiter("asclepius_enterprise_note_ip", 10, 3600))],
+)
+async def enterprise_note(
+    body: EnterpriseNoteBody,
+    user: Dict[str, Any] = Depends(_require_referrer),
+):
+    """A physician flags that their health system might sell data or partner
+    on enterprise labeling. Free text straight to a founder inbox: at this
+    deal size a human reads every word, so no form fields, no CRM.
+
+    Bounded and throttled per user (3/day) because it is an outbound email a
+    signed-in physician can trigger; the note is plain text in the builder so
+    nothing in it can inject markup or headers.
+    """
+    note = " ".join((body.note or "").split())
+    if not note:
+        raise HTTPException(status_code=422, detail="Write a sentence or two first.")
+    if len(note) > 2000:
+        raise HTTPException(status_code=422, detail="Keep the note under 2,000 characters.")
+    from ratelimit import check, is_enabled
+    if is_enabled():
+        allowed, retry_after = check(f"asclepius_enterprise_note:{user['id']}", 3, 86400)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="You have sent a few notes today already. We read every one.",
+                headers={"Retry-After": str(retry_after)})
+
+    from email_utils import is_email_transport_configured, send_html_email
+    from onboarding_emails import build_enterprise_note_email
+
+    store = _store()
+    sender = store.get_user_by_id(user["id"]) or user
+    dest = (os.getenv("ENTERPRISE_NOTE_EMAIL") or "aryaabhatia@berkeley.edu").strip()
+    sent = False
+    if is_email_transport_configured():
+        try:
+            sent = bool(await send_html_email(
+                dest,
+                f"Enterprise note from {(sender.get('full_name') or 'a physician').strip()}",
+                build_enterprise_note_email(
+                    sender_name=(sender.get("full_name") or "").strip(),
+                    sender_email=(sender.get("email") or "").strip(),
+                    specialty=(sender.get("specialty") or "").strip(),
+                    organization=(sender.get("organization") or sender.get("org_name") or "").strip(),
+                    note=note,
+                )))
+        except Exception:
+            log.exception("asclepius.payments: enterprise note email failed")
+    store.log_event(
+        entity_type="user", entity_id=sender["id"], event_type="enterprise_note",
+        actor=sender.get("email"), payload={"sent": sent, "chars": len(note)})
+    if not sent:
+        # The note did not leave the building; say so rather than swallowing it.
+        raise HTTPException(
+            status_code=503,
+            detail="We could not send your note just now. Please try again shortly.")
+    return {"ok": True,
+            "message": "Sent. A founder reads every one of these personally."}
 
 
 # ─── Sessions ─────────────────────────────────────────────────────────────────
@@ -383,6 +453,42 @@ async def admin_earnings(
             "tr_session_cents": asc_payments.tr_session_cents(),
             "tr_min_seconds": asc_payments.tr_min_seconds(),
             "tl_auto_approve_days": asc_payments.tl_auto_approve_days(),
+        },
+    }
+
+
+@router.get("/api/asclepius/admin/referrals")
+async def admin_referrals(
+    limit: int = Query(500, ge=1, le=2000),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The whole referral book, for the Money tab: who referred whom, where
+    each row sits in the funnel, what the ledger has paid, and any fraud
+    flag. Admin eyes only, so the invitee's raw address is shown."""
+    store = _store()
+    rows = []
+    for r in store.list_all_referrals(limit=limit):
+        rows.append({
+            "referral_id": r.get("referral_id"),
+            "referrer_name": (r.get("referrer_name") or "").strip() or None,
+            "referrer_email": r.get("referrer_email"),
+            "invitee_email": r.get("invitee_email"),
+            "invitee_name": r.get("invitee_name"),
+            "status": r.get("status"),
+            "status_sentence": asc_referrals.status_sentence(
+                r.get("status"), r.get("bounty_state")),
+            "bounty_state": r.get("bounty_state") or "pending",
+            "source": r.get("source"),
+            "fraud_flag": r.get("fraud_flag"),
+            "invited_at": r.get("invited_at"),
+            "first_case_at": r.get("first_case_at"),
+        })
+    return {
+        "rows": rows,
+        "payout_structure": {
+            "referrer_bounty_cents": asc_payments.referral_bounty_cents(),
+            "referee_bonus_cents": asc_payments.referee_bonus_cents(),
+            "cap_cents": asc_payments.referral_cap_cents(),
         },
     }
 

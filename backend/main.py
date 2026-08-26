@@ -79,8 +79,8 @@ from routers.asclepius_admin import router as asclepius_admin_router
 from routers.asclepius_buyer import router as asclepius_buyer_router
 from routers.asclepius_verify import router as asclepius_verify_router
 from routers.asclepius_review import router as asclepius_review_router
-from routers.asclepius_advisor import router as asclepius_advisor_router
 from routers.asclepius_payments import router as asclepius_payments_router
+from routers.asclepius_score import router as asclepius_score_router
 from routers.leads import router as leads_router
 from eligibility import store as elig_store
 import demo_credentials
@@ -6443,6 +6443,20 @@ async def internal_run_community_digest(
     return {**result, "ran_at": _utcnow_iso()}
 
 
+@app.post("/internal/community/purge", include_in_schema=False)
+async def internal_purge_community(authorization: Optional[str] = Header(None)):
+    """One-shot cleanup: hard-delete bot-authored posts (news digests,
+    welcomes) and posts by authors with no account in the users plane
+    (demo-seeded doctors), so a deployed community starts empty. Channels and
+    human posts survive."""
+    _check_internal_auth(authorization)
+    from asclepius.store import get_store as _asc_store  # noqa: PLC0415
+    from community.store import get_community_store as _cstore  # noqa: PLC0415
+    valid_ids = [u["id"] for u in _asc_store().list_users()]
+    counts = _cstore().purge_generated_content(valid_user_ids=valid_ids)
+    return {"ok": True, **counts, "ran_at": _utcnow_iso()}
+
+
 @app.post("/internal/community/run-event-reminders", include_in_schema=False)
 async def internal_run_event_reminders(authorization: Optional[str] = Header(None)):
     """Manual trigger for the Community v2.1 event-reminder sweep (demo/QA)."""
@@ -6501,8 +6515,8 @@ app.include_router(asclepius_admin_router)
 app.include_router(asclepius_buyer_router)
 app.include_router(asclepius_verify_router)
 app.include_router(asclepius_review_router)
-app.include_router(asclepius_advisor_router)
 app.include_router(asclepius_payments_router)
+app.include_router(asclepius_score_router)
 # V5 Clinical RL Environments (agentic tier). Additive; mounted defensively so a
 # missing optional dependency disables V5 rather than crashing the app. V1–V4 are
 # unaffected (the environments live in their own env_runs table + /environments routes).
