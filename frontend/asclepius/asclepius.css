@@ -308,8 +308,7 @@
 .asc-badge-green::before { background: var(--green); }
 .asc-badge-red::before { background: var(--pink); }
 .asc-badge-gray::before { background: rgba(26, 27, 26, 0.18); }
-/* Lime = "new / notable" (Advisor PRD §6.2). Used for the advisor tier badge:
-   three people among fifty, findable in one glance. Dot only: zero fills. */
+/* Lime = "new / notable". Dot only: zero fills. */
 .asc-badge-lime::before { background: var(--lime); }
 
 /* ─── Buttons ─────────────────────────────────────────────── */
@@ -3112,7 +3111,7 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   flex-wrap: wrap;
 }
 .asc-pay-dot { color: var(--ink-faint); }
-.asc-pay-advisor {
+.asc-pay-noaccrual {
   font-size: 13px;
   line-height: 1.6;
   color: var(--asc-text);

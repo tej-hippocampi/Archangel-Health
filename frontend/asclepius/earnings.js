@@ -524,13 +524,13 @@
 
     rootEl.appendChild(h('h2', { class: 'asc-pay-title' }, 'Earnings'));
     rootEl.appendChild(headline(h));
-    // The countdown is about TIME, which an advisor works like anyone else — so
-    // the session widget shows for them too.
+    // The countdown is about TIME, which an unpaid account works like anyone
+    // else — so the session widget shows for them too.
     var live = sessionWidget(h);
     if (live) rootEl.appendChild(live);
-    // The rate breakdown and the ledger are about MONEY, and for an advisor there
-    // is none. "Tasks labeled 0 × $75 · $0" underneath "you hold equity rather
-    // than a per-task rate" reads as a contradiction of the sentence above it.
+    // The rate breakdown and the ledger are about MONEY, and for a
+    // non-accruing account there is none. "Tasks labeled 0 × $75 · $0" under a
+    // sentence saying work does not accrue reads as a contradiction.
     if (data.accrues_payment) {
       rootEl.appendChild(lines(h));
       // Between the breakdown and the ledger, and the seam is the point. Not at
@@ -555,11 +555,12 @@
   function headline(h) {
     var wrap = h('div', { class: 'asc-pay-head' });
     if (!data.accrues_payment) {
-      // An advisor holds equity rather than a per-task rate. Saying so is much
-      // better than an unexplained $0 next to work they know they did.
-      wrap.appendChild(h('div', { class: 'asc-pay-advisor' },
-        'You are an appointed medical advisor: you hold equity rather than a '
-        + 'per-task rate, so labeling and review work does not accrue a payment. '
+      // A legacy equity-only account does not accrue a per-task rate. Saying
+      // so is much better than an unexplained $0 next to work they know they
+      // did.
+      wrap.appendChild(h('div', { class: 'asc-pay-noaccrual' },
+        'Your account is on an equity arrangement rather than a per-task '
+        + 'rate, so labeling and review work does not accrue a payment. '
         + 'Your work still counts everywhere quality is measured.'));
       return wrap;
     }
@@ -674,8 +675,8 @@
     card.appendChild(h('div', { class: 'asc-ref-pitch' },
       block.earns_bounty
         ? bounty + ' when a colleague you refer completes their first case.'
-        : 'Invite a colleague to contribute. Your compensation is equity rather '
-          + 'than a per-task rate, so a referral does not accrue a bounty.'));
+        : 'Invite a colleague to contribute. Your account is on an equity '
+          + 'arrangement, so a referral does not accrue a bounty.'));
 
     card.appendChild(referralForm(h));
     if (refError) card.appendChild(h('div', { class: 'asc-ref-error' }, refError));

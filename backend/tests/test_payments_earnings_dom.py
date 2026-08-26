@@ -415,7 +415,7 @@ done(function () { console.log(JSON.stringify({ notes: find(body, 'asc-pay-note'
     assert "dialysate target is unsafe" in out["notes"][0]
 
 
-def test_an_advisor_is_told_why_rather_than_shown_an_unexplained_zero():
+def test_a_non_accruing_account_is_told_why_rather_than_shown_an_unexplained_zero():
     ledger = dict(_LEDGER, accrues_payment=False, approved_cents=0,
                   pending_cents=0, void_cents=0, recent=[])
     out = _run_node(_script({"/api/asclepius/earnings": ledger}, """
@@ -423,7 +423,7 @@ var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
 done(function () {
   console.log(JSON.stringify({
-    advisor: find(body, 'asc-pay-advisor').map(textOf),
+    advisor: find(body, 'asc-pay-noaccrual').map(textOf),
     hero: find(body, 'asc-pay-hero-value').length,
     lines: find(body, 'asc-pay-line').length,
     recent: find(body, 'asc-pay-recent').length,
@@ -431,7 +431,7 @@ done(function () {
   }));
 });
 """))
-    assert out["hero"] == 0, "an advisor is not shown a headline figure"
+    assert out["hero"] == 0, "a non-accruing account is not shown a headline figure"
     assert "equity" in out["advisor"][0]
     assert "does not accrue a payment" in out["advisor"][0]
     # "Tasks labeled 0 × $75 · $0" under "you hold equity rather than a per-task

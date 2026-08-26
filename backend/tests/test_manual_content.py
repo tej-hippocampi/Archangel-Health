@@ -32,7 +32,7 @@ _INDEX_HTML = _FRONTEND / "index.html"
 # everyone who predates credential review is a section shown for no reason.
 _VERIFICATION_STATES = {"pending", "approved", "rejected"}
 
-_ROLES = ("labeler", "reviewer", "advisor")
+_ROLES = ("labeler", "reviewer")
 
 
 def _load() -> dict:
@@ -88,7 +88,7 @@ def _visible_words(manual: dict) -> int:
 
 
 # ─── §6.1 — the shape ─────────────────────────────────────────────────────────
-def test_there_are_exactly_three_manuals(manuals):
+def test_there_are_exactly_two_manuals(manuals):
     assert set(manuals) == set(_ROLES)
 
 
@@ -340,5 +340,3 @@ def test_examples_appear_only_where_a_judgment_is_subjective(manuals):
     a four-minute document past the point a senior physician finishes it."""
     reviewer = [s["id"] for s in manuals["reviewer"]["sections"] if s.get("example")]
     assert reviewer == ["verdict", "corrections"]
-    advisor = [s["id"] for s in manuals["advisor"]["sections"] if s.get("example")]
-    assert advisor == ["signoff"]

@@ -267,13 +267,8 @@
       window.open('/asclepius/review', '_blank', 'noopener');
       return;
     }
-    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'advisor' && dest !== 'earnings'
+    if (dest !== 'tasks' && dest !== 'guide' && dest !== 'earnings'
         && dest !== 'verification') return;
-    // Server-gated destinations are re-checked here, not only hidden in the
-    // rail: a stale deep link or a hand-typed state change must not open a
-    // section the session was never granted. (The API 403s regardless: this
-    // just avoids rendering an empty shell over it.)
-    if (dest === 'advisor' && !sessionCan('refer')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
@@ -282,9 +277,7 @@
     if (dest !== 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     state.panel = dest;
     renderSidePanel();
-    if (dest === 'advisor') {
-      renderAdvisorView();
-    } else if (dest === 'earnings') {
+    if (dest === 'earnings') {
       renderEarningsView();
     } else if (dest === 'guide') {
       renderGuide();
@@ -306,7 +299,6 @@
   // Inline, token-palette icons (stroke = currentColor, no fills). 20×20 grid.
   const RAIL_ICONS = {
     tasks: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 4h9M7 10h9M7 16h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M3.2 4.2l1 1 1.4-1.7M3.2 10.2l1 1 1.4-1.7M3.2 16.2l1 1 1.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-    advisor: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.8l5.4 2.1v4.4c0 3.2-2.2 6-5.4 7-3.2-1-5.4-3.8-5.4-7V4.9L10 2.8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.7 9.9l1.6 1.7 3-3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     community: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 15V6a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0116 6v5.5A1.5 1.5 0 0114.5 13H7l-3 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.5 8.5h5M7.5 10.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
     // PRD-R: two panels side by side, the shape of the paired review.
     review: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.8" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><rect x="11.2" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><path d="M4.6 8.2h2.4M4.6 11h2.4M13 8.2h2.4M13 11h2.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
@@ -358,16 +350,11 @@
     { dest: 'tasks',     label: 'Tasks', surface: 'real_work',
       lockedHint: 'Opens when your credentials clear' },
     // PRD-R: without this entry the review console has no route from the portal
-    // at all, so a promoted reviewer signs in and never finds the surface. Same
-    // capability gate as Advisor below, for the same reason: the client reads
-    // the server's capability list and never re-derives a tier.
+    // at all, so a promoted reviewer signs in and never finds the surface. The
+    // gate is `capability`: the client reads the server's capability list and
+    // never re-derives a tier.
     { dest: 'review',    label: 'Review', capability: 'review', external: true },
     { dest: 'community', label: 'Community', surface: 'community_read', external: true },
-    // Advisor PRD §6.2: shown only to a session whose SERVER-supplied
-    // capabilities include 'refer'. The gate is `capability`, never a tier
-    // string: re-deriving "is this an advisor?" in the client would push the
-    // exact two-state check this build removed back into the frontend.
-    { dest: 'advisor',   label: 'Advisor', capability: 'refer' },
     // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
     // made is not a privileged surface, and every endpoint behind it scopes from
     // the session, so there is nothing here to gate on a capability.
@@ -433,7 +420,6 @@
 
   function railItemActive(dest) {
     if (dest === 'guide') return state.panel === 'guide';
-    if (dest === 'advisor') return state.panel === 'advisor';
     if (dest === 'earnings') return state.panel === 'earnings';
     return state.panel === 'tasks' && dest === 'tasks';
   }
@@ -755,14 +741,12 @@
 
   let guideObserver = null;
 
-  // PRD M — three scoped manuals, picked by CAPABILITY rather than by tier. An
-  // advisor labels and reviews and signs off, so a tier does not map to one
-  // document; what a physician can DO does. Order is least to most, so the
+  // PRD M — scoped manuals, picked by CAPABILITY rather than by tier: what a
+  // physician can DO decides the document. Order is least to most, so the
   // default is the most senior manual they hold.
   const MANUAL_ROLES = [
     { key: 'labeler', capability: 'label', label: 'Labeling' },
     { key: 'reviewer', capability: 'review', label: 'Reviewing' },
-    { key: 'advisor', capability: 'refer', label: 'Advising' },
   ];
 
   function heldManuals() {
@@ -1447,7 +1431,7 @@
   // showing it "most decisions take one to two business days" would be a lie.
   function awaitingVerificationSection() {
     const manuals = window.ASC_MANUALS || {};
-    const order = [manuals.labeler, manuals.reviewer, manuals.advisor, window.ASC_MANUAL];
+    const order = [manuals.labeler, manuals.reviewer, window.ASC_MANUAL];
     for (let i = 0; i < order.length; i++) {
       const secs = (order[i] && order[i].sections) || [];
       for (let j = 0; j < secs.length; j++) {
@@ -6945,35 +6929,10 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  //  ADVISOR SECTION (Advisor PRD §6.2)
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Lives in its own file (frontend/asclepius/advisor.js) and is mounted here
-  // the same way AdminPhysiciansSection is: this file is already 8,000 lines
-  // and does not need 400 more.
-  function renderAdvisorView() {
-    stopTimer();
-    updateHeaderProgress();
-    const body = h('div', { id: 'ascAdvisorBody' });
-    setRoot(h('div', { class: 'asc-wrap' }, body));
-    if (window.AdvisorSection && typeof window.AdvisorSection.render === 'function') {
-      window.AdvisorSection.render(body, adminSectionCtx());
-      return;
-    }
-    // A VISIBLE error, never a quiet placeholder. A silent fallback is how a
-    // shipped feature stayed invisible for an entire build round: the advisor
-    // must be able to see that something is broken and say so.
-    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-      h('div', { class: 'asc-error' },
-        'The Advisor section failed to load. Reload the page; if it persists, '
-        + 'this is a deploy problem: check that advisor.js is included in '
-        + 'index.html. Your referrals and sign-offs are unaffected.'))));
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
   //  EARNINGS SECTION (PRD-P §5)
   // ═══════════════════════════════════════════════════════════════════════════
   // Lives in its own file (frontend/asclepius/earnings.js) and is mounted here
-  // exactly the way AdvisorSection is. Payment logic never enters this file.
+  // exactly the way AdminPhysiciansSection is. Payment logic never enters this file.
   function renderEarningsView() {
     stopTimer();
     updateHeaderProgress();
