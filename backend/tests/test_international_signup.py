@@ -265,3 +265,71 @@ def test_registration_numbers_are_only_duplicates_within_one_country():
     assert len(store.find_users_by_registry_id("45678", country="IN")) == 1
     assert len(store.find_users_by_registry_id("45678", country="SA")) == 1
     assert len(store.find_users_by_registry_id("45678")) == 2
+
+
+# ─── What an admin can actually see ──────────────────────────────────────────
+def test_the_admin_dossier_shows_the_registry_that_answers_for_this_doctor():
+    """"No NPI provided" over a physician registered with SCFHS reports an
+    absence that was never expected. The queue now names their registry, says
+    what it returned, and links where to check by hand."""
+    from tests._asclepius import app, headers_for, make_user
+    from fastapi.testclient import TestClient
+
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    doctor = _user(store)
+    onboarding_module._run_signup_verification(store, doctor, _saudi_credentials())
+
+    client = TestClient(app)
+    r = client.get(f"/api/asclepius/verify/queue/{doctor['id']}",
+                   headers=headers_for(admin))
+    assert r.status_code == 200
+    registry = r.json()["registry"]
+    assert registry["is_us"] is False
+    assert "Saudi Commission" in registry["registry_name"]
+    assert registry["identifier"] == "1234567"
+    assert registry["lookup_url"]          # somewhere to go
+    assert registry["note"]                # and what to do when you get there
+
+
+def test_the_admin_dossier_carries_the_signup_flags():
+    from tests._asclepius import app, headers_for, make_user
+    from fastapi.testclient import TestClient
+
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    doctor = _user(store)
+    onboarding_module._run_signup_verification(store, doctor, _saudi_credentials(
+        residency={"institution": "jkj", "year": "7689"}))
+
+    client = TestClient(app)
+    body = client.get(f"/api/asclepius/verify/queue/{doctor['id']}",
+                      headers=headers_for(admin)).json()
+    assert any(f["field"] == "residency_year" for f in body["flags"])
+
+
+def test_the_admin_physician_profile_returns_the_credentials_blob():
+    """It was captured at signup and rendered by nothing, so licence number,
+    training and the signed initials were invisible on every admin surface."""
+    from tests._asclepius import app, headers_for, make_user
+    from fastapi.testclient import TestClient
+
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    doctor = _user(store)
+    creds = _india_credentials()
+    onboarding_module._run_signup_verification(store, doctor, creds)
+    # Provisioning writes these blobs; this test drives the verification step
+    # directly, so it has to stand them up itself.
+    with store._conn() as conn:
+        conn.execute(
+            "UPDATE users SET credentials_json = ?, attestations_json = ? WHERE id = ?",
+            (json.dumps(creds), json.dumps({"signedInitials": "AP"}), doctor["id"]))
+
+    client = TestClient(app)
+    body = client.get(f"/api/asclepius/admin/physicians/{doctor['id']}",
+                      headers=headers_for(admin)).json()
+    assert body["credentials"]["registrationNumber"] == "45678"
+    assert body["attestations"]["signedInitials"] == "AP"
+    assert body["physician"]["registry_name"]
+    assert body["physician"]["country_of_licensure"] == "IN"

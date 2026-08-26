@@ -12,6 +12,7 @@ never edited; main.py gains exactly one import and one mount line.
 from __future__ import annotations
 
 import html as html_mod
+import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
@@ -348,8 +349,66 @@ async def verification_dossier(
         "years_experience": user.get("years_experience"),
         "board_cert": user.get("board_cert"),
         "tier_words": {t: asc_caps.tier_word(t) for t in _TIERS},
+        # Which registry answers for this doctor, what it said, and where an
+        # admin goes to check by hand when there is no API to ask.
+        "registry": _registry_block(user),
+        # What did not hold together about the signup. Review flags: the
+        # point is that a person looks, never that the account is refused.
+        # Decoded here rather than through credentialing._json_field, which
+        # returns {} for anything that is not a dict and so silently swallowed
+        # the whole list.
+        "flags": _json_list(user.get("flags_json")),
     })
     return row
+
+
+def _json_list(raw: Any) -> List[Dict[str, Any]]:
+    """Decode a JSON list column.
+
+    ``credentialing._json_field`` returns {} for anything that is not a dict,
+    which quietly swallows a list whole -- the signup flags arrived as an
+    empty array on every dossier until this existed.
+    """
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            out = json.loads(raw)
+        except ValueError:
+            return []
+        return out if isinstance(out, list) else []
+    return []
+
+
+def _registry_block(user: Dict[str, Any]) -> Dict[str, Any]:
+    """The identity check for whichever country licensed this physician."""
+    from asclepius.registry import config as registry_config
+
+    licensure = (user.get("country_of_licensure") or "US").upper()
+    if licensure == "US":
+        return {"country": "US", "is_us": True}
+    cfg = registry_config.for_country(licensure)
+    payload = credentialing._json_field(user, "registry_payload_json")
+    identifier = (user.get("registry_id") or "").strip()
+    return {
+        "country": licensure,
+        "country_name": cfg.country_name,
+        "is_us": False,
+        "registry_name": cfg.registry_name,
+        "id_label": cfg.id_label,
+        "identifier": identifier,
+        "verified": user.get("registry_verified"),
+        "result": payload.get("result"),
+        "reason": payload.get("reason"),
+        "record": payload.get("record"),
+        "checked_at": user.get("registry_checked_at"),
+        # A deep link where one exists, so the manual check is one click and
+        # not a search for the right regulator.
+        "lookup_url": cfg.lookup_url.replace("{id}", identifier) if cfg.lookup_url else None,
+        # What to actually do for countries we cannot query.
+        "note": cfg.note or None,
+        "method": cfg.method,
+    }
 
 
 @router.get("/queue/{user_id}/cv")
