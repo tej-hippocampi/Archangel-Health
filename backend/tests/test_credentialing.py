@@ -734,7 +734,8 @@ def test_high_score_without_npi_never_proposes_reviewer():
     u = _scored_user(
         email="prof@med.harvard.edu", email_domain_class="academic",
         board_cert="Internal Medicine", years_experience=20,
-        cv_parsed_json=json.dumps({"ok": True}), linkedin_url="https://linkedin.com/in/x",
+        cv_parsed_json=json.dumps({"ok": True}),
+        linkedin_url="https://linkedin.com/in/jane-okafor",
     )
     out = propose_tier(u)
     # 10 + 20 + 20 + 5 + 3 = 58: labeler territory, but reviewer requires npi_verified
@@ -768,7 +769,7 @@ def test_specialty_divergence_blocks_but_unmapped_taxonomy_does_not():
     diverged = _scored_user(
         specialty="nephrology", npi_verified=1,
         npi_payload_json=json.dumps(_verified_payload("Cardiovascular Disease")),
-        years_experience=12, board_cert="x",
+        years_experience=12, board_cert="American Board of Internal Medicine",
     )
     out = propose_tier(diverged)
     assert any("divergence" in b for b in out["blockers"])
@@ -778,7 +779,7 @@ def test_specialty_divergence_blocks_but_unmapped_taxonomy_does_not():
     unmapped = _scored_user(
         specialty="nephrology", npi_verified=1,
         npi_payload_json=json.dumps(_verified_payload("Internal Medicine")),
-        years_experience=12, board_cert="x",
+        years_experience=12, board_cert="American Board of Internal Medicine",
     )
     out2 = propose_tier(unmapped)
     assert out2["blockers"] == []
@@ -814,7 +815,8 @@ def test_reasons_nonempty_whenever_a_tier_is_proposed():
 def test_unavailable_npi_is_visible_in_reasons_but_not_penalized():
     u = _scored_user(npi_payload_json=json.dumps({"result": "unavailable",
                                                   "reason": "rate_limited"}),
-                     email_domain_class="business", years_experience=11, board_cert="x")
+                     email_domain_class="business", years_experience=11,
+                     board_cert="American Board of Internal Medicine")
     out = propose_tier(u)
     assert any("unavailable" in r for r in out["reasons"])
     assert out["blockers"] == []           # could-not-check never blocks or rejects

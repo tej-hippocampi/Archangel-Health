@@ -1063,6 +1063,35 @@ class AsclepiusStore:
                 # already hold. Also drives the retry sweep.
                 ("npi_last_attempt_json", "TEXT"),
                 ("npi_last_attempt_at",   "TEXT"),
+                # ── International credentials ────────────────────────────────
+                # NULL means a row written before signup asked, and everyone
+                # who signed up then was a US physician. Every reader treats
+                # NULL as "US" rather than backfilling, so no migration has to
+                # guess at a country it was never told.
+                ("country_of_practice",   "TEXT"),   # ISO 3166-1 alpha-2
+                ("country_of_licensure",  "TEXT"),
+                # The non-US twin of ``npi``: SCFHS number, state council
+                # registration, GMC reference. Kept in its own column so the
+                # NPI column keeps meaning exactly one thing.
+                ("registry_id",           "TEXT"),
+                ("registry_verified",     "INTEGER"),  # 1 | 0 | NULL(not checked)
+                ("registry_payload_json", "TEXT"),
+                ("registry_checked_at",   "TEXT"),
+                # Same rule as the NPI attempt columns: a non-definitive check
+                # is an attempt, and must never overwrite evidence we hold.
+                ("registry_last_attempt_json", "TEXT"),
+                ("registry_last_attempt_at",   "TEXT"),
+                # The registration certificate, for the countries whose
+                # registers we cannot query at all.
+                ("license_doc_sha",       "TEXT"),
+                ("license_doc_review_json", "TEXT"),
+                # ── Signup review flags ──────────────────────────────────────
+                # Set when the signup does not hold together: gibberish in the
+                # free-text fields, a timeline that cannot happen, a licence
+                # number in no recognizable shape. A flag routes to a human and
+                # is never, on its own, a rejection.
+                ("flagged",               "INTEGER"),  # 1 | 0 | NULL(not assessed)
+                ("flags_json",            "TEXT"),
             ):
                 if _col not in cols("users"):
                     conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
