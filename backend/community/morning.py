@@ -502,3 +502,55 @@ async def ensure_channel_topics() -> None:
                                pinned_by="u-system")
         except Exception:  # noqa: BLE001
             log.warning("[morning] could not pin the topic for #%s", slug, exc_info=True)
+
+
+# ─── An in-process fallback ──────────────────────────────────────────────────
+# The scheduled trigger is the reliable path: it survives a restart, it says so
+# in version control, and it leaves a log somewhere a person can read. But
+# making the whole routine depend on it means a deploy without that workflow
+# configured is a deploy where the community quietly stops filling up, and
+# nothing anywhere says so.
+#
+# So the app can also drive itself. Same endpoint logic, same ledger, same
+# due-calculation, so the two cannot double-post: whichever gets there first
+# marks the run and the other finds nothing due. Ticks hourly because every
+# scope's decision is "has my local 7am passed today", which only needs
+# checking at that resolution.
+_loop_task: Optional["asyncio.Task"] = None
+_TICK_SEC = 3600
+
+
+def start_morning_loop() -> None:
+    """Start (once) the in-process morning tick. Only when enabled."""
+    global _loop_task
+    import asyncio  # noqa: PLC0415
+
+    if _loop_task is not None and not _loop_task.done():
+        return
+
+    async def _run() -> None:
+        while True:
+            # Sleep first: startup should never wait on this, and a task
+            # created during startup begins at the first await anyway.
+            await asyncio.sleep(_TICK_SEC)
+            try:
+                await run_morning()
+            except Exception:  # pragma: no cover - the loop must survive
+                log.warning("[morning] tick failed", exc_info=True)
+            try:
+                from community import newsletter as _cnewsletter  # noqa: PLC0415
+
+                await _cnewsletter.run_newsletter()
+            except Exception:  # pragma: no cover
+                log.warning("[morning] newsletter tick failed", exc_info=True)
+
+    _loop_task = asyncio.get_running_loop().create_task(_run())
+    log.info("[morning] in-process loop started (hourly; fires at %02d:00 local per scope)",
+             fire_hour())
+
+
+def stop_morning_loop() -> None:
+    global _loop_task
+    task, _loop_task = _loop_task, None
+    if task:
+        task.cancel()

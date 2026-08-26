@@ -6413,6 +6413,13 @@ async def startup_community():
         # before an event starts). No-ops without email transport.
         from community import events as _cevents
         _cevents.start_reminder_loop(resolve_member=_resolve_member)
+        # The morning routine. The scheduled trigger in .github/workflows is
+        # the reliable path; this is here so a deploy without that configured
+        # still fills the channels rather than quietly not doing so. Both share
+        # the run ledger, so they cannot double-post.
+        from community import morning as _cmorning
+        if _cmorning.enabled():
+            _cmorning.start_morning_loop()
     except Exception:
         _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
 
@@ -6429,6 +6436,12 @@ async def shutdown_community():
         from community import digest as _cdigest
 
         _cdigest.stop_content_loop()
+    except Exception:
+        pass
+    try:
+        from community import morning as _cmorning
+
+        _cmorning.stop_morning_loop()
     except Exception:
         pass
     try:
