@@ -112,6 +112,17 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
   const [physOnboardOpen, setPhysOnboardOpen] = useState(false);
 
   /* ---------- routing (pushState SPA) ---------- */
+  /* /join is served by the top-level router, not by this shell, so it needs a
+     real navigation rather than a pushState this component would then try to
+     render itself. Any ?ref= on the current URL rides along: a doctor who
+     arrived on a colleague's referral link and then clicked through the
+     marketing site should still be credited to them. */
+  const goToJoin = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    window.location.assign(ref ? `/join?ref=${encodeURIComponent(ref)}` : "/join");
+  }, []);
+
   const navigate = useCallback((to: string) => {
     const [pathPart, hash] = to.split("#");
     const next = normalizePath(pathPart);
@@ -246,7 +257,7 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
     navigate,
     openLead: (kind) => setLeadModal(kind),
     openContributor: () => setContributorOpen(true),
-    openPhysicianOnboard: () => setPhysOnboardOpen(true),
+    openPhysicianOnboard: goToJoin,
     handleMailto,
   };
 
@@ -388,9 +399,14 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
         onClose={() => setContributorOpen(false)}
         onAnnotator={() => {
           setContributorOpen(false);
-          // Offer first, signup last (PRD §7): land on the physician route;
-          // its CTA mints the self-serve onboarding link.
-          navigate("/physicians");
+          // Straight to the form. This used to land on /physicians so the
+          // offer came before the signup, but a doctor who has just clicked
+          // "become a medical annotator" has read the offer -- that is why
+          // they clicked -- and what they met instead was another page, then
+          // another button, then a modal asking for their email before the
+          // real form. Four steps to reach step one. /physicians is still
+          // there for anyone who wants to read first.
+          goToJoin();
         }}
         onDataContributor={() => {
           setContributorOpen(false);

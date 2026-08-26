@@ -6,7 +6,7 @@
    The physician's own referral surface: what a referral is worth, their
    shareable link, an invite composer, the live funnel, and the
    health-system note card. Everything money-shaped renders from the
-   server's funnel payload — the payout structure arrives on the wire
+   server's funnel payload: the payout structure arrives on the wire
    (funnel.payout_structure) so no dollar figure is hardcoded here where
    an env change could strand it.
 
@@ -171,6 +171,7 @@
         onClick: function () { copyLink(url); },
       }, copied ? 'Copied' : 'Copy link'));
     card.appendChild(row);
+    card.appendChild(shareRow(h, url));
     if (code) {
       card.appendChild(h('div', { class: 'asc-ref-code-line' },
         'Or give them the code ',
@@ -178,6 +179,50 @@
         ' to enter at archangelhealth.ai/join.'));
     }
     return card;
+  }
+
+  /* One tap to wherever the conversation already is.
+     Every target below is a plain link the OS or the site resolves -- no
+     third-party SDK, no tracking pixel, nothing loaded from another origin.
+     `navigator.share` is offered first where it exists (phones), because it
+     opens the contact list the doctor actually uses instead of making them
+     pick a network from a row of logos. */
+  var SHARE_MESSAGE =
+    'I am contributing to Archangel Health, which pays physicians to evaluate '
+    + 'medical AI. Thought of you:';
+
+  function shareTargets(url) {
+    var text = encodeURIComponent(SHARE_MESSAGE + ' ' + url);
+    var bare = encodeURIComponent(url);
+    return [
+      { label: 'WhatsApp', href: 'https://wa.me/?text=' + text },
+      // sms: needs the body separated by ?; iOS and Android both accept it.
+      { label: 'Text message', href: 'sms:?&body=' + text },
+      { label: 'Email', href: 'mailto:?subject='
+        + encodeURIComponent('Archangel Health') + '&body=' + text },
+      { label: 'LinkedIn', href: 'https://www.linkedin.com/sharing/share-offsite/?url=' + bare },
+      { label: 'X', href: 'https://twitter.com/intent/tweet?text=' + text },
+    ];
+  }
+
+  function shareRow(h, url) {
+    var row = h('div', { class: 'asc-ref-sharerow' });
+    if (navigator.share) {
+      row.appendChild(h('button', {
+        class: 'asc-btn asc-btn-sm asc-btn-primary', type: 'button',
+        onClick: function () {
+          navigator.share({ title: 'Archangel Health', text: SHARE_MESSAGE, url: url })
+            .catch(function () { /* dismissed; nothing to report */ });
+        },
+      }, 'Share'));
+    }
+    shareTargets(url).forEach(function (t) {
+      row.appendChild(h('a', {
+        class: 'asc-btn asc-btn-sm asc-btn-ghost', href: t.href,
+        target: '_blank', rel: 'noopener noreferrer',
+      }, t.label));
+    });
+    return row;
   }
 
   function copyLink(url) {
@@ -309,9 +354,21 @@
     card.appendChild(h('div', { class: 'asc-ref-title' }, 'Part of a health system?'));
     card.appendChild(h('div', { class: 'asc-ref-pitch' },
       'If your institution might sell de-identified data or wants an '
-      + 'enterprise labeling partnership, write us a line. Deals like these '
-      + 'carry large payouts for the physician who opens the door, sized to '
-      + 'the deal that closes. A founder reads every note personally.'));
+      + 'enterprise labeling partnership, write us a line. This is the '
+      + 'introduction that is worth the most: these are seven-figure '
+      + 'agreements, and the person who opens the door takes a share of what '
+      + 'closes. A founder reads every note personally.'));
+    // A worked example, marked as one. Institutional deals are negotiated
+    // individually and the real number depends on what closes, so this shows
+    // the shape of the arrangement rather than promising a figure -- a doctor
+    // reading a flat "earn $200,000" and being paid less would be right to
+    // feel misled.
+    card.appendChild(h('div', { class: 'asc-ref-example' },
+      h('span', { class: 'asc-ref-example-label' }, 'For example'),
+      h('span', {},
+        'a $1M data partnership at a 15 to 20 percent introducer share is '
+        + '$150,000 to $200,000 for the person who made the introduction. Terms '
+        + 'are agreed in writing before anything is signed.')));
     var input = h('textarea', {
       class: 'asc-ref-input asc-ref-note', rows: '3',
       placeholder: 'Who you are connected to, and what might be possible…',

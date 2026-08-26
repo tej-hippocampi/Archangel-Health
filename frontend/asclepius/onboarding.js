@@ -409,6 +409,118 @@
       .catch(function (e) { state.busy = false; setError(e.message); });
   }
 
+  /* The non-US identity line. Same shape as npiLine, different registry, and
+     one extra job: for the countries whose registers are captcha-walled,
+     priced or absent, it has to tell the admin what to actually do instead. */
+  function registryLine(r) {
+    var result = r.result || 'pending';
+    var head = r.identifier
+      ? r.id_label + ' ' + r.identifier + ': ' + result
+      : 'No registration number on file';
+    return h('div', { class: 'vq-npi vq-npi-' + result },
+      h('strong', null, head),
+      r.reason ? ' (' + String(r.reason).replace(/_/g, ' ') + ')' : '',
+      h('div', { class: 'vq-attempt' },
+        r.registry_name + (r.country_name ? ' · ' + r.country_name : '')),
+      (r.record && (r.record.full_name || r.record.status))
+        ? h('div', { class: 'vq-attempt' },
+            'Registry says: ' + [r.record.full_name, r.record.council,
+                                 r.record.status, r.record.valid_until]
+              .filter(Boolean).join(' · '))
+        : null,
+      r.note ? h('div', { class: 'vq-attempt' }, r.note) : null,
+      r.lookup_url
+        ? h('div', null, h('a', { href: r.lookup_url, target: '_blank',
+                                  rel: 'noopener noreferrer' },
+            'Open the official register'))
+        : null);
+  }
+
+  /* What did not hold together about this signup. Never a rejection: these
+     suppress the automatic proposal and put a person in front of it. */
+  var FLAG_SEVERITY_CLASS = {
+    high: 'vq-flag-high', medium: 'vq-flag-medium', low: 'vq-flag-low',
+  };
+
+  function flagsBlock(flags) {
+    if (!flags || !flags.length) return null;
+    var box = h('div', { class: 'vq-flags' });
+    box.appendChild(h('div', { class: 'vq-flags-head' },
+      'Worth a look (' + flags.length + ')'));
+    flags.forEach(function (f) {
+      box.appendChild(h('div', { class: 'vq-flag' },
+        h('span', {
+          class: 'vq-flag-sev '
+            + (FLAG_SEVERITY_CLASS[f.severity] || FLAG_SEVERITY_CLASS.low),
+        }, (f.severity || 'low').toUpperCase()),
+        ' ' + String(f.field || '').replace(/_/g, ' ') + ': '
+        + String(f.issue || '').replace(/_/g, ' ')
+        + (f.detail ? ' ' + f.detail : '')));
+    });
+    return box;
+  }
+
+  /* The terms a physician signed, by name. An admin declining to pay for a
+     case should be able to see that the doctor agreed to the quality term
+     before they did the work, without opening a JSON blob. */
+  var ATTESTATION_LABELS = {
+    consentCredentialShare: 'credential sharing',
+    attestIndependentJudgment: 'independent judgment',
+    ipAssignment: 'IP assignment',
+    noPhi: 'no PHI',
+    attestWorkQuality: 'paid only if it meets the rubric',
+    attestConfidentiality: 'confidentiality',
+    attestNoDisciplinaryAction: 'no disciplinary action',
+  };
+
+  function signedTerms(a) {
+    var names = Object.keys(ATTESTATION_LABELS)
+      .filter(function (k) { return a[k] === true; })
+      .map(function (k) { return ATTESTATION_LABELS[k]; });
+    return names.length ? names.join(', ') : null;
+  }
+
+  function credentialsAsTyped(c, a) {
+    var rows = [];
+    function push(k, v) { if (v !== null && v !== undefined && v !== '') rows.push([k, String(v)]); }
+    push('Full legal name', c.fullLegalName);
+    push('Qualification', c.qualification || c.degree);
+    push('Primary specialty', c.primarySpecialty);
+    push('Licence number', c.licenseNumber);
+    push('Licence state', c.licenseState);
+    push('Registration number', c.registrationNumber);
+    Object.keys(c.registryExtras || {}).forEach(function (k) {
+      push(k.replace(/([A-Z])/g, ' $1').toLowerCase(), c.registryExtras[k]);
+    });
+    function one(row) {
+      if (!row) return null;
+      var r = Array.isArray(row) ? row[0] : row;
+      if (!r) return null;
+      return [r.institution, r.year].filter(Boolean).join(', ') || null;
+    }
+    push('Residency', one(c.residency));
+    push('Fellowship', one(c.fellowship));
+    push('Practice status', c.practiceStatus);
+    push('Clinical half-days / month', c.clinicalHalfDaysPerMonth);
+    push('Languages', (c.languages || []).join(', '));
+    (c.boardCertifications || []).forEach(function (b, i) {
+      if (!b || !b.board) return;
+      push('Board certification' + (i ? ' ' + (i + 1) : ''),
+           [b.board, b.specialty, b.subspecialty].filter(Boolean).join(', '));
+    });
+    push('Signed with', a.signedInitials);
+    push('Terms signed', signedTerms(a));
+    if (!rows.length) return null;
+    var box = h('div', { class: 'vq-typed' });
+    box.appendChild(h('div', { class: 'vq-section-label' }, 'Credentials as typed'));
+    rows.forEach(function (kv) {
+      box.appendChild(h('div', { class: 'vq-typed-row' },
+        h('span', { class: 'vq-typed-key' }, kv[0]),
+        h('span', { class: 'vq-typed-val' }, kv[1])));
+    });
+    return box;
+  }
+
   function dossierPanel(row) {
     var d = state.dossiers[row.user_id];
     if (!d) return h('div', { class: 'vq-dossier' }, h('em', null, 'Loading dossier…'));
@@ -456,7 +568,13 @@
     return h('div', null,
       tieringPanel(row, d),
       h('div', { class: 'vq-dossier' },
-      npiLine(d.npi),
+      // The identity line for whichever registry answers for this doctor.
+      // Showing "No NPI provided" over a physician registered with SCFHS
+      // reports an absence that was never expected in the first place.
+      (d.registry && d.registry.is_us === false)
+        ? registryLine(d.registry)
+        : npiLine(d.npi),
+      flagsBlock(d.flags),
       // Offer the retry whenever there is no definitive answer yet — not only
       // when the stored result literally reads 'unavailable', which is no
       // longer how a failed check is recorded.
@@ -474,6 +592,12 @@
         d.years_experience != null ? h('span', null, ' · ' + d.years_experience + 'y stated') : null,
         d.board_cert ? h('span', null, ' · ' + d.board_cert) : null),
       h('div', { class: 'vq-cv' }, cvBits),
+      // The credentials blob has been on this payload since the queue was
+      // built and was rendered by nothing, so the licence number, the
+      // training, the practice status and the initials someone signed with
+      // were invisible on the one screen where a person decides whether to
+      // believe them.
+      credentialsAsTyped(d.credentials || {}, d.attestations || {}),
       h('div', { class: 'vq-reasons' },
         h('div', { class: 'vq-section-label' }, 'Why this score'),
         (d.reasons || []).map(function (r) { return h('div', { class: 'vq-reason' }, r); })),

@@ -71,28 +71,33 @@ log = logging.getLogger("asclepius.referrals")
 
 # ═══ Who may refer ════════════════════════════════════════════════════════════
 def can_refer(user: Optional[Dict[str, Any]]) -> bool:
-    """An approved physician, or anyone holding the advisor REFER capability.
+    """Any physician with a live account, including one still under review.
 
     Written against ``capabilities`` and never against a tier literal. A bare
     ``tier == 'advisor'`` here would be the exact defect ``capabilities.py`` was
     built to remove, and it fails SILENTLY — "this user is not an advisor" is a
     legitimate answer for a labeler, so nothing logs and nothing 500s.
 
-    ``LABEL`` is the operative test for "approved physician": a tier is assigned
-    at the moment the verification queue approves an account, so holding it IS
-    having been approved. The verification status is re-checked anyway rather
-    than leaned on: ``auth.get_current_user`` already refuses pending/rejected
-    across the whole evaluator surface, but a gate on an outbound email should
-    not be one refactor of somebody else's middleware away from opening.
+    This used to require approval, which read as prudence and behaved as a
+    leak: a tier is only assigned when the queue approves an account, so a
+    physician who had just signed up held no capability, the Referral tab was
+    filtered out of their rail entirely, and the most enthusiastic moment they
+    will ever have about this platform passed with nothing to act on. Nothing
+    is paid out earlier for opening it — ``bounty`` still waits on the person
+    they referred being verified with a case accepted — so the only thing the
+    old gate protected was the referral we did not get.
+
+    A rejected or deactivated account still cannot: that is a closed door, not
+    an open question.
     """
     u = user or {}
     if u.get("role") == "admin":
         return True
-    if u.get("verification_status") in ("pending", "rejected"):
+    if u.get("verification_status") == "rejected":
         return False
     if not u.get("active", True):
         return False
-    return _caps.can(u, _caps.REFER) or _caps.can(u, _caps.LABEL)
+    return _caps.can_surface(u, _caps.REFERRAL)
 
 
 # ═══ Throttles (defect 1) ═════════════════════════════════════════════════════

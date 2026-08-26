@@ -235,11 +235,71 @@ def build_dossier(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _run_registry_check(store: Any, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Look a non-US doctor up in their own national registry.
+
+    Runs here rather than at signup because a foreign register may be slow,
+    captcha-walled or simply down, and the signup form is the last place to
+    discover that. Definitive answers are persisted; anything else is recorded
+    as an attempt and retried, never written over evidence we already hold.
+    """
+    from asclepius.registry import config as registry_config
+    from asclepius.registry.dispatch import DEFINITIVE, verify_credential
+
+    licensure = registry_config.normalize_country(user.get("country_of_licensure"))
+    if not licensure or licensure == "US":
+        return None  # NPPES already answered for them at signup.
+
+    payload = user.get("registry_payload_json")
+    if payload:
+        try:
+            existing = json.loads(payload)
+        except (TypeError, ValueError):
+            existing = {}
+        if existing.get("result") in DEFINITIVE:
+            return existing  # settled; do not re-ask
+
+    cfg = registry_config.for_country(licensure)
+    if cfg.method == registry_config.METHOD_DOCUMENT:
+        return None  # nothing to call — the certificate is the evidence
+
+    identifier = (user.get("registry_id") or "").strip()
+    if not identifier:
+        return None
+
+    creds = {}
+    try:
+        creds = json.loads(user.get("credentials_json") or "{}")
+    except (TypeError, ValueError):
+        creds = {}
+
+    family_name = credentialing.family_name_from_legal_name(
+        str(creds.get("fullLegalName") or user.get("full_name") or ""))
+    result = verify_credential(
+        licensure, identifier, family_name,
+        extras=creds.get("registryExtras") or {},
+    )
+    try:
+        store.set_registry_result(user["id"], result)
+    except Exception:
+        log.exception("[verify-agent] could not persist registry result")
+    return result
+
+
 async def run_one(store: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     """Process one claimed job. Returns the dossier, decision folded in."""
     user = await asyncio.to_thread(store.get_user_by_id, job["user_id"])
     if not user:
         return {"outcome": "skipped", "reason": "user no longer exists"}
+
+    try:
+        registry_result = await asyncio.to_thread(_run_registry_check, store, user)
+        if registry_result is not None:
+            # Re-read: the gates and the tier proposal both read the columns
+            # the check just wrote.
+            user = await asyncio.to_thread(store.get_user_by_id, job["user_id"]) or user
+    except Exception:
+        log.exception("[verify-agent] registry check failed (non-fatal)")
 
     dossier = await asyncio.to_thread(build_dossier, store, user)
     verdict = decide(dossier)
@@ -272,6 +332,17 @@ async def run_one(store: Any, job: Dict[str, Any]) -> Dict[str, Any]:
             event_type="verification_auto_approved", actor=ACTOR,
             payload={"tier": verdict["tier"], "recommendation": verdict["recommendation"]},
         )
+        # The same welcome the admin-approval path posts. Without this, a
+        # doctor the agent approved joins to silence while everyone approved by
+        # hand gets introduced -- an accident of which code path ran, visible
+        # to them and to nobody else.
+        try:
+            from community.onboard import welcome_new_member  # noqa: PLC0415
+
+            refreshed = await asyncio.to_thread(store.get_user_by_id, user["id"])
+            await welcome_new_member(refreshed or user)
+        except Exception:
+            log.exception("[verify-agent] welcome post failed (non-fatal); approval stands")
         dossier["outcome"] = "auto_approved"
     else:
         store.log_event(

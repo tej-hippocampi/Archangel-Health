@@ -56,13 +56,15 @@ async def my_earnings(user: Dict[str, Any] = Depends(asc_auth.require_surface(as
 # because the bounty is a ledger row; the POLICY lives in ``asclepius.referrals``
 # and the advisor router calls the same functions.
 def _require_referrer(
-    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.REFERRAL)),
 ) -> Dict[str, Any]:
-    """Any approved physician, or an advisor holding REFER.
+    """Any physician with a live account, including one still under review.
 
-    Not a tier literal — see ``referrals.can_refer``. A physician awaiting
-    credential review has already been refused by ``get_current_user``; this is
-    the second gate, at the boundary that sends mail to a third party.
+    Not a tier literal — see ``referrals.can_refer``. Gated on the REFERRAL
+    surface rather than EARNINGS because referring is not a money surface: the
+    ledger is, and a physician can hold a link long before they hold a balance.
+    This is still the second gate, at the boundary that sends mail to a third
+    party.
     """
     if not asc_referrals.can_refer(user):
         raise HTTPException(

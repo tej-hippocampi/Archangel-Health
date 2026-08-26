@@ -129,17 +129,30 @@ COMMUNITY_WRITE = "community_write"  # channel posts. NOT DMs, NOT attachments
 REAL_WORK = "real_work"              # draw, open or submit a REAL case, and the
                                      # LLM-spend endpoints that serve one
 EARNINGS = "earnings"                # the money ledger and billable sessions
-SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK, EARNINGS)
+REFERRAL = "referral"                # a referral link, invites, and what they earned
+SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
+            EARNINGS, REFERRAL)
 
-#: A physician awaiting verification gets the product, minus real patient data
-#: and minus money. They have already cleared an OTP on their institutional
-#: mailbox, submitted an NPI, and signed the confidentiality and
-#: independent-judgment attestations, which is why they are trusted to post
-#: among colleagues. DMs and attachments still wait: those are the
-#: unsolicited-contact and PHI vectors, and they are worth waiting a day for.
+#: A physician awaiting verification gets the product, minus real patient data.
+#: They have already cleared an OTP on their institutional mailbox, submitted a
+#: registration number, and signed the confidentiality and independent-judgment
+#: attestations, which is why they are trusted to post among colleagues. DMs and
+#: attachments still wait: those are the unsolicited-contact and PHI vectors,
+#: and they are worth waiting a day for.
+#:
+#: EARNINGS and REFERRAL are open to them, which is a change of mind. Hiding
+#: the money surfaces from someone who has just signed up makes the product
+#: look empty at the exact moment we are trying to show them what they joined,
+#: and hiding referrals costs us the referral. Nothing is payable without
+#: verification either way -- the ledger a provisional physician sees reads
+#: zero, honestly, because they have not done any work yet. Referring a
+#: colleague is not work: the introduction is just as good made the day they
+#: sign up, and the bounty still only pays when the person they brought is
+#: verified and their first case is accepted.
 _BY_ACCESS: Dict[str, FrozenSet[str]] = {
     FULL: frozenset(SURFACES),
-    PROVISIONAL: frozenset({TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE}),
+    PROVISIONAL: frozenset({TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE,
+                            EARNINGS, REFERRAL}),
     NONE: frozenset(),
 }
 

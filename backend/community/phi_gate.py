@@ -170,10 +170,23 @@ def _overlaps(a: Tuple[int, int], b: Tuple[int, int]) -> bool:
     return a[0] < b[1] and b[0] < a[1]
 
 
-def scan_text(text: Optional[str]) -> List[Dict[str, Any]]:
+def scan_text(
+    text: Optional[str], *, exempt_categories: Tuple[str, ...] = ()
+) -> List[Dict[str, Any]]:
     """Scan one message body. Returns findings ``[{"category", "span":[s,e]}]``
     ordered by span start; empty list == clean. Overlapping matches collapse to
-    the first (most specific) pattern's category. Never returns matched text."""
+    the first (most specific) pattern's category. Never returns matched text.
+
+    ``exempt_categories`` drops one category for one caller, and exists for
+    exactly one situation: an events listing has to carry the date of the
+    event. "March 14" trips ``exact_date``, which is the correct rule for a
+    message that might be about a patient and the wrong one for a conference
+    announcement assembled from public web pages.
+
+    Deliberately narrow. ``dob`` is keyword-anchored and stays scanned even
+    then, every other category stays scanned, and the exemption is recorded in
+    the audit line so a blanket "bots are exempt" can never grow out of it.
+    """
     if not text:
         return []
     raw: List[Tuple[str, Tuple[int, int]]] = []
@@ -192,6 +205,7 @@ def scan_text(text: Optional[str]) -> List[Dict[str, Any]]:
     findings = [
         {"category": category, "span": [span[0], span[1]]}
         for category, span in sorted(kept, key=lambda item: item[1][0])
+        if category not in (exempt_categories or ())
     ]
 
     # Second-opinion pass with the shared platform scanner, so this gate can

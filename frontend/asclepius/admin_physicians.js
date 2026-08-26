@@ -619,11 +619,7 @@
             p.health_system_name || 'Independent')),
         h('div', { style: 'display:flex;gap:8px' }, roleBtn, backBtn)),
       h('div', { class: 'asc-card-pad asc-phys-profile-grid' },
-        kvBlock(h, 'Identity', [
-          ['Email', p.email], ['Phone', p.phone],
-          ['NPI', p.npi], ['NPI check', npiWord(p.npi_verified)],
-          ['LinkedIn', p.linkedin_url], ['CV on file', p.cv_on_file ? 'Yes' : 'No'],
-        ]),
+        kvBlock(h, 'Identity', identityRows(p)),
         kvBlock(h, 'Credentials', [
           ['Board certification', p.board_cert],
           ['Years of experience', p.years_experience != null ? String(p.years_experience) : null],
@@ -638,6 +634,15 @@
           ['Assigned', p.tier_assigned_at ? fmtDate(p.tier_assigned_at) : null],
           ['Notes', p.verification_notes],
         ]))));
+
+    // What the doctor actually typed. All of this was captured at signup and
+    // rendered nowhere, so "check their credentials" could not be done from
+    // the credentials page: the licence number, the training, the practice
+    // status and the initials they signed with were invisible on every admin
+    // surface.
+    if (data.flags && data.flags.length) container.appendChild(flagsCard(h, data.flags));
+    const asTyped = credentialsAsTyped(h, data.credentials || {}, data.attestations || {});
+    if (asTyped) container.appendChild(asTyped);
 
     // Contributor score (PRD-SCORE): the blended rating, its component
     // breakdown and the per-case trajectory. Best-effort: an absent score is
@@ -720,6 +725,113 @@
       }
     });
     return h('div', {}, h('div', { class: 'asc-card-title', style: 'font-size:14px' }, title), dl);
+  }
+
+  /* Identity reads differently depending on which registry answers for this
+     doctor. Showing "NPI: —" for a physician registered with SCFHS is a blank
+     where the actual credential should be. */
+  function identityRows(p) {
+    const rows = [['Email', p.email], ['Phone', p.phone]];
+    const licensure = (p.country_of_licensure || '').toUpperCase();
+    if (!licensure || licensure === 'US') {
+      rows.push(['NPI', p.npi], ['NPI check', npiWord(p.npi_verified)]);
+    } else {
+      rows.push([p.registry_name || 'Registration', p.registry_id]);
+      rows.push(['Registry check', npiWord(p.registry_verified)]);
+      if (p.registry_lookup_url) rows.push(['Check by hand', p.registry_lookup_url]);
+      rows.push(['Licensed in', licensure]);
+      if (p.country_of_practice && p.country_of_practice !== licensure) {
+        rows.push(['Practising in', p.country_of_practice]);
+      }
+    }
+    rows.push(['LinkedIn', p.linkedin_url], ['CV on file', p.cv_on_file ? 'Yes' : 'No']);
+    return rows;
+  }
+
+  /* Severity to class, spelled out rather than concatenated. Building a class
+     name out of a data field puts whatever that field contains into the DOM
+     and leaves the stylesheet's own classes unsearchable, which is what
+     test_no_new_component_vocabulary_beyond_the_prd exists to catch. */
+  const FLAG_SEVERITY_CLASS = {
+    high: 'asc-phys-flag-high',
+    medium: 'asc-phys-flag-medium',
+    low: 'asc-phys-flag-low',
+  };
+
+  /* What did not hold together about this signup. Review flags, never
+     rejections: the point is that a person looks. */
+  function flagsCard(h, flags) {
+    const card = h('div', { class: 'asc-card' });
+    card.appendChild(h('div', { class: 'asc-card-head' },
+      h('div', { class: 'asc-card-title' }, 'Worth a look (' + flags.length + ')')));
+    const pad = h('div', { class: 'asc-card-pad' });
+    flags.forEach((f) => {
+      pad.appendChild(h('div', { class: 'asc-phys-flag' },
+        h('span', {
+          class: 'asc-phys-flag-sev '
+            + (FLAG_SEVERITY_CLASS[f.severity] || FLAG_SEVERITY_CLASS.low),
+        }, (f.severity || 'low').toUpperCase()),
+        h('span', {}, String(f.field || '').replace(/_/g, ' ') + ': '
+          + String(f.issue || '').replace(/_/g, ' ')
+          + (f.detail ? ': ' + f.detail : ''))));
+    });
+    card.appendChild(pad);
+    return card;
+  }
+
+  /* The terms a physician signed, by name. An admin declining to pay for a
+     case should be able to see that the doctor agreed to the quality term
+     before they did the work, without opening a JSON blob. */
+  const ATTESTATION_LABELS = {
+    consentCredentialShare: 'credential sharing',
+    attestIndependentJudgment: 'independent judgment',
+    ipAssignment: 'IP assignment',
+    noPhi: 'no PHI',
+    attestWorkQuality: 'paid only if it meets the rubric',
+    attestConfidentiality: 'confidentiality',
+    attestNoDisciplinaryAction: 'no disciplinary action',
+  };
+
+  function signedTerms(a) {
+    const names = Object.keys(ATTESTATION_LABELS)
+      .filter(function (k) { return a[k] === true; })
+      .map(function (k) { return ATTESTATION_LABELS[k]; });
+    return names.length ? names.join(', ') : null;
+  }
+
+  function credentialsAsTyped(h, c, a) {
+    const rows = [];
+    const push = (k, v) => { if (v != null && v !== '') rows.push([k, String(v)]); };
+    push('Full legal name', c.fullLegalName);
+    push('Qualification', c.qualification || c.degree);
+    push('Primary specialty', c.primarySpecialty);
+    push('Licence number', c.licenseNumber);
+    push('Licence state', c.licenseState);
+    push('Registration number', c.registrationNumber);
+    Object.keys(c.registryExtras || {}).forEach((k) => {
+      push(k.replace(/([A-Z])/g, ' $1').toLowerCase(), c.registryExtras[k]);
+    });
+    const one = (row) => row && (row.institution || row.year)
+      ? [row.institution, row.year].filter(Boolean).join(', ') : null;
+    push('Residency', one(Array.isArray(c.residency) ? c.residency[0] : c.residency));
+    push('Fellowship', one(Array.isArray(c.fellowship) ? c.fellowship[0] : c.fellowship));
+    push('Practice status', c.practiceStatus);
+    push('Clinical half-days / month', c.clinicalHalfDaysPerMonth);
+    push('Languages', (c.languages || []).join(', '));
+    (c.boardCertifications || []).forEach((b, i) => {
+      if (!b || !b.board) return;
+      push('Board certification' + (i ? ' ' + (i + 1) : ''),
+           [b.board, b.specialty, b.subspecialty].filter(Boolean).join(', '));
+    });
+    // The signature. Collected since the first version of this form and shown
+    // to nobody, including the person who signed it.
+    push('Signed with', a.signedInitials);
+    push('Terms signed', signedTerms(a));
+    if (!rows.length) return null;
+    return h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' },
+        h('div', { class: 'asc-card-title' }, 'Credentials as typed')),
+      h('div', { class: 'asc-card-pad' }, kvBlock(h, '', rows)));
   }
 
   function historyCard(ctx, title, headers, rows) {

@@ -85,6 +85,44 @@ def test_channels_survive_and_purge_is_idempotent():
     assert store.get_channel_by_slug("general") is not None
 
 
+def test_read_markers_and_prefs_of_ghost_members_go_too():
+    """Per-user rows pointing at accounts that do not exist are the same
+    synthetic leakage as the posts; a real member's rows are untouched."""
+    store = _fresh_store()
+    ch = _general(store)
+    msg = store.insert_message(channel_id=ch, author_user_id="u-human", body="real post")
+    store.set_read("u-human", ch, msg["id"])
+    store.set_read("u-ghost", ch, msg["id"])
+    store.email_prefs("u-human")
+    store.email_prefs("u-ghost")
+
+    counts = store.purge_generated_content(valid_user_ids=["u-human"])
+
+    assert counts["reads"] == 1
+    assert counts["email_prefs"] == 1
+    with store._conn() as conn:
+        readers = {r["user_id"] for r in conn.execute(
+            "SELECT user_id FROM community_reads").fetchall()}
+        pref_holders = {r["user_id"] for r in conn.execute(
+            "SELECT user_id FROM community_email_prefs").fetchall()}
+    assert readers == {"u-human"}
+    assert pref_holders == {"u-human"}
+
+
+def test_ghost_read_markers_are_swept_after_their_posts_are_gone():
+    """The sweep keys off the rows themselves, so a community purged once
+    before this behaviour existed still gets cleaned on the next run."""
+    store = _fresh_store()
+    ch = _general(store)
+    msg = store.insert_message(channel_id=ch, author_user_id="u-human", body="real post")
+    store.set_read("u-ghost", ch, msg["id"])  # ghost has no posts at all
+
+    counts = store.purge_generated_content(valid_user_ids=["u-human"])
+
+    assert counts["messages"] == 0
+    assert counts["reads"] == 1
+
+
 def test_without_a_roster_only_the_bot_is_purged():
     """valid_user_ids=None means 'no roster available': never guess that a
     human author is synthetic."""

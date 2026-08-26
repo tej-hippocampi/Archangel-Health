@@ -143,6 +143,8 @@ from asclepius.schemas import (
     SsoRequest,
     SubmissionIn,
     TaskIn,
+    PasswordChange,
+    ProfileUpdate,
     TaskUploadRequest,
     TutorialStateUpdate,
 )
@@ -579,6 +581,123 @@ async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
     return asc_auth.public_user(user)
 
 
+@router.get("/me/profile")
+async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE))):
+    """Everything the portal shows a physician about their own account.
+
+    Until now the only self-scoped write on this whole API was the tutorial
+    state, and there was no way for a doctor to see what we hold about them,
+    let alone correct a phone number. The credential fields come back
+    ``editable: false`` rather than being withheld: someone should be able to
+    read what they submitted and see plainly which parts are settled.
+    """
+    store = _store()
+    row = store.get_user_by_id(user["id"]) or {}
+    creds = {}
+    try:
+        creds = json.loads(row.get("credentials_json") or "{}")
+    except (TypeError, ValueError):
+        creds = {}
+
+    country = (row.get("country_of_licensure") or "").upper()
+    registry_name = None
+    if country and country != "US":
+        from asclepius.registry import config as registry_config
+
+        registry_name = registry_config.for_country(country).registry_name
+
+    score = None
+    try:
+        score = store.get_contributor_score(user["id"])
+    except Exception:
+        score = None
+
+    return {
+        "editable": {
+            "full_name": row.get("full_name"),
+            "phone": row.get("phone"),
+            "linkedin_url": row.get("linkedin_url"),
+            "specialty_niche": row.get("specialty_niche"),
+        },
+        # Read-only: checked against a registry, or attested to, or decided by
+        # a person. Correcting one of these is a conversation, not a form.
+        "credentials": {
+            "email": row.get("email"),
+            "specialty": row.get("specialty"),
+            "board_cert": row.get("board_cert"),
+            "years_experience": row.get("years_experience"),
+            "organization": row.get("organization") or row.get("org_name"),
+            "country_of_practice": row.get("country_of_practice"),
+            "country_of_licensure": row.get("country_of_licensure"),
+            "registry_name": registry_name,
+            "registration_number": row.get("registry_id"),
+            "npi": row.get("npi"),
+            "qualification": creds.get("qualification") or creds.get("degree"),
+            "signed_initials": (json.loads(row.get("attestations_json") or "{}") or {}).get(
+                "signedInitials") if row.get("attestations_json") else None,
+        },
+        "standing": {
+            "verification_status": row.get("verification_status"),
+            "tier": row.get("tier"),
+            "tier_word": asc_caps.tier_word(row.get("tier")),
+            "score": (score or {}).get("score"),
+            "band": (score or {}).get("band"),
+            "referral_code": row.get("referral_code"),
+        },
+    }
+
+
+@router.patch("/me/profile")
+async def update_my_profile(
+    body: ProfileUpdate,
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+):
+    """Correct the handful of fields that are the physician's own to correct."""
+    store = _store()
+    store.update_own_profile(
+        user["id"],
+        full_name=body.full_name,
+        phone=body.phone,
+        linkedin_url=body.linkedin_url,
+        specialty_niche=body.specialty_niche,
+    )
+    store.log_event(
+        entity_type="user", entity_id=user["id"], event_type="profile_self_updated",
+        actor=user.get("email"),
+        payload={"fields": [k for k, v in body.model_dump().items() if v is not None]},
+    )
+    return await my_profile(user=store.get_user_by_id(user["id"]) or user)
+
+
+@router.post("/me/password")
+async def change_my_password(
+    body: PasswordChange,
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+):
+    """Change a password from inside the product.
+
+    The only route to this was the signed-out "forgot password" flow, which
+    means a doctor who simply wanted a new password had to pretend they had
+    lost the old one and go and find an email. The current password is
+    required: a session left open on a ward computer should not be enough to
+    take the account.
+    """
+    store = _store()
+    row = store.get_user_by_id(user["id"]) or {}
+    if not _verify_password(body.current_password, row.get("password_hash") or ""):
+        raise HTTPException(status_code=403, detail="That is not your current password.")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=422, detail="Use at least 8 characters.")
+    if body.new_password == body.current_password:
+        raise HTTPException(status_code=422, detail="That is the password you already have.")
+    store.set_user_password(user["id"], body.new_password)
+    store.log_event(
+        entity_type="user", entity_id=user["id"], event_type="password_self_changed",
+        actor=user.get("email"), payload={},
+    )
+    return {"ok": True}
+
+
 @router.patch("/me/tutorial")
 async def update_my_tutorial(
     body: TutorialStateUpdate, user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
@@ -833,19 +952,25 @@ def _insert_tasks_from_dicts(
     return created
 
 
-def _notify_new_tasks(
+async def _notify_new_tasks(
     store: Any, background_tasks: BackgroundTasks, created: List[Dict[str, Any]], *, admin_id: str,
 ) -> None:
     """Enqueue the outbox rows synchronously (fast), then drain in the
     background so the admin's request never blocks on ~1000 emails. Also
     posts a one-line announcement to #task-announcements (in-app, plus the
-    channel's existing digest-email fan-out) — cheap enough to do inline."""
+    channel's existing digest-email fan-out) — cheap enough to do inline.
+
+    Awaited rather than bridged through a worker-thread loop: the announcement
+    ends in a WebSocket broadcast, and the hub's sockets belong to this loop.
+    """
     if not created:
         return
     batch_id = uuid.uuid4().hex
     asc_task_notify.enqueue_for_batch(store, batch_id=batch_id, created_tasks=created)
     background_tasks.add_task(asc_task_notify.drain_outbox, store)
-    asc_task_notify.post_community_announcement(store, admin_user_id=admin_id, created_tasks=created)
+    await asc_task_notify.post_community_announcement(
+        store, admin_user_id=admin_id, created_tasks=created
+    )
 
 
 @router.post("/tasks")
@@ -858,7 +983,7 @@ async def upload_tasks(
     store.log_event(
         entity_type="task", event_type="tasks_uploaded", actor=admin["id"], payload={"count": len(created)}
     )
-    _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
+    await _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
     return {"created": [t["task_id"] for t in created], "count": len(created)}
 
 
@@ -893,7 +1018,7 @@ async def upload_tasks_file(
         entity_type="task", event_type="tasks_uploaded_file", actor=admin["id"],
         payload={"count": len(created), "filename": file.filename},
     )
-    _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
+    await _notify_new_tasks(store, background_tasks, created, admin_id=admin["id"])
     return {"created": [t["task_id"] for t in created], "count": len(created)}
 
 

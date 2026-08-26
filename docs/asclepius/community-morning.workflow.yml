@@ -1,0 +1,69 @@
+# The morning routine's clock.
+#
+# The app has no scheduler: everything else it does on a timer is an in-process
+# asyncio loop inside the single web process, which is fine for a five-minute
+# tick and wrong for "7am, once, in each of a dozen countries" -- a restart at
+# the wrong moment silently skips a day and nothing says so.
+#
+# So the schedule lives here, next to the code, in version control, and the
+# intelligence stays server-side: this fires every hour and the endpoint
+# decides which channels' local 7am has passed without a run today. Calling it
+# twice, or late, or by hand still produces one brief per channel per day, so
+# GitHub's cron drift (it is best-effort, not to-the-minute) costs nothing.
+#
+# Setup: two repository secrets.
+#   MORNING_BASE_URL      https://app.archangelhealth.ai
+#   INTERNAL_TOOL_SECRET  the same value the backend has
+name: community-morning
+
+on:
+  schedule:
+    # Every hour, ten past. Ten past rather than on the hour because the top
+    # of the hour is when everybody else's cron runs.
+    - cron: "10 * * * *"
+  workflow_dispatch:        # so a person can fire it by hand
+
+concurrency:
+  # Two overlapping runs would both find the same channels due. The ledger
+  # would keep the second from posting twice, but there is no reason to make
+  # it work for a living.
+  group: community-morning
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Post the morning brief to every channel whose 7am has passed
+        env:
+          BASE: ${{ secrets.MORNING_BASE_URL }}
+          SECRET: ${{ secrets.INTERNAL_TOOL_SECRET }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$SECRET" ]; then
+            echo "MORNING_BASE_URL or INTERNAL_TOOL_SECRET is not set; nothing to do."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/morning.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $SECRET" \
+            --max-time 900 \
+            "$BASE/internal/community/run-morning")
+          cat /tmp/morning.json
+          echo
+          # A non-2xx is worth failing on: a silent morning is the failure
+          # mode this whole job exists to prevent.
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]
+
+      - name: Send each doctor their morning email
+        env:
+          BASE: ${{ secrets.MORNING_BASE_URL }}
+          SECRET: ${{ secrets.INTERNAL_TOOL_SECRET }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$SECRET" ]; then exit 0; fi
+          code=$(curl -sS -o /tmp/newsletter.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $SECRET" \
+            --max-time 900 \
+            "$BASE/internal/community/run-newsletter")
+          cat /tmp/newsletter.json
+          echo
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]

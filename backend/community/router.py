@@ -271,6 +271,12 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
             "initials": _initials(name),
             "specialty": specialty,
             "specialty_accent": specialty_accent(specialty),
+            # Where they practise, for the country channels. The CODE only:
+            # a country is Tier A the way a specialty is, but a city or a
+            # region would start to locate a named physician, and nothing in
+            # the community needs that.
+            "country": (user.get("country_of_practice")
+                        or user.get("country_of_licensure") or None),
             "years_in_practice": years,
             "institution": (cred or {}).get("organization")
                 or user.get("organization") or user.get("org_name"),
@@ -336,6 +342,18 @@ def specialty_threshold() -> int:
         return 3
 
 
+def _decode_cards(raw: Any) -> List[Dict[str, Any]]:
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            out = json.loads(raw)
+        except ValueError:
+            return []
+        return out if isinstance(out, list) else []
+    return []
+
+
 def _specialty_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
     """Verified NON-STAFF members per lowercased specialty."""
     out: Dict[str, int] = {}
@@ -348,6 +366,32 @@ def _specialty_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
     return out
 
 
+def _country_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
+    """Non-staff members per country code."""
+    out: Dict[str, int] = {}
+    for m in members.values():
+        if m.get("is_staff"):
+            continue
+        c = (m.get("country") or "").strip().upper()
+        if c:
+            out[c] = out.get(c, 0) + 1
+    return out
+
+
+def country_threshold() -> int:
+    """How many colleagues a country needs before its channel appears.
+
+    Same reasoning as the specialty threshold: a room with one person in it
+    reads as an empty building, and the first doctor from a country should
+    meet the community before they meet a channel with only their own name
+    in it.
+    """
+    try:
+        return max(1, int(os.getenv("COMMUNITY_COUNTRY_MIN_MEMBERS", "3")))
+    except (TypeError, ValueError):
+        return 3
+
+
 def visible_channels(members: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     """The channel list every member sees (visibility is deliberately GLOBAL —
     identical for all members, so unread badges, search scope, and the WS
@@ -358,14 +402,22 @@ def visible_channels(members: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]
     cstore = _cstore()
     counts = _specialty_counts(members)
     threshold = specialty_threshold()
+    countries = _country_counts(members)
+    country_min = country_threshold()
     out: List[Dict[str, Any]] = []
     for ch in cstore.list_channels():
-        if (ch.get("grp") or "core") != "specialty":
-            out.append(ch)
+        grp = (ch.get("grp") or "core")
+        if grp == "specialty":
+            spec = (ch.get("specialty") or "").strip().lower()
+            if counts.get(spec, 0) >= threshold or cstore.channel_has_messages(ch["id"]):
+                out.append(ch)
             continue
-        spec = (ch.get("specialty") or "").strip().lower()
-        if counts.get(spec, 0) >= threshold or cstore.channel_has_messages(ch["id"]):
-            out.append(ch)
+        if grp == "country":
+            code = (ch.get("country") or "").strip().upper()
+            if countries.get(code, 0) >= country_min or cstore.channel_has_messages(ch["id"]):
+                out.append(ch)
+            continue
+        out.append(ch)
     return out
 
 
@@ -444,6 +496,10 @@ def _serialize_messages(
             "author": author,
             "kind": m.get("kind"),
             "body": "" if deleted else m["body"],
+            # Link cards on a bot post. A deleted message shows none, for the
+            # same reason its body goes: the point of a delete is that the
+            # content stops being served.
+            "cards": [] if deleted else _decode_cards(m.get("cards_json")),
             "deleted": deleted,
             "created_at": m["created_at"],
             "edited_at": m.get("edited_at"),
@@ -549,6 +605,7 @@ async def channels(user: Dict[str, Any] = Depends(require_member)):
                 "post_policy": ch["post_policy"],
                 "group": ch.get("grp") or "core",
                 "specialty": ch.get("specialty"),
+                "country": ch.get("country"),
                 "unread": (unread.get(ch["slug"]) or {}).get("unread", 0),
                 "mentions": (unread.get(ch["slug"]) or {}).get("mentions", 0),
             }

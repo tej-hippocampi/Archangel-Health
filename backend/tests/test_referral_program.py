@@ -226,11 +226,18 @@ def test_an_enterprise_note_reaches_the_founder_inbox(capsys):
     assert "data partnership" in out
 
 
-def test_an_empty_note_is_refused_and_a_pending_physician_cannot_send():
+def test_an_empty_note_is_refused():
     referrer = _physician()
     r = client.post("/api/asclepius/referrals/enterprise-note",
                     json={"note": "   "}, headers=A.headers_for(referrer))
     assert r.status_code == 422
+
+
+def test_a_physician_awaiting_verification_can_send_the_enterprise_note():
+    """The doctor who can open an institutional door is often the one who just
+    joined through it. Waiting for the credential check to pass before letting
+    them say so loses the introduction, and the note goes to a founder who
+    reads it either way."""
     pending = A.make_user(_store(), role="evaluator", specialty="nephrology")
     with _store()._conn() as conn:
         conn.execute("UPDATE users SET verification_status = 'pending' WHERE id = ?",
@@ -238,4 +245,4 @@ def test_an_empty_note_is_refused_and_a_pending_physician_cannot_send():
     r = client.post("/api/asclepius/referrals/enterprise-note",
                     json={"note": "hello"},
                     headers=A.headers_for(_store().get_user_by_id(pending["id"])))
-    assert r.status_code == 403
+    assert r.status_code == 200

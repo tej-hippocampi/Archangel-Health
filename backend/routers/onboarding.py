@@ -284,6 +284,33 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+@router.get("/credential-config")
+async def credential_config():
+    """What to ask a doctor for, country by country.
+
+    Public and tokenless: it is a form schema, identical for everyone, and the
+    wizard needs it before a token is necessarily in hand. Fetched once at
+    mount rather than per keystroke — the whole table is a few kilobytes and a
+    round trip per country change would make the form feel broken on a plane.
+    """
+    from asclepius.registry import config as registry_config
+
+    return {
+        "countries": list(registry_config.supported_countries()),
+        # Everywhere else falls back to document review, so a doctor from a
+        # country we have not configured still has a way through.
+        "default": {
+            "id_label": registry_config.DEFAULT_REGISTRY.id_label,
+            "id_hint": registry_config.DEFAULT_REGISTRY.id_hint,
+            "method": registry_config.DEFAULT_REGISTRY.method,
+        },
+        "qualifications": [
+            "MD", "DO", "MBBS", "MBChB", "MBBCh", "BMBS",
+            "Staatsexamen", "Other",
+        ],
+    }
+
+
 @router.get("/session")
 async def onboarding_session(token: str, request: Request):
     ts = _ts(request)
@@ -863,6 +890,27 @@ def _provision_asclepius_user(
     _run_signup_verification(store, user, creds)
 
 
+async def _welcome_into_community(email: str) -> None:
+    """Introduce a new physician in #introductions.
+
+    Fired at signup, not only at approval. A provisional physician is already
+    inside the community -- they can read and post from the moment they finish
+    the form -- so waiting for the credential check meant the room said nothing
+    while they were in it, and then introduced them days later to people they
+    had already been talking to. Idempotent: the welcome flag is claimed before
+    the post, so the approval path will not repeat it.
+    """
+    try:
+        from asclepius.store import get_store as _get_astore  # noqa: PLC0415
+        from community.onboard import welcome_new_member  # noqa: PLC0415
+
+        user = _get_astore().get_user_by_email(email)
+        if user:
+            await welcome_new_member(user)
+    except Exception:
+        log.exception("[community] welcome post failed (non-fatal)")
+
+
 def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, Any]) -> None:
     """Capture PRD-B identity fields and run the NPI check for a fresh signup.
 
@@ -897,10 +945,30 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
         # A CV that cannot be attached is empty-fields + raw file for the admin.
         log.exception("[credentialing] CV attach failed (non-fatal)")
 
+    # Where this doctor is licensed decides which registry answers for them.
+    # A blank country is a US signup: that is who was signing up before the
+    # form could ask.
+    from asclepius.registry import config as registry_config
+
+    licensure = registry_config.normalize_country(
+        creds.get("countryOfLicensure") or creds.get("countryOfPractice")) or "US"
+    practice = registry_config.normalize_country(
+        creds.get("countryOfPractice")) or licensure
+    registration = str(creds.get("registrationNumber") or "").strip()
     npi = credentialing.clean_npi(str(creds.get("npi") or ""))
-    if npi:
-        family_name = credentialing.family_name_from_legal_name(
-            str(creds.get("fullLegalName") or user.get("full_name") or ""))
+
+    try:
+        store.set_registry_country(
+            uid, practice=practice, licensure=licensure,
+            registry_id=(npi if licensure == "US" else registration) or None,
+        )
+    except Exception:
+        log.exception("[credentialing] could not record countries (non-fatal)")
+
+    family_name = credentialing.family_name_from_legal_name(
+        str(creds.get("fullLegalName") or user.get("full_name") or ""))
+
+    if licensure == "US" and npi:
         try:
             cached = store.get_cached_npi_fetch(npi)
             result = credentialing.verify_npi(npi, family_name, cached=cached)
@@ -920,6 +988,34 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
                 store.set_npi_result(uid, {"result": "unavailable", "reason": "exception"})
             except Exception:
                 log.exception("[credentialing] could not persist NPI result (non-fatal)")
+    elif licensure != "US":
+        # Deliberately NOT checked inline. NPPES answers in under a second;
+        # a foreign register may not answer at all, and the signup form is the
+        # last place to find that out. Record what we know, let the
+        # verification agent do the lookup on the job we are about to queue.
+        cfg = registry_config.for_country(licensure)
+        queued = {
+            "result": "document_only" if cfg.method == registry_config.METHOD_DOCUMENT
+            else "queued",
+            "registry": cfg.registry_name,
+            "identifier": registration,
+            "reason": None,
+            "record": None,
+        }
+        try:
+            store.set_registry_result(uid, queued)
+        except Exception:
+            log.exception("[credentialing] could not record registry state (non-fatal)")
+
+    # Does the signup hold together? Findings route to the queue as review
+    # flags; none of them rejects anybody.
+    try:
+        from asclepius import plausibility
+
+        refreshed = store.get_user_by_id(uid) or user
+        store.set_signup_flags(uid, plausibility.flags(refreshed, creds))
+    except Exception:
+        log.exception("[credentialing] plausibility check failed (non-fatal)")
 
     try:
         # Land in the admin verification queue — but never downgrade a decided
@@ -1378,6 +1474,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     # The hash is already on the row; finalize only stamps completion.
     ts.finalize_asclepius_person(row["id"], director_email, password_hash=director_hash)
     ts.complete_asclepius_onboarding(row["id"])
+    await _welcome_into_community(director_email)
 
     # Mint an Asclepius session token so the wizard drops the doctor straight into
     # their workspace with no re-login (mirrors the doctor-portal auto-auth). The

@@ -3509,6 +3509,39 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   color: var(--ink-faint);
   line-height: 1.6;
 }
+/* One tap to wherever the conversation already is. Wraps to as many rows as
+   the width needs -- a doctor on a phone is the likeliest person to use it. */
+.asc-ref-sharerow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.asc-ref-sharerow > a { text-decoration: none; }
+/* The worked example under the health-system pitch. Set apart from the pitch
+   so it reads as an illustration, which is what it is. */
+.asc-ref-example {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 2px 0 12px;
+  padding: 10px 12px;
+  background: var(--card-in);
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.asc-ref-example-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
 .asc-ref-note { min-height: 76px; resize: vertical; }
 .asc-ref-noteform { align-items: flex-start; }
 /* ═══ END PRD-P ═══ */
@@ -3700,3 +3733,103 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 }
 .asc-linkish:hover { color: var(--ink); }
 
+
+/* ═══ Profile ════════════════════════════════════════════════════════════════
+   A physician reading their own record. Two kinds of row: the ones they can
+   change, and the ones that were checked at signup and are shown so they can
+   see what we hold rather than being asked to take it on trust. */
+.asc-prof-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--asc-line);
+  font-size: 13.5px;
+}
+.asc-prof-row:last-child { border-bottom: 0; }
+.asc-prof-label {
+  color: var(--asc-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.asc-prof-value {
+  color: var(--asc-text);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.asc-prof-field { margin: 10px 0; }
+.asc-prof-field > .asc-prof-label { display: block; margin-bottom: 5px; }
+.asc-prof-field > .asc-ref-input { width: 100%; }
+
+/* Signup review flags on the admin physician profile. Amber and grey only:
+   a flag means "a person should look", never "this person is a fraud", and
+   pink in this system is reserved for safety events. */
+.asc-phys-flag {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--asc-line);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.asc-phys-flag:last-child { border-bottom: 0; }
+.asc-phys-flag-sev {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid var(--asc-line-strong);
+  color: var(--asc-muted);
+}
+.asc-phys-flag-high { color: var(--asc-warn); border-color: currentColor; }
+.asc-phys-flag-medium { color: var(--asc-muted); }
+.asc-phys-flag-low { color: var(--asc-muted); }
+
+/* Verification queue: the international registry line, the review flags, and
+   the credentials a doctor actually typed. That last block existed on the
+   payload from the day the queue shipped and was rendered by nothing, so the
+   licence number and the signed initials were invisible on the one screen
+   where a person decides whether to believe them. */
+.vq-typed { margin: 10px 0 4px; }
+.vq-typed-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--asc-line);
+  font-size: 12.5px;
+}
+.vq-typed-row:last-child { border-bottom: 0; }
+.vq-typed-key { color: var(--asc-muted); white-space: nowrap; }
+.vq-typed-val { color: var(--asc-text); text-align: right; overflow-wrap: anywhere; }
+.vq-flags {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--asc-line-strong);
+  border-radius: 10px;
+}
+.vq-flags-head {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--asc-muted);
+  margin-bottom: 6px;
+}
+.vq-flag { font-size: 12.5px; line-height: 1.6; padding: 3px 0; }
+.vq-flag-sev {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--asc-line-strong);
+  color: var(--asc-muted);
+}
+.vq-flag-high { color: var(--asc-warn); border-color: currentColor; }
+.vq-flag-medium { color: var(--asc-muted); }
+.vq-flag-low { color: var(--asc-muted); }
+.vq-npi-inconclusive, .vq-npi-document_only, .vq-npi-queued, .vq-npi-pending {
+  color: var(--asc-muted);
+}

@@ -222,6 +222,16 @@ async def _email_digest(kind: str, body: str) -> int:
 
     if not is_email_transport_configured():
         return 0
+
+    # When the morning routine is on it owns the daily email, and this digest
+    # is one of the things it carries. Two automated emails on the same morning
+    # from the same product is one too many, and the one people would unsubscribe
+    # from is whichever arrived second. The in-app post still happens.
+    from community import morning as _cmorning  # noqa: PLC0415
+
+    if _cmorning.enabled():
+        log.info("[digest] morning routine owns the daily email; skipping the digest send")
+        return 0
     cstore = get_community_store()
     base = (os.getenv("PUBLIC_BASE_URL", "") or "").rstrip("/")
     weekly = kind == "papers"

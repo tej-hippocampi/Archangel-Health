@@ -6359,6 +6359,30 @@ async def startup_team_scheduler():
         _auth_logger.warning("[asclepius] verification agent failed to start", exc_info=True)
 
 
+def _member_country_codes() -> list:
+    """Countries where active evaluators actually practise.
+
+    Read on the asclepius plane and handed to the community store, which must
+    not query users itself. A failure here returns nothing, which leaves the
+    country channels exactly as they are rather than retiring them.
+    """
+    try:
+        from asclepius.store import get_store as _get_astore
+
+        codes = []
+        for user in _get_astore().list_users():
+            if not user.get("active") or user.get("role") != "evaluator":
+                continue
+            code = (user.get("country_of_practice")
+                    or user.get("country_of_licensure") or "").strip().upper()
+            if code and code not in codes:
+                codes.append(code)
+        return codes
+    except Exception:
+        _auth_logger.warning("[community] could not read member countries", exc_info=True)
+        return []
+
+
 @app.on_event("startup")
 async def startup_community():
     """Asclepius Community (Community PRD): init the standalone store (seeds the
@@ -6371,6 +6395,13 @@ async def startup_community():
         from community.router import resolve_member_for_notify as _resolve_member
 
         app.state.community_store = _get_cstore()
+        # Country channels exist for the countries that have members. The
+        # roster lives on the asclepius plane, so it is read here and passed
+        # in: the community store must not query users itself.
+        try:
+            app.state.community_store.ensure_default_channels(_member_country_codes())
+        except Exception:
+            _auth_logger.warning("[community] country channel seeding failed", exc_info=True)
         _cnotify.start_digest_loop(resolve_member=_resolve_member)
         # Community v2: the #medical-ai-news content loop is OPT-IN
         # (COMMUNITY_NEWS_ENABLED=1); the internal trigger endpoint below
@@ -6382,6 +6413,13 @@ async def startup_community():
         # before an event starts). No-ops without email transport.
         from community import events as _cevents
         _cevents.start_reminder_loop(resolve_member=_resolve_member)
+        # The morning routine. The scheduled trigger in .github/workflows is
+        # the reliable path; this is here so a deploy without that configured
+        # still fills the channels rather than quietly not doing so. Both share
+        # the run ledger, so they cannot double-post.
+        from community import morning as _cmorning
+        if _cmorning.enabled():
+            _cmorning.start_morning_loop()
     except Exception:
         _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
 
@@ -6398,6 +6436,12 @@ async def shutdown_community():
         from community import digest as _cdigest
 
         _cdigest.stop_content_loop()
+    except Exception:
+        pass
+    try:
+        from community import morning as _cmorning
+
+        _cmorning.stop_morning_loop()
     except Exception:
         pass
     try:
@@ -6440,6 +6484,39 @@ async def internal_run_community_digest(
         raise HTTPException(status_code=400, detail="kind must be 'news' or 'papers'")
     from community import digest as _cdigest
     result = await _cdigest.run_digest(kind)
+    return {**result, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-morning", include_in_schema=False)
+async def internal_run_community_morning(
+    only: Optional[str] = None,
+    force: bool = False,
+    authorization: Optional[str] = Header(None),
+):
+    """The morning routine.
+
+    Called hourly by a scheduled job; every scope decides for itself whether
+    its own local 7am has passed without a successful run today, so calling
+    this every hour, twice, or by hand still posts one brief per channel per
+    day. ``force`` bypasses the due check for testing, ``only`` limits the run
+    to one scope key or channel.
+    """
+    _check_internal_auth(authorization)
+    from community import morning as _cmorning
+
+    result = await _cmorning.run_morning(only=only, force=force)
+    return {**result, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-newsletter", include_in_schema=False)
+async def internal_run_community_newsletter(
+    force: bool = False, authorization: Optional[str] = Header(None)
+):
+    """The per-doctor morning email. Same due-by-cohort rule as the channels."""
+    _check_internal_auth(authorization)
+    from community import newsletter as _cnewsletter
+
+    result = await _cnewsletter.run_newsletter(force=force)
     return {**result, "ran_at": _utcnow_iso()}
 
 

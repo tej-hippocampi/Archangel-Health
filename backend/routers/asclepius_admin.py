@@ -681,6 +681,41 @@ async def physician_profile(
             npi_payload = _json.loads(raw_npi)
         except (ValueError, TypeError):
             npi_payload = None
+    registry_payload = None
+    raw_registry = u.get("registry_payload_json")
+    if raw_registry:
+        try:
+            registry_payload = _json.loads(raw_registry)
+        except (ValueError, TypeError):
+            registry_payload = None
+
+    def _blob(key):
+        raw = u.get(key)
+        if not raw:
+            return {}
+        try:
+            return _json.loads(raw) or {}
+        except (ValueError, TypeError):
+            return {}
+
+    credentials = _blob("credentials_json")
+    attestations = _blob("attestations_json")
+    flags = _blob("flags_json") if u.get("flags_json") else []
+    if not isinstance(flags, list):
+        flags = []
+
+    licensure = (u.get("country_of_licensure") or "").upper()
+    registry_name = None
+    registry_lookup = None
+    if licensure and licensure != "US":
+        from asclepius.registry import config as registry_config
+
+        cfg = registry_config.for_country(licensure)
+        registry_name = cfg.registry_name
+        if cfg.lookup_url:
+            registry_lookup = cfg.lookup_url.replace(
+                "{id}", (u.get("registry_id") or "").strip())
+
     hs_id = u.get("health_system_id")
     submissions = store.list_submissions(evaluator_id=user_id, limit=200)
     reviews = store.list_case_reviews_for_reviewer(user_id)
@@ -713,8 +748,28 @@ async def physician_profile(
             "health_system_name": hs_names.get(hs_id) if hs_id else None,
             "created_at": u.get("created_at"),
             "active": bool(u.get("active", 1)),
+            # Where this doctor practises and which registry answers for them.
+            "country_of_practice": u.get("country_of_practice"),
+            "country_of_licensure": u.get("country_of_licensure"),
+            "registry_name": registry_name,
+            "registry_id": u.get("registry_id"),
+            "registry_verified": _tri_state(u.get("registry_verified")),
+            "registry_checked_at": u.get("registry_checked_at"),
+            # Where an admin goes to check by hand when there is no API.
+            "registry_lookup_url": registry_lookup,
+            "flagged": bool(u.get("flagged")),
         },
         "npi_payload": npi_payload,
+        "registry_payload": registry_payload,
+        # The credentials and attestations blobs. These were captured at
+        # signup, returned by the verification queue, and rendered by nothing:
+        # licence number, degree, residency, fellowship, practice status and
+        # the initials someone signed with were invisible on every admin
+        # surface, which made "check their credentials" impossible to actually
+        # do from the credentials page.
+        "credentials": credentials,
+        "attestations": attestations,
+        "flags": flags,
         "task_history": [{"task_id": s.get("task_id"),
                           "submission_id": s.get("submission_id"),
                           "status": s.get("status"),

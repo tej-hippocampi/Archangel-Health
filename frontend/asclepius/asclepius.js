@@ -270,11 +270,11 @@
       return;
     }
     if (dest !== 'tasks' && dest !== 'guide' && dest !== 'earnings'
-        && dest !== 'referral' && dest !== 'verification') return;
+        && dest !== 'referral' && dest !== 'profile' && dest !== 'verification') return;
     // Server-gated destinations are re-checked here, not only hidden in the
     // rail: a stale deep link or a hand-typed state change must not open a
     // section the session was never granted. (The API 403s regardless.)
-    if (dest === 'referral' && !sessionCan('refer')) return;
+    if (dest === 'referral' && !sessionHasSurface('referral')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
@@ -285,6 +285,8 @@
     renderSidePanel();
     if (dest === 'referral') {
       renderReferralView();
+    } else if (dest === 'profile') {
+      renderProfileView();
     } else if (dest === 'earnings') {
       renderEarningsView();
     } else if (dest === 'guide') {
@@ -360,16 +362,24 @@
     { dest: 'tasks',     label: 'Tasks', surface: 'real_work',
       lockedHint: 'Opens when your credentials clear' },
     { dest: 'community', label: 'Community', surface: 'community_read', external: true },
-    // Referral (PRD-REF): shown to a session whose SERVER-supplied
-    // capabilities include 'refer' — every verified physician. The gate is
-    // `capability`, never a tier string.
-    { dest: 'referral',  label: 'Referral', capability: 'refer' },
+    // Referral (PRD-REF). Gated on the SURFACE, which every live account holds
+    // including one still under review. It used to gate on the 'refer'
+    // capability, which comes from a tier, which is only assigned at approval —
+    // so a physician who had just signed up had the tab filtered out of their
+    // rail entirely, and the most enthusiastic moment they will ever have about
+    // this place passed with nothing to act on.
+    { dest: 'referral',  label: 'Referral', surface: 'referral' },
     // Earnings (PRD-P §5). Visible to any signed-in physician — what you have
     // made is not a privileged surface, and every endpoint behind it scopes from
-    // the session, so there is nothing here to gate on a capability.
-    { dest: 'earnings',  label: 'Earnings', surface: 'earnings',
-      lockedHint: 'Opens when your credentials clear' },
+    // the session, so there is nothing here to gate on a capability. It reads
+    // zero before verification, which is true rather than hidden.
+    { dest: 'earnings',  label: 'Earnings', surface: 'earnings' },
     { dest: 'guide',     label: 'Guide' },
+    // Profile. No gate: a physician can always read what we hold about them
+    // and correct their own contact details, including while they are waiting
+    // on verification -- they are the people most likely to have just noticed
+    // a typo in what they submitted.
+    { dest: 'profile',   label: 'Profile' },
   ];
 
   // The capability list the server put on the session. Absent (an older token,
@@ -2915,7 +2925,7 @@
     // V3 variant carries no timer; this header owns #ascTimer in every stage.
     const timer = (d.stage === 'compare' && !isV3())
       ? null
-      : h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed()));
+      : h('span', { class: 'asc-timer', id: 'ascTimer', 'data-tour-ignore': '1' }, formatTime(getElapsed()));
     // §16: the step counter reads from taskProgress(); the same single source
     // of truth as the header bar. V1/V2's 3-stage list yields the same "Step N
     // of 3" text as before; V3/V4 span the full substage flow.
@@ -6690,7 +6700,7 @@
       h('div', { class: 'asc-conf-group' },
         h('span', { class: 'asc-label' }, 'Confidence'), confPills),
       h('div', { class: 'asc-submit-right' },
-        h('span', { class: 'asc-timer', id: 'ascTimer' }, formatTime(getElapsed())),
+        h('span', { class: 'asc-timer', id: 'ascTimer', 'data-tour-ignore': '1' }, formatTime(getElapsed())),
         hint,
         submitBtn));
   }
@@ -7050,6 +7060,172 @@
         'The Referral section failed to load. Reload the page; if it persists, '
         + 'this is a deploy problem: check that referral.js is included in '
         + 'index.html. Your referrals and bounties are unaffected.'))));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  PROFILE
+  //
+  //  Everything we hold about a physician, and the short list of it that is
+  //  theirs to change. Until this existed a doctor could not see their own
+  //  record at all: it was visible to admins and to nobody else, including
+  //  them, and a mistyped phone number could only be fixed by writing to us.
+  //
+  //  Credential fields render read-only rather than being withheld. Someone
+  //  should be able to read what they submitted and see plainly which parts
+  //  are settled -- and settled is the right word, because those were checked
+  //  against a registry or attested to, and a form that let their holder edit
+  //  them afterwards would make the check meaningless.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function renderProfileView() {
+    stopTimer();
+    updateHeaderProgress();
+    const body = h('div', { id: 'ascProfileBody' });
+    setRoot(h('div', { class: 'asc-wrap' }, body));
+    body.appendChild(h('div', { class: 'asc-pay-loading' }, 'Loading your profile…'));
+    api('/me/profile').then((data) => {
+      clear(body);
+      body.appendChild(h('h2', { class: 'asc-pay-title' }, 'Profile'));
+      body.appendChild(profileStandingCard(data.standing || {}));
+      body.appendChild(profileEditCard(data.editable || {}));
+      body.appendChild(profileCredentialsCard(data.credentials || {}));
+      body.appendChild(profilePasswordCard());
+    }).catch((err) => {
+      clear(body);
+      body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' },
+          'Your profile could not be loaded. '
+          + ((err && (err.detail || err.message)) || 'The server did not respond.')
+          + ' Reload the page.'))));
+    });
+  }
+
+  function profileRow(label, value) {
+    return h('div', { class: 'asc-prof-row' },
+      h('span', { class: 'asc-prof-label' }, label),
+      h('span', { class: 'asc-prof-value' }, value || '—'));
+  }
+
+  function profileStandingCard(s) {
+    const status = s.verification_status || 'pending';
+    const words = { approved: 'Verified', pending: 'In review',
+                    rejected: 'Not approved' };
+    const card = h('div', { class: 'asc-ref-card' });
+    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Standing'));
+    card.appendChild(profileRow('Verification', words[status] || 'In review'));
+    card.appendChild(profileRow('Tier', s.tier_word || 'Unassigned'));
+    if (s.score != null) {
+      card.appendChild(profileRow('Contributor score',
+        String(s.score) + (s.band ? ' · ' + s.band : '')));
+    }
+    if (s.referral_code) card.appendChild(profileRow('Referral code', s.referral_code));
+    return card;
+  }
+
+  function profileEditCard(editable) {
+    const card = h('div', { class: 'asc-ref-card' });
+    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Your details'));
+    card.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'Yours to change whenever they change.'));
+
+    const fields = [
+      { key: 'full_name', label: 'Full name' },
+      { key: 'phone', label: 'Mobile' },
+      { key: 'linkedin_url', label: 'LinkedIn' },
+      { key: 'specialty_niche', label: 'What you focus on' },
+    ];
+    const inputs = {};
+    fields.forEach((f) => {
+      const input = h('input', { class: 'asc-ref-input', type: 'text' });
+      input.value = editable[f.key] || '';
+      inputs[f.key] = input;
+      card.appendChild(h('div', { class: 'asc-prof-field' },
+        h('label', { class: 'asc-prof-label' }, f.label), input));
+    });
+
+    const note = h('div', { class: 'asc-ref-msg', style: 'display:none' });
+    const save = h('button', { class: 'asc-btn asc-btn-sm asc-btn-primary', type: 'button' }, 'Save');
+    save.addEventListener('click', () => {
+      save.disabled = true;
+      save.textContent = 'Saving…';
+      const payload = {};
+      fields.forEach((f) => { payload[f.key] = inputs[f.key].value; });
+      api('/me/profile', { method: 'PATCH', body: payload }).then(() => {
+        note.textContent = 'Saved.';
+        note.style.display = '';
+      }).catch((err) => {
+        note.textContent = 'Could not save. '
+          + ((err && (err.detail || err.message)) || 'Try again.');
+        note.style.display = '';
+      }).then(() => {
+        save.disabled = false;
+        save.textContent = 'Save';
+      });
+    });
+    card.appendChild(h('div', { class: 'asc-ref-form' }, save));
+    card.appendChild(note);
+    return card;
+  }
+
+  function profileCredentialsCard(c) {
+    const card = h('div', { class: 'asc-ref-card' });
+    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Credentials on file'));
+    card.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'Checked at signup, so these are not editable here. If something is '
+      + 'wrong, write to us and a person will correct it.'));
+    card.appendChild(profileRow('Email', c.email));
+    card.appendChild(profileRow('Specialty', c.specialty));
+    card.appendChild(profileRow('Qualification', c.qualification));
+    card.appendChild(profileRow('Board certification', c.board_cert));
+    card.appendChild(profileRow('Years in practice',
+      c.years_experience == null ? '' : String(c.years_experience)));
+    card.appendChild(profileRow('Institution', c.organization));
+    if (c.npi) {
+      card.appendChild(profileRow('NPI', c.npi));
+    } else {
+      card.appendChild(profileRow(c.registry_name || 'Registration',
+        c.registration_number));
+    }
+    if (c.country_of_practice) {
+      card.appendChild(profileRow('Practising in', c.country_of_practice));
+    }
+    if (c.signed_initials) {
+      card.appendChild(profileRow('Signed attestations', c.signed_initials));
+    }
+    return card;
+  }
+
+  function profilePasswordCard() {
+    const card = h('div', { class: 'asc-ref-card' });
+    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Password'));
+    const current = h('input', { class: 'asc-ref-input', type: 'password',
+                                 placeholder: 'Current password' });
+    const next = h('input', { class: 'asc-ref-input', type: 'password',
+                              placeholder: 'New password (at least 8 characters)' });
+    const note = h('div', { class: 'asc-ref-msg', style: 'display:none' });
+    const button = h('button', { class: 'asc-btn asc-btn-sm', type: 'button' }, 'Change password');
+    button.addEventListener('click', () => {
+      note.style.display = 'none';
+      button.disabled = true;
+      button.textContent = 'Changing…';
+      api('/me/password', { method: 'POST', body: {
+        current_password: current.value, new_password: next.value,
+      } }).then(() => {
+        note.textContent = 'Password changed.';
+        note.style.display = '';
+        current.value = ''; next.value = '';
+      }).catch((err) => {
+        note.textContent = (err && (err.detail || err.message)) || 'Could not change it.';
+        note.style.display = '';
+      }).then(() => {
+        button.disabled = false;
+        button.textContent = 'Change password';
+      });
+    });
+    card.appendChild(h('div', { class: 'asc-prof-field' }, current));
+    card.appendChild(h('div', { class: 'asc-prof-field' }, next));
+    card.appendChild(h('div', { class: 'asc-ref-form' }, button));
+    card.appendChild(note);
+    return card;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -10421,6 +10597,12 @@
 
   function tutPersistStep(stepId) {
     if (!state.tutorial || state.tutorial.replay) return;
+    // resolveTourIndex walks the pointer back to the real blocker while the
+    // fast-forward loop walks it on; when they disagree the pointer can settle
+    // on the same step repeatedly. Only write when the position actually
+    // changed, so that never becomes a stream of PATCHes.
+    if (state.tutorial.persistedStep === stepId) return;
+    state.tutorial.persistedStep = stepId;
     clearTimeout(_tourPatchTimer);
     _tourPatchTimer = setTimeout(() => {
       api('/me/tutorial', { method: 'PATCH', body: { action: 'advance', step: stepId } })
@@ -10487,13 +10669,26 @@
     _tourTickTimer = setTimeout(tutTick, 80);
   }
 
+  // Nodes that rewrite themselves on a timer, not because the doctor did
+  // anything: the case clock ticks once a second, inside #ascRoot, forever.
+  // Treating those writes as "the app changed" re-ticked the tour every
+  // second, which tore the tooltip down and rebuilt it under the cursor —
+  // clicks landed mid-rebuild, focus and hover reset, and the aria-live copy
+  // re-announced itself endlessly. Mark such nodes [data-tour-ignore].
+  function tourIgnoredNode(n) {
+    const el = n && n.nodeType === 3 ? n.parentElement : n;
+    if (!el || !el.closest) return false;
+    return !!(el.closest('#ascTourLayer') || el.closest('#ascInstrDrawer')
+      || el.closest('[data-tour-ignore]'));
+  }
+
   function mountTourEngine() {
     if (_tourObserver) return;
     _tourObserver = new MutationObserver((muts) => {
-      // Ignore mutations inside the tour's own layer or the drawer.
+      // Ignore mutations inside the tour's own layer, the drawer, or any
+      // self-ticking node.
       for (const m of muts) {
-        const n = m.target;
-        if (n && n.closest && (n.closest('#ascTourLayer') || n.closest('#ascInstrDrawer'))) continue;
+        if (tourIgnoredNode(m.target)) continue;
         scheduleTutTick();
         return;
       }
@@ -10512,6 +10707,9 @@
     document.removeEventListener('click', tutClickAdvance, true);
     document.removeEventListener('keydown', tutKeydown, true);
     clearTimeout(_tourTickTimer);
+    clearTimeout(_tourPatchTimer);
+    TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
+    _tourScrolledFor = null;
     const layer = document.getElementById('ascTourLayer');
     if (layer) layer.remove();
     state.tutorial = null;
@@ -10567,21 +10765,19 @@
       // Target not rendered yet. NEVER block the app here: the section may be
       // gated on work the doctor still has to do (e.g. after "Skip this step"),
       // so masks stay off and the popover waits quietly in the corner.
-      // Auto-skip applies ONLY to DOM-gated steps (click / manual): if a UI
-      // redesign removed their target, the step is dead and must not brick the
-      // tutorial. State-gated steps wait indefinitely: their predicate (or the
+      // A DOM-gated step (click / manual) whose target never appears would
+      // otherwise strand the doctor, so after a while we offer a way past it.
+      // OFFER, not take: this used to auto-advance after 8s, which moved the
+      // tour on its own while someone was still reading, and read as the
+      // tutorial running away from them. Nothing here advances without a
+      // click. State-gated steps wait indefinitely: their predicate (or the
       // fast-forward loop) advances them the moment the doctor gets there.
       const domGated = !!(step.advanceOn && (step.advanceOn.click || step.advanceOn.manual));
       if (!step._waitSince) step._waitSince = Date.now();
-      if (domGated && Date.now() - step._waitSince > 8000) {
-        try { console.warn('[tutorial] target missing, skipping step:', step.id, step.target); } catch (e) { /* ok */ }
-        step._waitSince = null;
-        tutAdvance();
-        return;
-      }
+      const stuck = domGated && Date.now() - step._waitSince > 10000;
       layer.style.display = '';
       hideMasks(layer);
-      renderTourPop(pop, step, true);
+      renderTourPop(pop, step, true, false, stuck);
       pop.style.transform = '';
       pop.style.top = 'auto';
       pop.style.left = '16px';
@@ -10654,8 +10850,15 @@
     pop.style.left = left + 'px';
   }
 
-  function renderTourPop(pop, step, waiting, bounced) {
+  function renderTourPop(pop, step, waiting, bounced, stuck) {
     const num = tutStepNumber(step);
+    // Rebuild only when the tooltip would actually differ. Ticks are cheap but
+    // a rebuild is not: it destroys the buttons the doctor is reaching for and
+    // re-fires the aria-live region. Repositioning still happens every tick.
+    const sig = [step.id, waiting ? 'wait' : 'live', bounced ? 'bounced' : '',
+                 stuck ? 'stuck' : ''].join('|');
+    if (pop.dataset.tourSig === sig) return;
+    pop.dataset.tourSig = sig;
     clear(pop);
     pop.appendChild(h('div', { class: 'asc-tour-chrome' },
       'STEP ' + num.n + ' OF ' + num.total + ' · ' + step.chapter.title.toUpperCase()));
@@ -10667,7 +10870,15 @@
     } else if (!waiting && step.chapterFirst && step.chapter.intro) {
       pop.appendChild(h('div', { class: 'asc-tour-sub' }, step.chapter.intro));
     }
+    if (stuck) {
+      pop.appendChild(h('div', { class: 'asc-tour-sub' },
+        'This part of the page has not appeared. You can move on whenever you like.'));
+    }
     const row = h('div', { class: 'asc-tour-actions' });
+    if (stuck) {
+      row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
+        onClick: tutAdvance }, 'Move on →'));
+    }
     if (step.advanceOn && step.advanceOn.manual && !waiting) {
       row.appendChild(h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
         onClick: tutAdvance }, 'Next →'));
@@ -10734,7 +10945,22 @@
       api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
         .then((u) => { state.user = u; }).catch(() => { /* best-effort */ });
     }
-    state.tutorial = { active: true, replay: !!opts.replay, idx: 0, welcomed: false };
+    // Resume where the server says they stopped. The saved position used to be
+    // written and never read, so a doctor who got halfway on their laptop
+    // started again at step 1 on their phone; only the local draft made resume
+    // look like it worked. The fast-forward loop still corrects this downward
+    // if the draft shows less progress than the pointer claims.
+    let startIdx = 0;
+    if (opts.resume && opts.resumeStep) {
+      const i = TUTORIAL_STEPS.findIndex((s) => s.id === opts.resumeStep);
+      if (i > 0) startIdx = i;
+    }
+    // Step objects are module-level and shared across runs: a stale wait clock
+    // or scroll marker from a previous run would misfire on this one.
+    TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
+    _tourScrolledFor = null;
+    state.tutorial = { active: true, replay: !!opts.replay, idx: startIdx,
+                       welcomed: startIdx > 0 };
     state.portalChosen = true;
     state.specialtyChosen = true;
     const wrap = h('div', { class: 'asc-wrap' },

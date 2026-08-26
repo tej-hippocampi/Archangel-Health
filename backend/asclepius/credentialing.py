@@ -27,6 +27,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from asclepius import plausibility
+
 log = logging.getLogger("asclepius.credentialing")
 
 # NPPES NPI Registry API v2.1 — free, no key, public.
@@ -177,6 +179,17 @@ def family_name_from_legal_name(legal_name: str) -> str:
             continue
         return cleaned
     return tokens[-1] if tokens else ""
+
+
+def has_comparable_family_name(name: str) -> bool:
+    """Is there anything left to compare after normalization?
+
+    "The names differ" and "we had nothing to compare" are different facts and
+    an admin working the queue has to be able to tell them apart. Public so
+    the international registry adapters can draw the same distinction without
+    reaching into this module's internals.
+    """
+    return bool(_normalize_family_name(name))
 
 
 def family_names_match(claimed: str, registry: str) -> bool:
@@ -974,6 +987,24 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
     elif npi_result == NpiResult.NOT_FOUND.value:
         reasons.append("±0 NPI not found in NPPES")
 
+    # A doctor licensed outside the US earns identity the same way, from their
+    # own country's registry. Same weight: an SCFHS or NMC registration is not
+    # worth less than an NPI, it is just checked somewhere else. Countries
+    # whose registers we cannot query score zero here and clear identity
+    # through document review instead — pending, not penalized.
+    registry_payload = _json_field(user, "registry_payload_json")
+    registry_result = registry_payload.get("result")
+    registry_ok = user.get("registry_verified") == 1
+    if not npi_ok and registry_ok:
+        score += TIER_WEIGHTS["npi_verified"]
+        registry_name = registry_payload.get("registry") or "the national registry"
+        score_label = TIER_WEIGHTS["npi_verified"]
+        reasons.append(f"+{score_label} registration verified against {registry_name}")
+    elif not npi_ok and registry_result in ("document_only", "queued"):
+        reasons.append("±0 identity pending document review (no public registry to query)")
+    elif not npi_ok and registry_result in ("inconclusive", "unavailable"):
+        reasons.append("±0 registry could not confirm — routed to document review")
+
     # Email domain: one weight, never a gate. A known health-system employer
     # domain corroborates current clinical employment, so it outranks generic
     # business.
@@ -995,11 +1026,21 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
     cv = _json_field(user, "cv_parsed_json")
     cv_ok = bool(cv.get("ok"))
 
-    board = bool(user.get("board_cert")) or bool(cv.get("board_certifications"))
-    if board:
+    # Board certification is the single biggest self-reported weight, and it
+    # used to be awarded for any non-empty string — "n;n" scored the full
+    # twenty. It now has to read as a certification, or be corroborated by the
+    # CV, which nobody can type their way into.
+    claimed_board = (user.get("board_cert") or "").strip()
+    cv_boards = cv.get("board_certifications") or []
+    board_recognizable = plausibility.board_certification_is_recognizable(claimed_board)
+    if board_recognizable or cv_boards:
         score += TIER_WEIGHTS["board_certified"]
-        src = user.get("board_cert") or ", ".join(cv.get("board_certifications") or [])
+        src = claimed_board or ", ".join(cv_boards)
         reasons.append(f"+{TIER_WEIGHTS['board_certified']} board certified ({src})")
+    elif claimed_board:
+        reasons.append(
+            f"±0 board certification “{claimed_board[:40]}” does not read as one "
+            "and the CV does not corroborate it")
 
     years = user.get("years_experience")
     if years is None:
@@ -1030,9 +1071,15 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
         score += TIER_WEIGHTS["cv_parsed"]
         reasons.append(f"+{TIER_WEIGHTS['cv_parsed']} CV uploaded and parsed")
 
-    if (user.get("linkedin_url") or "").strip():
-        score += TIER_WEIGHTS["linkedin_present"]
-        reasons.append(f"+{TIER_WEIGHTS['linkedin_present']} LinkedIn profile provided")
+    linkedin = (user.get("linkedin_url") or "").strip()
+    if linkedin:
+        if plausibility.linkedin_url_is_wellformed(linkedin):
+            score += TIER_WEIGHTS["linkedin_present"]
+            reasons.append(f"+{TIER_WEIGHTS['linkedin_present']} LinkedIn profile provided")
+        else:
+            # "nlk" is not a LinkedIn profile, and three points for typing
+            # something in the box is three points for nothing.
+            reasons.append(f"±0 “{linkedin[:40]}” is not a LinkedIn profile URL")
 
     # ── Blockers: proposal suppressed, forced manual review — never a rejection ──
     if npi_result == NpiResult.MISMATCH.value:
@@ -1052,10 +1099,30 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
                 f"taxonomy is “{taxonomy_desc}” ({taxonomy_served})")
     if duplicate_npi:
         blockers.append("Duplicate NPI: another account claims this NPI")
+    if registry_result == "mismatch":
+        blockers.append(
+            "Registry mismatch: " + (registry_payload.get("reason")
+                                     or "the registry record does not corroborate the signup"))
+
+    # A signup that does not hold together goes in front of a human. These are
+    # blockers for the same reason an NPI mismatch is: they suppress the
+    # proposal and force review. They are not rejections, and a real doctor who
+    # mistyped is exactly who this is protecting from an automatic decision.
+    for finding in plausibility.flags(user, _json_field(user, "credentials_json")):
+        if finding["severity"] == plausibility.SEVERITY_HIGH:
+            detail = f" — {finding['detail']}" if finding.get("detail") else ""
+            blockers.append(
+                f"Implausible {finding['field'].replace('_', ' ')}: "
+                f"{finding['issue'].replace('_', ' ')}{detail}")
 
     proposed: Optional[str] = None
     if not blockers:
-        if score >= REVIEWER_MIN_SCORE and npi_ok:
+        # Reviewer needs identity positively established, not specifically an
+        # NPI: a doctor confirmed against SCFHS or the Indian register has
+        # proved exactly what an NPPES match proves, and gating the senior tier
+        # on a US identifier would cap every international physician at labeler
+        # no matter how well they check out.
+        if score >= REVIEWER_MIN_SCORE and (npi_ok or registry_ok):
             proposed = "reviewer"
         elif score >= LABELER_MIN_SCORE:
             proposed = "labeler"
