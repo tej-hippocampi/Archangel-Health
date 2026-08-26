@@ -179,6 +179,17 @@ def family_name_from_legal_name(legal_name: str) -> str:
     return tokens[-1] if tokens else ""
 
 
+def has_comparable_family_name(name: str) -> bool:
+    """Is there anything left to compare after normalization?
+
+    "The names differ" and "we had nothing to compare" are different facts and
+    an admin working the queue has to be able to tell them apart. Public so
+    the international registry adapters can draw the same distinction without
+    reaching into this module's internals.
+    """
+    return bool(_normalize_family_name(name))
+
+
 def family_names_match(claimed: str, registry: str) -> bool:
     a, b = _normalize_family_name(claimed), _normalize_family_name(registry)
     if not a or not b:
