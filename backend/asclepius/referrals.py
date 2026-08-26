@@ -248,6 +248,7 @@ def public_referral(
         "bounty_cents": bounty_cents,
         "invited_at": r.get("invited_at"),
         "resolved_at": r.get("resolved_at"),
+        "first_case_at": r.get("first_case_at"),
     }
 
 
@@ -290,16 +291,15 @@ def portal_base() -> str:
 def invite_url(code: Optional[str]) -> Optional[str]:
     """The bare link a physician can paste into a text message.
 
-    Points at the EXISTING physician signup page, not at a referral-specific
-    route — there is no such route, and a shareable link that 404s is worse than
-    no shareable link. The code rides along as a query parameter for provenance
-    only: attribution resolves on the invitee's EMAIL at provisioning time
-    (``store.claim_referral_for_signup``), so a link stripped by a messaging app
-    still attributes correctly.
+    Points at the landing app's /join entry, which reads ``ref`` and threads it
+    into the self-serve mint so a LINK signup attributes without the referrer
+    ever typing an email. Attribution still resolves on the invitee's EMAIL at
+    provisioning time (``store.claim_referral_for_signup``), so a link stripped
+    by a messaging app loses nothing a typed invite would have had.
     """
     if not code:
         return None
-    return f"{landing_base()}/physicians?ref={code}"
+    return f"{landing_base()}/join?ref={code}"
 
 
 # ═══ Creating a referral ══════════════════════════════════════════════════════
@@ -429,6 +429,53 @@ def _latest_for(store, referrer_id: str, email: str) -> Optional[Dict[str, Any]]
     return None
 
 
+def attach_link_signup(
+    store, *, referral_code: str, email: str, ip: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Record the referral behind a /join?ref=CODE signup. Best-effort by
+    contract: every return path is None-or-row, nothing raises past this
+    function, and the SIGNUP must never fail because attribution could not be
+    recorded — the person joining matters more than who gets credit.
+
+    Guards, in order: an unknown or blank code attributes nobody; a referrer
+    who may no longer refer mints nothing; a self-referral is refused; an
+    address already invited by this referrer keeps its existing row; the
+    per-invitee 24h cap holds here exactly as it does on the composer.
+    The email-keyed ``claim_referral_for_signup`` then attaches the row at
+    provisioning time, same as a typed invite.
+
+    Same-IP heuristic: a second link signup from the IP an earlier one used,
+    for the same referrer, flags the row for admin review. A hospital NAT
+    trips this legitimately, which is why the flag blocks nothing.
+    """
+    email = (email or "").lower().strip()
+    code = (referral_code or "").strip()
+    if not email or "@" not in email or not code:
+        return None
+    try:
+        referrer = store.get_user_by_referral_code(code)
+        if not referrer or not can_refer(referrer):
+            return None
+        if (referrer.get("email") or "").lower().strip() == email:
+            return None
+        if store.has_referral_for_email(referrer["id"], email):
+            return _latest_for(store, referrer["id"], email)
+        if store.count_recent_referrals_for_email(
+                email, hours=24) >= REFERRALS_PER_INVITEE_24H:
+            return None
+        flag_it = bool(ip) and store.count_same_ip_referrals(referrer["id"], ip) > 0
+        row = store.insert_referral(
+            referrer_id=referrer["id"], referral_code=code,
+            invitee_email=email, status="invited",
+            source="link", signup_ip=ip)
+        if flag_it:
+            store.set_referral_fraud_flag(row["referral_id"], "same_ip")
+        return row
+    except Exception:
+        log.exception("asclepius.referrals: link attribution failed (signup unaffected)")
+        return None
+
+
 async def send_invite(*, referrer: Dict[str, Any], email: str,
                       name: Optional[str], code: str) -> bool:
     """Best-effort delivery of the ONE invite email this product has.
@@ -507,6 +554,7 @@ def sweep_expiries(store, *, referrer_id: str, now: Optional[datetime] = None) -
 
 def funnel(
     store, *, referrer: Dict[str, Any], bounty_cents: int, limit: int = 200,
+    referee_bonus_cents: int = 0, cap_cents: int = 0,
 ) -> Dict[str, Any]:
     """One physician's own referrals, and what they are worth.
 
@@ -519,9 +567,19 @@ def funnel(
     who refers two colleagues and sees nothing for a month concludes it is
     broken, and you lose the mechanism that produces most of your supply.
     """
+    # The shareable link IS the product for a physician who has never typed an
+    # invite, so the code is minted on first read rather than on first send.
+    # Best-effort: a minting failure degrades to the composer, never to a 500.
+    if not referrer.get("referral_code") and can_refer(referrer):
+        try:
+            referrer = dict(referrer,
+                            referral_code=store.ensure_referral_code(referrer["id"]))
+        except Exception:
+            log.exception("asclepius.referrals: could not mint a code on read")
+
     rows = store.list_referrals_by_referrer(referrer["id"], limit=limit)
-    # An equity-holding advisor does not accrue cash — including on referrals.
-    # Reporting their referrals as "+$150 pending" would be a promise the
+    # An equity-holding account does not accrue cash — including on referrals.
+    # Reporting their referrals as pending money would be a promise the
     # compensation model does not keep.
     earns = compensation.accrues_payment(referrer)
     # What the LEDGER paid, per row. One query, and never the live constant: a
@@ -568,4 +626,15 @@ def funnel(
         # assumes nothing happened.
         "pending_count": pending,
         "pending_cents": pending * int(bounty_cents) if earns else 0,
+        # The display contract for the Referral tab: what each side of a
+        # referral is worth and the advertised ceiling, so the frontend never
+        # hardcodes a dollar figure the env could change under it.
+        "payout_structure": {
+            "referrer_bounty_cents": int(bounty_cents),
+            "referee_bonus_cents": int(referee_bonus_cents),
+            "cap_cents": int(cap_cents),
+        },
+        "cap_cents": int(cap_cents),
+        "capped": bool(cap_cents and earns
+                       and earned_cents + int(bounty_cents) > int(cap_cents)),
     }

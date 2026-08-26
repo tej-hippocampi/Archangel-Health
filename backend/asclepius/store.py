@@ -2007,6 +2007,18 @@ class AsclepiusStore:
                 ("bounty_state",       "TEXT"),
                 ("bounty_earning_id",  "TEXT"),   # the earnings row that paid it
                 ("bounty_resolved_at", "TEXT"),
+                # When the invitee's first accepted case settled the bounty.
+                # Display/admin truth only; the money truth stays in bounty_*.
+                ("first_case_at",      "TEXT"),
+                # 'email' (typed into the composer) | 'link' (arrived via
+                # /join?ref=CODE) | NULL for rows minted before the column.
+                ("source",             "TEXT"),
+                # The IP the link-signup arrived from, for the same-IP fraud
+                # heuristic. Never rendered to the referrer.
+                ("signup_ip",          "TEXT"),
+                # NULL | 'same_ip'. Display-only for admins; blocks nothing by
+                # itself — QA acceptance is the gate that actually guards money.
+                ("fraud_flag",         "TEXT"),
             ):
                 if _col not in cols("referrals"):
                     conn.execute(f"ALTER TABLE referrals ADD COLUMN {_col} {_ddl}")
@@ -7006,20 +7018,93 @@ class AsclepiusStore:
         invitee_name: Optional[str] = None,
         note: Optional[str] = None,
         status: Optional[str] = "invited",
+        source: Optional[str] = None,
+        signup_ip: Optional[str] = None,
     ) -> Dict[str, Any]:
         rid = _new_id("ref")
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT INTO referrals (referral_id, referrer_id, referral_code,
-                                       invitee_email, invitee_name, note, status, invited_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                       invitee_email, invitee_name, note, status,
+                                       source, signup_ip, invited_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (rid, referrer_id, referral_code,
                  (invitee_email or "").lower().strip() or None,
-                 invitee_name, note, status, _utcnow_iso()),
+                 invitee_name, note, status, source,
+                 (signup_ip or "").strip() or None, _utcnow_iso()),
             )
         return self.get_referral(rid)  # type: ignore[return-value]
+
+    def set_referral_fraud_flag(self, referral_id: str, flag: str) -> None:
+        """Stamp a review flag on one referral. Additive and display-only:
+        nothing reads it on a money path, so a wrong flag costs an admin a
+        glance rather than a physician a bounty."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE referrals SET fraud_flag = ? WHERE referral_id = ?",
+                (flag, referral_id))
+
+    def stamp_referral_first_case(self, referral_id: str, *, at: str) -> None:
+        """Record when the invitee's first accepted case settled the bounty.
+        First writer wins: the stamp is a historical fact, not a live status."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE referrals SET first_case_at = ? "
+                "WHERE referral_id = ? AND first_case_at IS NULL",
+                (at, referral_id))
+
+    def count_same_ip_referrals(self, referrer_id: str, signup_ip: str) -> int:
+        """How many of this referrer's link signups already arrived from this
+        IP. Feeds the same-IP fraud heuristic; a hospital NAT will trip it,
+        which is exactly why the flag is a review cue and never a block."""
+        ip = (signup_ip or "").strip()
+        if not ip:
+            return 0
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM referrals "
+                "WHERE referrer_id = ? AND signup_ip = ?",
+                (referrer_id, ip)).fetchone()
+        return int(row["n"] or 0)
+
+    def referral_earned_cents(self, referrer_id: str) -> int:
+        """Everything the ledger has paid this referrer in referral bounties,
+        void rows excluded. The cap check reads THIS, never a count of rows,
+        so a historical rate change cannot bend the ceiling."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(amount_cents), 0) AS total FROM earnings "
+                "WHERE kind = 'referral' AND user_id = ? AND status != 'void'",
+                (referrer_id,)).fetchone()
+        return int(row["total"] or 0)
+
+    def insert_referee_bonus(
+        self, *, earning_id: str, user_id: str, referral_id: str,
+        amount_cents: int, accrued_at: str, note: Optional[str] = None,
+    ) -> Optional[str]:
+        """The invitee's own first-case bonus, at most once per referral row.
+
+        Same shape as the referrer bounty: ``UNIQUE(kind, ref_id)`` with
+        ``ref_id`` = the referral_id makes a second insert a database-level
+        no-op, and the caller detects whether ITS insert won by comparing the
+        earning id read back. Returns the earning id on the ledger (this
+        call's or a predecessor's), or None if nothing could be written.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO earnings "
+                "(earning_id, user_id, kind, ref_id, amount_cents, rate_cents, "
+                " status, accrued_at, resolved_at, note) "
+                "VALUES (?, ?, 'referee_first_case', ?, ?, ?, 'approved', ?, ?, ?)",
+                (earning_id, user_id, referral_id, int(amount_cents),
+                 int(amount_cents), accrued_at, accrued_at, note))
+            row = conn.execute(
+                "SELECT earning_id FROM earnings "
+                "WHERE kind = 'referee_first_case' AND ref_id = ?",
+                (referral_id,)).fetchone()
+        return row["earning_id"] if row else None
 
     def get_referral(self, referral_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:

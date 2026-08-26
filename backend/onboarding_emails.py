@@ -920,6 +920,38 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str
     return _shell(subject="You're approved for Asclepius", body_html=body)
 
 
+def build_enterprise_note_email(
+    *,
+    sender_name: str,
+    sender_email: str,
+    specialty: str,
+    organization: str,
+    note: str,
+) -> str:
+    """Internal: a physician says their health system might sell data or
+    partner on enterprise labeling. Straight to a founder inbox; every field
+    is untrusted physician input and is escaped by the primitives."""
+    rows = [
+        ("Physician", sender_name or "Not given", False),
+        ("Email", sender_email or "Not given", True),
+        ("Specialty", specialty or "Not given", False),
+        ("Organization", organization or "Not given", False),
+    ]
+    body = (
+        _eyebrow("Internal · Enterprise")
+        + _h1("A physician flagged a health-system deal.")
+        + _inset_card(_detail_rows(rows))
+        + _p(html.escape(_scrub_dashes(note)))
+        + _p(
+            "Sent from the Referral tab's health-system note card. Reply goes "
+            "to you, not to the physician; reach them at the address above.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Enterprise note", body_html=body)
+
+
 def build_community_digest_email(
     *, activity_items: Iterable[Tuple[str, str]], community_url: str
 ) -> str:

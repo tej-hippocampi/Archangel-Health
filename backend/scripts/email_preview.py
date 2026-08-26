@@ -159,6 +159,17 @@ def _cases() -> list[tuple[str, str, str, str]]:
                 datasets_label="Nephrology reasoning traces", data_format="JSONL",
                 record_count=4820),
         ),
+        (
+            "18-enterprise-note", "Internal: enterprise note",
+            "A physician flags a health-system data or labeling deal.",
+            oe.build_enterprise_note_email(
+                sender_name="Dr. Amara Okafor",
+                sender_email="a.okafor@riverside.example.org",
+                specialty="Nephrology", organization="Riverside Nephrology",
+                note="Our health system is consolidating its data governance "
+                     "committee and there is appetite for a de-identified data "
+                     "partnership. Happy to make an introduction to our CMIO."),
+        ),
     ]
 
 

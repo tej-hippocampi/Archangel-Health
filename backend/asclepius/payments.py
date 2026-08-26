@@ -131,6 +131,10 @@ KIND_REVIEW_SESSION = "review_session"
 # makes every other payout in this module un-double-payable — covers it too, with
 # ``ref_id`` being the referral_id.
 KIND_REFERRAL = "referral"
+# The INVITEE's side of the same settlement: a small first-case bonus, paid to
+# the referred physician when the referrer's bounty settles. Same ref_id (the
+# referral row), so the same UNIQUE guard covers it.
+KIND_REFEREE_BONUS = "referee_first_case"
 SESSION_KIND_REVIEW = "review"
 
 # ─── Ledger states ────────────────────────────────────────────────────────────
@@ -207,21 +211,41 @@ def tr_min_seconds() -> int:
 
 
 def referral_bounty_cents() -> int:
-    """$150 when a physician you referred completes their first case.
+    """$50 when a physician you referred is verified and completes their first
+    accepted case.
 
     A ONE-TIME BOUNTY, not a percentage of the colleague's ongoing work, and the
     reasoning is worth keeping next to the number. A revenue share creates an
     indefinite liability against every future task; it is a compliance question
     the moment anyone asks whether physicians are being paid to recruit
     physicians; and — the practical objection — it is unexplainable on a
-    dashboard. *"$150 when your colleague completes their first case"* is a
+    dashboard. *"$50 when your colleague completes their first case"* is a
     sentence a doctor can hold in their head. A trailing percentage is a
     spreadsheet.
 
     Like every other rate here it lives in env and is STAMPED ON THE LEDGER ROW
     at accrual, so changing it can never restate a bounty already earned.
     """
-    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 15000)
+    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 5000)
+
+
+def referee_bonus_cents() -> int:
+    """$25 to the REFERRED physician after their first accepted case.
+
+    Small on purpose: their real incentive is the case pay itself, and this is
+    framed as a first-case bonus so it doubles as activation. Paid only when a
+    referrer's bounty settles, which inherits every guard that settlement runs
+    (QA-accepted work, no self-referral, verified account)."""
+    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 2500)
+
+
+def referral_cap_cents() -> int:
+    """The most one referrer can earn in bounties, ever: $5,200 (104 x $50).
+
+    The advertised ceiling. Enforced at accrual by reading the LEDGER, so a
+    historical rate change cannot bend it, and a referral past the cap settles
+    as ineligible rather than sitting pending forever."""
+    return _env_int("ASCLEPIUS_REFERRAL_CAP_CENTS", 520_000)
 
 
 def tl_auto_approve_days() -> int:
@@ -1322,6 +1346,7 @@ def accrue_referral_bounty(
     # Cached per referrer: a popular invitee with four referrals costs four rows
     # and not four lookups.
     referrers: Dict[str, Optional[Dict[str, Any]]] = {}
+    capped: Dict[str, bool] = {}
 
     def _eligible(referral: Dict[str, Any]) -> bool:
         rid = referral.get("referrer_id") or ""
@@ -1329,7 +1354,15 @@ def accrue_referral_bounty(
             return False                      # self-referral, the patient version
         if rid not in referrers:
             referrers[rid] = store.get_user_by_id(rid or "")
-        return compensation.accrues_payment(referrers[rid])
+        if not compensation.accrues_payment(referrers[rid]):
+            return False
+        # The advertised ceiling: a referrer at the cap stops accruing, and the
+        # row settles as ineligible rather than pending forever. Read from the
+        # ledger so a historical rate change cannot bend it.
+        if rid not in capped:
+            capped[rid] = (store.referral_earned_cents(rid) + referral_bounty_cents()
+                           > referral_cap_cents())
+        return not capped[rid]
 
     stamp = _ledger_ts(now)
     eligible_ids = []
@@ -1356,6 +1389,36 @@ def accrue_referral_bounty(
     )
     if settled is None:
         return None
+
+    # The settlement is the moment the referral produced value, whichever call
+    # got here first: stamp the fact, and pay the INVITEE's side of the same
+    # bet. Both are idempotent (first-writer stamp; UNIQUE(kind, ref_id) on the
+    # ledger) and both are best-effort — the referrer's bounty must never be
+    # unwound by a bookkeeping failure on the invitee's bonus.
+    try:
+        store.stamp_referral_first_case(settled["referral_id"], at=stamp)
+        if compensation.accrues_payment(invitee):
+            bonus_minted = _new_id("earn")
+            written = store.insert_referee_bonus(
+                earning_id=bonus_minted,
+                user_id=referred_user_id,
+                referral_id=settled["referral_id"],
+                amount_cents=referee_bonus_cents(),
+                accrued_at=stamp,
+                note="First case bonus · you were referred by a colleague",
+            )
+            if written == bonus_minted:
+                store.log_event(
+                    entity_type="earning", entity_id=bonus_minted,
+                    event_type="referee_bonus_accrued", actor=None,
+                    payload={"kind": KIND_REFEREE_BONUS,
+                             "referral_id": settled["referral_id"],
+                             "user_id": referred_user_id,
+                             "amount_cents": referee_bonus_cents()},
+                )
+    except Exception:
+        log.exception("asclepius.payments: referee bonus bookkeeping failed "
+                      "(the referrer's bounty stands)")
 
     earning = store.get_earning(kind=KIND_REFERRAL, ref_id=settled["referral_id"])
     if earning is None:
