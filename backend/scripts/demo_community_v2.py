@@ -1,5 +1,10 @@
 """Seed a local Community v2 demo world.
 
+DEV ONLY. Never run this against a production database: it plants fictional
+physicians and fabricated chatter. The production community starts EMPTY by
+policy (see scripts/purge_community.py for the cleanup that enforces it).
+The guard below refuses to run when a production environment is detected.
+
 Run ONCE from ``backend/`` (uses the same DB paths the server will):
 
     .venv/bin/python scripts/demo_community_v2.py
@@ -38,6 +43,10 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+if (os.getenv("ENV") or "").strip().lower() == "production" or os.getenv("RAILWAY_ENVIRONMENT"):
+    print("Refusing to seed demo data: this looks like a production environment.")
+    sys.exit(1)
 
 os.environ.setdefault("EMAIL_DEV_MODE", "1")
 

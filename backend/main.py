@@ -6443,6 +6443,20 @@ async def internal_run_community_digest(
     return {**result, "ran_at": _utcnow_iso()}
 
 
+@app.post("/internal/community/purge", include_in_schema=False)
+async def internal_purge_community(authorization: Optional[str] = Header(None)):
+    """One-shot cleanup: hard-delete bot-authored posts (news digests,
+    welcomes) and posts by authors with no account in the users plane
+    (demo-seeded doctors), so a deployed community starts empty. Channels and
+    human posts survive."""
+    _check_internal_auth(authorization)
+    from asclepius.store import get_store as _asc_store  # noqa: PLC0415
+    from community.store import get_community_store as _cstore  # noqa: PLC0415
+    valid_ids = [u["id"] for u in _asc_store().list_users()]
+    counts = _cstore().purge_generated_content(valid_user_ids=valid_ids)
+    return {"ok": True, **counts, "ran_at": _utcnow_iso()}
+
+
 @app.post("/internal/community/run-event-reminders", include_in_schema=False)
 async def internal_run_event_reminders(authorization: Optional[str] = Header(None)):
     """Manual trigger for the Community v2.1 event-reminder sweep (demo/QA)."""

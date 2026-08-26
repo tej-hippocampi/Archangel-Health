@@ -146,10 +146,13 @@ def test_the_digest_uses_the_product_palette():
 
 # ─── Shipping posture ────────────────────────────────────────────────────────
 
-def test_the_news_digest_is_on_by_default(monkeypatch):
-    """It was built, tested, and then left switched off."""
+def test_the_news_digest_is_off_by_default(monkeypatch):
+    """The community starts empty by policy: no bot-authored news until the
+    dedicated news software replaces this pipeline. Opt in explicitly."""
     from community import digest as d
     monkeypatch.delenv("COMMUNITY_NEWS_ENABLED", raising=False)
+    assert d.news_enabled() is False
+    monkeypatch.setenv("COMMUNITY_NEWS_ENABLED", "1")
     assert d.news_enabled() is True
     monkeypatch.setenv("COMMUNITY_NEWS_ENABLED", "0")
     assert d.news_enabled() is False

@@ -904,6 +904,78 @@ class CommunityStore:
             ).fetchone()
         return bool(row)
 
+    # ── Generated-content purge ──────────────────────────────────────────
+
+    def purge_generated_content(
+        self, *, valid_user_ids: Optional[List[str]] = None
+    ) -> Dict[str, int]:
+        """Hard-delete every machine-authored post so a community can start
+        empty: everything by the ``u-system`` bot (news digests, welcomes) and,
+        when ``valid_user_ids`` is given, everything by an author id with no
+        account in the users plane (demo-seeded doctors). Replies nested under
+        a purged message go with it, because a human answer to a deleted bot
+        post is context-free noise. Channels, DMs, reads, prefs and human
+        top-level posts survive.
+
+        Hard delete, not the soft delete moderation uses: these rows are
+        synthetic and carry no audit value, and the point of the purge is that
+        they stop existing. Attachment blobs may be orphaned on disk; only the
+        rows are removed here.
+        """
+        valid = set(valid_user_ids) if valid_user_ids is not None else None
+        counts = {"messages": 0, "reactions": 0, "pins": 0,
+                  "notifications": 0, "attachments": 0}
+        with self._conn() as conn:
+            authors = [
+                r["author_user_id"]
+                for r in conn.execute(
+                    "SELECT DISTINCT author_user_id FROM community_messages"
+                ).fetchall()
+            ]
+            targets = {
+                a for a in authors
+                if a == "u-system" or (valid is not None and a not in valid)
+            }
+            if not targets:
+                return counts
+            marks = ",".join("?" for _ in targets)
+            ids = [
+                r["id"]
+                for r in conn.execute(
+                    f"SELECT id FROM community_messages WHERE author_user_id IN ({marks})",
+                    tuple(targets),
+                ).fetchall()
+            ]
+            if ids:
+                id_marks = ",".join("?" for _ in ids)
+                ids_t = tuple(ids)
+                # Threads are one level deep, so a single parent sweep is total.
+                child_ids = [
+                    r["id"]
+                    for r in conn.execute(
+                        f"SELECT id FROM community_messages WHERE parent_message_id IN ({id_marks})",
+                        ids_t,
+                    ).fetchall()
+                ]
+                ids = list(dict.fromkeys(ids + child_ids))
+                id_marks = ",".join("?" for _ in ids)
+                ids_t = tuple(ids)
+                for table, key in (
+                    ("community_reactions", "reactions"),
+                    ("community_pins", "pins"),
+                    ("community_notifications", "notifications"),
+                    ("community_attachments", "attachments"),
+                ):
+                    cur = conn.execute(
+                        f"DELETE FROM {table} WHERE message_id IN ({id_marks})", ids_t
+                    )
+                    counts[key] = cur.rowcount
+                cur = conn.execute(
+                    f"DELETE FROM community_messages WHERE id IN ({id_marks})", ids_t
+                )
+                counts["messages"] = cur.rowcount
+        return counts
+
     # ── Email preferences ────────────────────────────────────────────────
 
     def email_prefs(self, user_id: str) -> Dict[str, Any]:
