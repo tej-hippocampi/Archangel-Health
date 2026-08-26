@@ -390,7 +390,8 @@
           ? h('span', { class: 'cm-chan-unread' }, unread > 99 ? '99+' : String(unread))
           : (unread > 0 ? h('span', { class: 'dot dot-lime', 'aria-label': 'unread' }) : null));
     };
-    const coreChans = state.channels.filter((c) => (c.group || 'core') !== 'specialty');
+    const coreChans = state.channels.filter(
+      (c) => (c.group || 'core') !== 'specialty' && (c.group || 'core') !== 'country');
     const mySpec = ((state.me && state.me.specialty) || '').toLowerCase();
     const specChans = state.channels.filter((c) => c.group === 'specialty')
       .sort((a, b) => ((b.specialty || '').toLowerCase() === mySpec ? 1 : 0)
@@ -404,6 +405,20 @@
         h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Specialty')));
       for (const ch of specChans) spSection.appendChild(chanBtn(ch));
       scrollBox.appendChild(spSection);
+    }
+
+    // Countries. Own room first, same as specialty: a doctor in Riyadh should
+    // find Saudi Arabia at the top of the list rather than scrolling past
+    // Australia to reach it.
+    const myCountry = ((state.me && state.me.country) || '').toUpperCase();
+    const countryChans = state.channels.filter((c) => c.group === 'country')
+      .sort((a, b) => ((b.country || '').toUpperCase() === myCountry ? 1 : 0)
+                    - ((a.country || '').toUpperCase() === myCountry ? 1 : 0));
+    if (countryChans.length) {
+      const coSection = h('div', { class: 'cm-rail-section' },
+        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Countries')));
+      for (const ch of countryChans) coSection.appendChild(chanBtn(ch));
+      scrollBox.appendChild(coSection);
     }
 
     // direct messages (user-requested extension)

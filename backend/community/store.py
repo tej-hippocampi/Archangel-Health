@@ -365,24 +365,47 @@ class CommunityStore:
                 conn.execute(
                     "ALTER TABLE community_channels ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"
                 )
-            if "kind" not in cols("community_messages"):
+            if "country" not in ch_cols:
+                conn.execute("ALTER TABLE community_channels ADD COLUMN country TEXT")
+            msg_cols = cols("community_messages")
+            if "kind" not in msg_cols:
                 conn.execute("ALTER TABLE community_messages ADD COLUMN kind TEXT")
+            # Link cards on a bot post: title, url, domain, one-line summary,
+            # and an optional discussion prompt. Stored as JSON beside the body
+            # rather than pasted into it, so the client can render a card and a
+            # digest email can render a list from the same row.
+            if "cards_json" not in msg_cols:
+                conn.execute("ALTER TABLE community_messages ADD COLUMN cards_json TEXT")
 
     # ─── Channels ─────────────────────────────────────────────────────────────
-    def ensure_default_channels(self) -> None:
+    def ensure_default_channels(
+        self, country_codes: Optional[List[str]] = None
+    ) -> None:
         """Idempotently seed the fixed channels (PRD §3 + Community v2): the
-        core set plus one channel per enabled specialty. A slug removed from
-        the config is DEACTIVATED, never deleted — its history stays in the DB
-        and moderation/audit paths can still resolve it."""
-        seeded = DEFAULT_CHANNELS + specialty_channel_defs()
+        core set, one channel per enabled specialty, and one per country that
+        has members. A slug removed from the config is DEACTIVATED, never
+        deleted — its history stays in the DB and moderation/audit paths can
+        still resolve it.
+
+        ``country_codes`` comes from the caller because it is the one input
+        this module cannot compute: it lives on the asclepius plane, and
+        reaching across for it here would put a users query inside the
+        community store. Passing None means "leave the country channels as they
+        are", NOT "deactivate them" — a caller without the roster to hand must
+        not silently retire every country room.
+        """
+        from community.countries import channel_defs  # noqa: PLC0415 — config only
+
+        country_channels = channel_defs(country_codes or [])
+        seeded = DEFAULT_CHANNELS + specialty_channel_defs() + country_channels
         with self._conn() as conn:
             for pos, ch in enumerate(seeded):
                 conn.execute(
                     """
                     INSERT INTO community_channels
                         (id, slug, name, description, post_policy, position,
-                         specialty, grp, is_active, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                         specialty, grp, country, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                     ON CONFLICT(slug) DO UPDATE SET
                         name = excluded.name,
                         description = excluded.description,
@@ -390,6 +413,7 @@ class CommunityStore:
                         position = excluded.position,
                         specialty = excluded.specialty,
                         grp = excluded.grp,
+                        country = excluded.country,
                         is_active = 1
                     """,
                     (
@@ -401,13 +425,24 @@ class CommunityStore:
                         pos,
                         ch.get("specialty"),
                         ch.get("grp") or "core",
+                        ch.get("country"),
                         _utcnow_iso(),
                     ),
                 )
-            qmarks = ",".join("?" * len(seeded))
+            keep = [ch["slug"] for ch in seeded]
+            if country_codes is None:
+                # No roster in hand: leave existing country channels alone
+                # rather than retiring rooms whose members we simply did not
+                # look up on this call.
+                keep += [
+                    r["slug"] for r in conn.execute(
+                        "SELECT slug FROM community_channels WHERE grp = 'country'"
+                    ).fetchall()
+                ]
+            qmarks = ",".join("?" * len(keep))
             conn.execute(
                 f"UPDATE community_channels SET is_active = 0 WHERE slug NOT IN ({qmarks})",
-                [ch["slug"] for ch in seeded],
+                keep,
             )
 
     def list_channels(self, *, include_inactive: bool = False) -> List[Dict[str, Any]]:

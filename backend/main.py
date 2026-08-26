@@ -6359,6 +6359,30 @@ async def startup_team_scheduler():
         _auth_logger.warning("[asclepius] verification agent failed to start", exc_info=True)
 
 
+def _member_country_codes() -> list:
+    """Countries where active evaluators actually practise.
+
+    Read on the asclepius plane and handed to the community store, which must
+    not query users itself. A failure here returns nothing, which leaves the
+    country channels exactly as they are rather than retiring them.
+    """
+    try:
+        from asclepius.store import get_store as _get_astore
+
+        codes = []
+        for user in _get_astore().list_users():
+            if not user.get("active") or user.get("role") != "evaluator":
+                continue
+            code = (user.get("country_of_practice")
+                    or user.get("country_of_licensure") or "").strip().upper()
+            if code and code not in codes:
+                codes.append(code)
+        return codes
+    except Exception:
+        _auth_logger.warning("[community] could not read member countries", exc_info=True)
+        return []
+
+
 @app.on_event("startup")
 async def startup_community():
     """Asclepius Community (Community PRD): init the standalone store (seeds the
@@ -6371,6 +6395,13 @@ async def startup_community():
         from community.router import resolve_member_for_notify as _resolve_member
 
         app.state.community_store = _get_cstore()
+        # Country channels exist for the countries that have members. The
+        # roster lives on the asclepius plane, so it is read here and passed
+        # in: the community store must not query users itself.
+        try:
+            app.state.community_store.ensure_default_channels(_member_country_codes())
+        except Exception:
+            _auth_logger.warning("[community] country channel seeding failed", exc_info=True)
         _cnotify.start_digest_loop(resolve_member=_resolve_member)
         # Community v2: the #medical-ai-news content loop is OPT-IN
         # (COMMUNITY_NEWS_ENABLED=1); the internal trigger endpoint below
