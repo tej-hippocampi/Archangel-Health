@@ -35,7 +35,7 @@ log = logging.getLogger("asclepius.verify")
 router = APIRouter(prefix="/api/asclepius/verify", tags=["asclepius-verify"])
 
 # The tier vocabulary is NOT written here. It is imported from the capability
-# layer (Advisor PRD §2.2) so this router and every access gate can never
+# layer so this router and every access gate can never
 # disagree about what the ``users.tier`` column may hold — the Seam-1 failure
 # mode (B validates one set of strings, A's gate compares against another).
 _TIERS = asc_caps.TIERS
@@ -456,7 +456,7 @@ async def approve_signup(
                  "followed_proposal": prop["proposed_tier"] == tier,
                  "note": body.note or None},
     )
-    # Advisor PRD §3.2 step 4: a referred physician reaching 'approved' is the
+    # A referred physician reaching 'approved' is the
     # end of their referrer's funnel. Best-effort — a referral bookkeeping
     # failure must never undo an approval that already committed.
     try:

@@ -840,7 +840,7 @@ def _provision_asclepius_user(
         credentials=creds,
         attestations=attestations or {},
     )
-    # Advisor PRD §3.2 step 3: attach this signup to whichever advisor referred
+    # Attach this signup to whichever physician referred
     # them. Resolution is by the address the invite was addressed to — see
     # ``store.find_open_referral_for_email``. Best-effort: a referral that
     # cannot be claimed must never cost a physician their account.
@@ -906,7 +906,7 @@ def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, 
             result = credentialing.verify_npi(npi, family_name, cached=cached)
             store.set_npi_result(uid, result)
             if result.get("result") == "verified":
-                # Advisor PRD §3.2 step 4: the referrer's funnel follows the
+                # The referrer's funnel follows the
                 # invitee. 'verified' is the NPI coming back clean; 'approved'
                 # is the admin's decision and is stamped from the verify router.
                 try:
