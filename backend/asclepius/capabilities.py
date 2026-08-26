@@ -157,6 +157,22 @@ _BY_ACCESS: Dict[str, FrozenSet[str]] = {
 }
 
 
+#: Account kinds that are not physicians. A physician is NULL here, which is
+#: who everyone was before there was more than one door into this product.
+ADVISOR = "advisor"       # a non-clinical supporter: sees the product, refers
+REFERRER = "referrer"     # holds a referral link and nothing else
+
+#: A referral-only account reaches exactly two things: the pages that explain
+#: what this is, and their own referral surface. Not the case queue, not the
+#: community, not another physician's work. The link is handed to someone who
+#: knows doctors, not to a doctor.
+_REFERRER_SURFACES: FrozenSet[str] = frozenset({BROWSE, REFERRAL})
+
+
+def account_kind(user: Optional[Dict[str, Any]]) -> Optional[str]:
+    return ((user or {}).get("account_kind") or "").strip().lower() or None
+
+
 def access_level(user: Optional[Dict[str, Any]]) -> str:
     """Map a user row to its access level. Reads the dict only, never SQL."""
     u = user or {}
@@ -178,7 +194,13 @@ def surfaces(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
     """Which product surfaces this user may reach. An admin reaches all."""
     if (user or {}).get("role") == "admin":
         return frozenset(SURFACES)
-    return _BY_ACCESS.get(access_level(user), frozenset())
+    granted_by_access = _BY_ACCESS.get(access_level(user), frozenset())
+    # A referral-only account is capped no matter how its verification lands:
+    # approving one does not turn the person who introduced us to a hospital
+    # into someone who grades cases.
+    if account_kind(user) == REFERRER:
+        return granted_by_access & _REFERRER_SURFACES
+    return granted_by_access
 
 
 def can_surface(user: Optional[Dict[str, Any]], surface: str) -> bool:

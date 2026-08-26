@@ -177,6 +177,10 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         # gate only cares about three.
         "access_level": _caps.access_level(user),
         "surfaces": sorted(_caps.surfaces(user)),
+        # Which door they came through. NULL is a physician. The portal uses
+        # it to stop showing a referral-only account a rail full of locked
+        # doors it will never open.
+        "account_kind": _caps.account_kind(user),
     }
 
 

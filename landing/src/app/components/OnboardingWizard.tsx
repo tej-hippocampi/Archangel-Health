@@ -858,7 +858,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             eyebrow={mode === "member" ? "Step 1 of 4" : eyebrows[phase]}
             memberMode={mode === "member"}
             phase={mode === "member" ? undefined : (phase as 1 | 2 | 3)}
-            relaxed={mode !== "member" && signupFlavor === "general"}
+            // Every non-clinical door relaxes the physician credential
+            // screens: they exist to check a doctor, and have nothing to ask
+            // someone who is not claiming to be one.
+            relaxed={mode !== "member"
+              && ["general", "advisor", "referrer"].includes(signupFlavor)}
           />
         );
       }

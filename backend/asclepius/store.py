@@ -1092,6 +1092,12 @@ class AsclepiusStore:
                 # is never, on its own, a rejection.
                 ("flagged",               "INTEGER"),  # 1 | 0 | NULL(not assessed)
                 ("flags_json",            "TEXT"),
+                # What KIND of account this is, from the link they signed up
+                # through. NULL is a physician, which is who everyone was
+                # before there was more than one door. 'advisor' is a
+                # non-clinical supporter; 'referrer' holds a referral link and
+                # nothing else. Read by capabilities.surfaces().
+                ("account_kind",          "TEXT"),
             ):
                 if _col not in cols("users"):
                     conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
@@ -2227,6 +2233,7 @@ class AsclepiusStore:
         years_experience: Optional[int] = None,
         credentials: Optional[Dict[str, Any]] = None,
         attestations: Optional[Dict[str, Any]] = None,
+        account_kind: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Idempotent upsert used by the Asclepius onboarding flow.
 
@@ -2273,13 +2280,17 @@ class AsclepiusStore:
                         -- health-system name, but never wipe a previously-set org
                         -- if a re-onboard omits it (COALESCE keeps the old value).
                         organization = COALESCE(?, organization), clinical_role = ?,
-                        npi = ?, credentials_json = ?, attestations_json = ?{pw_stamp}
+                        npi = ?, credentials_json = ?, attestations_json = ?,
+                        -- COALESCE for the same reason organization uses it: a
+                        -- re-onboard that omits the kind must not silently
+                        -- promote a referral-only account into a physician.
+                        account_kind = COALESCE(?, account_kind){pw_stamp}
                     WHERE email = ?
                     """,
                     (
                         *pw_param, role, specialty, specialty_niche, board_cert,
                         years_experience, full_name, org_name, org_name, clinical_role, npi,
-                        creds_json, atts_json, *pw_stamp_param, email,
+                        creds_json, atts_json, account_kind, *pw_stamp_param, email,
                     ),
                 )
                 return self.get_user_by_email(email)  # type: ignore[return-value]
@@ -2290,13 +2301,13 @@ class AsclepiusStore:
                 INSERT INTO users (id, email, password_hash, role, specialty, specialty_niche,
                                    board_cert, years_experience, organization, id_hashed, active,
                                    full_name, org_name, clinical_role, npi, credentials_json,
-                                   attestations_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                                   attestations_json, account_kind, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     uid, email, password_hash or hash_password(secrets.token_urlsafe(32)), role, specialty, specialty_niche,
                     board_cert, years_experience, org_name, id_hashed, full_name, org_name,
-                    clinical_role, npi, creds_json, atts_json, _utcnow_iso(),
+                    clinical_role, npi, creds_json, atts_json, account_kind, _utcnow_iso(),
                 ),
             )
         return self.get_user_by_id(uid)  # type: ignore[return-value]

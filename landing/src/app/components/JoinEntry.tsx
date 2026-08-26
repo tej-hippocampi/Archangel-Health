@@ -16,10 +16,13 @@ import * as authApi from "@/lib/auth-api";
  * intermediate email-entry modal. Query params prefill it so a personalized
  * link (`/join?first=Amara&last=Okafor&email=a@x.org`) lands with nothing to
  * type, a referral link (`/join?ref=DRCHEN99`) attributes the signup, and a
- * general link (`/join?flavor=general`) relaxes the MD credential screens for
- * a non-clinical signer such as a business advisor. Submitting mints the same
- * guarded self-serve invite the "Become a contributor" modal uses and drops
- * straight into the wizard.
+ * and a non-clinical flavor relaxes the MD credential screens. There are
+ * three of those, because they go to different people:
+ *   ?flavor=general    an invited non-clinical signer
+ *   ?flavor=advisor    a supporter who looks around and refers
+ *   ?flavor=referrer   someone who holds a referral link and nothing else
+ * Submitting mints the same guarded self-serve invite the "Become a
+ * contributor" modal uses and drops straight into the wizard.
  */
 export default function JoinEntry() {
   const params = useMemo(
@@ -27,7 +30,12 @@ export default function JoinEntry() {
     [],
   );
   const flavor = (params.get("flavor") || "").trim().toLowerCase();
-  const general = flavor === "general";
+  /* Which door this link is. All three non-clinical ones skip the physician
+     credential screens; what changes is what the page promises, because the
+     three are handed to different people for different reasons. */
+  const advisor = flavor === "advisor";
+  const referrer = flavor === "referrer";
+  const general = flavor === "general" || advisor || referrer;
   const [firstName, setFirstName] = useState((params.get("first") || "").trim());
   const [lastName, setLastName] = useState((params.get("last") || "").trim());
   const [email, setEmail] = useState((params.get("email") || "").trim());
@@ -74,14 +82,23 @@ export default function JoinEntry() {
       <main style={{ flex: 1, padding: "56px 24px 80px", position: "relative" }}>
         <OnboardingCard
           maxWidth={560}
-          eyebrow={general ? "Join Archangel" : "Join as a physician"}
+          eyebrow={
+            referrer ? "Refer physicians"
+              : advisor ? "Join as an advisor"
+                : general ? "Join Archangel"
+                  : "Join as a physician"
+          }
           title={redirecting ? "Taking you to onboarding." : "Get started."}
           lede={
             redirecting
               ? "One moment."
-              : general
-                ? "You have an invite link. Confirm your name and email and we will set up your access; the medical credential steps are optional for you."
-                : "Confirm your name and email and we will take you straight into onboarding. Paid clinical AI evaluation work, on your schedule."
+              : referrer
+                ? "You do not need to be a doctor. Confirm your name and email and you get your own referral link: every physician who joins through it, and every health system you introduce, is credited to you and paid out."
+                : advisor
+                  ? "Confirm your name and email and we will set up your access. You can look around the platform, and you get your own referral link for the physicians and health systems you know. No medical credentials needed."
+                  : general
+                    ? "You have an invite link. Confirm your name and email and we will set up your access; the medical credential steps are optional for you."
+                    : "Confirm your name and email and we will take you straight into onboarding. Paid clinical AI evaluation work, on your schedule."
           }
         >
           {!redirecting && (
