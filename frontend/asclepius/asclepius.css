@@ -618,6 +618,26 @@
 }
 .asc-score-note { font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
 .asc-score-more { align-self: flex-start; }
+/* ── The review card on the Tasks surface (PRD-R via PRD-SCORE build):
+   one surface for every kind of work, so a reviewer's queue is a distinct
+   card here instead of a nav tab. Pink accent = the review console's own
+   wayfinding color, not a safety signal. ── */
+.asc-dash-card-review {
+  border-color: var(--pink-line, var(--hairline-strong));
+  background: var(--pink-wash, var(--card-in));
+}
+
+/* ── Admin profile: the score trajectory rows (PRD-SCORE). ── */
+.asc-score-hist-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
 .asc-dash-widget-title {
   font-family: var(--mono); font-size: var(--t-chrome); text-transform: uppercase;
   letter-spacing: 0.08em; color: var(--ink-faint);
@@ -3680,13 +3700,3 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 }
 .asc-linkish:hover { color: var(--ink); }
 
-/* ── Admin profile: the score trajectory rows (PRD-SCORE). ── */
-.asc-score-hist-row {
-  display: grid;
-  grid-template-columns: 60px 1fr auto;
-  gap: 10px;
-  padding: 6px 0;
-  border-top: 1px solid var(--hairline);
-  font-size: 12.5px;
-  color: var(--ink-soft);
-}

@@ -678,27 +678,25 @@ _PORTAL_JS = _FRONTEND / "asclepius.js"
 
 
 def test_the_portal_has_a_route_to_the_review_console():
-    """U3. Nothing in the portal linked to /asclepius/review. A promoted
-    reviewer signed in and saw Tasks · Community · Advisor · Guide — the review
-    console linked BACK to the portal, and nothing linked forward. It fell in the
-    gap between two ownership lists, which is why a surface can be complete,
-    correct and unreachable."""
+    """U3, restated for the unified Tasks surface. The review console's route
+    from the portal is now the review CARD on the Tasks dashboard, not a rail
+    tab — one surface for every kind of work, with the backend deciding what
+    appears on it. The card must exist for every reviewer (it IS the route),
+    and there must be no rail entry to drift beside it."""
     src = _PORTAL_JS.read_text(encoding="utf-8")
     assert "/asclepius/review" in src, "the review console has no route from the portal"
-    # It is in the rail, with an icon, like every other destination.
-    assert "dest: 'review'" in src
-    assert "review:" in src.split("RAIL_ICONS")[1][:2000]
+    assert "asc-dash-card-review" in src, "the Tasks surface has no review card"
+    assert "dest: 'review'" not in src, "the retired Review rail tab came back"
 
 
-def test_the_review_entry_is_gated_on_the_servers_capability_never_a_tier():
-    """The same rule the Advisor entry follows: the client reads the capability
-    list the server put on the session. Re-deriving 'is this a reviewer?' in the
-    frontend is the two-state check this codebase removed on purpose."""
-    import re
+def test_the_review_card_is_gated_on_the_servers_capability_never_a_tier():
+    """The same rule every gated surface follows: the client reads the
+    capability list the server put on the session. Re-deriving 'is this a
+    reviewer?' in the frontend is the two-state check this codebase removed
+    on purpose."""
     src = _PORTAL_JS.read_text(encoding="utf-8")
-    entry = re.search(r"\{[^{}]*dest:\s*'review'[^{}]*\}", src)
-    assert entry, "no rail entry for the review console"
-    assert "capability: 'review'" in entry.group(0)
+    card = src.split("asc-dash-card-review")[0][-600:]
+    assert "sessionCan('review')" in card
     # And the destination re-checks it, so a hand-typed state change cannot open
     # a section the session was never granted.
     router = src.split("function setPanel(")[1][:1200]

@@ -357,11 +357,6 @@
     // show them what they joined.
     { dest: 'tasks',     label: 'Tasks', surface: 'real_work',
       lockedHint: 'Opens when your credentials clear' },
-    // PRD-R: without this entry the review console has no route from the portal
-    // at all, so a promoted reviewer signs in and never finds the surface. The
-    // gate is `capability`: the client reads the server's capability list and
-    // never re-derives a tier.
-    { dest: 'review',    label: 'Review', capability: 'review', external: true },
     { dest: 'community', label: 'Community', surface: 'community_read', external: true },
     // Referral (PRD-REF): shown to a session whose SERVER-supplied
     // capabilities include 'refer' — every verified physician. The gate is
@@ -1692,6 +1687,13 @@
     // review" state renders FROM it, so it is fetched outside the real-work
     // try below and never blocks anything.
     const scorePromise = api('/score').catch(() => null);
+    // One Tasks surface for every kind of work: a reviewer's queue arrives
+    // here as a distinct card instead of a separate nav tab. The card is the
+    // console's route now, so it renders for every reviewer, count or no
+    // count, and the stats fetch is best-effort.
+    const reviewPromise = sessionCan('review')
+      ? api('/review/stats').catch(() => null)
+      : Promise.resolve(null);
     try {
       if (provisional) throw { __provisional: true };
       const [tasksRes, statsRes] = await Promise.all([
@@ -1715,6 +1717,7 @@
     }
     const tasks = data.tasks || [];
     scoreInfo = await scorePromise;
+    const reviewStats = await reviewPromise;
 
     const wrap = h('div', { class: 'asc-wrap' });
     const banner = provisionalBannerEl();
@@ -1726,6 +1729,24 @@
 
     const cols = h('div', { class: 'asc-dash-cols' });
     const main = h('div', { class: 'asc-dash-main' });
+
+    if (sessionCan('review')) {
+      const ready = reviewStats ? Number(reviewStats.review_ready || 0) : null;
+      main.appendChild(h('button', {
+        class: 'asc-dash-card asc-dash-card-review', type: 'button',
+        onClick: () => setPanel('review'),
+      },
+        h('div', { class: 'asc-dash-card-main' },
+          h('span', { class: 'asc-chip asc-chip-specialty asc-chip-pink' },
+            h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
+            h('span', {}, 'Review work')),
+          h('span', { class: 'asc-dash-card-meta' },
+            ready == null ? 'Open the review console'
+              : ready === 0 ? 'No pairs waiting right now'
+                : ready === 1 ? '1 pair waiting for your adjudication'
+                  : ready + ' pairs waiting for your adjudication')),
+        h('span', { class: 'asc-dash-card-go', 'aria-hidden': 'true' }, '\u2192')));
+    }
 
     if (queueError) {
       main.appendChild(renderDashboardError(queueError));
