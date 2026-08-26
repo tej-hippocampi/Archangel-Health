@@ -396,6 +396,7 @@ def apply_qa_decision(
             entity_type="submission", entity_id=sid, event_type="qa_approved", actor=reviewer_id, payload=qa_block
         )
         store.log_event(entity_type="submission", entity_id=sid, event_type="export_ready", payload={})
+        _rescore(store, sid)
         return "export_ready"
     # reject
     store.update_submission(sid, status="rejected", qa=qa_block)
@@ -403,4 +404,13 @@ def apply_qa_decision(
     store.log_event(
         entity_type="submission", entity_id=sid, event_type="qa_rejected", actor=reviewer_id, payload=qa_block
     )
+    _rescore(store, sid)
     return "rejected"
+
+
+def _rescore(store: AsclepiusStore, submission_id: str) -> None:
+    """Fold the fresh grade into the physician's contributor score.
+    Best-effort by contract: recompute_for_submission never raises."""
+    from asclepius import contributor_score as _cscore  # noqa: PLC0415
+
+    _cscore.recompute_for_submission(store, submission_id)

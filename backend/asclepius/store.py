@@ -2029,6 +2029,49 @@ class AsclepiusStore:
                 "CREATE INDEX IF NOT EXISTS idx_referrals_user ON referrals(user_id)")
             # ═══ END PRD-REF ═══
 
+            # ═══ PRD-SCORE: the contributor score ════════════════════════════
+            # One current row per physician plus an append-ish history (one row
+            # per graded submission, replaced on re-grade). The score is always
+            # recomputable from submissions + reviews; these tables exist so
+            # the dashboard and the admin roster read one row instead of
+            # replaying a physician's whole record on every page load.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS contributor_scores (
+                    user_id         TEXT PRIMARY KEY,
+                    score           REAL NOT NULL,
+                    n_cases         INTEGER NOT NULL,
+                    components_json TEXT,
+                    updated_at      TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS contributor_score_history (
+                    id              TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    score           REAL NOT NULL,
+                    prev_score      REAL,
+                    case_score      REAL,
+                    submission_id   TEXT,
+                    components_json TEXT,
+                    created_at      TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cscore_hist_user "
+                "ON contributor_score_history(user_id, created_at)")
+            # A re-graded submission replaces its own history entry rather than
+            # stacking a second one (partial: NULL submission_id rows are the
+            # initial-rating markers and there is at most one by code).
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_cscore_hist_sub "
+                "ON contributor_score_history(user_id, submission_id) "
+                "WHERE submission_id IS NOT NULL")
+            # ═══ END PRD-SCORE ═══
+
             # ── Specialty-tagged task notifications (outbox + drain) ─────────
             # One row per (recipient, specialty, upload batch): the admin request
             # enqueues these synchronously (fast, transactional) and a background
@@ -7079,6 +7122,75 @@ class AsclepiusStore:
                 "WHERE kind = 'referral' AND user_id = ? AND status != 'void'",
                 (referrer_id,)).fetchone()
         return int(row["total"] or 0)
+
+    # ─── Contributor scores (PRD-SCORE) ──────────────────────────────────────
+    def get_contributor_score(self, user_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM contributor_scores WHERE user_id = ?",
+                (user_id,)).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["components"] = json.loads(rec.pop("components_json", "null") or "null")
+        return rec
+
+    def upsert_contributor_score(
+        self, *, user_id: str, score: float, n_cases: int,
+        components: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO contributor_scores (user_id, score, n_cases, "
+                "components_json, updated_at) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET score = excluded.score, "
+                "n_cases = excluded.n_cases, components_json = excluded.components_json, "
+                "updated_at = excluded.updated_at",
+                (user_id, float(score), int(n_cases),
+                 json.dumps(components or {}), _utcnow_iso()))
+
+    def record_contributor_score_history(
+        self, *, user_id: str, score: float, prev_score: Optional[float],
+        case_score: Optional[float], submission_id: Optional[str],
+        components: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """One trajectory row per graded submission; a re-grade replaces its
+        own entry (the partial unique index is the guard). With no submission
+        (the initial rating) at most one marker row is written, ever."""
+        with self._conn() as conn:
+            if submission_id is None:
+                exists = conn.execute(
+                    "SELECT 1 FROM contributor_score_history "
+                    "WHERE user_id = ? AND submission_id IS NULL LIMIT 1",
+                    (user_id,)).fetchone()
+                if exists:
+                    return
+            else:
+                conn.execute(
+                    "DELETE FROM contributor_score_history "
+                    "WHERE user_id = ? AND submission_id = ?",
+                    (user_id, submission_id))
+            conn.execute(
+                "INSERT INTO contributor_score_history "
+                "(id, user_id, score, prev_score, case_score, submission_id, "
+                " components_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (_new_id("csh"), user_id, float(score),
+                 None if prev_score is None else float(prev_score),
+                 None if case_score is None else float(case_score),
+                 submission_id, json.dumps(components or {}), _utcnow_iso()))
+
+    def contributor_score_history(self, user_id: str, *, limit: int = 100) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM contributor_score_history WHERE user_id = ? "
+                "ORDER BY created_at DESC, id DESC LIMIT ?",
+                (user_id, max(1, limit))).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            rec["components"] = json.loads(rec.pop("components_json", "null") or "null")
+            out.append(rec)
+        return out
 
     def insert_referee_bonus(
         self, *, earning_id: str, user_id: str, referral_id: str,
