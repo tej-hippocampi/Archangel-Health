@@ -589,6 +589,27 @@
     const backBtn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm' }, '← All physicians');
     backBtn.addEventListener('click', () => { selectedId = null; rerender(); });
 
+    // Role grant (one button, two roles): how the second founder becomes an
+    // admin without touching env vars. Confirm() because this is the one
+    // console action that changes who can operate the console.
+    const isAdmin = (p.role || data.role) === 'admin';
+    const roleBtn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm' },
+      isAdmin ? 'Revoke admin' : 'Make admin');
+    roleBtn.addEventListener('click', async () => {
+      const next = isAdmin ? 'evaluator' : 'admin';
+      if (!window.confirm(
+        next === 'admin'
+          ? 'Grant this account the admin role? They will see and operate the whole console.'
+          : 'Revoke this account\u2019s admin role?')) return;
+      try {
+        await api('/admin/users/' + encodeURIComponent(id) + '/role',
+                  { method: 'POST', body: { role: next } });
+        rerender();
+      } catch (e) {
+        window.alert((e && (e.detail || e.message)) || 'That did not save.');
+      }
+    });
+
     container.appendChild(h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' },
         h('div', {},
@@ -596,7 +617,7 @@
           h('div', { class: 'asc-card-sub' },
             tierWord(p.tier), ' · ', p.specialty || 'No specialty', ' · ',
             p.health_system_name || 'Independent')),
-        backBtn),
+        h('div', { style: 'display:flex;gap:8px' }, roleBtn, backBtn)),
       h('div', { class: 'asc-card-pad asc-phys-profile-grid' },
         kvBlock(h, 'Identity', [
           ['Email', p.email], ['Phone', p.phone],

@@ -1606,7 +1606,8 @@ def mark_paid(
 
 # ═══ The Earnings read model ══════════════════════════════════════════════════
 _KIND_LABELS = {KIND_TASK: "Task", KIND_REVIEW_SESSION: "Review session",
-                KIND_REFERRAL: "Referral"}
+                KIND_REFERRAL: "Referral",
+                KIND_REFEREE_BONUS: "First case bonus"}
 # Words, not tokens — a raw status string never reaches a human.
 STATUS_WORDS = {
     ACCRUED: "Pending review",

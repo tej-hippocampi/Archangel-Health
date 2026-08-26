@@ -48,12 +48,14 @@
     // PRD-C admin restructure: sections mirror the assets the company owns
     // (Physicians · Health Systems · Export · Metrics); the old stage-named
     // views live on as sub-tabs inside them.
-    adminTab: 'physicians',   // physicians | health | export | metrics
-    pipelineFocus: null,      // upload_id deep-linked from a Health Systems bucket row
+    adminTab: 'physicians',   // physicians | work | money | data
+    pipelineFocus: null,      // upload_id deep-linked from a Data bucket row
     adminSub: {               // active sub-tab per section
-      physicians: 'roster',   //   roster | signups | verify | tasks | qa
-      health: 'systems',      //   systems | pipeline
-      export: 'bycase',       //   bycase | buyers | history
+      physicians: 'roster',   //   roster | signups | verify | qa
+      work: 'tasks',          //   tasks | metrics
+      money: 'earnings',      //   earnings | referrals
+      data: 'systems',        //   systems | pipeline | export
+      export: 'bycase',       //   bycase | buyers | history (inside Data > Export)
     },
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
@@ -7080,9 +7082,11 @@
   // ═══════════════════════════════════════════════════════════════════════════
   // Legacy tab ids (deep links, stale state) → new section + sub-tab.
   const ADMIN_TAB_ALIASES = {
-    tasks: ['physicians', 'tasks'], qa: ['physicians', 'qa'],
-    ingestion: ['health', 'pipeline'], buyers: ['export', 'buyers'],
-    exports: ['export', 'history'],
+    tasks: ['work', 'tasks'], qa: ['physicians', 'qa'],
+    metrics: ['work', 'metrics'],
+    ingestion: ['data', 'pipeline'], health: ['data', 'systems'],
+    export: ['data', 'export'], buyers: ['data', 'export'],
+    exports: ['data', 'export'],
   };
 
   // ─── Specialty resolution for an ingest upload ─────────────────────────────
@@ -7212,7 +7216,7 @@
       // switch tabs, so the operator had to re-find the upload they had just
       // clicked on.
       openPipeline: (entry) => {
-        state.adminTab = 'health'; state.adminSub.health = 'pipeline';
+        state.adminTab = 'data'; state.adminSub.data = 'pipeline';
         state.pipelineFocus = (entry && (entry.upload_id || entry.uploadId)) || null;
         renderAdminView();
       },
@@ -7234,9 +7238,9 @@
     if (alias) { state.adminTab = alias[0]; state.adminSub[alias[0]] = alias[1]; }
     const tabs = [
       ['physicians', 'Physicians'],
-      ['health', 'Health Systems'],
-      ['export', 'Export'],
-      ['metrics', 'Metrics'],
+      ['work', 'Work'],
+      ['money', 'Money'],
+      ['data', 'Data'],
     ];
     const subnav = h('div', { class: 'asc-subnav' },
       tabs.map(([id, label]) => {
@@ -7256,9 +7260,9 @@
     refreshQaBadge();
 
     if (state.adminTab === 'physicians') renderAdminPhysiciansSection(body);
-    else if (state.adminTab === 'health') renderAdminHealthSection(body);
-    else if (state.adminTab === 'export') renderAdminExportSection(body);
-    else if (state.adminTab === 'metrics') renderAdminMetrics(body);
+    else if (state.adminTab === 'work') renderAdminWorkSection(body);
+    else if (state.adminTab === 'money') renderAdminMoneySection(body);
+    else if (state.adminTab === 'data') renderAdminDataSection(body);
   }
 
   // Sub-tab strip shared by the three restructured sections.
@@ -7288,30 +7292,62 @@
       // screen at all — the console showed one physician while the founder's
       // inbox filled with signup notifications for people it could not name.
       ['roster', 'Roster'], ['signups', 'Signups'], ['verify', 'Verification'],
-      ['tasks', 'Tasks'], ['qa', 'QA'],
+      ['qa', 'QA'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
     const sub = state.adminSub.physicians;
-    if (sub === 'tasks') renderAdminTasks(inner);
-    else if (sub === 'qa') renderAdminQA(inner);
+    if (sub === 'qa') renderAdminQA(inner);
     else if (window.AdminPhysiciansSection) {
       window.AdminPhysiciansSection.render(inner, adminSectionCtx(),
         (sub === 'verify' || sub === 'signups') ? sub : 'roster');
     } else sectionModuleMissing(inner, 'The Physicians section');
   }
 
-  // Health Systems: who supplies our data. The ingestion review/promote surface
-  // lives here as "Pipeline tools".
-  function renderAdminHealthSection(body) {
+  // Work: what gets labeled and how it is going. Task import/generation
+  // beside the metrics that report on it.
+  function renderAdminWorkSection(body) {
     clear(body);
-    body.appendChild(adminSubnav('health', [
-      ['systems', 'Systems'], ['pipeline', 'Pipeline tools'],
+    body.appendChild(adminSubnav('work', [
+      ['tasks', 'Tasks'], ['metrics', 'Metrics'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
-    if (state.adminSub.health === 'pipeline') renderAdminIngestion(inner);
-    else if (window.AdminHealthSection) window.AdminHealthSection.render(inner, adminSectionCtx());
+    if (state.adminSub.work === 'metrics') renderAdminMetrics(inner);
+    else renderAdminTasks(inner);
+  }
+
+  // Money: the ledger and the referral book. Both were API-only for a while;
+  // an admin should never need curl to see what the product owes people.
+  function renderAdminMoneySection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('money', [
+      ['earnings', 'Earnings'], ['referrals', 'Referrals'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    if (window.AdminEarningsSection) {
+      window.AdminEarningsSection.render(inner, adminSectionCtx(),
+        state.adminSub.money === 'referrals' ? 'referrals' : 'earnings');
+    } else sectionModuleMissing(inner, 'The Money section');
+  }
+
+  // Data: who supplies it, the pipeline that ingests it, and what ships out.
+  function renderAdminDataSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('data', [
+      ['systems', 'Systems'], ['pipeline', 'Pipeline tools'], ['export', 'Export'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    if (state.adminSub.data === 'pipeline') renderAdminIngestion(inner);
+    else if (state.adminSub.data === 'export') renderAdminExportSection(inner);
+    else renderAdminHealthSection(inner);
+  }
+
+  // Health Systems (inside Data): who supplies our data.
+  function renderAdminHealthSection(inner) {
+    if (window.AdminHealthSection) window.AdminHealthSection.render(inner, adminSectionCtx());
     else sectionModuleMissing(inner, 'The Health Systems section');
   }
 

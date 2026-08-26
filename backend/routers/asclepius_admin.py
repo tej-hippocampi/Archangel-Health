@@ -890,6 +890,47 @@ def _signup_row(*, email: str, name: Optional[str], kind: str, hs: Dict[str, Any
     }
 
 
+class RoleBody(BaseModel):
+    role: str
+
+
+@router.post("/users/{user_id}/role")
+async def set_user_role(
+    user_id: str,
+    body: RoleBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Grant or revoke the admin role on one account.
+
+    This is how the second founder becomes an admin without touching env
+    vars: the env-bootstrapped admin promotes their existing account once
+    from the roster. Two roles only; every other role is provisioned by its
+    own flow and must not be reachable from a console button. Self-demotion
+    is refused so the console cannot lock its last operator out.
+    """
+    role = (body.role or "").strip().lower()
+    if role not in ("admin", "evaluator"):
+        raise HTTPException(status_code=422, detail="Role must be admin or evaluator.")
+    store = _store()
+    target = store.get_user_by_id(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="No such account.")
+    if target["id"] == admin["id"] and role != "admin":
+        raise HTTPException(
+            status_code=422,
+            detail="You cannot demote your own account. Ask the other admin.")
+    if target.get("role") not in ("admin", "evaluator"):
+        raise HTTPException(
+            status_code=422,
+            detail="Only physician or admin accounts can move between those roles.")
+    updated = store.set_user_role(user_id, role)
+    store.log_event(
+        entity_type="user", entity_id=user_id, event_type="role_changed",
+        actor=admin.get("email"),
+        payload={"from": target.get("role"), "to": role})
+    return {"ok": True, "user_id": user_id, "role": (updated or {}).get("role")}
+
+
 @router.get("/signups")
 async def list_signups(request: Request,
                        _admin: Dict[str, Any] = Depends(asc_auth.require_admin)):

@@ -457,6 +457,42 @@ async def admin_earnings(
     }
 
 
+@router.get("/api/asclepius/admin/referrals")
+async def admin_referrals(
+    limit: int = Query(500, ge=1, le=2000),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The whole referral book, for the Money tab: who referred whom, where
+    each row sits in the funnel, what the ledger has paid, and any fraud
+    flag. Admin eyes only, so the invitee's raw address is shown."""
+    store = _store()
+    rows = []
+    for r in store.list_all_referrals(limit=limit):
+        rows.append({
+            "referral_id": r.get("referral_id"),
+            "referrer_name": (r.get("referrer_name") or "").strip() or None,
+            "referrer_email": r.get("referrer_email"),
+            "invitee_email": r.get("invitee_email"),
+            "invitee_name": r.get("invitee_name"),
+            "status": r.get("status"),
+            "status_sentence": asc_referrals.status_sentence(
+                r.get("status"), r.get("bounty_state")),
+            "bounty_state": r.get("bounty_state") or "pending",
+            "source": r.get("source"),
+            "fraud_flag": r.get("fraud_flag"),
+            "invited_at": r.get("invited_at"),
+            "first_case_at": r.get("first_case_at"),
+        })
+    return {
+        "rows": rows,
+        "payout_structure": {
+            "referrer_bounty_cents": asc_payments.referral_bounty_cents(),
+            "referee_bonus_cents": asc_payments.referee_bonus_cents(),
+            "cap_cents": asc_payments.referral_cap_cents(),
+        },
+    }
+
+
 class MarkPaidBody(BaseModel):
     # The idempotency key, not a label. Replaying a batch is a no-op, which is
     # what makes a retried disbursement job safe.

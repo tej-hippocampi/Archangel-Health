@@ -7123,6 +7123,27 @@ class AsclepiusStore:
                 (referrer_id,)).fetchone()
         return int(row["total"] or 0)
 
+    def list_all_referrals(self, *, limit: int = 500) -> List[Dict[str, Any]]:
+        """Every referral with its referrer joined on, newest first: the admin
+        overview. Bounded like every list in this file."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT r.*, u.full_name AS referrer_name, u.email AS referrer_email
+                FROM referrals r
+                LEFT JOIN users u ON u.id = r.referrer_id
+                ORDER BY r.invited_at DESC LIMIT ?
+                """,
+                (max(1, limit),)).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_user_role(self, user_id: str, role: str) -> Optional[Dict[str, Any]]:
+        """Write one account's role. The caller owns policy (which roles, who
+        may grant them, self-demotion refusal); this is only the write."""
+        with self._conn() as conn:
+            conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+        return self.get_user_by_id(user_id)
+
     # ─── Contributor scores (PRD-SCORE) ──────────────────────────────────────
     def get_contributor_score(self, user_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
