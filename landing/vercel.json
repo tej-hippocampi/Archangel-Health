@@ -103,6 +103,14 @@
     {
       "source": "/reset-password/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/join",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/join/",
+      "destination": "/index.html"
     }
   ]
 }

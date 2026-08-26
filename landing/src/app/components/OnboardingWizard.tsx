@@ -204,6 +204,9 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   }, []);
 
   const [slug, setSlug] = useState("");
+  // /join?flavor=general marks an invited non-clinical signer (for example a
+  // business advisor): the MD credential screens stop blocking for them.
+  const [signupFlavor, setSignupFlavor] = useState("");
   const [authToken, setAuthToken] = useState("");
   const [stepError, setStepError] = useState("");
   const [bootError, setBootError] = useState("");
@@ -221,6 +224,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     }
     const d = body as Record<string, any>;
     if (d.slug) setSlug(d.slug);
+    setSignupFlavor(String(d.signup_flavor ?? "").trim().toLowerCase());
     const product = (d.product as Product) || "";
     const hydratedMembers: Member[] = (d.team_members ?? []).map((m: any, idx: number) => ({
       id: typeof m.id === "number" && m.id > 0 ? m.id : Date.now() + idx,
@@ -854,6 +858,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             eyebrow={mode === "member" ? "Step 1 of 4" : eyebrows[phase]}
             memberMode={mode === "member"}
             phase={mode === "member" ? undefined : (phase as 1 | 2 | 3)}
+            relaxed={mode !== "member" && signupFlavor === "general"}
           />
         );
       }

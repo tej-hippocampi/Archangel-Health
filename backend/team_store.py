@@ -723,6 +723,11 @@ class TeamStore:
                 conn, "health_systems", "product", "TEXT NOT NULL DEFAULT 'archangel'"
             )
             self._add_column_if_missing(conn, "health_systems", "specialty", "TEXT")
+            # /join signup flavor: NULL (standard physician flow) | 'general'
+            # (an invited non-clinical signer, e.g. a business advisor, whose
+            # wizard may skip the MD credential screens). Display + wizard
+            # routing only; verification still decides what the account can do.
+            self._add_column_if_missing(conn, "health_systems", "signup_flavor", "TEXT")
             self._add_column_if_missing(conn, "intraop_forms", "draft_completed_by", "TEXT")
             self._add_column_if_missing(conn, "intraop_forms", "draft_completed_at", "TEXT")
             conn.execute(
@@ -1124,6 +1129,18 @@ class TeamStore:
                 WHERE id = ?
                 """,
                 (first_name.strip(), last_name.strip(), email.lower().strip(), hs_id),
+            )
+
+    def set_health_system_signup_flavor(self, hs_id: str, flavor: Optional[str]) -> None:
+        """Stamp the /join signup flavor on a pending row. 'general' relaxes
+        the wizard's MD credential screens; anything else stores NULL."""
+        value = (flavor or "").strip().lower() or None
+        if value not in (None, "general"):
+            value = None
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE health_systems SET signup_flavor = ? WHERE id = ?",
+                (value, hs_id),
             )
 
     def create_otp_challenge(self, hs_id: str, email: str, raw_code: str) -> int:

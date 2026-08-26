@@ -865,6 +865,9 @@ def _signup_row(*, email: str, name: Optional[str], kind: str, hs: Dict[str, Any
         # which, for a solo contributor signing up from the landing page, is
         # every one of them. Not an operator role; see onboarding.py's note.
         "kind": kind,
+        # 'general' marks a /join?flavor=general signup (an invited
+        # non-clinical signer): the admin should not wait on an NPI for them.
+        "signup_flavor": (hs.get("signup_flavor") or "").strip() or None,
         "org_name": (hs.get("name") or "").strip() or None,
         "specialty": (hs.get("specialty") or "").strip() or None,
         "npi": (str(credentials.get("npi") or "").strip() or None),

@@ -77,6 +77,44 @@ def test_self_serve_link_opens_a_valid_wizard_session(client):
     assert session["director_email"] == "doc@hospital.org"
 
 
+def test_join_extras_prefill_identity_and_flavor(client, store):
+    """/join passes names + flavor; the wizard session hydrates them so the
+    signer types nothing twice, and the flavor rides the row."""
+    r = client.post("/api/onboarding/self-serve", json={
+        "email": "adv@example.org", "first_name": "Robin",
+        "last_name": "Ellis", "flavor": "general"})
+    assert r.status_code == 200
+    token = r.json()["onboarding_url"].rsplit("/onboard/", 1)[1]
+    s = client.get("/api/onboarding/session", params={"token": token}).json()
+    assert s["director_first_name"] == "Robin"
+    assert s["director_last_name"] == "Ellis"
+    assert s["signup_flavor"] == "general"
+
+
+def test_a_plain_signup_carries_no_flavor(client):
+    r = client.post("/api/onboarding/self-serve", json={"email": "doc@hospital.org"})
+    token = r.json()["onboarding_url"].rsplit("/onboard/", 1)[1]
+    s = client.get("/api/onboarding/session", params={"token": token}).json()
+    assert s["signup_flavor"] is None
+
+
+def test_an_unknown_flavor_is_stored_as_nothing(client, store):
+    r = client.post("/api/onboarding/self-serve",
+                    json={"email": "doc2@hospital.org", "flavor": "superuser"})
+    assert r.status_code == 200
+    row = [x for x in _rows(store) if x["director_email"] == "doc2@hospital.org"][0]
+    assert row["signup_flavor"] is None
+
+
+def test_a_referral_code_never_breaks_the_mint(client):
+    """The asclepius store is not mounted on this throwaway app, so the
+    attribution import path fails internally; the link must mint anyway."""
+    r = client.post("/api/onboarding/self-serve",
+                    json={"email": "doc3@hospital.org", "referral_code": "DRCHEN99"})
+    assert r.status_code == 200
+    assert "/onboard/" in r.json()["onboarding_url"]
+
+
 def test_honeypot_returns_decoy_and_stores_nothing(client, store):
     r = client.post(
         "/api/onboarding/self-serve",

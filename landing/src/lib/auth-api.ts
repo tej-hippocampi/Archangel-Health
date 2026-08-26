@@ -466,6 +466,10 @@ export async function submitLead(payload: {
 export async function createPhysicianOnboardingLink(payload: {
   email: string;
   company_website?: string;
+  first_name?: string;
+  last_name?: string;
+  referral_code?: string;
+  flavor?: string;
 }): Promise<{ onboarding_url: string; expires_at?: string }> {
   let res: Response;
   try {

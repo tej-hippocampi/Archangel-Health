@@ -1470,6 +1470,7 @@ export function Step5Credentials({
   eyebrow,
   memberMode = false,
   phase,
+  relaxed = false,
 }: {
   data: OnboardingData;
   setData: (patch: Partial<OnboardingData>) => void;
@@ -1482,6 +1483,10 @@ export function Step5Credentials({
    *  Omitted renders every field on one screen, which is what member mode
    *  still does: an invited clinician arrives already expecting a form. */
   phase?: 1 | 2 | 3;
+  /** /join?flavor=general: the signer may not be a practicing MD, so nothing
+   *  on these screens blocks. Fields stay visible for an MD who wants their
+   *  credentials on file; a non-MD continues past them untouched. */
+  relaxed?: boolean;
 }) {
   const c = data.credentials;
   const set = (patch: Partial<Credentials>) => setData({ credentials: { ...c, ...patch } });
@@ -1513,9 +1518,11 @@ export function Step5Credentials({
     c.practiceStatus !== "";
 
   // Screen 3 is entirely optional by design, so it never blocks. Member mode
-  // (phase undefined) renders every field at once and so gates on both.
-  const valid =
-    phase === 1 ? identityValid
+  // (phase undefined) renders every field at once and so gates on both. A
+  // relaxed (general-flavor) signup never blocks at all: the signer may not
+  // be a practicing MD, and verification decides access either way.
+  const valid = relaxed ? true
+    : phase === 1 ? identityValid
     : phase === 2 ? trainingValid
     : phase === 3 ? true
     : identityValid && trainingValid;
@@ -1545,6 +1552,17 @@ export function Step5Credentials({
       }
     >
       <InlineError>{error}</InlineError>
+
+      {relaxed && show(1) && (
+        <div style={RARE_INTRO}>
+          <p style={{ ...RARE_BODY, margin: 0 }}>
+            <strong style={RARE_STRONG}>Not a practicing physician?</strong>{" "}
+            Nothing on this screen or the next blocks you. If you are an MD,
+            filling these in gets your credentials verified and opens paid
+            casework; otherwise just continue.
+          </p>
+        </div>
+      )}
 
       {show(1) && (<>
       <TextField
