@@ -2136,7 +2136,7 @@ export function Step6Attestations({
               label={undefined}
               placeholder="T.P."
               value={a.signedInitials}
-              onChange={(v) => set({ signedInitials: v.slice(0, 8) })}
+              onChange={(v) => set({ signedInitials: v.toUpperCase().slice(0, 8) })}
             />
           </div>
           <div

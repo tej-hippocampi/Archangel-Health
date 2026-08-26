@@ -1660,6 +1660,16 @@ class TeamStore:
     def save_asclepius_attestations(
         self, hs_id: str, email: str, attestations: Dict[str, Any]
     ) -> None:
+        """Persist the signed attestations blob.
+
+        ``signedInitials`` is upper-cased here as well as in the form: this is
+        a signature, it is rendered back as one, and the wizard can resume from
+        a draft saved before the form normalized it.
+        """
+        attestations = dict(attestations or {})
+        signed = attestations.get("signedInitials")
+        if isinstance(signed, str):
+            attestations["signedInitials"] = signed.strip().upper()
         with self._conn() as conn:
             conn.execute(
                 """
