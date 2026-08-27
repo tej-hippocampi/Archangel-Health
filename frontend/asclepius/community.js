@@ -16,6 +16,7 @@
     token: null,
     me: null,           // my member profile
     isAdmin: false,
+    canPost: true,      // false for a view-only account (advisor); set from /me
     channels: [],       // [{slug,name,description,post_policy,unread,mentions}]
     dms: [],            // [{id, peer, unread, last_message_id, last_message_at}]
     active: 'general',  // channel slug OR a dm id ("dm-…") — keys never collide
@@ -261,6 +262,10 @@
       const me = await api('/me');
       state.me = me.member;
       state.isAdmin = !!me.is_admin;
+      // Defaults true so an older backend that does not send the field behaves
+      // exactly as it did. The server refuses the write either way; this only
+      // decides whether we show a box that is going to be refused.
+      state.canPost = me.can_post !== false;
       state.retention = me.retention || '';
     } catch (e) {
       if (e.status === 401) return renderSignedOut();
@@ -797,10 +802,13 @@
 
     const bodyEl = h('div', { class: 'cm-msg-body', html: renderBody(m.body, m.mentions) });
 
-    const canPin = !inThread && !isDmKey(state.active);
+    // A view-only reader keeps the thread affordance, because opening a thread
+    // is reading. Reacting and pinning change what everyone else sees, and the
+    // server refuses both, so the buttons go rather than fail.
+    const canPin = !inThread && !isDmKey(state.active) && state.canPost;
     const actions = h('div', { class: 'cm-msg-actions', role: 'toolbar', 'aria-label': 'Message actions' },
-      h('button', { class: 'cm-act', 'data-emoji-btn': '1', title: 'Add reaction', 'aria-label': 'Add reaction',
-        onClick: (e) => { e.stopPropagation(); toggleEmojiPop(m); } }, '😀'),
+      state.canPost ? h('button', { class: 'cm-act', 'data-emoji-btn': '1', title: 'Add reaction', 'aria-label': 'Add reaction',
+        onClick: (e) => { e.stopPropagation(); toggleEmojiPop(m); } }, '😀') : null,
       !inThread ? h('button', { class: 'cm-act', title: 'Reply in thread', 'aria-label': 'Reply in thread',
         onClick: () => openThread(m.id) }, '💬') : null,
       canPin ? h('button', { class: 'cm-act' + (m.pinned ? ' on' : ''),
@@ -857,8 +865,10 @@
       const chosen = p.your_vote === opt.id;
       box.appendChild(h('button', {
         class: 'cm-poll-opt' + (chosen ? ' chosen' : ''),
-        disabled: p.closed ? true : false,
-        onClick: p.closed ? null : () => votePoll(p.id, opt.id),
+        // A view-only reader sees the result, which is the interesting part,
+        // and cannot move it.
+        disabled: (p.closed || !state.canPost) ? true : false,
+        onClick: (p.closed || !state.canPost) ? null : () => votePoll(p.id, opt.id),
       },
         h('span', { class: 'cm-poll-fill', style: 'width:' + pct + '%' }),
         h('span', { class: 'cm-poll-opt-text' }, (chosen ? '✓ ' : '') + opt.text),
@@ -960,11 +970,14 @@
     if (ev.description) card.appendChild(h('div', { class: 'cm-event-desc' }, ev.description));
     if (!ev.cancelled) {
       const actions = h('div', { class: 'cm-event-actions' },
-        h('button', {
+        // Interest is a message to the host about who is coming, so a view-only
+        // reader does not send one. The calendar links stay: adding an event to
+        // your own calendar tells nobody here anything.
+        state.canPost ? h('button', {
           class: 'cm-btn ' + (ev.viewer_interested ? 'cm-btn-primary' : 'cm-btn-ghost'),
           onClick: () => rsvpEvent(ev.id),
         }, (ev.viewer_interested ? '✓ Interested' : 'Interested')
-          + (ev.rsvp_count ? ' · ' + ev.rsvp_count : '')),
+          + (ev.rsvp_count ? ' · ' + ev.rsvp_count : '')) : null,
         h('a', { class: 'cm-btn cm-btn-ghost', href: gcalUrl(ev), target: '_blank', rel: 'noopener noreferrer' },
           'Add to Google Calendar'),
         h('a', { class: 'cm-btn cm-btn-ghost', href: API + '/events/' + ev.id + '/calendar.ics?t=' + Date.now(),
@@ -1193,12 +1206,16 @@
     for (const bm of marks) {
       bar.appendChild(h('span', { class: 'cm-bookmark' },
         h('a', { href: bm.url, target: '_blank', rel: 'noopener noreferrer', title: bm.url }, '🔖 ' + bm.title),
-        (bm.added_by === (state.me && state.me.user_id) || state.isAdmin)
+        (state.canPost && (bm.added_by === (state.me && state.me.user_id) || state.isAdmin))
           ? h('button', { class: 'cm-bookmark-x', 'aria-label': 'Remove bookmark',
               onClick: () => removeBookmark(bm.id) }, '✕') : null));
     }
-    bar.appendChild(h('button', { class: 'cm-bookmark-add', title: 'Add a bookmark',
-      onClick: () => openNewBookmark(slug) }, '+'));
+    if (state.canPost) {
+      bar.appendChild(h('button', { class: 'cm-bookmark-add', title: 'Add a bookmark',
+        onClick: () => openNewBookmark(slug) }, '+'));
+    } else if (!marks.length) {
+      return null;
+    }
     return bar;
   }
   function openNewBookmark(slug) {
@@ -1240,7 +1257,8 @@
         class: 'cm-react' + (mine ? ' mine' : ''),
         title: names,
         'aria-label': g.emoji + ' ' + g.count + ' — ' + names,
-        onClick: () => react(m, g.emoji),
+        // Who reacted is worth seeing even when you may not join in.
+        onClick: state.canPost ? () => react(m, g.emoji) : null,
       }, g.emoji, ' ', h('span', { class: 'n' }, String(g.count))));
     }
     return box;
@@ -1396,6 +1414,18 @@
     const wrap = document.getElementById('cmComposerWrap');
     if (!wrap) return;
     clear(wrap);
+    // A user-level read-only account (advisor). Checked before the channel and
+    // DM branches because it holds everywhere: there is no room in here they
+    // may post in, so there is no composer to build anywhere.
+    if (!state.canPost) {
+      wrap.appendChild(h('div', { class: 'cm-composer', style: 'padding: var(--sp-3)' },
+        h('div', { class: 'cm-composer-hint' },
+          'You have view-only access. Every channel is open to read; posting is '
+          + 'for the physicians doing the work.')));
+      wrap.appendChild(h('div', { class: 'cm-phi-notice' },
+        h('span', { class: 'dot dot-pink', 'aria-hidden': 'true' }), PHI_NOTICE));
+      return;
+    }
     if (isDmKey(state.active)) {
       const d = activeDm();
       const peer = (d && d.peer) || {};
@@ -1734,7 +1764,7 @@
           h('div', { class: 'cm-profile-name' }, m.display_name,
             m.verified ? h('span', { class: 'cm-verified', title: 'Credential-verified' }) : null),
           h('div', { class: 'chrome' }, state.online.has(m.user_id) ? 'online' : 'offline'))),
-      state.me && m.user_id !== state.me.user_id
+      state.canPost && state.me && m.user_id !== state.me.user_id
         ? h('button', {
             class: 'cm-btn cm-btn-primary',
             style: 'width:100%;justify-content:center;margin-bottom:var(--sp-4)',

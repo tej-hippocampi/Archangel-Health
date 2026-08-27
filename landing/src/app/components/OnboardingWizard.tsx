@@ -57,6 +57,7 @@ import {
   type OnboardingData,
   type Product,
   type RoleLabel,
+  type SignupKind,
 } from "./onboarding/steps";
 
 type Mode = "director" | "member";
@@ -93,11 +94,30 @@ const STEP_LABELS: Partial<Record<StepKey, string>> = {
   ascTeam: "Team",
 };
 
+/** Which flavor of link produces which kind of account, mirroring
+ *  ``ACCOUNT_KIND_BY_FLAVOR`` in ``backend/routers/onboarding.py``. These are
+ *  exactly the flavors whose surfaces the server caps, and the short signup
+ *  below is offered to exactly them: a door that asks for less must lead to an
+ *  account that can do less, or "skip the credential screens" is just a way to
+ *  become a physician without answering anything.
+ *
+ *  "general" is deliberately absent. It is the older invited-non-clinical
+ *  flavor, it maps to no account kind, and an account it created is capped by
+ *  nothing, so it keeps the full wizard it has always had. */
+const KIND_BY_FLAVOR: Record<string, SignupKind> = {
+  advisor: "advisor",
+  referrer: "referrer",
+};
+
+function signupKindFor(flavor: unknown): SignupKind {
+  return KIND_BY_FLAVOR[String(flavor ?? "").trim().toLowerCase()] ?? "physician";
+}
+
 /** Ordered step list for the active flow (drives Back + the stepper).
  * Product is decided server-side at invite creation (self-serve links are
  * pre-locked to "asclepius"; admin-generated health-system links default to
  * "archangel") — the wizard never asks the signer to choose. */
-function orderFor(mode: Mode, product: Product | ""): StepKey[] {
+function orderFor(mode: Mode, product: Product | "", kind: SignupKind = "physician"): StepKey[] {
   // "password" always comes immediately AFTER "verify", never before it, and
   // never on the credentials screen. Two reasons, in order of weight:
   //
@@ -111,6 +131,14 @@ function orderFor(mode: Mode, product: Product | ""): StepKey[] {
   // the account" moment.
   if (mode === "member") return ["credentials", "attestations", "verify", "password", "ascSuccess"];
   const head: StepKey[] = ["identity", "verify", "password"];
+  // An advisor and a referral partner are not claiming to be doctors, so every
+  // screen after the password has nothing to ask them: no institution, no NPI
+  // or registration number, no residency, and above all not the seven clinical
+  // attestations, which include independent clinical judgment and no active
+  // board disciplinary action. Signing those is not a formality for someone who
+  // does not practise; it is signing something untrue. The one promise that
+  // does apply to an advisor (confidentiality) is asked on the identity screen.
+  if (kind !== "physician") return [...head, "ascSuccess"];
   if (product === "asclepius") {
     // Team invites moved to the dashboard, so sign-up ends at attestations.
     return [...head, "institution", "credentials", "credTraining", "credRare",
@@ -204,9 +232,12 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   }, []);
 
   const [slug, setSlug] = useState("");
-  // /join?flavor=general marks an invited non-clinical signer (for example a
-  // business advisor): the MD credential screens stop blocking for them.
+  // Which door this link came from. /join?flavor=general marks an invited
+  // non-clinical signer, who still walks the full wizard with the MD credential
+  // screens relaxed; flavor=advisor and flavor=referrer produce capped accounts
+  // and get the short signup instead (see orderFor).
   const [signupFlavor, setSignupFlavor] = useState("");
+  const signupKind = useMemo(() => signupKindFor(signupFlavor), [signupFlavor]);
   const [authToken, setAuthToken] = useState("");
   const [stepError, setStepError] = useState("");
   const [bootError, setBootError] = useState("");
@@ -286,8 +317,13 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     const stepNum = Number(d.step) || 0;
     const savedAtts =
       d.director_attestations && Object.keys(d.director_attestations).length > 0;
+    const kind = signupKindFor(d.signup_flavor);
     if (stepNum < 1) setStep("identity");
     else if (stepNum < 2) setStep("verify");
+    // A short signup has nowhere to resume TO past the password: the screens
+    // after it do not exist for this account. Setting a password again is an
+    // idempotent upsert, so landing here twice costs nothing.
+    else if (kind !== "physician") setStep("password");
     else if (stepNum < 3) setStep(product === "asclepius" ? "institution" : "org");
     else if (product === "asclepius") {
       if (!savedCreds) setStep("credentials");
@@ -345,7 +381,10 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     void loadSession();
   }, [loadSession]);
 
-  const order = useMemo(() => orderFor(mode, data.product), [mode, data.product]);
+  const order = useMemo(
+    () => orderFor(mode, data.product, signupKind),
+    [mode, data.product, signupKind],
+  );
 
   /** Advance one step along the ACTIVE order.
    *  Credentials is three screens now, so a handler that hardcodes its
@@ -584,19 +623,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     return ok;
   }, [saveCredentials, goNext]);
 
-  const submitAttestations = useCallback(async () => {
-    setStepError("");
-    const r = await api("/api/onboarding/asclepius/attestations", {
-      method: "POST",
-      body: JSON.stringify({ token, attestations: data.attestations }),
-    });
-    const body = await readResponseJson(r);
-    if (!r.ok) {
-      setStepError(formatApiError(body) || `HTTP ${r.status}`);
-      return false;
-    }
-    // Team invites moved to the dashboard, so provision the workspace right
-    // after attestations: sign-up ends here and lands the doctor in.
+  /** Provision the account and land on the success screen, signed in.
+   *  Shared by the physician flow (which reaches it from attestations) and the
+   *  short signup (which reaches it from the password screen), so the session
+   *  token is stored the same way for all three doors. */
+  const provisionAndLand = useCallback(async () => {
     const fr = await api("/api/onboarding/asclepius/finish", {
       method: "POST",
       body: JSON.stringify({ token }),
@@ -613,7 +644,23 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
     setStep("ascSuccess");
     return true;
-  }, [token, data.attestations, setData]);
+  }, [token, setData]);
+
+  const submitAttestations = useCallback(async () => {
+    setStepError("");
+    const r = await api("/api/onboarding/asclepius/attestations", {
+      method: "POST",
+      body: JSON.stringify({ token, attestations: data.attestations }),
+    });
+    const body = await readResponseJson(r);
+    if (!r.ok) {
+      setStepError(formatApiError(body) || `HTTP ${r.status}`);
+      return false;
+    }
+    // Team invites moved to the dashboard, so provision the workspace right
+    // after attestations: sign-up ends here and lands the doctor in.
+    return provisionAndLand();
+  }, [token, data.attestations, provisionAndLand]);
 
   const addAscMember = useCallback(
     async (m: Omit<AsclepiusMember, "id" | "status">) => {
@@ -736,6 +783,32 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         return false;
       }
       if (!isMember) {
+        if (signupKind !== "physician") {
+          // The short signup ends here. The person row now exists (the password
+          // endpoint upserts it), which is why the confidentiality checkbox
+          // collected back on the identity screen is saved at this point rather
+          // than when it was ticked: there was nothing to save it onto yet.
+          if (signupKind === "advisor") {
+            const ar = await api("/api/onboarding/asclepius/attestations", {
+              method: "POST",
+              body: JSON.stringify({
+                token,
+                attestations: {
+                  ...data.attestations,
+                  signedInitials:
+                    data.attestations.signedInitials
+                    || `${data.firstName.trim().charAt(0)}${data.lastName.trim().charAt(0)}`
+                      .toUpperCase(),
+                },
+              }),
+            });
+            if (!ar.ok) {
+              setStepError(formatApiError(await readResponseJson(ar)) || `HTTP ${ar.status}`);
+              return false;
+            }
+          }
+          return provisionAndLand();
+        }
         // The director still has institution, credentials and attestations to go.
         setStep("institution");
         return true;
@@ -754,7 +827,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStep("ascSuccess");
       return true;
     },
-    [mode, token, setData],
+    [mode, token, setData, signupKind, provisionAndLand, data.attestations,
+     data.firstName, data.lastName],
   );
 
   const openAsclepiusWorkspace = useCallback(() => {
@@ -793,7 +867,15 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
 
     switch (step) {
       case "identity":
-        return <Step1NameEmail data={data} setData={setData} onNext={submitStep1} error={stepError} />;
+        return (
+          <Step1NameEmail
+            data={data}
+            setData={setData}
+            onNext={submitStep1}
+            error={stepError}
+            kind={mode === "member" ? "physician" : signupKind}
+          />
+        );
       case "verify":
         return (
           <Step2Verify
@@ -812,7 +894,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             onSubmit={submitPassword}
             onBack={goBack}
             error={stepError}
-            eyebrow={mode === "member" ? "Step 4 of 4" : "Step 3"}
+            eyebrow={
+              mode === "member" ? "Step 4 of 4"
+                : signupKind !== "physician" ? "Step 3 of 3"
+                  : "Step 3"
+            }
           />
         );
       // Archangel
@@ -891,7 +977,14 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         );
       case "ascSuccess":
       default:
-        return <Step8AsclepiusSuccess data={data} onOpenWorkspace={openAsclepiusWorkspace} memberMode={mode === "member"} />;
+        return (
+          <Step8AsclepiusSuccess
+            data={data}
+            onOpenWorkspace={openAsclepiusWorkspace}
+            memberMode={mode === "member"}
+            kind={mode === "member" ? "physician" : signupKind}
+          />
+        );
     }
   }, [
     loading,
@@ -923,6 +1016,9 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     goBack,
     stepError,
     mode,
+    signupFlavor,
+    signupKind,
+    submitPassword,
   ]);
 
   return (

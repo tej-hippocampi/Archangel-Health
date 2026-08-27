@@ -307,36 +307,71 @@ const CARD_FOOTER_BACK: CSSProperties = { marginTop: 18, textAlign: "center" };
    Step 1 — Name + email
    ───────────────────────────────────────────────────────────── */
 
+/** Which door this person came through. A physician is signing up to do
+ *  clinical work; the other two are not, and the screens below are the only
+ *  ones they see. */
+export type SignupKind = "physician" | "advisor" | "referrer";
+
 export function Step1NameEmail({
   data,
   setData,
   onNext,
   error,
+  kind = "physician",
 }: {
   data: OnboardingData;
   setData: (patch: Partial<OnboardingData>) => void;
   onNext: () => Promise<boolean>;
   error?: string;
+  kind?: SignupKind;
 }) {
+  const a = data.attestations;
+  // An advisor reads physicians discussing their own practice. That is not a
+  // clinical attestation and it is not the seven a doctor signs, but the people
+  // whose conversations those are deserve one line on file, so this screen is
+  // where it is asked. A referral partner sees nothing but their own link and
+  // is asked for nothing beyond a name and a mailbox.
+  const needsConfidentiality = kind === "advisor";
+
   // Each screen gates ONLY on what it asks for. Gating screen 1 on a licence
   // number it never showed is how a Continue button goes dead with no
   // explanation anywhere on the page.
   const valid =
     data.firstName.trim().length > 0 &&
     data.lastName.trim().length > 0 &&
-    /\S+@\S+\.\S+/.test(data.email.trim());
+    /\S+@\S+\.\S+/.test(data.email.trim()) &&
+    (!needsConfidentiality || a.attestConfidentiality);
 
   const isAsclepius = data.product === "asclepius";
+
+  const COPY: Record<SignupKind, { title: string; lede: string; hint: string }> = {
+    physician: {
+      title: isAsclepius
+        ? "Welcome to Asclepius, let's start your journey."
+        : "Let's get you set up.",
+      lede: isAsclepius
+        ? "A few minutes to get your evaluator workspace ready. We'll start with you."
+        : "A few minutes to bring your health system online. We'll start with you.",
+      hint: "Use your health-system email, we'll send a verification code here.",
+    },
+    advisor: {
+      title: "Set up your advisor access.",
+      lede: "Two screens. Your name, a code to your inbox, and a password. No credentials, because you are not signing up to label cases.",
+      hint: "We'll send a verification code here.",
+    },
+    referrer: {
+      title: "Set up your referral link.",
+      lede: "Your name, a code to your inbox, and a password. That is the whole signup.",
+      hint: "We'll send a verification code here.",
+    },
+  };
+  const copy = COPY[kind];
 
   return (
     <OnboardingCard
       eyebrow="Step 1"
-      title={isAsclepius ? "Welcome to Asclepius — let's start your journey." : "Let's get you set up."}
-      lede={
-        isAsclepius
-          ? "A few minutes to get your evaluator workspace ready. We'll start with you."
-          : "A few minutes to bring your health system online. We'll start with you."
-      }
+      title={copy.title}
+      lede={copy.lede}
     >
       <InlineError>{error}</InlineError>
       <div style={TWO_COL}>
@@ -357,14 +392,28 @@ export function Step1NameEmail({
         />
       </div>
       <TextField
-        label="Work email"
-        placeholder="you@yourhealthsystem.org"
+        label={kind === "physician" ? "Work email" : "Email"}
+        placeholder={kind === "physician" ? "you@yourhealthsystem.org" : "you@example.com"}
         type="email"
         value={data.email}
         onChange={(v) => setData({ email: v })}
-        hint="Use your health-system email — we'll send a verification code here."
+        hint={copy.hint}
         autoComplete="email"
       />
+      {needsConfidentiality && (
+        <div style={{ marginTop: 18 }}>
+          <CheckRow
+            checked={a.attestConfidentiality}
+            onToggle={() =>
+              setData({
+                attestations: { ...a, attestConfidentiality: !a.attestConfidentiality },
+              })
+            }
+            title="Confidentiality"
+            body="You will be able to read the cases, model outputs and physician discussion inside Archangel. I will keep what I see confidential, and will not reproduce or republish it."
+          />
+        </div>
+      )}
       <div style={{ marginTop: 12 }}>
         <PrimaryButton
           fullWidth
@@ -2782,13 +2831,36 @@ export function Step8AsclepiusSuccess({
   data,
   onOpenWorkspace,
   memberMode = false,
+  kind = "physician",
 }: {
   data: OnboardingData;
   onOpenWorkspace: () => Promise<boolean> | boolean;
   memberMode?: boolean;
+  kind?: SignupKind;
 }) {
+  // Three different accounts land here, and the physician's copy is wrong for
+  // the other two: an advisor has no workspace and a referral partner has no
+  // specialty. Say what each of them actually got.
+  const TITLE: Record<SignupKind, string> = {
+    physician: "Your workspace is ready.",
+    advisor: "You're in.",
+    referrer: "Your referral link is ready.",
+  };
+  const CTA: Record<SignupKind, string> = {
+    physician: "Open my dashboard →",
+    advisor: "Look around →",
+    referrer: "Open my referral page →",
+  };
+  const CLOSING: Record<SignupKind, string> = {
+    physician:
+      "You're already signed in. Your login details are in that email whenever you need them.",
+    advisor:
+      "You're signed in with view-only access: you can read the community and click through a practice case, and the referral page is yours to use.",
+    referrer:
+      "You're signed in. Your referral page has your link and shows who has signed up through it.",
+  };
   return (
-    <OnboardingCard maxWidth={620} title="Your workspace is ready.">
+    <OnboardingCard maxWidth={620} title={TITLE[kind]}>
       {/* Star-the-email banner */}
       <div
         style={{
@@ -2850,11 +2922,30 @@ export function Step8AsclepiusSuccess({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 28 }}>
-        <Stat label="Workspace" value={data.orgName || `${data.firstName} ${data.lastName}`.trim() || "Your workspace"} />
-        <Stat label="Specialty" value={data.credentials.primarySpecialty || "Not set"} />
+        <Stat
+          label={kind === "physician" ? "Workspace" : "Account"}
+          value={
+            kind === "physician"
+              ? data.orgName || `${data.firstName} ${data.lastName}`.trim() || "Your workspace"
+              : `${data.firstName} ${data.lastName}`.trim() || data.email
+          }
+        />
+        {kind === "physician" ? (
+          <Stat label="Specialty" value={data.credentials.primarySpecialty || "Not set"} />
+        ) : (
+          <Stat label="Access" value={kind === "advisor" ? "View only" : "Referral"} />
+        )}
         <Stat
           label="Your role"
-          value={memberMode ? data.roleLabel || "Clinician" : "Director"}
+          value={
+            kind === "advisor"
+              ? "Advisor"
+              : kind === "referrer"
+                ? "Referral partner"
+                : memberMode
+                  ? data.roleLabel || "Clinician"
+                  : "Director"
+          }
         />
       </div>
 
@@ -2868,11 +2959,11 @@ export function Step8AsclepiusSuccess({
           marginBottom: 26,
         }}
       >
-        You're already signed in. Your login details are in that email whenever you need them.
+        {CLOSING[kind]}
       </p>
 
       <PrimaryButton fullWidth onClick={onOpenWorkspace} loadingLabel="Opening…" successLabel="Opening ✓">
-        Open my dashboard →
+        {CTA[kind]}
       </PrimaryButton>
     </OnboardingCard>
   );

@@ -1131,11 +1131,23 @@ class TeamStore:
                 (first_name.strip(), last_name.strip(), email.lower().strip(), hs_id),
             )
 
+    #: The flavors ``/join?flavor=`` may stamp. An unknown value stores NULL,
+    #: which is the physician door, so a hand-typed query string can only ever
+    #: make the signup MORE demanding, never less.
+    #:
+    #: 'advisor' and 'referrer' were missing from this list, and the whitelist
+    #: is silent: both links stamped NULL, so the wizard saw no flavor and gave
+    #: those people the full physician signup, and ``finish`` derived no account
+    #: kind, so their accounts were provisioned uncapped. The two links existed
+    #: and neither of them did anything. Adding a flavor means adding it here.
+    _SIGNUP_FLAVORS = ("general", "advisor", "referrer")
+
     def set_health_system_signup_flavor(self, hs_id: str, flavor: Optional[str]) -> None:
-        """Stamp the /join signup flavor on a pending row. 'general' relaxes
-        the wizard's MD credential screens; anything else stores NULL."""
+        """Stamp the /join signup flavor on a pending row. 'general' relaxes the
+        wizard's MD credential screens; 'advisor' and 'referrer' replace them
+        with a four-screen signup and cap the resulting account."""
         value = (flavor or "").strip().lower() or None
-        if value not in (None, "general"):
+        if value not in self._SIGNUP_FLAVORS:
             value = None
         with self._conn() as conn:
             conn.execute(

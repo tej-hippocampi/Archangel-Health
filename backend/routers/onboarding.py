@@ -472,12 +472,27 @@ async def step1_identity(body: Step1Body, request: Request):
     _reject_if_completed(row)
     if not ts.onboarding_token_valid(row):
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    previous_email = (row.get("director_email") or "").strip()
     ts.update_health_system_director_identity(
         row["id"],
         first_name=body.first_name,
         last_name=body.last_name,
         email=str(body.email),
     )
+    # Referral attribution is keyed on the address the invite was addressed to,
+    # and this screen is where that address can change: someone opens a
+    # colleague's link with a personal address and corrects it to their hospital
+    # one, which is an entirely reasonable thing to do and used to cost the
+    # referrer the credit silently. Best-effort by contract, like every other
+    # attribution write: a signup must never fail because we could not work out
+    # who to thank.
+    new_email = str(body.email or "").strip()
+    if previous_email and new_email.lower() != previous_email.lower():
+        try:
+            from asclepius.store import get_store as _asc_store  # noqa: PLC0415
+            _asc_store().move_open_referrals(previous_email, new_email)
+        except Exception:
+            log.exception("[referral] could not follow an email change (non-fatal)")
     return {"ok": True, "step": 1}
 
 
@@ -826,6 +841,7 @@ def _provision_asclepius_user(
     credentials: Dict[str, Any],
     attestations: Dict[str, Any],
     account_kind: Optional[str] = None,
+    verify: bool = True,
 ) -> None:
     """Create/refresh the person's account in the Asclepius plane (asclepius.db)."""
     from asclepius import specialties as asc_specialties
@@ -902,7 +918,14 @@ def _provision_asclepius_user(
     # SYNCHRONOUS and both callers are async, so it must be reached through
     # ``run_in_threadpool`` — see the comment at each call site. Do not call it
     # directly from an async handler.
-    _run_signup_verification(store, user, creds)
+    #
+    # ``verify=False`` is for accounts that are not claiming to be physicians.
+    # It leaves verification_status NULL, which reads as access level FULL --
+    # and that is deliberate: what limits these accounts is the account_kind cap
+    # in ``capabilities.surfaces()``, which holds however their verification
+    # lands, NOT a pending state that an admin could clear by accident.
+    if verify:
+        _run_signup_verification(store, user, creds)
 
 
 async def _welcome_into_community(email: str) -> None:
@@ -1438,10 +1461,20 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     director = ts.get_asclepius_person(row["id"], director_email) if director_email else None
     if not director:
         raise HTTPException(status_code=400, detail="Complete your institution details first.")
-    if not director.get("credentials"):
-        raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
-    if not director.get("attestations"):
-        raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
+    # Which door this link came from. An advisor and a referral partner walk a
+    # four-screen signup that never shows the credential or attestation screens,
+    # so demanding them here is demanding something the wizard never offered.
+    # The set is exactly the flavors that produce a CAPPED account
+    # (``capabilities._BY_ACCOUNT_KIND``): asking less is only safe because the
+    # resulting account can do less.
+    account_kind = ACCOUNT_KIND_BY_FLAVOR.get(
+        (row.get("signup_flavor") or "").strip().lower())
+    is_clinical = account_kind is None
+    if is_clinical:
+        if not director.get("credentials"):
+            raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
+        if not director.get("attestations"):
+            raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
 
     # The physician chose this several steps ago (POST /asclepius/password).
     # Nothing is generated here any more, and nothing is mailed to them.
@@ -1486,21 +1519,39 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         credentials=director.get("credentials") or {},
         attestations=director.get("attestations") or {},
         # Which door they came through decides what kind of account this is.
-        account_kind=ACCOUNT_KIND_BY_FLAVOR.get(
-            (row.get("signup_flavor") or "").strip().lower()),
+        account_kind=account_kind,
+        # A non-clinical account is not a doctor awaiting a credential check.
+        # Running the physician verification path on one would put a row in the
+        # admin queue that no admin can act on -- there is no NPI to look up and
+        # no registration to match -- and would make the queue lie about how much
+        # real work is waiting. They stay visible to admins under Physicians ->
+        # Signups, which surfaces signup_flavor, so nobody becomes invisible.
+        verify=is_clinical,
     )
     # The hash is already on the row; finalize only stamps completion.
     ts.finalize_asclepius_person(row["id"], director_email, password_hash=director_hash)
     ts.complete_asclepius_onboarding(row["id"])
-    await _welcome_into_community(director_email)
+    # #introductions is physicians introducing themselves to colleagues. An
+    # advisor reading along is not a new colleague to announce, and a referral
+    # partner never reaches the community at all.
+    if is_clinical:
+        await _welcome_into_community(director_email)
 
     # Mint an Asclepius session token so the wizard drops the doctor straight into
-    # their workspace with no re-login (mirrors the doctor-portal auto-auth). The
-    # credentials are still emailed for future sign-ins.
+    # their workspace with no re-login (mirrors the doctor-portal auto-auth).
+    #
+    # This used to call ``authenticate(store, director_email, director_pwd)``, and
+    # ``director_pwd`` does not exist in this function: the plaintext password was
+    # last seen at POST /asclepius/password, several requests ago, and is stored
+    # only as a hash. The NameError was swallowed by the bare except below, so
+    # ``token`` came back None for EVERY signup and every new doctor landed on the
+    # success screen with no session. Look up the row we just provisioned instead
+    # -- the onboarding token and the mailbox OTP already proved who this is, so
+    # re-checking a password we do not have proves nothing extra.
     session_token = None
     try:
         from asclepius import auth as asc_auth
-        asc_user = asc_auth.authenticate(_asclepius_store(request), director_email, director_pwd)
+        asc_user = _asclepius_store(request).get_user_by_email(director_email)
         if asc_user:
             session_token = asc_auth.create_token(asc_user)
     except Exception:

@@ -291,12 +291,19 @@ def test_a_locked_rail_item_is_shown_not_hidden():
     assert "if (item.locked) { setPanel('verification'); return; }" in src
 
 
-def test_the_dashboard_does_not_call_gated_endpoints_while_provisional():
+def test_the_dashboard_does_not_call_gated_endpoints_without_the_surface():
     """Two 403s would render 'we could not load your queue', which is a bug
-    report. The truth is the queue does not exist for them yet."""
+    report. The truth is the queue does not exist for them yet.
+
+    Keyed on the SURFACE rather than on ``sessionIsProvisional()``, which is
+    what this used to assert. Those named the same set of people while a
+    physician under review was the only account that could reach the dashboard
+    without real work. An advisor is the second, and they are NOT provisional --
+    nothing about their account is pending -- so the old test would have passed
+    while they walked into exactly the two 403s it exists to prevent."""
     src = _PORTAL_JS.read_text(encoding="utf-8")
-    assert "const provisional = sessionIsProvisional();" in src
-    assert "if (provisional) throw { __provisional: true };" in src
+    assert "const noRealWork = !sessionHasSurface('real_work');" in src
+    assert "if (noRealWork) throw { __provisional: true };" in src
 
 
 def test_the_waiting_copy_now_lives_inside_the_product():
