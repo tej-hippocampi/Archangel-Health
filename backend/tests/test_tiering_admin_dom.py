@@ -562,9 +562,18 @@ def test_ui_model_health_renders_a_real_table_not_space_padded_strings():
     assert "asc-table" in code
     assert "asc-mono" in code
     # The two error classes are visually distinct and the file used them interchangeably.
-    # They now split by MEANING: asc-error is reserved for the one blocking case — a module
-    # that did not load, so physicians cannot be approved at all.
-    assert code.count("'asc-error'") == 1, "asc-error is the blocking case only"
+    # They split by MEANING: asc-error is reserved for a BLOCKING failure — nothing on this
+    # surface can proceed — and asc-inline-error for a recoverable one ("this panel failed,
+    # the page is fine, try again").
+    #
+    # Admin Launch §2 removed this file's only blocking case: it no longer mounts a foreign
+    # module, so there is no "the queue module did not load and physicians cannot be
+    # approved" state for it to paint. The remaining failures are all per-panel and
+    # recoverable. The rule is unchanged and no weaker — asc-error must never be spent on a
+    # recoverable panel failure, which is what a count above zero here would mean.
+    assert code.count("'asc-error'") == 0, (
+        "asc-error is the blocking case only, and this file no longer has one"
+    )
     assert code.count("'asc-inline-error'") >= 2
     # Raw stored tokens (race_ethnicity, prefer_not_to_say) must not reach a human here.
     assert "humanize(" in code

@@ -1139,6 +1139,17 @@ def test_no_new_component_vocabulary_beyond_the_prd():
 # cleaned up: deleting them is not this PRD's job, and an unpinned allowance
 # would let new orphans in unnoticed.
 _KNOWN_PREEXISTING_ORPHANS = {
+    # Admin Launch PRD §2 deleted the three surfaces that emitted these, so the
+    # rules are dead but asclepius.css is outside that PRD's write scope:
+    #   asc-phys-group    the health-system accordion on the roster (§2.1: flat)
+    #   asc-signup-notice the roster's "N mid-onboarding" card (§2.3: signups
+    #                     now render inside Pending, so there is nothing to
+    #                     point at from elsewhere)
+    #   asc-stage-badge   the signups stage badge (§2.3: name and specialty
+    #                     only; the stage word rides on the row's title)
+    # Registered here rather than left to fail, per §7. Deleting the rules is a
+    # stylesheet cleanup, not this change.
+    "asc-phys-group", "asc-signup-notice", "asc-stage-badge",
     "asc-axis-chip", "asc-blur-lock", "asc-btn-success", "asc-chip-green",
     "asc-chip-orange", "asc-chip-pink", "asc-divider", "asc-eval-grid",
     "asc-img-pagenav", "asc-kv", "asc-pre", "asc-progress-fail", "asc-record",

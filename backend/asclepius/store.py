@@ -1916,6 +1916,16 @@ class AsclepiusStore:
             # every other decision column in this file.
             if "payout_batch_id" not in cols("earnings"):
                 conn.execute("ALTER TABLE earnings ADD COLUMN payout_batch_id TEXT")
+            # Admin Launch PRD §4.4 — voiding one case. Three columns rather than
+            # one, because "we did not pay for this" has to carry WHO decided and
+            # WHEN alongside the reason: voiding a physician's pay is
+            # consequential and an unattributable void cannot be appealed.
+            # Additive ALTER, no DEFAULT — same rule as every other decision
+            # column in this file, so an existing row reads NULL ("never voided")
+            # rather than being back-stamped with a decision nobody made.
+            for _col in ("void_reason", "voided_by", "voided_at"):
+                if _col not in cols("earnings"):
+                    conn.execute(f"ALTER TABLE earnings ADD COLUMN {_col} TEXT")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_earnings_user ON earnings(user_id, status)")
             # Reconciling a disbursement against the ledger is the first thing
@@ -1927,6 +1937,34 @@ class AsclepiusStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_earnings_sweep ON earnings(status, accrued_at)")
             # ═══ END PRD-P ═══
+
+            # ═══ Community invites (Admin Launch PRD §5.1) ═════════════════
+            # A one-time, expiring link into Asclepius Community, mailed to an
+            # already-APPROVED physician. Same shape as the onboarding member
+            # token in team_store: only the SHA-256 of the token is stored, so a
+            # database read cannot mint a working link, and the raw token exists
+            # exactly once — in the email.
+            #
+            # ``redeemed_at`` is what makes it one-time; the join flag itself
+            # lives on users.slack_joined and is claimed through
+            # ``mark_community_welcomed``, which is the concurrency arbiter. This
+            # table never decides membership, it only carries the link.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS community_invites (
+                    token_hash  TEXT PRIMARY KEY,
+                    user_id     TEXT NOT NULL,
+                    email       TEXT NOT NULL,
+                    expires_at  TEXT NOT NULL,
+                    created_at  TEXT NOT NULL,
+                    created_by  TEXT,
+                    redeemed_at TEXT
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_community_invites_user "
+                "ON community_invites(user_id, created_at)")
 
             # ═══ Verification jobs ═════════════════════════════════════
             # One row per signup, drained by an in-process loop (main.py). There
@@ -8052,6 +8090,27 @@ class AsclepiusStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def has_unapplied_tiering_decision(self, user_id: str, admin_tier: str) -> bool:
+        """Is this exact judgment already queued as an un-folded observation?
+
+        Admin Launch PRD §3.3 has the console POST ``/tiering/{id}/decide`` and
+        then ``/approve``. ``approve`` records a tiering decision of its own, so
+        without this check one admin click would enter the training set TWICE —
+        the same physician, the same features, the same tier, counted as two
+        independent observations. ``apply_decision_batch`` would then fold a
+        doubled likelihood and the console's "N decisions until the next weight
+        update" would advance two per approval. Both are wrong, and both are
+        invisible from the outside.
+
+        Scoped to ``applied_at IS NULL`` deliberately: once a batch is folded in,
+        a later re-decision on the same physician IS a new observation.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM tiering_decisions WHERE user_id = ? AND admin_tier = ? "
+                "AND applied_at IS NULL LIMIT 1", (user_id, admin_tier)).fetchone()
+        return row is not None
+
     def apply_tiering_batch(self, decision_ids: List[str],
                             *, weights: Optional[Dict[str, Dict[str, float]]]) -> int:
         """Stamp ``applied_at`` and write the new weights in ONE transaction.
@@ -8978,6 +9037,156 @@ class AsclepiusStore:
                 "SELECT status, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents "
                 "FROM earnings GROUP BY status").fetchall()
         return {r["status"]: {"n": int(r["n"]), "cents": int(r["cents"])} for r in rows}
+
+    # ─── Admin Launch PRD §4 — per-physician ledger reads and the void ────────
+    #
+    # Every number the Money screen shows comes from one of these, in SQL, over
+    # the WHOLE ledger. The alternative — summing the rows a page happened to
+    # fetch — is wrong the moment the ledger outgrows the page limit, and wrong
+    # silently: the operator sees a smaller total and pays it.
+    def get_earning_by_id(self, earning_id: str) -> Optional[Dict[str, Any]]:
+        """One ledger row by its primary key, joined to the physician.
+
+        Named apart from ``get_earning(kind=, ref_id=)`` deliberately — that one
+        is keyed by the UNIQUE double-payment guard, this one by ``earning_id``
+        (which IS the ledger PK; there is no ``ledger_id``)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT e.*, u.email AS user_email, u.full_name AS user_full_name, "
+                "       u.tier AS user_tier, u.specialty AS user_specialty, "
+                "       u.compensation_model AS compensation_model "
+                "FROM earnings e LEFT JOIN users u ON u.id = e.user_id "
+                "WHERE e.earning_id = ?", (earning_id,)).fetchone()
+        return dict(row) if row is not None else None
+
+    def earnings_outstanding_by_user(self) -> Dict[str, Dict[str, int]]:
+        """Per-physician outstanding totals — the Money level-1 list.
+
+        "Outstanding" is ``accrued`` + ``approved``: work we owe for and have not
+        disbursed. ``paid`` is settled and ``void`` is not owed, so neither
+        belongs in a payable figure — a total that included them would be a
+        number no one should ever wire."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT user_id, "
+                "  COALESCE(SUM(CASE WHEN status IN ('accrued','approved') "
+                "                    THEN amount_cents ELSE 0 END), 0) AS outstanding_cents, "
+                "  COALESCE(SUM(CASE WHEN status = 'paid' "
+                "                    THEN amount_cents ELSE 0 END), 0) AS paid_cents, "
+                "  COUNT(*) AS n_rows, "
+                "  COALESCE(SUM(CASE WHEN status = 'void' THEN 1 ELSE 0 END), 0) AS n_void "
+                "FROM earnings GROUP BY user_id").fetchall()
+        return {
+            r["user_id"]: {
+                "outstanding_cents": int(r["outstanding_cents"]),
+                "paid_cents": int(r["paid_cents"]),
+                "n_rows": int(r["n_rows"]),
+                "n_void": int(r["n_void"]),
+            }
+            for r in rows
+        }
+
+    def earnings_payable_for_user(self, user_id: str) -> Dict[str, int]:
+        """The one physician's payable totals, recomputed from the ledger.
+
+        This is what a void and a payment return to the client. The UI never
+        subtracts locally: a client-side figure that drifts from the ledger is a
+        wrong number in front of the person deciding what to pay.
+
+        NOT ``earnings_totals_for_user`` — that name is already taken above by
+        the doctor-facing ``{status: {kind: …}}`` breakdown, and a second
+        definition of it would have silently shadowed the first for the whole
+        class, breaking the physician's own Earnings page with no error."""
+        agg = self.earnings_outstanding_by_user().get(user_id)
+        if agg is None:
+            return {"outstanding_cents": 0, "paid_cents": 0, "n_rows": 0, "n_void": 0}
+        return agg
+
+    def void_earning(self, earning_id: str, *, reason: str,
+                     voided_by: str) -> Dict[str, Any]:
+        """Void one ledger row. Idempotent on ``earning_id``.
+
+        The guarded UPDATE is the arbiter, not a read-then-write: a double-click
+        (or two admins on the same row) must decrement the total exactly once.
+        ``status IN ('accrued','approved')`` in the WHERE clause is what makes
+        the second call a no-op rather than a second decrement.
+
+        Returns ``{"row", "changed", "reason_code"}``. ``changed`` is False both
+        when the row was already void (fine, idempotent) and when it is ``paid``
+        (not fine — the caller turns that into a 409). ``reason_code`` says
+        which, because the two must not be reported to an operator as the same
+        thing.
+        """
+        now = _utcnow_iso()
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            row = conn.execute("SELECT * FROM earnings WHERE earning_id = ?",
+                               (earning_id,)).fetchone()
+            if row is None:
+                conn.execute("COMMIT")
+                return {"row": None, "changed": False, "reason_code": "not_found"}
+            row = dict(row)
+            if row["status"] == "paid":
+                conn.execute("COMMIT")
+                return {"row": row, "changed": False, "reason_code": "already_paid"}
+            cur = conn.execute(
+                "UPDATE earnings SET status = 'void', void_reason = ?, voided_by = ?, "
+                "voided_at = ?, resolved_at = ? "
+                "WHERE earning_id = ? AND status IN ('accrued', 'approved')",
+                (reason, voided_by, now, now, earning_id))
+            changed = bool(cur.rowcount)
+            after = dict(conn.execute("SELECT * FROM earnings WHERE earning_id = ?",
+                                      (earning_id,)).fetchone())
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return {"row": after, "changed": changed,
+                "reason_code": "voided" if changed else "already_void"}
+
+    # ─── Community invites (Admin Launch PRD §5.1) ───────────────────────────
+    def create_community_invite(self, *, user_id: str, email: str, token_hash: str,
+                                expires_at: str, created_by: Optional[str]) -> None:
+        """Store the HASH of a freshly minted invite token. The raw token is
+        never persisted — it exists only in the email we just sent."""
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO community_invites "
+                "(token_hash, user_id, email, expires_at, created_at, created_by, redeemed_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, NULL)",
+                (token_hash, user_id, email, expires_at, _utcnow_iso(), created_by))
+
+    def get_community_invite(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM community_invites WHERE token_hash = ?",
+                (token_hash,)).fetchone()
+        return dict(row) if row is not None else None
+
+    def redeem_community_invite(self, token_hash: str) -> bool:
+        """Stamp the invite consumed. Guarded UPDATE, so exactly one call wins —
+        the same shape as ``mark_community_welcomed`` and for the same reason."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE community_invites SET redeemed_at = ? "
+                "WHERE token_hash = ? AND redeemed_at IS NULL",
+                (_utcnow_iso(), token_hash))
+            return bool(cur.rowcount)
+
+    def latest_community_invite_for_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """The most recent invite sent to this physician — what the roster row
+        renders as ``Invited · {time}`` after a send."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM community_invites WHERE user_id = ? "
+                "ORDER BY created_at DESC LIMIT 1", (user_id,)).fetchone()
+        return dict(row) if row is not None else None
 
     def work_sessions_for_user(
         self, user_id: str, *, limit: int = 50

@@ -15,13 +15,19 @@ Policy lives in ``asclepius.payments``; persistence in the PRD-P sentinel block 
 imports nothing from ``review.py`` or ``routing.py``.
 """
 
+# DISBURSEMENT SEAM. This records that we consider these rows settled; it does
+# not move money. The rail will be Stripe Connect Express: physicians onboard
+# themselves, Stripe holds bank details and tax ids and files the 1099-NECs.
+# Nothing in this file should ever store a bank account number or a tax id — if
+# a change wants to, that is the signal it belongs behind Connect instead.
+
 from __future__ import annotations
 
 import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from asclepius import auth as asc_auth
@@ -446,10 +452,21 @@ async def admin_earnings(
         log.exception("asclepius.payments: admin reconciliation failed; serving the ledger as-is")
     if status is not None and status not in asc_payments.LEDGER_STATES:
         raise HTTPException(status_code=422, detail="Unknown status filter")
+    rows = store.list_earnings(user_id=user_id, status=status,
+                               payout_batch_id=payout_batch_id, limit=limit)
+    if user_id:
+        # Scoped to ONE physician, so the per-row lookups are bounded by that
+        # doctor's own ledger. Not done for the whole company: it would be a
+        # query per row over a table that only grows.
+        _enrich_case_context(store, rows)
     return {
-        "rows": store.list_earnings(user_id=user_id, status=status,
-                                    payout_batch_id=payout_batch_id, limit=limit),
+        "rows": rows,
         "totals": store.earnings_by_status(),
+        # Admin Launch PRD §4.2 level 1: outstanding per physician, aggregated in
+        # SQL over the WHOLE ledger. Summing ``rows`` client-side would be a
+        # different number the moment the ledger outgrows ``limit`` — and wrong
+        # quietly, since a smaller total still looks like a total.
+        "by_user": store.earnings_outstanding_by_user(),
         "rates": {
             "tl_rate_cents": asc_payments.tl_rate_cents(),
             "tr_session_cents": asc_payments.tr_session_cents(),
@@ -457,6 +474,48 @@ async def admin_earnings(
             "tl_auto_approve_days": asc_payments.tl_auto_approve_days(),
         },
     }
+
+
+def _enrich_case_context(store: Any, rows: List[Dict[str, Any]]) -> None:
+    """Add ``case_id``, ``specialty`` and ``seconds`` to each ledger row, in place.
+
+    **A zero is never written for an unknown.** ``submissions.time_spent_sec``
+    defaults to 0, so a task that predates timing, or one whose timer never
+    started, reads as 0 seconds — and "0m" in a Time column is how an operator
+    voids honest work. Unknown stays ``None`` and the console renders an em dash.
+
+    Only ``task`` rows carry a case: a review session spans several and a
+    referral bounty is not casework at all. Those get ``None``, not a guess.
+    """
+    task_cache: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        row.setdefault("case_id", None)
+        row.setdefault("specialty", None)
+        row.setdefault("seconds", None)
+        kind = row.get("kind")
+        ref = row.get("ref_id")
+        if not ref:
+            continue
+        if kind == asc_payments.KIND_TASK:
+            sub = store.get_submission(ref)
+            if not sub:
+                continue
+            tid = sub.get("task_id")
+            row["case_id"] = tid
+            secs = sub.get("time_spent_sec")
+            # 0 means "not recorded", not "instant".
+            row["seconds"] = int(secs) if secs else None
+            if tid:
+                if tid not in task_cache:
+                    task_cache[tid] = store.get_task(tid) or {}
+                row["specialty"] = task_cache[tid].get("specialty")
+        elif kind == asc_payments.KIND_REVIEW_SESSION:
+            # Reviewers are paid per SESSION, and payments.py already tracks the
+            # session's credited duration — the honest number here.
+            session = store.get_work_session(ref)
+            if session:
+                secs = session.get("credited_seconds")
+                row["seconds"] = int(secs) if secs else None
 
 
 @router.get("/api/asclepius/admin/referrals")
@@ -527,3 +586,262 @@ async def mark_paid(
             earning_ids=body.earning_ids, user_id=body.user_id)
     except asc_payments.PaymentsDenied as denied:
         raise HTTPException(status_code=422, detail=denied.detail)
+
+
+# ═══ Admin Launch PRD §4 — one physician, one case ════════════════════════════
+#
+# The Money screen is two levels: every physician with an outstanding total, and
+# then that physician's cases. These three routes are the level-2 actions.
+#
+# One rule runs through all of them: **the server owns the total.** Void and pay
+# both return the recomputed figure, and the console renders that rather than
+# subtracting locally. A client-side total that drifts from the ledger is the bug
+# this return value exists to make impossible.
+
+def _case_export_payload(store: Any, earning: Dict[str, Any]) -> Dict[str, Any]:
+    """The admin spot-check for one paid-for case, shaped by the EXPORT pipeline.
+
+    Deliberately not a second serializer. It runs the same profile mapping, the
+    same ``_case_answer_key``, the same review/supervision blocks and the same
+    ``_case_bundle`` fold that produce ``cases.jsonl`` in a buyer bundle — so a
+    buyer-facing artifact and an admin spot-check cannot disagree about what a
+    case contains. If they could, the spot-check would be checking something we
+    never ship.
+
+    Raises HTTPException for the cases an admin needs told apart: an earning that
+    is not a case at all, a case whose records have not been packaged yet, and a
+    case the export gate would reject.
+    """
+    from asclepius import export as asc_export           # noqa: PLC0415
+    from asclepius import packaging as asc_packaging     # noqa: PLC0415
+    from asclepius import profiles                       # noqa: PLC0415
+    from asclepius import credentials as asc_credentials  # noqa: PLC0415
+
+    kind = earning.get("kind")
+    if kind != asc_payments.KIND_TASK:
+        # A review session spans several cases and a referral bounty is not a
+        # case at all. Saying so beats exporting a plausible-looking empty
+        # bundle, which is how an operator concludes a case has no content.
+        raise HTTPException(
+            status_code=409,
+            detail=f"A {kind!r} ledger row is not a single case, so there is nothing "
+                   "to export for it. Only task rows carry one case.")
+
+    submission_id = earning.get("ref_id")
+    submission = store.get_submission(submission_id)
+    if not submission:
+        raise HTTPException(status_code=404,
+                            detail="The submission behind this ledger row no longer exists.")
+    task_id = submission.get("task_id")
+    task = store.get_task(task_id) or {}
+
+    prof = profiles.load_profile("default")
+    emitted: List[Dict[str, Any]] = []
+    mapped_objs: List[Dict[str, Any]] = []
+    reviews_by_sid: Dict[Any, List[Dict[str, Any]]] = {}
+    obs_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {
+        task_id: store.get_agreement_observation(task_id) if task_id else None}
+
+    # Every labeler on this case, not only the one being paid: a case with two
+    # labelers and a review is one artifact, and a spot-check that showed one
+    # label would misreport the consensus the buyer receives.
+    for sub in store.submissions_for_task(task_id):
+        sid = sub["submission_id"]
+        if sid not in reviews_by_sid:
+            reviews_by_sid[sid] = store.reviews_for_submission(sid)
+        for rec in store.records_for_submission(sid):
+            payload = dict(rec.get("payload") or {})
+            payload.pop("record_id", None)
+            try:
+                mapped = profiles.map_record(prof, payload)
+            except Exception:
+                mapped = None
+            if mapped is None:
+                continue          # a type this profile does not emit
+            answer_key = asc_export._case_answer_key(store, rec)
+            if answer_key:
+                mapped["answer_key"] = answer_key
+            mapped["review"] = asc_packaging.review_block(reviews_by_sid[sid], store)
+            mapped["supervision"] = asc_packaging.supervision_block(
+                labeler_id_hashed=payload.get("annotator_id_hashed"),
+                observation=obs_by_tid.get(task_id))
+            emitted.append(rec)
+            mapped_objs.append(mapped)
+
+    if not emitted:
+        raise HTTPException(
+            status_code=409,
+            detail="This case has no packaged records yet, so there is nothing to "
+                   "spot-check. Records are written when a submission reaches a "
+                   "terminal state.")
+
+    cases = asc_export._case_bundle(store, emitted, mapped_objs, reviews_by_sid, obs_by_tid)
+
+    # The SAME Tier B gate the export runs. An admin spot-check that quietly
+    # returned a payload the export would reject is a spot-check that cannot
+    # catch the one thing it is worth catching.
+    for case in cases:
+        leak = asc_credentials.find_tier_b_leak(case)
+        if leak is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"This case carries the identifying field {leak!r}, which the "
+                       "export gate rejects. It cannot ship in this state — fix the "
+                       "record before paying for it.")
+
+    return {
+        "earning_id": earning["earning_id"],
+        "case_id": task_id,
+        "specialty": task.get("specialty"),
+        "modality": asc_export._rec_modality(emitted[0]),
+        "amount_cents": int(earning.get("amount_cents") or 0),
+        "status": earning.get("status"),
+        "paid_to": earning.get("user_email"),
+        "exported_for": "admin spot-check",
+        "cases": cases,
+    }
+
+
+@router.get("/api/asclepius/admin/earnings/{earning_id}/case-export")
+async def admin_case_export(
+    earning_id: str,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Download the one case behind a ledger row, shaped exactly as it ships."""
+    import json as _json                                 # noqa: PLC0415
+    store = _store()
+    earning = store.get_earning_by_id(earning_id)
+    if earning is None:
+        raise HTTPException(status_code=404, detail="No such ledger row.")
+    payload = _case_export_payload(store, earning)
+    body = _json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, default=str)
+    filename = f"case-{payload.get('case_id') or earning_id}.json"
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+class VoidEarningBody(BaseModel):
+    # Required, and long enough to be a reason rather than a keystroke. Voiding a
+    # doctor's pay must be attributable AND explicable — "x" is neither.
+    reason: str = Field(..., min_length=3, max_length=500)
+
+
+@router.post(
+    "/api/asclepius/admin/earnings/{earning_id}/void",
+    dependencies=[Depends(rate_limiter("asclepius_void_earning", 60, 600))],
+)
+async def admin_void_earning(
+    earning_id: str,
+    body: VoidEarningBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Decline to pay for one case.
+
+    Four properties, all of them load-bearing:
+
+    1. ``paid`` is a **409**. The money already left; a refund is a treasury
+       operation and out of scope here. Voiding it would leave the ledger saying
+       we owe nothing for work we have already disbursed.
+    2. Idempotent on ``earning_id`` — a double-click cannot double-decrement,
+       because the store's guarded UPDATE is the arbiter rather than a read.
+    3. The recomputed total comes back, so the console renders the ledger's
+       number instead of subtracting its own.
+    4. An audit row, because voiding a physician's pay is consequential and must
+       be attributable to the person who did it.
+    """
+    reason = (body.reason or "").strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=422,
+                            detail="A void needs a reason of at least 3 characters.")
+    store = _store()
+    earning = store.get_earning_by_id(earning_id)
+    if earning is None:
+        raise HTTPException(status_code=404, detail="No such ledger row.")
+
+    result = store.void_earning(earning_id, reason=reason, voided_by=admin["email"])
+    if result["reason_code"] == "already_paid":
+        raise HTTPException(
+            status_code=409,
+            detail="That case has already been paid. Money has left; refunds are "
+                   "handled outside the ledger.")
+    if result["reason_code"] == "not_found":
+        raise HTTPException(status_code=404, detail="No such ledger row.")
+
+    if result["changed"]:
+        store.log_event(
+            entity_type="earning", entity_id=earning_id, event_type="earning_voided",
+            actor=admin["email"],
+            payload={"reason": reason, "kind": earning.get("kind"),
+                     "ref_id": earning.get("ref_id"), "user_id": earning.get("user_id"),
+                     "amount_cents": int(earning.get("amount_cents") or 0),
+                     "from_status": earning.get("status")},
+        )
+        log.warning("asclepius.payments: earning %s voided by %s (%s)",
+                    earning_id, admin["email"], reason)
+
+    user_id = earning.get("user_id")
+    return {
+        "ok": True,
+        "earning_id": earning_id,
+        # False on a replayed void. The console needs to tell "I just voided
+        # this" from "this was already void" — they are the same end state and
+        # very different things to say to an operator.
+        "voided": bool(result["changed"]),
+        "row": result["row"],
+        "user_id": user_id,
+        "totals": store.earnings_payable_for_user(user_id),
+    }
+
+
+class PayEarningsBody(BaseModel):
+    user_id: str
+    earning_ids: List[str] = Field(default_factory=list)
+    payout_batch_id: str = Field(default="")
+
+
+@router.post(
+    "/api/asclepius/admin/earnings/pay",
+    dependencies=[Depends(rate_limiter("asclepius_pay_earnings", 30, 600))],
+)
+async def admin_pay_earnings(
+    body: PayEarningsBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Send payment for one physician's approved rows.
+
+    Thin over ``asc_payments.mark_paid`` rather than a parallel write path —
+    that function owns the batch-id idempotency and the compare-and-set that
+    makes a retried disbursement safe, and a second implementation of it is a
+    second chance to pay twice.
+
+    The one thing added here is the compensation guard: an advisor on
+    ``equity_only`` holds equity and is not paid per case. It calls
+    ``compensation.accrues_payment`` rather than re-testing the column, because
+    the rule that NULL is payable lives in that function and a re-implementation
+    written as ``!= 'equity_only'`` gets legacy contributors wrong.
+    """
+    from asclepius import compensation                    # noqa: PLC0415
+    store = _store()
+    user = store.get_user_by_id(body.user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="No such physician.")
+    if not compensation.accrues_payment(user):
+        raise HTTPException(
+            status_code=409,
+            detail="This contributor is on the equity-only model: they hold equity "
+                   "and are not paid per case. Nothing was marked paid.")
+    try:
+        result = asc_payments.mark_paid(
+            store, payout_batch_id=body.payout_batch_id, actor_id=admin["id"],
+            earning_ids=body.earning_ids or None, user_id=body.user_id)
+    except asc_payments.PaymentsDenied as denied:
+        raise HTTPException(status_code=422, detail=denied.detail)
+    return {"ok": True, "user_id": body.user_id, **result,
+            "totals": store.earnings_payable_for_user(body.user_id)}

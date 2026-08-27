@@ -73,21 +73,22 @@ eval(require('fs').readFileSync(%(module)s, 'utf8'));
 """
 
 
-def _verify_tab_script(stub: bool) -> str:
-    """Render the Physicians → Verification tab with the PRD-B global present
-    (stub=True) or absent, and report what landed in the DOM."""
-    setup = (
-        "var mountCalls = [];\n"
-        "window.AsclepiusVerification = { mount: function (el, c) "
-        "{ mountCalls.push({ tag: el.tagName, hasCtx: !!(c && c.h) }); "
-        "el.appendChild(h('div', { class: 'stub-queue' }, 'REAL QUEUE')); },"
-        " refresh: function () {} };\n"
-        if stub else "var mountCalls = [];\n"
-    )
+def _pending_tab_script(responses: dict, tail: str, wait_after_tail: bool = False) -> str:
+    """Render the Physicians section and report what landed in the DOM.
+
+    Admin Launch PRD §1.2 removed the sub-tab strip, so the section takes no
+    view argument: it owns its own Approved / Pending tabs.
+    """
     return (_JS_CTX % {"shim": json.dumps(str(_DOM_SHIM)),
-                       "module": json.dumps(str(_FRONTEND / "admin_physicians.js"))}) + setup + """
-var body = document.createElement('div');
-window.AdminPhysiciansSection.render(body, ctx, 'verify');
+                       "module": json.dumps(str(_FRONTEND / "admin_physicians.js"))}) + """
+var RESPONSES = %s;
+var CALLS = [];
+ctx.api = function (path, opts) {
+  CALLS.push({ path: path, method: (opts && opts.method) || 'GET',
+               body: (opts && opts.body) || null });
+  if (!(path in RESPONSES)) return Promise.reject({ message: 'no stub for ' + path });
+  return Promise.resolve(RESPONSES[path]);
+};
 function textOf(el) {
   if (el.nodeValue != null) return el.nodeValue;
   return (el.childNodes || []).map(textOf).join(' ');
@@ -97,51 +98,119 @@ function classesOf(el) {
   (el.childNodes || []).forEach(function (c) { if (c.tagName) out = out.concat(classesOf(c)); });
   return out;
 }
-console.log(JSON.stringify({
-  mountCalls: mountCalls,
-  text: textOf(body),
-  classes: classesOf(body),
-}));
-"""
+function find(el, pred, acc) {
+  acc = acc || [];
+  if (pred(el)) acc.push(el);
+  (el.childNodes || []).forEach(function (c) { if (c.tagName) find(c, pred, acc); });
+  return acc;
+}
+var body = document.createElement('div');
+var QUEUE_TEXT = null;
+window.AdminPhysiciansSection.reset();
+window.AdminPhysiciansSection.render(body, ctx);
+function later(fn, n) { setTimeout(n > 1 ? function () { later(fn, n - 1); } : fn, 0); }
+function report() {
+  console.log(JSON.stringify({ text: textOf(body), queueText: QUEUE_TEXT,
+                               classes: classesOf(body), calls: CALLS }));
+}
+later(function () {
+%s
+  %s
+}, 4);
+""" % (json.dumps(responses), tail,
+       "later(report, 4);" if wait_after_tail else "report();")
 
 
-# ─── B1: the verification queue mount (Seam 1) ───────────────────────────────
-def test_verification_tab_mounts_prd_b_global():
-    """The tab must call ``window.AsclepiusVerification.mount(el, ctx)``.
+_PENDING_QUEUE = {
+    "status": "pending", "count": 1, "total": 1, "has_more": False,
+    "queue": [{"user_id": "u1", "email": "jane@clinic.org", "full_name": "Jane Doe",
+               "specialty": "cardiology"}],
+}
+_NO_SIGNUPS = {"signups": [], "counts": {"total": 0}, "awaiting_review": 0,
+               "can_resend": True, "stalled_after_days": 3}
+_DOSSIER = {
+    "user_id": "u1", "email": "jane@clinic.org", "full_name": "Jane Doe",
+    "specialty": "cardiology", "score": 82, "proposed_tier": "reviewer",
+    "tier_words": {"labeler": "Labeler", "reviewer": "Reviewer"},
+    "reasons": ["+25 NPI verified against NPPES (MD)", "+20 board certified"],
+    "blockers": [], "has_cv": False, "cv_ok": False,
+    "npi": {"npi": "1234567893", "result": "verified", "recheck_pending": False},
+    "tiering": {"proposed_tier": "reviewer", "score": 4.7},
+}
 
-    Regression for B1: for a whole build round this probed an invented global
-    that nothing defines, so the tab rendered a placeholder and no physician
-    could be approved through the UI.
+
+# ─── B1 → Admin Launch §2/§3: the decision surface is native to this section ──
+def test_pending_tab_renders_the_decision_surface_in_this_section():
+    """The queue is no longer a foreign module mounted into a sub-tab.
+
+    Regression for B1 in its current form: for a whole build round the
+    Verification tab probed an invented global, rendered a placeholder, and no
+    physician could be approved through the UI. The property that mattered then
+    still matters now — a physician waiting for a decision must be REACHABLE and
+    DECIDABLE from this section — so it is asserted against the surface that
+    actually carries it.
     """
-    out = _run_node(_verify_tab_script(stub=True))
-    assert len(out["mountCalls"]) == 1, "AsclepiusVerification.mount was never called"
-    assert out["mountCalls"][0]["hasCtx"] is True, "mount did not receive the shared ctx"
-    assert "REAL QUEUE" in out["text"], "the mounted queue did not reach the DOM"
-    # The dead placeholder copy must not survive alongside the real queue.
-    assert "ships with the identity-verification work" not in out["text"]
+    out = _run_node(_pending_tab_script(
+        {"/admin/physicians": {"physicians": [], "counts": {"all": 0}},
+         "/verify/queue?status=pending": _PENDING_QUEUE,
+         "/admin/signups": _NO_SIGNUPS,
+         "/verify/queue/u1": _DOSSIER},
+        "  QUEUE_TEXT = textOf(body);\n"
+        "  find(body, function (e) { return e.tagName === 'TR'; })"
+        "    .filter(function (r) { return textOf(r).indexOf('Jane Doe') !== -1; })[0]"
+        "    .dispatch('click');",
+        wait_after_tail=True))
+    # Pending opens by default whenever anything is waiting, and the physician
+    # is reachable from the queue.
+    assert "Jane Doe" in out["queueText"]
+    assert "ships with the identity-verification work" not in out["queueText"]
+    # Opening them lands on a decision, in this section — three buttons, the
+    # recommended tier primary, and the score and reasons beside them.
+    assert "Approve as Reviewer" in out["text"]
+    assert "Approve as Labeler" in out["text"]
+    assert "Reject" in out["text"]
+    assert "NPI verified against NPPES" in out["text"]
+    # §8.8 / §3.1: the report comes from ONE call, not two.
+    dossier = [c for c in out["calls"] if c["path"].startswith("/verify/queue/u1")]
+    assert len(dossier) == 1, out["calls"]
+    assert dossier[0]["path"] == "/verify/queue/u1", (
+        "a case_domain was passed; the server defaults to the physician's own "
+        "specialty and §3.1 says not to override it")
 
 
-def test_verification_tab_failure_is_visible_not_silent():
-    """With the module absent the operator must SEE a failure.
+def test_pending_tab_failure_is_visible_not_silent():
+    """With the queue unreachable the operator must SEE a failure.
 
-    A silent placeholder is precisely what hid B1 for an entire build round —
-    the absence case is therefore part of the contract, not a nicety.
+    A silent placeholder is precisely what hid B1 for an entire build round, so
+    the absence case is part of the contract rather than a nicety. There is no
+    stub for the queue here, so its promise rejects.
     """
-    out = _run_node(_verify_tab_script(stub=False))
-    assert out["mountCalls"] == []
-    assert "asc-error" in out["classes"], "the failure state is not rendered as an error"
-    assert "failed to load" in out["text"]
+    out = _run_node(_pending_tab_script(
+        {"/admin/physicians": {"physicians": [], "counts": {"all": 0}}}, ""))
+    assert "asc-inline-error" in " ".join(out["classes"]), (
+        "the failure state is not rendered as an error"
+    )
+    assert "could not be loaded" in out["text"]
     assert "ships with the identity-verification work" not in out["text"], (
         "the silent placeholder is back — this is the B1 regression"
     )
 
 
-def test_verification_mount_uses_the_frozen_global_name():
-    """Seam 1 freezes the name. Re-deriving it is the bug, so assert the source."""
-    src = (_FRONTEND / "admin_physicians.js").read_text(encoding="utf-8")
-    assert "window.AsclepiusVerification" in src
-    assert "renderVerificationQueue" not in src, (
+def test_the_frozen_verification_global_is_not_re_derived():
+    """Seam 1 freezes the name ``window.AsclepiusVerification`` and PRD-B owns it.
+
+    Admin Launch §2 replaced the mounted sub-tab with a native two-tab section,
+    so admin_physicians.js no longer mounts anything — but the rule that broke
+    B1 still holds: nobody may INVENT a name for somebody else's global. The
+    owner still exports it under the frozen name.
+    """
+    section = (_FRONTEND / "admin_physicians.js").read_text(encoding="utf-8")
+    assert "renderVerificationQueue" not in section, (
         "the guessed global name is back — PRD-B owns window.AsclepiusVerification"
+    )
+    owner = (_FRONTEND / "onboarding.js").read_text(encoding="utf-8")
+    assert "window.AsclepiusVerification = " in owner, (
+        "the frozen global lost its owner"
     )
 
 

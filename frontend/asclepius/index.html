@@ -39,8 +39,12 @@
   <!-- Instruction Manual content (structured data) — loaded before the app so
        window.ASC_MANUAL is available when the Guide view renders. -->
   <script src="/static/asclepius/manual-content.js" defer></script>
-  <!-- PRD-B verification queue. Must load BEFORE asclepius.js: it defines
-       window.AsclepiusVerification, which the Physicians section mounts. -->
+  <!-- PRD-B onboarding module. Owns window.AsclepiusVerification (Seam 1 — the
+       name is frozen) and self-mounts the calibration exam and the voluntary
+       demographics form on their hash routes. The Physicians section builds its
+       own decision report as of the Admin Launch PRD §2/§3, so it no longer
+       mounts the queue — but this file still loads first, because the two hash
+       routes are the only way a physician can sit the calibration exam. -->
   <script src="/static/asclepius/onboarding.js" defer></script>
   <!-- PRD-C admin sections — own files (§3.3 ownership), mounted by asclepius.js. -->
   <script src="/static/asclepius/admin_physicians.js" defer></script>

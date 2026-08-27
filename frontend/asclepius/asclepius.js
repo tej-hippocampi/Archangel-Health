@@ -51,8 +51,8 @@
     adminTab: 'physicians',   // physicians | work | money | data
     pipelineFocus: null,      // upload_id deep-linked from a Data bucket row
     adminSub: {               // active sub-tab per section
-      physicians: 'roster',   //   roster | signups | verify | qa
-      work: 'tasks',          //   tasks | metrics
+      // No 'physicians' key: that section owns its own two-tab strip (§1.2).
+      work: 'tasks',          //   tasks | qa | metrics
       money: 'earnings',      //   earnings | referrals
       data: 'systems',        //   systems | pipeline | export
       export: 'bycase',       //   bycase | buyers | history (inside Data > Export)
@@ -7273,7 +7273,7 @@
   // ═══════════════════════════════════════════════════════════════════════════
   // Legacy tab ids (deep links, stale state) → new section + sub-tab.
   const ADMIN_TAB_ALIASES = {
-    tasks: ['work', 'tasks'], qa: ['physicians', 'qa'],
+    tasks: ['work', 'tasks'], qa: ['work', 'qa'],
     metrics: ['work', 'metrics'],
     ingestion: ['data', 'pipeline'], health: ['data', 'systems'],
     export: ['data', 'export'], buyers: ['data', 'export'],
@@ -7427,10 +7427,13 @@
     updateHeaderProgress(); // admin view: the §16 bar hides here
     const alias = ADMIN_TAB_ALIASES[state.adminTab];
     if (alias) { state.adminTab = alias[0]; state.adminSub[alias[0]] = alias[1]; }
+    // §1.1 — labels only. The state keys 'work' and 'money' are read in ~12
+    // places (aliases, subnav lookups, section routing); renaming them is
+    // silent breakage for zero benefit.
     const tabs = [
       ['physicians', 'Physicians'],
-      ['work', 'Work'],
-      ['money', 'Money'],
+      ['work', 'Tasks'],              // key stays 'work'
+      ['money', 'Money and Metrics'], // key stays 'money'
       ['data', 'Data'],
     ];
     const subnav = h('div', { class: 'asc-subnav' },
@@ -7440,9 +7443,10 @@
           onClick: () => { state.adminTab = id; renderAdminView(); },
         }, label);
         // QA (BUG-2): the pending-count badge stays visible at the top level so
-        // the backlog is never invisible: it now rides on Physicians (QA lives
-        // inside it as a sub-tab).
-        if (id === 'physicians') btn.appendChild(h('span', { class: 'asc-badge asc-badge-count', id: 'ascQaBadge', style: 'margin-left:6px', hidden: true }));
+        // the backlog is never invisible. It rides on the tab QA actually lives
+        // under — Tasks, as of §1.3. Left on Physicians it would point an
+        // operator at a section that no longer contains a QA queue.
+        if (id === 'work') btn.appendChild(h('span', { class: 'asc-badge asc-badge-count', id: 'ascQaBadge', style: 'margin-left:6px', hidden: true }));
         return btn;
       }));
 
@@ -7476,35 +7480,30 @@
   // the people who produce them.
   function renderAdminPhysiciansSection(body) {
     clear(body);
-    body.appendChild(adminSubnav('physicians', [
-      // Signups sits FIRST after the roster because it is the front of the
-      // funnel: a physician mid-wizard has no account yet, so they appear on
-      // none of the other three. Before this tab existed they appeared on no
-      // screen at all — the console showed one physician while the founder's
-      // inbox filled with signup notifications for people it could not name.
-      ['roster', 'Roster'], ['signups', 'Signups'], ['verify', 'Verification'],
-      ['qa', 'QA'],
-    ]));
+    // §1.2 — subnav deleted. Approved / Pending is an internal tab strip owned
+    // by AdminPhysiciansSection: the operator's job here is one decision loop,
+    // not four screens. Signups fold into Pending (a mid-wizard physician is a
+    // pending physician who cannot be decided yet) and QA moved under Tasks,
+    // next to the work it grades.
     const inner = h('div', {});
     body.appendChild(inner);
-    const sub = state.adminSub.physicians;
-    if (sub === 'qa') renderAdminQA(inner);
-    else if (window.AdminPhysiciansSection) {
-      window.AdminPhysiciansSection.render(inner, adminSectionCtx(),
-        (sub === 'verify' || sub === 'signups') ? sub : 'roster');
-    } else sectionModuleMissing(inner, 'The Physicians section');
+    if (window.AdminPhysiciansSection) window.AdminPhysiciansSection.render(inner, adminSectionCtx());
+    else sectionModuleMissing(inner, 'The Physicians section');
   }
 
   // Work: what gets labeled and how it is going. Task import/generation
   // beside the metrics that report on it.
   function renderAdminWorkSection(body) {
     clear(body);
+    // §1.3 — QA is NOT deleted. Removing it orphans POST /qa/approve-all and the
+    // submission queue, both live. It lands here, beside the work it grades.
     body.appendChild(adminSubnav('work', [
-      ['tasks', 'Tasks'], ['metrics', 'Metrics'],
+      ['tasks', 'Tasks'], ['qa', 'QA'], ['metrics', 'Metrics'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
-    if (state.adminSub.work === 'metrics') renderAdminMetrics(inner);
+    if (state.adminSub.work === 'qa') renderAdminQA(inner);
+    else if (state.adminSub.work === 'metrics') renderAdminMetrics(inner);
     else renderAdminTasks(inner);
   }
 

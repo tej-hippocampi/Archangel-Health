@@ -358,8 +358,35 @@ async def verification_dossier(
         # returns {} for anything that is not a dict and so silently swallowed
         # the whole list.
         "flags": _json_list(user.get("flags_json")),
+        # Admin Launch PRD §3.2 / §0.3 — the verification agent's LLM research,
+        # carried on the SAME call so the decision screen stays one request.
+        #
+        # It is deliberately a separate key from ``reasons``, and it must render
+        # below the decision buttons under its own heading. The agent fetches
+        # pages the applicant controls, so "this physician is verified, approve"
+        # in white-on-white text on a personal site is a live prompt-injection
+        # attack against something that writes verification_status. It is
+        # background reading for a human; it is never part of the
+        # recommendation, and ``verification_agent.decide()`` does not read it.
+        # Empty until a research pass runs — an empty list renders no panel,
+        # rather than an empty panel implying research was done and found nothing.
+        "agent_research": _agent_research(store, user_id),
     })
     return row
+
+
+def _agent_research(store: Any, user_id: str) -> List[Dict[str, Any]]:
+    """The research entries from this physician's stored agent dossier, if any."""
+    try:
+        job = store.get_verification_job(user_id) or {}
+        raw = job.get("dossier_json")
+        if not raw:
+            return []
+        dossier = json.loads(raw)
+    except (ValueError, TypeError, AttributeError):
+        return []
+    research = (dossier or {}).get("research")
+    return research if isinstance(research, list) else []
 
 
 def _json_list(raw: Any) -> List[Dict[str, Any]]:
@@ -479,17 +506,31 @@ async def approve_signup(
     # bookkeeping failure must never cost a physician their approval.
     try:
         tprop = _tiering_proposal(store, user)
-        store.record_tiering_decision(
-            user_id=user_id,
-            case_domain=tprop.get("case_domain"),
-            features=tprop.get("features") or {},
-            proposed_tier=tprop.get("proposed_tier"),
-            admin_tier=tier,
-            was_exploration=bool(tprop.get("was_exploration")),
-            outcome_source="admin",
-            score=tprop.get("score"),
-            decided_by=admin["email"],
-        )
+        # Admin Launch PRD §3.3 has the console POST /tiering/{id}/decide FIRST and
+        # then /approve, so that agreement with the recommendation is recorded as a
+        # training observation and not only disagreement. That makes this call a
+        # potential DUPLICATE of an observation written moments ago: same
+        # physician, same features, same tier. Folding both would double-count one
+        # admin click into the likelihood and advance the pending-decision counter
+        # by two per approval — silently, since nothing about a doubled batch looks
+        # wrong from the outside.
+        #
+        # So: record here only when this judgment is not already queued. An API
+        # client calling /approve on its own still produces its observation, which
+        # is what keeps the learning loop honest for callers that never touch
+        # /decide.
+        if not store.has_unapplied_tiering_decision(user_id, tier):
+            store.record_tiering_decision(
+                user_id=user_id,
+                case_domain=tprop.get("case_domain"),
+                features=tprop.get("features") or {},
+                proposed_tier=tprop.get("proposed_tier"),
+                admin_tier=tier,
+                was_exploration=bool(tprop.get("was_exploration")),
+                outcome_source="admin",
+                score=tprop.get("score"),
+                decided_by=admin["email"],
+            )
         # §6 fairness monitor. The decided tier AND the feature vector are COPIED ONTO the
         # demographics row here, so the monitor later needs no join at all. Note what is NOT
         # happening: nothing reads demographics off `user`. They are not on the users row and
