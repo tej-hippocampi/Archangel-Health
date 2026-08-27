@@ -32,6 +32,7 @@ from ratelimit import rate_limiter
 from community.router import (
     _audit, _cstore, _is_admin, _require_message_access, _serialize_messages,
     _visible_channel_or_404, member_map, require_community_admin, require_member,
+    require_poster,
 )
 
 log = logging.getLogger("community.social")
@@ -155,7 +156,7 @@ async def get_event(event_id: int, user: Dict[str, Any] = Depends(require_member
 @router.post("/events/{event_id}/rsvp",
              dependencies=[Depends(rate_limiter("community_rsvp", 60, 60))])
 async def rsvp_event(event_id: int, request: Request,
-                     user: Dict[str, Any] = Depends(require_member)):
+                     user: Dict[str, Any] = Depends(require_poster)):
     cstore = _cstore()
     event = cstore.get_event(event_id)
     if not event or event.get("cancelled_at"):
@@ -202,7 +203,7 @@ async def event_ics(event_id: int, user: Dict[str, Any] = Depends(require_member
 # ══════════════════════════════════════════════════════════════════════════════
 @router.post("/polls", dependencies=[Depends(rate_limiter("community_poll", 20, 60))])
 async def create_poll(body: PollIn, request: Request,
-                      user: Dict[str, Any] = Depends(require_member)):
+                      user: Dict[str, Any] = Depends(require_poster)):
     cstore = _cstore()
     members = member_map()
     channel = _visible_channel_or_404(body.channel_slug, members)
@@ -242,7 +243,7 @@ async def create_poll(body: PollIn, request: Request,
 @router.post("/polls/{poll_id}/vote",
              dependencies=[Depends(rate_limiter("community_vote", 60, 60))])
 async def vote_poll(poll_id: int, body: VoteIn, request: Request,
-                    user: Dict[str, Any] = Depends(require_member)):
+                    user: Dict[str, Any] = Depends(require_poster)):
     cstore = _cstore()
     poll = cstore.get_poll(poll_id)
     if not poll:
@@ -261,7 +262,7 @@ async def vote_poll(poll_id: int, body: VoteIn, request: Request,
 
 @router.post("/polls/{poll_id}/close")
 async def close_poll(poll_id: int, request: Request,
-                     user: Dict[str, Any] = Depends(require_member)):
+                     user: Dict[str, Any] = Depends(require_poster)):
     cstore = _cstore()
     poll = cstore.get_poll(poll_id)
     if not poll:
@@ -291,7 +292,7 @@ async def _broadcast_pins(cstore, channel: Dict[str, Any]) -> List[Dict[str, Any
 
 @router.post("/messages/{message_id}/pin")
 async def pin_message(message_id: int, request: Request,
-                      user: Dict[str, Any] = Depends(require_member)):
+                      user: Dict[str, Any] = Depends(require_poster)):
     cstore = _cstore()
     msg = cstore.get_message(message_id)
     if not msg or msg.get("deleted"):
@@ -308,7 +309,7 @@ async def pin_message(message_id: int, request: Request,
 
 @router.delete("/messages/{message_id}/pin")
 async def unpin_message(message_id: int, request: Request,
-                        user: Dict[str, Any] = Depends(require_member)):
+                        user: Dict[str, Any] = Depends(require_poster)):
     cstore = _cstore()
     msg = cstore.get_message(message_id)
     if not msg:
@@ -340,7 +341,7 @@ _URL_OK = re.compile(r"^https?://", re.I)
 
 @router.post("/channels/{slug}/bookmarks")
 async def add_bookmark(slug: str, body: BookmarkIn, request: Request,
-                       user: Dict[str, Any] = Depends(require_member)):
+                       user: Dict[str, Any] = Depends(require_poster)):
     if not _URL_OK.match(body.url.strip()):
         raise HTTPException(status_code=400, detail="Bookmark URL must start with http(s)://")
     # A bookmark TITLE is new human-visible free text, not already-scanned
@@ -367,7 +368,7 @@ async def add_bookmark(slug: str, body: BookmarkIn, request: Request,
 
 @router.delete("/bookmarks/{bookmark_id}")
 async def remove_bookmark(bookmark_id: int, request: Request,
-                          user: Dict[str, Any] = Depends(require_member)):
+                          user: Dict[str, Any] = Depends(require_poster)):
     cstore = _cstore()
     bm = cstore.get_bookmark(bookmark_id)
     if not bm:

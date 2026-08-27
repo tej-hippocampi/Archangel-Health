@@ -231,8 +231,16 @@
     const badge = document.getElementById('ascUserBadge');
     clear(badge);
     badge.appendChild(h('span', { class: 'asc-user-email' }, state.user.email));
+    // The account kind wins over the raw role when there is one. Every
+    // non-physician account is provisioned role="evaluator" so the rest of the
+    // portal keeps working, which meant an advisor's own header called them an
+    // "evaluator" -- a word for the people doing clinical work, and not a word
+    // they would recognise as theirs.
+    const roleWord = isAdvisor() ? 'advisor'
+      : isReferralOnly() ? 'referral partner'
+        : state.user.role.replace('_', ' ');
     badge.appendChild(h('span', { class: 'asc-user-role' },
-      state.user.role.replace('_', ' ') + (state.user.specialty ? ' · ' + state.user.specialty : '')));
+      roleWord + (state.user.specialty ? ' · ' + state.user.specialty : '')));
 
     // The corner ? tab (below) is the single help entry point: replay the
     // practice case or view a summary of it. No separate header control.
@@ -275,6 +283,11 @@
     // rail: a stale deep link or a hand-typed state change must not open a
     // section the session was never granted. (The API 403s regardless.)
     if (dest === 'referral' && !sessionHasSurface('referral')) return;
+    // Tasks opens for anyone who has work to do there OR a practice case to run
+    // in it. A referral-only account has neither, and a hand-typed hash must not
+    // land them on a dashboard built for physicians. (The API 403s regardless.)
+    if (dest === 'tasks' && !sessionHasSurface('real_work')
+        && !sessionHasSurface('tutorial')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
@@ -400,6 +413,14 @@
     return !!(state.user && state.user.account_kind === 'referrer');
   }
 
+  /* An advisor: the whole product, view-only, with the referral page as the one
+     thing they can act on. They are not waiting for anything -- no credentials
+     are being checked -- so every "opens when your credentials clear" affordance
+     is wrong for them and is replaced rather than reused. */
+  function isAdvisor() {
+    return !!(state.user && state.user.account_kind === 'advisor');
+  }
+
   function sessionHasSurface(surface) {
     const list = (state.user && state.user.surfaces) || [];
     return list.indexOf(surface) !== -1;
@@ -422,6 +443,15 @@
     // rail with four locked doors on it.
     if (isReferralOnly()) {
       return items.filter((it) => ['referral', 'guide', 'profile'].includes(it.dest));
+    }
+    // An advisor's Tasks tab is not a locked door either. It has something
+    // behind it -- the practice case, which is the whole point of showing them
+    // around -- and a padlock with "opens when your credentials clear" would
+    // promise something that is never going to happen to them.
+    if (isAdvisor()) {
+      return items.map((it) => (it.dest === 'tasks'
+        ? Object.assign({}, it, { locked: false, lockedHint: null })
+        : it));
     }
     return items;
   }
@@ -1262,8 +1292,12 @@
     // in the practice case; in_progress resumes it. completed/skipped NEVER
     // re-trigger (server-authoritative via PATCH /me/tutorial). Admin/QA skip it.
     if (isReferralOnly()) { setPanel('referral'); return; }
+    // An advisor lands on the dashboard, not inside the tutorial. Being dropped
+    // straight into a case is right for a physician whose first job is to learn
+    // the interface; someone here to look around should be shown the product
+    // and offered the practice case, not started in the middle of one.
     const tut = (state.user && state.user.tutorial) || {};
-    if (state.user.role === 'evaluator'
+    if (state.user.role === 'evaluator' && !isAdvisor()
         && (tut.status === 'not_started' || tut.status === 'in_progress')) {
       startTutorial({ resume: tut.status === 'in_progress', resumeStep: tut.step });
       return;
@@ -1635,6 +1669,19 @@
   // are worth saying, but from inside, next to the things they CAN do.
 
   function provisionalBannerEl() {
+    // An advisor sees a persistent notice instead: same slot, different fact.
+    // Theirs is not "wait a day", it is "this is what the product looks like,
+    // and you are reading it rather than working in it".
+    if (isAdvisor()) {
+      return h('div', { class: 'asc-provisional-banner', role: 'status' },
+        h('span', { class: 'asc-provisional-dot', 'aria-hidden': 'true' }),
+        h('div', { class: 'asc-provisional-copy' },
+          h('strong', {}, 'You have view-only access.'),
+          ' Look around anything here: the community, the guide, a practice '
+          + 'case with the real interface. Nothing you do is saved and no real '
+          + 'patient case is ever shown. Your referral page is the one part '
+          + 'that is fully yours to use.'));
+    }
     if (!sessionIsProvisional()) return null;
     return h('div', { class: 'asc-provisional-banner', role: 'status' },
       h('span', { class: 'asc-provisional-dot', 'aria-hidden': 'true' }),
@@ -1704,11 +1751,17 @@
     let stats = null;
     let scoreInfo = null;
     let queueError = null;
-    // A physician whose credentials are still being checked has no real queue
-    // and no earnings, and BOTH endpoints below are on the real-work surface.
-    // Asking anyway would produce two 403s and render "we could not load your
-    // queue", which is a bug report, not the truth. The truth is that the queue
-    // does not exist for them yet, and the banner says so.
+    // No real queue and no earnings, and BOTH endpoints below are on the
+    // real-work surface. Asking anyway would produce two 403s and render "we
+    // could not load your queue", which is a bug report, not the truth.
+    //
+    // Keyed on the SURFACE rather than on `sessionIsProvisional()`, which is
+    // what it used to read. Those were the same set while a physician under
+    // review was the only person who could be in here without real work; an
+    // advisor is the second, and they are not provisional -- nothing about
+    // their account is pending -- so the old test would have sent them straight
+    // into two 403s on their first screen.
+    const noRealWork = !sessionHasSurface('real_work');
     const provisional = sessionIsProvisional();
     // The score is browse-gated on purpose: a provisional physician's "in
     // review" state renders FROM it, so it is fetched outside the real-work
@@ -1722,7 +1775,7 @@
       ? api('/review/stats').catch(() => null)
       : Promise.resolve(null);
     try {
-      if (provisional) throw { __provisional: true };
+      if (noRealWork) throw { __provisional: true };
       const [tasksRes, statsRes] = await Promise.all([
         api('/tasks/available?portal_version=' + encodeURIComponent(ver)
           + '&specialty=' + encodeURIComponent(spec)),
@@ -1777,13 +1830,19 @@
 
     if (queueError) {
       main.appendChild(renderDashboardError(queueError));
-    } else if (provisional) {
+    } else if (noRealWork) {
       main.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('h3', {}, 'Your first real case is waiting on us, not on you.'),
-        h('p', {},
-          'Real ' + specLabel + ' cases appear here the moment your credentials '
-          + 'clear. In the meantime the practice case is the real interface with '
-          + 'a case we wrote for it, so nothing about it is a mock-up.'),
+        h('h3', {}, provisional
+          ? 'Your first real case is waiting on us, not on you.'
+          : 'This is where the work happens.'),
+        h('p', {}, provisional
+          ? 'Real ' + specLabel + ' cases appear here the moment your credentials '
+            + 'clear. In the meantime the practice case is the real interface with '
+            + 'a case we wrote for it, so nothing about it is a mock-up.'
+          : 'A verified physician sees their queue of real ' + specLabel + ' cases '
+            + 'here. The practice case below is the same interface they work in, '
+            + 'running against a case we wrote for it, so what you see is what '
+            + 'they see.'),
         h('div', { class: 'asc-dash-cta' },
           h('button', {
             class: 'asc-btn asc-btn-primary',
@@ -1792,7 +1851,7 @@
           h('button', {
             class: 'asc-btn asc-btn-ghost',
             onClick: () => setPanel('community'),
-          }, 'Meet the community')))));
+          }, provisional ? 'Meet the community' : 'Read the community')))));
     } else if (!tasks.length) {
       main.appendChild(renderDashboardEmpty(specLabel));
     } else {
@@ -6423,6 +6482,12 @@
     };
     const fetchSuggest = async () => {
       if (dismissed) return;
+      // The practice case is virtual, and this is the one LLM-spend call in the
+      // evaluation form that was never fenced off during it: every other
+      // task-scoped and assist call already checks (see /assist/prelabel).
+      // Typing into a tour is not worth billing a retrieval for, and it is the
+      // only spend a visitor with no real-work surface could have triggered.
+      if (tutorialActive()) { clear(wrap); return; }
       // Don't re-suggest once the doctor has already confirmed/typed a citation.
       if (isValidAnchor(anchor)) { clear(wrap); return; }
       const text = (getText() || '').trim();
@@ -11094,13 +11159,21 @@
         h('div', { class: 'asc-tour-planted-title' },
           planted.matched ? 'You caught the one most physicians miss' : 'The one most physicians miss'),
         h('div', { class: 'asc-tour-finding-reason' }, planted.reason)) : null,
+      // "Start real cases" is the right next step for a physician and a dead
+      // end for an advisor, who has no real cases and never will. They get the
+      // same reveal, because how we grade is the most interesting thing in the
+      // demo, and a closing line that says what happens next for a doctor.
       h('p', { class: 'asc-help', style: 'margin:14px 0 0' },
-        opts.replay ? 'Practice case: nothing was recorded.'
-          : 'Nothing from this case is recorded or sold. Your real cases start now.'),
+        isAdvisor()
+          ? 'A physician who finished this would be graded exactly the way you '
+            + 'just were, and their next case would be a real one. Nothing from '
+            + 'this run was recorded.'
+          : opts.replay ? 'Practice case: nothing was recorded.'
+            : 'Nothing from this case is recorded or sold. Your real cases start now.'),
       h('div', { style: 'display:flex;gap:10px;margin-top:18px;align-items:center' },
         h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
           onClick: () => { state.portalChosen = false; state.specialtyChosen = false; renderDashboardView(); } },
-          'Start real cases →'),
+          isAdvisor() ? 'Back to the dashboard' : 'Start real cases →'),
         h('button', { class: 'asc-btn asc-btn-ghost', type: 'button', onClick: openInstructionDrawer },
           'Open the instructions')));
     setRoot(h('div', { class: 'asc-wrap asc-tour-reveal' }, card));

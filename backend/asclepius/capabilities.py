@@ -168,6 +168,33 @@ REFERRER = "referrer"     # holds a referral link and nothing else
 #: knows doctors, not to a doctor.
 _REFERRER_SURFACES: FrozenSet[str] = frozenset({BROWSE, REFERRAL})
 
+#: An advisor sees the product and can refer. That is the whole account: they
+#: are shown around so they can speak about us credibly, and the one thing they
+#: DO is introduce people.
+#:
+#: Read the omissions rather than the list. No REAL_WORK, because an advisor is
+#: not a clinician and a real case carries real patient data. No
+#: COMMUNITY_WRITE, because the physicians in those channels are talking to
+#: colleagues and a non-clinical voice among them changes what the room is;
+#: reading is enough to understand it, and the confidentiality line they sign at
+#: signup is what covers the reading. TUTORIAL is in, and it is the whole demo:
+#: the practice case is virtual end to end, so an advisor clicking through it
+#: touches no patient and writes no row.
+_ADVISOR_SURFACES: FrozenSet[str] = frozenset(
+    {BROWSE, TUTORIAL, COMMUNITY_READ, EARNINGS, REFERRAL}
+)
+
+#: Kind -> the ceiling that kind may ever reach. Intersected with whatever the
+#: access level grants, so the cap holds INDEPENDENTLY of verification: an admin
+#: clicking Approve on an advisor moves them to FULL and changes nothing about
+#: what they can do. A physician is absent from this map and is capped by
+#: nothing, which is the pre-existing behaviour for every account that predates
+#: there being more than one door.
+_BY_ACCOUNT_KIND: Dict[str, FrozenSet[str]] = {
+    REFERRER: _REFERRER_SURFACES,
+    ADVISOR: _ADVISOR_SURFACES,
+}
+
 
 def account_kind(user: Optional[Dict[str, Any]]) -> Optional[str]:
     return ((user or {}).get("account_kind") or "").strip().lower() or None
@@ -195,11 +222,12 @@ def surfaces(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
     if (user or {}).get("role") == "admin":
         return frozenset(SURFACES)
     granted_by_access = _BY_ACCESS.get(access_level(user), frozenset())
-    # A referral-only account is capped no matter how its verification lands:
+    # A non-physician account is capped no matter how its verification lands:
     # approving one does not turn the person who introduced us to a hospital
     # into someone who grades cases.
-    if account_kind(user) == REFERRER:
-        return granted_by_access & _REFERRER_SURFACES
+    cap = _BY_ACCOUNT_KIND.get(account_kind(user) or "")
+    if cap is not None:
+        return granted_by_access & cap
     return granted_by_access
 
 

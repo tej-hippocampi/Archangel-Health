@@ -115,6 +115,19 @@ def _passes_gate(user: Optional[Dict[str, Any]]) -> bool:
         return True
     if role != "evaluator":
         return False
+    # An account that is not a physician is admitted on its SURFACE cap and
+    # nothing else. An advisor holds COMMUNITY_READ and is let in to read; a
+    # referral-only account holds neither and is refused here, which is the
+    # whole of what "referral link and nothing else" means.
+    #
+    # This leg is deliberately scoped to non-physician kinds. Asking
+    # ``can_surface`` about a PHYSICIAN would widen the gate below by accident:
+    # access_level folds a NULL verification_status in with 'approved', so every
+    # pre-verification-era account with no vault row would suddenly pass, which
+    # is exactly the widening the next comment block warns against.
+    kind = asc_caps.account_kind(user)
+    if kind is not None:
+        return asc_caps.can_surface(user, asc_caps.COMMUNITY_READ)
     # A physician awaiting verification is admitted. The community is the most
     # valuable thing we can hand someone during a one-to-two day wait, and a
     # read-only member is a lurker who does not come back. They have already
@@ -148,8 +161,35 @@ def require_member(
     return user
 
 
-def require_verified_member(
+def require_poster(
     user: Dict[str, Any] = Depends(require_member),
+) -> Dict[str, Any]:
+    """A member who may put something INTO the community, not just read it.
+
+    ``COMMUNITY_WRITE`` existed in ``capabilities`` from the start and nothing
+    imported it, so every content-writing route in here was ``require_member``
+    only: reading and writing were the same permission. That was harmless while
+    everyone who could reach the community was a physician. It stops being
+    harmless the moment a non-clinical account can read the room -- an advisor
+    would have been able to post in a channel of doctors, react to their
+    messages, open polls and unpin their pins.
+
+    A physician's behaviour does not change: PROVISIONAL still grants
+    ``COMMUNITY_WRITE``, so a doctor under review posts exactly as they did.
+    """
+    if not asc_caps.can_surface(user, asc_caps.COMMUNITY_WRITE):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Your account has view-only access to the community. You can "
+                "read every channel; posting is for the physicians doing the work."
+            ),
+        )
+    return user
+
+
+def require_verified_member(
+    user: Dict[str, Any] = Depends(require_poster),
 ) -> Dict[str, Any]:
     """A member whose credentials have actually cleared.
 
@@ -157,6 +197,13 @@ def require_verified_member(
     and file uploads are not. Those two are the unsolicited-contact and the PHI
     vectors respectively, and they are the two worth making someone wait a day
     for. Everything else in the community is the same for both.
+
+    Chained on ``require_poster`` rather than ``require_member``: a DM is
+    strictly more privileged than a channel post, so someone who may not post at
+    all may certainly not message a physician privately. Without that chain an
+    advisor would have passed this gate outright, because a non-clinical account
+    carries a NULL verification_status and access_level folds NULL in with
+    'approved'.
     """
     if asc_caps.access_level(user) != asc_caps.FULL and user.get("role") not in ("admin", "qa_reviewer"):
         raise HTTPException(
@@ -226,6 +273,14 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
         if not user.get("active") or user["id"] in banned:
             continue
         role = user.get("role")
+        # A non-physician account is never a member here, however its
+        # verification lands. This is the directory, the mention target list and
+        # the population the specialty and country channels count to decide
+        # whether they exist -- an advisor belongs in none of those, and an
+        # admin approving one must not quietly add them to a room of colleagues.
+        # They read the community; they are not part of it.
+        if asc_caps.account_kind(user) is not None:
+            continue
         cred = None
         if user.get("id_hashed"):
             cred = astore.get_contributor_credentials(user["id_hashed"])
@@ -322,6 +377,28 @@ _GHOST_MEMBER = {
     "is_staff": False,
     "blurb": None,
 }
+
+
+def _viewer_identity(user: Dict[str, Any]) -> Dict[str, Any]:
+    """How a non-physician reader sees THEMSELVES in the community header.
+
+    They are deliberately absent from ``member_map``: they are not colleagues,
+    they must not appear in the directory, must not count toward the specialty
+    and country channel thresholds, and must never receive a mention or a digest
+    email. But a reader whose own name renders as "Former member" -- which is
+    what the ghost fallback would have given them -- reads as a bug in the
+    product on their first screen. This is a self-view only; it is never put in
+    a member list and nothing they do produces an author record.
+    """
+    name = (user.get("full_name") or user.get("email") or "").strip()
+    parts = [p for p in name.replace(".", " ").split() if p]
+    initials = "".join(p[0] for p in parts[:2]).upper() or "?"
+    return {
+        **_GHOST_MEMBER,
+        "user_id": user["id"],
+        "display_name": name or "You",
+        "initials": initials,
+    }
 
 
 def resolve_member_for_notify(user_id: str) -> Optional[Dict[str, Any]]:
@@ -581,8 +658,15 @@ def _phi_block(request: Optional[Request], user: Dict[str, Any], surface: str,
 @router.get("/me")
 async def me(user: Dict[str, Any] = Depends(require_member)):
     members = member_map()
+    member = public_member(members.get(user["id"]))
+    if member is None and asc_caps.account_kind(user) is not None:
+        member = _viewer_identity(user)
     return {
-        "member": public_member(members.get(user["id"])) or dict(_GHOST_MEMBER),
+        "member": member or dict(_GHOST_MEMBER),
+        # Whether this reader may put anything into the room. The composer keys
+        # on it: a disabled box with a line saying why beats a box that accepts
+        # a message and then 403s on send.
+        "can_post": asc_caps.can_surface(user, asc_caps.COMMUNITY_WRITE),
         "is_admin": _is_admin(user),
         "notice": "Colleague discussion only. Do not post patient-identifiable information.",
         "retention": "Messages are retained indefinitely unless an admin removes them.",
@@ -675,7 +759,7 @@ async def post_message(
     slug: str,
     body: MessageIn,
     request: Request,
-    user: Dict[str, Any] = Depends(require_member),
+    user: Dict[str, Any] = Depends(require_poster),
 ):
     cstore = _cstore()
     members = member_map()
@@ -766,7 +850,7 @@ async def edit_message(
     message_id: int,
     body: MessageEdit,
     request: Request,
-    user: Dict[str, Any] = Depends(require_member),
+    user: Dict[str, Any] = Depends(require_poster),
 ):
     cstore = _cstore()
     msg = cstore.get_message(message_id)
@@ -808,7 +892,7 @@ async def edit_message(
 async def delete_message(
     message_id: int,
     request: Request,
-    user: Dict[str, Any] = Depends(require_member),
+    user: Dict[str, Any] = Depends(require_poster),
 ):
     cstore = _cstore()
     msg = cstore.get_message(message_id)
@@ -849,7 +933,7 @@ _EMOJI_FORBIDDEN = re.compile(r"[A-Za-z0-9<>&\"'`=\\/]")
 async def toggle_reaction(
     message_id: int,
     body: ReactionIn,
-    user: Dict[str, Any] = Depends(require_member),
+    user: Dict[str, Any] = Depends(require_poster),
 ):
     emoji = (body.emoji or "").strip()
     if not emoji or _EMOJI_FORBIDDEN.search(emoji):

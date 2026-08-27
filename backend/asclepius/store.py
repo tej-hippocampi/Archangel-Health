@@ -7474,6 +7474,34 @@ class AsclepiusStore:
                 (email,)).fetchone()
         return dict(row) if row else None
 
+    def move_open_referrals(self, old_email: str, new_email: str) -> int:
+        """Re-key unclaimed referrals when an invitee changes their address
+        mid-signup, and return how many moved.
+
+        Attribution is email-keyed (see ``find_open_referral_for_email``), and
+        the address it is keyed on is the one typed on ``/join`` -- which the
+        very next screen of the wizard lets them edit. A doctor who opens a
+        colleague's link with their personal address and then corrects it to
+        their hospital one is doing something completely reasonable, and it
+        silently cost the referrer the credit: the row still pointed at the
+        address nobody would ever sign up with, so ``claim_referral_for_signup``
+        found nothing at provisioning time and the referral sat at ``invited``
+        forever.
+
+        Only rows with no ``user_id`` move. A referral already attached to an
+        account is settled history and is never rewritten.
+        """
+        old = (old_email or "").lower().strip()
+        new = (new_email or "").lower().strip()
+        if not old or not new or old == new:
+            return 0
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE referrals SET invitee_email = ? "
+                "WHERE invitee_email = ? AND user_id IS NULL",
+                (new, old))
+            return int(cur.rowcount or 0)
+
     def count_recent_referrals_for_email(self, email: str, *, hours: int = 24) -> int:
         """How many times this address has been invited recently, by ANYONE.
 

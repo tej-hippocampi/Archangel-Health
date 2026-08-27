@@ -40,12 +40,6 @@ export default function JoinEntry() {
   const [lastName, setLastName] = useState((params.get("last") || "").trim());
   const [email, setEmail] = useState((params.get("email") || "").trim());
   const [honeypot, setHoneypot] = useState("");
-  /* A referral code typed in by hand. The Referral tab tells physicians they
-     can "give them the code to enter at archangelhealth.ai/join", and until now
-     this page only ever read ?ref= from the URL -- so a code passed along in a
-     text message had nowhere to go and the referrer silently lost the credit.
-     A code in the URL still wins: it is the one the referrer actually sent. */
-  const [typedCode, setTypedCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState("");
@@ -62,9 +56,16 @@ export default function JoinEntry() {
         company_website: honeypot,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
+        // Attribution is the LINK and nothing else. A physician sends their
+        // personal link, the person they sent it to opens it, and the credit is
+        // recorded without either of them doing anything about it. There is no
+        // code to type, here or anywhere: a step someone can forget is a
+        // referral we lose and a physician who is not paid for an introduction
+        // they actually made.
+        //
         // The ref param survives editing every field: attribution belongs to
         // the link that brought them here, not to the address they typed.
-        referral_code: (params.get("ref") || typedCode).trim(),
+        referral_code: (params.get("ref") || "").trim(),
         flavor,
       });
       setRedirecting(true);
@@ -129,15 +130,6 @@ export default function JoinEntry() {
                 value={email}
                 onChange={setEmail}
               />
-              {!params.get("ref") && (
-                <TextField
-                  label="Referral code"
-                  optional
-                  placeholder="From the colleague who invited you"
-                  value={typedCode}
-                  onChange={(v) => setTypedCode(v.trim().toUpperCase())}
-                />
-              )}
               {/* Honeypot, mirrored from the contributor modal: never shown to
                   a person, always filled by a naive bot. */}
               <input

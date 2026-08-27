@@ -153,7 +153,6 @@
   /* ── The link ───────────────────────────────────────────────────────── */
   function linkCard(h) {
     var url = data.invite_url || '';
-    var code = data.referral_code || '';
     var card = h('div', { class: 'asc-ref-card' });
     card.appendChild(h('div', { class: 'asc-ref-title' }, 'Your link'));
     card.appendChild(h('div', { class: 'asc-ref-pitch' },
@@ -172,12 +171,11 @@
       }, copied ? 'Copied' : 'Copy link'));
     card.appendChild(row);
     card.appendChild(shareRow(h, url));
-    if (code) {
-      card.appendChild(h('div', { class: 'asc-ref-code-line' },
-        'Or give them the code ',
-        h('code', { class: 'asc-mono' }, code),
-        ' to enter at archangelhealth.ai/join.'));
-    }
+    // No "or give them this code to type in". The link IS the mechanism: it
+    // records the credit on its own, and a code offered as an alternative made
+    // a manual step look like a supported path. It was one a colleague could
+    // forget, mistype or never be told about, and every one of those is an
+    // introduction a physician made and does not get paid for.
     return card;
   }
 
