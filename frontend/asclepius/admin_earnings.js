@@ -412,7 +412,13 @@
         h('div', { class: 'asc-card-sub' },
           'Structure: ' + money(ps.referrer_bounty_cents) + ' to the referrer at '
           + 'verified + first accepted case, ' + money(ps.referee_bonus_cents)
-          + ' to the invitee, ceiling ' + money(ps.cap_cents) + ' per referrer.'))));
+          + ' to the invitee, '
+          // cap_cents 0 means NO CEILING, which is the default configuration.
+          // Rendering it through money() would print "ceiling $0.00 per
+          // referrer", which reads as a program that pays nothing.
+          + (ps.cap_cents
+              ? 'ceiling ' + money(ps.cap_cents) + ' per referrer.'
+              : 'no ceiling.')))));
       var rows = data.rows || [];
       if (!rows.length) {
         body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },

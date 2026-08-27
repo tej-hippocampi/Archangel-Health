@@ -29,6 +29,9 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+# Pillow decode + re-encode + a synchronous disk write. On the event loop that
+# stalls every other request in the process, not just this one.
+from starlette.concurrency import run_in_threadpool
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
@@ -37,6 +40,9 @@ from asclepius import capabilities as asc_caps
 from asclepius import cases as asc_cases
 from asclepius import citations as asc_citations
 from asclepius import corpus as asc_corpus
+from asclepius import assets as asc_assets
+from asclepius import avatar as asc_avatar
+from asclepius import contributor_score as asc_contributor_score
 from asclepius import credentials as asc_credentials
 from asclepius import export as asc_export
 from asclepius import generation as asc_generation
@@ -642,9 +648,32 @@ async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc
             "tier": row.get("tier"),
             "tier_word": asc_caps.tier_word(row.get("tier")),
             "score": (score or {}).get("score"),
-            "band": (score or {}).get("band"),
+            # Derived, not read off the row: contributor_scores has no `band`
+            # column, so `(score or {}).get("band")` was None for every
+            # physician who ever loaded this page, and the profile rendered a
+            # bare number with nothing saying what it meant.
+            "band": asc_contributor_score.band_word((score or {}).get("score"))
+                    if (score or {}).get("score") is not None else None,
             "referral_code": row.get("referral_code"),
         },
+        # Absent until they upload one. The initials and the accent come from
+        # the community's own helpers rather than a second implementation: the
+        # two letters a physician sees on their own profile and the two their
+        # colleagues see beside their messages have to be the same two letters.
+        "avatar": _avatar_block(row),
+    }
+
+
+def _avatar_block(row: Dict[str, Any]) -> Dict[str, Any]:
+    from community.router import _initials, specialty_accent
+    sha = (row.get("avatar_asset_sha") or "").strip()
+    return {
+        # Cache-busted on the sha, so replacing a picture is visible
+        # immediately rather than after an hour of `private, max-age=3600`.
+        "url": (f"/api/asclepius/users/{row['id']}/avatar?v={sha[:12]}") if sha else None,
+        "initials": _initials(row.get("full_name") or row.get("email") or ""),
+        "accent": specialty_accent(row.get("specialty")),
+        "updated_at": row.get("avatar_updated_at"),
     }
 
 
@@ -697,6 +726,120 @@ async def change_my_password(
         actor=user.get("email"), payload={},
     )
     return {"ok": True}
+
+
+# ─── Profile picture ──────────────────────────────────────────────────────────
+async def _read_avatar_upload(file: UploadFile, request: Request) -> bytes:
+    """Read with a RUNNING cap, the same shape as onboarding's ``_read_capped``.
+
+    ``await file.read()`` buffers the whole body before anything can check its
+    size, so an arbitrarily large upload is resident in memory before it can be
+    refused -- cheap memory pressure against a single-worker process. Reject on
+    a declared Content-Length first, then stream and abort the moment the cap is
+    passed rather than trusting the declaration.
+    """
+    cap = asc_avatar.avatar_max_bytes()
+    mb = cap // (1024 * 1024)
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > cap + 8192:
+        raise HTTPException(status_code=413,
+                            detail=f"That image is too large. Keep it under {mb} MB.")
+    chunks, total = [], 0
+    while True:
+        chunk = await file.read(256 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > cap:
+            raise HTTPException(status_code=413,
+                                detail=f"That image is too large. Keep it under {mb} MB.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+@router.post(
+    "/me/avatar",
+    dependencies=[Depends(rate_limiter("asclepius_avatar", 10, 600))],
+)
+async def upload_my_avatar(
+    request: Request,
+    file: UploadFile = File(...),
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+):
+    """A physician's own headshot.
+
+    On BROWSE like the rest of ``/me/*``, so somebody still awaiting
+    verification can set one -- they are in the community from the day they
+    sign up, and appearing there as two grey letters for a week is a poor
+    welcome.
+    """
+    data = await _read_avatar_upload(file, request)
+    try:
+        # The declared Content-Type is not passed in. It is attacker-controlled
+        # and the stored blob is served inline from this origin; the bytes
+        # decide. See asclepius/avatar.py.
+        sha, mime = await run_in_threadpool(asc_avatar.store, data)
+    except asc_avatar.AvatarRejected as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        log.exception("[avatar] could not store the upload")
+        raise HTTPException(
+            status_code=503,
+            detail="We could not save that just now. Try again in a moment.",
+        ) from exc
+    store = _store()
+    store.set_user_avatar(user["id"], sha256=sha, mime=mime,
+                          at=datetime.utcnow().replace(microsecond=0).isoformat() + "Z")
+    store.log_event(entity_type="user", entity_id=user["id"],
+                    event_type="avatar_set", actor=user.get("email"),
+                    payload={"bytes": len(data)})
+    return {"ok": True, "avatar": _avatar_block(store.get_user_by_id(user["id"]) or {})}
+
+
+@router.delete("/me/avatar")
+async def delete_my_avatar(
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+):
+    store = _store()
+    store.set_user_avatar(user["id"], sha256=None, mime=None, at="")
+    store.log_event(entity_type="user", entity_id=user["id"],
+                    event_type="avatar_cleared", actor=user.get("email"), payload={})
+    return {"ok": True, "avatar": _avatar_block(store.get_user_by_id(user["id"]) or {})}
+
+
+@router.get("/users/{user_id}/avatar")
+async def get_user_avatar(
+    user_id: str,
+    viewer: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+):
+    """Serve a physician's picture to any signed-in member of the product.
+
+    Not self-scoped: the point of a profile picture is that colleagues see it
+    beside a message and an admin sees it while checking a registry entry. It
+    is gated on being signed in at all, which is the same bar the display name
+    it sits next to already clears.
+    """
+    store = _store()
+    row = store.get_user_by_id(user_id) or {}
+    sha = (row.get("avatar_asset_sha") or "").strip()
+    if not sha:
+        raise HTTPException(status_code=404, detail="No picture on file.")
+    try:
+        data, _mime = asc_assets.load_asset(sha)
+    except asc_assets.AssetError:
+        # The blob is gone -- almost certainly an ephemeral asset store wiped by
+        # a redeploy. A 404 lets the client fall back to initials, which is the
+        # right outcome: cosmetic, recoverable, and not worth a 500.
+        raise HTTPException(status_code=404, detail="No picture on file.")
+    return Response(
+        content=data,
+        media_type=row.get("avatar_mime") or "image/png",
+        headers={
+            "Content-Disposition": "inline",
+            "Cache-Control": "private, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.patch("/me/tutorial")

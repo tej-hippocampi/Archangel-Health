@@ -49,6 +49,7 @@ import {
   Step6Success,
   Step7AsclepiusTeam,
   Step8AsclepiusSuccess,
+  StepAsclepiusSignIn,
   emptyAttestations,
   emptyCredentials,
   type AsclepiusMember,
@@ -77,6 +78,7 @@ type StepKey =
   | "credRare"
   | "attestations"
   | "ascTeam"
+  | "ascSignIn"
   | "ascSuccess";
 
 const STEP_LABELS: Partial<Record<StepKey, string>> = {
@@ -221,6 +223,7 @@ function initialData(): OnboardingData {
     attestations: emptyAttestations(),
     roleLabel: "",
     workspaceUrl: "",
+    asclepiusToken: "",
   };
 }
 
@@ -237,6 +240,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   // screens relaxed; flavor=advisor and flavor=referrer produce capped accounts
   // and get the short signup instead (see orderFor).
   const [signupFlavor, setSignupFlavor] = useState("");
+  const [signInReason, setSignInReason] =
+    useState<"complete" | "account_exists">("complete");
   const signupKind = useMemo(() => signupKindFor(signupFlavor), [signupFlavor]);
   const [authToken, setAuthToken] = useState("");
   const [stepError, setStepError] = useState("");
@@ -304,8 +309,18 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
           : emptyAttestations(),
     }));
 
-    if (d.status === "complete") {
-      setStep(product === "asclepius" ? "ascSuccess" : "signin");
+    // A finished link, or an address that already has an account. Both are
+    // "you do not need to sign up, you need to sign in" -- and the second one
+    // MUST NOT walk the wizard again: /finish passes password_hash
+    // unconditionally, so a second pass silently repoints the live account's
+    // password to whatever gets typed on the way through.
+    if (d.status === "complete" || d.status === "account_exists") {
+      if (product === "asclepius" || d.status === "account_exists") {
+        setSignInReason(d.status === "account_exists" ? "account_exists" : "complete");
+        setStep("ascSignIn");
+      } else {
+        setStep("signin");
+      }
       return;
     }
     // Resume to the right screen. `step` is the backend's highest completed
@@ -638,10 +653,14 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       return false;
     }
     const d = fbody as { workspace_url?: string; token?: string };
-    if (d.token) {
-      try { authApi.storeAsclepiusSession(d.token); } catch { /* fall back to manual sign-in */ }
-    }
-    setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
+    // The session token is held in React state, not written to localStorage.
+    // The portal is a DIFFERENT ORIGIN in production, so a token written here
+    // is invisible there -- see the note where storeAsclepiusSession used to
+    // live. openAsclepiusWorkspace trades it for a handoff code instead.
+    setData({
+      workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl(),
+      asclepiusToken: d.token || "",
+    });
     setStep("ascSuccess");
     return true;
   }, [token, setData]);
@@ -701,8 +720,14 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStepError(formatApiError(body) || `HTTP ${r.status}`);
       return false;
     }
-    const d = body as { workspace_url?: string };
-    setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
+    const d = body as { workspace_url?: string; token?: string };
+    // Was `body as { workspace_url?: string }` -- the endpoint returns a
+    // session token and this path threw it away, so anyone reaching finish
+    // through the team screen landed logged out.
+    setData({
+      workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl(),
+      asclepiusToken: d.token || "",
+    });
     setStep("ascSuccess");
     return true;
   }, [token, setData]);
@@ -822,8 +847,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         setStepError(formatApiError(fbody) || `HTTP ${fr.status}`);
         return false;
       }
-      const d = fbody as { workspace_url?: string };
-      setData({ workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl() });
+      const d = fbody as { workspace_url?: string; token?: string };
+      setData({
+        workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl(),
+        asclepiusToken: d.token || "",
+      });
       setStep("ascSuccess");
       return true;
     },
@@ -831,10 +859,45 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
      data.firstName, data.lastName],
   );
 
-  const openAsclepiusWorkspace = useCallback(() => {
+  /* The portal is a different origin, so a session cannot be handed over in
+     localStorage. Trade the token for a single-use handoff code the portal
+     redeems on load -- the same path SignInDialog has always used.
+
+     If the trade fails (no token, network, an expired session) we still send
+     them to the portal, where they get the login screen. That is the old
+     behaviour and it is the right fallback: a doctor who can sign in is
+     better off than one staring at an error on the success page. */
+  /* Sign in and hand off, rather than linking away to a login page and making
+     them arrive twice. Same two calls SignInDialog makes. */
+  const signInToAsclepius = useCallback(
+    async (email: string, password: string) => {
+      setStepError("");
+      try {
+        const res = await authApi.asclepiusLogin(email, password);
+        if (!res.token) throw new Error("Sign in failed");
+        await authApi.redirectToAsclepiusPortal(res.token);
+        return true;
+      } catch (e: unknown) {
+        setStepError(e instanceof Error ? e.message : "Sign in failed");
+        return false;
+      }
+    },
+    [],
+  );
+
+  const openAsclepiusWorkspace = useCallback(async () => {
+    const sessionToken = data.asclepiusToken;
+    if (sessionToken) {
+      try {
+        await authApi.redirectToAsclepiusPortal(sessionToken);
+        return true;
+      } catch {
+        /* fall through to the plain redirect + manual sign-in */
+      }
+    }
     window.location.href = data.workspaceUrl || authApi.asclepiusPortalUrl();
     return true;
-  }, [data.workspaceUrl]);
+  }, [data.workspaceUrl, data.asclepiusToken]);
 
   const handleExit = useCallback(() => {
     window.location.href = "/";
@@ -843,7 +906,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   // ─────────────────────────────────────────
   // Stepper config.
   // ─────────────────────────────────────────
-  const stepperKeys: StepKey[] = order.filter((k) => k !== "success" && k !== "ascSuccess");
+  // ascSignIn is not a step in any flow: it is where a finished or
+  // already-registered link lands instead of one. Showing it in the stepper
+  // would draw a progress bar for a journey the person is not on.
+  const stepperKeys: StepKey[] = order.filter(
+    (k) => k !== "success" && k !== "ascSuccess" && k !== "ascSignIn");
   const stepperLabels = stepperKeys.map((k) => STEP_LABELS[k] ?? k);
   const stepperIndex = stepperKeys.indexOf(step);
   const showStepper = stepperIndex >= 0;
@@ -861,6 +928,24 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         <div style={{ maxWidth: 480, margin: "80px auto", textAlign: "center" }}>
           <h2 style={{ color: "var(--ink)", marginBottom: 12 }}>This onboarding link can&apos;t be loaded.</h2>
           <p style={{ color: "var(--ink-soft)", fontSize: 14 }}>{bootError}</p>
+          {/* An expired or already-used link is overwhelmingly likely to belong
+              to somebody who already HAS an account. This was a dead end with
+              no route anywhere, which is a strange thing to show a physician
+              whose only problem is that they finished signing up. */}
+          <p style={{ color: "var(--ink-soft)", fontSize: 14, marginTop: 18 }}>
+            Already have an account?{" "}
+            <button
+              type="button"
+              onClick={() => { setBootError(""); setStep("ascSignIn"); }}
+              style={{
+                background: "none", border: "none", padding: 0,
+                color: "var(--ink)", fontSize: 14, cursor: "pointer",
+                textDecoration: "underline", textUnderlineOffset: 3,
+              }}
+            >
+              Sign in
+            </button>
+          </p>
         </div>
       );
     }
@@ -975,6 +1060,15 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             error={stepError}
           />
         );
+      case "ascSignIn":
+        return (
+          <StepAsclepiusSignIn
+            data={data}
+            onSignIn={signInToAsclepius}
+            error={stepError}
+            reason={signInReason}
+          />
+        );
       case "ascSuccess":
       default:
         return (
@@ -1019,6 +1113,8 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     signupFlavor,
     signupKind,
     submitPassword,
+    signInToAsclepius,
+    signInReason,
   ]);
 
   return (

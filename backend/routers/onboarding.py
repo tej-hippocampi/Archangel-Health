@@ -332,6 +332,33 @@ async def onboarding_session(token: str, request: Request):
         }
     if not ts.onboarding_token_valid(row):
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+    # Already have an account? Say so, and let the wizard offer a sign-in
+    # instead of walking them through a signup for an account that exists.
+    #
+    # Two ways to land here: a colleague forwards a /join link to someone who
+    # signed up months ago, or a physician requests a fresh link having
+    # forgotten they already have one. Both used to walk the entire wizard and
+    # end at ``finish``, which passes ``password_hash=`` unconditionally and so
+    # silently REPOINTED the live account's password to whatever they typed on
+    # the way through.
+    #
+    # Not an account-existence oracle: the caller already holds a signed
+    # onboarding token minted for this exact address, so they cannot ask about
+    # anybody else's.
+    director_email = (row.get("director_email") or "").strip()
+    if director_email:
+        try:
+            existing = _asclepius_store(request).get_user_by_email(director_email)
+        except Exception:
+            existing = None
+        if existing and (existing.get("password_hash") or "").strip():
+            return {
+                "status": "account_exists",
+                "health_system_id": row["id"],
+                "slug": row.get("slug"),
+                "step": int(row.get("onboarding_step") or 0),
+                **_hydrate_session_fields(ts, row),
+            }
     return {
         "status": "pending",
         "health_system_id": row["id"],
@@ -1723,4 +1750,17 @@ async def member_finish(body: OnboardTokenBody, request: Request):
     await send_html_email(
         person["email"], "Your Asclepius workspace is ready", html_body, importance_headers=True
     )
-    return {"ok": True, "workspace_url": workspace_url}
+    # Mint a session, exactly as the director path does. This route returned no
+    # token at all, so an INVITED clinician could never land signed in: they
+    # finished the form, were told their workspace was ready, and got a login
+    # screen. Same reasoning as the director's: the invite token and the OTP
+    # already proved who this is, so there is nothing further to check.
+    session_token = None
+    try:
+        from asclepius import auth as asc_auth
+        asc_user = _asclepius_store(request).get_user_by_email(person["email"])
+        if asc_user:
+            session_token = asc_auth.create_token(asc_user)
+    except Exception:
+        session_token = None
+    return {"ok": True, "workspace_url": workspace_url, "token": session_token}

@@ -93,8 +93,15 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
               </div>
               <div className="earn-way">
                 <span className="chrome chrome-box"><span className="dot dot-green" />Refer</span>
-                <span className="doto">$50–$100<span className="per"> / referral</span></span>
-                <span className="label">For every physician you refer who completes their first task.</span>
+                {/* $50, matching payments.referral_bounty_cents. This said
+                    "$50-$100", a range that matched no constant anywhere in
+                    the codebase and would have been half wrong on the first
+                    payout. There is no ceiling on how many you can make. */}
+                <span className="doto">$50<span className="per"> / referral</span></span>
+                <span className="label">
+                  For every physician you refer whose first case is accepted, and $25 to them.
+                  No limit on how many.
+                </span>
               </div>
             </div>
           </div>

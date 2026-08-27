@@ -325,6 +325,16 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
             "user_id": user["id"],
             "display_name": name,
             "initials": _initials(name),
+            # A face, if they uploaded one. This crosses no line the display
+            # name above has not already crossed -- the community has always
+            # shown physicians their colleagues' real names -- and it is
+            # opt-in: absent unless they went and set it. The initials stay as
+            # the fallback and remain what most members render as.
+            "avatar_url": (
+                f"/api/asclepius/users/{user['id']}/avatar"
+                f"?v={(user.get('avatar_asset_sha') or '')[:12]}"
+                if (user.get("avatar_asset_sha") or "").strip() else None
+            ),
             "specialty": specialty,
             "specialty_accent": specialty_accent(specialty),
             # Where they practise, for the country channels. The CODE only:
