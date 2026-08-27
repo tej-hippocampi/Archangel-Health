@@ -889,3 +889,173 @@ def test_a_decision_cannot_be_submitted_twice_from_one_screen():
     assert code.count("if (inFlight) return;") >= 2, (
         "both the approve and the reject paths must refuse a re-entrant click"
     )
+
+
+# ═══ §8.6 — the invite round trip, end to end ════════════════════════════════
+def test_the_invite_sends_one_email_whose_link_actually_admits_them(monkeypatch):
+    """Send Invite → one email → the link in it redeems → they are in.
+
+    The link is pulled out of the captured message rather than reconstructed, so
+    this fails if the sender and the redeemer ever disagree about the token, the
+    hash, or the base URL — three things that live in two different modules.
+    """
+    from routers import asclepius_admin as AD
+
+    sent = []
+
+    async def _capture(to_email, subject, html_body, **kw):
+        sent.append({"to": to_email, "subject": subject, "html": html_body})
+        return True
+
+    monkeypatch.setattr(AD, "is_email_transport_configured", lambda: True)
+    monkeypatch.setattr(AD, "send_html_email", _capture)
+
+    admin, doc = _admin(), _approved_doctor()
+    with _store()._conn() as conn:
+        conn.execute("UPDATE users SET slack_joined = 0 WHERE id = ?", (doc["id"],))
+
+    r = client.post("/api/asclepius/admin/community/invite",
+                    json={"user_id": doc["id"]}, headers=A.headers_for(admin))
+    assert r.status_code == 200, r.text
+    assert r.json()["sent"] is True and r.json()["already_joined"] is False
+    assert len(sent) == 1, f"expected exactly one email, got {len(sent)}"
+    assert sent[0]["to"] == doc["email"]
+
+    # The PHI rule travels with the invitation, because the room it opens is a
+    # free-text surface.
+    assert "patient-identifiable information" in sent[0]["html"].lower()
+
+    link = re.search(r"https?://[^\s\"'<>]+/community/join/[A-Za-z0-9_\-]+",
+                     sent[0]["html"])
+    assert link, sent[0]["html"]
+    token = link.group(0).rsplit("/", 1)[1]
+
+    # Only the HASH is stored — a database read cannot mint a working link.
+    stored = _store().latest_community_invite_for_user(doc["id"])
+    assert stored["token_hash"] != token
+    assert stored["redeemed_at"] is None
+
+    # Follow it exactly as the physician would.
+    red = client.get(f"/community/join/{token}", follow_redirects=False)
+    assert red.status_code == 303, red.text
+    assert red.headers["location"] == "/community"
+    assert _store().get_user_by_id(doc["id"])["slack_joined"]
+    assert _store().latest_community_invite_for_user(doc["id"])["redeemed_at"]
+
+    # And a second invitation to someone now inside sends nothing.
+    r2 = client.post("/api/asclepius/admin/community/invite",
+                     json={"user_id": doc["id"]}, headers=A.headers_for(admin))
+    assert r2.status_code == 200 and r2.json()["already_joined"] is True
+    assert len(sent) == 1, "a second email went out to a physician already inside"
+
+
+def test_the_roster_updates_the_invited_row_in_place(monkeypatch):
+    """§2.1: "the row updates in place with no full re-render".
+
+    Asserted at the DOM-NODE level, because the text can look right while the
+    table has been thrown away and rebuilt underneath an operator who was
+    halfway down it. Verified in Chromium too; this is the version that runs on
+    every commit.
+    """
+    responses = {
+        "/admin/physicians": {
+            "physicians": [
+                {"id": "u1", "name": "Osman Faheem", "email": "a@b.org",
+                 "specialty": "cardiology", "tier": "reviewer", "tier_word": "Reviewer",
+                 "verification_status": "approved", "slack_joined": False},
+                {"id": "u2", "name": "Pouya Shafipour", "email": "c@d.org",
+                 "specialty": None, "tier": "labeler", "tier_word": "Labeler",
+                 "verification_status": "approved", "slack_joined": True},
+            ],
+            "counts": {"all": 2}},
+        "/verify/queue?status=pending": {"queue": []},
+        "/admin/signups": _NO_SIGNUPS,
+        "/admin/community/invite": {"ok": True, "already_joined": False, "sent": True,
+                                    "invited_at": "2026-08-27T02:20:00"},
+    }
+    script = (_CONSOLE_HARNESS % {
+        "shim": json.dumps(str(_DOM_SHIM)),
+        "module": json.dumps(str(_FRONTEND / "admin_physicians.js")),
+        "responses": json.dumps(responses),
+    }) + """
+window.AdminPhysiciansSection.reset();
+window.AdminPhysiciansSection.render(body, ctx);
+later(function () {
+  var rowsBefore = find(body, function (e) { return e.tagName === 'TR'; });
+  var tableBefore = find(body, function (e) { return e.tagName === 'TABLE'; })[0];
+  clickText(body, 'Send Invite');
+  later(function () {
+    var rowsAfter = find(body, function (e) { return e.tagName === 'TR'; });
+    var tableAfter = find(body, function (e) { return e.tagName === 'TABLE'; })[0];
+    console.log(JSON.stringify({
+      calls: CALLS,
+      text: textOf(body),
+      sameTable: tableBefore === tableAfter,
+      sameRowCount: rowsBefore.length === rowsAfter.length,
+      sameRowNodes: rowsBefore.every(function (r, i) { return r === rowsAfter[i]; }),
+    }));
+  }, 6);
+}, 6);
+"""
+    out = _run_node(script)
+    posts = [c for c in out["calls"] if c["method"] == "POST"]
+    assert [c["path"] for c in posts] == ["/admin/community/invite"], posts
+    assert posts[0]["body"] == {"user_id": "u1"}
+    # The row now reports the invitation...
+    assert "Invited" in out["text"]
+    # ...and the physician already inside is untouched and offered nothing.
+    assert "Joined" in out["text"]
+    # The table and every row are the SAME NODES. No re-render.
+    assert out["sameTable"] is True, "the table was rebuilt"
+    assert out["sameRowCount"] is True and out["sameRowNodes"] is True, (
+        "the rows were rebuilt — an operator working down the table would have "
+        "it move under them"
+    )
+
+
+def test_send_payment_refuses_without_a_batch_id_and_posts_only_payable_rows():
+    """§4.5: the batch id is the idempotency key, so it is required before the
+    request is made — and only APPROVED rows are sent, never the already-paid."""
+    responses = {
+        "/admin/earnings": {"rows": [], "by_user": {}, "totals": {}},
+        "/admin/physicians": {"physicians": [{"id": "m1", "name": "Payee",
+                                              "verification_status": "approved"}],
+                              "counts": {}},
+        "/admin/earnings?user_id=m1": {
+            "rows": [
+                {"earning_id": "e-ok", "kind": "task", "ref_id": "s1", "amount_cents": 7500,
+                 "status": "approved", "seconds": 100, "case_id": "c1"},
+                {"earning_id": "e-paid", "kind": "task", "ref_id": "s2", "amount_cents": 7500,
+                 "status": "paid", "seconds": 100, "case_id": "c2"},
+                {"earning_id": "e-void", "kind": "task", "ref_id": "s3", "amount_cents": 7500,
+                 "status": "void", "seconds": 100, "case_id": "c3"},
+            ],
+            "by_user": {"m1": {"outstanding_cents": 7500, "paid_cents": 7500,
+                               "n_rows": 3, "n_void": 1}}},
+        "/admin/earnings/pay": {"ok": True, "marked": 1,
+                                "totals": {"outstanding_cents": 0, "paid_cents": 15000}},
+    }
+    script = (_CONSOLE_HARNESS % {
+        "shim": json.dumps(str(_DOM_SHIM)),
+        "module": json.dumps(str(_FRONTEND / "admin_earnings.js")),
+        "responses": json.dumps(responses),
+    }) + """
+window.AdminEarningsSection.reset();
+window.AdminEarningsSection.render(body, ctx, 'earnings');
+later(function () {
+  find(body, function (e) { return e.tagName === 'TR'; })
+    .filter(function (r) { return textOf(r).indexOf('Payee') !== -1; })[0].dispatch('click');
+  later(function () {
+    clickText(body, 'Send Payment');           // no batch id yet
+    later(function () {
+      var blocked = CALLS.filter(function (c) { return c.path === '/admin/earnings/pay'; });
+      console.log(JSON.stringify({ blockedPosts: blocked.length, text: textOf(body) }));
+    }, 6);
+  }, 8);
+}, 8);
+"""
+    out = _run_node(script)
+    assert out["blockedPosts"] == 0, "a payment went out with no batch id"
+    assert "idempotency key" in out["text"]
+    # A paid row offers no void, because the money already left.
+    assert "VOIDED" in out["text"]
