@@ -2181,7 +2181,15 @@
   function getPortalVersion() {
     let v = null;
     try { v = localStorage.getItem(PORTAL_VERSION_KEY); } catch (e) { v = null; }
-    return PORTAL_VERSIONS.indexOf(v) !== -1 ? v : DEFAULT_PORTAL_VERSION;
+    if (PORTAL_VERSIONS.indexOf(v) !== -1) return v;
+    // No stored choice yet. A contributor cleared for real patient data should
+    // land on the REAL cases, not on the synthetic ones — those are the cases we
+    // actually want labelled, and defaulting everyone to v3 meant an approved
+    // physician had to know to go looking for v4 before they ever saw one.
+    // Anyone not cleared keeps the synthetic default: v4 would be an empty,
+    // locked queue for them, which is a worse first run than a working one.
+    if (state.user && state.user.real_data_approved) return 'v4';
+    return DEFAULT_PORTAL_VERSION;
   }
   function setPortalVersion(v) {
     v = PORTAL_VERSIONS.indexOf(v) !== -1 ? v : DEFAULT_PORTAL_VERSION;
@@ -8913,6 +8921,54 @@
         goldBtn,
         goldStatus));
 
+    // Load the V4 REAL de-identified cases (V4 Cases & Promotion PRD §3). The
+    // startup hook seeds these at boot, so this button is the manual lever for a
+    // deployment that has not restarted — and, more usefully, the place that
+    // tells you WHY a case is not in the queue: `holds` names any case the
+    // content gate is keeping out, which is otherwise only visible by its absence.
+    const realStatus = h('div', {});
+    const realFanout = h('input', { type: 'checkbox', id: 'asc-real-fanout' });
+    const realBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Load real cases');
+    realBtn.addEventListener('click', async () => {
+      clear(realStatus);
+      realBtn.setAttribute('disabled', '');
+      realStatus.appendChild(loadingCard('Loading real de-identified cases…'));
+      try {
+        const q = realFanout.checked ? '?open_to_all_specialties=true' : '';
+        const res = await api('/generation/load-v4-real-cases' + q, { method: 'POST' });
+        clear(realStatus);
+        realStatus.appendChild(h('div', { class: 'asc-inline-ok' },
+          'Loaded ' + (res.loaded || 0) + ' new, skipped ' + (res.skipped || 0)
+          + ' existing, ' + (res.held || 0) + ' held (' + (res.total || 0) + ' total), at '
+          + (res.max_labels || 3) + ' labels each.'));
+        // A held case is a promise not kept. Name it and say why, rather than
+        // letting the operator discover it as a missing row.
+        Object.keys(res.holds || {}).forEach((cid) => {
+          realStatus.appendChild(h('div', { class: 'asc-inline-warn' },
+            cid + ' is HELD: ' + res.holds[cid]));
+        });
+        loadTasksTable();
+      } catch (e) {
+        clear(realStatus);
+        realStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Could not load real cases.'));
+      } finally {
+        realBtn.removeAttribute('disabled');
+      }
+    });
+    const realCard = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Load REAL de-identified cases (V4)'),
+        h('div', { class: 'asc-card-sub' }, 'The real patient cases built from partner bundles — labs, notes and the decision point, with an authored A/B pair. Seeded automatically at boot; this re-runs it. Idempotent. Served only on the real-cases queue, and only to physicians cleared for real data (grant that on Physicians).'))),
+      h('div', { class: 'asc-card-pad' },
+        h('label', { for: 'asc-real-fanout', style: 'display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;cursor:pointer' },
+          realFanout,
+          h('span', {},
+            h('span', { style: 'font-weight:600' }, 'Show to all approved physicians (ignores specialty routing)'),
+            h('span', { class: 'asc-card-sub', style: 'display:block' },
+              'Visibility only — it does not change how many labels we pay for.'))),
+        realBtn,
+        realStatus));
+
     const corpusCard = h('div', { class: 'asc-card', id: 'ascSeedCorpus' }, loadingCard('Loading seed corpus…'));
     const jobsCard = h('div', { class: 'asc-card', id: 'ascGenJobs' }, loadingCard('Loading generation jobs…'));
     const tableCard = h('div', { class: 'asc-card', id: 'ascTasksTable' }, loadingCard('Loading tasks…'));
@@ -8920,6 +8976,7 @@
     body.appendChild(h('div', { class: 'asc-cols-2' }, pasteCard, fileCard));
     body.appendChild(genCard);
     body.appendChild(autoGenCard);
+    body.appendChild(realCard);
     body.appendChild(goldCard);
     body.appendChild(h('div', { class: 'asc-cols-2' }, corpusCard, jobsCard));
     body.appendChild(tableCard);

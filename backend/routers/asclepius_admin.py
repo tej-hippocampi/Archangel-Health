@@ -660,6 +660,11 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "is_advisor": bool(u.get("advisor_since")),
             "advisor_since": u.get("advisor_since"),
             "verification_status": verification,
+            # Real-data approval (EHR PRD §9.5). Gates the ENTIRE V4 real
+            # de-identified queue, so a roster that omits it cannot answer the
+            # first question an operator asks when the real cases are not being
+            # labelled: "is anyone actually cleared to see them?"
+            "real_data_approved": bool(u.get("real_data_approved")),
             "slack_joined": _tri_state(u.get("slack_joined")),
             "compensation_model": u.get("compensation_model"),
             "health_system_id": hs_id,

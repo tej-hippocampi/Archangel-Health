@@ -433,7 +433,14 @@
       h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {},
           h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Phone'),
-          h('th', {}, 'Specialty'), h('th', {}, 'Tier'), h('th', {}, 'Community'),
+          h('th', {}, 'Specialty'), h('th', {}, 'Tier'),
+          /* Real-data approval was API-only: the flag gates the entire V4 real
+           * de-identified queue, and the only way to grant it was curl. So the
+           * real cases sat in the queue while every physician's picker showed
+           * "Requires real-data approval" and nobody could clear it. */
+          h('th', { title: 'BAA + training cleared: unlocks the real de-identified case queue' },
+            'Real data'),
+          h('th', {}, 'Community'),
           h('th', {}, ''))),
         h('tbody', {}, rows.map((p) => approvedRow(ctx, p)))))));
   }
@@ -454,6 +461,8 @@
     const communityCell = h('td', {});
     const actionCell = h('td', {});
     paintCommunity(ctx, p, communityCell, actionCell);
+    const realDataCell = h('td', {});
+    paintRealData(ctx, p, realDataCell);
 
     const tr = h('tr', { class: 'asc-row-click' },
       h('td', {}, h('strong', {}, p.name || '—')),
@@ -461,6 +470,7 @@
       h('td', {}, p.phone || '—'),
       h('td', {}, p.specialty || '—'),
       h('td', {}, tierCell(h, p)),
+      realDataCell,
       communityCell,
       actionCell);
     tr.addEventListener('click', (ev) => {
@@ -515,6 +525,47 @@
         });
     });
     actionCell.appendChild(btn);
+  }
+
+  /* Real-data approval (EHR PRD §9.5). The flag records the admin's decision that
+   * this contributor's BAA and training are done; the attestation itself lives
+   * outside the system. Serving enforces it on EVERY draw, so this control is the
+   * honest surface for a decision the server was already making — not the gate.
+   *
+   * Grant and revoke both go through the same button, and the row repaints in
+   * place on success, matching Send Invite: re-rendering the table under an
+   * operator working down it moves every other row they were about to click.
+   */
+  function paintRealData(ctx, p, cell) {
+    const { h, api } = ctx;
+    clearNode(cell);
+    const approved = !!p.real_data_approved;
+    cell.appendChild(h('span', {
+      class: 'asc-badge ' + (approved ? 'asc-badge-lime' : 'asc-badge-gray'),
+      style: 'margin-right:8px',
+    }, approved ? 'Approved' : 'Not approved'));
+
+    const btn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+      approved ? 'Revoke' : 'Approve');
+    btn.addEventListener('click', () => {
+      btn.setAttribute('disabled', '');
+      btn.textContent = approved ? 'Revoking…' : 'Approving…';
+      api('/users/' + encodeURIComponent(p.id) + '/real-data-approval',
+          { method: 'POST', body: { approved: !approved } })
+        .then((updated) => {
+          // Trust the server's echo of the user, not the optimistic guess.
+          p.real_data_approved = !!(updated && updated.real_data_approved);
+          paintRealData(ctx, p, cell);
+        })
+        .catch((e) => {
+          btn.removeAttribute('disabled');
+          btn.textContent = approved ? 'Revoke' : 'Approve';
+          // Inline, on the row, never a toast: a toast about one row in a table
+          // of thirty does not say WHICH row failed.
+          cell.appendChild(h('div', { class: 'asc-inline-error' }, errText(e)));
+        });
+    });
+    cell.appendChild(btn);
   }
 
   function shortTime(iso) {

@@ -6164,6 +6164,34 @@ async def startup_team_scheduler():
                 "will route every study to manual review. Install tesseract-ocr.")
     except Exception:
         _auth_logger.exception("[asclepius] OCR availability probe failed")
+    # V4 Cases & Promotion PRD §3/§7.8: the three real de-identified cases exist
+    # from BOOT, not from the first time an approved physician happens to draw on
+    # the V4 queue.
+    #
+    # They used to be seeded lazily off that draw, which meant that until somebody
+    # cleared real-data approval AND picked the real-cases experience AND had an
+    # empty queue, the tasks did not exist at all — so an admin looking for them
+    # correctly saw nothing, and there was no way to tell "not loaded" from
+    # "nothing to load". Seeding here makes the queue's contents an observable
+    # fact about the deployment rather than a side effect of who logged in first.
+    #
+    # Idempotent on a stable ``v4real-<case_id>`` task id, needs no LLM (each case
+    # ships its authored A/B pair), and LOGS rather than raises: a seeding problem
+    # must never stop the API from booting.
+    try:
+        from asclepius.store import get_store as _get_store
+        from asclepius.v4_cases import load_v4_cases
+
+        _v4 = load_v4_cases(_get_store())
+        _auth_logger.info(
+            "[asclepius] V4 real cases: %d loaded, %d already present, %d held",
+            _v4.get("loaded", 0), _v4.get("skipped", 0), _v4.get("held", 0))
+        for _cid, _why in (_v4.get("holds") or {}).items():
+            # A held case is a promise not kept. Name it at boot so it is visible
+            # in the logs rather than only discoverable by its absence.
+            _auth_logger.warning("[asclepius] V4 real case %s is HELD: %s", _cid, _why)
+    except Exception:
+        _auth_logger.exception("[asclepius] V4 real-case seeding failed")
     # PRD-4: warn loudly if PHI email would go through a non-BAA transport.
     try:
         from email_utils import active_email_vendor, email_phi_allowed

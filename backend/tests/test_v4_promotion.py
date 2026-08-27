@@ -915,3 +915,221 @@ def test_the_admin_load_endpoint_can_fan_out_without_changing_the_label_count():
         task = st.get_task(task_id)
         assert task["open_to_all_specialties"] is True
         assert task["max_labels"] == 3      # visibility widened, cost unchanged
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Reaching the dashboard  (the real cases must EXIST and be SERVED first)
+# ═════════════════════════════════════════════════════════════════════════════
+# Reported from the running product: "on my admin side I don't see it being
+# pushed, and when I open a case it says synthetic multimodal." Four separate
+# causes, one per test below. Each was individually sufficient to produce
+# exactly that symptom, so each gets its own regression.
+def test_the_real_cases_exist_without_anyone_having_drawn_them():
+    """CAUSE 1. Seeding used to hang off a physician's V4 draw, so until someone
+    cleared approval AND picked the real-cases experience AND had an empty queue,
+    the tasks did not exist — an admin looking for them correctly saw nothing,
+    with no way to tell 'not loaded' from 'nothing to load'."""
+    st = _store()
+    assert [t for t in st.list_tasks(limit=200) if t.get("case_source") == "real_deid"] == []
+    v4_cases.load_v4_cases(st)          # what the startup hook now does at boot
+    real = [t for t in st.list_tasks(limit=200) if t.get("case_source") == "real_deid"]
+    assert real, "no real cases after seeding"
+    assert all(t["source"] == "partner_ehr" for t in real)
+
+
+def test_seeding_loads_every_specialty_not_just_the_one_being_drawn():
+    """CAUSE 2. The lazy seeder filtered by the drawn specialty, so a
+    nephrologist's draw created the nephrology case and left hepatology
+    uncreated: which real cases existed depended on who logged in first."""
+    from routers import asclepius as R
+
+    st = _store()
+    user = {"specialty": "nephrology"}
+    R._ensure_v4_real_cases(st, user, "nephrology")
+    specialties = {t["specialty"] for t in st.list_tasks(limit=200)
+                   if t.get("case_source") == "real_deid"}
+    # Drawing as a nephrologist must still have created the hepatology case.
+    assert "hepatology" in specialties, specialties
+    assert "nephrology" in specialties
+
+
+def test_an_approved_physician_is_served_a_REAL_case_not_a_synthetic_one():
+    """CAUSE 3, server half. The doctor's complaint was that the case they opened
+    said 'synthetic multimodal' — that is the v3 queue, which is what the portal
+    defaulted everyone to. On v4 they must get real data."""
+    st = _store()
+    v4_cases.load_v4_cases(st)
+    headers = A.headers_for(_evaluator("nephrology"))
+    body = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                      headers=headers).json()
+    assert body["task"] is not None
+    assert (body["task"].get("case") or {}).get("case_source") == "real_deid"
+
+
+def test_auth_me_carries_real_data_approval_so_the_portal_can_default_to_v4():
+    """CAUSE 3, client half. The frontend defaults an approved contributor to the
+    REAL-cases experience instead of the synthetic one, which it can only do if
+    the flag reaches it on the endpoint it actually calls (/auth/me)."""
+    st = _store()
+    ev = _evaluator("nephrology", real=False)
+    me = client.get("/api/asclepius/auth/me", headers=A.headers_for(ev)).json()
+    assert me["real_data_approved"] is False
+    st.set_real_data_approved(ev["id"], True)
+    me = client.get("/api/asclepius/auth/me",
+                    headers=A.headers_for(st.get_user_by_id(ev["id"]))).json()
+    assert me["real_data_approved"] is True
+
+
+def test_the_admin_roster_exposes_real_data_approval():
+    """CAUSE 4. The flag gates the whole real queue and was API-only — not on the
+    roster and not in the UI — so the first question an operator asks when the
+    real cases are not being labelled ('is anyone cleared to see them?') had no
+    answer on screen."""
+    st = _store()
+    ev = _evaluator("nephrology", real=False)
+    admin_h = _admin_h()
+    roster = client.get("/api/asclepius/admin/physicians", headers=admin_h).json()["physicians"]
+    row = next(p for p in roster if p["id"] == ev["id"])
+    assert row["real_data_approved"] is False
+
+    r = client.post(f"/api/asclepius/users/{ev['id']}/real-data-approval",
+                    json={"approved": True}, headers=admin_h)
+    assert r.status_code == 200 and r.json()["real_data_approved"] is True
+
+    roster = client.get("/api/asclepius/admin/physicians", headers=admin_h).json()["physicians"]
+    assert next(p for p in roster if p["id"] == ev["id"])["real_data_approved"] is True
+    # …and revoking is the same control, not a one-way door.
+    client.post(f"/api/asclepius/users/{ev['id']}/real-data-approval",
+                json={"approved": False}, headers=admin_h)
+    roster = client.get("/api/asclepius/admin/physicians", headers=admin_h).json()["physicians"]
+    assert next(p for p in roster if p["id"] == ev["id"])["real_data_approved"] is False
+
+
+def test_an_unapproved_physician_still_cannot_reach_a_real_case():
+    """Making the cases reachable must not make them reachable to everyone: the
+    approval gate is the BAA boundary and none of the above touches it."""
+    st = _store()
+    v4_cases.load_v4_cases(st)
+    headers = A.headers_for(_evaluator("nephrology", real=False))
+    assert client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                      headers=headers).json()["task"] is None
+    av = client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=nephrology",
+                    headers=headers).json()
+    assert av["count"] == 0
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# The label has to be identifiable as REAL all the way into the buyer bundle
+# ═════════════════════════════════════════════════════════════════════════════
+def test_a_label_on_a_real_case_is_identifiable_as_real_in_the_export(monkeypatch):
+    """The commercial point of a real case is that the buyer can tell it apart
+    from a synthetic one. If ``case_source`` does not survive into records.jsonl,
+    a physician's twenty minutes on a real chart ships indistinguishable from an
+    AI-authored vignette — and the premium it was sold at is unevidenced.
+
+    Walks the whole chain: seed → draw on v4 → submit → record → export."""
+    import json
+    import os
+    import uuid
+
+    from asclepius import pipeline as asc_pipeline
+    from asclepius.export import build_export
+
+    async def _ok(*a, **k):
+        return {"consistent": True, "issues": [], "skipped": True}
+
+    async def _ok_grounding(*a, **k):
+        return {"grounding_ok": True, "issues": [], "skipped": True, "checked_anchors": 0}
+
+    monkeypatch.setattr(asc_pipeline, "run_critic", _ok)
+    monkeypatch.setattr(asc_pipeline, "run_grounding_check", _ok_grounding)
+
+    st = _store()
+    v4_cases.load_v4_cases(st)
+    admin = A.make_user(st, role="admin")
+    ev = _evaluator("nephrology")
+    headers = A.headers_for(ev)
+
+    task = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                      headers=headers).json()["task"]
+    assert task is not None
+    sid = "s-" + uuid.uuid4().hex[:12]
+    r = client.post("/api/asclepius/submissions", headers=headers, json={
+        "submission_id": sid, "task_id": task["task_id"], "verdict": "B_better",
+        "chosen_id": "B", "rejected_id": "A", "time_spent_sec": 400,
+        "portal_version": "v4",
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Stop transfusing, target 7-8 g/dL; the AKI is "
+                                       "pre-renal and volume-responsive, not hepatorenal."},
+        "chosen_revision": {"edited": False, "why_better_notes": "names the restrictive threshold"},
+        "rejected_critique": {"error_tags": ["unsafe_recommendation"],
+                              "why_worse": "endorses continuing to transfuse"},
+    })
+    assert r.status_code == 200, r.text
+    st.update_records_status_for_submission(sid, "export_ready")
+
+    manifest = build_export(st, created_by=admin["id"], profile="default")
+    line = json.loads(
+        open(os.path.join(manifest["dir_path"], "records.jsonl")).read().splitlines()[0])
+    ctx = line.get("context") or {}
+
+    # THE assertion: a buyer can tell this was a real chart.
+    assert ctx["case_source"] == "real_deid"
+    assert line["portal_version"] == "v4"
+    assert ctx["modality"] == "multimodal"
+    # …which real case, and which partner bundle it came from.
+    assert ctx["case"]["case_id"] == "v4-neph-001"
+    assert any("patient-3" in (ref.get("identifier") or "")
+               for ref in ctx["case"]["source_refs"])
+    # …and who labelled it, by credential, never by name.
+    assert line["annotator_credential"] == "board_certified_nephrology"
+    assert line["annotator_specialty"] == "nephrology"
+    # The answer key never ships.
+    assert "ground_truth" not in ctx["case"]
+    # The batch manifest counts it as real, which is what the datasheet reports.
+    assert (manifest["counts"] or {}).get("by_case_source", {}).get("real_deid") == 1
+
+
+def test_the_datasheet_tells_the_buyer_the_case_was_real(monkeypatch):
+    """Counted in the manifest is not the same as SAID in the datasheet — the
+    datasheet is the document a buyer actually reads about provenance."""
+    import os
+    import uuid
+
+    from asclepius import pipeline as asc_pipeline
+    from asclepius.export import build_export
+
+    async def _ok(*a, **k):
+        return {"consistent": True, "issues": [], "skipped": True}
+
+    async def _ok_grounding(*a, **k):
+        return {"grounding_ok": True, "issues": [], "skipped": True, "checked_anchors": 0}
+
+    monkeypatch.setattr(asc_pipeline, "run_critic", _ok)
+    monkeypatch.setattr(asc_pipeline, "run_grounding_check", _ok_grounding)
+
+    st = _store()
+    v4_cases.load_v4_cases(st)
+    admin = A.make_user(st, role="admin")
+    headers = A.headers_for(_evaluator("nephrology"))
+    task = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                      headers=headers).json()["task"]
+    sid = "s-" + uuid.uuid4().hex[:12]
+    client.post("/api/asclepius/submissions", headers=headers, json={
+        "submission_id": sid, "task_id": task["task_id"], "verdict": "B_better",
+        "chosen_id": "B", "rejected_id": "A", "time_spent_sec": 400,
+        "portal_version": "v4",
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Stop transfusing; the AKI is pre-renal."},
+        "chosen_revision": {"edited": False, "why_better_notes": "restrictive threshold"},
+        "rejected_critique": {"error_tags": ["unsafe_recommendation"], "why_worse": "over-transfuses"},
+    })
+    st.update_records_status_for_submission(sid, "export_ready")
+    manifest = build_export(st, created_by=admin["id"], profile="default")
+    datasheet = open(os.path.join(manifest["dir_path"], "datasheet.md")).read()
+    # Whitespace-normalised: the datasheet is markdown and hard-wraps, so a raw
+    # substring assertion would break on a reflow rather than on a real change.
+    flat = " ".join(datasheet.lower().split())
+    assert "real_deid" in flat
+    assert "case provenance: real_deid" in flat
+    assert "de-identified from real encounters" in flat

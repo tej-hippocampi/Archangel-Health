@@ -1828,34 +1828,34 @@ def _ensure_v4_real_cases(store: Any, user: Dict[str, Any],
     a function of ``max_labels``.
 
     A case the content gate HOLDS (see ``v4_cases.V4_HOLDS``) is not loaded and is
-    logged by name. Returns the number newly loaded."""
-    sp = (specialty or user.get("specialty") or "").strip().lower()
+    logged by name. Returns the number newly loaded.
+
+    Loads EVERY case, not just the one matching the specialty being drawn. This
+    used to filter by the drawn specialty, which meant a nephrologist's draw
+    created only the nephrology case and left the hepatology one uncreated — so
+    which real cases existed depended on who had logged in, and an admin looking
+    at the queue saw an arbitrary subset. There are three cases; loading all of
+    them is one cheap idempotent call, and "what is in the queue" should not be a
+    function of who drew first.
+
+    The startup hook in ``main.py`` normally gets here first, which makes this a
+    backstop rather than the primary path: it still matters for a store created
+    after boot (a test's fresh store, a re-pointed DB)."""
     ensured = getattr(store, "_v4_real_ensured", None)
-    if ensured is None:
-        ensured = set()
-        try:
-            setattr(store, "_v4_real_ensured", ensured)
-        except Exception:  # pragma: no cover
-            pass
+    if ensured:
+        return 0
     try:
         from asclepius.v4_cases import load_v4_cases
-        targets = ([sp] if sp
-                   else [c["specialty"] for c in asc_specialties.list_specialties()
-                         if c.get("enabled")])
-        targets = [t for t in targets if t and t not in ensured]
-        if not targets:
-            return 0
-        loaded = 0
-        for t in targets:
-            res = load_v4_cases(store, specialty=t)
-            loaded += int(res.get("loaded", 0))
-            for cid, reason in (res.get("holds") or {}).items():
-                # Named, not swallowed: a case silently absent from the queue is
-                # the exact failure this PRD exists to remove.
-                log.warning("V4 real case %s is held out of the %s queue: %s",
-                            cid, t, reason)
-            ensured.add(t)  # mark only after a successful load
-        return loaded
+        res = load_v4_cases(store)
+        for cid, reason in (res.get("holds") or {}).items():
+            # Named, not swallowed: a case silently absent from the queue is the
+            # exact failure this PRD exists to remove.
+            log.warning("V4 real case %s is held out of the queue: %s", cid, reason)
+        try:
+            setattr(store, "_v4_real_ensured", True)  # only after a successful load
+        except Exception:  # pragma: no cover
+            pass
+        return int(res.get("loaded", 0))
     except Exception:  # never let seeding break the queue request
         log.exception("asclepius: V4 real-case seeding failed")
         return 0
