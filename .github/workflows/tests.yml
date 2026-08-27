@@ -27,25 +27,44 @@ permissions:
 
 jobs:
   backend:
-    name: Backend pytest
+    # SHARDED. The suite is ~3,750 tests and about 13 minutes of test time on a
+    # good runner. That fitted in one job until it didn't: the push-to-main run
+    # for 6674462 was killed by the 30-minute ceiling at 29m47s with nothing
+    # failing, on a tree whose full suite runs in 13m22s locally. A noisy runner
+    # was enough to more than double it.
+    #
+    # A timeout-killed job reports as CANCELLED, not FAILED, and writes no summary
+    # line — so the only artifact is a grey X on main and no indication of which
+    # test broke, because none did. That failure mode is worse than a slow build:
+    # it looks exactly like a real regression and costs someone an afternoon
+    # proving it isn't one. Raising the number again just moves the cliff.
+    #
+    # So the job is split across ${CI_TOTAL_SHARDS} runners, each running its
+    # slice SERIALLY. Serial, on separate machines, is the point: the timing-
+    # sensitive websocket cases in tests/test_community.py "get flakier under
+    # parallelism rather than faster", so pytest-xdist would trade a wall-clock
+    # win for a flakiness loss. A matrix gives every shard a whole machine, so no
+    # test ever shares a CPU with another test.
+    #
+    # Which file goes to which shard is decided by backend/scripts/ci_shard.py.
+    # The assignment is DETERMINISTIC (a failing shard reproduces locally with
+    # `python3 scripts/ci_shard.py <n> <total>`) and TOTAL (every test file lands
+    # in exactly one shard — asserted by tests/test_ci_sharding.py, which runs in
+    # the matrix itself, so a new test file cannot silently fall out of CI).
+    name: Backend pytest (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    # 20 minutes stopped being a ceiling and became a coin toss. The suite is
-    # ~3,350 tests and takes 13-20 minutes on a GitHub runner depending on how
-    # noisy the runner is; the push-to-main run for f684623 finished its 19m38s
-    # of testing and was killed at 20m16s with everything passing.
-    #
-    # A timeout-killed job is reported as CANCELLED, not FAILED, and it writes
-    # no summary line — so the only artifact is a grey X on main and no
-    # indication of which test broke, because none did. That failure mode is
-    # worse than a slow build: it looks exactly like a real regression and
-    # costs someone an afternoon proving it isn't one.
-    #
-    # 30 is headroom, not a target. If the suite genuinely approaches it, the
-    # answer is to split this job (pytest-xdist or a matrix over test files),
-    # not to keep raising the number — but that is a real change, and it wants
-    # care around the websocket tests noted below, which get flakier under
-    # parallelism rather than faster.
-    timeout-minutes: 30
+    # Each shard is ~4 minutes of test time. 20 is deep headroom for a noisy
+    # runner, not a target — if a shard genuinely approaches it, re-measure the
+    # weights before touching this number.
+    timeout-minutes: 20
+    strategy:
+      # One shard's failure must not cancel the others: the whole point is to see
+      # every failure in one run rather than rediscovering them one build at a time.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      CI_TOTAL_SHARDS: 4
     defaults:
       run:
         working-directory: backend
@@ -65,8 +84,22 @@ jobs:
         # RATE_LIMIT_ENABLED + the Asclepius DB/export temp paths are defaulted in
         # tests/conftest.py; nothing else is needed to boot the app under test.
         # The rendered-appearance gate lives in its own job below (it needs a
-        # browser), and is deselected here so this job stays browser-free.
-        run: pytest -q --durations=10 --ignore=tests/test_asclepius_visual.py
+        # browser); ci_shard.py excludes it so it is never run twice.
+        #
+        # `set -euo pipefail` is load-bearing. If ci_shard.py failed or printed
+        # nothing, an unguarded `pytest $(...)` would collect the ENTIRE suite from
+        # the rootdir — every shard running everything, silently turning a 4-way
+        # split back into four full runs. The empty check makes that impossible.
+        run: |
+          set -euo pipefail
+          FILES=$(python3 scripts/ci_shard.py "${{ matrix.shard }}" "$CI_TOTAL_SHARDS")
+          if [ -z "$FILES" ]; then
+            echo "::error::shard ${{ matrix.shard }}/$CI_TOTAL_SHARDS resolved to no \
+          test files — refusing to run, because bare pytest would collect everything"
+            exit 1
+          fi
+          echo "shard ${{ matrix.shard }}/$CI_TOTAL_SHARDS — $(echo "$FILES" | wc -l) file(s)"
+          pytest -q --durations=10 $FILES
 
   visual:
     # Rendered-appearance gate for the Asclepius eval portal. Split out because it

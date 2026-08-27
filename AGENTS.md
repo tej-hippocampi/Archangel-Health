@@ -35,6 +35,7 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 ### Gotchas
 - **Static file paths**: `frontend/index.html` uses `/static/` prefixed paths. FastAPI mounts the `frontend/` directory at `/static`. If the HTML is served at `/patient/{id}`, relative paths won't resolve — always use `/static/styles.css` and `/static/app.js`.
 - **Test suite is `backend/tests/` (pytest)** — covers the eligibility evaluator, parsers, and a 50-case validation fixture set. Run with `cd backend && python3 -m pytest tests/ -q`.
+- **CI runs that suite in 4 shards**, one per runner, because a single job outgrew its timeout (see `.github/workflows/tests.yml`). To reproduce one shard exactly as CI ran it: `cd backend && python3 -m pytest -q $(python3 scripts/ci_shard.py <n> 4)`. Sharding is deterministic and total — `tests/test_ci_sharding.py` asserts every test file lands in exactly one shard, so a new test file cannot silently drop out of CI. Adding a test file needs no config change; if the shards drift out of balance, refresh the weights with `python3 -m pytest tests/ -q --durations=0 | python3 scripts/ci_shard.py --measure`.
 - **No `python` binary**: Use `python3` (not `python`) to run commands.
 - **pip installs to user dir**: `pip install` installs to `~/.local/bin`. Ensure `$HOME/.local/bin` is on `PATH`, or use `python3 -m uvicorn` instead of `uvicorn` directly.
 - **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
