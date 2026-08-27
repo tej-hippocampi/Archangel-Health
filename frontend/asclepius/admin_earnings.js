@@ -445,5 +445,16 @@
     });
   }
 
-  window.AdminEarningsSection = { render: render };
+  window.AdminEarningsSection = {
+    render: render,
+    // Mirrors AdminPhysiciansSection.reset(). Level 2 is deliberately sticky
+    // across re-renders — void and pay both re-render to pick up the server's
+    // recomputed total, and dropping to level 1 there would throw the operator
+    // out of the ledger they are working. This is the explicit way back.
+    reset() {
+      selectedUser = null; batchDraft = ''; busy = false;
+      message = null; error = null;
+      voidingId = null; voidReason = ''; voidError = null;
+    },
+  };
 })();

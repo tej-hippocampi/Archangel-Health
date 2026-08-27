@@ -1363,7 +1363,10 @@ async def portal_handoff(user: Dict[str, Any] = Depends(require_member)):
 # thing — claim the community welcome — and then sends them to /community, which
 # runs the ordinary §1 gate. It never mints a session and never grants access on
 # its own, so a leaked link is worth a welcome post and nothing else.
-@page_router.get("/community/join/{token}")
+@page_router.get(
+    "/community/join/{token}",
+    dependencies=[Depends(rate_limiter("community_invite_redeem", 30, 600))],
+)
 async def redeem_community_invite(token: str):
     from fastapi.responses import RedirectResponse  # noqa: PLC0415
 

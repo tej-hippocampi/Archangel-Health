@@ -690,14 +690,19 @@ def _case_export_payload(store: Any, earning: Dict[str, Any]) -> Dict[str, Any]:
                        "record before paying for it.")
 
     return {
+        # Deliberately NO physician identity. The admin already knows whose
+        # ledger they opened, and this file is shaped like an export bundle and
+        # named like one — a stray email address in it is an identity leak one
+        # forward away from a buyer, in an architecture whose core rule is that
+        # buyer-facing artifacts carry credential ATTRIBUTES only. earning_id is
+        # opaque and traces back internally, which is all a spot-check needs.
         "earning_id": earning["earning_id"],
         "case_id": task_id,
         "specialty": task.get("specialty"),
         "modality": asc_export._rec_modality(emitted[0]),
         "amount_cents": int(earning.get("amount_cents") or 0),
         "status": earning.get("status"),
-        "paid_to": earning.get("user_email"),
-        "exported_for": "admin spot-check",
+        "exported_for": "admin spot-check — not a buyer deliverable",
         "cases": cases,
     }
 
@@ -802,7 +807,12 @@ async def admin_void_earning(
 
 class PayEarningsBody(BaseModel):
     user_id: str
-    earning_ids: List[str] = Field(default_factory=list)
+    # ``None`` (omitted) and ``[]`` (sent, empty) are DIFFERENT requests and the
+    # difference is money. Omitted means "every approved row this physician has",
+    # which is ``mark_paid``'s user-scoped mode. An explicitly empty list means
+    # the caller selected nothing — and must not be silently widened into paying
+    # everything, which a ``default_factory=list`` plus ``or None`` does.
+    earning_ids: Optional[List[str]] = None
     payout_batch_id: str = Field(default="")
 
 
@@ -828,6 +838,13 @@ async def admin_pay_earnings(
     written as ``!= 'equity_only'`` gets legacy contributors wrong.
     """
     from asclepius import compensation                    # noqa: PLC0415
+    if body.earning_ids is not None and not body.earning_ids:
+        # Selected nothing. Falling through would reach mark_paid with
+        # earning_ids=None and a user_id, i.e. "pay this physician everything".
+        raise HTTPException(
+            status_code=422,
+            detail="No rows were selected for payment. Omit earning_ids entirely "
+                   "to pay every approved row for this physician.")
     store = _store()
     user = store.get_user_by_id(body.user_id)
     if user is None:
@@ -840,7 +857,7 @@ async def admin_pay_earnings(
     try:
         result = asc_payments.mark_paid(
             store, payout_batch_id=body.payout_batch_id, actor_id=admin["id"],
-            earning_ids=body.earning_ids or None, user_id=body.user_id)
+            earning_ids=body.earning_ids, user_id=body.user_id)
     except asc_payments.PaymentsDenied as denied:
         raise HTTPException(status_code=422, detail=denied.detail)
     return {"ok": True, "user_id": body.user_id, **result,

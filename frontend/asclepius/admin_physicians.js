@@ -719,8 +719,13 @@
    * has already shipped and been caught once in this codebase. */
   function reasonLine(h, text) {
     const s = String(text || '');
-    const neutral = s.indexOf('±0') === 0 || s.indexOf('±0') === 0;
-    return h('div', { class: neutral ? 'vq-attempt' : 'vq-reason' }, s);
+    // Anything that is not a `+n` credit renders muted. That is `±0` ("we could
+    // not check" / "checked, nothing there") AND the negative lines, which
+    // credentialing emits WITHOUT a leading plus — `-4 consumer email domain
+    // (not disqualifying)`. Keying on the plus rather than on `±0` alone is what
+    // stops a deduction from rendering with the same weight as a credit.
+    const credit = s.charAt(0) === '+';
+    return h('div', { class: credit ? 'vq-reason' : 'vq-attempt' }, s);
   }
 
   function recommendationCard(ctx, d, proposed, words) {
@@ -832,7 +837,16 @@
     const actions = h('div', { class: 'vq-actions' });
 
     const buttons = [];
+    // Two guards, deliberately. `disabled` is what a browser honours — a real
+    // Chromium drops every click after the first, verified. `inFlight` is what
+    // makes that true independently of the DOM: it costs one boolean and it
+    // holds if a button ever becomes a div, if a handler is invoked
+    // programmatically, or under a test harness that fires on disabled nodes.
+    // This surface writes verification_status AND feeds the training set, so a
+    // second submission is a second approval and a second observation.
+    let inFlight = false;
     function setBusy(on) {
+      inFlight = on;
       buttons.forEach((b) => {
         if (on) b.setAttribute('disabled', '');
         else b.removeAttribute('disabled');
@@ -848,6 +862,7 @@
         class: 'asc-btn asc-btn-sm ' + (isProposed ? 'asc-btn-primary' : 'asc-btn-ghost'),
       }, 'Approve as ' + (words[tier] || tier));
       btn.addEventListener('click', () => {
+        if (inFlight) return;
         setBusy(true);
         clearNode(status);
         status.appendChild(h('div', { class: 'asc-dim' }, 'Recording…'));
@@ -873,6 +888,7 @@
     const rejectBtn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
       'Reject');
     rejectBtn.addEventListener('click', () => {
+      if (inFlight) return;
       const text = (note.value || '').trim();
       if (!text) {
         clearNode(status);

@@ -645,6 +645,14 @@ def test_case_export_returns_json_with_a_filename():
     assert payload["specialty"] == "nephrology"
     assert payload["cases"] and payload["cases"][0]["case_id"] == task_id
 
+    # No physician identity anywhere in it. The file is shaped like an export
+    # bundle and named like one; an email address in it is an identity leak one
+    # forward away from a buyer.
+    blob = json.dumps(payload)
+    assert doc["email"] not in blob, "the spot-check carries the physician's email"
+    assert doc["id"] not in blob, "the spot-check carries the physician's user id"
+    assert "paid_to" not in payload
+
 
 def test_case_export_matches_the_export_pipelines_shaping():
     """A buyer-facing bundle and an admin spot-check must never be able to
@@ -783,13 +791,18 @@ def test_an_unavailable_npi_check_is_never_collapsed_into_not_found():
 
 def test_a_neutral_reason_line_is_rendered_grey_not_green():
     """§6: a ±0 line is not a credit. Painting it like a +n line is how "we
-    could not check" turns into "this person is verified" in an operator's head."""
+    could not check" turns into "this person is verified" in an operator's head.
+
+    Stated as "only a leading + is a credit" rather than "±0 is muted", because
+    the second form misses the negative lines — see
+    test_a_negative_reason_line_is_never_rendered_as_a_credit.
+    """
     source = (_FRONTEND / "admin_physicians.js").read_text(encoding="utf-8")
     code = re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", source, flags=re.S))
     assert "function reasonLine(" in code
     # vq-attempt is the muted class; vq-reason is the normal one.
     assert "vq-attempt" in code and "vq-reason" in code
-    assert "±0" in code, "the neutral marker is not detected at all"
+    assert "s.charAt(0) === '+'" in code, "credits are not distinguished at all"
 
 
 # ═══ §5.2 — the PHI rule survives the community redesign ══════════════════════
@@ -811,3 +824,68 @@ def test_the_community_home_panel_points_at_the_real_asset_path():
     assert "/static/asclepius/ah-mark.png" in source
     assert (_FRONTEND / "ah-mark.png").exists()
     assert "asclepius/assets/" not in source
+
+
+def test_an_explicitly_empty_selection_never_pays_the_whole_physician():
+    """``earning_ids: []`` and an omitted ``earning_ids`` are different requests.
+
+    Omitted means "every approved row this physician has" — mark_paid's
+    user-scoped mode. An empty list means the caller selected nothing, and a
+    ``default_factory=list`` plus ``or None`` silently widened that into paying
+    everything. On a money endpoint the two must not be the same request.
+    """
+    admin, doc = _admin(), _approved_doctor()
+    _earning(doc, "approved", ref="s1", cents=7500)
+    _earning(doc, "approved", ref="s2", cents=2500)
+
+    r = client.post("/api/asclepius/admin/earnings/pay",
+                    json={"user_id": doc["id"], "earning_ids": [],
+                          "payout_batch_id": "2026-08-25-wise"},
+                    headers=A.headers_for(admin))
+    assert r.status_code == 422, r.text
+    assert _store().earnings_payable_for_user(doc["id"])["paid_cents"] == 0
+    for eid in ("e-s1", "e-s2"):
+        assert _store().get_earning_by_id(eid)["status"] == "approved"
+
+    # Omitting the key entirely still means "pay them everything".
+    r = client.post("/api/asclepius/admin/earnings/pay",
+                    json={"user_id": doc["id"], "payout_batch_id": "2026-08-25-wise"},
+                    headers=A.headers_for(admin))
+    assert r.status_code == 200, r.text
+    assert r.json()["marked"] == 2
+
+
+def test_a_negative_reason_line_is_never_rendered_as_a_credit():
+    """§6 in its general form. credentialing emits negative lines WITHOUT a
+    leading plus — ``-4 consumer email domain (not disqualifying)`` — so keying
+    the muted style on ``±0`` alone let a deduction render with exactly the
+    weight of a ``+25``."""
+    source = (_FRONTEND / "admin_physicians.js").read_text(encoding="utf-8")
+    code = re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", source, flags=re.S))
+    assert "s.charAt(0) === '+'" in code, (
+        "the credit test is not keyed on the leading plus, so a negative line "
+        "renders like a credit"
+    )
+
+    from asclepius import credentialing
+    reasons = credentialing.propose_tier({
+        "npi_verified": 1,
+        "npi_payload_json": json.dumps({"result": "verified", "record": {"credential": "MD"}}),
+        "email_domain_class": "consumer",
+        "specialty": "nephrology",
+    })["reasons"]
+    negative = [r for r in reasons if not r.startswith("+") and not r.startswith("±0")]
+    assert negative, "no negative reason line was produced; the fixture needs updating"
+    assert all(r.lstrip().startswith("-") for r in negative), negative
+
+
+def test_a_decision_cannot_be_submitted_twice_from_one_screen():
+    """A second submission is a second approval AND a second training
+    observation. The button's ``disabled`` attribute is what a browser honours;
+    the in-flight flag is what makes that hold independently of the DOM."""
+    source = (_FRONTEND / "admin_physicians.js").read_text(encoding="utf-8")
+    code = re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", source, flags=re.S))
+    assert "let inFlight = false;" in code
+    assert code.count("if (inFlight) return;") >= 2, (
+        "both the approve and the reject paths must refuse a re-entrant click"
+    )
