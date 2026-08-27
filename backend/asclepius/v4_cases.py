@@ -30,8 +30,13 @@ Four rules govern this file, and the first two are why it exists at all:
    ``ClinicalCase`` uses ``condition``, ``modality`` and ``collected_offset_days``
    and is ``extra="forbid"``, so the sketch would have raised on every case. The
    shapes below are validated at import (``_validated``).
-4. **A case that cannot satisfy its specialty's content gate is HELD, not
-   dressed up.** See ``V4_HOLDS``.
+4. **A gap in the source data is NAMED, never dressed up.** Where a real chart
+   cannot satisfy a content requirement — patient-4's bundle carries no ECG, and
+   a cardiology case would normally need one — the case ships and the gap is
+   reported (``V4_STUDY_GAPS``), because the alternatives are fabricating the
+   artifact inside a ``real_deid`` record or relabelling the case into a
+   specialty that does not describe it. A case that cannot be made honest at all
+   is HELD instead (``V4_HOLDS``, currently empty).
 
 Offsets are relative days against each case's own decision point (day 0), which
 is what ``ClinicalCase`` carries — the calendar dates in the tables below are
