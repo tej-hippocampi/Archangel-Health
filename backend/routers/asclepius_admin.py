@@ -17,7 +17,7 @@ import logging
 import os
 import re
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -652,6 +652,13 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "specialty": u.get("specialty"),
             "tier": tier,
             "tier_word": asc_caps.tier_word(tier),
+            # Advisor is NOT a tier (capabilities.py:12 — the tier is retired and
+            # rows carrying it migrate to reviewer on boot). It lives on
+            # ``users.advisor_since``, and without it here the roster rendered
+            # "Unassigned" over a real medical advisor: quiet, wrong, and only
+            # discovered when the person tells you.
+            "is_advisor": bool(u.get("advisor_since")),
+            "advisor_since": u.get("advisor_since"),
             "verification_status": verification,
             "slack_joined": _tri_state(u.get("slack_joined")),
             "compensation_model": u.get("compensation_model"),
@@ -1568,3 +1575,115 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
             "last_activity": last_activity,
         })
     return {"health_systems": out}
+
+
+# ═══ Admin Launch PRD §5.1 — invite a physician into Asclepius Community ══════
+#
+# "Slack" is our own community (store.py: the community IS our Slack). This
+# mails a link into Asclepius Community at /community. It does not call
+# Slack.com, and nothing here should ever start to.
+
+_COMMUNITY_INVITE_TTL_DAYS = 14
+
+
+def _community_base() -> str:
+    """Where Asclepius Community is served.
+
+    The BACKEND, not the landing app — ``/community`` is a route in ``main.py``.
+    Mirrors ``asclepius_verify._portal_base``; deliberately NOT ``_landing_base``,
+    which would mint a link that 404s for the physician while looking correct in
+    the admin's confirmation."""
+    base = (os.getenv("ASCLEPIUS_PORTAL_URL") or os.getenv("BASE_URL")
+            or "http://localhost:8000").strip().rstrip("/")
+    return base
+
+
+def _hash_invite_token(raw: str) -> str:
+    """Only the hash is stored — the raw token exists once, in the email. Same
+    posture as the onboarding member token in ``team_store``."""
+    import hashlib  # noqa: PLC0415
+    return hashlib.sha256((raw or "").strip().encode("utf-8")).hexdigest()
+
+
+def _build_community_invite_email(*, full_name: str, join_url: str) -> str:
+    first = (full_name or "").strip().split(" ")[0] if full_name else ""
+    greeting = f"Hi {html.escape(first)}," if first else "Hi,"
+    url = html.escape(join_url)
+    return (
+        '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
+        'color:#1a1b1a;line-height:1.6">'
+        f"<p>{greeting}</p>"
+        "<p>You're invited into <strong>Asclepius Community</strong> — a private room "
+        "for the physicians contributing to Asclepius. Every member is "
+        "credential-verified. Discuss cases, shape how tasks get built, and tell us "
+        "when something is wrong.</p>"
+        f'<p><a href="{url}">{url}</a></p>'
+        "<p style='color:#8b8d89;font-size:13px'>This link is personal and expires in "
+        f"{_COMMUNITY_INVITE_TTL_DAYS} days.</p>"
+        "<p style='color:#8b8d89;font-size:13px'>Colleague discussion only. Do not post "
+        "patient-identifiable information.</p></div>"
+    )
+
+
+class CommunityInviteBody(BaseModel):
+    user_id: str
+
+
+@router.post("/community/invite")
+async def invite_to_community(
+    body: CommunityInviteBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Mail one approved physician their link into Asclepius Community.
+
+    The 409 on an unapproved physician is the point of the endpoint, not a
+    formality: this link opens a room of credential-verified peers, and a
+    physician we have not verified must never be handed one.
+
+    Idempotent on the physician: already joined returns 200 with
+    ``already_joined`` and sends nothing, so a second click is free.
+    """
+    store = _store()
+    user = store.get_user_by_id(body.user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="No such physician.")
+    if (user.get("verification_status") or "") != "approved":
+        raise HTTPException(
+            status_code=409,
+            detail="Only an approved physician can be invited. The community is a "
+                   "room of credential-verified peers — approve them first.")
+    if user.get("slack_joined"):
+        # Nothing sent, no token minted. The safe answer to "invite them again"
+        # for someone already inside.
+        return {"ok": True, "already_joined": True, "user_id": user["id"],
+                "email": user.get("email"), "sent": False}
+
+    if not is_email_transport_configured():
+        raise HTTPException(status_code=503,
+                            detail="Email is not configured (SendGrid or SMTP).")
+
+    raw_token = secrets.token_urlsafe(32)
+    expires_at = (datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
+                  + timedelta(days=_COMMUNITY_INVITE_TTL_DAYS)).isoformat()
+    store.create_community_invite(
+        user_id=user["id"], email=user["email"],
+        token_hash=_hash_invite_token(raw_token),
+        expires_at=expires_at, created_by=admin["email"])
+
+    join_url = f"{_community_base()}/community/join/{raw_token}"
+    # The SAME mailer as /admin/signups/resend. One email path, so a transport
+    # change cannot fix one surface and silently miss the other.
+    sent = await send_html_email(
+        user["email"], "You're invited to Asclepius Community",
+        _build_community_invite_email(
+            full_name=(user.get("full_name") or "").strip(), join_url=join_url))
+    if not sent:
+        raise HTTPException(status_code=503,
+                            detail="Could not send that email — nothing was sent. Try again.")
+    store.log_event(entity_type="user", entity_id=user["id"],
+                    event_type="community_invite_sent", actor=admin["email"],
+                    payload={"email": user["email"], "expires_at": expires_at})
+    return {"ok": True, "already_joined": False, "user_id": user["id"],
+            "email": user["email"], "sent": True, "expires_at": expires_at,
+            "invited_at": (store.latest_community_invite_for_user(user["id"]) or {})
+            .get("created_at")}

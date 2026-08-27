@@ -451,6 +451,67 @@
 }
 .cm-att-file:hover { color: var(--ink); border-color: var(--hairline-strong); }
 
+/* ── Community home panel (Admin Launch PRD §5.2) ────────────────────────
+   Replaces the two-line grey empty state. Centred, one column, max-width on
+   the body so the copy stays readable rather than running the full pane.
+
+   The mark is /static/asclepius/ah-mark.png — frontend/ is served at /static;
+   backend/assets is /email-assets and is for email only. */
+.cm-home {
+  padding: var(--sp-7) var(--sp-6);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.cm-home-mark {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  background: var(--card-in);
+  object-fit: contain;
+  padding: 10px;
+}
+.cm-home-title {
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.cm-home-body {
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  max-width: 420px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+.cm-home-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+/* Real navigation, not decoration: each chip opens that channel. */
+.cm-home-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-chip);
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.cm-home-chip:hover { border-color: var(--green); background: var(--green-wash); }
+.cm-home-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.cm-home-chip-arrow { color: var(--ink-faint); }
+
 /* empty state (§5: written, never blank) */
 .cm-empty {
   padding: var(--sp-7) var(--sp-6);

@@ -12,6 +12,7 @@ and only the detected categories (never content) reach the audit log.
 
 from __future__ import annotations
 
+import datetime as _dt
 import hashlib
 import json
 import logging
@@ -1354,6 +1355,59 @@ async def portal_unread(
 @page_router.post("/community/handoff")
 async def portal_handoff(user: Dict[str, Any] = Depends(require_member)):
     return {"token": _mint_handoff(user["id"]), "expires_in": _HANDOFF_TTL_SEC}
+
+
+# ─── Admin Launch PRD §5.1 — redeeming an invite link ────────────────────────
+# Unauthenticated by necessity: this is the URL in the physician's email client,
+# and they may not have a session in that browser. Redeeming does exactly ONE
+# thing — claim the community welcome — and then sends them to /community, which
+# runs the ordinary §1 gate. It never mints a session and never grants access on
+# its own, so a leaked link is worth a welcome post and nothing else.
+@page_router.get(
+    "/community/join/{token}",
+    dependencies=[Depends(rate_limiter("community_invite_redeem", 30, 600))],
+)
+async def redeem_community_invite(token: str):
+    from fastapi.responses import RedirectResponse  # noqa: PLC0415
+
+    astore = _astore()
+    token_hash = _hash_community_invite(token)
+    invite = astore.get_community_invite(token_hash)
+    now = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0, tzinfo=None).isoformat()
+    if not invite or str(invite.get("expires_at") or "") < now:
+        # One message for "no such link" and "expired link". A distinguishing
+        # error would let anyone probe which tokens ever existed.
+        raise HTTPException(
+            status_code=404,
+            detail="That invite link is not valid any more. Ask your admin to resend it.")
+
+    user = astore.get_user_by_id(invite["user_id"])
+    if not user or (user.get("verification_status") or "") != "approved":
+        # Re-checked at REDEMPTION, not only at send: a physician whose approval
+        # was reversed between the two must not walk through the old link.
+        raise HTTPException(
+            status_code=403,
+            detail="This account is not an approved contributor.")
+
+    astore.redeem_community_invite(token_hash)
+    # ``welcome_new_member`` is the one place that claims the welcome, and it
+    # claims it through ``store.mark_community_welcomed`` — a guarded UPDATE that
+    # returns whether THIS call won. That is what makes a concurrent approve +
+    # invite safe, so it is called rather than reimplemented, and never replaced
+    # with a read-then-write. Best-effort: a failed welcome post must not stop a
+    # physician walking through their own link.
+    try:
+        from community.onboard import welcome_new_member  # noqa: PLC0415
+        await welcome_new_member(user)
+    except Exception:
+        log.exception("[community] welcome failed on invite redemption (join stands)")
+    return RedirectResponse(url="/community", status_code=303)
+
+
+def _hash_community_invite(raw: str) -> str:
+    """Must match ``asclepius_admin._hash_invite_token`` exactly — the sender
+    stores this hash and the redeemer looks it up by it."""
+    return hashlib.sha256((raw or "").strip().encode("utf-8")).hexdigest()
 
 
 @router.post(

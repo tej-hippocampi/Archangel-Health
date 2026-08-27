@@ -617,6 +617,59 @@
     'questions-help': ['No questions yet', 'Ask anything about a case, a rubric, or a payout.'],
   };
 
+  /* ── The branded home panel (Admin Launch PRD §5.2) ──────────────────────
+   *
+   * The two-line grey empty state said nothing about what this room is or who
+   * is in it — which is exactly what a physician arriving from an invite email
+   * needs to read first. This is the same treatment on EVERY channel: the mark,
+   * the name, what the room is for, and the channels worth opening next.
+   *
+   * The channel's own description comes from the SERVER (community/store.py
+   * DEFAULT_CHANNELS), so a channel added there arrives here already described.
+   * EMPTY_COPY stays as the hand-written override for the three that have one.
+   *
+   * What this panel does NOT own is the PHI rule. That lives on the composer
+   * (`cm-phi-notice`, §7.5) and renders on every channel whether or not it has
+   * messages — standing, never dismissible. Nothing here restyles it.
+   */
+  const HOME_CHANNELS = ['introductions', 'task-announcements', 'questions-help'];
+
+  function homePanel(slug) {
+    const ch = state.channels.find((c) => c.slug === slug) || {};
+    const isGeneral = slug === 'general';
+    const copy = EMPTY_COPY[slug];
+
+    const title = isGeneral ? 'Asclepius Community' : ('#' + (ch.name || slug));
+    const body = isGeneral
+      ? 'Every physician here is credential-verified. Discuss cases, shape how '
+        + 'tasks get built, and tell us when something is wrong.'
+      : (ch.description || (copy && copy[1])
+         || 'Open discussion between contributor physicians.');
+
+    const chips = h('div', { class: 'cm-home-chips' },
+      HOME_CHANNELS
+        .filter((s) => s !== slug && state.channels.some((c) => c.slug === s))
+        .map((s) => {
+          const btn = h('button', {
+            class: 'cm-home-chip', type: 'button',
+            onClick: () => openChannel(s),
+          }, '#' + s, h('span', { class: 'cm-home-chip-arrow', 'aria-hidden': 'true' }, '→'));
+          return btn;
+        }));
+
+    return h('div', { class: 'cm-home' },
+      h('img', {
+        class: 'cm-home-mark', src: '/static/asclepius/ah-mark.png',
+        width: '96', height: '96',
+        // frontend/ is served at /static (main.py); backend/assets is
+        // /email-assets and is for email only. There is no assets/ dir here.
+        alt: 'Archangel Health',
+      }),
+      h('div', { class: 'cm-home-title' }, title),
+      h('p', { class: 'cm-home-body' }, body),
+      chips);
+  }
+
   function renderMessages(opts) {
     opts = opts || {};
     const scroll = document.getElementById('cmScroll');
@@ -643,7 +696,9 @@
           'This is the beginning of your direct messages with '
           + (peer.display_name || 'this colleague') + '. Colleague discussion only — no PHI.'];
       } else {
-        copy = EMPTY_COPY[state.active] || ['Nothing here yet', 'Start the conversation.'];
+        // A real channel: the branded panel, not two lines of grey.
+        scroll.appendChild(homePanel(state.active));
+        return;
       }
       scroll.appendChild(h('div', { class: 'cm-empty' },
         h('div', { class: 'cm-empty-title' }, copy[0]),

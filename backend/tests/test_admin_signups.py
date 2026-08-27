@@ -393,9 +393,21 @@ def test_a_members_activity_does_not_un_stall_the_director(env):
 def test_timestamp_parsing_never_takes_the_screen_down(stamp):
     """An offset-bearing timestamp used to raise on the COMPARE, not the parse —
     a TypeError out of the handler, so one odd row 500s the whole Signups page
-    rather than showing one odd date."""
+    rather than showing one odd date.
+
+    The tolerance is ±1 day and it is not slack: ``-08:00`` normalises to eight
+    hours LATER in UTC, so for eight hours out of every twenty-four that shift
+    crosses a day boundary and the count legitimately differs by one. Asserting
+    exact equality made this test pass two thirds of the day and fail the rest —
+    a flake that says nothing about the property under test, which is that an
+    offset-bearing stamp is parsed and compared rather than raising.
+    """
     assert R._link_expired(stamp) is True          # unknown/dead reads as dead
-    assert R._days_since(stamp) in (None, R._days_since("2020-01-01T00:00:00"))
+    days = R._days_since(stamp)
+    if days is None:
+        return                                     # garbage / None / "" — parsed, not raised
+    baseline = R._days_since("2020-01-01T00:00:00")
+    assert abs(days - baseline) <= 1, (stamp, days, baseline)
 
 
 def test_resend_refuses_a_finished_signup(env):
@@ -458,6 +470,15 @@ function appendChild_(el, c) {
   el.appendChild(isText_(c) ? document.createTextNode(String(c)) : c);
 }
 var CALLS = [], JUMPS = [];
+// Click a tab chip by its label — the section owns its own strip (§1.2), so a
+// test picks a tab the way an operator does.
+function ACTIVATE(label) {
+  setTimeout(function () {
+    var hit = find(body, function (e) {
+      return e.tagName === 'BUTTON' && textOf(e).indexOf(label) !== -1; });
+    if (hit.length) hit[0].dispatch('click');
+  }, 0);
+}
 var RESPONSES = %(responses)s;
 var ctx = {
   h: h,
@@ -492,13 +513,17 @@ function find(el, pred, acc) {
   return acc;
 }
 var body = document.createElement('div');
-window.AdminPhysiciansSection.render(body, ctx, %(view)s);
-// Two ticks: render awaits its fetch, and the roster's notice awaits a second.
-setTimeout(function () { setTimeout(function () {
+window.AdminPhysiciansSection.reset();
+window.AdminPhysiciansSection.render(body, ctx);
+if (%(tab)s) { ACTIVATE(%(tab)s); }
+// The section loads both populations before either tab renders (the DEFAULT
+// depends on both counts), so give the promise chain room to settle.
+function later(fn, n) { setTimeout(n > 1 ? function () { later(fn, n - 1); } : fn, 0); }
+later(function () {
   %(after)s
   console.log(JSON.stringify({ text: textOf(body), classes: classesOf(body),
                                calls: CALLS, jumps: JUMPS }));
-}, 0); }, 0);
+}, 6);
 """
 
 _SIGNUPS_PAYLOAD = {
@@ -534,42 +559,76 @@ def _run_node(script: str) -> dict:
     return json.loads(proc.stdout.strip().splitlines()[-1])
 
 
-def _render(view: str, responses: dict, after: str = "") -> dict:
+def _render(tab: str, responses: dict, after: str = "") -> dict:
+    """Render the Physicians section, optionally clicking through to ``tab``.
+
+    ``tab`` is the visible label of one of the two chips ("Approved" /
+    "Pending"), or "" to take whichever the section opens by default — which is
+    Pending whenever anything is waiting (§2).
+    """
     return _run_node(_JS_HARNESS % {
         "shim": json.dumps(str(_DOM_SHIM)),
         "module": json.dumps(str(_FRONTEND / "admin_physicians.js")),
         "responses": json.dumps(responses),
-        "view": json.dumps(view),
+        "tab": json.dumps(tab),
         "after": after,
     })
 
 
-def test_signups_view_renders_every_in_flight_physician():
-    out = _render("signups", {"/admin/signups": _SIGNUPS_PAYLOAD})
-    assert "stalled@clinic.org" in out["text"]
-    assert "fresh@clinic.org" in out["text"]
-    # The stage is words, never a raw token — the same vocabulary rule the tier
-    # and verification columns follow.
-    assert "never pressed finish" in out["text"]
-    assert "attestations" not in out["text"].replace("Signed attestations", "")
-    # The screen must say plainly that these are not approvals, and where the
-    # approvable ones are.
-    assert "cannot be approved yet" in out["text"]
-    assert "3 physicians are" in out["text"]
+# The queue half of Pending. Empty in the signup tests: they are about the
+# physicians who have NOT finished, and those two populations share the tab.
+_EMPTY_QUEUE = {"status": "pending", "count": 0, "total": 0, "queue": [], "has_more": False}
 
 
-def test_signups_empty_state_does_not_read_as_nobody_signed_up():
-    out = _render("signups", {"/admin/signups": {
+def _pending(signups: dict) -> dict:
+    return {"/admin/physicians": {"physicians": [], "counts": {"all": 0, "pending": 0}},
+            "/verify/queue?status=pending": _EMPTY_QUEUE,
+            "/admin/signups": signups}
+
+
+def test_mid_wizard_physicians_are_visible_in_pending():
+    """§2.3: signups fold into Pending rather than getting their own screen.
+
+    They are still visible — this remains the ONLY screen where a half-finished
+    physician appears at all, and losing them is how the console once showed one
+    physician while the founder's inbox filled with signups it could not name.
+    """
+    out = _render("", _pending(_SIGNUPS_PAYLOAD))
+    assert "Ada Lovelace" in out["text"]
+    assert "fresh@clinic.org" in out["text"] or "—" in out["text"]
+    # They carry the chip that says why they cannot be decided.
+    assert "Signup incomplete" in out["text"]
+
+
+def test_a_mid_wizard_physician_is_not_clickable_into_a_decision():
+    """No account exists yet, so there is nothing to approve.
+
+    A clickable row would open a decision report for a user_id that does not
+    exist — a 404 in front of an operator who was told to decide.
+    """
+    out = _render("", _pending(_SIGNUPS_PAYLOAD),
+                  after="find(body, function (e) { return e.tagName === 'TR'; })"
+                        "  .filter(function (r) { return textOf(r).indexOf('Ada Lovelace') !== -1; })"
+                        "  .forEach(function (r) { r.dispatch('click'); });")
+    dossiers = [c for c in out["calls"] if c["path"].startswith("/verify/queue/")]
+    assert dossiers == [], "a mid-wizard row opened a decision report"
+
+
+def test_pending_empty_state_does_not_read_as_nobody_signed_up():
+    # Everything empty, so the section opens on Approved; click through.
+    out = _render("Pending", _pending({
         "signups": [], "counts": {"total": 0, "ready_to_finish": 0, "stalled": 0, "expired": 0},
-        "awaiting_review": 0, "can_resend": True, "stalled_after_days": 3}})
-    assert "either finished or already been decided" in out["text"]
+        "awaiting_review": 0, "can_resend": True, "stalled_after_days": 3}))
+    assert "Queue is clear" in out["text"]
+    assert "nobody is mid-onboarding" in out["text"]
 
 
 def test_resend_posts_the_composite_key():
     out = _render(
-        "signups", {"/admin/signups": _SIGNUPS_PAYLOAD,
-                    "/admin/signups/resend": {"ok": True, "message": "sent"}},
-        after="find(body, function (e) { return e.tagName === 'BUTTON'; })[0].dispatch('click');")
+        "", dict(_pending(_SIGNUPS_PAYLOAD),
+                 **{"/admin/signups/resend": {"ok": True, "message": "sent"}}),
+        after="find(body, function (e) { return e.tagName === 'BUTTON'"
+              "  && textOf(e).indexOf('Resend link') !== -1; })[0].dispatch('click');")
     posts = [c for c in out["calls"] if c["path"] == "/admin/signups/resend"]
     assert len(posts) == 1
     assert posts[0]["method"] == "POST"
@@ -581,47 +640,30 @@ def test_resend_posts_the_composite_key():
 
 def test_resend_disabled_when_the_server_cannot_send_email():
     payload = dict(_SIGNUPS_PAYLOAD, can_resend=False)
-    out = _render("signups", {"/admin/signups": payload},
-                  after="var b = find(body, function (e) { return e.tagName === 'BUTTON'; })[0];"
+    out = _render("", _pending(payload),
+                  after="var b = find(body, function (e) { return e.tagName === 'BUTTON'"
+                        "  && textOf(e).indexOf('Resend link') !== -1; })[0];"
                         "if (!('disabled' in b.attributes)) throw new Error('resend not disabled');")
-    assert out["calls"][0]["path"] == "/admin/signups"
+    assert any(c["path"] == "/admin/signups" for c in out["calls"])
 
 
-def test_roster_says_where_the_missing_physicians_are():
-    """The regression in one assertion: an empty-looking roster must not read as
-    'nobody signed up' while people are mid-wizard."""
-    out = _render("roster", {
-        "/admin/physicians": {"physicians": [], "counts": {"all": 0, "pending": 0}},
-        "/admin/signups": _SIGNUPS_PAYLOAD,
-    })
-    assert "2 physicians mid-onboarding, not on this roster" in out["text"]
-    assert "asc-card asc-signup-notice" in out["classes"]
+def test_the_roster_survives_a_failing_signups_call():
+    """The funnel is secondary content: it must never take the section with it.
 
-
-def test_roster_notice_is_silent_when_the_funnel_is_empty():
-    out = _render("roster", {
-        "/admin/physicians": {"physicians": [], "counts": {"all": 0}},
-        "/admin/signups": {"signups": [], "counts": {"total": 0}, "awaiting_review": 0},
-    })
-    assert "mid-onboarding" not in out["text"]
-
-
-def test_roster_survives_a_failing_signups_call():
-    """The funnel count is secondary content: it must never take the roster with
-    it. ``/admin/signups`` has no stub here, so the promise rejects."""
-    out = _render("roster", {"/admin/physicians": {
-        "physicians": [{"id": "u1", "name": "Ada", "email": "a@b.org", "tier": "labeler",
-                        "verification_status": "approved"}],
-        "counts": {"all": 1, "pending": 0}}})
+    ``/admin/signups`` has no stub here, so its promise rejects — and the
+    approved roster still renders.
+    """
+    out = _render("Approved", {
+        "/admin/physicians": {
+            "physicians": [{"id": "u1", "name": "Ada", "email": "a@b.org",
+                            "tier": "labeler", "verification_status": "approved"}],
+            "counts": {"all": 1, "pending": 0}},
+        "/verify/queue?status=pending": _EMPTY_QUEUE})
     assert "a@b.org" in out["text"]
-    assert "mid-onboarding" not in out["text"]
 
 
-def test_roster_notice_jumps_through_the_shell():
-    out = _render(
-        "roster",
-        {"/admin/physicians": {"physicians": [], "counts": {"all": 0}},
-         "/admin/signups": _SIGNUPS_PAYLOAD},
-        after="find(body, function (e) { return e.tagName === 'BUTTON'; })[0].dispatch('click');")
-    # Not a local view flip: the shell owns which sub-tab looks selected.
-    assert out["jumps"] == ["signups"]
+def test_the_pending_tab_opens_first_when_someone_is_waiting():
+    """§2: default to Pending when its count > 0. Deciding a physician is the
+    only urgent thing in this section."""
+    out = _render("", _pending(_SIGNUPS_PAYLOAD))
+    assert "Signup incomplete" in out["text"], "the section did not open on Pending"
