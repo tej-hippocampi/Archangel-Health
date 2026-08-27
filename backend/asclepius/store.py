@@ -1485,6 +1485,20 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE tasks ADD COLUMN signoff_status TEXT")
             if "signoff_status" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN signoff_status TEXT")
+            # Launch-week fan-out (V4 PRD §4). A task marked
+            # ``open_to_all_specialties`` bypasses specialty routing for
+            # VISIBILITY only — it appears in every approved physician's queue
+            # regardless of their specialty. It does NOT touch ``max_labels``, so
+            # it does not change how many labels we pay for; those are two
+            # different things and conflating them is how "show everyone this
+            # case" became a $4,500 line item.
+            #
+            # Off by default and NOT NULL DEFAULT 0: specialty routing is a
+            # quality control, and this flag suspends it deliberately and
+            # visibly rather than by accident on a legacy row.
+            if "open_to_all_specialties" not in cols("tasks"):
+                conn.execute("ALTER TABLE tasks ADD COLUMN "
+                             "open_to_all_specialties INTEGER NOT NULL DEFAULT 0")
             # The advisor tier is retired: advisors are ordinary users now.
             # Remaining rows migrate to reviewer (advisor was a strict superset
             # of reviewer, so nothing they could do is lost) and become payable
@@ -3437,6 +3451,9 @@ class AsclepiusStore:
         case: Optional[Dict[str, Any]] = None,
         task_id: Optional[str] = None,
         created_by: Optional[str] = None,
+        # Launch-week fan-out (V4 PRD §4): VISIBILITY only. See the migration note
+        # on the column. Never derived from anything — an explicit caller decision.
+        open_to_all_specialties: bool = False,
     ) -> Dict[str, Any]:
         from asclepius.constants import normalize_independent_mode
 
@@ -3473,8 +3490,8 @@ class AsclepiusStore:
                    candidate_answers_json, max_labels, grounding_mode, independent_mode,
                    buyer_request_id, generation_json, value_tier, modality, case_json,
                    case_source, empirical_difficulty, difficulty_measured,
-                   status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   open_to_all_specialties, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -3495,6 +3512,7 @@ class AsclepiusStore:
                     cs,
                     ed_val,
                     ed_measured,
+                    1 if open_to_all_specialties else 0,
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -3559,6 +3577,8 @@ class AsclepiusStore:
     def _task_row(row: sqlite3.Row) -> Dict[str, Any]:
         rec = dict(row)
         rec["capture_reasoning"] = bool(rec.get("capture_reasoning"))
+        # Stored as an INTEGER; every reader treats it as the boolean it is.
+        rec["open_to_all_specialties"] = bool(rec.get("open_to_all_specialties"))
         rec["candidate_answers"] = json.loads(rec.pop("candidate_answers_json", "[]") or "[]")
         rec["generation"] = json.loads(rec.pop("generation_json", "null") or "null")
         # Multimodal case (may be absent on legacy rows / text tasks).
@@ -3631,7 +3651,13 @@ class AsclepiusStore:
         ]
         params: List[Any] = [evaluator_id]
         if specialty:
-            clauses.append("t.specialty = ?")
+            # Launch-week fan-out (V4 PRD §4). ``open_to_all_specialties`` widens
+            # VISIBILITY and nothing else: the task appears in this labeler's queue
+            # even though its specialty is not theirs. Capacity, independence,
+            # ``max_labels`` and the V4 real-data wall below are all untouched — a
+            # flagged task is still gated by every one of them, and still pays for
+            # exactly the labels it was promoted with.
+            clauses.append("(t.specialty = ? OR COALESCE(t.open_to_all_specialties, 0) = 1)")
             params.append(specialty)
         if hard_only:
             clauses.append("t.difficulty = 'hard'")

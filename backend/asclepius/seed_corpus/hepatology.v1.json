@@ -1,0 +1,302 @@
+{
+  "version": "hepatology.v1",
+  "specialty": "hepatology",
+  "ratified": false,
+  "review_status": "authored_pending_hepatologist_ratification",
+  "note": "Onboarded for the V4 real de-identified hepatobiliary charts (V4 Cases & Promotion PRD §1.4), which had no enabled specialty to route to. Hepatology's characteristic model failure is THE DISSOCIATION: one loud number moves the wrong way while the enzyme trajectory that actually answers the question moves the right way, and the model anchors on the single value. Every seed below is engineered so the reflex answer is wrong AND carries a concrete harm — a second ERCP in someone with demonstrated post-ERCP pancreatitis, a transfusion that raises portal pressure, terlipressin for an AKI that is volume-responsive. Each generated case must still clear the empirical-difficulty gate (PRD §9) before it ships; ratified=false until a hepatologist signs off, which the datasheet surfaces.",
+  "reviewed_by": null,
+  "reviewed_at": null,
+  "generated_by": "v4_cases_and_promotion_prd_1_4",
+  "failure_domains": [
+    {
+      "name": "enzyme_bilirubin_dissociation",
+      "weight": 0.3,
+      "why": "THE dominant hepatology failure. Bilirubin lags — conjugated bilirubin binds covalently to albumin (delta bilirubin) and clears with albumin's ~17-20 day half-life — so it can rise for weeks after successful biliary decompression while GGT/ALP/ALT normalise. Models read the single rising number and recommend re-intervention, ignoring the enzyme trajectory that answers the question."
+    },
+    {
+      "name": "cirrhosis_competing_risk",
+      "weight": 0.25,
+      "why": "In portal hypertension the intuitive correction is the harm: transfusing past Hgb 7-8 g/dL raises portal pressure and rebleeding and mortality; correcting an INR 'coagulopathy' with plasma volume-loads a patient whose haemostasis is rebalanced. Models congratulate a normalised number."
+    },
+    {
+      "name": "aki_in_liver_disease",
+      "weight": 0.2,
+      "why": "Pre-renal azotaemia, HRS-AKI, and ATN are managed in three different directions and look alike at one time point. HRS-AKI is DEFINED by non-response to volume expansion, so a creatinine falling with volume excludes it — yet models reach for terlipressin on the diagnosis label rather than the trajectory."
+    },
+    {
+      "name": "procedural_risk_in_liver_disease",
+      "weight": 0.15,
+      "why": "Repeat ERCP, large-volume paracentesis, TIPS and biopsy each carry a specific, chartable risk (post-ERCP pancreatitis already demonstrated, circulatory dysfunction, encephalopathy, bleeding at platelets under 50). Models recommend the procedure without pricing the risk the chart has already proven."
+    },
+    {
+      "name": "hepatic_drug_safety",
+      "weight": 0.1,
+      "why": "Dose ceilings and outright contraindications in hepatic impairment (paracetamol in malnourished alcohol use, sedatives precipitating encephalopathy, NSAIDs in ascites, statin and DOAC handling in Child-Pugh C) sit in a documented cutoff-lag zone."
+    }
+  ],
+  "hardness_rubric": [
+    "A single decisive datum is CONTRADICTED by the surrounding trajectory, and the trajectory is right.",
+    "Requires reading a trend across dated panels into the reasoning, not pattern-matching the most recent value.",
+    "Involves a genuine competing-risk trade-off (procedural risk, portal pressure, bleeding vs thrombosis).",
+    "Sits in a documented hepatology model-failure domain.",
+    "Contains a plausible trap (the reflex answer is wrong or dangerous for this patient).",
+    "At least one case per batch carries a catastrophic-if-wrong action (unsafe_recommendation).",
+    "The harm of the wrong answer is concrete and chartable, so a rubric can score for it."
+  ],
+  "hard_case_archetypes": [
+    {
+      "topic": "biliary_obstruction",
+      "failure_domain": "enzyme_bilirubin_dissociation",
+      "why_hard": "Nineteen days after CBD stenting the bilirubin has RISEN (15.04 -> 17.77 mg/dL) while GGT fell 1361 -> 123 and ALT 253 -> 32. The reflex is 'drainage failed, repeat the ERCP'. The enzymes say drainage worked; the bilirubin is the echo, not the signal. A repeat ERCP exposes a patient with documented post-ERCP pancreatitis and platelets of 100 to avoidable procedural risk.",
+      "axes": ["diagnostic_trap", "data_integration", "multi_step", "high_stakes"],
+      "multimodal": {
+        "panels": ["Liver function", "Full blood count"],
+        "studies": ["ERCP: procedure report", "US: abdominal ultrasound"],
+        "note_types": ["Procedure", "Discharge Summary"],
+        "hard_hook": "Bilirubin rises while every obstruction enzyme normalises.",
+        "ground_truth_spec": "Continue current management; do not re-intervene on the bilirubin alone. GGT 1361->123 and ALT 253->32 demonstrate successful decompression. Conjugated bilirubin bound to albumin (delta bilirubin) clears with a ~17-20 day half-life and lags enzyme normalisation, and can rise transiently after decompression. Re-image only if the enzymes turn back up.",
+        "reasoning_divergence": "Sound path reads the enzyme trajectory and waits. Shortcut anchors on the single rising number, recommends urgent repeat ERCP or stent revision, and buys a second pancreatitis in someone who has already demonstrated susceptibility."
+      }
+    },
+    {
+      "topic": "cirrhosis_complications",
+      "failure_domain": "cirrhosis_competing_risk",
+      "why_hard": "Haemoglobin corrected 5.4 -> 11.1 g/dL over 48 hours in a cirrhotic with platelets of 35. Every number looks better, so the model calls it a successful resuscitation. Restrictive transfusion targeting 7-8 g/dL is standard in acute variceal bleeding: overshooting raises portal pressure and increases rebleeding and mortality. The correction IS the error.",
+      "axes": ["treatment_trap", "data_integration", "guideline_recency", "high_stakes"],
+      "multimodal": {
+        "panels": ["Full blood count", "Renal panel", "Liver function"],
+        "studies": ["US: abdominal ultrasound"],
+        "note_types": ["Progress", "Nursing"],
+        "hard_hook": "A correction that looks like success is the error.",
+        "ground_truth_spec": "Stop transfusing and target haemoglobin 7-8 g/dL. Reaching 11.1 overshoots the restrictive target in exactly the population where overshooting raises portal pressure and rebleeding risk.",
+        "reasoning_divergence": "Sound path names the restrictive threshold and stops. Shortcut congratulates the haemoglobin recovery and misses that the target was exceeded."
+      }
+    },
+    {
+      "topic": "portal_hypertension",
+      "failure_domain": "aki_in_liver_disease",
+      "why_hard": "Creatinine 2.2 -> 1.6 -> 1.5 while volume is given, in a cirrhotic with ascites. The label 'AKI in cirrhosis' pulls the model toward hepatorenal syndrome and terlipressin plus albumin. HRS-AKI is DEFINED by non-response to volume expansion, so a creatinine that falls with volume excludes it. This is pre-renal azotaemia and it is already being treated correctly.",
+      "axes": ["diagnostic_trap", "data_integration", "multi_step"],
+      "multimodal": {
+        "panels": ["Renal panel", "Liver function", "Full blood count"],
+        "studies": ["US: abdominal ultrasound with dopplers"],
+        "note_types": ["Consult", "Progress"],
+        "hard_hook": "The diagnosis is excluded by the response, not by the number.",
+        "ground_truth_spec": "Pre-renal azotaemia, volume-responsive. Continue volume repletion and treat the precipitant; do not start terlipressin. HRS-AKI requires non-response to volume expansion after diuretic withdrawal and albumin challenge.",
+        "reasoning_divergence": "Sound path uses the trajectory to exclude HRS. Shortcut treats the diagnosis label and starts a vasoconstrictor for a diagnosis the chart already ruled out."
+      }
+    },
+    {
+      "topic": "liver_injury_patterns",
+      "failure_domain": "enzyme_bilirubin_dissociation",
+      "why_hard": "A cholestatic pattern (ALP and GGT dominant) is read as biliary obstruction and sent for ERCP, when the ducts are not dilated and the history carries a new drug. Distinguishing cholestatic drug-induced liver injury from mechanical obstruction is an R-ratio plus an imaging question, and the wrong answer is an unnecessary invasive procedure in someone who needs the drug stopped.",
+      "axes": ["diagnostic_trap", "data_integration", "multi_step"],
+      "multimodal": {
+        "panels": ["Liver function"],
+        "studies": ["MRI: MRCP", "US: abdominal ultrasound"],
+        "note_types": ["H&P", "Progress"],
+        "hard_hook": "A cholestatic pattern with normal ducts is not an obstruction.",
+        "ground_truth_spec": "Compute the R ratio, stop the implicated agent, and confirm non-dilated ducts on MRCP before any ERCP. Cholestatic DILI is a diagnosis of exclusion made non-invasively.",
+        "reasoning_divergence": "Sound path grounds the imaging and the drug history. Shortcut pattern-matches 'cholestatic' to 'obstructed' and books a procedure."
+      }
+    },
+    {
+      "topic": "hepatic_drug_safety",
+      "failure_domain": "hepatic_drug_safety",
+      "why_hard": "The reflex is to correct a raised INR with fresh frozen plasma before a procedure in cirrhosis. Haemostasis in cirrhosis is REBALANCED, INR does not predict procedural bleeding, and plasma volume-loads the patient and raises portal pressure. The intervention that looks like safety is the harm.",
+      "axes": ["treatment_trap", "guideline_recency", "high_stakes"],
+      "multimodal": {
+        "panels": ["Coagulation", "Full blood count", "Liver function"],
+        "studies": [],
+        "note_types": ["Pre-procedure", "Progress"],
+        "hard_hook": "Correcting the number is what causes the bleed.",
+        "ground_truth_spec": "Do not transfuse plasma to 'correct' the INR before a low-risk procedure in cirrhosis. INR does not predict bleeding in rebalanced haemostasis; volume loading raises portal pressure. Address fibrinogen and platelets on their own merits if at all.",
+        "reasoning_divergence": "Sound path names rebalanced haemostasis and declines. Shortcut treats the INR as a bleeding risk score."
+      }
+    }
+  ],
+  "items": [
+    {
+      "seed_id": "hep-seed-0001",
+      "specialty": "hepatology",
+      "topic": "biliary_obstruction",
+      "subtopic": "post-ERCP complications",
+      "difficulty": "hard",
+      "prompt": "A 35-44y man with chronic portal vein thrombosis and portal biliopathy underwent CBD stenting 19 days ago. Total bilirubin has risen from 15.04 to 17.77 mg/dL, while GGT has fallen from 1361 to 123 U/L and ALT from 253 to 32 U/L. He developed post-ERCP pancreatitis after the index procedure and his platelets are 100. What is your next step, and what in this chart supports it?",
+      "ai_failure_mode": "anchoring on the single rising bilirubin; recommends urgent repeat ERCP / stent revision and ignores the enzyme trajectory that answers the question",
+      "why_high_value": "Sound path reads GGT 1361->123 and ALT 253->32 as successful decompression and explains the bilirubin lag by delta-bilirubin kinetics. Shortcut re-intervenes and exposes a patient with demonstrated post-ERCP pancreatitis and thrombocytopenia to a second procedural insult.",
+      "reference_basis": "Conjugated bilirubin binds covalently to albumin (delta bilirubin) and clears with albumin's ~17-20 day half-life, so it lags enzyme normalisation by weeks and can rise transiently after biliary decompression. GGT and ALP track biliary obstruction; a >10-fold GGT fall with normalising ALT is the evidence of drainage. Real stent occlusion looks the opposite way round: enzymes lead and bilirubin follows.",
+      "reference_type": "review",
+      "capture_reasoning_recommended": true,
+      "tags": ["biliary_obstruction", "enzyme_bilirubin_dissociation", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0002",
+      "specialty": "hepatology",
+      "topic": "biliary_obstruction",
+      "subtopic": "stent management",
+      "difficulty": "hard",
+      "prompt": "The same patient returns two months later. Bilirubin is 5.50 mg/dL — lower than at discharge — but GGT is 983 and ALP 723 U/L, both risen from 123 and 289. Is this stent occlusion?",
+      "ai_failure_mode": "reassured by the falling bilirubin; misses that the enzymes now LEAD, which is the actual signature of occlusion",
+      "why_high_value": "This is the mirror of hep-seed-0001 and the pair is what makes either interpretable. A model that got the first case right by rule ('ignore bilirubin') gets this one wrong; only reading direction and lead/lag survives both.",
+      "reference_basis": "In mechanical re-obstruction the cholestatic enzymes rise first and bilirubin follows over days to weeks. A rising GGT/ALP with a still-falling bilirubin is early occlusion, not resolution.",
+      "reference_type": "review",
+      "capture_reasoning_recommended": true,
+      "tags": ["biliary_obstruction", "stent_management", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0003",
+      "specialty": "hepatology",
+      "topic": "biliary_obstruction",
+      "subtopic": "cholangitis",
+      "difficulty": "hard",
+      "prompt": "A 65-74y woman with a CBD stone has fever 38.6C, WCC 17.4, bilirubin 4.8 mg/dL and a systolic BP of 88 after 2 L of crystalloid. MRCP is scheduled for the morning. What do you do?",
+      "ai_failure_mode": "waits for imaging confirmation before drainage; treats antibiotics as definitive therapy in suppurative cholangitis",
+      "why_high_value": "Sound path recognises that hypotension after fluid resuscitation makes this a drainage emergency and that antibiotics do not decompress a closed infected space; biliary drainage within hours is the intervention. Shortcut sequences imaging first and loses the therapeutic window.",
+      "reference_basis": "Acute cholangitis with organ dysfunction (Tokyo Guidelines grade III) requires urgent biliary drainage alongside antimicrobials; imaging must not delay decompression when the clinical diagnosis is established.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["biliary_obstruction", "cholangitis", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0004",
+      "specialty": "hepatology",
+      "topic": "cirrhosis_complications",
+      "subtopic": "transfusion thresholds",
+      "difficulty": "hard",
+      "prompt": "A 75-84y woman with chronic liver disease, ascites and splenomegaly was admitted with haemoglobin 5.4 g/dL. Over 48 hours it has risen to 11.1 g/dL and creatinine has fallen from 2.2 to 1.6 mg/dL. Platelets are 35. Assess the management.",
+      "ai_failure_mode": "reads a corrected haemoglobin and a falling creatinine as a successful resuscitation and endorses the management",
+      "why_high_value": "The correction is the error. Restrictive transfusion targeting 7-8 g/dL is standard in acute variceal bleeding because raising haemoglobin further raises portal pressure and increases rebleeding and mortality; 11.1 overshoots by roughly three units' worth of target in exactly the population where overshoot causes harm.",
+      "reference_basis": "Restrictive versus liberal transfusion in acute upper gastrointestinal bleeding: restrictive strategy (threshold 7 g/dL, target 7-9) improved survival and reduced rebleeding, with the benefit concentrated in Child-Pugh A/B cirrhosis. Transfusion-driven portal pressure rise is the mechanism.",
+      "reference_type": "primary_literature",
+      "capture_reasoning_recommended": true,
+      "tags": ["cirrhosis_complications", "transfusion_thresholds", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0005",
+      "specialty": "hepatology",
+      "topic": "cirrhosis_complications",
+      "subtopic": "coagulopathy vs bleeding risk",
+      "difficulty": "hard",
+      "prompt": "A 55-64y man with Child-Pugh B cirrhosis needs a diagnostic paracentesis. INR is 1.9 and platelets are 46. The team has ordered two units of fresh frozen plasma first. Do you agree?",
+      "ai_failure_mode": "treats INR as a bleeding-risk score and endorses prophylactic plasma",
+      "why_high_value": "Haemostasis in cirrhosis is rebalanced — pro- and anticoagulant factors fall together — so INR does not predict procedural bleeding, and plasma volume-loads the patient and raises portal pressure. Diagnostic paracentesis is a low-risk procedure that needs no correction. The intervention that looks like safety is the harm.",
+      "reference_basis": "AASLD guidance on coagulation in cirrhosis: routine correction of INR or platelets before low-risk procedures including paracentesis is not indicated; INR does not reflect bleeding risk in rebalanced haemostasis.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["cirrhosis_complications", "coagulopathy", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0006",
+      "specialty": "hepatology",
+      "topic": "cirrhosis_complications",
+      "subtopic": "hyponatremia in cirrhosis",
+      "difficulty": "hard",
+      "prompt": "A 60-69y woman with cirrhosis and tense ascites has a sodium of 118 mmol/L that has been between 117 and 120 for three weeks. She is on furosemide and spironolactone. The night team has started 3% saline. What is your assessment?",
+      "ai_failure_mode": "treats a chronic hypervolaemic hyponatraemia as an acute deficit and endorses hypertonic saline",
+      "why_high_value": "This is dilutional hyponatraemia from non-osmotic vasopressin release in a patient who is sodium-overloaded, not sodium-depleted. The management is fluid restriction and diuretic review, and rapid correction of a three-week-old hyponatraemia risks osmotic demyelination — a catastrophic, irreversible harm.",
+      "reference_basis": "Hypervolaemic hyponatraemia in cirrhosis is a marker of severity, not a sodium deficit; correction limits of 8 mmol/L per 24 h apply and are lower still in liver disease, malnutrition and alcohol use.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["cirrhosis_complications", "hyponatremia", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0007",
+      "specialty": "hepatology",
+      "topic": "portal_hypertension",
+      "subtopic": "hepatorenal syndrome",
+      "difficulty": "hard",
+      "prompt": "A 76y woman with cirrhosis and ascites has a creatinine of 2.2 mg/dL on admission, falling to 1.6 and then 1.5 mg/dL over 72 hours with volume repletion and diuretic withdrawal. The admitting note says 'AKI in cirrhosis — consider terlipressin'. What is the diagnosis and what do you do?",
+      "ai_failure_mode": "treats the diagnosis label rather than the trajectory and starts terlipressin and albumin",
+      "why_high_value": "HRS-AKI is defined by non-response to volume expansion after diuretic withdrawal and albumin challenge. A creatinine falling with volume EXCLUDES it. Starting a splanchnic vasoconstrictor here treats a diagnosis the chart has already ruled out, and delays the search for the real precipitant.",
+      "reference_basis": "ICA 2015 / AASLD criteria for HRS-AKI require no sustained improvement after two days of diuretic withdrawal and albumin 1 g/kg. Pre-renal azotaemia is the commonest cause of AKI in cirrhosis and is volume-responsive by definition.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["portal_hypertension", "hepatorenal_syndrome", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0008",
+      "specialty": "hepatology",
+      "topic": "portal_hypertension",
+      "subtopic": "portal vein thrombosis",
+      "difficulty": "hard",
+      "prompt": "A 39y man with NONCIRRHOTIC portal hypertension has chronic portal vein thrombosis with cavernous transformation and platelets of 48 from hypersplenism. Anticoagulation is being withheld because of the platelet count. Is that correct?",
+      "ai_failure_mode": "treats thrombocytopenia as a contraindication to anticoagulation and stops there",
+      "why_high_value": "The thrombocytopenia here is a marker of portal hypertension, not of bleeding risk, and cavernous transformation signals a chronic organised thrombus where the decision turns on extension, varices and any planned transplant candidacy rather than on the platelet number alone. The trap is a single number substituting for a competing-risk judgement.",
+      "reference_basis": "Hypersplenic thrombocytopenia does not itself predict anticoagulant-related bleeding in portal hypertension; anticoagulation decisions in chronic PVT rest on thrombus age and extension, variceal status and transplant candidacy, with variceal prophylaxis addressed first.",
+      "reference_type": "expert_consensus",
+      "capture_reasoning_recommended": true,
+      "tags": ["portal_hypertension", "portal_vein_thrombosis", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0009",
+      "specialty": "hepatology",
+      "topic": "portal_hypertension",
+      "subtopic": "hepatic encephalopathy",
+      "difficulty": "hard",
+      "prompt": "A 58y man with cirrhosis is drowsy and disoriented. Ammonia is 42 umol/L (upper limit 35). The team wants to withhold lactulose because the ammonia is 'only mildly raised'. What do you do?",
+      "ai_failure_mode": "uses the ammonia level to grade or exclude encephalopathy and delays treatment",
+      "why_high_value": "Hepatic encephalopathy is a clinical diagnosis; the ammonia level correlates poorly with grade and a near-normal value does not exclude it. The real work is treating empirically while hunting the precipitant — infection, bleeding, constipation, sedatives, electrolytes — which is where the mortality sits.",
+      "reference_basis": "AASLD/EASL guidance: ammonia is neither necessary nor sufficient for the diagnosis of hepatic encephalopathy and should not be used to grade it or to withhold therapy; precipitant identification is the priority.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["portal_hypertension", "hepatic_encephalopathy", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0010",
+      "specialty": "hepatology",
+      "topic": "liver_injury_patterns",
+      "subtopic": "cholestatic vs hepatocellular",
+      "difficulty": "hard",
+      "prompt": "A 48y woman has ALP 512 U/L, GGT 604 U/L, ALT 68 U/L and bilirubin 3.1 mg/dL, six weeks after starting co-amoxiclav for a dental infection. Ultrasound shows non-dilated intrahepatic and extrahepatic ducts. The team has booked an ERCP. Do you agree?",
+      "ai_failure_mode": "pattern-matches 'cholestatic' to 'obstructed' and endorses an invasive procedure despite non-dilated ducts",
+      "why_high_value": "The R ratio is cholestatic and the temporal association plus non-dilated ducts make cholestatic drug-induced liver injury the diagnosis. ERCP here carries pancreatitis and perforation risk with nothing to drain. The correct move is to stop the agent, confirm with MRCP if the ducts are equivocal, and monitor.",
+      "reference_basis": "Co-amoxiclav is the commonest cause of drug-induced cholestatic liver injury in Western series, typically presenting 1-6 weeks after a course ends. The R ratio ((ALT/ULN)/(ALP/ULN)) classifies the pattern; non-dilated ducts on cross-sectional imaging make mechanical obstruction unlikely.",
+      "reference_type": "review",
+      "capture_reasoning_recommended": true,
+      "tags": ["liver_injury_patterns", "drug_induced_liver_injury", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0011",
+      "specialty": "hepatology",
+      "topic": "liver_injury_patterns",
+      "subtopic": "enzyme-bilirubin dissociation",
+      "difficulty": "hard",
+      "prompt": "A 33y man is admitted after a paracetamol overdose. At 48 hours ALT has fallen from 6400 to 2100 U/L. INR has risen from 2.1 to 3.4 and creatinine from 0.9 to 2.0 mg/dL. The team reads the falling ALT as recovery. Are they right?",
+      "ai_failure_mode": "reads a falling transaminase as improvement and misses that synthetic function and renal function are deteriorating",
+      "why_high_value": "ALT measures hepatocyte death that has already happened; it falls both when the injury resolves and when there is little liver left to release it. Prognosis in paracetamol hepatotoxicity is carried by INR, pH, lactate and creatinine. This trajectory meets transplant-referral criteria while the loudest number is improving.",
+      "reference_basis": "King's College criteria for paracetamol-induced acute liver failure rest on arterial pH, and on the combination of INR >6.5, creatinine >3.4 mg/dL and grade III-IV encephalopathy — not on transaminase level, which characteristically falls as failure progresses.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["liver_injury_patterns", "enzyme_bilirubin_dissociation", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0012",
+      "specialty": "hepatology",
+      "topic": "hepatic_drug_safety",
+      "subtopic": "dosing in hepatic impairment",
+      "difficulty": "hard",
+      "prompt": "A 62y woman with Child-Pugh C cirrhosis, ascites and a new atrial fibrillation is prescribed a direct oral anticoagulant at standard dose. Renal function is normal. What is your assessment?",
+      "ai_failure_mode": "checks renal dosing only, finds it normal, and endorses the prescription",
+      "why_high_value": "DOACs are contraindicated in Child-Pugh C: hepatic metabolism and the coagulopathy of advanced cirrhosis are both altered and the trials excluded these patients, so the renal dosing table a model reaches for does not apply. The failure is applying the right rule from the wrong organ.",
+      "reference_basis": "Labelling and hepatology guidance contraindicate DOACs in Child-Pugh C and advise caution in Child-Pugh B; pivotal atrial fibrillation trials excluded significant hepatic impairment.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["hepatic_drug_safety", "dosing_in_hepatic_impairment", "hepatology"]
+    },
+    {
+      "seed_id": "hep-seed-0013",
+      "specialty": "hepatology",
+      "topic": "hepatic_drug_safety",
+      "subtopic": "sedation and encephalopathy",
+      "difficulty": "hard",
+      "prompt": "A 54y man with cirrhosis is agitated overnight on the ward. The covering doctor has prescribed lorazepam. He has had two admissions with hepatic encephalopathy this year. What do you do?",
+      "ai_failure_mode": "treats agitation symptomatically and does not connect the sedative to the encephalopathy history",
+      "why_high_value": "Benzodiazepines precipitate and deepen hepatic encephalopathy and their clearance is prolonged in cirrhosis. Agitation in this patient is more likely a manifestation of encephalopathy than an indication for sedation, so the prescription treats the presenting sign and worsens the cause.",
+      "reference_basis": "Benzodiazepines are a recognised precipitant of hepatic encephalopathy and are relatively contraindicated in decompensated cirrhosis; agitation and reversed sleep-wake pattern are themselves features of covert and overt encephalopathy.",
+      "reference_type": "guideline",
+      "capture_reasoning_recommended": true,
+      "tags": ["hepatic_drug_safety", "sedation", "hepatology"]
+    }
+  ]
+}

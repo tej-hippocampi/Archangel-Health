@@ -228,6 +228,60 @@ ONCOLOGY_TAXONOMY: List[TaxonomyBucket] = [
 ]
 
 
+# ─── Hepatology taxonomy (V4 Cases & Promotion PRD §1.4) ──────────────────────
+# Onboarded to unblock the real hepatobiliary charts, which had no enabled
+# specialty to route to at all: patient-1 and patient-3 are portal-hypertension /
+# portal-biliopathy records, and ``/generate`` refused them with "specialty
+# 'hepatology' is not enabled in this release".
+#
+# All buckets ``min_difficulty: hard``. Hepatology's characteristic model failure
+# is the DISSOCIATION: one number moves the wrong way while the enzymes that
+# actually answer the question move the right way, and the model anchors on the
+# single loud value. Target counts sum to 100.
+HEPATOLOGY_TAXONOMY: List[TaxonomyBucket] = [
+    TaxonomyBucket(
+        id="portal_hypertension",
+        label="Portal hypertension & its decompensations",
+        min_difficulty="hard",
+        target_count=24,
+        subtopics=["variceal bleeding", "ascites", "hepatorenal syndrome",
+                   "portal vein thrombosis", "hepatic encephalopathy"],
+    ),
+    TaxonomyBucket(
+        id="biliary_obstruction",
+        label="Biliary obstruction & post-procedural course",
+        min_difficulty="hard",
+        target_count=24,
+        subtopics=["choledocholithiasis", "stricture", "post-ERCP complications",
+                   "cholangitis", "stent management"],
+    ),
+    TaxonomyBucket(
+        id="liver_injury_patterns",
+        label="Liver-injury patterns & the dissociations that mislead",
+        min_difficulty="hard",
+        target_count=22,
+        subtopics=["cholestatic vs hepatocellular", "drug-induced liver injury",
+                   "viral hepatitis", "enzyme-bilirubin dissociation"],
+    ),
+    TaxonomyBucket(
+        id="cirrhosis_complications",
+        label="Cirrhosis: synthetic failure & competing-risk management",
+        min_difficulty="hard",
+        target_count=18,
+        subtopics=["coagulopathy vs bleeding risk", "transfusion thresholds",
+                   "spontaneous bacterial peritonitis", "hyponatremia in cirrhosis"],
+    ),
+    TaxonomyBucket(
+        id="hepatic_drug_safety",
+        label="Drug safety & dosing in liver disease",
+        min_difficulty="hard",
+        target_count=12,
+        subtopics=["hepatotoxicity", "dosing in hepatic impairment",
+                   "sedation and encephalopathy", "anticoagulation in PVT"],
+    ),
+]
+
+
 SPECIALTY_REGISTRY: Dict[str, SpecialtyConfig] = {
     "nephrology": SpecialtyConfig(
         name="nephrology",
@@ -258,7 +312,74 @@ SPECIALTY_REGISTRY: Dict[str, SpecialtyConfig] = {
         accent="pink",
         blurb="irAEs vs progression, molecular-over-histology, oncologic emergencies.",
     ),
+    # Hepatology reasoning lives in the ENZYME TRAJECTORY, not in any single value
+    # (V4 PRD §1.4); its documented failure is anchoring on one loud number while
+    # the trend that answers the question runs the other way.
+    "hepatology": SpecialtyConfig(
+        name="hepatology",
+        seed_corpus="seed_corpus/hepatology.v1.json",
+        taxonomy=HEPATOLOGY_TAXONOMY,
+        enabled=True,
+        # green|orange|pink only — no blue (console palette). Green is shared with
+        # nephrology; the chip is labelled, and the palette has no fourth token.
+        accent="green",
+        blurb="Portal hypertension, biliary obstruction, and the enzyme-bilirubin "
+              "dissociations that mislead.",
+    ),
 }
+
+
+class SpecialtyMisconfigured(RuntimeError):
+    """An ENABLED specialty has no usable seed corpus (V4 PRD §1.4).
+
+    Raised at import, deliberately: the corpus is what ``classify_case_to_bucket``
+    matches against, so a specialty enabled with an empty or stub corpus does not
+    fail — it silently sorts every case of that specialty into NO bucket, and the
+    export ships with an unusable taxonomy field that nobody notices until a buyer
+    filters on it. A registry entry and a corpus file are one change; this makes
+    them one change in fact and not just by convention."""
+
+
+def _assert_enabled_specialties_have_corpora() -> None:
+    """Every ``enabled=True`` specialty must have a readable, non-empty corpus.
+
+    Deliberately a plain JSON existence + item-count check rather than a call to
+    :mod:`asclepius.corpus`: that module imports this one, and the point is to fail
+    at import of the registry itself, before anything can consult it. ``corpus``
+    still does the FULL schema validation on first load — this is the cheap check
+    that cannot be deferred, not a replacement for it."""
+    import json as _json
+    import os as _os
+
+    here = _os.path.dirname(__file__)
+    broken: List[str] = []
+    for cfg in SPECIALTY_REGISTRY.values():
+        if not cfg.enabled:
+            continue          # a held specialty is allowed to have no corpus yet
+        path = _os.path.join(here, cfg.seed_corpus)
+        if not _os.path.exists(path):
+            broken.append(f"{cfg.name}: seed corpus missing ({cfg.seed_corpus})")
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = _json.load(fh)
+        except (OSError, ValueError) as exc:
+            broken.append(f"{cfg.name}: seed corpus unreadable ({exc})")
+            continue
+        items = data.get("items") if isinstance(data, dict) else data
+        if not isinstance(items, list) or not items:
+            broken.append(f"{cfg.name}: seed corpus has no items — a stub corpus "
+                          "classifies every case into no bucket")
+        if not cfg.taxonomy:
+            broken.append(f"{cfg.name}: enabled with an empty taxonomy")
+    if broken:
+        raise SpecialtyMisconfigured(
+            "Specialty registry is inconsistent with the seed corpora on disk. "
+            "Either ship the corpus or set enabled=False and hold the cases: "
+            + "; ".join(broken))
+
+
+_assert_enabled_specialties_have_corpora()
 
 
 def get_specialty_config(specialty: str) -> SpecialtyConfig:

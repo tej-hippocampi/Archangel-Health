@@ -154,6 +154,7 @@ from asclepius.tutorial_case import (
     grade_tutorial_submission,
     tutorial_raw_task,
 )
+from asclepius.v4_cases import V4_DEFAULT_MAX_LABELS
 from asclepius.store import get_store, verify_password as _verify_password, _utcnow_iso
 from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
@@ -1099,6 +1100,61 @@ async def generate_task(
 
 
 # ─── Seedmaker auto-generation (Mode A, PRD §7, §10) ──────────────────────────
+# Declared BEFORE ``/generation/{specialty}`` on purpose: FastAPI matches routes in
+# definition order, so a literal path declared after a parameterised one at the same
+# depth is shadowed by it (this route returned 422 'missing body' until it moved).
+@router.post("/generation/load-v4-real-cases")
+async def load_v4_real_cases(
+    specialty: Optional[str] = Query(
+        None, description="Load only this specialty's V4 cases; omit for all."),
+    max_labels: int = Query(
+        V4_DEFAULT_MAX_LABELS, ge=1, le=10,
+        description="Independent labels per case. Default 3 (one labeller + two "
+                    "for Cohen's kappa). This is what we PAY for — it is not how "
+                    "many physicians can SEE the case."),
+    open_to_all_specialties: bool = Query(
+        False, description="Show these cases to every approved physician, "
+                           "bypassing specialty routing. VISIBILITY only — it "
+                           "does not change max_labels or what we pay."),
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Load the three V4 REAL de-identified cases as ``partner_ehr`` tasks
+    (V4 Cases & Promotion PRD §3).
+
+    The real-data sibling of ``/generation/{specialty}/load-gold``: no LLM needed
+    (each case ships with its authored A/B preference pair), idempotent on a
+    stable ``v4real-<case_id>`` task id.
+
+    ``holds`` in the response names any case the content gate is holding OUT of
+    the queue and why. A non-empty ``holds`` is the honest answer to "did all
+    three ship?" — read it rather than the ``loaded`` count."""
+    from asclepius.v4_cases import load_v4_cases
+
+    store = _store()
+    sel = specialty.strip().lower() if specialty else None
+    if sel and not asc_specialties.is_enabled(sel):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Specialty {sel!r} is not enabled in this release "
+                   f"({sorted(s for s in asc_specialties.SPECIALTY_REGISTRY if asc_specialties.is_enabled(s))}).")
+    try:
+        res = load_v4_cases(store, specialty=sel, max_labels=max_labels,
+                            open_to_all_specialties=open_to_all_specialties)
+    except Exception as exc:  # a broken entry must return a clear error, not a bare 500
+        raise HTTPException(status_code=500, detail=f"Could not load V4 real cases: {exc}")
+    res["max_labels"] = max_labels
+    res["open_to_all_specialties"] = bool(open_to_all_specialties)
+    store.log_event(
+        entity_type="generation_job", entity_id="v4_real_seed:" + (sel or "all"),
+        event_type="v4_real_load", actor=admin["id"],
+        payload={"loaded": res.get("loaded", 0), "skipped": res.get("skipped", 0),
+                 "held": sorted((res.get("holds") or {}).keys()),
+                 "max_labels": max_labels,
+                 "open_to_all_specialties": bool(open_to_all_specialties)},
+    )
+    return res
+
+
 @router.post("/generation/{specialty}")
 async def generate_specialty_tasks(
     specialty: str,
@@ -1753,6 +1809,58 @@ def _ensure_gold_cases(store: Any, user: Dict[str, Any], specialty: Optional[str
         return 0
 
 
+def _ensure_v4_real_cases(store: Any, user: Dict[str, Any],
+                          specialty: Optional[str] = None) -> int:
+    """Load the three V4 REAL de-identified cases so the V4 queue always has real
+    structured cases to serve (V4 Cases & Promotion PRD §3/§7.8).
+
+    The V4 sibling of ``_ensure_gold_cases``, and deliberately separate from it:
+    gold cases are ``case_source='synthetic'`` and must never be fed to the
+    real-case wall, while these are the actual partner charts and belong nowhere
+    else. Same properties — no LLM (each ships with its authored A/B pair),
+    idempotent on a stable ``v4real-<case_id>`` task id, memoized per store
+    instance so it runs once per specialty per process rather than on every
+    ``/tasks/next`` poll.
+
+    Loads with ``max_labels = 3`` (V4 PRD §4): one labeller plus two independent
+    for Cohen's kappa. VISIBILITY to every approved physician in the specialty is
+    the specialty routing already doing its job — it is not, and must not become,
+    a function of ``max_labels``.
+
+    A case the content gate HOLDS (see ``v4_cases.V4_HOLDS``) is not loaded and is
+    logged by name. Returns the number newly loaded."""
+    sp = (specialty or user.get("specialty") or "").strip().lower()
+    ensured = getattr(store, "_v4_real_ensured", None)
+    if ensured is None:
+        ensured = set()
+        try:
+            setattr(store, "_v4_real_ensured", ensured)
+        except Exception:  # pragma: no cover
+            pass
+    try:
+        from asclepius.v4_cases import load_v4_cases
+        targets = ([sp] if sp
+                   else [c["specialty"] for c in asc_specialties.list_specialties()
+                         if c.get("enabled")])
+        targets = [t for t in targets if t and t not in ensured]
+        if not targets:
+            return 0
+        loaded = 0
+        for t in targets:
+            res = load_v4_cases(store, specialty=t)
+            loaded += int(res.get("loaded", 0))
+            for cid, reason in (res.get("holds") or {}).items():
+                # Named, not swallowed: a case silently absent from the queue is
+                # the exact failure this PRD exists to remove.
+                log.warning("V4 real case %s is held out of the %s queue: %s",
+                            cid, t, reason)
+            ensured.add(t)  # mark only after a successful load
+        return loaded
+    except Exception:  # never let seeding break the queue request
+        log.exception("asclepius: V4 real-case seeding failed")
+        return 0
+
+
 # ─── The LABEL capability, enforced ───────────────────────────────────────────
 #
 # ``capabilities.LABEL`` was defined and never checked. Drawing a task and
@@ -1831,6 +1939,19 @@ async def next_task(
             task = _query_next(store, user, portal_version=portal_version, fallback=True, specialty=sel_specialty)
     else:
         task = _query_next(store, user, portal_version=portal_version, specialty=sel_specialty)
+        if not task and portal_version == REAL_CASE_PORTAL_VERSION and user.get("real_data_approved"):
+            # V4 is the mirror of the gold fallback above, not an exception to it:
+            # the real-case wall must not be fed synthetic gold cases, and it must
+            # not be left empty either. The V4 real cases ARE real charts, so this
+            # is the one seed that belongs here.
+            #
+            # ONLY on an empty queue, deliberately. Seeding unconditionally would
+            # inject three tasks into the priority sort ahead of work an admin
+            # actually promoted from a partner bundle, which is not the seed's job
+            # — its job is that a V4 physician never opens an empty queue.
+            if _ensure_v4_real_cases(store, user, sel_specialty):
+                task = _query_next(store, user, portal_version=portal_version,
+                                   specialty=sel_specialty)
         if not task:
             # Empty queue -> auto-generate a fresh batch via the engine, then serve.
             task = await _autofill_queue(store, user, portal_version=portal_version, specialty=sel_specialty)
@@ -1874,6 +1995,18 @@ async def available_tasks(
         min_empirical_difficulty=min_empirical_difficulty(),
         limit=limit,
     )
+    # The list and the draw must agree about what exists: /tasks/next seeds the V4
+    # real cases when the queue is empty, so a dashboard that said "0 available"
+    # and then handed out a case on the next click would be the product knowing
+    # something and not saying it. Same condition, same seed, same re-query.
+    if real_only and not rows and _ensure_v4_real_cases(store, user, serve_specialty):
+        rows = store.eligible_tasks_for_evaluator(
+            evaluator_id=user["id"], specialty=serve_specialty, hard_only=hard_only,
+            real_only=real_only, multimodal_only=False,
+            require_measured_difficulty=require_measured_difficulty(),
+            min_empirical_difficulty=min_empirical_difficulty(),
+            limit=limit,
+        )
     tasks = [
         {
             "task_id": t.get("task_id"),
@@ -4691,6 +4824,7 @@ async def _convert_and_gate(store: Any, ic: Dict[str, Any], question: str) -> Di
 def _commit_promoted_task(
     store: Any, ic: Dict[str, Any], conv: Dict[str, Any], admin: Dict[str, Any], *,
     max_labels: int, grounding_mode: Optional[str], independent_mode: Optional[str],
+    open_to_all_specialties: bool = False,
 ) -> Dict[str, Any]:
     """Insert the gated conversion as a partner_ehr V4 task + mark the case promoted."""
     task = store.insert_task(
@@ -4703,6 +4837,8 @@ def _commit_promoted_task(
         grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
         independent_mode=independent_mode or DEFAULT_INDEPENDENT_MODE,
         case=conv["case"], generation=conv["generation"], created_by=admin["id"],
+        # Launch-week fan-out (V4 PRD §4): VISIBILITY only, never max_labels.
+        open_to_all_specialties=bool(open_to_all_specialties),
     )
     store.update_ingest_case(ic["ingest_case_id"], status="promoted", task_id=task["task_id"])
     store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
@@ -4714,13 +4850,22 @@ def _commit_promoted_task(
 @router.post("/ingestion/cases/{ingest_case_id}/promote")
 async def promote_ingest_case(
     ingest_case_id: str, body: PromoteCaseRequest,
+    dry_run: bool = False,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Ingested case → gradable V4 task (PRD §9): attach the clinical question,
     render the case prompt, generate candidates CONDITIONED ON THE REAL CASE,
     gate (hardness + real-variant case judge — no ground-truth dimension: the
-    specialist is the answer key), insert as a partner_ehr task. Needs an LLM."""
+    specialist is the answer key), insert as a partner_ehr task. Needs an LLM.
+
+    ``?dry_run=true`` (or ``{"dry_run": true}``) runs every gate and returns the
+    sample WITHOUT committing anything — see the block below. The query parameter
+    exists because this is a thing you reach for from a terminal mid-debug, and
+    it only ever turns the dry run ON: a query string cannot force a commit that
+    the body asked to be a dry run."""
     store = _store()
+    # OR, never override. Either place asking for a dry run gets one.
+    body = body.model_copy(update={"dry_run": bool(body.dry_run or dry_run)})
     ic = store.get_ingest_case(ingest_case_id)
     if not ic:
         raise HTTPException(status_code=404, detail="Ingested case not found")
@@ -4766,6 +4911,47 @@ async def promote_ingest_case(
     if not question:
         raise HTTPException(status_code=400, detail="A clinical question is required to promote")
     conv = await _convert_and_gate(store, ic, question)
+
+    # ═══ V4 PRD §5.1 — dry run: inspect without committing ═══
+    #
+    # Everything above this line already ran: the brokering refusal, the status
+    # check, the specialty gate, the full conversion, the candidate generation and
+    # both judges. What a dry run skips is ONLY ``_commit_promoted_task`` — no
+    # task, no status change to 'promoted', no ``case_promoted`` event. It is
+    # idempotent and repeatable, so an admin can iterate on the clinical question
+    # until the case clears the floors instead of discovering the band after a
+    # physician has been paid to look at it.
+    #
+    # It returns the SAMPLE even when the gate FAILED, which is the whole point:
+    # "this scored 0.4 on divergence" is the information you need to write a
+    # sharper question, and a 422 that carries no scores tells you nothing. The
+    # caller reads ``tests_passed`` / ``failures``.
+    #
+    # A conversion ERROR (no LLM key, case judge unavailable) is still an error —
+    # a dry run that silently reported "no candidates" as a result would be a
+    # worse lie than the 503.
+    if body.dry_run:
+        if conv["error"]:
+            raise HTTPException(status_code=conv["http_status"], detail=conv["error"])
+        # Logged, but as an inspection: a dry run is a thing an admin DID, and the
+        # audit trail should show that the case was examined before it was
+        # promoted (or after it was gated). This writes to the event log only —
+        # the ingest case itself is untouched.
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="promote_dry_run", actor=admin["id"],
+                        payload={"tests_passed": conv["ok"],
+                                 "failures": conv["failures"]})
+        return {
+            "dry_run": True,
+            "committed": False,
+            "task_id": None,
+            "ingest_case_status": ic["status"],
+            "would_promote": bool(conv["ok"]),
+            "max_labels": max(1, int(body.max_labels or 1)),
+            "open_to_all_specialties": bool(body.open_to_all_specialties),
+            "sample": _sample_case_view(conv),
+        }
+
     if conv["error"]:
         raise HTTPException(status_code=conv["http_status"], detail=conv["error"])
     if not conv["ok"]:
@@ -4777,9 +4963,11 @@ async def promote_ingest_case(
             "hint": "Try a sharper clinical question, or reject the case. Floors are env-tunable."})
     task = _commit_promoted_task(
         store, ic, conv, admin, max_labels=body.max_labels,
-        grounding_mode=body.grounding_mode, independent_mode=body.independent_mode)
+        grounding_mode=body.grounding_mode, independent_mode=body.independent_mode,
+        open_to_all_specialties=body.open_to_all_specialties)
     return {"task_id": task["task_id"], "case_source": task.get("case_source"),
-            "modality": task.get("modality")}
+            "modality": task.get("modality"),
+            "open_to_all_specialties": bool(task.get("open_to_all_specialties"))}
 
 
 def _sample_case_view(conv: Dict[str, Any]) -> Dict[str, Any]:
@@ -4923,6 +5111,7 @@ async def promote_upload_all(
             continue
         task = _commit_promoted_task(
             store, ic, conv, admin, max_labels=body.max_labels,
+            open_to_all_specialties=body.open_to_all_specialties,
             grounding_mode=body.grounding_mode, independent_mode=body.independent_mode)
         promoted.append({"ingest_case_id": ic.get("ingest_case_id"), "task_id": task["task_id"]})
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
@@ -4986,6 +5175,7 @@ def _proposal_view(p: Dict[str, Any]) -> Dict[str, Any]:
 async def _generate_one_real_case(
     store: Any, ic: Dict[str, Any], p: Dict[str, Any], admin: Dict[str, Any], *,
     max_labels: int, grounding_mode: Optional[str], independent_mode: Optional[str],
+    open_to_all_specialties: bool = False,
 ) -> Dict[str, Any]:
     """One proposed case → a gated, fully-tagged V4 task. Returns a result dict;
     never raises for a per-case failure, so one bad encounter cannot fail a batch.
@@ -5134,6 +5324,8 @@ async def _generate_one_real_case(
         grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
         independent_mode=independent_mode or DEFAULT_INDEPENDENT_MODE,
         case=case, generation=generation, created_by=admin["id"],
+        # Launch-week fan-out (V4 PRD §4): VISIBILITY only, never max_labels.
+        open_to_all_specialties=bool(open_to_all_specialties),
     )
     store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
                     event_type="real_case_generated", actor=admin["id"],
@@ -5242,7 +5434,8 @@ async def generate_real_cases(
             r = await _generate_one_real_case(
                 store, ic, p, admin, max_labels=body.max_labels,
                 grounding_mode=body.grounding_mode,
-                independent_mode=body.independent_mode)
+                independent_mode=body.independent_mode,
+                open_to_all_specialties=body.open_to_all_specialties)
         except Exception as exc:  # pragma: no cover - per-case isolation
             log.warning("real-case generation failed for %s encounter %s: %s",
                         ingest_case_id, p.get("encounter_index"), exc)

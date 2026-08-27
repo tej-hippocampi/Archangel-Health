@@ -49,6 +49,9 @@ from asclepius.cases import (
     public_case,
 )
 from asclepius.specialties import SPECIALTY_REGISTRY, is_enabled
+# Imported as a module (not by name) so the provenance-header definitions below
+# are unmistakably re-exports of the one canonical copy, not a second definition.
+from asclepius import timeline as _timeline
 
 log = logging.getLogger("asclepius.real_cases")
 
@@ -279,6 +282,129 @@ _ANALYTE_BAND_RE = re.compile(
     r"[\s:]*$", re.I)
 # A unit cell that is really half a reference range ("-5.2", "Reference: 15-45").
 _BROKEN_UNIT_RE = re.compile(r"^\s*(?:[-–]\s*\d|reference\b|ref\b|normal\b|\d+\s*[-–]\s*\d+\s*$)", re.I)
+
+# ─── Polluted unit cells (V4 PRD §2) ─────────────────────────────────────────
+# The partner's OCR concatenates unit + reference range + interpretation into the
+# unit column: ``mmol/L (19 - 24) — low``. ``_BROKEN_UNIT_RE`` above anchors on a
+# unit that STARTS with a range or a dash-digit, so it caught 0 of the 42 real
+# occurrences — every one of them starts with a perfectly good unit.
+#
+# Split rather than reject. The unit is real and recoverable and the NUMBER IS
+# FINE; only the tail is noise. Dropping the row would discard a genuine result
+# over a formatting defect, which is the failure mode this whole repair exists to
+# avoid.
+_UNIT_TAIL_RE = re.compile(
+    r"\s*[\(\[].*$|\s*[—–-]\s*(?:low|high|below|above|elevated|normal|critical).*$", re.I)
+# The range we can recover from inside the tail — a parenthesised pair only. A
+# lone number or prose is left alone; a guessed reference range makes a normal
+# value read as abnormal.
+_RECOVERED_RANGE_RE = re.compile(
+    r"[\(\[]\s*(-?\d+(?:\.\d+)?)\s*(?:-|–|—|to)\s*(-?\d+(?:\.\d+)?)\s*[\)\]]")
+# A reference range that is really a DATE ("(0.25-08-2021)"). Three dash-separated
+# components with a 4-digit tail is a date, not a range, and the correct move is to
+# null the range — never to parse it into anything. The shape test lives in
+# ``timeline`` with the rest of the date-shape knowledge, so the lab adapter (which
+# sees the partner's raw column) and this curator cannot disagree about it.
+_RANGE_DATELIKE_RE = _timeline._DATE_IN_FIELD_RE
+
+
+def split_polluted_unit(unit: Any) -> Tuple[str, Optional[str]]:
+    """``'mmol/L (19 - 24) — low'`` → ``('mmol/L', '19 - 24')``. Never drops the value.
+
+    Returns ``(clean_unit, recovered_range_or_None)``. The recovered range is
+    returned for REPORTING only — see ``derive_flag``, which may never use it.
+    A unit with no pollution comes back unchanged with ``None``.
+    """
+    raw = str(unit or "").strip()
+    if not raw:
+        return "", None
+    clean = _UNIT_TAIL_RE.sub("", raw).strip(" \t—–-")
+    if clean == raw:
+        return raw, None
+    m = _RECOVERED_RANGE_RE.search(raw)
+    recovered = f"{m.group(1)} - {m.group(2)}" if m and not _RANGE_DATELIKE_RE.search(m.group(0)) else None
+    # If the tail ate the ENTIRE cell there was never a unit here — the column held
+    # a bare range or an interpretation ("(19 - 24)"). Say so with an empty string
+    # rather than handing the garbage back: ``keep_lab_result`` requires a truthy
+    # unit, so an honest "" drops the row, while returning the original would let
+    # a reference range ride into the case pretending to be a unit.
+    return clean, recovered
+
+
+def reference_range_is_datelike(result: Dict[str, Any]) -> bool:
+    """True when this row's reference range is a DATE that OCR dropped into the
+    range column (``ref='(0.25-08-2021)'``, measured 16 times).
+
+    A date in a reference range means the range is UNUSABLE. Null it, keep the
+    value, flag the row — and do not attempt to parse ``0.25-08-2021`` into
+    anything, because every reading of it is wrong."""
+    # Already recognised upstream: the CSV adapter is the only place the partner's
+    # RAW range column is still in scope, so when it marks a row we take its word
+    # rather than re-deriving from the parsed pair it deliberately left empty.
+    if (result or {}).get("ref_range_unusable"):
+        return True
+    for key in ("reference_range", "ref_range", "_ref_range_raw"):
+        if _RANGE_DATELIKE_RE.search(str((result or {}).get(key) or "")):
+            return True
+    lo, hi = (result or {}).get("ref_low"), (result or {}).get("ref_high")
+    # The adapter refuses to parse a datelike cell into numbers (it returns
+    # ``(None, None)``), so a surviving pair cannot be one. This is the belt for a
+    # hand-built or differently-adapted row that carries the raw text in-place.
+    return bool(_RANGE_DATELIKE_RE.search(f"{lo if lo is not None else ''}")
+                or _RANGE_DATELIKE_RE.search(f"{hi if hi is not None else ''}"))
+
+
+# ─── Physiologic plausibility (V4 PRD §2.1) ──────────────────────────────────
+# Measured: patient-4 on one day carries THREE conflicting bicarbonates — 15.6,
+# 10.0 and 1.7 mmol/L. A serum bicarbonate of 1.7 is not survivable and is
+# contradicted by the same day's ABG (pH 7.392, pCO2 26.3, HCO3 15.6, base excess
+# -8.0). It is an OCR artifact, and it is the kind of number a physician builds a
+# whole wrong answer around.
+#
+# Deliberately a SMALL table, and deliberately WIDE bounds: only analytes where an
+# out-of-range value is unambiguously impossible rather than merely alarming. A
+# tight bound here would silently delete the extreme-but-real values that make a
+# case hard, which is a worse failure than shipping one artifact. If you cannot
+# name the bound as "incompatible with life", it does not belong in this table.
+_IMPLAUSIBLE_BOUNDS: Dict[str, Tuple[float, float]] = {
+    "bicarbonate": (5.0, 50.0),
+    "hco3": (5.0, 50.0),
+    "ph": (6.5, 8.0),
+    "potassium": (1.5, 9.0),
+    "sodium": (100.0, 190.0),
+}
+# Analyte-name → bounds key. Real exports write the same analyte a dozen ways.
+_PLAUSIBILITY_ALIASES: Dict[str, str] = {
+    "bicarbonate": "bicarbonate", "serum bicarbonate": "bicarbonate",
+    "hco3": "hco3", "hco3-": "hco3", "hco3 (calc)": "hco3", "bicarb": "bicarbonate",
+    "ph": "ph", "blood ph": "ph", "arterial ph": "ph",
+    "potassium": "potassium", "serum potassium": "potassium", "k": "potassium",
+    "k+": "potassium", "potassium (k)": "potassium",
+    "sodium": "sodium", "serum sodium": "sodium", "na": "sodium",
+    "na+": "sodium", "sodium (na)": "sodium",
+}
+
+
+def implausible_value(result: Dict[str, Any]) -> bool:
+    """True when this result is physiologically impossible for its analyte.
+
+    Only fires for the handful of analytes in ``_IMPLAUSIBLE_BOUNDS``; everything
+    else is kept. A hit means DROP THE RESULT and record it — never quarantine the
+    chart, which would throw away a good record over one OCR artifact."""
+    if not isinstance(result, dict):
+        return False
+    name = _clean_analyte(result.get("analyte")).strip().lower()
+    key = _PLAUSIBILITY_ALIASES.get(name)
+    if key is None:
+        # Bare "HCO3-" style suffixes and "(calc)"-style qualifiers, normalized.
+        stripped = re.sub(r"\s*\(.*?\)\s*|[-+\s]+$", "", name).strip()
+        key = _PLAUSIBILITY_ALIASES.get(stripped)
+    if key is None or not _is_numeric(result.get("value")):
+        return False
+    lo, hi = _IMPLAUSIBLE_BOUNDS[key]
+    return not (lo <= float(str(result["value"]).strip()) <= hi)
+
+
 # Qualitative results that ARE clinical evidence even with no unit: culture
 # sensitivities (S/I/R) and microscopy descriptors.
 _QUALITATIVE_VALUE_RE = re.compile(
@@ -322,9 +448,18 @@ def keep_lab_result(result: Dict[str, Any]) -> bool:
         return False
     if _ANALYTE_BAND_RE.match(name):
         return False
+    # Physiologic impossibility (V4 PRD §2.1) outranks every other test, the LOINC
+    # allowlist included: a bicarbonate of 1.7 mmol/L is coded, unit-bearing, and
+    # not survivable. The lab coding it does not make it true.
+    if implausible_value(result):
+        return False
     if result.get("loinc"):
         return True                              # the lab coded it; it is a result
-    unit = str(result.get("unit") or "").strip()
+    # A polluted unit ("mmol/L (19 - 24) — low") is a formatting defect, not a bad
+    # value (V4 PRD §2, rule 1). Judge the SALVAGED unit — the raw cell is what
+    # made ``_BROKEN_UNIT_RE`` see nothing wrong with 42 broken rows and then, on
+    # the ones it did catch, throw the number away.
+    unit = split_polluted_unit(result.get("unit"))[0]
     if _is_numeric(result.get("value")) and unit and not _BROKEN_UNIT_RE.match(unit):
         return True
     if _QUALITATIVE_VALUE_RE.match(str(result.get("value") or "")):
@@ -350,10 +485,22 @@ def derive_flag(result: Dict[str, Any]) -> str:
     next to it, and treating it as normal zeroed the abnormal-analyte difficulty
     axis on charts that were full of abnormal values. Derived only when the lab
     gave no flag and both the value and the bound are numeric; never overrides a
-    flag the lab did emit."""
+    flag the lab did emit.
+
+    V4 PRD §2, rule 3 — the bound must be one the PARTNER SUPPLIED in the reference
+    range column. A flag computed from a range reconstructed out of a corrupted
+    unit string is a clinical claim built on OCR repair, and it will be wrong
+    silently: the recovered range never reaches ``ref_low``/``ref_high``, so this
+    function cannot see it, and ``ref_range_unusable`` rows are refused outright.
+    """
     existing = str(result.get("flag") or "").strip().upper()
     if existing:
         return existing
+    # The range was nulled because it was a date (V4 PRD §2, rule 2). There is
+    # nothing to compare against and inventing one is exactly the silent clinical
+    # claim this guard exists to prevent.
+    if result.get("ref_range_unusable"):
+        return ""
     if not _is_numeric(result.get("value")):
         return ""
     value = float(str(result["value"]).strip())
@@ -363,6 +510,33 @@ def derive_flag(result: Dict[str, Any]) -> str:
     if _is_numeric(hi) and value > float(str(hi)):
         return "H"
     return ""
+
+
+def _repair_result(result: Dict[str, Any], stats: Dict[str, int]) -> Dict[str, Any]:
+    """Apply the V4 PRD §2 row repairs and return a new result dict.
+
+    Two repairs, and the rule that governs both is *never drop the number*:
+
+      1. A unit polluted with the range and the interpretation is SPLIT — the unit
+         is salvaged, the range is recovered for the report, the value is kept. The
+         recovered range is deliberately NOT written to ``ref_low``/``ref_high``
+         (rule 3): a flag derived from a range reconstructed out of a corrupted
+         string is a clinical claim built on OCR repair and it will be wrong
+         silently. It is counted and dropped.
+      2. A reference range that is really a date is NULLED and the row marked
+         ``ref_range_unusable`` (rule 2). No attempt is made to read
+         ``0.25-08-2021`` as anything, because every reading of it is wrong.
+    """
+    clean_unit, recovered = split_polluted_unit(result.get("unit"))
+    if recovered is not None or (result.get("unit") and clean_unit != str(result["unit"]).strip()):
+        stats["units_split"] = stats.get("units_split", 0) + 1
+        result = {**result, "unit": clean_unit}
+        if recovered is not None:
+            stats["ranges_recovered"] = stats.get("ranges_recovered", 0) + 1
+    if reference_range_is_datelike(result):
+        stats["ref_range_datelike"] = stats.get("ref_range_datelike", 0) + 1
+        result = {**result, "ref_low": None, "ref_high": None, "ref_range_unusable": True}
+    return result
 
 
 def _result_identity(panel_offset: Optional[int], result: Dict[str, Any]) -> Tuple:
@@ -381,7 +555,12 @@ def curate_lab_panels(panels: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, 
     separate draws.
     """
     stats = {"dropped_furniture": 0, "dropped_duplicate": 0, "panels_in": len(panels or []),
-             "results_in": 0, "enriched_from_duplicate": 0}
+             "results_in": 0, "enriched_from_duplicate": 0,
+             # V4 PRD §2 repairs, counted separately from furniture so an operator
+             # can tell "the partner's OCR is broken" from "this row was a page
+             # legend". Silent repair is how 42 polluted units shipped.
+             "units_split": 0, "ranges_recovered": 0, "ref_range_datelike": 0,
+             "implausible_value": 0}
     seen: Dict[Tuple, Dict[str, Any]] = {}
     out: List[Dict[str, Any]] = []
     for panel in panels or []:
@@ -391,9 +570,17 @@ def curate_lab_panels(panels: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, 
         kept: List[Dict[str, Any]] = []
         for result in panel.get("results") or []:
             stats["results_in"] += 1
+            # Counted as its own outcome, not as furniture: a bicarbonate of 1.7 is
+            # a real row the partner really sent, and "we deleted an impossible
+            # value" is a different report to an operator than "we dropped a page
+            # legend" (V4 PRD §2.1).
+            if implausible_value(result):
+                stats["implausible_value"] += 1
+                continue
             if not keep_lab_result(result):
                 stats["dropped_furniture"] += 1
                 continue
+            result = _repair_result(result, stats)
             ident = _result_identity(off, result)
             first = seen.get(ident)
             if first is not None:
@@ -408,6 +595,13 @@ def curate_lab_panels(panels: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, 
                     if not first.get(field) and result.get(field):
                         first[field] = result[field]
                         stats["enriched_from_duplicate"] += 1
+                # A duplicate that carries a USABLE range repairs a row whose own
+                # range we nulled as datelike — the other format got the column
+                # right. Clear the marker so the row is flagged only while it is
+                # actually rangeless, and ``derive_flag`` may use the good range.
+                if first.get("ref_range_unusable") and not result.get("ref_range_unusable") and (
+                        first.get("ref_low") is not None or first.get("ref_high") is not None):
+                    first["ref_range_unusable"] = False
                 continue
             merged = {**result, "analyte": _clean_analyte(result.get("analyte"))}
             seen[ident] = merged
@@ -436,6 +630,25 @@ _NON_CLINICAL_NOTE_RE = re.compile(
     r"|##?\s*contents\b|##?\s*anonymi[sz]ation\b"
     r"|this\s+(?:archive|bundle|export)\s+contains\b)", re.I)
 
+# Per-note provenance headers written by the partner's de-identification tool
+# (V4 PRD §1.2). These are METADATA ABOUT the de-identification, not clinical
+# text — and at least one of them carries an unshifted original date ("year as
+# printed (11/7/21)"), which the timeline scanner reads as a leaked date.
+#
+# Distinct from ``_NON_CLINICAL_NOTE_RE`` above in the way that matters: that one
+# is anchored against a note's OPENING and drops the whole note; this one is
+# LINE-anchored, because the header sits inside an otherwise ordinary clinical
+# note and only the header should leave.
+#
+# The definition lives in :mod:`asclepius.timeline` — the module that owns the
+# date scan and imports nothing from this package — so the scanner and this
+# curator cannot drift on what counts as a header. Re-exported here because this
+# is where a reader looking for note curation will come first.
+_PROVENANCE_LINE_RE = _timeline._PROVENANCE_LINE_RE
+strip_provenance_lines = _timeline.strip_provenance_lines
+provenance_lines = _timeline.provenance_lines
+provenance_header_dates = _timeline.provenance_header_dates
+
 
 def _normalized_note_text(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip().lower()
@@ -449,15 +662,28 @@ def curate_notes(notes: Sequence[Dict[str, Any]], *, min_chars: int = 40,
     ``DocumentReference`` and once as a plain-text file — plus a README describing
     the export. Left in, the case prompt is two copies of the chart wrapped around
     a file manifest.
+
+    The partner's per-note de-identification header (V4 PRD §1.2) is removed here
+    too. Ingest already strips it — this is the belt for that braces, because a
+    case can reach curation from a path that never ran ``normalize_timeline`` (a
+    hand-built fixture, an authored case, a re-curated stored case), and a
+    physician should never be shown a redaction footer as if a clinician wrote it.
+    Removal happens BEFORE the duplicate check, so two copies of the same note that
+    differ only in their header still collapse to one.
     """
     stats = {"notes_in": len(notes or []), "dropped_duplicate": 0,
-             "dropped_non_clinical": 0, "dropped_short": 0}
+             "dropped_non_clinical": 0, "dropped_short": 0,
+             "provenance_lines_stripped": 0}
     seen: set = set()
     out: List[Dict[str, Any]] = []
     for note in notes or []:
         if not isinstance(note, dict):
             continue
-        text = str(note.get("text") or "").strip()
+        raw = str(note.get("text") or "").strip()
+        text = strip_provenance_lines(raw).strip()
+        if text != raw:
+            stats["provenance_lines_stripped"] += len(provenance_lines(raw))
+            note = {**note, "text": text}
         if len(text) < min_chars:
             stats["dropped_short"] += 1
             continue
@@ -869,6 +1095,25 @@ _SPECIALTY_SIGNALS: Dict[str, Tuple[Tuple[float, "re.Pattern[str]"], ...]] = {
                          r"|angiograph\w+|cath(?:eteri\w+)?)\b", re.I)),
         (0.5, re.compile(r"\b(?:ischaemi\w+|ischemi\w+|chest\s+pain)\b", re.I)),
     ),
+    # Hepatology (V4 PRD §1.4). Deliberately weighted so a chart is hepatology
+    # when the LIVER-SPECIFIC signals fire, not merely because it mentions a
+    # creatinine — an AKI in a cirrhotic is a real routing contest and the
+    # nephrology signals above are as strong. What breaks the tie is the presence
+    # of biliary/portal/synthetic-function evidence, which is what a hepatologist
+    # is the answer key for.
+    "hepatology": (
+        (1.0, re.compile(r"\b(?:cirrhos\w+|portal\s+hypertension|portal\s+vein\s+thromb\w+"
+                         r"|cavernous\s+transformation|portal\s+bilio?path\w+|vari(?:x|ces|ceal)\w*"
+                         r"|hepatic\s+encephalopath\w+|cholangitis|choledocholithias\w+"
+                         r"|hepatorenal|\bercp\b|\bmrcp\b)\b", re.I)),
+        (1.0, re.compile(r"\b(?:bilirubin|ggt|gamma[\s-]*gt|alkaline\s+phosphatase|\balp\b"
+                         r"|\balt\b|\bast\b|\bsgpt\b|\bsgot\b|transaminas\w+)\b", re.I)),
+        (0.7, re.compile(r"\b(?:jaundice|icteric|cholestat\w+|hepatocellular|hepatomegaly"
+                         r"|splenomegaly|hypersplenism|ascites|paracentes\w+|\bsaag\b)\b", re.I)),
+        (0.7, re.compile(r"\b(?:child[\s-]*pugh|\bmeld\b|hepatotoxic\w+|drug[\s-]*induced\s+liver"
+                         r"|\bdili\b|hepatitis\s*[abcde]\b|\bstent\w*\b.{0,30}\bbil\w+)\b", re.I)),
+        (0.5, re.compile(r"\blft\b|liver\s+(?:function|panel|biops\w+)\b|\bhepat\w+", re.I)),
+    ),
     "oncology": (
         (1.0, re.compile(r"\b(?:carcinom\w+|adenocarcinom\w+|lymphom\w+|leukaemi\w+|leukemi\w+"
                          r"|myelom\w+|sarcom\w+|metastas\w+|malignan\w+|neoplas\w+|tumou?r)\b", re.I)),
@@ -932,6 +1177,63 @@ _SUBTOPIC_SIGNALS: Dict[str, "re.Pattern[str]"] = {
         re.compile(r"\begfr\s+mutation\b|\bexon\s*(?:19|21)\b", re.I),
     "oncology/staging_biomarker/biomarker_discrepancy":
         re.compile(r"\bbiomarker\b|\bimmunohistochem\w+", re.I),
+    # Hepatology (V4 PRD §1.4). Onboarding a specialty is a corpus file + a
+    # taxonomy + a registry entry — and THESE, without which
+    # ``classify_case_to_bucket`` returns (None, None) for every hepatology case
+    # and the export ships an empty taxonomy field. The registry guard catches a
+    # missing corpus; only a signal here makes the bucket reachable.
+    "hepatology/biliary_obstruction/post-ERCP complications":
+        re.compile(r"post[\s-]*ercp|\bercp\b.{0,60}\bpancreatit\w+"
+                   r"|\bpancreatit\w+.{0,60}\bercp\b", re.I),
+    "hepatology/biliary_obstruction/stent management":
+        re.compile(r"\bstent\w*\b.{0,60}\b(?:cbd|bile|biliary|common\s+bile)\b"
+                   r"|\b(?:cbd|biliary)\b.{0,40}\bstent\w*\b|stent\s+(?:occlusion|revision|exchange)", re.I),
+    "hepatology/biliary_obstruction/choledocholithiasis":
+        re.compile(r"choledocholithias\w+|\bcbd\s+stone\w*|common\s+bile\s+duct\s+stone\w*", re.I),
+    "hepatology/biliary_obstruction/stricture":
+        re.compile(r"\b(?:cbd|biliary|bile\s+duct)\b.{0,30}strictur\w+|strictur\w+.{0,30}\b(?:cbd|bile\s+duct)\b", re.I),
+    "hepatology/biliary_obstruction/cholangitis":
+        re.compile(r"\bcholangitis\b", re.I),
+    "hepatology/portal_hypertension/portal vein thrombosis":
+        re.compile(r"portal\s+vein\s+thromb\w+|\bpvt\b|cavernous\s+transformation"
+                   r"|portal\s+bilio?path\w+", re.I),
+    "hepatology/portal_hypertension/hepatorenal syndrome":
+        re.compile(r"\bhepatorenal\b|\bhrs\b[\s-]*aki|\bterlipressin\b", re.I),
+    "hepatology/portal_hypertension/variceal bleeding":
+        re.compile(r"\bvari(?:x|ces|ceal)\w*\b|\boesophageal\s+vari\w+|\besophageal\s+vari\w+", re.I),
+    "hepatology/portal_hypertension/ascites":
+        re.compile(r"\bascites\b|\bparacentes\w+|\bsaag\b", re.I),
+    "hepatology/portal_hypertension/hepatic encephalopathy":
+        re.compile(r"hepatic\s+encephalopath\w+|\bh\.?e\.?\b.{0,20}\blactulose\b|\brifaximin\b"
+                   r"|\basterixis\b", re.I),
+    "hepatology/liver_injury_patterns/enzyme-bilirubin dissociation":
+        re.compile(r"\bbilirubin\b.{0,120}\b(?:ggt|alp|alkaline\s+phosphatase|alt|ast)\b"
+                   r"|\b(?:ggt|alp|alkaline\s+phosphatase)\b.{0,120}\bbilirubin\b", re.I),
+    "hepatology/liver_injury_patterns/cholestatic vs hepatocellular":
+        re.compile(r"\bcholestat\w+|hepatocellular\s+(?:pattern|injury)|\br\s*ratio\b", re.I),
+    "hepatology/liver_injury_patterns/drug-induced liver injury":
+        re.compile(r"drug[\s-]*induced\s+liver|\bdili\b|hepatotoxic\w+"
+                   r"|co[\s-]*amoxiclav|\bparacetamol\b|\bacetaminophen\b", re.I),
+    "hepatology/liver_injury_patterns/viral hepatitis":
+        re.compile(r"\bhepatitis\s*[abcde]\b|\bhbsag\b|\banti[\s-]*hcv\b|\bhbv\b|\bhcv\b", re.I),
+    "hepatology/cirrhosis_complications/transfusion thresholds":
+        re.compile(r"\btransfus\w+|\bpacked\s+(?:red\s+)?cells?\b|\bprbc\b|\bunits?\s+of\s+blood\b", re.I),
+    "hepatology/cirrhosis_complications/coagulopathy vs bleeding risk":
+        re.compile(r"\binr\b|\bcoagulopath\w+|fresh\s+frozen\s+plasma|\bffp\b|rebalanced\s+h?aemostas\w+", re.I),
+    "hepatology/cirrhosis_complications/spontaneous bacterial peritonitis":
+        re.compile(r"spontaneous\s+bacterial\s+peritonitis|\bsbp\b", re.I),
+    "hepatology/cirrhosis_complications/hyponatremia in cirrhosis":
+        re.compile(r"\bhyponatr\w+.{0,80}\b(?:cirrhos\w+|ascites|liver)\b"
+                   r"|\b(?:cirrhos\w+|ascites)\b.{0,80}\bhyponatr\w+", re.I),
+    "hepatology/hepatic_drug_safety/dosing in hepatic impairment":
+        re.compile(r"child[\s-]*pugh|hepatic\s+impairment|\bmeld\b", re.I),
+    "hepatology/hepatic_drug_safety/sedation and encephalopathy":
+        re.compile(r"\bbenzodiazepin\w+|\blorazepam\b|\bmidazolam\b|\bdiazepam\b|\bsedati\w+", re.I),
+    "hepatology/hepatic_drug_safety/hepatotoxicity":
+        re.compile(r"\bhepatotoxic\w+|\bn[\s-]*acetylcystein\w+|\bnac\b", re.I),
+    "hepatology/hepatic_drug_safety/anticoagulation in PVT":
+        re.compile(r"\banticoagul\w+.{0,60}\b(?:portal|pvt|cirrhos\w+)\b"
+                   r"|\b(?:portal|pvt)\b.{0,60}\banticoagul\w+", re.I),
 }
 
 _SPECIALTY_CONFIDENCE_FLOOR = 0.6

@@ -18,6 +18,11 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
+# What a date looks like when it lands in a column that is not a date column —
+# most notably the reference-range cell (V4 PRD §2 rule 2). Imported rather than
+# redefined so this adapter and ``real_cases``, which both act on it, cannot drift.
+from asclepius.timeline import _DATE_IN_FIELD_RE as _RANGE_DATELIKE_RE
+
 log = logging.getLogger("asclepius.adapters.lab_csv")
 
 # canonical field -> accepted header aliases (lowercase, punctuation-stripped).
@@ -203,9 +208,19 @@ def parse(raw: Any, *, specialty: str = "general", manifest: Optional[Dict[str, 
             result["unit"] = cell(row, "unit")
         lo, hi = _num(cell(row, "ref_low")), _num(cell(row, "ref_high"))
         if lo is None and hi is None and colmap.get("ref_range"):
-            lo, hi = split_reference_range(cell(row, "ref_range"))
-            if lo is None and hi is None and cell(row, "ref_range"):
+            raw_range = cell(row, "ref_range")
+            lo, hi = split_reference_range(raw_range)
+            if lo is None and hi is None and raw_range:
                 unparsed_ranges += 1
+                # A DATE in the reference-range column (V4 PRD §2, rule 2 —
+                # "ref='(0.25-08-2021)'", measured 16 times). ``split_reference_range``
+                # already refuses to guess at it, so the value survives with no
+                # range; what was missing is that the row said nothing about WHY it
+                # has no range. Mark it, here, where the partner's raw column is the
+                # last thing still in scope — downstream only ever sees the parsed
+                # pair, so this fact is unrecoverable after this line.
+                if _RANGE_DATELIKE_RE.search(str(raw_range)):
+                    result["ref_range_unusable"] = True
         if lo is not None:
             result["ref_low"] = lo
         if hi is not None:

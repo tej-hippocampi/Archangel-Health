@@ -108,6 +108,15 @@ class LabResult(BaseModel):
     ref_low: Optional[Any] = None
     ref_high: Optional[Any] = None
     flag: str = ""                         # L | H | LL | HH | ""
+    # The partner supplied a reference range we had to DISCARD (V4 PRD §2, rule 2):
+    # OCR dropped a date into the range column ("ref='(0.25-08-2021)'", measured 16
+    # times). The VALUE is fine and is kept; the range is unusable and is nulled.
+    # First-class rather than a curation-time side note because it travels with the
+    # row a physician reads and a buyer receives — "this result has no reference
+    # range, and here is why" — and because ``derive_flag`` reads it to refuse
+    # inventing a flag for a row whose range we threw away. Default False, so no
+    # existing case changes shape.
+    ref_range_unusable: bool = False
 
 
 class LabPanel(BaseModel):

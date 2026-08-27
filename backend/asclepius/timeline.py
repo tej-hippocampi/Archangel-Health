@@ -249,6 +249,102 @@ def _mask(snippet: str) -> str:
     return re.sub(r"\d", "•", snippet)
 
 
+# ─── Partner de-identification provenance headers (V4 PRD §1.2) ───────────────
+# The partner's de-identification tool writes a per-note header describing what IT
+# did — "De-identification: Omitted nurse name/designation fields (green
+# redaction); year as printed (11/7/21)". Measured: 413 such lines across the three
+# real bundles, and one of them carries ``(11/7/21)`` — an UNSHIFTED ORIGINAL DATE
+# sitting inside metadata ABOUT the de-identification.
+#
+# That single line breaks the date pipeline in two different directions, and both
+# are wrong:
+#
+#   * with an index anchor, ``rewrite_note_dates`` happily parses it and rewrites
+#     it to a relative offset — so a genuine leak in the PARTNER's export is
+#     laundered into a plausible-looking ``[day -1257]`` and nobody is ever told;
+#   * with no anchor (and on the quarantine SCRUB re-check, which runs
+#     ``datelike_leftovers`` with no anchor by construction), the same line yields
+#     ``11/7/21`` and the ``7/21`` inside it as unresolved date-like tokens, and
+#     the whole chart quarantines on the partner's own footer.
+#
+# Neither outcome is right, because a provenance header is not clinical text. So it
+# is REMOVED before any scan or rewrite, and what was removed is reported — the
+# chart proceeds, the finding is recorded as a partner-quality advisory. That
+# distinction (advisory, not quarantine, and never silent) is the whole fix.
+#
+# Line-anchored, NOT note-anchored: unlike ``real_cases._NON_CLINICAL_NOTE_RE``,
+# which strips README-level furniture by matching a note's OPENING, this header
+# sits on line 5 of an otherwise ordinary clinical note.
+#
+# This lives here, in the module that owns the date scan and imports nothing from
+# the package, so the rewriter, the leftover scan and the curator cannot drift
+# apart on what counts as a header. ``real_cases`` re-exports it.
+_PROVENANCE_LINE_RE = re.compile(
+    r"^[ \t]*(?:de-?identification|de-?identified|redaction|anonymi[sz]ation)[ \t]*:.*$",
+    re.I | re.MULTILINE)
+
+
+# A three-component dash/slash/dot token with a 2-4 digit tail, or an ISO date.
+# Used to recognise a DATE that OCR dropped into a column that is not a date column
+# — most notably a lab reference range ("(0.25-08-2021)", V4 PRD §2 rule 2). Kept
+# here, with the rest of the date-shape knowledge, so the lab adapter and the case
+# curator agree on what a date looks like without either importing the other.
+_DATE_IN_FIELD_RE = re.compile(
+    r"\d{1,4}\s*[-–/.]\s*\d{1,2}\s*[-–/.]\s*\d{2,4}|\b\d{4}-\d{2}-\d{2}\b")
+
+
+def looks_like_date_string(value: Any) -> bool:
+    """True when ``value`` contains a date-shaped token.
+
+    Deliberately shape-only and deliberately narrow: it answers "did a date land in
+    a field that is not for dates?", which is a data-quality question, and it is
+    never used to decide de-identification (that is ``deidentify()``'s hard guard)."""
+    return bool(_DATE_IN_FIELD_RE.search(str(value or "")))
+
+
+def provenance_lines(text: str) -> List[str]:
+    """The partner de-identification header lines present in ``text``, verbatim.
+
+    Verbatim because the caller needs to scan them for leaked dates; nothing
+    returned here may reach a report unmasked."""
+    return [m.group(0) for m in _PROVENANCE_LINE_RE.finditer(text or "")]
+
+
+def strip_provenance_lines(text: str) -> str:
+    """Remove partner de-identification headers from note text.
+
+    Returns the text with those lines removed. Callers scanning for residual PHI
+    must run this FIRST — a date inside a provenance header is a real finding
+    about the partner's pipeline, but it is not clinical content and must not
+    quarantine a chart on its own.
+    """
+    if not text:
+        return text
+    out, removed = _PROVENANCE_LINE_RE.subn("", text)
+    if not removed:
+        # Nothing matched: return the note completely untouched. The blank-line
+        # tidy below must never run on a note we did not edit — it would rewrite
+        # a clinician's own paragraph spacing for no reason at all.
+        return text
+    # The substitution leaves the header's own newline behind. Collapse only the
+    # runs of blank lines it just created, so the note a physician reads is not
+    # full of gaps where the headers were.
+    return re.sub(r"\n{3,}", "\n\n", out)
+
+
+def provenance_header_dates(text: str) -> List[str]:
+    """MASKED date/date-like tokens found INSIDE this text's provenance headers.
+
+    These are advisory: they say the partner's de-identification footer leaked a
+    date, which they should be told about, and they never quarantine the chart."""
+    out: List[str] = []
+    for line in provenance_lines(text):
+        for pat in (_ISO_RE, _SLASH_DATE_RE, _MONTHYEAR_NUM_RE):
+            out.extend(_mask(m.group(0)) for m in pat.finditer(line))
+        out.extend(_datelike_unresolved(line))
+    return out
+
+
 def _offset_token(d: date, index: date) -> str:
     return f"[day {(d - index).days:+d}]".replace("+0]", "0]")
 
@@ -411,6 +507,60 @@ def _assign_offset(
     return item
 
 
+def _strip_provenance_from_case(case: Dict[str, Any], report: Dict[str, Any]) -> None:
+    """Remove partner de-identification headers from every free-text field of
+    ``case`` IN PLACE, recording the count and the masked dates found inside them
+    on ``report``.
+
+    Walks exactly ``_FREE_TEXT_FIELDS`` plus string vitals — the same surface the
+    rewriter and the leftover scan walk — so a header can never be stripped from a
+    field the scanner reads, or left in one it does."""
+    found: List[str] = []
+    stripped = 0
+
+    def _clean(value: str) -> str:
+        nonlocal stripped
+        lines = provenance_lines(value)
+        if not lines:
+            return value
+        stripped += len(lines)
+        found.extend(provenance_header_dates(value))
+        return strip_provenance_lines(value)
+
+    for key, fields in _FREE_TEXT_FIELDS:
+        items = case.get(key) or []
+        if not items:
+            continue
+        new_items = []
+        for item in items:
+            if not isinstance(item, dict):
+                new_items.append(item)
+                continue
+            item = dict(item)
+            for field in fields:
+                v = item.get(field)
+                if isinstance(v, str) and v:
+                    item[field] = _clean(v)
+            new_items.append(item)
+        case[key] = new_items
+
+    vitals = case.get("vitals") or {}
+    if vitals:
+        case["vitals"] = {k: (_clean(v) if isinstance(v, str) else v)
+                          for k, v in vitals.items()}
+
+    if stripped:
+        report["provenance_lines_stripped"] = stripped
+    if found:
+        # Deduplicated and bounded: this is an advisory the admin reads, not a
+        # transcript. Order-stable so the same bundle reports the same way twice.
+        seen: List[str] = []
+        for tok in found:
+            if tok not in seen:
+                seen.append(tok)
+        report["provenance_header_dates"] = seen[:20]
+
+
 def normalize_timeline(
     fragments: Dict[str, Any], *, index_event: Optional[str] = None,
     vitals_at: Optional[str] = None,
@@ -433,7 +583,20 @@ def normalize_timeline(
     report: Dict[str, Any] = {
         "index_source": None, "panels_converted": 0,
         "note_dates_rewritten": 0, "unresolved": [],
+        # Partner-quality advisory (V4 PRD §1.2), never a quarantine reason:
+        # how many de-identification provenance headers we removed, and the MASKED
+        # date tokens we found inside them. A non-empty list means the partner's
+        # de-identification footer is leaking dates and they should be told.
+        "provenance_lines_stripped": 0, "provenance_header_dates": [],
     }
+
+    # The partner's own de-identification footer leaves BEFORE anything reads a
+    # date (V4 PRD §1.2) — before the day-first inference, before the rewrite,
+    # before the no-anchor leftover scan. It is metadata about the redaction, not
+    # clinical text, and the one measured example carries an unshifted original
+    # date that would otherwise either bias the order inference, launder into a
+    # fake offset, or quarantine the chart. What was removed is reported.
+    _strip_provenance_from_case(case, report)
 
     # Day-first vs month-first is decided ONCE, from every free-text field in the
     # case, before a single token is rewritten. Deciding per token would let one
@@ -592,11 +755,19 @@ def datelike_leftovers_in_text(text: str) -> List[str]:
     rewriter knows (full dates, month/year partials, ambiguous partials). Applies
     the SAME clinical-score exemption as the rewriter: if it did not count a GCS
     as unresolved, the scrub re-check must not count it as a leftover either, or a
-    scrubbed case could never be released."""
+    scrubbed case could never be released.
+
+    For the same reason it applies the SAME provenance-header exemption: the
+    rewriter strips the partner's de-identification footer before it looks at
+    anything, so a scrub re-check that still counted a date inside that footer
+    would hold a chart in quarantine over a line the pipeline already removed —
+    and scrub, by design, cannot fix it. The finding is not lost: it is reported
+    as ``provenance_header_dates`` (see ``provenance_header_dates``)."""
+    clinical = strip_provenance_lines(text or "")
     out: List[str] = []
     for pat in (_ISO_RE, _SLASH_DATE_RE, _MONTHYEAR_NUM_RE):
-        out.extend(_mask(m.group(0)) for m in pat.finditer(text or ""))
-    out.extend(_datelike_unresolved(text or ""))
+        out.extend(_mask(m.group(0)) for m in pat.finditer(clinical))
+    out.extend(_datelike_unresolved(clinical))
     return out
 
 

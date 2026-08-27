@@ -118,13 +118,28 @@ def test_v4_requires_real_data_approval():
 
 
 def test_v4_queue_never_autofills_synthetic(monkeypatch):
-    """An empty V4 queue stays empty — real data cannot be fabricated."""
+    """Real data cannot be FABRICATED. An empty V4 queue may only ever be filled
+    from real de-identified charts that already exist in the repository.
+
+    This used to assert the queue stayed literally empty, which was the same
+    guarantee while nothing real existed without an admin promoting a bundle. The
+    V4 real cases (V4 Cases & Promotion PRD §3) are committed, reviewed, already
+    de-identified charts, and an empty V4 queue now seeds them — the same
+    arrangement V3 has always had with the gold cases. The invariant this test
+    exists for is unchanged and is asserted directly below: whatever V4 serves is
+    ``real_deid``, and NOTHING SYNTHETIC is ever generated into it."""
     from routers import asclepius as R
     R._autofill_last_attempt.clear()
     h = A.headers_for(_ev(approved=True))
     t = client.get("/api/asclepius/tasks/next?portal_version=v4", headers=h).json()["task"]
-    assert t is None
-    assert _store().list_tasks(limit=10) == []  # nothing was generated
+    if t is not None:
+        assert (t.get("case") or {}).get("case_source") == "real_deid"
+    # Nothing synthetic was generated — the thing "real data cannot be
+    # fabricated" actually forbids.
+    tasks = _store().list_tasks(limit=50)
+    assert [x for x in tasks if x.get("case_source") != "real_deid"] == []
+    # …and every task that IS there came from the reviewed seed, not from a model.
+    assert all((x.get("generation") or {}).get("mode") == "v4_real_seed" for x in tasks)
 
 
 def test_direct_task_fetch_gated_by_approval():
