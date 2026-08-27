@@ -495,6 +495,12 @@ def _multimodal_section_md(records: List[Dict[str, Any]], counts: Dict[str, Any]
   DICOM/image modalities in this dataset.
 - Lab timing is relative (`collected_offset_days` from an index event), never
   calendar dates — a further de-identification guard.
+- `ref_range_unusable: true` on a lab result means the source supplied a
+  reference range we had to DISCARD — OCR dropped a date into the range column.
+  The measured value is unaffected and is kept; only the range is absent, and the
+  flag says so rather than leaving the row silently rangeless. No flag (`L`/`H`)
+  is ever derived for such a row: a flag computed against a repaired range would
+  be a clinical claim built on OCR repair.
 - Held-out answer key: the case's ground truth is **withheld** from the
   buyer-facing record by default; it ships (under `answer_key`) only for explicit
   benchmark exports.

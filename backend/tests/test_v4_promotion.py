@@ -460,9 +460,10 @@ def test_the_unsurvivable_bicarbonate_is_dropped_and_the_chart_is_not_quarantine
 
 
 @pytest.mark.parametrize("analyte,value,implausible", [
-    ("Bicarbonate", 1.7, True), ("Bicarbonate", 15.6, False), ("HCO3-", 1.7, True),
-    ("pH", 7.392, False), ("pH", 1.2, True),
-    ("Potassium", 5.84, False), ("Potassium", 0.4, True),
+    ("Bicarbonate", 1.7, True), ("- Bicarbonate", 1.7, True), ("HCO3-", 1.7, True),
+    ("Bicarbonate", 15.6, False),
+    ("Arterial pH", 7.392, False), ("Arterial pH", 1.2, True),
+    ("Potassium", 5.84, False), ("Potassium", 0.4, True), ("Potassium", 45.0, True),
     ("Sodium", 131.3, False), ("Sodium", 12.0, True),
     # Not in the table: an alarming value must never be deleted for being alarming.
     ("Troponin I", 0.855, False), ("Bilirubin (total)", 17.77, False),
@@ -473,10 +474,56 @@ def test_the_plausibility_table_only_removes_the_impossible(analyte, value, impl
         {"analyte": analyte, "value": value, "unit": "x"}) is implausible
 
 
+@pytest.mark.parametrize("analyte,value,panel", [
+    # A urine panel writes all three of these, and every one of them was deleted
+    # as "impossible" while the table matched bare abbreviations against serum
+    # bounds. Urine Na is the pre-renal vs ATN datum — the single value this
+    # product's nephrology cases turn on.
+    ("pH", 5.0, None), ("K", 45.0, None), ("Na", 20.0, None),
+    ("Sodium", 20.0, "Urine studies"), ("Potassium", 45.0, "Urine electrolytes"),
+    ("Urine sodium", 18.0, None), ("pH", 4.6, "Urinalysis"),
+])
+def test_a_non_serum_specimen_is_never_judged_against_serum_bounds(analyte, value, panel):
+    assert real_cases.implausible_value(
+        {"analyte": analyte, "value": value, "unit": "mmol/L"}, panel_name=panel) is False
+
+
+@pytest.mark.parametrize("analyte,value", [
+    ("Potassium", 9.4),      # dialysis emergency: measured, reported, acted on
+    ("Sodium", 105.0),       # severe hyponatraemia
+    ("Bicarbonate", 4.0),    # extreme DKA
+    ("Arterial pH", 6.8),    # severe acidaemia
+])
+def test_an_extreme_but_real_value_is_never_deleted_for_being_extreme(analyte, value):
+    """These ARE the decisive data of a hard case. A bound tight enough to delete
+    them is worse than shipping the artifact it was added to catch."""
+    assert real_cases.implausible_value({"analyte": analyte, "value": value,
+                                         "unit": "mmol/L"}) is False
+
+
+def test_the_urine_panel_survives_curation_intact():
+    """The end-to-end version of the two tests above — the bug was that a second,
+    panel-blind plausibility check in ``keep_lab_result`` dropped these rows even
+    after the panel-aware one had correctly kept them."""
+    out, stats = real_cases.curate_lab_panels([{
+        "panel": "Urine studies", "collected_offset_days": 0, "results": [
+            {"analyte": "Sodium", "value": 20, "unit": "mmol/L",
+             "ref_low": 20, "ref_high": 40},
+            {"analyte": "Potassium", "value": 45, "unit": "mmol/L",
+             "ref_low": 20, "ref_high": 80}]}])
+    assert [r["analyte"] for r in out[0]["results"]] == ["Sodium", "Potassium"]
+    assert stats["implausible_value"] == 0
+
+
 def test_an_implausible_value_is_dropped_even_when_the_lab_coded_it():
-    """A LOINC does not make a number survivable."""
-    assert real_cases.keep_lab_result(
-        {"analyte": "Bicarbonate", "value": 1.7, "unit": "mmol/L", "loinc": "1963-8"}) is False
+    """A LOINC does not make a number survivable — but the check lives in
+    curation, where the panel (and so the specimen) is known."""
+    out, stats = real_cases.curate_lab_panels([{
+        "panel": "BMP", "collected_offset_days": 0, "results": [
+            {"analyte": "Bicarbonate", "value": 1.7, "unit": "mmol/L", "loinc": "1963-8"},
+            {"analyte": "Bicarbonate", "value": 15.6, "unit": "mmol/L", "loinc": "1963-8"}]}])
+    assert [r["value"] for r in out[0]["results"]] == [15.6]
+    assert stats["implausible_value"] == 1
 
 
 # ═════════════════════════════════════════════════════════════════════════════

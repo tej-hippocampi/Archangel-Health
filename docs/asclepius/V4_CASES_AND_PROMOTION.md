@@ -138,6 +138,14 @@ visibly rather than by accident. It appears in the promote review modal as
 It never widens anything else — a `real_deid` task flagged for fan-out is still
 invisible to a v1/v2/v3 session and still requires `real_data_approved`.
 
+Be exact about what it widens: specialty routing is a **matching** control, not a
+credential boundary. The picker already lets any labeller request any enabled
+specialty's queue, so this flag does not defeat an access check — there isn't one
+on that axis. What changes is that a case reaches a pool that did not ask for it,
+and the annotator's own specialty still ships on the record, so the mismatch is
+visible to a buyer rather than hidden. The real boundaries are `require_label`
+(contributor tier) and the `real_deid` wall, and neither is touched.
+
 ---
 
 ## 5. Promotion debug runbook

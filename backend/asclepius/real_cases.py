@@ -361,42 +361,77 @@ def reference_range_is_datelike(result: Dict[str, Any]) -> bool:
 # -8.0). It is an OCR artifact, and it is the kind of number a physician builds a
 # whole wrong answer around.
 #
-# Deliberately a SMALL table, and deliberately WIDE bounds: only analytes where an
-# out-of-range value is unambiguously impossible rather than merely alarming. A
-# tight bound here would silently delete the extreme-but-real values that make a
-# case hard, which is a worse failure than shipping one artifact. If you cannot
-# name the bound as "incompatible with life", it does not belong in this table.
+# READ THIS BEFORE ADDING A ROW. The asymmetry here is brutal and one-directional:
+# shipping one artifact costs a case; deleting one real value silently removes the
+# decisive datum from a chart and nobody ever finds out. So this table is scoped by
+# three rules, each of which cost a real false positive when it was missing:
+#
+#   1. Bounds are "incompatible with any MEASUREMENT", not "incompatible with
+#      life" and certainly not "alarming". A potassium of 9.4 in an ESRD patient is
+#      a dialysis emergency that gets measured, reported and acted on — it is
+#      exactly the decisive datum of a hard nephrology case, and the PRD's proposed
+#      ceiling of 9.0 deleted it. Likewise a bicarbonate of 4 is real in extreme
+#      DKA, so the floor sits below that and still catches the 1.7.
+#   2. NO BARE ABBREVIATIONS. "K", "Na" and "pH" carry no specimen, and a urine
+#      panel writes all three: urine K is ~45, urine Na is ~20 (the pre-renal vs
+#      ATN datum this product is partly built on), urine pH is 4.5-8.0. Each was
+#      dropped as "impossible" until these aliases were removed. Only names that
+#      can only mean the serum/blood analyte are matched.
+#   3. A NON-SERUM SPECIMEN disables the bound entirely, whether it is named on the
+#      analyte or on the panel.
+#
+# And the honest caveat: an absolute bound is a blunt instrument, and it is not
+# actually what proves the 1.7 wrong. What proves it wrong is the same day's ABG —
+# a pH of 7.392 with a bicarbonate of 1.7 is arithmetically impossible. This table
+# catches the artifact; it does not reason about the chart.
 _IMPLAUSIBLE_BOUNDS: Dict[str, Tuple[float, float]] = {
-    "bicarbonate": (5.0, 50.0),
-    "hco3": (5.0, 50.0),
-    "ph": (6.5, 8.0),
-    "potassium": (1.5, 9.0),
-    "sodium": (100.0, 190.0),
+    "bicarbonate": (3.0, 60.0),
+    "ph_blood": (6.5, 8.0),
+    "potassium": (1.0, 10.0),
+    "sodium": (90.0, 200.0),
 }
-# Analyte-name → bounds key. Real exports write the same analyte a dozen ways.
+# Analyte-name → bounds key. Real exports write the same analyte a dozen ways, but
+# every key here is UNAMBIGUOUS about its specimen — see rule 2 above.
 _PLAUSIBILITY_ALIASES: Dict[str, str] = {
     "bicarbonate": "bicarbonate", "serum bicarbonate": "bicarbonate",
-    "hco3": "hco3", "hco3-": "hco3", "hco3 (calc)": "hco3", "bicarb": "bicarbonate",
-    "ph": "ph", "blood ph": "ph", "arterial ph": "ph",
-    "potassium": "potassium", "serum potassium": "potassium", "k": "potassium",
-    "k+": "potassium", "potassium (k)": "potassium",
-    "sodium": "sodium", "serum sodium": "sodium", "na": "sodium",
-    "na+": "sodium", "sodium (na)": "sodium",
+    "bicarb": "bicarbonate", "hco3": "bicarbonate", "hco3-": "bicarbonate",
+    "serum hco3": "bicarbonate",
+    # Blood pH only. A bare "pH" is a urinalysis row as often as a gas, so it is
+    # deliberately absent and gets no bound at all.
+    "blood ph": "ph_blood", "arterial ph": "ph_blood", "venous ph": "ph_blood",
+    "ph arterial": "ph_blood", "ph venous": "ph_blood", "abg ph": "ph_blood",
+    "serum potassium": "potassium", "potassium": "potassium",
+    "plasma potassium": "potassium", "serum sodium": "sodium",
+    "sodium": "sodium", "plasma sodium": "sodium",
 }
+# A specimen that is not blood. Any of these on the analyte OR the panel name and
+# no bound applies: the reference physiology is completely different.
+_NON_SERUM_SPECIMEN_RE = re.compile(
+    r"\b(?:urine|urinary|urinalysis|csf|cerebrospinal|gastric|stool|fa?ecal|sweat"
+    r"|dialysate|dialysis\s+fluid|ascit\w+|pleural|peritoneal|drain|sputum|saliva"
+    r"|24\s*(?:-|\s)?\s*(?:h|hr|hour)\w*)\b", re.I)
 
 
-def implausible_value(result: Dict[str, Any]) -> bool:
+def implausible_value(result: Dict[str, Any], *, panel_name: Any = None) -> bool:
     """True when this result is physiologically impossible for its analyte.
 
-    Only fires for the handful of analytes in ``_IMPLAUSIBLE_BOUNDS``; everything
-    else is kept. A hit means DROP THE RESULT and record it — never quarantine the
-    chart, which would throw away a good record over one OCR artifact."""
+    Only fires for the handful of analytes in ``_IMPLAUSIBLE_BOUNDS``, and only
+    when nothing about the row says the specimen is not blood. Everything else is
+    kept. A hit means DROP THE RESULT and record it — never quarantine the chart,
+    which would throw away a good record over one OCR artifact.
+
+    ``panel_name`` is the disambiguator that the analyte name alone cannot always
+    provide ("Sodium" inside a "Urine studies" panel). Pass it wherever it is in
+    scope; omitting it only makes this function more conservative, never less.
+    """
     if not isinstance(result, dict):
         return False
     name = _clean_analyte(result.get("analyte")).strip().lower()
+    if _NON_SERUM_SPECIMEN_RE.search(name) or _NON_SERUM_SPECIMEN_RE.search(str(panel_name or "")):
+        return False
     key = _PLAUSIBILITY_ALIASES.get(name)
     if key is None:
-        # Bare "HCO3-" style suffixes and "(calc)"-style qualifiers, normalized.
+        # "(calc)"-style qualifiers and trailing charge signs, normalized.
         stripped = re.sub(r"\s*\(.*?\)\s*|[-+\s]+$", "", name).strip()
         key = _PLAUSIBILITY_ALIASES.get(stripped)
     if key is None or not _is_numeric(result.get("value")):
@@ -448,11 +483,13 @@ def keep_lab_result(result: Dict[str, Any]) -> bool:
         return False
     if _ANALYTE_BAND_RE.match(name):
         return False
-    # Physiologic impossibility (V4 PRD §2.1) outranks every other test, the LOINC
-    # allowlist included: a bicarbonate of 1.7 mmol/L is coded, unit-bearing, and
-    # not survivable. The lab coding it does not make it true.
-    if implausible_value(result):
-        return False
+    # Physiologic plausibility is deliberately NOT checked here. This function
+    # answers "is this a lab result or is it page furniture?"; whether the NUMBER
+    # is possible is a different question, and it needs the panel name to know the
+    # specimen — which is not in scope here. Conflating the two dropped every urine
+    # sodium and potassium in the chart, because bare "Sodium: 20" reads as an
+    # impossible serum value only until you notice the panel says "Urine studies".
+    # ``curate_lab_panels`` runs ``implausible_value`` with the panel, once.
     if result.get("loinc"):
         return True                              # the lab coded it; it is a result
     # A polluted unit ("mmol/L (19 - 24) — low") is a formatting defect, not a bad
@@ -574,7 +611,7 @@ def curate_lab_panels(panels: Sequence[Dict[str, Any]]) -> Tuple[List[Dict[str, 
             # a real row the partner really sent, and "we deleted an impossible
             # value" is a different report to an operator than "we dropped a page
             # legend" (V4 PRD §2.1).
-            if implausible_value(result):
+            if implausible_value(result, panel_name=panel.get("panel")):
                 stats["implausible_value"] += 1
                 continue
             if not keep_lab_result(result):

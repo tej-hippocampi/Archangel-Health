@@ -3657,6 +3657,17 @@ class AsclepiusStore:
             # ``max_labels`` and the V4 real-data wall below are all untouched — a
             # flagged task is still gated by every one of them, and still pays for
             # exactly the labels it was promoted with.
+            #
+            # To be exact about what is being widened: this clause is a MATCHING
+            # control, not a credential boundary. The specialty picker already lets
+            # any labeler request any enabled specialty's queue
+            # (``_query_next``: ``serve_specialty = chosen or user.specialty``), so
+            # flipping this flag does not defeat an access check — there is none on
+            # this axis. What it changes is that a case reaches a pool that did not
+            # ask for it, and the annotator's own specialty still ships on the
+            # record, so the mismatch is visible to a buyer rather than hidden. The
+            # real access boundaries are ``require_label`` (tier) and the
+            # ``real_deid`` wall below, and neither is touched here.
             clauses.append("(t.specialty = ? OR COALESCE(t.open_to_all_specialties, 0) = 1)")
             params.append(specialty)
         if hard_only:
