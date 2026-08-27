@@ -384,19 +384,50 @@ def required_study_modalities(specialty: str) -> tuple:
     return ()
 
 
-def _assert_specialty_studies(specialty: str, studies: List[Dict[str, Any]]) -> None:
-    """Strengthen the gate per specialty (PRD §3): a cardiology case must carry ≥1
-    ``ecg``/``echo`` study; an oncology case ≥1 of ``pathology``/imaging/``molecular``.
-    Nephrology is unchanged (labs-driven, no study requirement)."""
+def missing_specialty_studies(specialty: str, studies: List[Dict[str, Any]]) -> tuple:
+    """The study modalities ``specialty`` requires and this case does not carry.
+    Empty when the requirement is met (or there is none). The observation behind
+    both the hard gate and the real-case advisory below, computed once."""
     required = required_study_modalities(specialty)
     if not required:
+        return ()
+    present = {_study_modality(s) for s in studies}
+    return () if (present & set(required)) else required
+
+
+def _assert_specialty_studies(specialty: str, studies: List[Dict[str, Any]],
+                              *, case_source: str = "synthetic") -> None:
+    """Strengthen the gate per specialty (PRD §3): a cardiology case must carry ≥1
+    ``ecg``/``echo`` study; an oncology case ≥1 of ``pathology``/imaging/``molecular``.
+    Nephrology is unchanged (labs-driven, no study requirement).
+
+    ADVISORY for ``real_deid``, hard for everything else. The difference is
+    whether the missing study is a defect we can fix or a fact about the world:
+
+      * A SYNTHETIC case is authored, so a cardiology case without a tracing is
+        an authoring bug — the generator could always have produced one, and the
+        gate stays hard so it must.
+      * A REAL de-identified chart either contains the ECG or it does not. When
+        the partner's export did not ship one, refusing the whole chart discards
+        genuine patient data over an artifact nobody can conjure, and the only
+        ways to "pass" are to fabricate a tracing inside a record stamped
+        ``real_deid`` or to relabel the case into a specialty that does not
+        describe it. Both are worse than shipping a real case with a named gap.
+
+    The gap is not swallowed: ``missing_specialty_studies`` reports it, and the
+    V4 loader surfaces it as an advisory so "this cardiology case has no tracing"
+    is something an operator reads rather than infers.
+    """
+    missing = missing_specialty_studies(specialty, studies)
+    if not missing:
+        return
+    if case_source == "real_deid":
         return
     present = {_study_modality(s) for s in studies}
-    if not (present & set(required)):
-        raise MultimodalContentError(
-            f"{specialty} case must carry ≥1 study of modality {sorted(required)}; "
-            f"found {sorted(m for m in present if m) or 'none'}"
-        )
+    raise MultimodalContentError(
+        f"{specialty} case must carry ≥1 study of modality {sorted(missing)}; "
+        f"found {sorted(m for m in present if m) or 'none'}"
+    )
 
 
 def assert_multimodal_content(case: Optional[Dict[str, Any]]) -> None:
@@ -421,8 +452,10 @@ def assert_multimodal_content(case: Optional[Dict[str, Any]]) -> None:
     c = as_dict(case) or {}
     studies = [s for s in (c.get("studies") or []) if isinstance(s, dict)]
 
-    # (1) Per-specialty study requirement — always enforced (strengthen).
-    _assert_specialty_studies(c.get("specialty") or "", studies)
+    # (1) Per-specialty study requirement — hard for authored cases, advisory for
+    # a real chart whose source bundle shipped no such study (see the docstring).
+    _assert_specialty_studies(c.get("specialty") or "", studies,
+                              case_source=str(c.get("case_source") or "synthetic"))
 
     # (2) A V4 image-bearing study (valid asset + non-empty findings) satisfies the
     #     multimodal content requirement on its own (V4 Image PRD §3.2). The text

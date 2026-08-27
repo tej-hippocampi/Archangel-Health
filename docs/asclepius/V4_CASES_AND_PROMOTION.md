@@ -223,34 +223,29 @@ empty, by the draw itself.
 
 | Case | Specialty | The trap | Status |
 |---|---|---|---|
-| `v4-hep-001` | hepatology | Bilirubin rises 15.04 → 17.77 while GGT falls 1361 → 123 | **Loads** |
-| `v4-neph-001` | nephrology | Hgb corrected 5.4 → 11.1 looks like success; it is the harm | **Loads** |
-| `v4-card-001` | cardiology | Troponin 0.855 in an uncharacterised acute stroke | **HELD** — see below |
+| `v4-hep-001` | hepatology | Bilirubin rises 15.04 → 17.77 while GGT falls 1361 → 123 | Ships |
+| `v4-neph-001` | nephrology | Hgb corrected 5.4 → 11.1 looks like success; it is the harm | Ships |
+| `v4-card-001` | cardiology | Troponin 0.855 in an uncharacterised acute stroke | Ships, with a named study gap |
 
 Each ships with an authored A/B preference pair, so loading needs no LLM.
 
-### Why `v4-card-001` is held
+### The cardiology case has no tracing, and says so
 
-`cases._assert_specialty_studies` requires a cardiology case to carry ≥1 `ecg` or
-`echo` study, and it is right to — cardiology reasoning lives in the tracing.
-patient-4's ECG report is not among the artifacts this case was built from, and
-nothing in `v4_cases.py` is invented: a fabricated tracing inside a record stamped
-`case_source: real_deid` is exactly the invisible mislabel every guard in this
-codebase exists to prevent.
+A cardiology case normally must carry ≥1 `ecg`/`echo` study. patient-4's tracing
+is not in the source bundle, and the two ways to satisfy a hard gate would be to
+fabricate one inside a record stamped `real_deid`, or to relabel the case into a
+specialty that does not describe it. Both are worse than shipping a real case
+with a named gap.
 
-So the case is built in full and held, and `load_v4_cases` names it in `holds`
-rather than letting it be silently absent.
+So `_assert_specialty_studies` is **hard for authored cases and advisory for real
+charts**: a synthetic cardiology case without a tracing is an authoring bug (the
+generator could always produce one) and still fails; a real chart ships and the
+gap is reported by `load_v4_cases(...)["study_gaps"]` and logged at boot.
 
-**To release it:** attach patient-4's admission ECG report from the bundle's
-`clinical-notes/` to `CASE_C["studies"]` as
-
-```python
-{"modality": "ecg", "label": "12-lead ECG", "collected_offset_days": 0,
- "findings": "<the report text>"}
-```
-
-No code change and no restart — the content gate is re-checked on every
-`load_v4_cases` call.
+It is also the case's own clinical point — the answer is that you do *not* act on
+the troponin until it is characterised, and the ECG is one of the things the
+physician is being told to go and get. Attaching the real report to
+`CASE_C["studies"]` closes the gap with no code change.
 
 ### What is not in these cases
 
@@ -262,6 +257,37 @@ No code change and no restart — the content gate is re-checked on every
   on one day, one of them not survivable and contradicted by the same day's ABG.
   It is an OCR artifact; `real_cases.implausible_value` now drops it, and no case
   is built on it.
+
+### Who sees them
+
+Real-data access **follows labeling approval**: a physician who is
+`verification_status = approved` and holds the LABEL capability is granted
+`real_data_approved` automatically — at boot (backfill) and on the approval route
+(new physicians). The product's own answer to "who may see real patient data" is
+the same decision it already made about who may label.
+
+An explicit admin grant or revoke on the Physicians tab is recorded with
+`real_data_approval_source = 'admin'` and is **never** overridden by that sync.
+That column is why the sync is safe: `real_data_approved` is `NOT NULL DEFAULT 0`,
+so without it a deliberate revoke is indistinguishable from "never considered"
+and every boot would hand access straight back.
+
+The auto-grant is withdrawn if the physician stops qualifying (tier removed,
+verification withdrawn) — it must not outlive the approval it came from.
+
+### When the real cases run out
+
+There are a finite number of real charts. A physician who finishes them is
+**continued onto the synthetic multimodal queue** rather than shown "queue
+cleared" — same task shape, and it is not empty.
+
+The record is stamped for what they actually did. `/tasks/next` returns
+`served_portal_version` (derived from the task's `case_source`, on the same rule
+the submit path enforces) and `continued_from`; the client stamps from the former
+and the workspace badge says *"continuing from the real cases"*. Stamping from
+the picker instead would 400 on every continued case — `_derive_portal_version`
+refuses a v4 claim on a synthetic task rather than normalising it, and that
+refusal is what keeps a synthetic label out of the real slice.
 
 ### Before selling any of these as "hard"
 

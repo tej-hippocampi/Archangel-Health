@@ -1678,6 +1678,20 @@ body.asc-sheet-open { overflow: hidden; }
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+/* "· continuing from the real cases" — sits beside the version label when a
+   physician who finished the real queue is continued onto the synthetic one.
+   Deliberately quieter than the label: it explains the label, it is not a
+   second one. Sentence case, because it is a sentence. */
+.asc-exp-badge-note {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint, var(--ink-soft));
+  opacity: 0.8;
+  margin-right: auto;
+  cursor: help;
+}
 
 /* ─── Multimodal case panel: the highest-density region ──── */
 .asc-case-card { margin-bottom: 18px; overflow: hidden; }

@@ -833,32 +833,38 @@ def test_a_specialty_filter_loads_only_that_specialtys_cases():
     assert res["task_ids"] == [v4_cases.v4_task_id("v4-hep-001")]
 
 
-def test_a_held_case_is_named_rather_than_silently_missing():
-    """A case silently absent from the queue is the failure this PRD is about.
-    Case C is held on the cardiology ECG requirement (see v4_cases.CASE_C)."""
-    holds = v4_cases.V4_HOLDS()
+def test_all_three_cases_ship_and_a_missing_study_is_named_not_hidden():
+    """A cardiology case normally needs an ECG/echo, and patient-4's bundle has
+    none. Fabricating a tracing inside a ``real_deid`` record, or relabelling the
+    case into a specialty that does not describe it, are both worse than shipping
+    a real case with a named gap — so the requirement is advisory for real charts
+    and the gap is REPORTED."""
     res = v4_cases.load_v4_cases(_store())
-    assert set(res["holds"]) == set(holds)
-    for case_id, reason in holds.items():
-        assert reason and case_id not in [t.split("v4real-")[-1] for t in res["task_ids"]]
+    assert res["held"] == 0 and res["holds"] == {}
+    assert res["loaded"] == 3
+    gaps = res["study_gaps"]
+    assert "v4-card-001" in gaps and "ecg" in gaps["v4-card-001"].lower()
+    # It is in the queue, not merely valid in the abstract.
+    assert _store().get_task(v4_cases.v4_task_id("v4-card-001")) is not None
 
 
-def test_attaching_the_missing_study_releases_a_held_case(monkeypatch):
-    """The hold is a statement about the DATA, and it lifts the moment the data
-    arrives — no code change, no restart."""
-    if "v4-card-001" not in v4_cases.V4_HOLDS():
-        pytest.skip("v4-card-001 is no longer held; the real ECG has been attached")
-    patched = dict(v4_cases.CASE_C)
-    patched["studies"] = [{
-        "modality": "ecg", "label": "12-lead ECG", "collected_offset_days": 0,
-        "findings": "Sinus rhythm at 94/min. No ST elevation or depression. "
-                    "T waves unremarkable. QTc 428 ms.",
-    }]
-    entry = dict(next(e for e in v4_cases.V4_REAL_CASES if e["case_id"] == "v4-card-001"))
-    entry["case"] = patched
-    monkeypatch.setattr(v4_cases, "_validated", lambda: [entry])
-    res = v4_cases.load_v4_cases(_store(), specialty="cardiology")
-    assert res["holds"] == {} and res["loaded"] == 1
+def test_the_study_requirement_is_still_hard_for_an_AUTHORED_case():
+    """The advisory is for real charts only. A synthetic cardiology case without a
+    tracing is an authoring bug — the generator could always have produced one."""
+    from asclepius.cases import MultimodalContentError, assert_multimodal_content
+
+    case = {
+        "specialty": "cardiology", "studies": [],
+        "problem_list": [{"condition": "chest pain"}],
+        "medications": [{"drug": "aspirin"}],
+        "notes": [{"text": "x" * 250}],
+        "lab_panels": [{"panel": "cardiac", "results": [
+            {"analyte": "Troponin I", "value": 0.9, "unit": "ng/mL", "ref_high": 0.04},
+            {"analyte": "Sodium", "value": 137, "unit": "mmol/L", "ref_low": 136, "ref_high": 145}]}],
+    }
+    with pytest.raises(MultimodalContentError):
+        assert_multimodal_content({**case, "case_source": "synthetic"})
+    assert_multimodal_content({**case, "case_source": "real_deid"})   # ships
 
 
 def test_the_v4_cases_reach_an_approved_physicians_queue():
@@ -1133,3 +1139,202 @@ def test_the_datasheet_tells_the_buyer_the_case_was_real(monkeypatch):
     assert "real_deid" in flat
     assert "case provenance: real_deid" in flat
     assert "de-identified from real encounters" in flat
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Real-data approval follows labeling approval
+# ═════════════════════════════════════════════════════════════════════════════
+def _approve_for_labeling(st, user_id, tier="labeler"):
+    st.set_verification_status(user_id, "approved")
+    with st._conn() as conn:
+        conn.execute("UPDATE users SET tier = ? WHERE id = ?", (tier, user_id))
+
+
+def test_an_approved_labeling_physician_is_granted_real_data_access():
+    """The product's own answer to 'who may see real patient data': a physician
+    whose credentials we verified and who we cleared to LABEL. Keeping the two
+    flags separate left the real queue gated on something nobody could set."""
+    st = _store()
+    ev = _evaluator("nephrology", real=False)
+    _approve_for_labeling(st, ev["id"])
+    assert not st.get_user_by_id(ev["id"])["real_data_approved"]
+    out = st.sync_real_data_approval()
+    assert out["granted"] == 1
+    assert st.get_user_by_id(ev["id"])["real_data_approved"]
+
+
+def test_a_physician_who_cannot_label_is_not_granted():
+    st = _store()
+    ev = _evaluator("nephrology", real=False)
+    st.set_verification_status(ev["id"], "approved")
+    with st._conn() as conn:                      # approved but NO tier
+        conn.execute("UPDATE users SET tier = NULL WHERE id = ?", (ev["id"],))
+    st.sync_real_data_approval()
+    assert not st.get_user_by_id(ev["id"])["real_data_approved"]
+
+
+def test_an_unapproved_physician_is_not_granted():
+    st = _store()
+    ev = _evaluator("nephrology", real=False)
+    with st._conn() as conn:                      # labeler tier but NOT approved
+        conn.execute("UPDATE users SET tier = 'labeler', verification_status = 'pending' "
+                     "WHERE id = ?", (ev["id"],))
+    st.sync_real_data_approval()
+    assert not st.get_user_by_id(ev["id"])["real_data_approved"]
+
+
+def test_an_admin_revoke_is_never_undone_by_the_sync():
+    """THE reason the source column exists. ``real_data_approved`` is NOT NULL
+    DEFAULT 0, so a deliberate revoke and 'never considered' are the same 0 — an
+    auto-grant that could not tell them apart would hand access straight back to
+    someone a human deliberately removed it from, on every boot."""
+    st = _store()
+    ev = _evaluator("nephrology", real=False)
+    _approve_for_labeling(st, ev["id"])
+    st.sync_real_data_approval()
+    assert st.get_user_by_id(ev["id"])["real_data_approved"]
+
+    st.set_real_data_approved(ev["id"], False, source="admin")   # a human says no
+    for _ in range(3):
+        st.sync_real_data_approval()
+    assert not st.get_user_by_id(ev["id"])["real_data_approved"]
+
+
+def test_the_auto_grant_is_withdrawn_when_the_physician_stops_qualifying():
+    """An auto-grant that outlived the approval it was derived from would leave
+    real-data access attached to someone whose tier was removed."""
+    st = _store()
+    ev = _evaluator("nephrology", real=False)
+    _approve_for_labeling(st, ev["id"])
+    st.sync_real_data_approval()
+    assert st.get_user_by_id(ev["id"])["real_data_approved"]
+
+    with st._conn() as conn:
+        conn.execute("UPDATE users SET tier = NULL WHERE id = ?", (ev["id"],))
+    out = st.sync_real_data_approval()
+    assert out["revoked"] == 1
+    assert not st.get_user_by_id(ev["id"])["real_data_approved"]
+
+
+def test_the_sync_is_idempotent():
+    st = _store()
+    ev = _evaluator("nephrology", real=False)
+    _approve_for_labeling(st, ev["id"])
+    assert st.sync_real_data_approval()["granted"] == 1
+    assert st.sync_real_data_approval()["granted"] == 0
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# V4 → V3 continuation
+# ═════════════════════════════════════════════════════════════════════════════
+def test_the_draw_reports_which_version_it_actually_served():
+    """The record is stamped from the SERVED version, not the picked one, because
+    the submit path refuses a v4 claim on a synthetic task outright."""
+    st = _store()
+    v4_cases.load_v4_cases(st)
+    headers = A.headers_for(_evaluator("nephrology"))
+    body = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                      headers=headers).json()
+    assert body["served_portal_version"] == "v4"
+    assert body["continued_from"] is None       # served what they picked
+
+
+def test_a_physician_who_finishes_the_real_cases_continues_onto_synthetic():
+    """There are a finite number of real charts. Finishing them used to end in
+    'queue cleared', which is the wrong end state for someone sitting down to
+    work — the synthetic queue is the same task shape and is not empty."""
+    import uuid
+
+    from asclepius import pipeline as asc_pipeline
+    from asclepius.gold_cases import load_gold_cases
+
+    st = _store()
+    v4_cases.load_v4_cases(st)
+    load_gold_cases(st, specialty="nephrology")
+    ev = _evaluator("nephrology")
+    headers = A.headers_for(ev)
+
+    first = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                       headers=headers).json()
+    assert first["served_portal_version"] == "v4"
+    # Consume the only real nephrology case.
+    r = client.post("/api/asclepius/submissions", headers=headers, json={
+        "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": first["task"]["task_id"],
+        "verdict": "B_better", "chosen_id": "B", "rejected_id": "A",
+        "time_spent_sec": 300, "portal_version": first["served_portal_version"],
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Stop transfusing; the AKI is pre-renal."},
+        "chosen_revision": {"edited": False, "why_better_notes": "restrictive threshold"},
+        "rejected_critique": {"error_tags": ["unsafe_recommendation"], "why_worse": "over-transfuses"},
+    })
+    assert r.status_code == 200, r.text
+
+    nxt = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                     headers=headers).json()
+    assert nxt["task"] is not None, "the physician was left with an empty queue"
+    assert nxt["served_portal_version"] == "v3"
+    assert nxt["continued_from"] == "v4"        # so the UI can say what happened
+    assert (nxt["task"].get("case") or {}).get("case_source") == "synthetic"
+
+
+def test_the_continued_case_submits_under_the_version_it_was_served_as():
+    """The derivation wall refuses a v4 claim on a synthetic task. If the client
+    stamped from the picker instead of the served version, every continued case
+    would 400 — so this asserts the stamp the client is told to use is accepted,
+    and that the v4 claim it replaced is still refused."""
+    import uuid
+
+    from asclepius.gold_cases import load_gold_cases
+
+    st = _store()
+    v4_cases.load_v4_cases(st)
+    load_gold_cases(st, specialty="nephrology")
+    headers = A.headers_for(_evaluator("nephrology"))
+
+    # Consume the real case first — an empty v4 queue seeds itself, so without
+    # this the draw below correctly returns a REAL case and proves nothing.
+    real = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                      headers=headers).json()
+    assert real["served_portal_version"] == "v4"
+    client.post("/api/asclepius/submissions", headers=headers, json={
+        "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": real["task"]["task_id"],
+        "verdict": "B_better", "chosen_id": "B", "rejected_id": "A",
+        "time_spent_sec": 300, "portal_version": "v4",
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "Stop transfusing; the AKI is pre-renal."},
+        "chosen_revision": {"edited": False, "why_better_notes": "restrictive threshold"},
+        "rejected_critique": {"error_tags": ["unsafe_recommendation"], "why_worse": "over-transfuses"},
+    })
+
+    body = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                      headers=headers).json()
+    assert body["served_portal_version"] == "v3"
+
+    payload = {
+        "task_id": body["task"]["task_id"], "verdict": "A_better",
+        "chosen_id": "A", "rejected_id": "B", "time_spent_sec": 300,
+        "prompt_review": {"reviewed": True, "verdict": "valid"},
+        "independent_answer": {"text": "x" * 60},
+        "chosen_revision": {"edited": False, "why_better_notes": "ok"},
+        "rejected_critique": {"error_tags": ["omission"], "why_worse": "misses it"},
+    }
+    bad = client.post("/api/asclepius/submissions", headers=headers, json={
+        **payload, "submission_id": "s-" + uuid.uuid4().hex[:12], "portal_version": "v4"})
+    assert bad.status_code == 400, "a v4 claim on a synthetic task must still be refused"
+
+    good = client.post("/api/asclepius/submissions", headers=headers, json={
+        **payload, "submission_id": "s-" + uuid.uuid4().hex[:12],
+        "portal_version": body["served_portal_version"]})
+    assert good.status_code == 200, good.text
+
+
+def test_an_unapproved_physician_is_not_continued_into_the_real_queue():
+    """The continuation must never become a way around the wall: an unapproved
+    physician asking for v4 still gets nothing real, and nothing at all here."""
+    st = _store()
+    v4_cases.load_v4_cases(st)
+    headers = A.headers_for(_evaluator("nephrology", real=False))
+    body = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                      headers=headers).json()
+    assert body["task"] is None
+    assert body["served_portal_version"] is None

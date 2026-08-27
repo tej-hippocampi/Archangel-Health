@@ -1952,10 +1952,40 @@ async def next_task(
             if _ensure_v4_real_cases(store, user, sel_specialty):
                 task = _query_next(store, user, portal_version=portal_version,
                                    specialty=sel_specialty)
+        if not task and portal_version == REAL_CASE_PORTAL_VERSION:
+            # ═══ V4 → V3 continuation ═══
+            # There are a finite number of real charts. A physician who finishes
+            # them used to hit "queue cleared" and stop, which is the wrong end
+            # state for someone sitting down to work: the synthetic multimodal
+            # queue is the same task shape and is not empty.
+            #
+            # The served case decides the stamp, NOT the picker. A synthetic case
+            # labelled under a v4 claim is a 400 at ``_derive_portal_version`` (a
+            # real/synthetic mislabel is refused, never normalised), so the
+            # response below returns ``served_portal_version`` and the client
+            # stamps from that. The record then says v3 because the work WAS v3 —
+            # which is the whole point of the derivation wall, not a way around it.
+            task = _query_next(store, user, portal_version="v3", specialty=sel_specialty)
+            if not task:
+                task = await _autofill_queue(store, user, portal_version="v3",
+                                             specialty=sel_specialty)
         if not task:
             # Empty queue -> auto-generate a fresh batch via the engine, then serve.
             task = await _autofill_queue(store, user, portal_version=portal_version, specialty=sel_specialty)
-    return {"task": _blind_task(task) if task else None}
+    if not task:
+        return {"task": None, "served_portal_version": None, "continued_from": None}
+    # Derived from the TASK, on the same rule the submit path enforces, so the
+    # client cannot be handed a version its own submission would be rejected for.
+    served = _derive_portal_version(task, None)
+    return {
+        "task": _blind_task(task),
+        "served_portal_version": served,
+        # Set only when we moved the physician off the flow they picked, so the UI
+        # can say so. Silently switching a paid labeller who chose "real patient
+        # data" onto synthetic cases would be the product lying by omission.
+        "continued_from": (portal_version
+                           if (portal_version and served != portal_version) else None),
+    }
 
 
 @router.get("/tasks/available")

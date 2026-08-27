@@ -6178,6 +6178,21 @@ async def startup_team_scheduler():
     # Idempotent on a stable ``v4real-<case_id>`` task id, needs no LLM (each case
     # ships its authored A/B pair), and LOGS rather than raises: a seeding problem
     # must never stop the API from booting.
+    # Real-data access follows labeling approval (product decision): a physician
+    # whose credentials we verified and who we cleared to LABEL is, by that same
+    # decision, cleared for the real cases. Backfilled here so existing approved
+    # physicians are covered without anyone re-approving them one at a time; the
+    # approval route calls the same sync so new ones are covered on the spot.
+    # A human's explicit grant or revoke is never overridden — see the docstring.
+    try:
+        from asclepius.store import get_store as _get_store
+
+        _rd = _get_store().sync_real_data_approval()
+        _auth_logger.info(
+            "[asclepius] real-data approval sync: %d granted, %d revoked, %d eligible",
+            _rd["granted"], _rd["revoked"], _rd["eligible"])
+    except Exception:
+        _auth_logger.exception("[asclepius] real-data approval sync failed")
     try:
         from asclepius.store import get_store as _get_store
         from asclepius.v4_cases import load_v4_cases
@@ -6186,6 +6201,8 @@ async def startup_team_scheduler():
         _auth_logger.info(
             "[asclepius] V4 real cases: %d loaded, %d already present, %d held",
             _v4.get("loaded", 0), _v4.get("skipped", 0), _v4.get("held", 0))
+        for _cid, _why in (_v4.get("study_gaps") or {}).items():
+            _auth_logger.info("[asclepius] V4 real case %s ships with a gap: %s", _cid, _why)
         for _cid, _why in (_v4.get("holds") or {}).items():
             # A held case is a promise not kept. Name it at boot so it is visible
             # in the logs rather than only discoverable by its absence.

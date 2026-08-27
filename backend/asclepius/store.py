@@ -971,6 +971,15 @@ class AsclepiusStore:
                 # cases) is served ONLY to contributors flagged approved (BAA /
                 # training complete). Default off for everyone.
                 ("real_data_approved", "INTEGER NOT NULL DEFAULT 0"),
+                # WHO decided that flag, which the flag alone cannot say.
+                # ``real_data_approved`` is NOT NULL DEFAULT 0, so "never
+                # considered" and "an admin revoked this" are the same 0 — and an
+                # auto-grant that cannot tell them apart would re-grant access to
+                # someone a human deliberately revoked, on every sync.
+                #   NULL              — nobody has decided
+                #   'admin'           — a human decided; auto-grant must not touch it
+                #   'auto:<policy>'   — derived; a later sync may revise it
+                ("real_data_approval_source", "TEXT"),
                 # First-run tutorial ("Calibration Case 1") state. JSON blob —
                 # {status, step, version, started_at, completed_at, skipped_at,
                 # score} — because the shape evolves and nothing filters on it
@@ -3350,13 +3359,68 @@ class AsclepiusStore:
             out.append(rec)
         return out
 
-    def set_real_data_approved(self, user_id: str, approved: bool) -> None:
-        """Grant/revoke V4 real-case access (EHR PRD §9.5)."""
+    def set_real_data_approved(self, user_id: str, approved: bool, *,
+                               source: str = "admin") -> None:
+        """Grant/revoke V4 real-case access (EHR PRD §9.5).
+
+        ``source`` records WHO decided, which the boolean cannot. It defaults to
+        ``'admin'`` because every caller that passes nothing is a human action
+        (the admin control, the API), and a human decision must survive every
+        later automatic sync — including a REVOKE, which is otherwise
+        indistinguishable from "never considered"."""
         with self._conn() as conn:
             conn.execute(
-                "UPDATE users SET real_data_approved = ? WHERE id = ?",
-                (1 if approved else 0, user_id),
+                "UPDATE users SET real_data_approved = ?, real_data_approval_source = ? "
+                "WHERE id = ?",
+                (1 if approved else 0, source, user_id),
             )
+
+    def sync_real_data_approval(self) -> Dict[str, Any]:
+        """Grant real-data access to every APPROVED, LABELING physician.
+
+        The product's own answer to "who may see real patient data": a physician
+        whose credentials we verified and who we have cleared to label is, by that
+        same decision, cleared for the real cases. Keeping the two separate meant
+        the real queue was gated on a flag nobody could set, so it sat unlabelled.
+
+        Two rules keep this honest:
+
+          * a HUMAN decision is never overridden. ``real_data_approval_source =
+            'admin'`` — a deliberate grant OR a deliberate revoke — is left
+            exactly as it is. This is why the source column exists: without it a
+            revoke reads as 0, the same as never-considered, and every sync would
+            silently hand access back.
+          * it only ever grants to someone who qualifies RIGHT NOW, and revokes
+            the auto-grant from someone who no longer does (tier removed,
+            verification withdrawn). An auto-grant that could not be undone would
+            outlive the approval it was derived from.
+
+        Idempotent. Returns ``{granted, revoked, eligible}``."""
+        from asclepius import capabilities as asc_caps
+
+        granted, revoked = [], []
+        with self._conn() as conn:
+            rows = [dict(r) for r in conn.execute(
+                "SELECT id, tier, verification_status, real_data_approved, "
+                "       real_data_approval_source FROM users"
+            ).fetchall()]
+        eligible = 0
+        for u in rows:
+            qualifies = (u.get("verification_status") == "approved"
+                         and asc_caps.can(u, asc_caps.LABEL))
+            eligible += 1 if qualifies else 0
+            if (u.get("real_data_approval_source") or "") == "admin":
+                continue                       # a human decided; leave it alone
+            has = bool(u.get("real_data_approved"))
+            if qualifies and not has:
+                self.set_real_data_approved(u["id"], True, source="auto:approved_labeler")
+                granted.append(u["id"])
+            elif not qualifies and has and (u.get("real_data_approval_source") or "").startswith("auto:"):
+                # Only ever withdraws what THIS policy gave. A grant with no
+                # recorded source predates the policy and is left to a human.
+                self.set_real_data_approved(u["id"], False, source="auto:approved_labeler")
+                revoked.append(u["id"])
+        return {"granted": len(granted), "revoked": len(revoked), "eligible": eligible}
 
     def get_tutorial_state(self, user_id: str) -> Dict[str, Any]:
         """The user's first-run tutorial state; a default not_started shape when

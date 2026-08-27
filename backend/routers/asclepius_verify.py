@@ -556,6 +556,15 @@ async def approve_signup(
                  "followed_proposal": prop["proposed_tier"] == tier,
                  "note": body.note or None},
     )
+    # Approving a physician for labeling IS the decision that clears them for the
+    # real de-identified cases — the two were separate flags, and the second one
+    # had no UI, so the real queue stayed locked behind an approval nobody could
+    # give. Best-effort and idempotent: a sync failure must never undo an approval
+    # that already committed, and the startup backfill runs the same policy.
+    try:
+        store.sync_real_data_approval()
+    except Exception:
+        log.exception("[verify] real-data approval sync failed (decision stands)")
     # A referred physician reaching 'approved' is the
     # end of their referrer's funnel. Best-effort — a referral bookkeeping
     # failure must never undo an approval that already committed.

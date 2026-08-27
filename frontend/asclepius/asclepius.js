@@ -72,6 +72,12 @@
     assistFailedFor: null,  // task_id whose assist fetch failed (retry next load)
     showFullText: false,    // compare view: full text vs highlighted diff
     portalChosen: false,    // has the evaluator picked V1/V2 on the home page yet
+    // The version the SERVER served this task under, which is what the record is
+    // stamped with. Differs from the picked one when a physician who finished the
+    // real cases is continued onto the synthetic queue (state.continuedFrom then
+    // names the flow they picked, so the UI can say what happened).
+    servedVersion: null,
+    continuedFrom: null,
     specialtyChosen: false, // has the evaluator picked a specialty this session (V3/V4)
     specialties: null,      // cached GET /specialties listing (drives the picker)
     // First-run tutorial (Calibration Case 1). Null when not running; set by
@@ -1627,6 +1633,14 @@
         + '&specialty=' + encodeURIComponent(getPortalSpecialty()));
       state.task = data.task;
       if (!state.task) { renderEvalEmpty(); return; }
+      // The SERVED version, not the picked one. There are a finite number of real
+      // charts, so a physician who finishes them is continued onto the synthetic
+      // multimodal queue — and the record has to say what the work actually was.
+      // The server refuses a v4 claim on a synthetic task outright (a mislabel is
+      // a 400, never a silent normalise), so stamping from the picker here would
+      // hand the doctor a task their own submission would be rejected for.
+      state.servedVersion = data.served_portal_version || null;
+      state.continuedFrom = data.continued_from || null;
       initDraftForTask(state.task);
       // Resuming straight into the compare stage (e.g. mid-task refresh) needs the
       // withheld answer texts loaded before they're rendered.
@@ -2124,7 +2138,8 @@
     if (!draft.rejected_critique.error_tag_reasons) draft.rejected_critique.error_tag_reasons = {};
     if (!Array.isArray(draft.rejected_critique.failure_tags)) draft.rejected_critique.failure_tags = [];
     if (draft.assist === undefined) draft.assist = null;
-    if (!draft.portal_version) draft.portal_version = getPortalVersion();
+    // Served version wins over the picker — see the note in the fetch above.
+    if (!draft.portal_version) draft.portal_version = state.servedVersion || getPortalVersion();
     if (!draft.prompt_review) draft.prompt_review = { reviewed: false, verdict: null, note: '', reviewed_at: null };
     if (!draft.independent_answer) draft.independent_answer = { text: '', evidence_anchor: emptyAnchor(), captured_at: null };
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
@@ -3273,8 +3288,19 @@
     const v = draftVersion();
     const meta = { v4: 'Real · De-identified Cases', v3: 'Synthetic Multimodal',
                    v2: 'V2 · Assisted', v1: 'V1 · Classic' }[v] || 'V1 · Classic';
+    // A physician who picked the real cases and finished them is continued onto
+    // the synthetic queue. The badge above already flips to the served version,
+    // which is honest but silent — someone who chose "Real patient data" deserves
+    // to be told why the label changed rather than left to notice it.
+    const continued = state.continuedFrom === 'v4' && v !== 'v4'
+      ? h('span', { class: 'asc-exp-badge-note', title:
+            'You have completed every real de-identified case available to you right '
+            + 'now. New ones appear here as charts are promoted.' },
+          '· continuing from the real cases')
+      : null;
     return h('div', { class: 'asc-exp-badge' },
       h('span', { class: 'asc-exp-badge-label' }, meta),
+      continued,
       toggle
         ? h('button', {
             class: 'asc-btn asc-btn-ghost asc-btn-sm asc-case-toggle',

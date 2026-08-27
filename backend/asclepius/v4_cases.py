@@ -438,25 +438,30 @@ QUESTION_B = (
 # Routes to CARDIOLOGY: the question is how to interpret and act on a troponin,
 # which is a cardiology decision even though the confounder is neurological.
 #
-# ── WHY THIS CASE IS HELD ─────────────────────────────────────────────────────
-# ``cases._assert_specialty_studies`` requires a cardiology case to carry ≥1
-# ``ecg`` or ``echo`` study, and it is right to: cardiology reasoning lives in the
-# tracing. This chart's ECG report is not among the values the source bundle was
-# measured for, and this file's first rule is that nothing here is invented — a
-# fabricated tracing inside a record stamped ``case_source: real_deid`` is exactly
-# the invisible mislabel every guard in this codebase exists to prevent.
+# ── NO TRACING, AND THAT IS THE HONEST STATE ──────────────────────────────────
+# A cardiology case normally must carry ≥1 ``ecg``/``echo`` study, and for an
+# AUTHORED case that gate stays hard: the generator could always produce one, so
+# a missing tracing there is an authoring bug.
 #
-# So the case is built in full and HELD (see ``V4_HOLDS``), which is the same
-# discipline the PRD applies to Case A: never promoted under a claim the data does
-# not support. Attaching the real ECG report from the bundle as a study with
-# ``modality: "ecg"`` releases it with no code change — the loader re-checks the
-# gate on every call.
-_CASE_C_MISSING_STUDY_HINT = (
-    "Attach patient-4's admission ECG report from the partner bundle "
-    "(clinical-notes/) to CASE_C['studies'] as {'modality': 'ecg', 'label': "
-    "'12-lead ECG', 'collected_offset_days': 0, 'findings': <the report text>}. "
-    "No code change is needed — load_v4_cases() re-checks the content gate on "
-    "every call and will pick it up."
+# This is a real chart, and patient-4's ECG report is not among the artifacts the
+# source bundle was measured for. The two ways to satisfy a hard gate here would
+# be to fabricate a tracing inside a record stamped ``case_source: real_deid``, or
+# to relabel the case into a specialty that does not describe it — both worse than
+# shipping a real case with a named gap. So ``_assert_specialty_studies`` treats
+# the requirement as ADVISORY for real charts, this case loads, and the gap is
+# reported by ``V4_STUDY_GAPS`` rather than inferred from a missing row.
+#
+# It also happens to be the case's own clinical point: the answer is that you do
+# not act on the troponin until you have characterised it, and the ECG is one of
+# the things the physician is being asked to go and get.
+#
+# Attaching the real report to ``CASE_C["studies"]`` closes the gap with no code
+# change — the loader re-checks on every call.
+_CASE_C_STUDY_GAP = (
+    "no ECG/echo: patient-4's tracing is not in the source bundle. The case ships "
+    "with the gap named rather than with a fabricated study. Attach the real "
+    "report to CASE_C['studies'] as {'modality': 'ecg', 'label': '12-lead ECG', "
+    "'collected_offset_days': 0, 'findings': <report text>} to close it."
 )
 
 CASE_C: Dict[str, Any] = {
@@ -559,7 +564,11 @@ CASE_C: Dict[str, Any] = {
          "source_type": "benchmark", "role": "chart"},
     ],
     "declared_difficulty": "hard",
-    "required_modalities": ["labs", "clinical notes", "ecg"],
+    # Declares what this chart DELIVERS. "ecg" is deliberately not claimed: the
+    # source bundle carries no tracing (see _CASE_C_STUDY_GAP), and declaring a
+    # modality we cannot deliver is the completeness over-claim the ingest gate
+    # exists to catch. Obtaining the ECG is part of the ANSWER, not the evidence.
+    "required_modalities": ["labs", "clinical notes"],
     "study_findings_policy": "visible",
     "ground_truth": {
         "answer": ("Do not anticoagulate or load antiplatelets on this troponin. "
@@ -784,9 +793,30 @@ def _content_hold(entry: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-_HOLD_HINTS: Dict[str, str] = {
-    "v4-card-001": _CASE_C_MISSING_STUDY_HINT,
+_HOLD_HINTS: Dict[str, str] = {}
+
+#: ``{case_id: reason}`` — a case that SHIPS but is missing a study its specialty
+#: would normally require, because the real chart did not contain one. Reported by
+#: ``load_v4_cases`` so the gap is read, not inferred from a study list nobody
+#: opened. Distinct from ``V4_HOLDS``: a gap ships, a hold does not.
+_STUDY_GAPS: Dict[str, str] = {
+    "v4-card-001": _CASE_C_STUDY_GAP,
 }
+
+
+def V4_STUDY_GAPS() -> Dict[str, str]:
+    """``{case_id: reason}`` for every case shipping without a study its specialty
+    would normally require. Recomputed, so attaching the real study clears it."""
+    from asclepius.cases import missing_specialty_studies
+
+    out: Dict[str, str] = {}
+    for entry in _validated():
+        case = entry["case"]
+        if missing_specialty_studies(case["specialty"], case.get("studies") or []):
+            out[entry["case_id"]] = _STUDY_GAPS.get(
+                entry["case_id"], f"{case['specialty']} case ships without the study "
+                                  "modality its specialty would normally require")
+    return out
 
 
 @functools.lru_cache(maxsize=1)
@@ -924,4 +954,8 @@ def load_v4_cases(
         loaded += 1
         task_ids.append(tid)
     return {"loaded": loaded, "skipped": skipped, "held": len(holds),
-            "total": len(eligible), "task_ids": task_ids, "holds": holds}
+            "total": len(eligible), "task_ids": task_ids, "holds": holds,
+            # A case that SHIPS with a named gap. Not a hold — it is in the queue —
+            # but an operator should read it rather than discover an empty study list.
+            "study_gaps": {cid: why for cid, why in V4_STUDY_GAPS().items()
+                           if not want or cid in {e["case_id"] for e in eligible}}}
