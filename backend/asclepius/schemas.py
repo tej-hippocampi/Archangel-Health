@@ -142,6 +142,23 @@ class PromoteCaseRequest(BaseModel):
     max_labels: int = 1
     grounding_mode: Optional[str] = None
     independent_mode: Optional[str] = None
+    # Launch-week fan-out (V4 PRD §4). Marks the promoted task VISIBLE to every
+    # approved physician, bypassing specialty routing. It does NOT change
+    # ``max_labels``, so it does not change what we pay — visibility and paid
+    # labels are two different things and conflating them is how "show everyone
+    # this case" turns into a per-case bill.
+    #
+    # Off by default: specialty routing is a quality control, and this suspends it
+    # deliberately and visibly rather than by accident.
+    open_to_all_specialties: bool = False
+    # Inspection, not commitment (V4 PRD §5.1). Runs the FULL conversion + gate
+    # and returns exactly what the task would be — public case, rendered prompt,
+    # candidates, judge scores, difficulty band — and writes NOTHING: no task, no
+    # status change, no ``case_promoted`` event. Idempotent and repeatable.
+    #
+    # Without it promotion is a coin flip: the only way to see what a case becomes
+    # is to commit it and then live with the result.
+    dry_run: bool = False
 
 
 class UploadPromoteRequest(BaseModel):
@@ -153,6 +170,15 @@ class UploadPromoteRequest(BaseModel):
     max_labels: int = 1
     grounding_mode: Optional[str] = None
     independent_mode: Optional[str] = None
+    # Launch-week fan-out (V4 PRD §4). Marks the promoted task VISIBLE to every
+    # approved physician, bypassing specialty routing. It does NOT change
+    # ``max_labels``, so it does not change what we pay — visibility and paid
+    # labels are two different things and conflating them is how "show everyone
+    # this case" turns into a per-case bill.
+    #
+    # Off by default: specialty routing is a quality control, and this suspends it
+    # deliberately and visibly rather than by accident.
+    open_to_all_specialties: bool = False
 
 
 class GenerateRealCasesRequest(BaseModel):  # noqa: D401  (see docstring)
@@ -177,6 +203,15 @@ class GenerateRealCasesRequest(BaseModel):  # noqa: D401  (see docstring)
     max_labels: int = 1
     grounding_mode: Optional[str] = None
     independent_mode: Optional[str] = None
+    # Launch-week fan-out (V4 PRD §4). Marks the promoted task VISIBLE to every
+    # approved physician, bypassing specialty routing. It does NOT change
+    # ``max_labels``, so it does not change what we pay — visibility and paid
+    # labels are two different things and conflating them is how "show everyone
+    # this case" turns into a per-case bill.
+    #
+    # Off by default: specialty routing is a quality control, and this suspends it
+    # deliberately and visibly rather than by accident.
+    open_to_all_specialties: bool = False
     # Off in a dry run by default: authoring a question is the one plan step that
     # costs a model call, and an admin scanning encounter structure does not always
     # want to pay for seven of them.

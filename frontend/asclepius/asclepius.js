@@ -3222,7 +3222,11 @@
   // difficulty (hard=pink, medium=orange, easy=green), lime=multimodal,
   // orange=reasoning (model), pink=grounding (attention). Color always pairs
   // with the text label, never the sole carrier.
-  const SPECIALTY_DOT = { nephrology: 'asc-dot-green', cardiology: 'asc-dot-orange', oncology: 'asc-dot-pink' };
+  // Kept in step with SpecialtyConfig.accent in backend/asclepius/specialties.py.
+  // Hepatology shares nephrology's green — the palette has no fifth token and
+  // the dot never carries the meaning alone; it always sits beside the label.
+  const SPECIALTY_DOT = { nephrology: 'asc-dot-green', cardiology: 'asc-dot-orange',
+    oncology: 'asc-dot-pink', hepatology: 'asc-dot-green' };
   const _SPECIALTY_CYCLE = ['asc-dot-lime', 'asc-dot-green', 'asc-dot-orange', 'asc-dot-pink'];
   function specialtyDot(spec) {
     const s = (spec || '').toLowerCase();
@@ -8543,12 +8547,34 @@
       h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap;max-height:160px;overflow:auto' }, c.text || '')));
 
     const status = h('div', { style: 'margin-top:12px' });
+
+    // Fan-out (V4 Cases & Promotion PRD §4). Two things get conflated here and
+    // the copy exists to keep them apart: VISIBLE to every approved physician is
+    // specialty routing, and LABELLED by every approved physician is max_labels.
+    // This checkbox is the first one only. Defaulted OFF — specialty routing is a
+    // quality control, and this suspends it deliberately rather than by accident.
+    const fanoutBox = h('input', { type: 'checkbox', id: 'asc-promote-fanout' });
+    const fanout = h('label', {
+      class: 'asc-field',
+      for: 'asc-promote-fanout',
+      style: 'display:flex;gap:10px;align-items:flex-start;margin-top:14px;cursor:pointer',
+    },
+      fanoutBox,
+      h('span', {},
+        h('span', { style: 'font-weight:600' }, 'Show to all approved physicians (ignores specialty routing)'),
+        h('span', { class: 'asc-card-sub', style: 'display:block' },
+          'Visibility only. It does not change how many labels we pay for — that is ' +
+          'the label count, which stays as promoted.')));
+
     const promoteAllBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '✓ Looks good, create the rest (' + (prep.ingested_count || 0) + ')');
     promoteAllBtn.addEventListener('click', async () => {
       promoteAllBtn.setAttribute('disabled', ''); promoteAllBtn.textContent = 'Creating cases…';
       clear(status);
       try {
-        const r = await api('/ingestion/uploads/' + upload.upload_id + '/promote-all', { method: 'POST', body: {} });
+        const r = await api('/ingestion/uploads/' + upload.upload_id + '/promote-all', {
+          method: 'POST',
+          body: { open_to_all_specialties: !!fanoutBox.checked },
+        });
         overlay.remove();
         clear(statusBox);
         statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
@@ -8582,6 +8608,7 @@
       labs.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Lab panels'), h('div', {}, labs)) : null,
       notes.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Notes / EHR records'), h('div', {}, notes)) : null,
       cands.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Generated candidate answers'), h('div', {}, cands)) : null,
+      fanout,
       status,
       h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
         promoteAllBtn,

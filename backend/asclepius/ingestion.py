@@ -1914,6 +1914,21 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                 _raise_review(review_reasons, "completeness_unverified", "advisory",
                               "could not resolve declared modalities against delivered "
                               f"evidence: {sorted(comp['unresolved'])}")
+            # Partner-quality advisory (V4 PRD §1.2). The partner's own
+            # de-identification footer carried a date. That is a real finding about
+            # THEIR pipeline — an unshifted original date in a header that should
+            # carry no dates at all — and they should be told. It is not a finding
+            # about this chart, whose clinical text is clean, so it must never
+            # quarantine: ADVISORY. Recording it is the point; the alternative to
+            # this line is stripping the header and saying nothing, which is how a
+            # partner keeps shipping the same leak.
+            _prov_dates = (report.get("timeline") or {}).get("provenance_header_dates") or []
+            if _prov_dates:
+                _raise_review(review_reasons, "provenance_header_dates", "advisory",
+                              "the partner's de-identification header contains "
+                              f"{len(_prov_dates)} date-like token(s) ({', '.join(_prov_dates[:3])}); "
+                              "the header was removed before scanning. Their de-identification "
+                              "footer should carry no dates at all — report this to the partner.")
             blocking = [r for r in review_reasons if r["severity"] == "blocking"]
             case_status = "needs_review" if blocking else "ingested"
             ic = store.insert_ingest_case(upload_id=upload_id,
