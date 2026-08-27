@@ -85,20 +85,27 @@ export function asclepiusPortalUrl(): string {
   return base ? `${base}/asclepius` : "/asclepius";
 }
 
-/**
- * Store an Asclepius console session so the portal boots already signed in and
- * lands on the dashboard (no re-login after sign-up). The console reads this
- * exact localStorage key (`asclepius_token`) in its boot() path, and the wizard
- * shares the same origin as /asclepius so the value carries over.
+/*
+ * `storeAsclepiusSession` was here. It wrote localStorage["asclepius_token"]
+ * and its docstring claimed "the wizard shares the same origin as /asclepius
+ * so the value carries over". That is false in production and was the whole
+ * of the "signing up makes me log in again" bug:
+ *
+ *   landing SPA   https://archangelhealth.ai        <- wrote the token here
+ *   portal        https://app.archangelhealth.ai    <- read it from here
+ *
+ * localStorage is partitioned by origin, so the portal's boot() found nothing,
+ * fell through trySsoLogin() and rendered the login screen. It failed for
+ * EVERY signup in production and worked in local dev, where both are served
+ * off :8000 — which is exactly why it survived review.
+ *
+ * The fix is not a better way to write a token across origins; there isn't
+ * one. It is `redirectToAsclepiusPortal` below, which trades the token for a
+ * single-use handoff code the portal redeems on load. That already existed and
+ * SignInDialog and ResetPasswordPage were already using it correctly. Deleting
+ * this function rather than leaving it unused is deliberate: it looks exactly
+ * like the thing you want, and the next person will reach for it.
  */
-export function storeAsclepiusSession(token: string): void {
-  if (!token) return;
-  try {
-    window.localStorage.setItem("asclepius_token", token);
-  } catch {
-    /* storage unavailable — the doctor can still sign in with the emailed credentials */
-  }
-}
 
 export type User = {
   email: string;

@@ -53,6 +53,19 @@
      accents already ship. */
   --lime-deep:   #6b7412;
 
+  /* ---- third-party brand marks (the referral share row, nowhere else) ----
+     Not palette. These are other companies' colours, reproduced so a 16px
+     share target is recognisable as the thing it opens, and they are named
+     --brand-* rather than dropped into a stylesheet so the "no hex outside
+     this file" rule survives contact with them. Do not use one on a product
+     surface: green here means WhatsApp, not "good".
+     Official values: WhatsApp #25D366, LinkedIn #0A66C2, X #000000.
+     X maps to --ink rather than #000000 -- a luminance difference nobody can
+     see, and the no-pure-black rule is worth more than it. */
+  --brand-whatsapp: #25D366;
+  --brand-linkedin: #0A66C2;
+  --brand-x:        var(--ink);
+
   /* ---- product scale (§2.2: tighter than landing) ---- */
   --r-chip: 999px;
   --r-sm:   10px;

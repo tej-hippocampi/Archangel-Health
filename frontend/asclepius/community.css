@@ -1022,3 +1022,8 @@
   font-style: italic;
   color: var(--cm-ink-soft, #5c5e5a);
 }
+
+/* A physician's own picture, once they set one. The wash behind the initials
+   goes with it so a transparent PNG does not sit on a coloured disc. */
+.cm-avatar.has-img { background: var(--card-in); padding: 0; }
+.cm-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }

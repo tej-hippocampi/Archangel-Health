@@ -724,14 +724,47 @@
   }
 
   // ─── Message element ───────────────────────────────────────────────────────
+  const avatarBlobCache = {};
+  /* A colleague's face, if they set one, and their initials until it arrives.
+     The avatar endpoint is bearer-authenticated and an <img src> cannot carry
+     an Authorization header, so the bytes are fetched with the session token
+     and handed over as a blob: URL -- the same thing loadAttachmentBlob does
+     for images posted in a channel.
+
+     The initials are rendered FIRST and stay if the fetch fails. A broken
+     image glyph where a physician's face should be is worse than the two
+     letters everyone had before. */
   function avatarEl(member, size) {
     const acc = (member && member.specialty_accent) || 'green';
-    return h('button', {
-      class: 'cm-avatar acc-' + acc + (size === 'small' ? '' : '') + (size === 'big' ? ' cm-profile-avatar' : ''),
+    const url = member && member.avatar_url;
+    const el = h('button', {
+      class: 'cm-avatar acc-' + acc + (url ? ' has-img' : '')
+        + (size === 'big' ? ' cm-profile-avatar' : ''),
       style: size === 'small' ? 'width:24px;height:24px;font-size:0.55rem' : null,
       'aria-label': 'Profile: ' + ((member && member.display_name) || 'member'),
       onClick: member && member.user_id ? () => openMember(member.user_id) : null,
     }, (member && member.initials) || '—');
+    if (url) loadAvatarBlob(url).then((objectUrl) => {
+      if (!objectUrl) return;
+      clear(el);
+      el.appendChild(h('img', { class: 'cm-avatar-img', src: objectUrl, alt: '' }));
+    });
+    return el;
+  }
+
+  function loadAvatarBlob(url) {
+    if (avatarBlobCache[url] !== undefined) return Promise.resolve(avatarBlobCache[url]);
+    return fetch(url, {
+      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
+    }).then((res) => (res.ok ? res.blob() : null))
+      .then((blob) => {
+        const objectUrl = blob ? URL.createObjectURL(blob) : null;
+        // Cached either way, null included: a member with no picture must not
+        // cost one 404 per message they have ever posted in the channel.
+        avatarBlobCache[url] = objectUrl;
+        return objectUrl;
+      })
+      .catch(() => null);
   }
 
   function specChipEl(author) {

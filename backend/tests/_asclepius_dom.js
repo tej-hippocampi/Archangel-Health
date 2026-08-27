@@ -172,6 +172,14 @@ const document = {
   _listeners: {},
   body: null,   // assigned below, once Element exists
   createElement(tag) { return new Element(tag); },
+  // The referral share row builds its brand marks as real SVG nodes. It has to:
+  // that module is held to zero innerHTML by
+  // test_no_innerhtml_and_no_long_dashes_in_the_copy, so it cannot take the
+  // markup-string shortcut the rail icons use. The namespace is irrelevant to
+  // a shim that never lays anything out, so this is createElement with the
+  // namespace argument dropped -- but WITHOUT it the whole page throws on
+  // render and every DOM test in this file fails at once.
+  createElementNS(_ns, tag) { return new Element(tag); },
   createTextNode(t) { return new TextNode(t); },
   getElementById(id) { return document._byId.get(id) || null; },
   register(el) { document._byId.set(el.id, el); return el; },

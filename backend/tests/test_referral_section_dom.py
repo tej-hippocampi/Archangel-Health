@@ -226,17 +226,31 @@ def test_the_hero_quotes_the_wire_structure_not_a_hardcoded_dollar():
     heroes: find(body, 'asc-ref-hero-value').map(textOf),
   }));
 """)
-    assert "Earn up to $5,200" in out["heroes"][0]
+    assert "Earn thousands" in out["heroes"][0]
     assert "$50 to you" in out["text"]
     assert "$25 to them" in out["text"]
+
+
+def test_the_hero_never_advertises_a_ceiling_again():
+    """The page led with "Earn up to $5,200" -- a LIMIT, in the largest type
+    on the page, in front of the one physician we most want introducing us to
+    a hundred colleagues. There is no cap in the backend any more
+    (payments.referral_cap_cents defaults to 0) and there must not be one in
+    the copy either."""
+    out = _render_and("console.log(JSON.stringify({text: textOf(body)}));")
+    text = out["text"].lower()
+    assert "5,200" not in text
+    assert "ceiling" not in text or "no ceiling" in text
+    assert "up to" not in text
+    assert "no ceiling" in text
 
 
 def test_a_changed_env_rate_changes_the_page_with_no_frontend_edit():
     funnel = dict(_FUNNEL, payout_structure={"referrer_bounty_cents": 7500,
                                              "referee_bonus_cents": 1000,
-                                             "cap_cents": 780000})
+                                             "cap_cents": 0})
     out = _render_and("console.log(JSON.stringify({text: textOf(body)}));", funnel)
-    assert "$7,800" in out["text"] and "$75 to you" in out["text"]
+    assert "$75 to you" in out["text"] and "$10 to them" in out["text"]
 
 
 # ─── The link ─────────────────────────────────────────────────────────────────
@@ -321,24 +335,59 @@ def test_the_enterprise_note_posts_to_its_endpoint():
     assert "CMIO" in posts[0]["body"]["note"]
 
 
-def test_the_health_system_pitch_names_large_payouts():
-    """An institutional introduction is the most valuable one a physician can
-    make, and "large payouts" told them nothing about how much. The example is
-    marked as an example: these are negotiated individually, and a doctor who
-    read a flat promise and was paid less would be right to feel misled."""
-    out = _render_and("console.log(JSON.stringify({text: textOf(body)}));")
-    text = out["text"]
+def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
+    """This card used to carry "a $1M data partnership at a 15 to 20 percent
+    introducer share is $150,000 to $200,000". Institutional terms are
+    negotiated one deal at a time, so a figure printed here becomes a promise
+    the negotiation then has to keep -- and a physician who read $200,000 and
+    was paid a fraction of it would be right to feel misled, and right that we
+    named the number first.
+
+    So: no dollar sign and no percentage anywhere in this column. It asks for
+    a note and says a person will read it."""
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  console.log(JSON.stringify({ system: textOf(cols[cols.length - 1]) }));
+""")
+    text = out["system"]
     assert "health system" in text.lower()
-    assert "$150,000" in text and "$200,000" in text
-    assert "For example" in text
-    assert "agreed in writing" in text
+    assert "$" not in text, text
+    assert "%" not in text and "percent" not in text.lower(), text
+    assert "send us a note" in text.lower()
+    assert "meeting" in text.lower()
+
+
+def test_the_note_placeholder_sounds_like_a_person_wrote_it():
+    """The old placeholder was "Who you are connected to, and what might be
+    possible", which asks for a pitch. The example is what somebody would
+    actually type."""
+    out = _render_and("""
+  var t = tagsOf(body, 'TEXTAREA')[0];
+  console.log(JSON.stringify({ ph: t ? (t.attributes.placeholder || '') : '' }));
+""")
+    assert "oncology division" in out["ph"]
+    assert "de-identified records" in out["ph"]
+
+
+def test_the_note_field_surfaces_no_character_limit():
+    """A bound the writer is nowhere near does not deserve chrome. The server
+    still enforces one; if it is ever hit, the 422 detail lands in the inline
+    error, which is where a limit belongs."""
+    out = _render_and("""
+  var t = tagsOf(body, 'TEXTAREA')[0];
+  console.log(JSON.stringify({ attrs: Object.keys(t ? t.attributes : {}), text: textOf(body) }));
+""")
+    assert "maxlength" not in [a.lower() for a in out["attrs"]]
+    assert "character" not in out["text"].lower()
 
 
 # ─── The accent rule ──────────────────────────────────────────────────────────
 def test_the_accent_classes_are_defined_and_never_pink():
     css = _CSS.read_text(encoding="utf-8")
-    for cls in ("asc-ref-hero-value", "asc-ref-structure-row", "asc-ref-linktext",
-                "asc-ref-earned", "asc-ref-flight", "asc-ref-quiet"):
+    for cls in ("asc-ref-hero-value", "asc-ref-term-value", "asc-ref-linktext",
+                "asc-ref-split", "asc-ref-col", "asc-ref-listwrap",
+                "asc-ref-share-ico", "asc-ref-earned", "asc-ref-flight",
+                "asc-ref-quiet"):
         assert f".{cls}" in css, cls
     import re
     for m in re.finditer(r"\.asc-ref-[a-z-]+\s*\{([^}]*)\}", css):
