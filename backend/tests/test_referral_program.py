@@ -158,7 +158,7 @@ def test_a_referrer_at_the_cap_accrues_nothing_more(monkeypatch):
     assert row["bounty_state"] == "ineligible"
 
 
-def test_the_funnel_reports_the_cap_and_the_structure():
+def test_the_funnel_reports_the_structure_and_no_ceiling():
     referrer = _physician()
     r = client.get("/api/asclepius/referrals", headers=A.headers_for(referrer))
     assert r.status_code == 200
@@ -166,9 +166,26 @@ def test_the_funnel_reports_the_cap_and_the_structure():
     ps = body["payout_structure"]
     assert ps["referrer_bounty_cents"] == BOUNTY
     assert ps["referee_bonus_cents"] == REFEREE
-    assert ps["cap_cents"] == CAP == 520_000
+    # 0 means NO CEILING. The key stays on the wire so a cap can be reimposed
+    # from env without a frontend deploy, but every consumer has to read a
+    # zero as "unlimited" rather than rendering it as "$0.00".
+    assert ps["cap_cents"] == CAP == 0
     assert body["capped"] is False
     assert "/join?ref=" in (body["invite_url"] or "")
+
+
+def test_a_referrer_keeps_accruing_past_the_old_ceiling():
+    """The program used to stop at $5,200 (104 bounties) and advertise it in
+    the largest type on the page. A physician who introduces us to more
+    colleagues than that is the single most valuable person in this system and
+    must not hit a wall."""
+    referrer = _physician()
+    for _ in range(3):
+        _settle_full_referral(referrer)
+    assert len(_earnings_of(referrer, asc_payments.KIND_REFERRAL)) == 3
+    rows = _store().list_referrals_by_referrer(referrer["id"])
+    assert rows and all(r["bounty_state"] == "earned" for r in rows)
+    assert not any(r["bounty_state"] == "ineligible" for r in rows)
 
 
 # ═══ Link attribution ════════════════════════════════════════════════════════

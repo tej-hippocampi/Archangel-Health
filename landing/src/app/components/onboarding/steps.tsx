@@ -298,6 +298,11 @@ export type OnboardingData = {
   // Member-mode (invited clinician) context
   roleLabel: string;
   workspaceUrl: string;
+  /* The Asclepius session minted by /finish. Held in React state and never in
+     localStorage: the portal is a different origin in production, so a token
+     written from here is invisible there. The success screen's CTA trades it
+     for a single-use handoff code instead. */
+  asclepiusToken: string;
 };
 
 const TWO_COL: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
@@ -3127,3 +3132,84 @@ const SKIP_LINK: React.CSSProperties = {
   textUnderlineOffset: 3,
   cursor: "pointer",
 };
+
+/* ─────────────────────────────────────────────────────────────
+   StepAsclepiusSignIn — you already have an account.
+
+   Two ways to land here: the invite has already been completed, or the address
+   on it already has an Asclepius account. Both used to end on the SUCCESS
+   screen, which told the physician "You're already signed in" (they were not)
+   and offered a button that dropped them on an unauthenticated portal. The
+   second case was worse than confusing: walking the wizard again reaches
+   /finish, which passes password_hash unconditionally, so it silently
+   repointed the live account's password to whatever they typed on the way.
+
+   Signing in here rather than linking away keeps the one thing that makes this
+   worth doing in-wizard: on success we hand off to the portal with a real
+   session, so they land inside instead of at another login box.
+   ───────────────────────────────────────────────────────────── */
+
+export function StepAsclepiusSignIn({
+  data,
+  onSignIn,
+  error,
+  reason = "complete",
+}: {
+  data: OnboardingData;
+  onSignIn: (email: string, password: string) => Promise<boolean>;
+  error?: string;
+  reason?: "complete" | "account_exists";
+}) {
+  const [email, setEmail] = useState(data.email || "");
+  const [password, setPassword] = useState("");
+  const valid = /\S+@\S+\.\S+/.test(email.trim()) && password.length > 0;
+
+  return (
+    <OnboardingCard
+      maxWidth={480}
+      eyebrow="Sign in"
+      title={reason === "account_exists" ? "You already have an account." : "You're all set up."}
+      lede={
+        reason === "account_exists"
+          ? "This email is already registered with Archangel. Sign in and we'll take you straight to your workspace."
+          : "This onboarding link has already been used. Sign in and we'll take you straight to your workspace."
+      }
+    >
+      <InlineError>{error}</InlineError>
+      <TextField
+        label="Email"
+        type="email"
+        value={email}
+        onChange={setEmail}
+        autoComplete="email"
+        autoFocus
+      />
+      <TextField
+        label="Password"
+        type="password"
+        value={password}
+        onChange={setPassword}
+        autoComplete="current-password"
+      />
+      <div style={{ marginTop: 12 }}>
+        <PrimaryButton
+          fullWidth
+          disabled={!valid}
+          onClick={() => onSignIn(email.trim(), password)}
+          loadingLabel="Signing in…"
+          successLabel="Opening ✓"
+        >
+          Sign in
+        </PrimaryButton>
+      </div>
+      <div style={{ ...CARD_FOOTER_BACK, fontSize: 13 }}>
+        <a
+          href="/reset-password"
+          style={{ color: "var(--ink-soft)", textDecoration: "underline", textUnderlineOffset: 3 }}
+        >
+          Forgot your password?
+        </a>
+      </div>
+    </OnboardingCard>
+  );
+}

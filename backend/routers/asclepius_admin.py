@@ -754,6 +754,15 @@ async def physician_profile(
             "email_domain_class": u.get("email_domain_class"),
             "linkedin_url": u.get("linkedin_url"),
             "cv_on_file": bool(u.get("cv_asset_sha")),
+            # A face, for the person cross-checking this record against an NPPES
+            # entry or a registry lookup page. Arguably more use to them than to
+            # the physician: an admin is the one being asked "is this the same
+            # doctor?" Absent unless they uploaded one.
+            "avatar_url": (
+                f"/api/asclepius/users/{u['id']}/avatar"
+                f"?v={(u.get('avatar_asset_sha') or '')[:12]}"
+                if (u.get("avatar_asset_sha") or "").strip() else None
+            ),
             "slack_joined": _tri_state(u.get("slack_joined")),
             "slack_checked_at": u.get("slack_checked_at"),
             "health_system_id": hs_id,

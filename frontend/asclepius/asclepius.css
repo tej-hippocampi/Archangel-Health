@@ -341,6 +341,26 @@
 .asc-btn-danger:hover:not(:disabled) { background: var(--pink-wash); }
 .asc-btn-success { background: transparent; color: var(--green-deep); border-color: var(--green-line); }
 .asc-btn-success:hover:not(:disabled) { background: var(--green-wash); }
+/* The one control on a page that is asking for the introduction: Copy link,
+   Send invitation, Send the note, Save. Solid green FILL, distinct from
+   .asc-btn-success above, which is a green-outlined confirmation of something
+   that already happened. Ink text on the fill is 5.8:1; the reverse pairing
+   (--card on --green) is 3.0:1 and fails AA at this size, so the text flips to
+   --card only on hover once the fill has darkened to --green-deep (5.1:1).
+   Both resting and hover states are readable, not just the one a screenshot
+   catches. */
+.asc-btn-go { background: var(--green); color: var(--ink); border-color: var(--green); font-weight: 600; }
+.asc-btn-go:hover:not(:disabled) { background: var(--green-deep); color: var(--card); border-color: var(--green-deep); }
+.asc-btn-go:focus-visible { outline: 2px solid var(--green-deep); outline-offset: 2px; }
+/* Not opacity: a half-faded green pill mid-send reads as broken, at exactly
+   the moment the doctor most needs to believe something is happening. Deep on
+   wash is 4.6:1 and still legible. */
+.asc-btn-go:disabled {
+  opacity: 1;
+  background: var(--green-wash);
+  color: var(--green-deep);
+  border-color: var(--green-line);
+}
 .asc-btn-block { width: 100%; }
 .asc-btn-link {
   background: none; border: none; color: var(--asc-text);
@@ -2451,6 +2471,23 @@ body.asc-sheet-open { overflow: hidden; }
   border-radius: 0 2px 2px 0;
   background: var(--ink);
 }
+/* Referral is the one tab in this rail that pays. Everything else is work the
+   physician came here to do; this is the thing they would never think to open
+   and the thing most likely to earn them something, so it is the only item
+   carrying a fill at rest. A wash, not a solid: a green block would outrank
+   Tasks, which is not the claim. */
+.asc-rail-item-referral {
+  background: var(--green-wash);
+  border-color: var(--green-line);
+  color: var(--green-deep);
+}
+.asc-rail-item-referral:hover { background: var(--green-wash); color: var(--green-deep); }
+.asc-rail-item-referral.active {
+  background: var(--green-wash);
+  border-color: var(--green);
+  color: var(--green-deep);
+}
+.asc-rail-item-referral.active::before { background: var(--green); }
 .asc-rail-ico {
   flex: none;
   width: 20px; height: 20px;
@@ -3465,21 +3502,30 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   .asc-ref-row .asc-ref-amount { grid-column: 1 / -1; text-align: left; }
 }
 
-/* ── The Referral tab (PRD-REF). Reuses the asc-ref vocabulary above; these
-   are only the elements the dedicated tab adds: the hero, the payout
-   structure rows, the shareable-link row and the enterprise note. ── */
+/* ── The Referral tab (PRD-REF). One hero, then a hard split: physicians on
+   the left, health systems on the right.
+
+   The split IS the design. These are two different asks -- a link you paste
+   into a group chat, and a note a founder reads -- and stacking them made the
+   second one look like a footnote to the first. Both halves have to clear the
+   fold on a 1440x900 laptop, which is why the funnel scrolls inside its own
+   column instead of growing the page.
+
+   No ceiling row any more. The page used to lead with "Earn up to $5,200",
+   which put a limit in the largest type on a page whose entire job is to make
+   a well-connected physician want to introduce a hundred colleagues. ── */
 .asc-ref-hero { margin-bottom: var(--sp-4); }
 .asc-ref-hero-line {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 .asc-ref-hero-value {
-  /* Money is where Doto earns its keep — same rule as the earnings hero. */
+  /* Money is where Doto earns its keep: same rule as the earnings hero. */
   font-family: var(--doto);
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 700;
   color: var(--ink);
   letter-spacing: 0.01em;
@@ -3490,70 +3536,436 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--ink-faint);
+  max-width: 34ch;
+  line-height: 1.5;
 }
-.asc-ref-structure-row {
-  padding: 10px 0;
-  border-top: 1px solid var(--hairline);
+.asc-ref-hero-sub {
+  margin: 0 0 var(--sp-4);
   font-size: 13.5px;
   line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 68ch;
 }
-.asc-ref-structure-row:first-child { border-top: 0; padding-top: 0; }
-.asc-ref-structure-lead { color: var(--ink); font-weight: 600; }
-.asc-ref-structure-rest { color: var(--ink-soft); }
+
+/* Three terms side by side, so the whole arrangement is one glance. Not a
+   numbered list: a list reads as steps, and these are simultaneous facts. */
+.asc-ref-terms {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--hairline);
+}
+.asc-ref-term { min-width: 0; }
+.asc-ref-term-value {
+  font-family: var(--doto);
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+  margin-bottom: 5px;
+}
+.asc-ref-term-unit {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  margin-left: 0.35em;   /* the gap is here, never a space inside the string */
+}
+.asc-ref-term-rest {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* ── The split ── */
+.asc-ref-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  /* stretch (the default) on purpose: two cards of different natural height
+     with a ragged bottom edge stop reading as two halves of one choice. */
+}
+/* .asc-ref-card carries max-width: 72ch for the single-column surfaces that
+   still use it. Inside a 1fr track that measure leaves a dead gutter and the
+   two columns visibly stop matching, so the column variant opts out here
+   rather than the base rule changing under every other page that uses it.
+   min-width: 0 is load-bearing: a grid item defaults to min-width:auto and
+   will not shrink below the intrinsic width of the invite <code>. */
+.asc-ref-col {
+  max-width: none;
+  min-width: 0;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+.asc-ref-col > .asc-ref-funnel { margin-top: auto; }
+
+/* ── Link + share ── */
 .asc-ref-linkrow {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin: 6px 0 10px;
+  margin: 14px 0 10px;
 }
 .asc-ref-linktext {
-  flex: 1;
-  min-width: 220px;
+  flex: 1 1 200px;
+  min-width: 0;
   font-size: 12px;
   color: var(--ink);
   background: var(--card-in);
   border: 1px solid var(--hairline);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   padding: 10px 12px;
   overflow-wrap: anywhere;
 }
-/* One tap to wherever the conversation already is. Wraps to as many rows as
-   the width needs -- a doctor on a phone is the likeliest person to use it. */
 .asc-ref-sharerow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   flex-wrap: wrap;
-  margin: 0 0 12px;
+  margin: 0 0 var(--sp-3);
 }
 .asc-ref-sharerow > a { text-decoration: none; }
-/* The worked example under the health-system pitch. Set apart from the pitch
-   so it reads as an illustration, which is what it is. */
-.asc-ref-example {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  flex-wrap: wrap;
-  margin: 2px 0 12px;
-  padding: 10px 12px;
+/* The label alone made five identical grey pills. At this size the mark is
+   what the eye actually resolves, so it carries the brand's own colour and the
+   label stops being the only thing telling them apart. */
+.asc-ref-share {
+  gap: var(--sp-2);
+  padding: 6px 12px 6px 10px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  background: var(--card);
+  border-color: var(--asc-line);
+}
+.asc-ref-share:hover:not(:disabled) {
+  color: var(--ink);
   background: var(--card-in);
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
+  border-color: var(--asc-line-strong);
+}
+.asc-ref-share-ico { width: 16px; height: 16px; flex: 0 0 16px; display: block; }
+.asc-ref-share-whatsapp .asc-ref-share-ico { color: var(--brand-whatsapp); }
+.asc-ref-share-linkedin .asc-ref-share-ico { color: var(--brand-linkedin); }
+.asc-ref-share-x        .asc-ref-share-ico { color: var(--brand-x); }
+/* Not brands: sms: and mailto: open whatever the doctor's device decides, so
+   they stay chrome-coloured rather than borrowing a logo that would be wrong
+   on half of them. */
+.asc-ref-share-sms   .asc-ref-share-ico,
+.asc-ref-share-email .asc-ref-share-ico { color: var(--ink-faint); }
+
+/* ── The funnel, inside a column ── */
+.asc-ref-listhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: var(--sp-5) 0 4px;
+}
+.asc-ref-listhead > .asc-ref-listtitle { margin: 0; }
+.asc-ref-listcount {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* The list scrolls; the COUNT above it does not. A physician with eleven
+   referrals has to be able to see that it is eleven without scrolling to find
+   out, or the cap on this box reads as a cap on the funnel. */
+.asc-ref-listwrap {
+  max-height: 232px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Two lines per row instead of four columns: the shared grid was written for
+   a full-width card and a health-system column now takes half of it. Placed
+   explicitly, because auto-placement puts the full-width sentence on row 2 and
+   then strands the amount on row 3. */
+.asc-ref-col .asc-ref-row {
+  grid-template-columns: minmax(0, 1fr) 54px 96px;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: baseline;
+}
+.asc-ref-col .asc-ref-who    { grid-column: 1; grid-row: 1; }
+.asc-ref-col .asc-ref-when   { grid-column: 2; grid-row: 1; }
+.asc-ref-col .asc-ref-amount { grid-column: 3; grid-row: 1; text-align: right; }
+.asc-ref-col .asc-ref-state  { grid-column: 1 / -1; grid-row: 2; }
+
+/* ── The note. An interest form, so no counter and no maxlength: a limit the
+   writer is nowhere near does not deserve chrome, and the server's bound is
+   past anything a person types. ── */
+.asc-ref-note {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  line-height: 1.6;
+  margin-top: var(--sp-4);
+}
+.asc-ref-noteform { align-items: flex-start; justify-content: flex-end; }
+.asc-ref-foot {
+  margin-top: var(--sp-3);
   font-size: 12.5px;
   line-height: 1.6;
-  color: var(--ink-soft);
+  color: var(--ink-faint);
+  max-width: 46ch;
 }
-.asc-ref-example-label {
+
+/* One breakpoint for the split, at 900 rather than the file's existing 720:
+   at 760px each column is ~360px, narrower than the invite URL and narrower
+   than the note wants to be. */
+@media (max-width: 900px) {
+  .asc-ref-split { grid-template-columns: minmax(0, 1fr); }
+  .asc-ref-terms { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .asc-ref-term { padding: var(--sp-3) 0; border-top: 1px solid var(--hairline); }
+  .asc-ref-term:first-child { border-top: 0; padding-top: 0; }
+  .asc-ref-hero-value { font-size: 28px; }
+  /* The page already scrolls here, so a second scroll region inside it is a
+     trap on a touch screen. */
+  .asc-ref-listwrap { max-height: none; overflow: visible; }
+  .asc-ref-col > .asc-ref-funnel { margin-top: 0; }
+}
+
+@media (max-width: 560px) {
+  .asc-ref-copy,
+  .asc-ref-send,
+  .asc-ref-noteform > .asc-btn { width: 100%; }
+  .asc-ref-linktext { flex-basis: 100%; }
+  .asc-ref-share { flex: 1 1 auto; justify-content: flex-start; }
+}
+/* ═══ END PRD-P ═══ */
+
+/* ═══ Profile: the identity card ══════════════════════════════════════════════
+   Distinct from .asc-profile-* above, which belongs to the ADMIN contributor
+   browser and is a different object entirely: that one is a stranger's record
+   seen by staff, this one is a physician's own. Sharing the names would have
+   coupled two surfaces that must be free to diverge.
+
+   The card comes first and is not a form. A doctor opening this page to fix a
+   phone number should still leave knowing their verification state, their tier
+   and their score, because nothing else in the product tells them. */
+.asc-me-card { margin-bottom: var(--sp-4); }
+.asc-me-id { display: flex; align-items: center; gap: var(--sp-5); }
+.asc-me-idtext { min-width: 0; }
+.asc-me-name {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.asc-me-sub { margin-top: 4px; font-size: 14px; color: var(--ink-soft); }
+.asc-me-org { margin-top: 2px; font-size: 13px; color: var(--ink-faint); }
+.asc-me-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--asc-line-strong);
+  overflow-wrap: anywhere;
+}
+.asc-me-link:hover { color: var(--ink); text-decoration-color: var(--ink); }
+
+/* Standing: three facts side by side, each with its meaning UNDER it rather
+   than behind a dot. The dot is optional depth; the sentence is the answer. */
+.asc-me-standing {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-5);
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-5);
+  border-top: 1px solid var(--hairline);
+}
+.asc-me-stat { min-width: 0; }
+.asc-me-stat-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.asc-me-stat-label {
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-faint);
-  white-space: nowrap;
 }
-.asc-ref-note { min-height: 76px; resize: vertical; }
-.asc-ref-noteform { align-items: flex-start; }
-/* ═══ END PRD-P ═══ */
+.asc-me-stat-value {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.asc-me-stat-value.is-quiet { font-size: 14px; font-weight: 400; color: var(--ink-faint); }
+.asc-me-stat-rest { margin-top: 6px; font-size: 12.5px; line-height: 1.55; color: var(--ink-soft); }
+/* Dot only, zero fills. Lime for "in review" and NEVER pink: an account nobody
+   has read yet is a queue position, not a safety event, and a physician seeing
+   pink on their own file reads it as a rejection. */
+.asc-me-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; align-self: center; }
+.asc-me-dot-ok   { background: var(--green); }
+.asc-me-dot-wait { background: var(--lime); }
+.asc-me-dot-off  { background: var(--ink-faint); }
+
+/* ═══ Profile: the detail panels ═════════════════════════════════════════════ */
+.asc-me-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-4);
+  align-items: start;
+}
+.asc-me-panel {
+  border: 1px solid var(--asc-line);
+  background: var(--card);
+  border-radius: var(--r-md);
+  padding: 18px 20px 16px;
+  min-width: 0;
+}
+.asc-me-field { margin: 12px 0; }
+.asc-me-fieldhead { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+.asc-me-fieldhead > .asc-prof-label { display: block; white-space: normal; }
+.asc-me-field > .asc-ref-input { width: 100%; }
+/* The one-line version of what the info dot explains at length. If this is
+   empty the dot is decoration, and a dot that is the only home of a fact is
+   the thing this codebase has twice written down as forbidden. */
+.asc-me-hint { margin-top: 5px; font-size: 12px; line-height: 1.5; color: var(--ink-faint); }
+.asc-me-hint.is-warn { color: var(--orange-deep); }
+.asc-me-actions { justify-content: flex-end; margin-top: var(--sp-4); }
+.asc-me-locked { color: var(--ink-soft); font-size: 12.5px; }
+.asc-me-rows { margin-top: var(--sp-3); border-top: 1px solid var(--asc-line); }
+.asc-me-rows > .asc-prof-row:first-child { padding-top: 12px; }
+.asc-me-code {
+  font-size: 17px;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  background: var(--card-in);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  margin: 6px 0 10px;
+  display: inline-block;
+}
+
+/* ─── The avatar ──────────────────────────────────────────────────────────────
+   Empty is INITIALS ON THE SPECIALTY WASH: the same two letters and the same
+   hue the community already gives this person (community.js avatarEl,
+   .cm-avatar). The accent classes are redeclared here rather than reused
+   because community.css is NOT loaded by the portal -- index.html pulls
+   _tokens, _base and asclepius only, so .cm-avatar.acc-green is unreachable
+   from this page. A grey silhouette was the alternative and it is worse: it
+   reads as "we have no record of you" on the one screen whose job is to show
+   someone that we do. */
+.asc-me-avatarcol {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.asc-me-avatarwrap {
+  position: relative;
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: 0 0 96px;
+}
+.asc-me-avatar {
+  width: 100%; height: 100%;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+}
+.asc-me-avatar.acc-green  { background: var(--green-wash);  color: var(--green-deep); }
+.asc-me-avatar.acc-orange { background: var(--orange-wash); color: var(--orange-deep); }
+.asc-me-avatar.acc-pink   { background: var(--pink-wash);   color: var(--pink-deep); }
+.asc-me-avatar.acc-lime   { background: var(--lime-wash);   color: var(--lime-deep); }
+.asc-me-avatar.has-img    { background: var(--card-in); }
+.asc-me-avatar-initials {
+  font-family: var(--mono);
+  font-size: 28px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  user-select: none;
+}
+.asc-me-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Holds the initials while the authenticated fetch is in flight, then is
+   swapped for the image. Sized so the swap does not reflow. */
+.asc-me-avatar-slot {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+}
+/* Visually hidden, NOT display:none -- the label depends on the input being in
+   the accessibility tree, and display:none takes it out. */
+.asc-me-file {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.asc-me-avatar-edit {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 7px 0 8px;
+  background: rgba(26, 27, 26, 0.62);
+  color: var(--card);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .16s cubic-bezier(.4, 0, .2, 1);
+}
+.asc-me-avatarwrap:hover .asc-me-avatar-edit,
+.asc-me-avatarwrap:focus-within .asc-me-avatar-edit { opacity: 1; }
+.asc-me-file:focus-visible + .asc-me-avatar-edit { outline: 2px solid var(--green); outline-offset: -2px; }
+/* Uploading: the picture they already have stays on screen. Replacing it with
+   a spinner means a failed upload also loses them the sight of what they had. */
+.asc-me-avatarwrap.is-busy { pointer-events: none; }
+.asc-me-avatarwrap.is-busy .asc-me-avatar-edit { opacity: 1; }
+.asc-me-avatarwrap.is-busy .asc-me-avatar {
+  border-color: var(--green-line);
+  animation: ascMeAvatarPulse 1.4s ease-in-out infinite;
+}
+@keyframes ascMeAvatarPulse { 50% { border-color: var(--green); } }
+@media (prefers-reduced-motion: reduce) {
+  .asc-me-avatarwrap.is-busy .asc-me-avatar { animation: none; border-color: var(--green); }
+}
+.asc-me-avatar-tools { min-height: 18px; }
+.asc-me-avatar-remove {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: 12px; color: var(--ink-faint);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.asc-me-avatar-remove:hover { color: var(--ink); }
+/* A failure renders HERE, as a sentence, beside the thing that failed. Not a
+   title attribute and not a red ring: a doctor who cannot read what went wrong
+   retries the same 8 MB HEIC until they give up on the feature. */
+.asc-me-avatar-status {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  text-align: center;
+  max-width: 22ch;
+}
+.asc-me-avatar-status.is-error { color: var(--orange-deep); }
+
+@media (max-width: 900px) {
+  .asc-me-grid { grid-template-columns: minmax(0, 1fr); }
+  .asc-me-standing { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .asc-me-stat { padding: var(--sp-3) 0; border-top: 1px solid var(--hairline); }
+  .asc-me-stat:first-child { border-top: 0; padding-top: 0; }
+}
+@media (max-width: 560px) {
+  .asc-me-id { flex-direction: column; text-align: center; gap: var(--sp-3); }
+  .asc-me-name { font-size: 21px; }
+  .asc-me-avatarwrap { width: 80px; height: 80px; flex-basis: 80px; }
+  .asc-me-avatar-initials { font-size: 24px; }
+}
 
 /* ═══ PRD-R: the paired review surface ═══════════════════════════════════════
    The TR page mirrors the TL page's structure, because a physician who has
@@ -3767,9 +4179,6 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   text-align: right;
   overflow-wrap: anywhere;
 }
-.asc-prof-field { margin: 10px 0; }
-.asc-prof-field > .asc-prof-label { display: block; margin-bottom: 5px; }
-.asc-prof-field > .asc-ref-input { width: 100%; }
 
 /* Signup review flags on the admin physician profile. Amber and grey only:
    a flag means "a person should look", never "this person is a fraud", and

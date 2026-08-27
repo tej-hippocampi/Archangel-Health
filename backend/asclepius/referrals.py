@@ -632,8 +632,10 @@ def funnel(
         "pending_count": pending,
         "pending_cents": pending * int(bounty_cents) if earns else 0,
         # The display contract for the Referral tab: what each side of a
-        # referral is worth and the advertised ceiling, so the frontend never
-        # hardcodes a dollar figure the env could change under it.
+        # referral is worth, so the frontend never hardcodes a dollar figure the
+        # env could change under it. ``cap_cents`` is 0 in the default
+        # configuration and means THERE IS NO CEILING; every consumer of this
+        # payload has to read it that way rather than rendering "$0.00".
         "payout_structure": {
             "referrer_bounty_cents": int(bounty_cents),
             "referee_bonus_cents": int(referee_bonus_cents),

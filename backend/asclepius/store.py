@@ -1372,6 +1372,23 @@ class AsclepiusStore:
             )
             self._backfill_health_systems(conn)
             # ═══ END PRD-C ═══
+            # ═══ PROFILE PICTURE — owned by the own-profile surface ═══════════
+            # Its own fenced block rather than an edit to PRD-B or PRD-D above,
+            # per the convention those fences establish.
+            #
+            # The SHA is the reference, mirroring ``cv_asset_sha``: bytes live
+            # in the content-addressed asset store and the client never gets to
+            # set this column, because a client-settable sha would be an
+            # unvalidated pointer into a store that also holds de-identified
+            # clinical images.
+            for _col, _ddl in (
+                ("avatar_asset_sha",  "TEXT"),
+                ("avatar_mime",       "TEXT"),
+                ("avatar_updated_at", "TEXT"),
+            ):
+                if _col not in cols("users"):
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+
             # ═══ PRD-D ADVISOR SCHEMA — owned by the advisor tier, do not edit from other PRDs ═══
             # The third physician tier (Advisor PRD). Guarded ALTERs, and — the
             # rule that holds everywhere in this file — NO DEFAULT on any status
@@ -5681,6 +5698,32 @@ class AsclepiusStore:
         params.append(user_id)
         with self._conn() as conn:
             conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE id = ?", tuple(params))
+
+    def set_user_avatar(
+        self, user_id: str, *, sha256: Optional[str], mime: Optional[str], at: str,
+    ) -> None:
+        """Point a physician's profile at an already-stored image, or clear it.
+
+        Deliberately NOT part of ``update_own_profile``: that one takes free
+        text from a PATCH body, and a sha is not free text. The bytes are
+        written to the asset store and hashed server-side first, and this is
+        called with the hash that came back -- the same rule ``cv_asset_sha``
+        follows, and for the same reason: a client-settable sha is an
+        unvalidated pointer into a store that also holds de-identified clinical
+        images.
+
+        ``sha256=None`` clears all three columns, which is what "remove photo"
+        does. The blob itself is left in the content-addressed store: it is
+        shared by hash, so deleting it here could pull an identical image out
+        from under somebody else.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET avatar_asset_sha = ?, avatar_mime = ?, "
+                "avatar_updated_at = ? WHERE id = ?",
+                (sha256 or None, (mime or None) if sha256 else None,
+                 at if sha256 else None, user_id),
+            )
 
     def set_registry_country(
         self, user_id: str, *, practice: Optional[str], licensure: Optional[str],

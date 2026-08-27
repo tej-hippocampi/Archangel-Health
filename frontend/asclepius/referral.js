@@ -113,101 +113,234 @@
 
     rootEl.appendChild(h('h2', { class: 'asc-pay-title' }, 'Referral'));
     rootEl.appendChild(hero(h));
-    rootEl.appendChild(linkCard(h));
-    rootEl.appendChild(composerCard(h));
-    rootEl.appendChild(enterpriseCard(h));
+    // The split is the design: a link you paste into a group chat on the left,
+    // a note a founder reads on the right. Stacked, the second one read as a
+    // footnote to the first, and it is the larger of the two asks.
+    rootEl.appendChild(h('div', { class: 'asc-ref-split' },
+      physicianCol(h), systemCol(h)));
   }
 
   /* ── The hero: what a referral is worth ─────────────────────────────── */
+  /* No ceiling figure any more. This used to lead with "Earn up to $5,200" in
+     the largest type on the page, which put a limit in front of the one
+     physician we most want introducing us to a hundred colleagues. The two
+     live rates still come off the WIRE (payout_structure): an env change has
+     to move this page with no frontend edit, and that contract predates the
+     redesign. */
   function hero(h) {
     var ps = data.payout_structure || {};
-    var cap = money(ps.cap_cents || 520000);
     var bounty = money(ps.referrer_bounty_cents || data.bounty_cents || 5000);
     var bonus = money(ps.referee_bonus_cents || 2500);
+    var earns = data.earns_bounty !== false;
 
-    var wrap = h('div', { class: 'asc-ref-hero asc-card' }, h('div', { class: 'asc-card-pad' },
-      h('div', { class: 'asc-ref-hero-line' },
-        h('span', { class: 'asc-ref-hero-value' }, 'Earn up to ' + cap),
-        h('span', { class: 'asc-ref-hero-label' }, 'referring colleagues')),
-      h('div', { class: 'asc-ref-structure' },
-        structureRow(h, bounty + ' to you',
-          'when a colleague you refer is verified and completes their first accepted case.'),
-        structureRow(h, bonus + ' to them',
-          'as a first case bonus, the moment that same case is accepted.'),
-        structureRow(h, cap + ' ceiling',
-          'the most one physician can earn in referral bounties, ever.')),
-      data.capped
-        ? h('div', { class: 'asc-ref-msg' },
-            'You have reached the referral ceiling. Thank you; your colleagues '
-            + 'can still join through your link.')
-        : null));
+    return h('div', { class: 'asc-ref-hero asc-card' },
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-ref-hero-line' },
+          h('span', { class: 'asc-ref-hero-value' }, 'Earn thousands'),
+          h('span', { class: 'asc-ref-hero-label' },
+            'referring physicians, hospitals and health systems')),
+        h('p', { class: 'asc-ref-hero-sub' },
+          'Even hundreds of thousands. Referring a physician pays a fixed '
+          + 'bounty; introducing a health system is negotiated on its own '
+          + 'terms, and those are the largest agreements we sign.'),
+        h('div', { class: 'asc-ref-terms' },
+          term(h, bounty, 'to you',
+            'once, when a physician you referred has their first case accepted.'),
+          term(h, bonus, 'to them',
+            'a first case bonus, paid on that same case.'),
+          term(h, 'No ceiling', null,
+            'there is no limit on how much you can earn referring.')),
+        // An equity-compensated account still refers, and the funnel already
+        // blanks their amounts. Saying so here stops the three terms above
+        // from reading as a promise this particular account will not be paid.
+        earns ? null : h('div', { class: 'asc-ref-foot' },
+          'Your account is compensated in equity rather than cash, so '
+          + 'referrals are recorded here but no bounty accrues. The '
+          + 'introduction still counts.')));
+  }
+
+  function term(h, value, unit, rest) {
+    // The unit carries no leading space: the gap is CSS (.asc-ref-term-unit
+    // margin-left). Significant whitespace inside a string is invisible to
+    // anyone editing the copy later and doubles up under any text extractor
+    // that joins child nodes.
+    return h('div', { class: 'asc-ref-term' },
+      h('div', { class: 'asc-ref-term-value' }, value,
+        unit ? h('span', { class: 'asc-ref-term-unit' }, unit) : null),
+      h('div', { class: 'asc-ref-term-rest' }, rest));
+  }
+
+  /* ── Left: invite a physician ───────────────────────────────────────── */
+  function physicianCol(h) {
+    var col = h('div', { class: 'asc-ref-card asc-ref-col' });
+    col.appendChild(h('div', { class: 'asc-ref-title' }, 'Invite a physician'));
+    col.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'Anyone who joins through your link is credited to you, even if they '
+      + 'finish signing up later. Send it by email and we deliver one '
+      + 'invitation with your name on it. No follow-ups, no drip.'));
+
+    var url = data.invite_url || '';
+    if (!url) {
+      col.appendChild(h('div', { class: 'asc-ref-error' },
+        'Your link could not be created just now. Reload the page to try again.'));
+    } else {
+      col.appendChild(h('div', { class: 'asc-ref-linkrow' },
+        h('code', { class: 'asc-mono asc-ref-linktext' }, url),
+        h('button', {
+          class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-copy', type: 'button',
+          onClick: function () { copyLink(url); },
+        }, copied ? 'Copied' : 'Copy link')));
+      col.appendChild(shareRow(h, url));
+    }
+
+    col.appendChild(composerForm(h));
+    if (refError) col.appendChild(h('div', { class: 'asc-ref-error' }, refError));
+    else if (refMessage) col.appendChild(h('div', { class: 'asc-ref-msg' }, refMessage));
+    col.appendChild(funnelBlock(h));
+    return col;
+  }
+
+  /* The funnel scrolls INSIDE the column so the health-system half beside it
+     stays above the fold. The count sits outside the scroll box, because a
+     physician with eleven referrals must be able to see that it is eleven
+     without scrolling to find out. */
+  function funnelBlock(h) {
+    var rows = data.referrals || [];
+    var wrap = h('div', { class: 'asc-ref-funnel' });
+    wrap.appendChild(h('div', { class: 'asc-ref-listhead' },
+      h('span', { class: 'asc-ref-listtitle' }, 'Your referrals'),
+      h('span', { class: 'asc-ref-listcount' },
+        rows.length
+          ? String(rows.length) + (data.pending_count
+              ? ' · ' + data.pending_count + ' open' : '')
+          : '')));
+    if (!rows.length) {
+      wrap.appendChild(h('div', { class: 'asc-ref-empty' },
+        'No referrals yet. Almost every physician here came through another '
+        + 'physician.'));
+      return wrap;
+    }
+    var list = h('div', { class: 'asc-ref-list' });
+    rows.forEach(function (r) {
+      var state = r.bounty_state || 'pending';
+      var cls = BOUNTY_CLASS[state] || '';
+      var amt = money(r.bounty_cents == null ? data.bounty_cents : r.bounty_cents);
+      list.appendChild(h('div', { class: 'asc-ref-row' },
+        h('span', { class: 'asc-ref-who' }, r.invitee_display || 'A colleague'),
+        h('span', { class: 'asc-ref-when' }, shortDate(r.invited_at)),
+        h('span', { class: 'asc-ref-state ' + cls }, r.status_sentence || 'Invited'),
+        h('span', { class: 'asc-ref-amount ' + cls },
+          !data.earns_bounty ? ''
+            : state === 'earned' ? amt
+              : state === 'pending' ? '+' + amt + ' pending'
+                : '')));
+    });
+    wrap.appendChild(h('div', { class: 'asc-ref-listwrap' }, list));
     return wrap;
   }
 
-  function structureRow(h, lead, rest) {
-    return h('div', { class: 'asc-ref-structure-row' },
-      h('span', { class: 'asc-ref-structure-lead' }, lead),
-      h('span', { class: 'asc-ref-structure-rest' }, ' ' + rest));
-  }
-
-  /* ── The link ───────────────────────────────────────────────────────── */
-  function linkCard(h) {
-    var url = data.invite_url || '';
-    var card = h('div', { class: 'asc-ref-card' });
-    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Your link'));
-    card.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'Share it anywhere: a text, a group chat, a hallway QR code. Anyone who '
-      + 'joins through it is credited to you, even if they finish signing up later.'));
-    if (!url) {
-      card.appendChild(h('div', { class: 'asc-ref-error' },
-        'Your link could not be created just now. Reload the page to try again.'));
-      return card;
-    }
-    var row = h('div', { class: 'asc-ref-linkrow' },
-      h('code', { class: 'asc-mono asc-ref-linktext' }, url),
-      h('button', {
-        class: 'asc-btn asc-btn-sm', type: 'button',
-        onClick: function () { copyLink(url); },
-      }, copied ? 'Copied' : 'Copy link'));
-    card.appendChild(row);
-    card.appendChild(shareRow(h, url));
-    // No "or give them this code to type in". The link IS the mechanism: it
-    // records the credit on its own, and a code offered as an alternative made
-    // a manual step look like a supported path. It was one a colleague could
-    // forget, mistype or never be told about, and every one of those is an
-    // introduction a physician made and does not get paid for.
-    return card;
-  }
-
-  /* One tap to wherever the conversation already is.
-     Every target below is a plain link the OS or the site resolves -- no
-     third-party SDK, no tracking pixel, nothing loaded from another origin.
-     `navigator.share` is offered first where it exists (phones), because it
-     opens the contact list the doctor actually uses instead of making them
-     pick a network from a row of logos. */
   var SHARE_MESSAGE =
     'I am contributing to Archangel Health, which pays physicians to evaluate '
     + 'medical AI. Thought of you:';
+
+  /* Brand marks. Single-path glyphs where the company publishes one
+     (WhatsApp, LinkedIn, X) and house-drawn strokes where none applies: an
+     sms: and a mailto: link open whatever the doctor's device decides, so
+     borrowing one messaging app's logo would be wrong on half of them.
+     Colour comes from CSS through currentColor, see --brand-* in _tokens.css. */
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var BRAND_MARKS = {
+    whatsapp: {
+      viewBox: '0 0 24 24',
+      paths: [{ d: 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z' }],
+    },
+    linkedin: {
+      viewBox: '0 0 24 24',
+      paths: [{ d: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z' }],
+    },
+    x: {
+      viewBox: '0 0 24 24',
+      paths: [{ d: 'M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932zM17.61 20.644h2.039L6.486 3.24H4.298z' }],
+    },
+    email: {
+      viewBox: '0 0 20 20', stroke: true,
+      paths: [
+        { d: 'M3.4 4.9h13.2a1.65 1.65 0 0 1 1.65 1.65v6.9a1.65 1.65 0 0 1-1.65 1.65H3.4a1.65 1.65 0 0 1-1.65-1.65v-6.9A1.65 1.65 0 0 1 3.4 4.9Z', w: '1.5' },
+        { d: 'm2.1 6.2 7.02 4.34a1.65 1.65 0 0 0 1.76 0L17.9 6.2', w: '1.5' },
+      ],
+    },
+    sms: {
+      viewBox: '0 0 20 20', stroke: true,
+      paths: [
+        { d: 'M4 15V6a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 16 6v5.5a1.5 1.5 0 0 1-1.5 1.5H7l-3 2.5z', w: '1.5' },
+        { d: 'M7.5 8.5h5', w: '1.4' },
+        { d: 'M7.5 10.5h3', w: '1.4' },
+      ],
+    },
+  };
+
+  /* Built node by node. This module's contract is zero innerHTML, enforced by
+     test_no_innerhtml_and_no_long_dashes_in_the_copy, so a brand mark cannot
+     arrive as a string of markup the way the rail icons do. */
+  function svgIcon(spec) {
+    var make = document.createElementNS
+      ? function (t) { return document.createElementNS(SVG_NS, t); }
+      : function (t) { return document.createElement(t); };
+    var svg = make('svg');
+    // setAttribute, not .className: on an SVGElement className is a read-only
+    // SVGAnimatedString and assigning to it silently does nothing.
+    svg.setAttribute('class', 'asc-ref-share-ico');
+    svg.setAttribute('viewBox', spec.viewBox);
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    spec.paths.forEach(function (p) {
+      var node = make('path');
+      node.setAttribute('d', p.d);
+      if (spec.stroke) {
+        node.setAttribute('fill', 'none');
+        node.setAttribute('stroke', 'currentColor');
+        node.setAttribute('stroke-width', p.w || '1.5');
+        node.setAttribute('stroke-linecap', 'round');
+        node.setAttribute('stroke-linejoin', 'round');
+      } else {
+        node.setAttribute('fill', 'currentColor');
+      }
+      svg.appendChild(node);
+    });
+    return svg;
+  }
 
   function shareTargets(url) {
     var text = encodeURIComponent(SHARE_MESSAGE + ' ' + url);
     var bare = encodeURIComponent(url);
     return [
-      { label: 'WhatsApp', href: 'https://wa.me/?text=' + text },
+      // `cls` written out rather than concatenated from `key`: a class name
+      // built at runtime is invisible to a grep and to the repo's
+      // styled-but-never-emitted CSS scanner.
+      { key: 'whatsapp', cls: 'asc-ref-share-whatsapp', label: 'WhatsApp',
+        href: 'https://wa.me/?text=' + text },
       // sms: needs the body separated by ?; iOS and Android both accept it.
-      { label: 'Text message', href: 'sms:?&body=' + text },
-      { label: 'Email', href: 'mailto:?subject='
-        + encodeURIComponent('Archangel Health') + '&body=' + text },
-      { label: 'LinkedIn', href: 'https://www.linkedin.com/sharing/share-offsite/?url=' + bare },
-      { label: 'X', href: 'https://twitter.com/intent/tweet?text=' + text },
+      { key: 'sms', cls: 'asc-ref-share-sms', label: 'Text message',
+        href: 'sms:?&body=' + text },
+      { key: 'email', cls: 'asc-ref-share-email', label: 'Email',
+        href: 'mailto:?subject=' + encodeURIComponent('Archangel Health') + '&body=' + text },
+      { key: 'linkedin', cls: 'asc-ref-share-linkedin', label: 'LinkedIn',
+        href: 'https://www.linkedin.com/sharing/share-offsite/?url=' + bare },
+      { key: 'x', cls: 'asc-ref-share-x', label: 'X',
+        href: 'https://twitter.com/intent/tweet?text=' + text },
     ];
   }
 
+  /* One tap to wherever the conversation already is. Every target is a plain
+     link the OS or the site resolves: no third-party SDK, no tracking pixel,
+     nothing loaded from another origin. navigator.share goes first where it
+     exists, because it opens the contact list the doctor actually uses instead
+     of making them pick a network from a row of logos. */
   function shareRow(h, url) {
     var row = h('div', { class: 'asc-ref-sharerow' });
     if (navigator.share) {
       row.appendChild(h('button', {
-        class: 'asc-btn asc-btn-sm asc-btn-primary', type: 'button',
+        class: 'asc-btn asc-btn-sm asc-btn-ghost asc-ref-share', type: 'button',
         onClick: function () {
           navigator.share({ title: 'Archangel Health', text: SHARE_MESSAGE, url: url })
             .catch(function () { /* dismissed; nothing to report */ });
@@ -216,9 +349,9 @@
     }
     shareTargets(url).forEach(function (t) {
       row.appendChild(h('a', {
-        class: 'asc-btn asc-btn-sm asc-btn-ghost', href: t.href,
-        target: '_blank', rel: 'noopener noreferrer',
-      }, t.label));
+        class: 'asc-btn asc-btn-sm asc-btn-ghost asc-ref-share ' + t.cls,
+        href: t.href, target: '_blank', rel: 'noopener noreferrer',
+      }, svgIcon(BRAND_MARKS[t.key]), h('span', {}, t.label)));
     });
     return row;
   }
@@ -252,45 +385,8 @@
     } catch (e) { /* the visible URL is itself the fallback */ }
   }
 
-  /* ── The composer + funnel ──────────────────────────────────────────── */
-  function composerCard(h) {
-    var card = h('div', { class: 'asc-ref-card' });
-    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Invite by email'));
-    card.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'We send one invitation with your name on it. No follow-ups, no drip.'));
-    card.appendChild(composerForm(h));
-    if (refError) card.appendChild(h('div', { class: 'asc-ref-error' }, refError));
-    else if (refMessage) card.appendChild(h('div', { class: 'asc-ref-msg' }, refMessage));
-
-    card.appendChild(h('div', { class: 'asc-ref-listtitle' }, 'Your referrals'));
-    var rows = data.referrals || [];
-    if (!rows.length) {
-      card.appendChild(h('div', { class: 'asc-ref-empty' },
-        'No referrals yet. Almost every physician here came through another '
-        + 'physician.'));
-      return card;
-    }
-    var list = h('div', { class: 'asc-ref-list' });
-    rows.forEach(function (r) {
-      var state = r.bounty_state || 'pending';
-      var rowAmount = money(r.bounty_cents == null ? data.bounty_cents : r.bounty_cents);
-      list.appendChild(h('div', { class: 'asc-ref-row' },
-        h('span', { class: 'asc-ref-who' }, r.invitee_display || 'A colleague'),
-        h('span', { class: 'asc-ref-when' }, shortDate(r.invited_at)),
-        // A SENTENCE, never a token: Invited → Signed up → Verified → first
-        // case, straight from the server's vocabulary.
-        h('span', { class: 'asc-ref-state ' + (BOUNTY_CLASS[state] || '') },
-          r.status_sentence || 'Invited'),
-        h('span', { class: 'asc-ref-amount ' + (BOUNTY_CLASS[state] || '') },
-          !data.earns_bounty ? ''
-            : state === 'earned' ? rowAmount
-              : state === 'pending' ? '+' + rowAmount + ' pending'
-                : '')));
-    });
-    card.appendChild(list);
-    return card;
-  }
-
+  /* ── The invite composer. Its card wrapper and its copy of the funnel
+     both moved into physicianCol; this is just the form now. ──────── */
   function composerForm(h) {
     var input = h('input', {
       class: 'asc-ref-input',
@@ -304,7 +400,8 @@
       if (ev && ev.key === 'Enter') { ev.preventDefault(); submitReferral(input.value); }
     });
     var button = h('button', {
-      class: 'asc-btn asc-btn-sm asc-ref-send', type: 'button', disabled: refBusy,
+      class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-send', type: 'button',
+      disabled: refBusy,
     }, refBusy ? 'Sending…' : 'Send invitation');
     button.addEventListener('click', function () { submitReferral(input.value); });
     return h('div', { class: 'asc-ref-form' }, input, button);
@@ -346,42 +443,57 @@
       });
   }
 
-  /* ── The enterprise note ────────────────────────────────────────────── */
-  function enterpriseCard(h) {
-    var card = h('div', { class: 'asc-ref-card' });
-    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Part of a health system?'));
-    card.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'If your institution might sell de-identified data or wants an '
-      + 'enterprise labeling partnership, write us a line. This is the '
-      + 'introduction that is worth the most: these are seven-figure '
-      + 'agreements, and the person who opens the door takes a share of what '
-      + 'closes. A founder reads every note personally.'));
-    // A worked example, marked as one. Institutional deals are negotiated
-    // individually and the real number depends on what closes, so this shows
-    // the shape of the arrangement rather than promising a figure -- a doctor
-    // reading a flat "earn $200,000" and being paid less would be right to
-    // feel misled.
-    card.appendChild(h('div', { class: 'asc-ref-example' },
-      h('span', { class: 'asc-ref-example-label' }, 'For example'),
-      h('span', {},
-        'a $1M data partnership at a 15 to 20 percent introducer share is '
-        + '$150,000 to $200,000 for the person who made the introduction. Terms '
-        + 'are agreed in writing before anything is signed.')));
+  /* ── Right: introduce a health system ───────────────────────────────────
+     An INTEREST FORM, not a payout offer. No dollar figure, no percentage,
+     no worked example.
+
+     This card used to carry "a $1M data partnership at a 15 to 20 percent
+     introducer share is $150,000 to $200,000", and that is the exact defect:
+     institutional terms are negotiated one deal at a time, so a number printed
+     here becomes a promise the negotiation then has to keep. A physician who
+     read $200,000 and was paid a fraction of it would be right to feel misled,
+     and would be right that we told them the figure first.
+
+     What replaces it is the truth: send a note, a person reads it, and we set
+     up a meeting. ────────────────────────────────────────────────────────── */
+  var NOTE_PLACEHOLDER =
+    'Hey, I work at Cedars in our oncology division. We’re looking to make '
+    + 'some extra cash and would love to sell our de-identified records.';
+
+  function systemCol(h) {
+    var col = h('div', { class: 'asc-ref-card asc-ref-col' });
+    col.appendChild(h('div', { class: 'asc-ref-title' }, 'Introduce a health system'));
+    col.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'If you work at, know, or run a health system that might sell '
+      + 'de-identified records, send us a note and we’ll set up a meeting. '
+      + 'These are the largest agreements we sign, and they start with an '
+      + 'introduction from someone on the inside.'));
+
     var input = h('textarea', {
-      class: 'asc-ref-input asc-ref-note', rows: '3',
-      placeholder: 'Who you are connected to, and what might be possible…',
+      class: 'asc-ref-input asc-ref-note', rows: '5',
+      placeholder: NOTE_PLACEHOLDER,
       disabled: noteBusy,
     });
     input.value = noteDraft;
     input.addEventListener('input', function () { noteDraft = input.value; });
+
     var button = h('button', {
-      class: 'asc-btn asc-btn-sm', type: 'button', disabled: noteBusy,
+      class: 'asc-btn asc-btn-sm asc-btn-go', type: 'button', disabled: noteBusy,
     }, noteBusy ? 'Sending…' : 'Send the note');
     button.addEventListener('click', function () { submitNote(input.value); });
-    card.appendChild(h('div', { class: 'asc-ref-form asc-ref-noteform' }, input, button));
-    if (noteError) card.appendChild(h('div', { class: 'asc-ref-error' }, noteError));
-    else if (noteMessage) card.appendChild(h('div', { class: 'asc-ref-msg' }, noteMessage));
-    return card;
+
+    col.appendChild(input);
+    col.appendChild(h('div', { class: 'asc-ref-form asc-ref-noteform' }, button));
+    if (noteError) col.appendChild(h('div', { class: 'asc-ref-error' }, noteError));
+    else if (noteMessage) col.appendChild(h('div', { class: 'asc-ref-msg' }, noteMessage));
+    // No character counter and no maxlength on the textarea. The server's
+    // bound is far past anything a person writes here, and a limit the writer
+    // is nowhere near does not deserve chrome; if they somehow reach it, the
+    // 422 detail lands in noteError, which is where it belongs.
+    col.appendChild(h('div', { class: 'asc-ref-foot' },
+      'A founder reads every one of these and replies from a person’s '
+      + 'address. Write as much or as little as you like.'));
+    return col;
   }
 
   function submitNote(value) {

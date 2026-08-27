@@ -370,6 +370,19 @@
     return !!(el.closest && el.closest('[contenteditable]'));
   }
 
+  //: The per-destination styling hook, written out rather than built from
+  //: item.dest. Referral is the only entry that currently uses one (it is the
+  //: tab that pays, and it is the green one); the rest are here so a grep for
+  //: a class finds it and the CSS scanner can see it emitted.
+  const RAIL_ITEM_CLASS = {
+    tasks: 'asc-rail-item-tasks',
+    community: 'asc-rail-item-community',
+    referral: 'asc-rail-item-referral',
+    earnings: 'asc-rail-item-earnings',
+    guide: 'asc-rail-item-guide',
+    profile: 'asc-rail-item-profile',
+  };
+
   const RAIL_ITEMS = [
     // `surface` is the access-level axis (see backend asclepius/capabilities.py).
     // It behaves differently from `capability` on purpose: a capability the
@@ -446,9 +459,12 @@
         locked: !!it.surface && !sessionHasSurface(it.surface),
       }));
     // A referral-only account gets the rail it can use, not the physician's
-    // rail with four locked doors on it.
+    // rail with four locked doors on it. Guide is out too: it is the manual
+    // for labeling cases, and this account will never see one -- handing them
+    // instructions for work they cannot do is the same broken promise as a
+    // locked Tasks tab, just quieter.
     if (isReferralOnly()) {
-      return items.filter((it) => ['referral', 'guide', 'profile'].includes(it.dest));
+      return items.filter((it) => ['referral', 'profile'].includes(it.dest));
     }
     // An advisor's Tasks tab is not a locked door either. It has something
     // behind it -- the practice case, which is the whole point of showing them
@@ -635,7 +651,12 @@
       if (item.locked) children.push(h('span', { class: 'asc-rail-lock', 'aria-hidden': 'true' }, '\u00b7'));
       nav.appendChild(h('button', {
         type: 'button',
-        class: 'asc-rail-item' + (active ? ' active' : '') + (item.locked ? ' locked' : ''),
+        // The per-destination class is a STYLING HOOK and nothing else: the
+        // rail carried only active/locked, so there was no way to say "the
+        // Referral tab is the green one" without one. Do not gate behaviour on
+        // it; behaviour reads item.dest.
+        class: 'asc-rail-item ' + (RAIL_ITEM_CLASS[item.dest] || '')
+          + (active ? ' active' : '') + (item.locked ? ' locked' : ''),
         'aria-current': active ? 'page' : null,
         'aria-disabled': item.locked ? 'true' : null,
         // aria-label carries the accessible name even in the icon-collapsed rail,
@@ -7188,11 +7209,20 @@
   //  record at all: it was visible to admins and to nobody else, including
   //  them, and a mistyped phone number could only be fixed by writing to us.
   //
+  //  The page opens with a CARD rather than a form. Someone who comes here to
+  //  correct one phone number should still leave knowing their verification
+  //  state, their tier and their score, because nothing else in the product
+  //  tells them and they are the three facts that decide what they may do.
+  //
   //  Credential fields render read-only rather than being withheld. Someone
   //  should be able to read what they submitted and see plainly which parts
   //  are settled -- and settled is the right word, because those were checked
   //  against a registry or attested to, and a form that let their holder edit
   //  them afterwards would make the check meaningless.
+  //
+  //  Class prefix is asc-me-, NOT asc-profile-: that one already belongs to
+  //  the admin contributor browser, which is a different object entirely (a
+  //  stranger's record seen by staff, versus a physician's own).
   // ═══════════════════════════════════════════════════════════════════════════
   function renderProfileView() {
     stopTimer();
@@ -7203,10 +7233,12 @@
     api('/me/profile').then((data) => {
       clear(body);
       body.appendChild(h('h2', { class: 'asc-pay-title' }, 'Profile'));
-      body.appendChild(profileStandingCard(data.standing || {}));
-      body.appendChild(profileEditCard(data.editable || {}));
-      body.appendChild(profileCredentialsCard(data.credentials || {}));
-      body.appendChild(profilePasswordCard());
+      body.appendChild(meIdentityCard(data));
+      body.appendChild(h('div', { class: 'asc-me-grid' },
+        meDetailsPanel(data.editable || {}, data.standing || {}),
+        meCredentialsPanel(data.credentials || {}),
+        mePasswordPanel(),
+        meReferralPanel(data.standing || {})));
     }).catch((err) => {
       clear(body);
       body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
@@ -7223,54 +7255,350 @@
       h('span', { class: 'asc-prof-value' }, value || '—'));
   }
 
-  function profileStandingCard(s) {
-    const status = s.verification_status || 'pending';
-    const words = { approved: 'Verified', pending: 'In review',
-                    rejected: 'Not approved' };
-    const card = h('div', { class: 'asc-ref-card' });
-    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Standing'));
-    card.appendChild(profileRow('Verification', words[status] || 'In review'));
-    card.appendChild(profileRow('Tier', s.tier_word || 'Unassigned'));
-    if (s.score != null) {
-      card.appendChild(profileRow('Contributor score',
-        String(s.score) + (s.band ? ' · ' + s.band : '')));
-    }
-    if (s.referral_code) card.appendChild(profileRow('Referral code', s.referral_code));
-    return card;
+  /* ── The identity card ──────────────────────────────────────────────────── */
+  function meIdentityCard(data) {
+    const ed = data.editable || {};
+    const cr = data.credentials || {};
+    const st = data.standing || {};
+    const av = data.avatar || {};
+    const name = String(ed.full_name || '').trim() || 'Your profile';
+    const spec = [cr.specialty, ed.specialty_niche]
+      .map((s) => String(s || '').trim()).filter(Boolean).join(' · ');
+
+    return h('div', { class: 'asc-me-card asc-card' },
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-me-id' },
+          meAvatar(av, name),
+          h('div', { class: 'asc-me-idtext' },
+            h('div', { class: 'asc-me-name' }, name),
+            spec ? h('div', { class: 'asc-me-sub' }, spec) : null,
+            cr.organization ? h('div', { class: 'asc-me-org' }, cr.organization) : null,
+            ed.linkedin_url
+              ? h('a', {
+                  class: 'asc-me-link', href: linkedinHref(ed.linkedin_url),
+                  target: '_blank', rel: 'noopener noreferrer',
+                }, prettyLinkedin(ed.linkedin_url))
+              : null)),
+        meStanding(st)));
   }
 
-  function profileEditCard(editable) {
-    const card = h('div', { class: 'asc-ref-card' });
-    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Your details'));
-    card.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'Yours to change whenever they change.'));
+  function linkedinHref(url) {
+    const v = String(url || '').trim();
+    return /^https?:\/\//i.test(v) ? v : 'https://' + v.replace(/^\/+/, '');
+  }
+
+  function prettyLinkedin(url) {
+    return String(url || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  }
+
+  function meStanding(st) {
+    const status = st.verification_status || 'pending';
+    // Full class names, not a suffix concatenated on. Built by hand they are
+    // invisible both to a grep and to the repo's styled-but-never-emitted
+    // scanner, which is how dead CSS accumulates unnoticed.
+    const V = {
+      approved: { word: 'Verified', dot: 'asc-me-dot-ok',
+                  rest: 'your record was checked and approved.' },
+      pending: { word: 'In review', dot: 'asc-me-dot-wait',
+                 rest: 'a person is reading your file. You can use the portal '
+                       + 'while they do.' },
+      rejected: { word: 'Not approved', dot: 'asc-me-dot-off',
+                  rest: 'write to us and a person will look again.' },
+    };
+    const v = V[status] || V.pending;
+    const tierRest = {
+      reviewer: 'you may label cases and review other physicians’ work.',
+      labeler: 'you may label cases.',
+    }[st.tier || ''] || 'assigned when your record is approved.';
+    const hasScore = st.score != null;
+
+    return h('div', { class: 'asc-me-standing' },
+      meStat('Verification', null,
+        h('span', { class: 'asc-me-stat-value' },
+          h('span', { class: 'asc-me-dot ' + v.dot, 'aria-hidden': 'true' }),
+          v.word),
+        v.rest),
+      meStat('Tier', null,
+        h('span', { class: 'asc-me-stat-value' }, st.tier_word || 'Not yet assigned'),
+        tierRest),
+      meStat('Contributor score',
+        infoDot('Contributor score', [
+          'A 0 to 100 average of your graded cases, blended with a starting '
+          + 'estimate until you have enough of them.',
+          '70 and above is Reviewer band, 30 and above is Labeler band. It '
+          + 'moves when a case of yours is graded, and never for any other '
+          + 'reason.',
+        ]),
+        h('span', { class: 'asc-me-stat-value' + (hasScore ? '' : ' is-quiet') },
+          hasScore ? Number(st.score).toFixed(1) : 'Not rated yet'),
+        hasScore
+          ? (st.band ? st.band + ' · from your graded cases.'
+                     : 'From your graded cases.')
+          : 'It starts after your first graded case.'));
+  }
+
+  function meStat(label, dot, valueNode, rest) {
+    return h('div', { class: 'asc-me-stat' },
+      h('div', { class: 'asc-me-stat-head' },
+        h('span', { class: 'asc-me-stat-label' }, label), dot || null),
+      valueNode,
+      // What the number MEANS renders inline. The dot beside the label is
+      // optional depth; a fact whose only home is a popover is a fact nobody
+      // who does not click has.
+      h('div', { class: 'asc-me-stat-rest' }, rest));
+  }
+
+  /* ── The avatar ─────────────────────────────────────────────────────────── */
+  // Empty is the physician's INITIALS on their specialty's colour, the same two
+  // letters and the same hue their colleagues already see in the community. Not
+  // a grey silhouette: a silhouette says "no record of you" on the one screen
+  // whose whole job is to show that there is one.
+  function meAvatar(av, name) {
+    const initials = String(av.initials || '').trim() || fallbackInitials(name);
+    const accent = av.accent || 'green';
+
+    const face = h('div', {
+      class: 'asc-me-avatar acc-' + accent + (av.url ? ' has-img' : ''),
+      // Decorative: the name it stands for is the very next element, and
+      // "Photo of Ahmed Al Otaibi" read immediately before "Ahmed Al Otaibi"
+      // is noise.
+      'aria-hidden': 'true',
+    }, av.url
+        ? avatarImgEl(av.url, initials)
+        : h('span', { class: 'asc-me-avatar-initials' }, initials));
+
+    // A real file input plus a <label for>: keyboard reachable, announced by a
+    // screen reader, and the label doubles as the hover overlay. Visually
+    // hidden rather than display:none, which would take the input out of the
+    // accessibility tree and break the label with it.
+    const file = h('input', {
+      class: 'asc-me-file', type: 'file', id: 'ascMeAvatarFile',
+      accept: 'image/png,image/jpeg,image/webp',
+    });
+    const edit = h('label', { class: 'asc-me-avatar-edit', for: 'ascMeAvatarFile' },
+      av.url ? 'Change' : 'Add photo');
+    const wrap = h('div', { class: 'asc-me-avatarwrap' }, face, file, edit);
+    const status = h('div', {
+      class: 'asc-me-avatar-status', role: 'status', 'aria-live': 'polite',
+    });
+    const tools = h('div', { class: 'asc-me-avatar-tools' });
+    if (av.url) {
+      const remove = h('button', {
+        class: 'asc-me-avatar-remove', type: 'button',
+      }, 'Remove photo');
+      remove.addEventListener('click', () => removeAvatar(wrap, status));
+      tools.appendChild(remove);
+    }
+    file.addEventListener('change', () => {
+      const picked = file.files && file.files[0];
+      if (picked) uploadAvatar(wrap, status, picked);
+    });
+    return h('div', { class: 'asc-me-avatarcol' }, wrap, tools, status);
+  }
+
+  /* The avatar endpoint is bearer-authenticated, and an <img src> cannot send
+     an Authorization header. So: fetch it with the session token and hand the
+     element a blob: URL, exactly as community.js does for attachments.
+
+     The initials render underneath in the meantime and stay put if the fetch
+     fails, which is the right fallback -- a broken-image glyph on somebody's
+     own face is a worse outcome than the two letters they started with. */
+  const avatarBlobCache = {};
+  function avatarImgEl(url, initials) {
+    const img = h('img', { class: 'asc-me-avatar-img', alt: '' });
+    const fallback = h('span', { class: 'asc-me-avatar-initials' }, initials);
+    const box = h('span', { class: 'asc-me-avatar-slot' }, fallback);
+    loadAvatarBlob(url).then((objectUrl) => {
+      if (!objectUrl) return;
+      img.src = objectUrl;
+      clear(box);
+      box.appendChild(img);
+    });
+    return box;
+  }
+
+  function loadAvatarBlob(url) {
+    if (avatarBlobCache[url]) return Promise.resolve(avatarBlobCache[url]);
+    return fetch(url, {
+      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
+    }).then((res) => (res.ok ? res.blob() : null))
+      .then((blob) => {
+        if (!blob) return null;
+        const objectUrl = URL.createObjectURL(blob);
+        avatarBlobCache[url] = objectUrl;
+        return objectUrl;
+      })
+      .catch(() => null);
+  }
+
+  function fallbackInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function uploadAvatar(wrap, status, blob) {
+    // The picture they already have stays on screen for the whole upload.
+    // Swapping it for a spinner means a failed upload also loses them the
+    // sight of what they had.
+    wrap.classList.add('is-busy');
+    wrap.setAttribute('aria-busy', 'true');
+    status.className = 'asc-me-avatar-status';
+    status.textContent = 'Uploading…';
+    const form = new FormData();
+    form.append('file', blob);
+    // isForm: the api() helper JSON-stringifies a body and stamps a JSON
+    // Content-Type otherwise, which would destroy the multipart boundary.
+    api('/me/avatar', { method: 'POST', body: form, isForm: true }).then(() => {
+      renderProfileView();
+    }).catch((err) => {
+      wrap.classList.remove('is-busy');
+      wrap.removeAttribute('aria-busy');
+      // Inline, as a sentence, next to the thing that failed. Never a title
+      // attribute and never only a colour: a failure a doctor cannot read is
+      // one they retry with the same file until they give up on the feature.
+      status.className = 'asc-me-avatar-status is-error';
+      status.textContent = (err && (err.detail || err.message))
+        || 'That did not upload. PNG or JPEG, under 5 MB.';
+    });
+  }
+
+  function removeAvatar(wrap, status) {
+    wrap.classList.add('is-busy');
+    status.className = 'asc-me-avatar-status';
+    status.textContent = 'Removing…';
+    api('/me/avatar', { method: 'DELETE' }).then(() => {
+      renderProfileView();
+    }).catch((err) => {
+      wrap.classList.remove('is-busy');
+      status.className = 'asc-me-avatar-status is-error';
+      status.textContent = (err && (err.detail || err.message))
+        || 'That did not work. Try again.';
+    });
+  }
+
+  /* ── Yours to change ────────────────────────────────────────────────────── */
+  // Mirrors backend/asclepius/plausibility.py::_LINKEDIN_RE. Two copies of one
+  // rule: this one is advisory and the server's decides, so a drift costs a
+  // slightly wrong hint rather than a wrong score.
+  const LINKEDIN_RE =
+    /^(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/(?:in|pub|profile)\/[^/\s]{2,}/i;
+
+  /* What is TRUE about adding a LinkedIn URL, which is not what you would
+     guess. It is worth 3 points of 100 in credentialing.TIER_WEIGHTS, it only
+     scores if the URL actually parses as LinkedIn, and users.tier_score has
+     exactly one writer in the codebase: the admin approval path. Nothing
+     recomputes when a physician edits their own profile.
+
+     So "adding LinkedIn increases your payouts" would be false twice over for
+     an approved account, and a doctor who added it and watched nothing change
+     would have learned that this product tells them things that are not so. */
+  function linkedinInfo(status) {
+    if (status === 'approved') {
+      return {
+        title: 'Why add LinkedIn',
+        lines: [
+          'Straight answer first: it will not change your tier or what you are '
+          + 'paid. Your tier was set by a person when your record was approved, '
+          + 'and editing your profile does not recalculate it.',
+          'What it does is put a face to your name on your own file. It is what '
+          + 'we look at when a buyer asks who reviewed their data, and when we '
+          + 'vouch for you to a health system.',
+          'It has to be your actual profile address, the one starting '
+          + 'linkedin.com/in/. Anything else gets flagged for a person to look '
+          + 'at, which is the opposite of helpful.',
+        ],
+      };
+    }
+    return {
+      title: 'Why add LinkedIn',
+      lines: [
+        'Your record is still being read. The reviewer scores what can be '
+        + 'checked about you out of 100, and a working LinkedIn profile is '
+        + 'worth 3 of those points. Small, and one of the few on that list you '
+        + 'can change right now.',
+        '70 is the Reviewer threshold and 30 is Labeler. Most of the rest is '
+        + 'your registration, your board certification and your years in '
+        + 'practice, which are already in.',
+        'It has to be your actual profile address, the one starting '
+        + 'linkedin.com/in/. Anything else scores zero and raises a flag for a '
+        + 'person to check.',
+      ],
+    };
+  }
+
+  function linkedinHint(status) {
+    return status === 'approved'
+      ? 'Shown on your record to the Archangel team. It does not change your '
+        + 'tier or your pay.'
+      : 'Worth 3 points on the 100-point score your reviewer is reading now.';
+  }
+
+  function meDetailsPanel(editable, standing) {
+    const panel = h('div', { class: 'asc-me-panel' });
+    panel.appendChild(h('div', { class: 'asc-ref-title' }, 'Yours to change'));
 
     const fields = [
-      { key: 'full_name', label: 'Full name' },
-      { key: 'phone', label: 'Mobile' },
-      { key: 'linkedin_url', label: 'LinkedIn' },
-      { key: 'specialty_niche', label: 'What you focus on' },
+      { key: 'full_name', label: 'Full name', ph: 'As it appears on your licence' },
+      { key: 'phone', label: 'Mobile',
+        ph: 'Only used if we need to reach you about your work' },
+      { key: 'linkedin_url', label: 'LinkedIn', ph: 'linkedin.com/in/…',
+        info: linkedinInfo(standing.verification_status),
+        hint: linkedinHint(standing.verification_status) },
+      { key: 'specialty_niche', label: 'What you focus on',
+        ph: 'Transplant nephrology, interventional…' },
     ];
+
     const inputs = {};
     fields.forEach((f) => {
-      const input = h('input', { class: 'asc-ref-input', type: 'text' });
+      const input = h('input', {
+        class: 'asc-ref-input', type: 'text', placeholder: f.ph,
+        id: 'ascMe_' + f.key,
+      });
       input.value = editable[f.key] || '';
       inputs[f.key] = input;
-      card.appendChild(h('div', { class: 'asc-prof-field' },
-        h('label', { class: 'asc-prof-label' }, f.label), input));
+      const hint = h('div', { class: 'asc-me-hint' }, f.hint || '');
+      if (!f.hint) hint.style.display = 'none';
+      panel.appendChild(h('div', { class: 'asc-me-field' },
+        h('div', { class: 'asc-me-fieldhead' },
+          h('label', { class: 'asc-prof-label', for: 'ascMe_' + f.key }, f.label),
+          f.info ? infoDot(f.info.title, f.info.lines) : null),
+        input, hint));
+      if (f.key === 'linkedin_url') {
+        // Live, inline, and the same shape the server's plausibility check
+        // uses. A malformed URL there raises a review flag on this physician's
+        // own file, so telling them here is worth more than telling a reviewer.
+        const check = () => {
+          const bad = input.value.trim() && !LINKEDIN_RE.test(input.value.trim());
+          hint.className = 'asc-me-hint' + (bad ? ' is-warn' : '');
+          hint.textContent = bad
+            ? 'That is not a LinkedIn profile URL. Use the address of your own '
+              + 'profile page, the one starting linkedin.com/in/.'
+            : f.hint;
+        };
+        input.addEventListener('input', check);
+        check();
+      }
     });
 
     const note = h('div', { class: 'asc-ref-msg', style: 'display:none' });
-    const save = h('button', { class: 'asc-btn asc-btn-sm asc-btn-primary', type: 'button' }, 'Save');
+    const save = h('button', {
+      class: 'asc-btn asc-btn-sm asc-btn-go', type: 'button',
+    }, 'Save');
     save.addEventListener('click', () => {
       save.disabled = true;
       save.textContent = 'Saving…';
       const payload = {};
       fields.forEach((f) => { payload[f.key] = inputs[f.key].value; });
       api('/me/profile', { method: 'PATCH', body: payload }).then(() => {
+        // Success and failure used to land in the same green node, so a save
+        // that failed looked exactly like one that worked.
+        note.className = 'asc-ref-msg';
         note.textContent = 'Saved.';
         note.style.display = '';
       }).catch((err) => {
+        note.className = 'asc-ref-error';
         note.textContent = 'Could not save. '
           + ((err && (err.detail || err.message)) || 'Try again.');
         note.style.display = '';
@@ -7279,48 +7607,51 @@
         save.textContent = 'Save';
       });
     });
-    card.appendChild(h('div', { class: 'asc-ref-form' }, save));
-    card.appendChild(note);
-    return card;
+    panel.appendChild(h('div', { class: 'asc-ref-form asc-me-actions' }, save));
+    panel.appendChild(note);
+    return panel;
   }
 
-  function profileCredentialsCard(c) {
-    const card = h('div', { class: 'asc-ref-card' });
-    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Credentials on file'));
-    card.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'Checked at signup, so these are not editable here. If something is '
-      + 'wrong, write to us and a person will correct it.'));
-    card.appendChild(profileRow('Email', c.email));
-    card.appendChild(profileRow('Specialty', c.specialty));
-    card.appendChild(profileRow('Qualification', c.qualification));
-    card.appendChild(profileRow('Board certification', c.board_cert));
-    card.appendChild(profileRow('Years in practice',
-      c.years_experience == null ? '' : String(c.years_experience)));
-    card.appendChild(profileRow('Institution', c.organization));
-    if (c.npi) {
-      card.appendChild(profileRow('NPI', c.npi));
-    } else {
-      card.appendChild(profileRow(c.registry_name || 'Registration',
-        c.registration_number));
-    }
-    if (c.country_of_practice) {
-      card.appendChild(profileRow('Practising in', c.country_of_practice));
-    }
-    if (c.signed_initials) {
-      card.appendChild(profileRow('Signed attestations', c.signed_initials));
-    }
-    return card;
+  /* ── Settled ────────────────────────────────────────────────────────────── */
+  function meCredentialsPanel(c) {
+    const panel = h('div', { class: 'asc-me-panel' });
+    panel.appendChild(h('div', { class: 'asc-ref-title' }, 'Credentials on file'));
+    // The page has to go on saying WHY these are locked. Silence reads as a
+    // form that is broken rather than a record that is settled, and that
+    // difference matters a great deal to somebody whose licence number is
+    // wrong on it.
+    panel.appendChild(h('div', { class: 'asc-ref-pitch asc-me-locked' },
+      'Checked against a registry at signup, or attested to by you, so they '
+      + 'are not editable here. If something is wrong, write to us and a '
+      + 'person will correct it.'));
+    const rows = h('div', { class: 'asc-me-rows' });
+    const add = (l, v) => rows.appendChild(profileRow(l, v));
+    add('Email', c.email);
+    add('Specialty', c.specialty);
+    add('Qualification', c.qualification);
+    add('Board certification', c.board_cert);
+    add('Years in practice', c.years_experience == null ? '' : String(c.years_experience));
+    add('Institution', c.organization);
+    if (c.npi) add('NPI', c.npi);
+    else add(c.registry_name || 'Registration', c.registration_number);
+    if (c.country_of_practice) add('Practising in', c.country_of_practice);
+    if (c.signed_initials) add('Signed attestations', c.signed_initials);
+    panel.appendChild(rows);
+    return panel;
   }
 
-  function profilePasswordCard() {
-    const card = h('div', { class: 'asc-ref-card' });
-    card.appendChild(h('div', { class: 'asc-ref-title' }, 'Password'));
+  function mePasswordPanel() {
+    const panel = h('div', { class: 'asc-me-panel' });
+    panel.appendChild(h('div', { class: 'asc-ref-title' }, 'Password'));
     const current = h('input', { class: 'asc-ref-input', type: 'password',
                                  placeholder: 'Current password' });
     const next = h('input', { class: 'asc-ref-input', type: 'password',
                               placeholder: 'New password (at least 8 characters)' });
     const note = h('div', { class: 'asc-ref-msg', style: 'display:none' });
-    const button = h('button', { class: 'asc-btn asc-btn-sm', type: 'button' }, 'Change password');
+    // Ghost, not green: changing a password is maintenance, and only one
+    // control on this page is the thing we are asking them to do.
+    const button = h('button', { class: 'asc-btn asc-btn-sm asc-btn-ghost', type: 'button' },
+      'Change password');
     button.addEventListener('click', () => {
       note.style.display = 'none';
       button.disabled = true;
@@ -7328,10 +7659,12 @@
       api('/me/password', { method: 'POST', body: {
         current_password: current.value, new_password: next.value,
       } }).then(() => {
+        note.className = 'asc-ref-msg';
         note.textContent = 'Password changed.';
         note.style.display = '';
         current.value = ''; next.value = '';
       }).catch((err) => {
+        note.className = 'asc-ref-error';
         note.textContent = (err && (err.detail || err.message)) || 'Could not change it.';
         note.style.display = '';
       }).then(() => {
@@ -7339,11 +7672,21 @@
         button.textContent = 'Change password';
       });
     });
-    card.appendChild(h('div', { class: 'asc-prof-field' }, current));
-    card.appendChild(h('div', { class: 'asc-prof-field' }, next));
-    card.appendChild(h('div', { class: 'asc-ref-form' }, button));
-    card.appendChild(note);
-    return card;
+    panel.appendChild(h('div', { class: 'asc-me-field' }, current));
+    panel.appendChild(h('div', { class: 'asc-me-field' }, next));
+    panel.appendChild(h('div', { class: 'asc-ref-form asc-me-actions' }, button));
+    panel.appendChild(note);
+    return panel;
+  }
+
+  function meReferralPanel(st) {
+    if (!st.referral_code) return null;
+    const panel = h('div', { class: 'asc-me-panel' });
+    panel.appendChild(h('div', { class: 'asc-ref-title' }, 'Your referral code'));
+    panel.appendChild(h('div', { class: 'asc-me-code asc-mono' }, st.referral_code));
+    panel.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'Your link and everyone you have referred live on the Referral tab.'));
+    return panel;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -7504,6 +7847,11 @@
     return {
       h, api, clear, toast, loadingCard, downloadBlob, fmtDate,
       specialtyResolver, specialtyBlockReason: SPECIALTY_BLOCK_REASON,
+      // Avatars are bearer-authenticated, so a section cannot just set an
+      // <img src>. One shared loader rather than each section reaching for
+      // state.token: the cache is shared with it, so a roster and a dossier
+      // showing the same physician fetch the bytes once.
+      avatarBlob: loadAvatarBlob,
       // Jump to the pipeline tools (the ingestion review/promote surface),
       // deep-linked to the row that was clicked (C-5.2). The bucket buttons
       // always passed their upload; this used to ignore the argument and just

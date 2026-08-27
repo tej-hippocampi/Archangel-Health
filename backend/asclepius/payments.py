@@ -240,12 +240,22 @@ def referee_bonus_cents() -> int:
 
 
 def referral_cap_cents() -> int:
-    """The most one referrer can earn in bounties, ever: $5,200 (104 x $50).
+    """The most one referrer can earn in bounties, ever. **0 means no cap.**
 
-    The advertised ceiling. Enforced at accrual by reading the LEDGER, so a
-    historical rate change cannot bend it, and a referral past the cap settles
-    as ineligible rather than sitting pending forever."""
-    return _env_int("ASCLEPIUS_REFERRAL_CAP_CENTS", 520_000)
+    This was $5,200 (104 x $50) and advertised as a ceiling on the Referral tab,
+    which had it exactly backwards: the ceiling was the first thing a physician
+    read about a program whose whole point is that a well-connected doctor can
+    introduce us to a hundred colleagues and a health system. Capping the person
+    who does that, and telling them so up front, is paying for the referrals we
+    were going to get anyway and pricing out the ones we were not.
+
+    The env var stays so a cap can be reimposed without a deploy, and the
+    enforcement below stays written and tested for the same reason. When it is
+    set, it is still read from the LEDGER at accrual, so a historical rate change
+    cannot bend it, and a referral past the cap settles as ineligible rather than
+    sitting pending forever.
+    """
+    return _env_int("ASCLEPIUS_REFERRAL_CAP_CENTS", 0)
 
 
 def tl_auto_approve_days() -> int:
@@ -1356,12 +1366,20 @@ def accrue_referral_bounty(
             referrers[rid] = store.get_user_by_id(rid or "")
         if not compensation.accrues_payment(referrers[rid]):
             return False
-        # The advertised ceiling: a referrer at the cap stops accruing, and the
-        # row settles as ineligible rather than pending forever. Read from the
-        # ledger so a historical rate change cannot bend it.
+        # An optional ceiling. There is NO cap by default any more (see
+        # referral_cap_cents), so this whole branch is inert unless somebody
+        # sets the env var — but it stays written and tested, because "we can
+        # cap this without a deploy" is worth more than the four lines it costs.
+        #
+        # When set: a referrer at the cap stops accruing and the row settles as
+        # ineligible rather than pending forever. Read from the ledger so a
+        # historical rate change cannot bend it.
+        cap = referral_cap_cents()
+        if cap <= 0:
+            return True
         if rid not in capped:
             capped[rid] = (store.referral_earned_cents(rid) + referral_bounty_cents()
-                           > referral_cap_cents())
+                           > cap)
         return not capped[rid]
 
     stamp = _ledger_ts(now)

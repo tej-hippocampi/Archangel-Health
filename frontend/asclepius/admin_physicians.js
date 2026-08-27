@@ -54,6 +54,28 @@
   // `tier === 'reviewer'` equality: wrong, quiet, and only discovered when
   // the person tells you. Keep this map aligned with
   // asclepius/capabilities.py TIER_WORDS.
+  /* Bearer-authenticated like every other avatar read, so the bytes are
+     fetched with the session token and handed over as a blob: URL. Returns
+     null when there is no picture rather than an empty circle: a placeholder
+     ring on a dossier is noise on a page that is already dense. */
+  function dossierAvatar(h, p) {
+    if (!p || !p.avatar_url) return null;
+    var box = h('div', {
+      style: 'width:52px;height:52px;border-radius:50%;overflow:hidden;flex:0 0 52px;'
+        + 'background:var(--card-in);border:1px solid var(--hairline)',
+    });
+    var load = rootCtx && rootCtx.avatarBlob;
+    if (!load) return null;
+    load(p.avatar_url).then(function (objectUrl) {
+      if (!objectUrl) return;
+      box.appendChild(h('img', {
+        src: objectUrl, alt: '',
+        style: 'width:100%;height:100%;object-fit:cover;display:block',
+      }));
+    });
+    return box;
+  }
+
   function tierWord(t) {
     if (t === 'labeler') return 'Labeler';
     if (t === 'reviewer') return 'Reviewer';
@@ -1064,11 +1086,16 @@
 
     container.appendChild(h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' },
-        h('div', {},
-          h('div', { class: 'asc-card-title' }, p.name || p.email || id),
-          h('div', { class: 'asc-card-sub' },
-            tierWord(p.tier), ' · ', p.specialty || 'No specialty', ' · ',
-            p.health_system_name || 'Independent')),
+        // The face beside the name, when there is one. This is the surface it
+        // is arguably most useful on: an admin here is the person answering
+        // "is this the same doctor as the registry entry I have open?"
+        h('div', { style: 'display:flex;align-items:center;gap:14px;min-width:0' },
+          dossierAvatar(h, p),
+          h('div', { style: 'min-width:0' },
+            h('div', { class: 'asc-card-title' }, p.name || p.email || id),
+            h('div', { class: 'asc-card-sub' },
+              tierWord(p.tier), ' · ', p.specialty || 'No specialty', ' · ',
+              p.health_system_name || 'Independent'))),
         h('div', { style: 'display:flex;gap:8px' }, roleBtn, backBtn)),
       h('div', { class: 'asc-card-pad asc-phys-profile-grid' },
         kvBlock(h, 'Identity', identityRows(p)),

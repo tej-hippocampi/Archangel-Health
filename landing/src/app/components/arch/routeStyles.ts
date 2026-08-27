@@ -258,6 +258,16 @@ export const routeStyles = `
   transform: translateY(8px);
   animation: arch-mask-in 700ms cubic-bezier(0.16, 1, 0.3, 1) 200ms forwards;
 }
+/* The fourth stagger step, continuing the 0 / 90 / 200ms rhythm above so the
+   badge arrives after the buttons rather than with them. */
+.arch-landing .hero-min .hero-yc {
+  margin-top: 1.6rem;
+  text-decoration: none;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: arch-mask-in 700ms cubic-bezier(0.16, 1, 0.3, 1) 280ms forwards;
+}
+.arch-landing .hero-min .hero-yc:hover { border-color: rgba(26, 27, 26, 0.34); }
 @keyframes arch-mask-in { to { opacity: 1; transform: none; } }
 .arch-landing .hero-min .btn { min-width: 12.5rem; justify-content: center; }
 /* Clean two-line headline on every width: "Frontier Data to Power" /
@@ -786,7 +796,7 @@ export const routeStyles = `
   .arch-landing .menu-sub, .arch-landing .menu-chev, .arch-landing .topnav-chev { transition: none; }
   .arch-landing .topnav-menu { animation: arch-fade-once 120ms ease; }
   .arch-landing .hero-min .glow-a, .arch-landing .hero-min .glow-b { animation: none; }
-  .arch-landing .hero-min h1, .arch-landing .hero-min .hero-sub, .arch-landing .hero-min .hero-ctas { animation: arch-fade-once 120ms ease forwards; transform: none; }
+  .arch-landing .hero-min h1, .arch-landing .hero-min .hero-sub, .arch-landing .hero-min .hero-ctas, .arch-landing .hero-min .hero-yc { animation: arch-fade-once 120ms ease forwards; transform: none; }
   .arch-landing .trace-scroll .trace, .arch-landing .trace-scroll .trace-orange,
   .arch-landing .trace-scroll .trace-node, .arch-landing .wave-path, .arch-landing .wave-pulse {
     animation: none !important; stroke-dashoffset: 0; opacity: 1;
