@@ -2160,7 +2160,8 @@ async def available_tasks(
     hard_only = portal_version == "v3" and hard_only_generation()
     real_only = portal_version == REAL_CASE_PORTAL_VERSION
     if real_only and not user.get("real_data_approved"):
-        return {"tasks": [], "count": 0}
+        return {"tasks": [], "count": 0,
+                "served_portal_version": None, "continued_from": None}
     rows = store.eligible_tasks_for_evaluator(
         evaluator_id=user["id"], specialty=serve_specialty, hard_only=hard_only,
         real_only=real_only, multimodal_only=False,
@@ -2180,6 +2181,28 @@ async def available_tasks(
             min_empirical_difficulty=min_empirical_difficulty(),
             limit=limit,
         )
+    # ═══ V4 → V3 continuation, mirrored from /tasks/next ═══
+    # /tasks/next continues a physician who has finished every real chart onto the
+    # synthetic multimodal queue. Without the same step here the dashboard reads
+    # "no cases available" and the very next click hands one out — the same
+    # list/draw disagreement the seed above exists to prevent, in the other
+    # direction. Real cases still come FIRST: this runs only once V4 is exhausted.
+    # Echo only a version this endpoint actually reasons about. An unknown or
+    # absent ``portal_version`` means the classic oldest-first queue answered, and
+    # naming it something it is not would be the same class of lie this field
+    # exists to remove.
+    served = portal_version if portal_version in SINGLE_TURN_PORTAL_VERSIONS else None
+    continued_from = None
+    if real_only and not rows:
+        served = "v3"
+        continued_from = REAL_CASE_PORTAL_VERSION
+        rows = store.eligible_tasks_for_evaluator(
+            evaluator_id=user["id"], specialty=serve_specialty,
+            hard_only=hard_only_generation(), real_only=False, multimodal_only=False,
+            require_measured_difficulty=require_measured_difficulty(),
+            min_empirical_difficulty=min_empirical_difficulty(),
+            limit=limit,
+        )
     tasks = [
         {
             "task_id": t.get("task_id"),
@@ -2191,7 +2214,13 @@ async def available_tasks(
         }
         for t in rows
     ]
-    return {"tasks": tasks, "count": len(tasks)}
+    # ``served_portal_version`` is the queue these counts describe, which is not
+    # always the one that was asked for. The dashboard names it on screen so a
+    # physician who chose real patient data is told when they are being shown
+    # synthetic work, rather than left to notice it inside a case.
+    return {"tasks": tasks, "count": len(tasks),
+            "served_portal_version": served if tasks else None,
+            "continued_from": continued_from if tasks else None}
 
 
 @router.get("/me/stats")
@@ -2228,7 +2257,14 @@ async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_cur
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
-    return {"task": _blind_task(task)}
+    # The flow this task is actually graded in, derived from the TASK on the same
+    # rule the submit path enforces. Opening a case from the dashboard list skips
+    # /tasks/next, so without this the client stamped the draft from whatever
+    # version the picker held — and a v4 picker on a synthetic card produced a
+    # draft whose own submission is a 400 at ``_derive_portal_version``. The
+    # server owns the answer here, exactly as it does at /tasks/next.
+    return {"task": _blind_task(task),
+            "served_portal_version": _derive_portal_version(task, None)}
 
 
 @router.post("/tasks/{task_id}/reveal")

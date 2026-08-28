@@ -600,6 +600,9 @@
 }
 .asc-dash-hero-title { font-size: var(--t-h3); font-weight: 600; color: var(--ink); }
 .asc-dash-hero-sub { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 2px; }
+/* Shown only when the V4 real queue is exhausted and the physician has been
+   continued onto the synthetic multimodal queue. */
+.asc-dash-hero-note { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 6px; max-width: 46ch; line-height: 1.45; }
 .asc-dash-more {
   display: block; width: 100%; margin: 2px 0 0; padding: 10px;
   font-family: var(--sans); font-size: var(--t-sm); color: var(--ink-soft); text-align: center;

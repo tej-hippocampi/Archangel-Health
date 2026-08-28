@@ -15,6 +15,13 @@
   // 'v3' seamless (the recommended default). Persisted per browser; the default
   // for every new task.
   const PORTAL_VERSION_KEY = 'asclepius_portal_version';
+  // Written the first time a contributor picks an experience from a menu that
+  // HAD the real cases on it. A stored version without this marker predates V4
+  // entirely, so it cannot be a choice between real and synthetic — see
+  // getPortalVersion(), which is what makes an approved physician who used this
+  // portal before V4 shipped land on the real cases instead of staying pinned to
+  // the synthetic queue forever.
+  const PORTAL_VERSION_PICKED_KEY = 'asclepius_portal_version_picked_v4';
   const DEFAULT_PORTAL_VERSION = 'v3';
   // The V3/V4 specialty the physician is grading (Specialty Hyper-Personalization
   // PRD §1). Persisted per browser like the portal version; sent on task fetch.
@@ -1890,13 +1897,29 @@
     } else if (!tasks.length) {
       main.appendChild(renderDashboardEmpty(specLabel));
     } else {
+      // Name the queue these cases came from. The count alone is ambiguous the
+      // moment V4 continues onto V3: a physician cleared for real patient data
+      // would read "18 cases available", start one, and only then discover from
+      // the badge inside the case that it was synthetic. The server tells us
+      // which queue answered; say it here, before the click.
+      const servedVer = data.served_portal_version || ver;
+      const QUEUE_LABEL = { v4: 'Real de-identified cases', v3: 'Synthetic multimodal cases',
+                            v2: 'Assisted evaluation', v1: 'Classic evaluation' };
+      const queueLine = QUEUE_LABEL[servedVer] || null;
+      const continuedFromV4 = data.continued_from === 'v4' && servedVer !== 'v4';
       main.appendChild(h('div', { class: 'asc-dash-hero' },
         h('div', { class: 'asc-dash-hero-main' },
           h('span', { class: 'asc-dash-hero-icon', 'aria-hidden': 'true' }, '→'),
           h('div', {},
             h('div', { class: 'asc-dash-hero-title' }, 'Start next case'),
             h('div', { class: 'asc-dash-hero-sub' },
-              String(tasks.length) + (tasks.length === 1 ? ' case available' : ' cases available')))),
+              String(tasks.length) + (tasks.length === 1 ? ' case available' : ' cases available')
+              + (queueLine ? ' · ' + queueLine : '')),
+            continuedFromV4
+              ? h('div', { class: 'asc-dash-hero-note' },
+                  'You have completed every real de-identified case available to you '
+                  + 'right now. New ones appear here as charts are promoted.')
+              : null)),
         h('button', {
           class: 'asc-btn asc-btn-primary asc-btn-lg',
           onClick: () => { state.view = 'eval'; renderHeader(); renderEvalView(); },
@@ -2049,6 +2072,12 @@
       state.portalChosen = true;
       state.specialtyChosen = true;
       state.task = data.task;
+      // Opening a card skips /tasks/next, so the served version has to come from
+      // THIS response or the draft gets stamped from the picker instead of from
+      // the case. A v4 picker on a synthetic card would then build a draft whose
+      // own submission the server rejects with a 400.
+      state.servedVersion = data.served_portal_version || null;
+      state.continuedFrom = null;
       renderHeader();
       initDraftForTask(state.task);
       if (state.draft.stage === 'compare') {
@@ -2214,22 +2243,49 @@
 
   // ─── Portal version (V1 classic · V2 assisted · V3 seamless) ────────────────
   const PORTAL_VERSIONS = ['v1', 'v2', 'v3', 'v4'];
+  function portalVersionWasPicked() {
+    try { return localStorage.getItem(PORTAL_VERSION_PICKED_KEY) === '1'; } catch (e) { return false; }
+  }
   function getPortalVersion() {
     let v = null;
     try { v = localStorage.getItem(PORTAL_VERSION_KEY); } catch (e) { v = null; }
-    if (PORTAL_VERSIONS.indexOf(v) !== -1) return v;
-    // No stored choice yet. A contributor cleared for real patient data should
-    // land on the REAL cases, not on the synthetic ones — those are the cases we
-    // actually want labelled, and defaulting everyone to v3 meant an approved
-    // physician had to know to go looking for v4 before they ever saw one.
-    // Anyone not cleared keeps the synthetic default: v4 would be an empty,
-    // locked queue for them, which is a worse first run than a working one.
-    if (state.user && state.user.real_data_approved) return 'v4';
+    const approved = !!(state.user && state.user.real_data_approved);
+    const stored = PORTAL_VERSIONS.indexOf(v) !== -1 ? v : null;
+    // A stored 'v4' outlives the approval that earned it. Approval can be revoked,
+    // and the browser would keep asking for a queue the server now answers with a
+    // hard empty — a physician staring at "no cases available" while eighteen sit
+    // one flow away. Read the flag, not the leftover.
+    if (stored === 'v4' && !approved) return DEFAULT_PORTAL_VERSION;
+    // ═══ The pre-V4 stored default ═══
+    // This is the bug an approved physician actually hit: V3 was the only
+    // recommended flow for months, so every browser that ever opened the portal
+    // has 'v3' sitting in localStorage. That value won over the V4 default below,
+    // the client asked for the synthetic queue, and the server — correctly —
+    // served synthetic multimodal cases. The doctor never saw a real chart and
+    // there was nothing on screen to tell them why.
+    //
+    // An un-marked 'v3' was never a choice BETWEEN real and synthetic, because
+    // the real cases were not on the menu when it was made. So it does not get
+    // to outrank the real work. Only 'v3' is migrated, and only once: 'v1'/'v2'
+    // are deliberate departures from the recommended flow and stay honored, and
+    // a pick made from today's menu writes PORTAL_VERSION_PICKED_KEY and sticks.
+    //
+    // Nothing is lost by moving them: /tasks/next continues a V4 physician onto
+    // the synthetic queue the moment the real cases run out, and stamps the
+    // record with the version actually served.
+    if (approved && (stored === null || (stored === 'v3' && !portalVersionWasPicked()))) return 'v4';
+    if (stored) return stored;
     return DEFAULT_PORTAL_VERSION;
   }
   function setPortalVersion(v) {
     v = PORTAL_VERSIONS.indexOf(v) !== -1 ? v : DEFAULT_PORTAL_VERSION;
-    try { localStorage.setItem(PORTAL_VERSION_KEY, v); } catch (e) { /* ignore quota */ }
+    try {
+      localStorage.setItem(PORTAL_VERSION_KEY, v);
+      // Only a real pick from the picker reaches here, and today's picker lists
+      // the real cases. Recording that makes the migration above a one-time
+      // event rather than a rule that keeps overriding the physician.
+      localStorage.setItem(PORTAL_VERSION_PICKED_KEY, '1');
+    } catch (e) { /* ignore quota */ }
   }
 
   // ─── Specialty selection (Specialty Hyper-Personalization PRD §1) ───────────

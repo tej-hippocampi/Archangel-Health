@@ -1338,3 +1338,142 @@ def test_an_unapproved_physician_is_not_continued_into_the_real_queue():
                       headers=headers).json()
     assert body["task"] is None
     assert body["served_portal_version"] is None
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CAUSE 5 — the browser kept asking for the synthetic queue
+#
+# Every fix above made the real cases reachable on the SERVER. The physician
+# still never saw one, because the client decides which queue to ask for and it
+# was reading a value it had stored months earlier. V3 was the only recommended
+# flow before the real cases existed, so every browser that had ever opened the
+# portal held ``asclepius_portal_version='v3'`` — and that stale value outranked
+# the V4 default. The client asked for synthetic, the server correctly served
+# synthetic, and nothing on screen explained why.
+#
+# The JS fix (getPortalVersion) is asserted below against the file, because there
+# is no JS test runner in this repo and a rule this load-bearing must not rest on
+# a comment. What IS testable here is the server contract the fix depends on:
+# every surface must agree about which queue answered, and say so out loud.
+# ═════════════════════════════════════════════════════════════════════════════
+def _gold_synthetic(st, n, specialty="nephrology"):
+    """A populated synthetic multimodal queue — the 18 cases the physician was
+    actually being shown."""
+    for i in range(n):
+        st.insert_task(task_id=f"t-gold-{i}", prompt="p", specialty=specialty,
+                       difficulty="hard",
+                       case={"case_source": "synthetic", "lab_panels": [{"panel": "bmp"}]})
+
+
+def test_the_dashboard_names_the_queue_that_answered():
+    """The count alone is ambiguous. '18 cases available' is true of the synthetic
+    queue and of the real one, so a physician cleared for real patient data could
+    not tell from the dashboard which work they were about to start — they found
+    out from the badge INSIDE the case, which is where this bug was reported."""
+    st = _store()
+    _gold_synthetic(st, 18)
+    v4_cases.load_v4_cases(st)
+    headers = A.headers_for(_evaluator("nephrology"))
+    av = client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=nephrology",
+                    headers=headers).json()
+    assert av["served_portal_version"] == "v4"
+    assert av["continued_from"] is None
+    assert av["count"] >= 1
+    assert all(t["case_source"] == "real_deid" for t in av["tasks"]), (
+        "V4 must not mix synthetic cases into the real queue")
+
+
+def test_the_dashboard_count_continues_to_v3_exactly_as_the_draw_does():
+    """/tasks/next continues a physician who has finished the real charts onto the
+    synthetic queue. The dashboard did not, so it read 'no cases available' while
+    the very next click handed one out — the same list/draw disagreement the V4
+    seed exists to prevent, pointing the other way."""
+    import uuid
+
+    st = _store()
+    _gold_synthetic(st, 18)
+    v4_cases.load_v4_cases(st)
+    ev = _evaluator("nephrology")
+    headers = A.headers_for(ev)
+
+    # Exhaust the real queue the way a physician does — by labeling it.
+    while True:
+        drawn = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                           headers=headers).json()
+        if drawn["served_portal_version"] != "v4":
+            break
+        r = client.post("/api/asclepius/submissions", headers=headers, json={
+            "submission_id": "s-" + uuid.uuid4().hex[:12], "task_id": drawn["task"]["task_id"],
+            "verdict": "B_better", "chosen_id": "B", "rejected_id": "A",
+            "time_spent_sec": 300, "portal_version": "v4",
+            "prompt_review": {"reviewed": True, "verdict": "valid"},
+            "independent_answer": {"text": "Stop transfusing; the AKI is pre-renal."},
+            "chosen_revision": {"edited": False, "why_better_notes": "restrictive threshold"},
+            "rejected_critique": {"error_tags": ["unsafe_recommendation"], "why_worse": "over-transfuses"},
+        })
+        assert r.status_code == 200, r.text
+
+    av = client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=nephrology",
+                    headers=headers).json()
+    assert av["served_portal_version"] == "v3", "the dashboard stopped at an empty V4 queue"
+    assert av["continued_from"] == "v4", "and never said why the cases changed"
+    assert av["count"] > 0
+    # The list and the draw must never disagree about which queue is answering.
+    assert av["served_portal_version"] == drawn["served_portal_version"]
+    assert av["continued_from"] == drawn["continued_from"]
+
+
+def test_an_unapproved_physician_is_never_continued_into_a_real_queue():
+    """The continuation must not become a side door. A v4 request from someone
+    without approval is answered with nothing, not with a fallback that quietly
+    starts serving them work."""
+    st = _store()
+    _gold_synthetic(st, 3)
+    v4_cases.load_v4_cases(st)
+    headers = A.headers_for(_evaluator("nephrology", real=False))
+    av = client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=nephrology",
+                    headers=headers).json()
+    assert av["count"] == 0 and av["served_portal_version"] is None
+
+
+def test_opening_a_case_from_the_dashboard_is_stamped_from_the_case_not_the_picker():
+    """Clicking a card skips /tasks/next, so the client had no served version and
+    stamped the draft from the picker instead. With the picker on v4 and a
+    synthetic card on screen, that draft's own submission is a 400 at
+    _derive_portal_version — the physician does twenty minutes of work and the
+    save fails. The server now answers the question on the fetch."""
+    st = _store()
+    _gold_synthetic(st, 1)
+    v4_cases.load_v4_cases(st)
+    headers = A.headers_for(_evaluator("nephrology"))
+
+    synth = client.get("/api/asclepius/tasks/t-gold-0", headers=headers).json()
+    assert synth["served_portal_version"] == "v3"
+
+    real_id = next(t["task_id"] for t in st.eligible_tasks_for_evaluator(
+        evaluator_id=_evaluator("nephrology")["id"], specialty="nephrology",
+        real_only=True, limit=5))
+    got = client.get(f"/api/asclepius/tasks/{real_id}", headers=headers).json()
+    assert got["served_portal_version"] == "v4"
+
+
+def test_a_stale_pre_v4_portal_choice_does_not_outrank_the_real_cases():
+    """THE REPORTED BUG. Pinned against the source because the rule lives in the
+    browser: an approved contributor whose localStorage holds the pre-V4 default
+    must be moved to v4, a deliberate pick made from today's menu must stick, and
+    a stored v4 must not survive the approval being revoked."""
+    js = (Path(__file__).resolve().parents[2]
+          / "frontend" / "asclepius" / "asclepius.js").read_text()
+    start = js.index("function getPortalVersion()")
+    body = js[start:js.index("function setPortalVersion", start)]
+    # An un-marked 'v3' predates V4 and is migrated; a marked one is a real choice.
+    assert "portalVersionWasPicked()" in body
+    assert "stored === 'v3' && !portalVersionWasPicked()" in body
+    # v1/v2 are deliberate departures and are NOT migrated — no branch mentions
+    # them (comments stripped, so the note explaining WHY does not satisfy this).
+    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("//"))
+    assert "'v1'" not in code and "'v2'" not in code
+    # A stored v4 must not outlive the approval that earned it.
+    assert "stored === 'v4' && !approved" in body
+    # The pick marker is only ever written by the picker.
+    assert js.count("PORTAL_VERSION_PICKED_KEY, '1'") == 1

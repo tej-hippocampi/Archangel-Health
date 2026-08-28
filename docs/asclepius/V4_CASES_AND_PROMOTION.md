@@ -289,6 +289,46 @@ the picker instead would 400 on every continued case — `_derive_portal_version
 refuses a v4 claim on a synthetic task rather than normalising it, and that
 refusal is what keeps a synthetic label out of the real slice.
 
+### Which queue the browser asks for
+
+Everything above makes the real cases reachable on the **server**. Which queue is
+actually requested is a client decision, and that is where the last instance of
+this bug lived: V3 was the only recommended flow for months, so every browser
+that had ever opened the portal held `asclepius_portal_version = 'v3'` in
+localStorage — and that stored value outranked the V4 default. An approved
+physician clicked *Start next case*, the client asked for v3, the server
+correctly served synthetic multimodal, and nothing on the dashboard said which
+queue the count came from.
+
+`getPortalVersion()` now resolves it in this order:
+
+| stored | approved | result |
+| --- | --- | --- |
+| `v4` | no | `v3` — a stored v4 must not outlive the approval that earned it |
+| `v3`, no pick marker | yes | **`v4`** — the value predates V4, so it was never a choice *between* real and synthetic |
+| `v3`, pick marker | yes | `v3` — a deliberate choice made from today's menu, honored |
+| `v1` / `v2` | yes | unchanged — deliberate departures from the recommended flow |
+| nothing | yes | `v4` |
+| nothing | no | `v3` |
+
+`asclepius_portal_version_picked_v4` is written **only** by the experience
+picker, so the migration is a one-time event rather than a rule that keeps
+overriding the physician. Nothing is lost by moving them: the continuation above
+puts them back on synthetic work the moment the real cases run out.
+
+Two surfaces were made to agree with it:
+
+* `GET /tasks/available` runs the same V4→V3 continuation as `/tasks/next` and
+  returns `served_portal_version` / `continued_from`. Without it the dashboard
+  read *"no cases available"* while the very next click handed one out — the same
+  list/draw disagreement the V4 seed exists to prevent, pointing the other way.
+  The dashboard now prints the queue name beside the count.
+* `GET /tasks/{id}` returns `served_portal_version`. Opening a case from the
+  dashboard **list** skips `/tasks/next`, so the draft was stamped from the
+  picker; a v4 picker on a synthetic card built a draft whose own submission is a
+  400. The server owns that answer on the fetch now, exactly as it does on the
+  draw.
+
 ### Before selling any of these as "hard"
 
 They load with `difficulty: "hard"` but `difficulty_measured: false` — a
