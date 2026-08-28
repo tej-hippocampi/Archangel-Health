@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -32,6 +33,27 @@ client = TestClient(A.app)
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch):
     A.fresh_store()
+    # Pin the double-label routing sweep OFF for the duration of each test.
+    #
+    # A draw endpoint kicks that sweep off as a background task, throttled by a
+    # MODULE-LEVEL WALL CLOCK (routers/asclepius_review._sweep_due). So whether
+    # it fires inside any given test depends on how long the tests before it
+    # took — which is not a property of this file, or of anything this file is
+    # testing.
+    #
+    # It matters here because the sweep lifts a singly-labelled task to
+    # max_labels=2, and a single-submission review against that task then
+    # correctly 409s `became_a_pair` (Audit R H2). Right product behaviour,
+    # wrong test dependency: it turned main red once, when an unrelated new test
+    # file changed which files share this shard and moved the clock underneath
+    # these tests.
+    #
+    # Claiming the throttle slot is the whole fix. Every test here that actually
+    # WANTS the sweep calls sweep_double_label_routing() directly, which never
+    # consults the throttle — that convention already existed, this just stops
+    # the incidental sweep from arriving uninvited.
+    from routers import asclepius_review as _asc_review_router
+    monkeypatch.setitem(_asc_review_router._SWEEP_STATE, "last", time.monotonic())
     # Stub the two LLM legs of the submit pipeline so tests can walk the REAL
     # POST /submissions route (FIX A §1 rule 2: test the path, not the unit).
     from asclepius import pipeline as asc_pipeline
