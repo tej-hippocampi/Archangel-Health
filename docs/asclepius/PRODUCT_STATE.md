@@ -20,6 +20,41 @@ below is **on `main`** — there is no unmerged delta.
 > `frontend/asclepius/asclepius.js`. Tests: `tests/test_asclepius_tutorial.py`
 > (fixture gate, blinding, grading, state machine, isolation proofs).
 
+> **Addendum (branch `claude/production-code-audit-refine-ygc27i`): longitudinal
+> cases — the next encounter is the answer key.**
+> A real chart truncated at one encounter, answered blind, then checked against
+> the chart's own next encounter. Turns a preference pair into a **trajectory**:
+> state → action → observed outcome, which is the shape an RL environment
+> consumes. Measured over `patient-1`…`patient-4`: 59 encounters → 25 decision
+> points → **21 verifiable** ones, against 3 single-shot cases from the same four
+> charts.
+>
+> New: `asclepius/trajectory.py` (pure policy — the sequence rule, the κ
+> exclusion, the falsifier shapes, the outcome-verification metric, the stated
+> limits); `tasks.trajectory_id` / `tasks.sequence_index`;
+> `submissions.expected_trajectory_json` / `trajectory_self_score_json`;
+> `agreement.kappa_excluded_reason`. Endpoints:
+> `GET /tasks/{id}/trajectory-outcome`, `POST /tasks/{id}/trajectory-self-score`,
+> `GET /trajectories/{id}`, and `trajectory: true` on the real-case generate.
+>
+> **Three invariants worth knowing before touching any of it.**
+> (1) *The seal.* The labeler queue sorts on label count first, so once two
+> physicians work one chart a later point outranks the earlier ones and would be
+> served with the outcomes of decisions the physician has not made. Enforced by a
+> WHERE clause in the candidate query **and** a 409 on every by-ID path — never in
+> the frontend, whose absence of a sequence check is itself asserted by a test.
+> (2) *`required_modalities` is computed per truncation*, never inherited:
+> inheriting quarantines every early decision point with a clinical-sounding
+> rejection for correct behaviour.
+> (3) *These points are excluded from κ by construction.* Blinding says nothing
+> about temporal independence, and a physician who labels *k* then *k+1* carries
+> their own model of that patient forward. They carry outcome verification
+> instead, reported under its own name.
+>
+> V1–V4 are unaffected by construction: every gate short-circuits on
+> `trajectory_id IS NULL`. Runbook: `docs/asclepius/LONGITUDINAL_CASES.md`. Tests:
+> `tests/test_asclepius_longitudinal.py`, `tests/test_asclepius_longitudinal_ui.py`.
+
 ---
 
 ## 1 — What Asclepius is
