@@ -37,7 +37,7 @@ export const ARCH_PATHS: ArchPath[] = ["/", "/research", "/data", "/health-syste
 
 const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   "/": {
-    title: "Archangel Health · Frontier Data to Power Clinical and Medical AI",
+    title: "Archangel Health · Infrastructure to Power Medical AI",
     desc: "A network of hundreds of board-certified physicians behind 20+ clinical data products, plus fully bespoke collection. Training data for clinical and medical AI.",
   },
   "/research": {
@@ -307,8 +307,8 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
                   Sign in
                 </button>
               ))}
-            <button type="button" className="chrome chrome-box solid" onClick={() => setLeadModal("request_data")}>
-              Request data
+            <button type="button" className="chrome chrome-box solid nav-cta-lead" onClick={() => setLeadModal("request_data")}>
+              Request products
             </button>
             {/* menu button — shown only below the desktop breakpoint, on the right */}
             <button
