@@ -2761,7 +2761,12 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
     font-size: 10px;
     letter-spacing: 0.04em;
   }
-  .asc-rail-item.active { background: transparent; box-shadow: none; border-color: transparent; color: var(--ink); }
+  /* border-radius is pinned back to 0 here: §2 put --r-md on
+     `.asc-rail-item.active`, which out-specifies this bar's own
+     `border-radius: 0` on `.asc-rail-item`. Invisible while the tab is
+     transparent, but a rounded hover inside a 60px bar is not this
+     change's business. */
+  .asc-rail-item.active { background: transparent; box-shadow: none; border-color: transparent; color: var(--ink); border-radius: 0; }
   .asc-rail-item.active::before { left: 22%; right: 22%; top: 0; bottom: auto; width: auto; height: 2px; border-radius: 0 0 2px 2px; }
   .asc-rail-label { display: block; flex: none; }
   .asc-rail-foot { display: none; }   /* sign out remains in the header */

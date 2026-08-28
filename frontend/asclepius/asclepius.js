@@ -2108,7 +2108,17 @@
         h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Opening case…'))));
     try {
       const data = await api('/tasks/' + encodeURIComponent(id));
-      if (!data || !data.task) { renderDashboardView(); return; }
+      // A 200 carrying no task is the same fact as a 404 — the server has
+      // nothing under this id — so it gets the same treatment. Returning to the
+      // dashboard while leaving the draft in place would loop the physician
+      // between Continue and the dashboard with no error to explain it, which is
+      // worse than the stranded loading card: at least that one looks broken.
+      if (!data || !data.task) {
+        clearDraft(id);
+        toast('That case is no longer available.', 'error');
+        renderDashboardView();
+        return;
+      }
       state.view = 'eval';
       state.portalChosen = true;
       state.specialtyChosen = true;
@@ -2126,7 +2136,25 @@
       }
       renderTaskWorkspace();
     } catch (e) {
-      if (e.status !== 401) toast('Could not open that case: ' + e.message, 'error');
+      // 401 already took the screen (handleUnauthorized renders the login form).
+      if (e.status === 401) return;
+      // Everything else used to leave the physician looking at "Opening case…"
+      // forever: the loading card had already replaced the whole root, so a
+      // toast with nothing behind it is a dead end. With §4 this is the
+      // dashboard's only button, so it has to land somewhere.
+      //
+      // Gone (404), refused (403) or withdrawn (410) is TERMINAL for this case:
+      // drop its draft, or the dashboard reads it straight back and offers the
+      // same Continue that just failed — an inescapable loop on the one control
+      // the physician has. "Prefer a clean Start over a broken resume" (§4.1)
+      // is exactly this rule, applied one step later.
+      //
+      // Any other failure (5xx, offline, a client-side bug) may well be
+      // transient, so the draft is KEPT and only the screen is restored: a
+      // flaky network must never cost somebody an hour of clinical reasoning.
+      if (e.status === 403 || e.status === 404 || e.status === 410) clearDraft(id);
+      toast('Could not open that case: ' + e.message, 'error');
+      renderDashboardView();
     }
   }
 
@@ -2222,6 +2250,27 @@
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(draftKey(task.task_id)) || 'null'); } catch (e) { draft = null; }
     if (!draft || draft.task_id !== task.task_id) draft = newDraft(task);
+    // ── Structural backfill, BEFORE anything reaches inside these objects ──
+    // Every member backfill below dereferences one of them, so a draft missing
+    // one threw a TypeError right here — and openTaskById caught it, leaving
+    // the physician on "Opening case…" with a toast and no way back. §4 made
+    // that reachable from the ONLY button on the dashboard, so it is no longer
+    // an obscure path.
+    //
+    // A draft can arrive shaped like this: written before one of these fields
+    // existed, or truncated by a quota failure part-way through a write. Repair
+    // it in place rather than discarding it — whatever real work it holds is in
+    // the fields that DID survive, and this is where every other backfill lives.
+    const skeleton = newDraft(task);
+    ['prompt_review', 'independent_answer', 'chosen_revision', 'rejected_critique',
+      'from_scratch', 'decisive_action'].forEach((k) => {
+      if (!draft[k] || typeof draft[k] !== 'object' || Array.isArray(draft[k])) {
+        draft[k] = skeleton[k];
+      }
+    });
+    ['reasoning_steps', 'rubric'].forEach((k) => {
+      if (!Array.isArray(draft[k])) draft[k] = [];
+    });
     // Backfill any newly-added fields for older drafts.
     if (!draft.chosen_revision.evidence_anchor) draft.chosen_revision.evidence_anchor = emptyAnchor();
     if (!draft.from_scratch.evidence_anchor) draft.from_scratch.evidence_anchor = emptyAnchor();
@@ -3535,16 +3584,21 @@
 
     // Grounding disclaimer banner (required mode only).
     //
-    // `Grounding required` was one of the chips deleted above, and this banner
-    // was gated on `task.grounding_disclaimer` — so a task in grounding_mode
-    // 'required' with an EMPTY disclaimer rendered no banner at all, and the
-    // chip was the only warning. Deleting the chip without widening the gate
-    // would mean that physician first learns about the requirement when submit
-    // refuses them. The gate is now the REQUIREMENT, and the copy has a default.
+    // `Grounding required` was one of the chips deleted above, which makes this
+    // banner the ONLY warning a physician gets before submit refuses them. It
+    // was gated on `task.grounding_disclaimer` as well as on the requirement —
+    // so the warning depended on a field the client does not control.
+    //
+    // Today that field is safe: routers/asclepius.py sends the
+    // GROUNDED_PREMIUM_DISCLAIMER constant for every required task, so it is
+    // never empty on the wire and this gate has nothing to catch yet. It is
+    // widened anyway, because "the only warning" must not be one server-side
+    // refactor away from disappearing — the day the disclaimer becomes
+    // per-task or nullable, the warning stays.
     //
     // The requirement itself is unchanged: groundingSatisfied() still enforces
-    // it at submit, so no chip and no banner could ever let a bad submission
-    // through — this is about warning them in time, not about the gate.
+    // it at submit, so neither the chip nor this banner could ever let a bad
+    // submission through — this is about warning them in time, not the gate.
     let groundingBanner = null;
     if (required) {
       groundingBanner = h('div', { class: 'asc-grounding-banner' },
@@ -7556,6 +7610,12 @@
      fails, which is the right fallback -- a broken-image glyph on somebody's
      own face is a worse outcome than the two letters they started with. */
   const avatarBlobCache = {};
+  // Requests still in flight, keyed by url. Before §3 this path ran once, when
+  // the profile page opened. It now runs on every renderSidePanel() — i.e. on
+  // every navigation — so without in-flight de-duplication a physician clicking
+  // through the rail fires several concurrent fetches for the same picture, and
+  // every one that resolves mints another object URL that nothing revokes.
+  const avatarBlobPending = {};
   function avatarImgEl(url, initials) {
     const img = h('img', { class: 'asc-me-avatar-img', alt: '' });
     const fallback = h('span', { class: 'asc-me-avatar-initials' }, initials);
@@ -7571,7 +7631,8 @@
 
   function loadAvatarBlob(url) {
     if (avatarBlobCache[url]) return Promise.resolve(avatarBlobCache[url]);
-    return fetch(url, {
+    if (avatarBlobPending[url]) return avatarBlobPending[url];
+    const inflight = fetch(url, {
       headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
     }).then((res) => (res.ok ? res.blob() : null))
       .then((blob) => {
@@ -7581,6 +7642,12 @@
         return objectUrl;
       })
       .catch(() => null);
+    // Cleared either way: a failed fetch must be retryable on the next render,
+    // and a successful one is answered from avatarBlobCache from here on.
+    avatarBlobPending[url] = inflight;
+    inflight.then(() => { delete avatarBlobPending[url]; },
+                  () => { delete avatarBlobPending[url]; });
+    return inflight;
   }
 
   function fallbackInitials(name) {

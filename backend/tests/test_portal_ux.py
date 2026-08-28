@@ -384,6 +384,57 @@ def test_an_uploaded_photo_is_preferred_over_the_initials():
     assert "has-img" in out["cls"]
 
 
+def test_concurrent_avatar_renders_share_one_fetch():
+    """§3 moved this path from "once, when the profile page opens" to "every
+    renderSidePanel()", i.e. every navigation. Without in-flight de-duplication
+    a physician clicking through the rail fires several concurrent fetches for
+    the same picture, and every one that resolves mints an object URL nothing
+    revokes."""
+    payload = "\n".join([_fn("loadAvatarBlob"),
+                          _const("avatarBlobCache"), _const("avatarBlobPending")])
+    out = _run_node(_PRELUDE + """
+    let fetches = 0;
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    globalThis.fetch = () => { fetches++; return gate; };
+    globalThis.URL = { createObjectURL: () => 'blob:x' };
+    const state = { token: 't' };
+    %s
+    const a = loadAvatarBlob('/u/1/avatar'), b = loadAvatarBlob('/u/1/avatar'),
+          c = loadAvatarBlob('/u/2/avatar');
+    release({ ok: true, blob: () => Promise.resolve({}) });
+    Promise.all([a, b, c]).then(() => {
+      // A later render, after the first resolved, is answered from the cache.
+      loadAvatarBlob('/u/1/avatar');
+      out({ fetches, cached: Object.keys(avatarBlobCache).length,
+            pendingLeft: Object.keys(avatarBlobPending).length });
+    });
+    """ % payload)
+    assert out["fetches"] == 2, "two urls, one fetch each — not one per render"
+    assert out["pendingLeft"] == 0, "the in-flight table must not grow forever"
+
+
+def test_a_failed_avatar_fetch_stays_retryable():
+    payload = "\n".join([_fn("loadAvatarBlob"),
+                          _const("avatarBlobCache"), _const("avatarBlobPending")])
+    out = _run_node(_PRELUDE + """
+    let fetches = 0;
+    globalThis.fetch = () => { fetches++; return Promise.reject(new Error('offline')); };
+    globalThis.URL = { createObjectURL: () => 'blob:x' };
+    const state = { token: 't' };
+    %s
+    loadAvatarBlob('/u/1/avatar').then((first) => {
+      loadAvatarBlob('/u/1/avatar').then((second) => {
+        out({ fetches, first, second,
+              pendingLeft: Object.keys(avatarBlobPending).length });
+      });
+    });
+    """ % payload)
+    assert out["first"] is None and out["second"] is None
+    assert out["fetches"] == 2, "a failed fetch must be retryable on the next render"
+    assert out["pendingLeft"] == 0
+
+
 def test_the_avatar_is_mounted_in_the_rail_foot_and_styled():
     src = _fn("renderSidePanel")
     assert "railAvatarEl(specColor)" in _code(src)
@@ -614,6 +665,155 @@ def test_the_practice_case_is_never_offered_as_a_resumable_case():
                         {"tasks": [{"task_id": "tutorial-calibration-1"}, {"task_id": "t-1"}],
                          "served_portal_version": "v4"})
     assert out["title"] == "Start new case"
+
+
+# ─── §4 fallout: the one button must never dead-end ──────────────────────────
+#
+# Both of these were found by walking the shipped build in a real browser, not
+# by reading it. Neither is new code — but §4 moved them from "an edge case on a
+# secondary control" to "the only button on the dashboard", which is what makes
+# them this change's problem.
+
+_OPEN_PRELUDE = _PRELUDE + """
+const calls = [];
+let rendered = null;
+const state = { user: {}, token: 't', view: 'home', draft: null, task: null,
+                servedVersion: null, continuedFrom: null, portalChosen: false,
+                specialtyChosen: false, timerStart: null, baseElapsed: 0,
+                timerInterval: null };
+let RESPONSE = null;   // null => api() throws THROWN
+let THROWN = null;
+
+function setRoot(node) { rendered = node; calls.push('setRoot'); }
+function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+function renderHeader() {}
+function startTimer() {}
+function toast(m) { calls.push('toast:' + m); }
+function renderTaskWorkspace() { calls.push('renderTaskWorkspace'); }
+function renderDashboardView() { calls.push('renderDashboardView'); }
+async function loadWithheldAnswersIfNeeded() {}
+function getPortalVersion() { return 'v3'; }
+function emptyAnchorX() {}
+async function api() { if (RESPONSE) return RESPONSE; throw THROWN; }
+%(payload)s
+"""
+
+
+def _open_harness(body: str) -> dict:
+    payload = "\n".join([
+        _const("DRAFT_PREFIX"),
+        _fn("h"), _fn("appendChildren"), _fn("draftKey"), _fn("randomId"),
+        _fn("emptyAnchor"), _fn("newDraft"), _fn("initDraftForTask"),
+        _fn("clearDraft"), _fn("openTaskById"),
+    ])
+    return _run_node(_OPEN_PRELUDE % {"payload": payload} + "\n" + body)
+
+
+def test_a_structurally_incomplete_draft_is_repaired_not_thrown_on():
+    """Every member backfill in initDraftForTask dereferences one of these
+    objects, so a draft missing one threw a TypeError before any of them ran —
+    and openTaskById caught it and left the physician on "Opening case…".
+
+    A draft can be shaped like this for real: written before one of the fields
+    existed, or truncated by a localStorage quota failure part-way through a
+    write. The work that DID survive is in the other fields, so it is repaired
+    in place rather than discarded.
+    """
+    out = _open_harness("""
+    localStorage.setItem('asclepius_draft_t-1', JSON.stringify(
+      {task_id: 't-1', elapsedSec: 300, savedAt: 5,
+       independent_answer: {text: 'the work they already did'}}));
+    let threw = null;
+    try { initDraftForTask({task_id: 't-1'}); } catch (e) { threw = String(e); }
+    out({ threw,
+          elapsed: state.draft && state.draft.elapsedSec,
+          keptWork: state.draft && state.draft.independent_answer.text,
+          anchor: state.draft && !!state.draft.independent_answer.evidence_anchor,
+          revision: state.draft && typeof state.draft.chosen_revision,
+          critique: state.draft && Array.isArray(state.draft.rejected_critique.error_tags),
+          steps: state.draft && Array.isArray(state.draft.reasoning_steps) });
+    """)
+    assert out["threw"] is None, out["threw"]
+    assert out["elapsed"] == 300, "the elapsed on record survived the repair"
+    assert out["keptWork"] == "the work they already did", "the repair must not discard work"
+    assert out["anchor"] is True
+    assert out["revision"] == "object"
+    assert out["critique"] is True
+    assert out["steps"] is True
+
+
+def test_a_case_that_will_not_open_lands_on_the_dashboard_not_a_loading_card():
+    """openTaskById replaces the whole root with "Opening case…" before it
+    fetches. It used to toast on failure and render nothing else, so the
+    physician sat on that card until they reloaded — and §4 made this the
+    dashboard's only button."""
+    out = _open_harness("""
+    THROWN = { status: 500, message: 'the server fell over' };
+    openTaskById('t-1').then(() => out({ calls, root: rendered.textContent }));
+    """)
+    assert "renderDashboardView" in out["calls"], "the physician was left on the loading card"
+    assert any(c.startswith("toast:") for c in out["calls"])
+
+
+@pytest.mark.parametrize("status", [403, 404, 410])
+def test_a_dead_case_takes_its_draft_with_it(status):
+    """Gone, refused or withdrawn is terminal for THIS case. Leaving the draft
+    behind means the dashboard reads it straight back and offers the same
+    Continue that just failed — an inescapable loop on the one control the
+    physician has. §4.1's "prefer a clean Start over a broken resume", applied
+    one step later than the queue filter can reach."""
+    out = _open_harness("""
+    localStorage.setItem('asclepius_draft_t-1', JSON.stringify({task_id: 't-1', savedAt: 1}));
+    THROWN = { status: %d, message: 'gone' };
+    openTaskById('t-1').then(() => out({
+      calls, draftLeft: !!localStorage.getItem('asclepius_draft_t-1') }));
+    """ % status)
+    assert out["draftLeft"] is False, "the dead draft would offer the same failing Continue"
+    assert "renderDashboardView" in out["calls"]
+
+
+def test_a_200_carrying_no_task_is_treated_as_a_dead_case_not_a_silent_bounce():
+    """Same fact as a 404 — the server has nothing under this id. Bouncing back
+    to the dashboard with the draft intact and no message loops the physician
+    between Continue and the dashboard with nothing on screen to explain it,
+    which is worse than the stranded loading card: that at least looks broken."""
+    out = _open_harness("""
+    localStorage.setItem('asclepius_draft_t-1', JSON.stringify({task_id: 't-1', savedAt: 1}));
+    RESPONSE = { task: null };
+    openTaskById('t-1').then(() => out({
+      calls, draftLeft: !!localStorage.getItem('asclepius_draft_t-1') }));
+    """)
+    assert out["draftLeft"] is False
+    assert "renderDashboardView" in out["calls"]
+    assert any(c.startswith("toast:") for c in out["calls"]), "a silent bounce explains nothing"
+    assert "renderTaskWorkspace" not in out["calls"]
+
+
+def test_a_transient_failure_never_costs_the_physician_their_draft():
+    """A flaky network or a 500 may well clear. Dropping an hour of clinical
+    reasoning because one request failed is a far worse outcome than one
+    Continue that has to be retried."""
+    for thrown in ('{ status: 500, message: "boom" }',
+                   '{ message: "NetworkError" }'):
+        out = _open_harness("""
+        localStorage.setItem('asclepius_draft_t-1', JSON.stringify({task_id: 't-1', savedAt: 1}));
+        THROWN = %s;
+        openTaskById('t-1').then(() => out({
+          calls, draftLeft: !!localStorage.getItem('asclepius_draft_t-1') }));
+        """ % thrown)
+        assert out["draftLeft"] is True, thrown
+        assert "renderDashboardView" in out["calls"], thrown
+
+
+def test_a_401_leaves_the_screen_to_the_session_handler():
+    """handleUnauthorized has already rendered the login form; rendering the
+    dashboard over it would put a signed-out physician on a signed-in screen."""
+    out = _open_harness("""
+    THROWN = { status: 401, message: 'expired' };
+    openTaskById('t-1').then(() => out({ calls }));
+    """)
+    assert "renderDashboardView" not in out["calls"]
+    assert not any(c.startswith("toast:") for c in out["calls"])
 
 
 def test_the_task_card_renderer_is_gone_entirely():
@@ -955,16 +1155,33 @@ def test_the_prompt_card_still_carries_the_question():
 
 
 def test_a_grounding_required_task_with_no_disclaimer_still_warns_the_physician():
-    """The one real edge case §7 creates. `Grounding required` was in the deleted
-    row, and the banner that normally carries the message was gated on
-    ``task.grounding_disclaimer`` — so a task in grounding_mode 'required' with
-    an EMPTY disclaimer rendered neither, and that physician would first learn
-    about the requirement when submit refused them."""
+    """§7 makes this banner the ONLY warning before submit refuses them.
+
+    It used to be gated on ``task.grounding_disclaimer`` as well as on the
+    requirement, i.e. on a field the client does not control. Today that field
+    is safe — ``routers/asclepius.py`` sends the GROUNDED_PREMIUM_DISCLAIMER
+    constant for every required task, so it is never empty on the wire and this
+    widened gate has nothing to catch yet. It is asserted anyway: the chip that
+    used to back the banner up is gone, so "the only warning" must not be one
+    server-side refactor away from disappearing.
+    """
     ws = _code(_fn("renderTaskWorkspace"))
     assert "if (required && task.grounding_disclaimer)" not in ws, "the narrow gate is gone"
     assert "if (required) {" in ws
     assert "task.grounding_disclaimer\n              || 'Every claim in your answer needs a citation anchored to the case.'" in ws
     assert "Evidence required for this task" in ws
+
+
+def test_the_server_still_supplies_a_disclaimer_for_every_required_task():
+    """The other half of the test above. If this constant ever becomes per-task
+    or nullable, the client gate widened in §7 is what keeps the warning on
+    screen — and this test is the pointer between the two."""
+    router = (pathlib.Path(__file__).resolve().parents[1]
+              / "routers" / "asclepius.py").read_text(encoding="utf-8")
+    assert ('"grounding_disclaimer": GROUNDED_PREMIUM_DISCLAIMER '
+            'if grounding_mode == "required" else None') in router
+    from asclepius.constants import GROUNDED_PREMIUM_DISCLAIMER
+    assert GROUNDED_PREMIUM_DISCLAIMER.strip(), "the shipped disclaimer is empty"
 
 
 def test_the_grounding_requirement_itself_is_untouched():
