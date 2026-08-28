@@ -262,6 +262,25 @@ _PRD_R_PRIORITY_ORDER = f"ORDER BY {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
 # ``t.trajectory_id IS NULL`` comes FIRST so every existing V1–V4 task short-circuits
 # out of the correlated subquery entirely: unaffected by construction, and free.
 #
+# TWO CONSEQUENCES OF THIS RULE THAT ARE EASY TO MISREAD AS BUGS. Both are
+# correct, and both were checked against the alternative.
+#
+#   * ANY submission by this evaluator advances the walk, including a
+#     verdict-less one (a flagged prompt, a "not hard", an incoherent case). That
+#     is deliberate: a physician who rejected point 3's prompt never predicted
+#     anything at point 3, so nothing of theirs is destroyed by point 4 — and
+#     requiring a VERDICT would strand them on a case they legitimately refused,
+#     forever, with no way forward.
+#
+#   * At ``max_labels = 1`` (the trajectory default, §9.6) the first physician to
+#     take point 0 OWNS the walk: every later point is gated behind point 0, and
+#     point 0 is at capacity for everyone else. That is the single-label policy
+#     working, not a deadlock — but it does mean a physician who takes point 0 and
+#     never returns leaves the remaining points unreachable. The release is
+#     ``flag_tasks_for_double_label`` on point 0, which lifts it to 2 and lets a
+#     second physician start the walk; §9.6's point is that double-walking is an
+#     explicit, priced decision, and this is what making it explicitly is.
+#
 # ``t.sequence_index IS NOT NULL`` is the second half of the same guarantee, and it
 # is not defensive noise. SQL three-valued logic would make ``p.sequence_index <
 # NULL`` evaluate to NULL for every earlier point, the NOT EXISTS would come back

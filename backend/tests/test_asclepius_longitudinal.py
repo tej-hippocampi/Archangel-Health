@@ -476,6 +476,38 @@ def test_second_label_draw_is_gated_too():
     assert got is not None and got["task_id"] == points[0]["task_id"]
 
 
+def test_a_flagged_prompt_still_advances_the_walk():
+    """A physician who rejected point 1's prompt never predicted anything at point
+    1, so nothing of theirs is destroyed by point 2 — and requiring a VERDICT would
+    strand them on a case they legitimately refused, with no way forward."""
+    store = _store()
+    _tid, points = _walk(store, n=3)
+    store.insert_submission(
+        submission_id="s-flag", task_id=points[0]["task_id"], evaluator_id="A",
+        verdict=None, chosen_id=None, rejected_id=None, confidence="high",
+        time_spent_sec=60, payload={"prompt_review": {"verdict": "flagged"}},
+        annotator={}, dedupe_hash=None, status="prompt_flagged")
+    assert _queue(store, "A") == [points[1]["task_id"]]
+
+
+def test_at_max_labels_1_the_first_physician_owns_the_walk_and_an_admin_can_release_it():
+    """§9.6 working, not a deadlock — plus the escape hatch, because a physician
+    who takes point 0 and never returns would otherwise strand the whole chart."""
+    store = _store()
+    _tid, points = _walk(store, n=3)
+    _submit(store, points[0], "A")
+    # B cannot start: point 0 is at capacity and everything later is gated on it.
+    assert store.next_task_for_evaluator(
+        evaluator_id="B", specialty="gastroenterology", real_only=True) is None
+    # The release is an explicit, priced decision — a second independent walk.
+    assert store.flag_tasks_for_double_label(
+        [{"task_id": points[0]["task_id"], "specialty": "gastroenterology",
+          "current_rate": None}]) == [points[0]["task_id"]]
+    got = store.next_task_for_evaluator(
+        evaluator_id="B", specialty="gastroenterology", real_only=True)
+    assert got is not None and got["task_id"] == points[0]["task_id"]
+
+
 # ─── the direct-open path: a queue-only fix is not a fix ──────────────────────
 def test_direct_open_of_an_out_of_order_point_is_409():
     store = _store()
@@ -938,6 +970,47 @@ def test_the_export_annex_carries_the_reassembly_key_and_the_falsifier():
 
 def test_the_annex_is_absent_where_it_would_mean_nothing():
     assert asc_packaging.trajectory_block({"task_id": "t1"}, {"payload": {}}) is None
+
+
+def _quality_md(points):
+    from asclepius import export as E
+    stats = {
+        "status_counts": {}, "qa_pass_rate": {"pass_rate": 1.0, "passed": 1, "reviewed": 1},
+        "average_agreement": None, "review_acceptance": {},
+        "external_adjudication_agreement": {}, "flag_counts": {}, "contributors": [],
+        "kappa": {"n": 0, "overall": None, "reason": "below min-n", "ci": None,
+                  "min_n": 30, "by_specialty": {}, "observed_agreement": None,
+                  "excluded_unblinded": 0, "excluded_trajectory": len(points)},
+        "outcome_verification": asc_trajectory.outcome_verification(points),
+    }
+    return E._quality_report_md(
+        export_id="e1", profile_name="default", stats=stats,
+        records=[{"type": "preference", "payload": {
+            "grounded": True, "confidence": "high", "portal_version": "v4",
+            "specialty": "gastroenterology"}}])
+
+
+def test_the_quality_report_names_outcome_verification_separately_from_kappa():
+    """Two statistics over two pools. A figure filed under a κ label is a claim
+    nobody measured — the same rule that keeps review acceptance separate."""
+    md = _quality_md([
+        {"expected_trajectory": {"falsifiable": True},
+         "self_score": {"verified": True, "n_held": 2, "n_did_not_hold": 1,
+                        "n_not_assessable": 1, "falsifier_fired": True}}])
+    assert "## Outcome verification (longitudinal decision points — NOT κ)" in md
+    assert "Excluded as sequential" in md
+    # The κ section still reports κ, and the new numbers are not inside it.
+    kappa_section = md[md.index("## Inter-annotator agreement"):md.index("## Outcome verification")]
+    assert "anticipation" not in kappa_section.lower()
+
+
+def test_a_batch_with_no_decision_points_prints_no_table_of_zeros():
+    """Not measured badly — not measured at all. A row of zeros under a heading
+    reads as the former."""
+    md = _quality_md([])
+    assert "Outcome verification" not in md
+    # …and the κ section still renders, unchanged in shape.
+    assert "## Inter-annotator agreement" in md
 
 
 def test_the_data_dictionary_documents_every_shipped_trajectory_field():
