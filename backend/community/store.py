@@ -257,6 +257,17 @@ class CommunityStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cdigest_kind
                     ON community_digest_runs(kind, id);
+                -- Paid-search spend control. Counts CALLS per provider per UTC
+                -- day, not dollars: per-provider pricing drifts and a number
+                -- this file cannot verify is worse than no number. Durable
+                -- rather than in-process, so a restart cannot reset the day's
+                -- budget and a redeploy loop cannot spend it repeatedly.
+                CREATE TABLE IF NOT EXISTS community_search_budget (
+                    day       TEXT NOT NULL,
+                    provider  TEXT NOT NULL,
+                    calls     INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (day, provider)
+                );
                 -- ─── Community v2.1: events / polls / pins / bookmarks ───────────
                 CREATE TABLE IF NOT EXISTS community_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1177,6 +1188,49 @@ class CommunityStore:
         prefs = self.email_prefs(user_id)
         raw = prefs.get("activity_emails")
         return True if raw is None else bool(int(raw))
+
+    # ─── Paid-search budget ──────────────────────────────────────────────────
+    def search_calls_today(self, provider: str, *, day: Optional[str] = None) -> int:
+        d = day or _utcnow_iso()[:10]
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT calls FROM community_search_budget WHERE day = ? AND provider = ?",
+                (d, provider),
+            ).fetchone()
+            return int(row["calls"]) if row else 0
+
+    def claim_search_call(
+        self, provider: str, *, cap: int, day: Optional[str] = None
+    ) -> bool:
+        """Reserve one paid search call against today's cap.
+
+        Returns True if the call may proceed. The increment and the check are
+        one statement under the store's own lock, so two concurrent morning
+        scopes cannot both read "one left" and both spend it.
+
+        A cap of 0 or less means unlimited, which is what a deployment that has
+        not opted into paid search wants: the providers are keyless there and
+        never called anyway.
+        """
+        d = day or _utcnow_iso()[:10]
+        if cap is None or int(cap) <= 0:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO community_search_budget (day, provider, calls) "
+                    "VALUES (?, ?, 1) ON CONFLICT(day, provider) DO UPDATE SET "
+                    "calls = calls + 1",
+                    (d, provider),
+                )
+            return True
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO community_search_budget (day, provider, calls) "
+                "VALUES (?, ?, 1) ON CONFLICT(day, provider) DO UPDATE SET "
+                "calls = calls + 1 WHERE community_search_budget.calls < ? "
+                "RETURNING calls",
+                (d, provider, int(cap)),
+            ).fetchone()
+            return cur is not None
 
     def news_email_recipients(self, *, weekly: bool) -> List[Dict[str, Any]]:
         """Members due a news email on this run.

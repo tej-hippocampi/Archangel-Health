@@ -17,6 +17,38 @@ Optional, with sensible defaults: `COMMUNITY_MORNING_HOUR_LOCAL=7`,
 `COMMUNITY_EVENTS_MAX=3`, `COMMUNITY_DISCUSSION_DOW=2`,
 `COMMUNITY_WEBSEARCH_MAX_USES=5`.
 
+### Paid retrieval (recommended)
+
+The Anthropic search tool alone is one vendor and one index, and its failure
+mode without a key is silence that looks exactly like a quiet day. Add the paid
+rungs:
+
+```
+COMMUNITY_SEARCH_PROVIDERS=exa,firecrawl,anthropic
+EXA_API_KEY=...
+FIRECRAWL_API_KEY=...
+COMMUNITY_SEARCH_DAILY_CALL_CAP=40     # calls per provider per UTC day; 0 = no cap
+```
+
+Exa and Firecrawl are **retrievers**: they return results and the model then
+selects among them. This makes the citation gate stronger rather than weaker,
+because the allowlist becomes a set built from a search response instead of one
+parsed back out of the model's own prose. A URL the search never returned still
+never reaches a doctor, on either path.
+
+With Firecrawl configured, the weekly discussion prompt also runs an agentic
+second step: it fetches the page it is about before writing the summary. It is
+the one item that earns the extra call, because it runs weekly, claims to
+summarize a specific source, and asks a room of physicians to argue about it.
+
+The cap counts **calls, not dollars**. Per-provider pricing drifts, and a spend
+figure the code cannot verify would read as a guarantee. The ledger is durable
+(`community_search_budget`), so a restart does not hand the day a fresh budget,
+and a redeploy loop cannot spend it repeatedly. If the ledger itself is
+unreachable the check fails **open**: the cap exists to stop a runaway loop, not
+to police a correct one, and refusing every search because SQLite hiccuped is
+the more expensive failure.
+
 Turning this on also stands the older news-digest **email** down, because the
 morning email carries the digest and two automated emails on the same morning
 is one too many. The in-app digest post is unaffected.
