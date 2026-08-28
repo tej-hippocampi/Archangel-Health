@@ -229,7 +229,24 @@ _PRD_R_SERVABLE = (
 # label) simply loses its place at the head, and the scan falls through to fresh
 # work. The moment this becomes a WHERE clause, a labeler with no eligible
 # second-label work sees an empty queue and stops working (PRD R §7).
-_PRD_R_PRIORITY_ORDER = f"ORDER BY {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
+# An assignment is a PRIORITY, never a PERMISSION.
+#
+# store.py:226-231 already states the law for the second-label term: the moment
+# priority becomes a WHERE clause, a labeler with no eligible work sees an empty
+# queue and stops working, and test_routing_priority pins it. The same argument
+# applies with more force here, because an assignment names ONE person: as a
+# filter it would empty the queue of everyone who has not been allocated
+# anything yet, which on the day this ships is everyone.
+#
+# So an assigned case sorts to the TOP of its assignee's queue and changes
+# nothing else. Everybody else still sees it, ranked exactly where it was.
+_PRD_ASSIGN_MINE = (
+    "EXISTS (SELECT 1 FROM assignments a WHERE a.task_id = t.task_id "
+    "AND a.user_id = ? AND a.role = 'label' AND a.status IN ('offered','claimed'))"
+)
+_PRD_R_PRIORITY_ORDER = (
+    f"ORDER BY {_PRD_ASSIGN_MINE} DESC, {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
+)
 # ═══ END PRD-R ═══════════════════════════════════════════════════════════════
 
 
@@ -1959,6 +1976,45 @@ class AsclepiusStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_beat_session ON session_beats(session_id, seq)")
 
+            # ─── Assignment (PRD-ASSIGN) ─────────────────────────────────
+            # There was no assignment concept at any layer: no table, no
+            # column, no endpoint, no UI. A hundred promoted nephrology cases
+            # reached physicians purely by pull from a specialty-filtered,
+            # oldest-first queue announced by one email, so one fast labeler
+            # could take all hundred and nobody could say who was meant to do
+            # what.
+            #
+            # ``role`` distinguishes the two jobs on one case: a physician
+            # assigned to LABEL it and one assigned to REVIEW it are different
+            # assignments, and the same person must never hold both. The
+            # allocator enforces that, and independence is still enforced in SQL
+            # on the draw regardless, because a table is not an access check.
+            #
+            # UNIQUE(task_id, user_id, role) so re-running an allocation is
+            # idempotent rather than duplicating everyone's queue.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS assignments (
+                    assignment_id TEXT PRIMARY KEY,
+                    task_id       TEXT NOT NULL,
+                    user_id       TEXT NOT NULL,
+                    role          TEXT NOT NULL,
+                    status        TEXT NOT NULL,
+                    assigned_by   TEXT,
+                    assigned_at   TEXT NOT NULL,
+                    due_at        TEXT,
+                    exclusive     INTEGER NOT NULL DEFAULT 0,
+                    expires_at    TEXT,
+                    note          TEXT,
+                    UNIQUE (task_id, user_id, role)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_assign_user "
+                         "ON assignments(user_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_assign_task "
+                         "ON assignments(task_id, role)")
+
             # The ledger. ``UNIQUE(kind, ref_id)`` is the double-payment guard —
             # not a nicety. Every double-payment story starts with an application
             # check that raced; this one cannot, because two concurrent finalizers
@@ -2893,6 +2949,95 @@ class AsclepiusStore:
                 f"SELECT * FROM buyer_deliveries {where} ORDER BY sent_at DESC", tuple(params)
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # ─── Assignment (PRD-ASSIGN) ─────────────────────────────────────────────
+    def upsert_assignment(
+        self, *, task_id: str, user_id: str, role: str, assigned_by: str,
+        due_at: Optional[str] = None, exclusive: bool = False,
+        expires_at: Optional[str] = None, note: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create or refresh one assignment. Idempotent on (task, user, role),
+        so re-running an allocation does not duplicate anyone's queue."""
+        assignment_id = f"asg-{uuid.uuid4().hex[:12]}"
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO assignments (assignment_id, task_id, user_id, role, "
+                "status, assigned_by, assigned_at, due_at, exclusive, expires_at, note) "
+                "VALUES (?,?,?,?,'offered',?,?,?,?,?,?) "
+                "ON CONFLICT(task_id, user_id, role) DO UPDATE SET "
+                "  assigned_by = excluded.assigned_by, due_at = excluded.due_at, "
+                "  exclusive = excluded.exclusive, expires_at = excluded.expires_at, "
+                "  note = excluded.note, "
+                # A revoked or expired assignment coming back is a new offer;
+                # one already claimed or done is left alone, because re-offering
+                # work somebody is in the middle of is how two people do it.
+                "  status = CASE WHEN assignments.status IN ('revoked','expired') "
+                "                THEN 'offered' ELSE assignments.status END",
+                (assignment_id, task_id, user_id, role, assigned_by, _utcnow_iso(),
+                 due_at, 1 if exclusive else 0, expires_at, note),
+            )
+            row = conn.execute(
+                "SELECT * FROM assignments WHERE task_id = ? AND user_id = ? AND role = ?",
+                (task_id, user_id, role),
+            ).fetchone()
+        return dict(row)
+
+    def set_assignment_status(self, assignment_id: str, status: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE assignments SET status = ? WHERE assignment_id = ?",
+                (status, assignment_id),
+            )
+            return cur.rowcount > 0
+
+    def assignments_for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM assignments WHERE task_id = ? ORDER BY assigned_at ASC",
+                (task_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def assignments_for_user(
+        self, user_id: str, *, role: Optional[str] = None, active_only: bool = True
+    ) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM assignments WHERE user_id = ?"
+        params: List[Any] = [user_id]
+        if role:
+            sql += " AND role = ?"
+            params.append(role)
+        if active_only:
+            sql += " AND status IN ('offered','claimed')"
+        sql += " ORDER BY assigned_at ASC"
+        with self._conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def open_assignment_counts(self) -> Dict[str, int]:
+        """How much work each physician is already holding. One query, because
+        the allocator needs it for everyone at once."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT user_id, COUNT(*) AS n FROM assignments "
+                "WHERE status IN ('offered','claimed') GROUP BY user_id"
+            ).fetchall()
+        return {r["user_id"]: int(r["n"]) for r in rows}
+
+    def expire_stale_assignments(self, *, now_iso: Optional[str] = None) -> int:
+        """Return timed-out exclusive assignments to the pool.
+
+        An exclusive assignment with no expiry is a queue that wedges the moment
+        somebody goes on holiday, so exclusivity is only ever offered with one.
+        """
+        now = now_iso or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE assignments SET status = 'expired' "
+                "WHERE status IN ('offered','claimed') AND expires_at IS NOT NULL "
+                "AND expires_at < ?",
+                (now,),
+            )
+            return cur.rowcount
 
     # ─── Case quality (internal metric, stamped) ─────────────────────────────
     def set_earning_quality(
@@ -4130,6 +4275,10 @@ class AsclepiusStore:
             {_PRD_R_PRIORITY_ORDER}
             LIMIT ?
             """
+        # The ORDER BY's assignment term binds AFTER every WHERE parameter,
+        # because SQLite numbers "?" by position in the statement and the
+        # ordering clause comes last.
+        params.append(evaluator_id)
         params.append(int(window))
         return sql, tuple(params)
 
