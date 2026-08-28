@@ -982,6 +982,12 @@ def test_the_session_view_never_serves_case_content():
     for p in body["points"]:
         assert set(p) == {"task_id", "sequence_index", "difficulty", "answered",
                           "openable", "outcome_verifiable"}
+    # No prompt, no case, no outcome anywhere in the payload — the gate exists so
+    # a physician cannot read ahead, and a session view rendering every point's
+    # chart would be that leak wearing a progress bar.
+    blob = json.dumps(body)
+    for point in points:
+        assert point["prompt"] not in blob
     # Only the first point is openable; a walk of 3 has 2 verifiable points.
     assert [p["openable"] for p in body["points"]] == [True, False, False]
     assert [p["outcome_verifiable"] for p in body["points"]] == [True, True, False]

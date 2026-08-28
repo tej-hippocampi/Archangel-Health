@@ -3977,6 +3977,11 @@ class AsclepiusStore:
             "trajectory_id": trajectory_id,
             "n_points": len(points),
             "n_answered": len(answered),
+            # Returned so a caller rendering the walk does not re-derive it with
+            # one query per point. This is loaded on every trajectory case open,
+            # and a 13-point walk cost 13 extra round-trips to learn something
+            # this single query already knew.
+            "answered_task_ids": sorted(answered),
             # The next point this evaluator may open — which, under the sequence
             # gate, is always the earliest unanswered one.
             "next_task_id": remaining[0]["task_id"] if remaining else None,

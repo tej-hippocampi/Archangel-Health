@@ -2686,14 +2686,9 @@ async def get_trajectory(
         raise HTTPException(status_code=404, detail="Trajectory not found")
     # The V4 wall applies to the walk exactly as it applies to each case in it.
     _require_real_data_access(points[0], user)
-    answered = {
-        s["task_id"]
-        for p in points
-        for s in store.submissions_for_task(p["task_id"])
-        if s.get("evaluator_id") == user["id"]
-    }
     progress = store.evaluator_trajectory_progress(
         trajectory_id=trajectory_id, evaluator_id=user["id"])
+    answered = set(progress.get("answered_task_ids") or ())
     return {
         "trajectory_id": trajectory_id,
         "specialty": points[0].get("specialty"),
