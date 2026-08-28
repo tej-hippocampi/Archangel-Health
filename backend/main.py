@@ -18,7 +18,7 @@ import html as html_lib
 import secrets
 import string
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlencode
 from typing import Optional, List, Dict, Any
 
@@ -2650,6 +2650,52 @@ async def _run_preop_survey_outreach() -> None:
                     event_type="preop_survey_sent",
                     payload={"window": window, "survey_day": survey_day},
                 )
+
+
+# ─── Build identity ───────────────────────────────────────────
+# Captured once, at import, so it describes THIS process rather than whatever the
+# filesystem looks like when someone asks.
+_BOOT_AT = datetime.now(timezone.utc).isoformat()
+_V4_BOOT_SUMMARY: Dict[str, Any] = {"ran": False}
+
+
+def _running_commit() -> Dict[str, Optional[str]]:
+    """What code is this process actually running?
+
+    Railway injects RAILWAY_GIT_COMMIT_SHA / _BRANCH at build time; a generic
+    host may set GIT_COMMIT or SOURCE_COMMIT. Falling back to `git rev-parse`
+    covers a local run, and is deliberately last: in a container built from a
+    tarball there is no .git, and a stale one would be worse than nothing."""
+    sha = (os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("GIT_COMMIT")
+           or os.getenv("SOURCE_COMMIT") or os.getenv("HEROKU_SLUG_COMMIT"))
+    branch = os.getenv("RAILWAY_GIT_BRANCH") or os.getenv("GIT_BRANCH")
+    if not sha:
+        try:
+            import subprocess
+            sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                timeout=3, cwd=os.path.dirname(os.path.abspath(__file__)),
+            ).stdout.strip() or None
+        except Exception:
+            sha = None
+    return {"commit": sha, "short_commit": (sha or "")[:7] or None, "branch": branch}
+
+
+@app.get("/api/version")
+async def api_version():
+    """Which commit is live, and when did it start?
+
+    This exists because "I pushed a fix and I am not seeing it" had no answer
+    short of reading a dashboard: nothing the running process served said what
+    code it was. A deploy that never happened, a deploy that failed back to the
+    previous image, and a real bug in the new code all present identically — as
+    the old behaviour — and the only way to tell them apart was to guess.
+
+    Deliberately unauthenticated and deliberately thin: a commit SHA and a start
+    time, which is what a health check and an operator both need. Nothing about
+    accounts, data, configuration or the environment goes here."""
+    return {**_running_commit(), "started_at": _BOOT_AT,
+            "deployment_id": os.getenv("RAILWAY_DEPLOYMENT_ID")}
 
 
 # ─── Doctor Portal ────────────────────────────────────────────
@@ -6209,14 +6255,24 @@ async def startup_team_scheduler():
             "%d visibility-corrected (open_to_all_specialties=%s)",
             _v4.get("loaded", 0), _v4.get("skipped", 0), _v4.get("held", 0),
             _v4.get("revisited", 0), _open_all)
+        # Kept so an operator can confirm the seeding ran on THIS process rather
+        # than inferring it from a log line they may not be able to reach.
+        _V4_BOOT_SUMMARY.update(
+            ran=True, at=datetime.now(timezone.utc).isoformat(),
+            open_to_all_specialties=_open_all,
+            loaded=_v4.get("loaded", 0), already_present=_v4.get("skipped", 0),
+            held=sorted((_v4.get("holds") or {}).keys()),
+            visibility_corrected=_v4.get("revisited", 0))
         for _cid, _why in (_v4.get("study_gaps") or {}).items():
             _auth_logger.info("[asclepius] V4 real case %s ships with a gap: %s", _cid, _why)
         for _cid, _why in (_v4.get("holds") or {}).items():
             # A held case is a promise not kept. Name it at boot so it is visible
             # in the logs rather than only discoverable by its absence.
             _auth_logger.warning("[asclepius] V4 real case %s is HELD: %s", _cid, _why)
-    except Exception:
+    except Exception as _exc:
         _auth_logger.exception("[asclepius] V4 real-case seeding failed")
+        _V4_BOOT_SUMMARY.update(ran=False, error=str(_exc),
+                                at=datetime.now(timezone.utc).isoformat())
     # PRD-4: warn loudly if PHI email would go through a non-BAA transport.
     try:
         from email_utils import active_email_vendor, email_phi_allowed

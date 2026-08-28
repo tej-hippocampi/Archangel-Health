@@ -2266,7 +2266,18 @@ async def real_case_access_report(
             seeded.append({"case_id": entry["case_id"], "specialty": t.get("specialty"),
                            "open_to_all_specialties": bool(t.get("open_to_all_specialties")),
                            "max_labels": t.get("max_labels")})
+    # What the RUNNING process did at boot, not what the code would do now: an
+    # operator asking "did my deploy take?" needs the answer from this container.
+    try:
+        import main as _main_mod
+        boot = dict(getattr(_main_mod, "_V4_BOOT_SUMMARY", {}) or {})
+        build = _main_mod._running_commit()
+        build["started_at"] = getattr(_main_mod, "_BOOT_AT", None)
+    except Exception:  # a test app, or main imported under another name
+        boot, build = {}, {}
     report: Dict[str, Any] = {
+        "build": build,
+        "v4_seeding_at_boot": boot,
         "cases_in_queue": seeded,
         "open_to_all_specialties_setting": _open_all_cfg(),
         "specialties_with_a_real_case": sorted({c["specialty"] for c in seeded}),

@@ -1622,3 +1622,43 @@ def test_the_access_report_names_an_approval_gate_and_is_admin_only():
                       headers=A.headers_for(ev)).status_code in (401, 403)
     assert client.get("/api/asclepius/admin/real-case-access?email=nobody@example.com",
                       headers=_admin_h()).status_code == 404
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# "I pushed a fix and I am not seeing it"
+#
+# A deploy that never ran, a deploy that failed back to the previous image, and
+# a real bug in the new code all present identically — as the old behaviour.
+# Nothing the running process served said which commit it was, so telling them
+# apart meant reading a dashboard or guessing.
+# ═════════════════════════════════════════════════════════════════════════════
+def test_the_running_build_is_reportable_without_a_login():
+    r = client.get("/api/version")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body) >= {"commit", "short_commit", "branch", "started_at"}
+    assert body["started_at"], "a process that cannot say when it started is not answering the question"
+    if body["commit"]:
+        assert body["short_commit"] == body["commit"][:7]
+    # Thin on purpose: a health surface must not become an environment dump.
+    assert not (set(body) - {"commit", "short_commit", "branch", "started_at",
+                             "deployment_id"}), body
+
+
+def test_the_running_commit_prefers_the_platform_over_the_filesystem(monkeypatch):
+    """In a container built from a tarball there is no .git, and a stale one
+    would be worse than nothing — so the platform's own value wins."""
+    import main as main_mod
+    monkeypatch.setenv("RAILWAY_GIT_COMMIT_SHA", "0" * 40)
+    monkeypatch.setenv("RAILWAY_GIT_BRANCH", "main")
+    got = main_mod._running_commit()
+    assert got["commit"] == "0" * 40 and got["branch"] == "main"
+    assert got["short_commit"] == "0000000"
+
+
+def test_the_access_report_says_what_the_running_process_did_at_boot():
+    """The fan-out reconcile happens at startup. An operator checking whether a
+    deploy took needs that answer from THIS container, not from the source."""
+    rep = client.get("/api/asclepius/admin/real-case-access", headers=_admin_h()).json()
+    assert "build" in rep and "v4_seeding_at_boot" in rep
+    assert "open_to_all_specialties_setting" in rep

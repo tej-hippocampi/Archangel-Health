@@ -302,6 +302,27 @@ Two things make the setting actually reach a running deployment:
   what is missing and never rewrites visibility, because a physician drawing a
   case must not change who else can see the corpus as a side effect.
 
+### Is the fix actually deployed?
+
+`GET /api/version` — unauthenticated, no login needed:
+
+```json
+{"commit": "b3961e0…", "short_commit": "b3961e0", "branch": "main",
+ "started_at": "2026-08-28T…Z", "deployment_id": "…"}
+```
+
+Compare `short_commit` to the SHA you pushed. A deploy that never ran, a deploy
+that rolled back to the previous image, and a real bug in the new code all
+present identically — as the old behaviour — and before this endpoint the only
+way to tell them apart was to read the Railway dashboard or guess.
+
+The reconcile above runs in the **startup hook**, so it takes effect on the
+process restart a deploy performs. `GET /admin/real-case-access` reports what the
+running process did at boot (`v4_seeding_at_boot`: loaded / already_present /
+visibility_corrected) alongside its `build`, so "did my deploy take, and did it
+widen the cases?" is one request. If the host is not restarting, `POST
+/generation/load-v4-real-cases` performs the same reconcile on demand.
+
 ### Why can this doctor not see a real case?
 
 `GET /api/asclepius/admin/real-case-access?email=…` (admin only) answers it.
