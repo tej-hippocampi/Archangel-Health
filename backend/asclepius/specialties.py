@@ -12,7 +12,7 @@ A request for a specialty that is unknown or ``enabled=False`` raises
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class SpecialtyNotEnabled(ValueError):
@@ -420,3 +420,129 @@ def list_specialties() -> List[Dict[str, Any]]:
             }
         )
     return out
+
+
+# ─── Matching a free-text specialty to a registry entry ──────────────────────
+#
+# Written because task-notify recipient resolution was a bare SQL equality
+# (``lower(trim(specialty)) = lower(trim(?))``). A task filed as "renal" or a
+# physician who typed "Nephrology - Transplant" matched NOBODY, enqueued zero
+# outbox rows, and the caller swallowed the empty result. The batch reached
+# nobody and nothing said so.
+#
+# These are MATCHING aids for notification and channel routing only. They are
+# deliberately NOT used to widen who may draw a case: that is a separate
+# decision (``store.labeler_queue_sql``) and widening it here by accident is
+# how a cardiologist ends up labelling a nephrology chart.
+
+# Common ways one specialty gets written down. Lowercase, matched whole.
+SPECIALTY_ALIASES: Dict[str, str] = {
+    "renal": "nephrology",
+    "renal medicine": "nephrology",
+    "kidney": "nephrology",
+    "nephro": "nephrology",
+    "cardiac": "cardiology",
+    "cardio": "cardiology",
+    "heart": "cardiology",
+    "cardiovascular": "cardiology",
+    "cardiovascular medicine": "cardiology",
+    "onc": "oncology",
+    "medical oncology": "oncology",
+    "haematology oncology": "oncology",
+    "hematology oncology": "oncology",
+    "hem onc": "oncology",
+    "heme onc": "oncology",
+    "hepatic": "hepatology",
+    "hepato": "hepatology",
+    "liver": "hepatology",
+    "gi hepatology": "hepatology",
+}
+
+
+def _normalize(raw: str) -> str:
+    """Lowercase, trim, and collapse the separators people actually type.
+
+    "Nephrology - Transplant", "nephrology/transplant" and "Nephrology
+    (transplant)" all normalize to the same leading token set.
+    """
+    s = (raw or "").strip().lower()
+    for ch in ("-", "/", "\\", "(", ")", ",", ":", "|", "&", "+", "."):
+        s = s.replace(ch, " ")
+    return " ".join(s.split())
+
+
+def _contains_phrase(tokens: List[str], phrase: List[str]) -> bool:
+    """Whether ``phrase`` appears as a contiguous run of WHOLE tokens.
+
+    Whole tokens, because substring matching turns "cardiothoracic" into
+    "cardio" and mails a surgeon somebody else's queue.
+    """
+    if not phrase or len(phrase) > len(tokens):
+        return False
+    return any(
+        tokens[i : i + len(phrase)] == phrase
+        for i in range(len(tokens) - len(phrase) + 1)
+    )
+
+
+def match_specialty(raw: str) -> Optional[str]:
+    """Best-effort map from free text to a registry specialty name, or None.
+
+    Order matters: an exact registry hit wins, then a whole-string alias, then
+    a leading-token match ("nephrology transplant" -> nephrology), then a
+    contained registry name. Returns None rather than guessing when nothing
+    matches, because a WRONG specialty is worse than a missing one: it routes
+    the case to the wrong physician pool and mislabels it in the export,
+    invisibly. That rule already governs promotion (``specialty_is_undetermined``)
+    and it governs matching too.
+    """
+    s = _normalize(raw)
+    if not s:
+        return None
+    if s in SPECIALTY_REGISTRY:
+        return s
+    if s in SPECIALTY_ALIASES:
+        return SPECIALTY_ALIASES[s]
+    tokens = s.split()
+    if tokens:
+        head = tokens[0]
+        if head in SPECIALTY_REGISTRY:
+            return head
+        if head in SPECIALTY_ALIASES:
+            return SPECIALTY_ALIASES[head]
+    # The practitioner noun: "nephrologist" for "nephrology". Anchored on the
+    # registry name's stem and applied per token, so "cardiologist" matches
+    # cardiology while "cardiothoracic" (stem "cardiolog" is not a prefix of it)
+    # still does not.
+    for name in SPECIALTY_REGISTRY:
+        stem = name[:-1] if name.endswith("y") else name
+        if len(stem) >= 6 and any(tok.startswith(stem) for tok in tokens):
+            return name
+
+    # Fall back to a WHOLE-TOKEN match, never a substring one. "cardiothoracic
+    # surgery" contains the letters of the "cardio" alias, and a cardiothoracic
+    # surgeon is not a cardiologist: routing their inbox as one is the exact
+    # failure this function is supposed to prevent.
+    for name in SPECIALTY_REGISTRY:
+        if _contains_phrase(tokens, name.split()):
+            return name
+    for alias, name in SPECIALTY_ALIASES.items():
+        if _contains_phrase(tokens, alias.split()):
+            return name
+    return None
+
+
+def equivalent_specialty_terms(specialty: str) -> List[str]:
+    """Every spelling that should be treated as this specialty, for an SQL IN.
+
+    Includes the canonical name and every alias pointing at it. The caller
+    still normalizes the stored column, so this covers vocabulary drift rather
+    than whitespace or case.
+    """
+    canon = match_specialty(specialty)
+    if not canon:
+        term = _normalize(specialty)
+        return [term] if term else []
+    terms = {canon}
+    terms.update(a for a, target in SPECIALTY_ALIASES.items() if target == canon)
+    return sorted(terms)

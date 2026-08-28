@@ -376,6 +376,17 @@ class CommunityStore:
             # digest email can render a list from the same row.
             if "cards_json" not in msg_cols:
                 conn.execute("ALTER TABLE community_messages ADD COLUMN cards_json TEXT")
+            # Activity mail (mentions, DMs, broadcasts, announcements) is a
+            # separate switch from the news cadence: a physician who wants less
+            # news still wants to know they were @mentioned. Defaults to on,
+            # because every existing member was already receiving it. The
+            # unsubscribe token turns BOTH off — see unsubscribe_by_token.
+            pref_cols = cols("community_email_prefs")
+            if "activity_emails" not in pref_cols:
+                conn.execute(
+                    "ALTER TABLE community_email_prefs "
+                    "ADD COLUMN activity_emails INTEGER NOT NULL DEFAULT 1"
+                )
 
     # ─── Channels ─────────────────────────────────────────────────────────────
     def ensure_default_channels(
@@ -1132,12 +1143,40 @@ class CommunityStore:
             ).fetchone()
             if not row:
                 return None
+            # One click stops EVERY non-transactional email, not only the news
+            # cadence. The member pressed a button that said "stop these"; if
+            # the 5-minute activity digest kept arriving afterwards the button
+            # was a lie, and the next click is the spam button.
             conn.execute(
-                "UPDATE community_email_prefs SET news_frequency = 'off', updated_at = ? "
+                "UPDATE community_email_prefs "
+                "SET news_frequency = 'off', activity_emails = 0, updated_at = ? "
                 "WHERE unsubscribe_token = ?",
                 (_utcnow_iso(), tok),
             )
             return row["user_id"]
+
+    def set_activity_emails(self, user_id: str, enabled: bool) -> Dict[str, Any]:
+        """Turn mention/DM/broadcast/announcement digests on or off.
+
+        Separate from ``set_news_frequency`` so a member can keep being told
+        they were mentioned while taking no news at all.
+        """
+        self.email_prefs(user_id)  # ensure the row and its token exist
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE community_email_prefs SET activity_emails = ?, updated_at = ? "
+                "WHERE user_id = ?",
+                (1 if enabled else 0, _utcnow_iso(), user_id),
+            )
+        return self.email_prefs(user_id)
+
+    def wants_activity_email(self, user_id: str) -> bool:
+        """Whether this member still takes activity digests. Absence of a row
+        means yes (the prefs row is created lazily on first read, and a member
+        who has never been emailed has not opted out of anything)."""
+        prefs = self.email_prefs(user_id)
+        raw = prefs.get("activity_emails")
+        return True if raw is None else bool(int(raw))
 
     def news_email_recipients(self, *, weekly: bool) -> List[Dict[str, Any]]:
         """Members due a news email on this run.

@@ -2934,14 +2934,42 @@ class AsclepiusStore:
             if include_provisional
             else "AND (verification_status IS NULL OR verification_status = 'approved') "
         )
+        # Vocabulary drift, not whitespace: a physician who typed "Renal
+        # Medicine" or "Nephrology - Transplant" matched NOBODY under the bare
+        # equality this used to be, and the caller swallowed the empty result.
+        # ``equivalent_specialty_terms`` returns the canonical name plus every
+        # alias for it; the per-row match below is what actually normalizes
+        # "Nephrology - Transplant", because SQL cannot.
+        from asclepius import specialties as _sp  # noqa: PLC0415 — config only
+
+        canon = _sp.match_specialty(specialty)
+        terms = _sp.equivalent_specialty_terms(specialty)
+        placeholders = ",".join("?" for _ in terms) or "?"
+        params = tuple(terms) if terms else ((specialty or "").strip().lower(),)
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM users WHERE role = 'evaluator' AND active = 1 "
                 f"{clause}"
-                "AND lower(trim(specialty)) = lower(trim(?))",
-                (specialty,),
+                f"AND lower(trim(specialty)) IN ({placeholders})",
+                params,
             ).fetchall()
-            return [dict(r) for r in rows]
+            matched = {r["id"]: dict(r) for r in rows}
+            # Second pass for the spellings SQL cannot normalize (separators,
+            # subspecialty suffixes, the practitioner noun). Scoped to active
+            # evaluators, so this is a small scan, and only when we know which
+            # specialty we are matching against.
+            if canon:
+                others = conn.execute(
+                    "SELECT * FROM users WHERE role = 'evaluator' AND active = 1 "
+                    f"{clause}"
+                    "AND specialty IS NOT NULL AND trim(specialty) != ''"
+                ).fetchall()
+                for r in others:
+                    if r["id"] in matched:
+                        continue
+                    if _sp.match_specialty(r["specialty"]) == canon:
+                        matched[r["id"]] = dict(r)
+            return list(matched.values())
 
     # ─── Task-notify outbox (specialty-tagged task notifications) ───────────
     def enqueue_task_notification(
