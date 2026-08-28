@@ -148,6 +148,12 @@ if (SESSION_STATE !== null) {
 // ─── the shell's fetch helper, in the shape review.js consumes ──────────────
 const ROUTES = %(routes)s;
 const calls = [];
+// Draws that have not answered yet. A route marked `defer` parks its resolver
+// here instead of resolving, so a test can navigate away, re-render, or click
+// again while a request is genuinely in flight — which is the only way to
+// exercise the generation guard, and the only way the bug it prevents happens.
+globalThis.__pending = [];
+globalThis.__seq = {};
 function api(path, opts) {
   opts = opts || {};
   calls.push({ url: '/api/asclepius' + path, method: opts.method || 'GET',
@@ -156,6 +162,16 @@ function api(path, opts) {
   // for); the ROUTES table is keyed on the path alone.
   const hit = ROUTES[path.split('?')[0]];
   if (!hit) return Promise.resolve({});
+  if (hit.defer) {
+    // `bodies` lets successive calls to one route answer differently, so a test
+    // can tell WHICH draw painted.
+    const seq = (hit.bodies || [])[globalThis.__seq[path] || 0];
+    globalThis.__seq[path] = (globalThis.__seq[path] || 0) + 1;
+    return new Promise((resolve, reject) => {
+      globalThis.__pending.push({ path: path, resolve: resolve, reject: reject,
+                                  hit: hit, body: seq === undefined ? hit.body : seq });
+    });
+  }
   if (hit.status >= 400) {
     const detail = hit.body && hit.body.detail;
     const err = { status: hit.status, detail: detail,
@@ -165,6 +181,28 @@ function api(path, opts) {
   }
   return Promise.resolve(hit.body);
 }
+// Answer every parked request with the body its route declares.
+function __answer(list) {
+  globalThis.__pending = [];
+  list.forEach((r) => {
+    if (r.hit.status >= 400) r.reject({ status: r.hit.status, message: 'boom' });
+    else r.resolve(r.body);
+  });
+}
+globalThis.__flush = function () { __answer(globalThis.__pending.slice()); };
+// NEWEST FIRST. Requests do not come back in the order they were sent, and a
+// stale response landing AFTER a fresh one is the only ordering in which the
+// generation guard is the thing standing between a reviewer and the wrong pair.
+globalThis.__flushNewestFirst = function () {
+  __answer(globalThis.__pending.slice().reverse());
+};
+globalThis.__rerender = function () {
+  const fresh = document.createElement('div');
+  fresh.className = 'asc-wrap asc-wrap-review';
+  host.appendChild(fresh);
+  globalThis.__freshHost = fresh;
+  window.AsclepiusReview.render(fresh, CTX);
+};
 globalThis.__calls = calls;
 
 require(%(case_panel)s);
@@ -277,11 +315,19 @@ window.AsclepiusReview.render(host, CTX);
 setTimeout(() => {
   const extra = %(drive)s;
   if (extra) { new Function(extra)(); }
-  setTimeout(() => {
+  // Four macrotasks, so a drive script can schedule its own work and still be
+  // reported on: a re-render's boot chain has to drain before its draw exists
+  // to be answered.
+  let ticks = 0;
+  (function settle() {
+    if (ticks++ < 4) { setTimeout(settle, 0); return; }
     const rep = globalThis.__report();
     rep.posts = globalThis.__calls.filter((c) => c.method === 'POST');
+    rep.pending = globalThis.__pending.length;
+    rep.drawCount = globalThis.__calls.filter(
+      (c) => c.url.indexOf('/review/pair/next') !== -1).length;
     console.log(JSON.stringify(rep));
-  }, 0);
+  })();
 }, 0);
 """
 
@@ -1286,3 +1332,93 @@ def test_the_preview_banner_survives_an_empty_queue():
                  "message": "No cases awaiting review."}}}), preview=True)
     assert out["preview"], "the preview banner vanished with the queue"
     assert "No cases awaiting review" in out["text"]
+
+
+# ═══ asynchrony: a response for a screen that no longer exists ═══════════════
+#
+# Every draw is asynchronous and every render replaces the host element, so a
+# response can arrive for a screen that is gone. These are the three ways that
+# happens, and all three used to end badly: a crash inside a promise handler, a
+# stale pair painted over a fresh one, or two pairs claimed server-side with the
+# first stranded behind a 45-minute lease.
+_DEFERRED_DRAW = {"/review/pair/next": {"status": 200, "defer": True,
+                                        "body": _pair_body()}}
+
+
+def _two_draws():
+    """One deferred route that answers the first draw with case t-1 and the
+    second with t-2, so a test can name which one painted."""
+    first, second = _pair_body(), _pair_body()
+    second["pair"]["task_id"] = "t-2"
+    second["pair"]["task"]["task_id"] = "t-2"
+    second["pair"]["task"]["prompt"] = "SECOND CASE: sodium 118, seizing. Next step?"
+    return {"/review/pair/next": {"status": 200, "defer": True,
+                                  "bodies": [first, second]}}
+
+
+def test_a_draw_that_lands_after_teardown_paints_nothing_and_throws_nothing():
+    """Navigate to the Guide mid-draw. The module owns no element any more, so
+    the resolving promise must return rather than clear(null)."""
+    drive = """
+window.AsclepiusReview.teardown();
+globalThis.__flush();
+"""
+    out = _render(_routes(**_DEFERRED_DRAW), drive)
+    # It survived (node would have exited non-zero on an unhandled rejection
+    # from a throw inside the handler) and painted nothing into the dead host.
+    assert out["grids"] == [], "a torn-down surface rendered a pair"
+    assert out["errors"] == [] or not any(out["errors"])
+
+
+def test_a_stale_draw_never_paints_over_a_fresh_one():
+    """Re-mount mid-draw — which is what returning from the Guide does — and let
+    the FIRST draw answer last, which is an ordering the network is entitled to
+    produce. The reviewer must be left looking at the case they are actually
+    holding, not at one a previous mount claimed."""
+    drive = """
+globalThis.__rerender();
+// The second mount's own draw only exists once its boot chain has drained, so
+// answer both from a later tick; newest first, so the stale response is the one
+// that lands last and would otherwise win.
+setTimeout(globalThis.__flushNewestFirst, 0);
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.freshText = globalThis.__freshHost.textContent; return r; };
+})(globalThis.__report);
+"""
+    out = _render(_routes(**_two_draws()), drive)
+    assert "SECOND CASE" in out["freshText"], "the fresh mount never got its pair"
+    assert "peaked T waves" not in out["freshText"], (
+        "a stale draw painted over the case the reviewer is holding"
+    )
+
+
+def test_two_clicks_on_retry_draw_one_pair_not_two():
+    """Each draw CLAIMS a pair. A double click used to claim two and abandon the
+    first for its whole lease, which is a case nobody can review for 45 minutes
+    and a queue that looks emptier than it is."""
+    drive = """
+globalThis.__flush();                 // let the first draw settle
+"""
+    routes = _routes(**{"/review/pair/next": {"status": 500, "body": {"detail": "boom"}}})
+    # A failed draw renders Retry; click it twice in the same tick.
+    out = _render(routes, """
+var btns = [];
+(function walk(el){ if (el.tagName === 'BUTTON') btns.push(el);
+                    (el.children||[]).forEach(walk); })(globalThis.__host);
+var retry = btns.filter(function (b) { return b.textContent === 'Retry'; })[0];
+retry.dispatch('click', { currentTarget: retry, target: retry });
+retry.dispatch('click', { currentTarget: retry, target: retry });
+""")
+    # One draw on boot, one from the FIRST Retry click; the second is swallowed.
+    assert out["drawCount"] == 2, out["drawCount"]
+
+
+def test_the_evaluate_chooser_is_not_offered_to_a_session_that_cannot_review():
+    """A qa_reviewer is an admin for the header and NOT an admin for the
+    capability table (`capabilities.granted` overrides for role 'admin' alone).
+    Offering them the chooser offers a door that bounces straight back to the
+    dashboard, so without the capability the button stays what it was."""
+    src = _code(_PORTAL_JS.read_text(encoding="utf-8"))
+    nav = src.split("aria-haspopup")[0][-700:]
+    assert "sessionCan('review')" in nav, "the chooser is offered without the capability"
+    assert "canChoose ? openEvaluateChooser(e.currentTarget) : switchView('eval')" in src

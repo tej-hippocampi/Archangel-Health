@@ -78,6 +78,22 @@
   var keyHandler = null;
   var focusedDim = 0;   // which dimension the 1-4 / arrow keys are aimed at
 
+  /* THE GENERATION. Every draw is asynchronous and every render replaces the
+     host element, so a response can arrive for a screen that no longer exists.
+     Bumped by render() and by teardown(); every `.then` checks it and returns.
+
+     Without it: navigate to the Guide mid-draw and `teardown` has already set
+     HOST to null, so the resolving promise calls clear(null) and throws inside
+     a handler nobody is listening to. And two overlapping draws would each
+     CLAIM a pair server-side, stranding the first one behind a 45-minute lease
+     while the reviewer looks at the second.
+
+     `drawing` is the same idea one level down: it stops a double-click on Retry
+     or "Check again" from issuing two draws in the first place. */
+  var GENERATION = 0;
+  var drawing = false;
+  function stale(gen) { return gen !== GENERATION; }
+
   function h() { return CTX.h.apply(null, arguments); }
   function clear(el) { return CTX.clear(el); }
   function api(path, opts) { return CTX.api(path, opts); }
@@ -86,6 +102,9 @@
   }
 
   function mount() {
+    // Belt to the generation's braces. A render that has been torn down owns no
+    // element, and clearing null is a TypeError inside a promise handler.
+    if (!HOST) return;
     clear(HOST);
     for (var i = 0; i < arguments.length; i++) {
       var kid = arguments[i];
@@ -206,8 +225,10 @@
 
   // ── boot ────────────────────────────────────────────────────────────────────
   function boot() {
+    var gen = GENERATION;
     renderLoading();
     api('/review/me').then(function (me) {
+      if (stale(gen)) return;
       ME = me;
       if (!me.can_review) { renderNotReviewer(); return; }
       // §4.1. The SERVER decides whether this account is a real reviewer or an
@@ -217,17 +238,25 @@
       if (me.preview_only) PREVIEW = true;
       loadNext();
     }).catch(function (err) {
+      if (stale(gen)) return;
       if (err && err.status === 401) return;   // the shell owns the bounce
       renderFatal(errText(err));
     });
   }
 
   function loadNext() {
+    // One draw at a time. A second click on Retry / "Check again" would
+    // otherwise claim a second pair and abandon the first for its whole lease.
+    if (drawing) return;
+    drawing = true;
+    var gen = GENERATION;
     renderLoading();
     Promise.all([
       api('/review/pair/next' + (PREVIEW ? '?preview=true' : '')),
       api('/review/stats').catch(function () { return null; }),
     ]).then(function (results) {
+      drawing = false;
+      if (stale(gen)) return;
       PAIR = results[0].pair;
       // The server is the authority on whether this draw is a preview. The
       // client ASKED for one; only the response says it got one, and the banner
@@ -262,6 +291,8 @@
       renderReview();
       startClock();
     }).catch(function (err) {
+      drawing = false;
+      if (stale(gen)) return;
       if (err && err.status === 401) return;
       renderFatal(errText(err));
     });
@@ -337,7 +368,9 @@
     // Reviewers are physicians too — a case waiting for its second label is
     // work they can take, and the whole point of the priority rule is that it
     // gets taken.
+    var gen = GENERATION;
     api('/review/double-label/next').then(function (data) {
+      if (stale(gen)) return;
       if (data && data.task && HOST && HOST.contains && HOST.contains(pad)) {
         pad.appendChild(h('p', { class: 'asc-rv-kv asc-rv-kv-lead' },
           'A case is waiting for its second independent label (specialty: '
@@ -419,10 +452,17 @@
       .replace(/[.,;:!?]+$/g, '')
       .trim();
   }
+  /* The steps a labeler actually submitted, from either shape.
+
+     An EMPTY array falls through to `from_scratch`, exactly as
+     `review.submission_reasoning_steps` does server-side. The two must agree
+     about what "this physician produced reasoning" means, or the client offers
+     forks the server then refuses as a fabrication — or, worse, stays silent
+     about a divergence the server would have accepted. */
   function stepsOf(entry) {
     var a = (entry && entry.answer) || {};
     var raw = a.reasoning_steps;
-    if (!Array.isArray(raw)) {
+    if (!Array.isArray(raw) || !raw.length) {
       raw = (a.from_scratch && a.from_scratch.reasoning_steps) || null;
     }
     return Array.isArray(raw) ? raw : [];
@@ -800,8 +840,10 @@
       if (editedArea.value.trim()) corrections.edited_answer = editedArea.value.trim();
       body.corrections = corrections;
     }
+    var gen = GENERATION;
     api('/review/pair/' + encodeURIComponent(PAIR.task_id), { method: 'POST', body: body })
       .then(function (res) {
+        if (stale(gen)) return;
         // The server withholds free text that carries a Safe-Harbor identifier
         // from the buyer-facing block, and says so in the response SPECIFICALLY
         // so the reviewer can rewrite it. Advancing here — which this used to do
@@ -813,6 +855,7 @@
         loadNext();
       })
       .catch(function (err) {
+        if (stale(gen)) return;
         clear(errLine);
         errLine.appendChild(document.createTextNode(errText(err)));
         refreshSubmit();
@@ -1000,6 +1043,12 @@
   window.AsclepiusReview = {
     render: function (el, ctx) {
       if (!el || !ctx || typeof ctx.h !== 'function') return;
+      // Bump FIRST: anything still in flight for the previous mount is now
+      // answering a question nobody asked, and must not paint over this one.
+      GENERATION += 1;
+      drawing = false;
+      unbindKeys();
+      stopClock();
       CTX = ctx;
       HOST = el;
       PREVIEW = !!ctx.preview;
@@ -1012,6 +1061,8 @@
        stop. Without this, switching to the Guide left a session accruing paid
        time against a screen with no work on it. */
     teardown: function () {
+      GENERATION += 1;
+      drawing = false;
       unbindKeys();
       stopClock();
       stopSession('left_review');

@@ -81,6 +81,11 @@ router = APIRouter(tags=["asclepius-review"])
 # on a row nobody meant to create.
 PREVIEW_TOKEN_PREFIX = "preview:"
 
+# The roles the portal shows the Evaluate chooser to. Kept next to the preview
+# rules rather than re-derived: a role that can ask for a preview in the UI and
+# is refused one by the API is a 403 on a button we drew ourselves.
+_OPERATOR_ROLES = ("admin", "qa_reviewer")
+
 
 def _preview_draw_token(task_id: str) -> str:
     """The marker a preview draw hands the client and the submit path refuses.
@@ -238,7 +243,11 @@ async def next_review_pair(
     store = _store()
     forced_preview = _is_preview_operator(reviewer)
     preview = bool(preview) or forced_preview
-    if preview and not (reviewer.get("role") == "admin" or forced_preview):
+    # Who may ASK for a preview: an operator role. That is the same set the
+    # portal shows the Evaluate chooser to — a staff account that holds the
+    # reviewer tier as well can still deliberately look at the surface without
+    # recording anything, which is the whole point of the chooser.
+    if preview and not (reviewer.get("role") in _OPERATOR_ROLES or forced_preview):
         raise HTTPException(
             status_code=403,
             detail="Preview draws are for operators; draw a real pair instead.")
@@ -256,7 +265,12 @@ async def next_review_pair(
         task = store.next_review_pair_for(
             reviewer["id"], specialty=reviewer.get("specialty"), lease_minutes=lease)
         if task is None:
-            return {"pair": None, "message": "No cases awaiting review."}
+            # ``preview`` rides on every response, not only the ones carrying a
+            # pair: the client keeps the banner up across an empty queue, and a
+            # response that describes itself is one less thing for it to
+            # remember.
+            return {"pair": None, "preview": preview,
+                    "message": "No cases awaiting review."}
         if task["task_id"] in seen:
             break                       # never revisit a candidate within one draw
         seen.add(task["task_id"])
@@ -328,12 +342,14 @@ async def next_review_pair(
         )
         return {
             "pair": {**view, "blinded": blinded},
+            "preview": False,
             # Opaque passthrough of Agent P's session (PRD R §4). None before P
             # merges, or if P is unhappy — the page renders no countdown rather
             # than a fabricated one.
             "session": _open_review_session(store, reviewer["id"]),
         }
-    return {"pair": None, "message": "Queue is contended; try again."}
+    return {"pair": None, "preview": preview,
+            "message": "Queue is contended; try again."}
 
 
 # ─── Draw ─────────────────────────────────────────────────────────────────────

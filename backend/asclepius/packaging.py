@@ -1007,39 +1007,43 @@ def review_block(reviews: List[Dict[str, Any]], store: Any = None) -> Dict[str, 
     strict bool per review — a NULL (never-verified) flag reads as False, the
     conservative direction: unverified is not blinded."""
     reviews = reviews or []
+
+    def _entry(r: Dict[str, Any]) -> Dict[str, Any]:
+        flagged = _identifier_flagged(r)
+        entry: Dict[str, Any] = {
+            "reviewer_id_hashed": r.get("reviewer_id_hashed"),
+            "reviewer_credential": _reviewer_credential(r, store),
+            "verdict": r.get("verdict"),
+            "dimensions": _review_dimensions(r),
+            # Reviewer free text is withheld when the insert-time Safe-Harbor
+            # scan flagged an identifier in it (FIX A A-5.3). The export leak
+            # gate scans KEYS, not values, so prose like "per Dr. Chen's note,
+            # K+ 6.2 on 3/14" would otherwise ship to a lab verbatim. The
+            # verdict and dimensions still ship — only the prose is held back,
+            # and the record says so out loud.
+            "corrections": {} if flagged else _review_corrections(r),
+            "corrections_withheld": flagged,
+            "blinded": r.get("blinded") in (True, 1),
+            "reviewed_at": r.get("created_at"),
+        }
+        # PRD-1 §3 — process-level supervision from the REVIEWER: the
+        # reasoning-step indices where the two labels diverged and which side
+        # the reviewer judged correct at each.
+        #
+        # The key is ABSENT when the review carries none, never `[]`. The two
+        # are different facts: absent means one of the two labels had no
+        # reasoning steps, so nothing was compared; `[]` means both did and they
+        # agreed at every step. Shipping a fabricated empty array would sell a
+        # measurement nobody made.
+        divergence = _step_divergence(r)
+        if divergence is not None:
+            entry["step_divergence"] = divergence
+        return entry
+
     return {
         "reviewed": bool(reviews),
         "n_reviews": len(reviews),
-        "reviews": [
-            {
-                "reviewer_id_hashed": r.get("reviewer_id_hashed"),
-                "reviewer_credential": _reviewer_credential(r, store),
-                "verdict": r.get("verdict"),
-                "dimensions": _review_dimensions(r),
-                # Reviewer free text is withheld when the insert-time
-                # Safe-Harbor scan flagged an identifier in it (FIX A A-5.3).
-                # The export leak gate scans KEYS, not values, so prose like
-                # "per Dr. Chen's note, K+ 6.2 on 3/14" would otherwise ship to
-                # a lab verbatim. The verdict and dimensions still ship — only
-                # the prose is held back, and the record says so out loud.
-                "corrections": {} if _identifier_flagged(r) else _review_corrections(r),
-                "corrections_withheld": _identifier_flagged(r),
-                "blinded": r.get("blinded") in (True, 1),
-                "reviewed_at": r.get("created_at"),
-                # PRD-1 §3 — process-level supervision from the REVIEWER: the
-                # reasoning-step indices where the two labels diverged and which
-                # side the reviewer judged correct at each.
-                #
-                # ABSENT when the review carries none, never `[]`. The two are
-                # different facts: absent means one of the two labels had no
-                # reasoning steps, so nothing was compared; `[]` means both did
-                # and they agreed at every step. Shipping a fabricated empty
-                # array would sell a measurement nobody made.
-                **({"step_divergence": _step_divergence(r)}
-                   if _step_divergence(r) is not None else {}),
-            }
-            for r in reviews
-        ],
+        "reviews": [_entry(r) for r in reviews],
         "accepted_without_edits": bool(reviews)
         and all(r.get("verdict") == "accept" for r in reviews),
     }

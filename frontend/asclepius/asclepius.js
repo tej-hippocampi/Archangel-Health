@@ -242,11 +242,18 @@
       // physician experiences without holding two accounts. It changes what is
       // rendered, never what is recorded — the reviewer side draws in PREVIEW
       // mode, which opens no session and is refused at submit (§4.1).
+      //
+      // ...but only when the session actually holds `review`. A qa_reviewer is
+      // an admin for this button and NOT an admin for the capability table
+      // (`capabilities.granted` overrides for role 'admin' alone), so offering
+      // them the chooser would offer a door that bounces them straight back to
+      // the dashboard. Without the capability the button stays what it was.
+      const canChoose = sessionCan('review');
       nav.appendChild(h('button', {
         class: 'asc-nav-btn'
           + ((state.view === 'eval' || state.view === 'review') ? ' active' : ''),
-        'aria-haspopup': 'menu',
-        onClick: (e) => openEvaluateChooser(e.currentTarget),
+        'aria-haspopup': canChoose ? 'menu' : null,
+        onClick: (e) => (canChoose ? openEvaluateChooser(e.currentTarget) : switchView('eval')),
       }, 'Evaluate'));
       nav.appendChild(h('button', {
         class: 'asc-nav-btn' + (state.view === 'admin' ? ' active' : ''),

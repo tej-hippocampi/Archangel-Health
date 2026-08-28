@@ -498,3 +498,64 @@ def test_the_retired_review_page_redirects_into_the_shell():
     r = client.get("/asclepius/review", follow_redirects=False)
     assert r.status_code in (307, 308), r.text
     assert r.headers["location"] == "/asclepius#review"
+
+
+# ═══ the operator roles: admin is not the only one ═══════════════════════════
+def _qa_reviewer_with_tier():
+    """A `qa_reviewer` who also holds the reviewer tier.
+
+    This account is the seam between two different definitions of "staff".
+    `capabilities.granted` overrides for role 'admin' ALONE, so a qa_reviewer's
+    review access comes from their TIER — while the portal's header treats
+    qa_reviewer as an admin and shows them the Evaluate chooser. Get the two
+    definitions out of step and the product draws a button that 403s.
+    """
+    store = asc_store.get_store()
+    user = A.make_user(store, role="qa_reviewer", specialty="nephrology",
+                       board_cert="board_certified_nephrology", years_experience=15)
+    _grant_tier(store, user["id"], "reviewer")
+    return store.get_user_by_id(user["id"])
+
+
+def test_a_qa_reviewer_may_ask_for_the_preview_the_portal_offers_them():
+    """The portal shows the Evaluate chooser to admin AND qa_reviewer. Both must
+    therefore be able to draw a preview, or one of them clicks a control we drew
+    ourselves and gets a 403."""
+    admin_h = _admin_h()
+    tid = _paired_task(admin_h)
+    qa = _qa_reviewer_with_tier()
+
+    body = _draw_pair(qa, preview=True)
+    assert body["preview"] is True
+    assert body["pair"]["task_id"] == tid
+    assert body["session"] is None
+    assert asc_store.get_store().get_task(tid)["review_claimed_by"] is None
+
+
+def test_a_qa_reviewer_with_the_tier_still_does_real_work_by_default():
+    """The preview is something they ASK for, not a cage. Their plain draw is a
+    real one, because their tier — not an override — is what admits them."""
+    admin_h = _admin_h()
+    tid = _paired_task(admin_h)
+    qa = _qa_reviewer_with_tier()
+
+    body = _draw_pair(qa)
+    assert not body.get("preview")
+    assert asc_store.get_store().get_task(tid)["review_claimed_by"] == qa["id"]
+    r = client.post(f"/api/asclepius/review/pair/{tid}", json=_adjudication(),
+                    headers=A.headers_for(qa))
+    assert r.status_code == 200, r.text
+
+
+def test_every_draw_response_says_whether_it_was_a_preview():
+    """Including the ones carrying no pair. The client keeps the banner up across
+    an empty queue, and a response that describes itself is one less thing for it
+    to remember."""
+    store = asc_store.get_store()
+    admin = A.make_user(store, role="admin")
+    empty = _draw_pair(admin, preview=True)          # nothing in the queue at all
+    assert empty["pair"] is None
+    assert empty["preview"] is True
+
+    rv = _reviewer()
+    assert _draw_pair(rv)["preview"] is False

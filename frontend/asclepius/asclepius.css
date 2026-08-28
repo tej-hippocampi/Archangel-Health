@@ -3987,7 +3987,11 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
    past the case, so it sticks to the bottom of the viewport and the case fold
    scrolls underneath it.
    ═════════════════════════════════════════════════════════════════════════════ */
-.asc-wrap-review { padding-bottom: 0; }
+/* The review surface stacks question, chrome, the pair, the case fold and the
+   pinned judgment. `.asc-wrap`'s 18px gap is tuned for cards a physician reads
+   one at a time; here the pairbar is chrome ABOUT the pair below it, and the
+   default gap reads as five unrelated blocks rather than one comparison. */
+.asc-wrap-review { gap: 12px; }
 .asc-rv-header {
   display: flex; align-items: baseline; gap: var(--sp-3);
   flex-wrap: wrap; margin-bottom: var(--sp-3);
