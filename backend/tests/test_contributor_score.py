@@ -132,9 +132,17 @@ def test_one_case_cannot_crater_a_strong_prior():
     _graded_submission(store, doc, "sub-bad", status="rejected")
     result = cs.compute(store, doc["id"])
     assert result["n_cases"] == 1
-    # Case = 30 (rejected) + 3 (25 careful minutes on a hard case) = 33;
-    # blended = (5*90 + 33) / 6. The prior holds the floor up.
-    assert result["score"] == 80.5
+    # Case = 30 (rejected) + 3 (25 careful minutes on a hard case)
+    #        + 3.6 (a DECLARED-hard case: 0.8 on the 0..1 scale, and the term is
+    #              centred on medium, so 6.0 * (0.8 - 0.5) * 2) = 36.6;
+    # blended = (5*90 + 36.6) / 6. The prior holds the floor up.
+    #
+    # The difficulty term is why this is 81.1 rather than the 80.5 it was before
+    # difficulty entered the score directly. The property under test is
+    # unchanged and is the point: a 90-prior physician's first rejected case
+    # moves them by single digits, not to the raw case score.
+    assert result["score"] == 81.1
+    assert result["score"] < result["prior"]
     assert result["prior"] == 90.0
 
 

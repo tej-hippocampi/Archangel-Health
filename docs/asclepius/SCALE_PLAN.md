@@ -1,5 +1,10 @@
 # Scale plan: reviewer, quality, pay, assignment, community
 
+**Status: built.** This document was written as a plan and is kept as the
+rationale. What shipped, and where it differs from the plan, is recorded in
+"What was actually built" at the bottom. Read that first if you are trying to
+find something.
+
 Five pull requests, in order, one per area. Written against `main` at `ec06b50`.
 
 Every claim below was checked against the code at that commit. Where the plan
@@ -456,3 +461,73 @@ The three places this can go wrong, in order of consequence:
    looks like "nobody is working" rather than like a bug.
 3. **PR 0 switched on before §0.2.** Turning the morning routine on multiplies
    two live email defects across every doctor on the platform.
+
+
+---
+
+# What was actually built
+
+All five areas, on one branch, one commit per area so it stays bisectable.
+
+| Commit | Area | New files |
+|---|---|---|
+| `4cd5742` | The two live email defects, plus specialty matching | `community/links.py`, `tests/test_community_links.py` |
+| `5abc2c2` | The four silent task paths, specialty-room posts, outbox drain loop | `tests/test_task_notify.py` |
+| `e5800dc` | Exa/Firecrawl retrieval, agentic pass, durable call cap | `community/search_providers.py`, `tests/test_community_search_providers.py` |
+| `937b78c` | The reviewer field map, real citations, draft persistence | `asclepius/label_view.py`, `tests/test_label_view.py` |
+| `27e2413` | The case-quality metric, the QA hook, the stamp | `tests/test_case_quality.py` |
+| `1f13811` | Quality-adjusted pay | `asclepius/payout.py`, `tests/test_payout.py`, `docs/asclepius/QUALITY_ADJUSTED_PAY.md` |
+| `5b483e5` | Assignment | `asclepius/allocation.py`, `tests/test_assignment.py` |
+
+## Where it differs from the plan
+
+**Two things ship OFF rather than on.** Quality-adjusted pay
+(`ASCLEPIUS_PAYOUT_QUALITY_ENABLED=0`) and the paid search providers
+(`COMMUNITY_SEARCH_PROVIDERS=anthropic`) are both switched off by default. The
+plan did not say this. It became obvious while building that turning the payout
+on changes what every physician is paid, and that should be a decision made on a
+particular day rather than a side effect of a deploy. The case-quality metric
+underneath it is computed and stamped either way, so switching it on later
+starts with a history rather than cold.
+
+**The morning routine is still off too.** The plan's §0.5 said "turn it on". The
+plumbing it depends on is fixed and tested, and switching
+`COMMUNITY_MORNING_ENABLED=1` is now a safe operator action rather than a code
+change, but flipping it in the same PR that rewrote the sourcing would have
+merged a behaviour change and a code change together.
+
+**`chosen_id` stayed visible to the reviewer.** The plan implied trimming
+model-identity fields from the label view. `review.js` resolves the final answer
+text through `chosen_id`; withholding it blanks the answer the reviewer is there
+to grade. It is the judgment, not a tell.
+
+**A rejected case is voided, not reduced.** The payout multiplier is never
+applied to a rejected case: it pays nothing already, and running a multiplier
+over it both means nothing and misreports the voided amount.
+
+## What is still open
+
+**The counsel memo does not cover pay.** `docs/PRD_C_COUNSEL_MEMO.md` covers how
+a physician is CLASSIFIED under NYC Local Law 144. It does not cover how they
+are PAID. The recommendation stands: extend it before
+`ASCLEPIUS_PAYOUT_QUALITY_ENABLED` is turned on, not after. The flag defaulting
+to off is what makes that ordering possible.
+
+**The per-domain reviewer role is still not real.** `users.tier` remains a
+single global scalar while the counsel memo describes TR as a per-domain role.
+The allocator works around it by requiring `domain_match >= 0.5` for a review
+assignment, which is the same clause `tiering.tr_eligibility` applies, so
+behaviour is correct today. The data model still does not match the memo. Plan
+§4.3 recommended a `(user, specialty) -> role` table; that was not built.
+
+**Four tests fail on macOS and pass in CI.** Three in
+`test_asclepius_v4_phase1_completeness.py` and one in
+`test_asclepius_v4_phase3_durability.py`. All four were reproduced on clean
+`main` in a separate worktree before this branch was written, and none of them
+touch code this branch changed. The durability one is a path heuristic
+(`tmp_path` is under `/tmp` on Linux and `/var/folders` on macOS).
+
+**`test_community.py` deadlocks when run alongside the other community test
+files.** Also pre-existing and also reproduced on clean `main`. It passes alone
+(82 tests, ~6s) and CI's 4-way sharding evidently separates them. Not fixed
+here; worth fixing.
