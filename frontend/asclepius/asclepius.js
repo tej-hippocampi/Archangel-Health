@@ -2264,16 +2264,22 @@
     // served synthetic multimodal cases. The doctor never saw a real chart and
     // there was nothing on screen to tell them why.
     //
-    // An un-marked 'v3' was never a choice BETWEEN real and synthetic, because
-    // the real cases were not on the menu when it was made. So it does not get
-    // to outrank the real work. Only 'v3' is migrated, and only once: 'v1'/'v2'
-    // are deliberate departures from the recommended flow and stay honored, and
-    // a pick made from today's menu writes PORTAL_VERSION_PICKED_KEY and sticks.
+    // ANY stored value with no pick marker predates V4, because the marker is
+    // written by the only menu that has ever listed the real cases. So none of
+    // them can have been a choice BETWEEN real and synthetic, and none of them
+    // gets to outrank the real work.
+    //
+    // This used to rescue only 'v3', on the theory that 'v1'/'v2' were deliberate
+    // departures worth honouring. That was wrong, and it cost a round: the same
+    // physician turned up pinned to V2 · ASSISTED instead, with the migration
+    // stepping over it for a reason that never applied — the choice, whichever
+    // version it landed on, was made when V4 did not exist. A pick made from
+    // today's menu writes PORTAL_VERSION_PICKED_KEY and still sticks.
     //
     // Nothing is lost by moving them: /tasks/next continues a V4 physician onto
     // the synthetic queue the moment the real cases run out, and stamps the
     // record with the version actually served.
-    if (approved && (stored === null || (stored === 'v3' && !portalVersionWasPicked()))) return 'v4';
+    if (approved && !portalVersionWasPicked()) return 'v4';
     if (stored) return stored;
     return DEFAULT_PORTAL_VERSION;
   }
