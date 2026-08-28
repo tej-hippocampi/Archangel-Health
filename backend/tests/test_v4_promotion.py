@@ -2013,3 +2013,87 @@ def test_a_stored_v2_does_not_outrank_the_real_cases_either():
     assert "if (approved && !portalVersionWasPicked()) return 'v4';" in code
     # No version-specific carve-out survives in the migration branch.
     assert "stored === 'v3'" not in code
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Audit findings against the restore endpoint itself
+# ═════════════════════════════════════════════════════════════════════════════
+def test_restoring_does_not_silently_demote_a_decided_tier():
+    """record_verification_decision writes `tier = ?` unconditionally on its
+    approved branch, so approving WITHOUT naming a tier passed None and NULLed
+    out a tier somebody had decided — after which the default backfill filled in
+    'labeler'. Measured: an existing reviewer came back a labeler, demoted by an
+    operator doing the obvious thing."""
+    st = _store()
+    admin_h = _admin_h()
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    st.record_verification_decision(user_id=doc["id"], status="approved",
+                                    decided_by="prior@admin", tier="reviewer")
+    st.set_verification_status(doc["id"], "pending")   # so the approve branch runs
+
+    body = client.post(f"/api/asclepius/admin/physicians/restore?email={doc['email']}",
+                       json={"approve_verification": True}, headers=admin_h).json()
+    assert body["after"]["tier"] == "reviewer", body
+    assert st.get_user_by_id(doc["id"])["tier"] == "reviewer"
+
+
+def test_a_tier_cannot_be_set_on_an_account_nobody_has_approved():
+    """Two defects in one call. The tier columns are written only on the approved
+    branch, so a tier named without an approval wrote NOTHING while the response
+    claimed it had — and routing it through a re-stamp of the current status also
+    stamped verified_by on an account nobody verified, corrupting the
+    credentialing trail. Refused now, because a tier on a pending account grants
+    no access anyway."""
+    st = _store()
+    admin_h = _admin_h()
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    st.set_verification_status(doc["id"], "pending")
+
+    r = client.post(f"/api/asclepius/admin/physicians/restore?email={doc['email']}",
+                    json={"tier": "reviewer"}, headers=admin_h)
+    assert r.status_code == 422, r.text
+    assert "part of the approval decision" in r.json()["detail"]
+    row = st.get_user_by_id(doc["id"])
+    assert row["tier"] is None
+    assert row["verified_by"] is None, "stamped a credentialing decision nobody made"
+
+
+def test_the_restore_reports_only_changes_it_actually_made():
+    """A response that lists a change the database did not take is worse than an
+    error: it ends the investigation."""
+    st = _store()
+    admin_h = _admin_h()
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    body = client.post(f"/api/asclepius/admin/physicians/restore?email={doc['email']}",
+                       json={"approve_verification": True, "tier": "labeler"},
+                       headers=admin_h).json()
+    row = st.get_user_by_id(doc["id"])
+    assert body["after"]["tier"] == row["tier"]
+    assert body["after"]["role"] == row["role"]
+    assert body["after"]["verification_status"] == row["verification_status"]
+    assert body["after"]["real_data_approved"] is bool(row["real_data_approved"])
+    # Idempotent: a second identical call changes nothing and says so.
+    again = client.post(f"/api/asclepius/admin/physicians/restore?email={doc['email']}",
+                        json={"approve_verification": True, "tier": "labeler"},
+                        headers=admin_h).json()
+    assert again["changes"] == [], again["changes"]
+    assert again["can_label_real_cases"] is True
+
+
+def test_an_approved_contributor_is_never_stranded_on_the_synthetic_default():
+    """Audit finding. The pick marker can outlive the version written beside it
+    (a cleared key, a partly-failed storage write). With the marker set and no
+    stored version, the rule fell through to the synthetic default and stranded
+    an approved physician on v3 with no choice on file to justify it."""
+    js = (Path(__file__).resolve().parents[2]
+          / "frontend" / "asclepius" / "asclepius.js").read_text()
+    start = js.index("function getPortalVersion()")
+    body = js[start:js.index("function setPortalVersion", start)]
+    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("//"))
+    assert "return approved ? 'v4' : DEFAULT_PORTAL_VERSION;" in code
+    # The bare fallthrough that produced the bug must not survive anywhere in the
+    # function -- it is the last statement, so a stray copy is the whole defect.
+    assert "return DEFAULT_PORTAL_VERSION;\n  }" not in code

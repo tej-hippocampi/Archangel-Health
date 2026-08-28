@@ -1128,27 +1128,44 @@ async def restore_physician(
         raise HTTPException(status_code=422,
                             detail=f"Tier must be one of {sorted(asc_caps.TIERS)}.")
 
+    approving = bool(body.approve_verification
+                     and target.get("verification_status") != "approved")
+    # The tier is written ONLY by the approval decision — record_verification_decision
+    # touches the tier columns on its approved branch and nowhere else. Naming a
+    # tier without an approval to carry it therefore writes nothing, and routing it
+    # through a re-stamp of the CURRENT status would also stamp verified_by on an
+    # account nobody verified. Both were measured. Refuse instead: a tier on a
+    # pending or rejected account grants no access anyway (the verification gate
+    # denies them), so it would only report a decision that had not been made.
+    if tier and not approving and target.get("verification_status") != "approved":
+        raise HTTPException(
+            status_code=422,
+            detail=("A tier is part of the approval decision and cannot be set on an "
+                    f"account whose verification is {target.get('verification_status')!r}. "
+                    "Send approve_verification: true to decide both together."))
+
     before = {k: target.get(k) for k in
               ("role", "tier", "verification_status", "real_data_approved")}
     did: List[str] = []
     if (target.get("role") or "") != "evaluator":
         store.set_user_role(target["id"], "evaluator")
         did.append("role -> evaluator")
-    if body.approve_verification and target.get("verification_status") != "approved":
+    if approving:
+        # ``tier`` is written unconditionally on this branch, so passing None would
+        # NULL OUT a tier somebody already decided — measured: an existing reviewer
+        # came back a labeler, demoted by an operator doing the obvious thing.
+        # Carry the current tier forward when the caller did not name one.
+        keep = tier or target.get("tier")
         store.record_verification_decision(
             user_id=target["id"], status="approved",
             decided_by=admin.get("email") or admin["id"],
-            tier=tier, note=body.note)
+            tier=keep, note=body.note)
         did.append("verification -> approved")
-        if tier:
-            did.append(f"tier -> {tier}")
+        if keep and keep != target.get("tier"):
+            did.append(f"tier -> {keep}")
     elif tier and target.get("tier") != tier:
-        # The tier is written by the verification decision, deliberately — it is a
-        # decision, not a computation, and it arrives from one place. Re-stamping
-        # the CURRENT status carries the tier through that same door rather than
-        # opening a second one.
         store.record_verification_decision(
-            user_id=target["id"], status=(target.get("verification_status") or "approved"),
+            user_id=target["id"], status="approved",
             decided_by=admin.get("email") or admin["id"], tier=tier, note=body.note)
         did.append(f"tier -> {tier}")
     # The same default the boot migration would have applied had this account

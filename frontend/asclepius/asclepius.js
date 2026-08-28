@@ -2281,7 +2281,12 @@
     // record with the version actually served.
     if (approved && !portalVersionWasPicked()) return 'v4';
     if (stored) return stored;
-    return DEFAULT_PORTAL_VERSION;
+    // No stored choice at all. The marker can outlive the version it was written
+    // beside (a cleared key, a storage write that partly failed), and falling
+    // through to the synthetic default here would strand an approved physician on
+    // v3 with no choice on file to justify it. Absent a choice, an approved
+    // contributor belongs on the real cases.
+    return approved ? 'v4' : DEFAULT_PORTAL_VERSION;
   }
   function setPortalVersion(v) {
     v = PORTAL_VERSIONS.indexOf(v) !== -1 ? v : DEFAULT_PORTAL_VERSION;
