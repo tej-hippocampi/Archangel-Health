@@ -677,6 +677,7 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     out: List[Dict[str, Any]] = []
     counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0,
               "unassigned": 0}
+    score_by_user = store.contributor_scores_by_user()
     for u in _physician_users(store):
         tier = u.get("tier")
         verification = u.get("verification_status")
@@ -718,6 +719,13 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "health_system_id": hs_id,
             "health_system_name": hs_names.get(hs_id) if hs_id else None,
             "active": bool(u.get("active", 1)),
+            # The running contributor score. Read from the stored row, not
+            # recomputed: this is a roster of everyone and ``compute`` is a
+            # query per submission. None means nobody has graded them yet, and
+            # the roster renders an em dash rather than a zero, because a zero
+            # here reads as a physician who does bad work rather than one whose
+            # first case is still in the queue.
+            "contributor_score": score_by_user.get(u["id"]),
         })
     # Accounts with a doctor's credentials and an operator's role. Not part of
     # ``physicians`` or ``counts`` — they are not supply until someone decides

@@ -492,6 +492,13 @@ def _enrich_case_context(store: Any, rows: List[Dict[str, Any]]) -> None:
         row.setdefault("case_id", None)
         row.setdefault("specialty", None)
         row.setdefault("seconds", None)
+        # The internal case-quality number, and WHY it is that number. Read from
+        # the stamp rather than recomputed, so the console shows the figure the
+        # case was actually graded on. None means never graded, which the UI
+        # renders as an em dash for the same reason a zero is never written for
+        # an unknown time.
+        row.setdefault("quality", None)
+        row.setdefault("quality_reasons", None)
         kind = row.get("kind")
         ref = row.get("ref_id")
         if not ref:
@@ -505,6 +512,13 @@ def _enrich_case_context(store: Any, rows: List[Dict[str, Any]]) -> None:
             secs = sub.get("time_spent_sec")
             # 0 means "not recorded", not "instant".
             row["seconds"] = int(secs) if secs else None
+            try:
+                stamped = store.submission_quality(ref)
+            except Exception:  # noqa: BLE001 - never break the money screen
+                stamped = None
+            if stamped:
+                row["quality"] = stamped.get("score")
+                row["quality_reasons"] = (stamped.get("components") or {}).get("reasons")
             if tid:
                 if tid not in task_cache:
                     task_cache[tid] = store.get_task(tid) or {}

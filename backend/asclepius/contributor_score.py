@@ -43,6 +43,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger("asclepius.contributor_score")
 
+#: The coefficient set in force. STAMPED onto every graded case alongside its
+#: score, and never silently reapplied: a stamped case keeps the number it was
+#: given under the rules that were in force when it was graded, exactly as
+#: ``earnings.rate_cents`` keeps the rate in force at accrual. Bump this when a
+#: weight below changes, or tuning a coefficient retroactively restates work
+#: physicians have already been paid for and told about.
+CASE_QUALITY_VERSION = "2026-08-28.1"
+
 # Shrinkage weight: how many cases of evidence the prior is worth.
 PRIOR_WEIGHT = 5
 
@@ -54,6 +62,19 @@ OUTCOME_BASE = {
 
 # Declared difficulty -> expected minutes of careful work.
 EXPECTED_MINUTES = {"easy": 10.0, "medium": 20.0, "hard": 35.0}
+
+#: Credit for the difficulty of what was attempted. A hard case labeled
+#: adequately is worth more than an easy case labeled adequately, and until now
+#: difficulty entered the score only sideways, through the expected-minutes
+#: band. Measured difficulty (the frontier-model failure rate) wins over the
+#: declared label, because a declared "hard" every model aces is not hard.
+DIFFICULTY_ADJ_MAX = 6.0
+
+#: Credit for what the case actually ASKED for. Cases are not the same size:
+#: one that demanded a reasoning trace, grounded citations, or a from-scratch
+#: ideal answer is more work than a bare A/B pick, and scoring them on one
+#: scale quietly penalizes whoever drew the harder queue.
+SHAPE_ADJ_MAX = 4.0
 
 # Score bands, aligned with credentialing's tiering thresholds so the number
 # a physician watches and the tier the queue proposes speak one language.
@@ -81,6 +102,98 @@ def expected_minutes(task: Optional[Dict[str, Any]]) -> float:
         except (TypeError, ValueError):
             pass
     return EXPECTED_MINUTES.get((t.get("difficulty") or "").strip().lower(), 20.0)
+
+
+def difficulty_fraction(task: Optional[Dict[str, Any]]) -> Optional[float]:
+    """0..1 difficulty for this case, or None when we genuinely do not know.
+
+    Measured wins over declared. None is a real answer and is scored as
+    neutral: guessing "medium" for an unmeasured case would hand out the same
+    credit as a measured medium, which is how an unmeasured queue quietly
+    inflates.
+    """
+    t = task or {}
+    measured = t.get("empirical_difficulty")
+    if t.get("difficulty_measured") and measured is not None:
+        try:
+            return max(0.0, min(1.0, float(measured)))
+        except (TypeError, ValueError):
+            pass
+    declared = (t.get("difficulty") or "").strip().lower()
+    return {"easy": 0.2, "medium": 0.5, "hard": 0.8}.get(declared)
+
+
+def _difficulty_adj(task: Optional[Dict[str, Any]]) -> Tuple[float, Optional[float]]:
+    """Credit for what the case demanded. Centred on 0.5 so a medium case is
+    neutral and the term moves the score in both directions."""
+    frac = difficulty_fraction(task)
+    if frac is None:
+        return 0.0, None
+    return round(DIFFICULTY_ADJ_MAX * (frac - 0.5) * 2.0, 1), frac
+
+
+def case_shape(task: Optional[Dict[str, Any]], payload: Dict[str, Any]) -> Dict[str, bool]:
+    """What this case asked the physician to produce.
+
+    Read from the TASK's configuration where possible, and from the payload
+    only for the branch the verdict forced. Reading it all from the payload
+    would credit a physician for work the case never asked for, and penalize
+    one who correctly had nothing to add.
+    """
+    t = task or {}
+    p = payload or {}
+    return {
+        "reasoning": bool(t.get("capture_reasoning")),
+        "grounded": (t.get("grounding_mode") or "").strip().lower() == "required",
+        "from_scratch": bool((p.get("from_scratch") or {}).get("ideal_answer")),
+        "multimodal": (t.get("modality") or "").strip().lower() == "multimodal",
+    }
+
+
+def _shape_adj(shape: Dict[str, bool]) -> float:
+    """One point per thing the case demanded, capped. Not a bonus for volume:
+    it is the correction that stops a bare A/B pick and a grounded
+    reasoning-trace case being scored on the same scale."""
+    return round(min(SHAPE_ADJ_MAX, float(sum(1 for v in shape.values() if v))), 1)
+
+
+def _reason_lines(components: Dict[str, Any]) -> List[str]:
+    """The itemization, in the string convention ``credentialing`` already uses
+    ("+25 NPI verified", "-4 consumer email domain").
+
+    This number gets attached to money in the payout, so it will be contested,
+    and "your score is 71" is not an answer to "why".
+    """
+    def signed(value: float) -> str:
+        v = round(float(value), 1)
+        if v > 0:
+            return f"+{v:g}"
+        if v < 0:
+            return f"{v:g}"
+        return "±0"
+
+    outcome_words = components["outcome"].replace("_", " ")
+    article = "an" if outcome_words[:1] in "aeiou" else "a"
+    lines = [f"{components['outcome_base']:g} base for {article} {outcome_words} case"]
+    if components.get("citation_bonus"):
+        lines.append(f"{signed(components['citation_bonus'])} evidence anchors")
+    if components.get("reasoning_bonus"):
+        lines.append(f"{signed(components['reasoning_bonus'])} reasoning steps")
+    if components.get("agreement_adj"):
+        lines.append(f"{signed(components['agreement_adj'])} agreement with the other label")
+    if components.get("time_adj"):
+        lines.append(
+            f"{signed(components['time_adj'])} time on task "
+            f"({components.get('expected_minutes')} min expected)"
+        )
+    frac = components.get("difficulty_fraction")
+    if components.get("difficulty_adj"):
+        how = "measured" if components.get("difficulty_measured") else "declared"
+        lines.append(f"{signed(components['difficulty_adj'])} {how} difficulty {frac:g}")
+    if components.get("shape_adj"):
+        asked = [k for k, v in (components.get("case_shape") or {}).items() if v]
+        lines.append(f"{signed(components['shape_adj'])} the case asked for: {', '.join(asked)}")
+    return lines
 
 
 def _outcome_for(submission: Dict[str, Any], reviews: List[Dict[str, Any]]) -> Optional[str]:
@@ -179,20 +292,30 @@ def case_score(
         except (TypeError, ValueError, ZeroDivisionError):
             time_adj = 0.0
 
-    total = max(0.0, min(100.0, base + citations + reasoning + agreement + time_adj))
-    return {
-        "score": round(total, 1),
-        "components": {
-            "outcome": outcome,
-            "outcome_base": base,
-            "citation_bonus": citations,
-            "reasoning_bonus": reasoning,
-            "agreement_adj": agreement,
-            "time_adj": time_adj,
-            "expected_minutes": round(expected, 1),
-            "time_spent_sec": spent_sec,
-        },
+    difficulty_adj, difficulty_frac = _difficulty_adj(task)
+    shape = case_shape(task, payload)
+    shape_adj = _shape_adj(shape)
+
+    total = max(0.0, min(100.0, base + citations + reasoning + agreement
+                         + time_adj + difficulty_adj + shape_adj))
+    components = {
+        "outcome": outcome,
+        "outcome_base": base,
+        "citation_bonus": citations,
+        "reasoning_bonus": reasoning,
+        "agreement_adj": agreement,
+        "time_adj": time_adj,
+        "expected_minutes": round(expected, 1),
+        "time_spent_sec": spent_sec,
+        "difficulty_adj": difficulty_adj,
+        "difficulty_fraction": difficulty_frac,
+        "difficulty_measured": bool((task or {}).get("difficulty_measured")),
+        "shape_adj": shape_adj,
+        "case_shape": shape,
+        "version": CASE_QUALITY_VERSION,
     }
+    components["reasons"] = _reason_lines(components)
+    return {"score": round(total, 1), "components": components}
 
 
 def prior_for(store, user: Dict[str, Any]) -> Tuple[float, str]:
@@ -230,9 +353,36 @@ def compute(store, user_id: str, *, limit: int = 500) -> Optional[Dict[str, Any]
     for sub in store.list_submissions(evaluator_id=user_id, limit=limit):
         task = store.get_task(sub.get("task_id") or "")
         reviews = store.reviews_for_submission(sub["submission_id"])
+        # A case stamped under an OLDER ruleset keeps the number it was given.
+        # Recomputing it here would restate a case that may already have been
+        # paid against and explained to the physician, which is the thing the
+        # stamp exists to prevent (see store.stamp_submission_quality).
+        stamped = None
+        try:
+            stamped = store.submission_quality(sub["submission_id"])
+        except Exception:  # noqa: BLE001 - a store without the columns yet
+            stamped = None
+        if stamped and stamped.get("version") != CASE_QUALITY_VERSION:
+            graded.append({
+                "submission_id": sub["submission_id"],
+                "score": stamped["score"],
+                "components": stamped["components"],
+                "stamped_version": stamped.get("version"),
+            })
+            continue
         scored = case_score(sub, task, reviews)
         if scored is not None:
             graded.append({"submission_id": sub["submission_id"], **scored})
+            # Stamp at grade time. Best-effort: a scoring failure must never
+            # take a submit or a QA decision down with it.
+            try:
+                store.stamp_submission_quality(
+                    sub["submission_id"], score=scored["score"],
+                    components=scored["components"], version=CASE_QUALITY_VERSION,
+                )
+            except Exception:  # noqa: BLE001
+                log.exception("contributor_score: could not stamp %s",
+                              sub["submission_id"])
 
     n = len(graded)
     total = sum(g["score"] for g in graded)

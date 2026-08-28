@@ -1185,6 +1185,25 @@ class AsclepiusStore:
             # unreviewed; 'in_review' = claimed by a reviewer; 'reviewed' = at least
             # one review submitted. Deliberately NO DEFAULT — NULL ("not yet decided")
             # must stay distinguishable from any decided value (START_HERE §4).
+            # ─── Case quality (internal metric) ──────────────────────────
+            # The per-case quality number, STAMPED at grade time next to the
+            # version of the coefficients that produced it. Stamped rather than
+            # recomputed for the same reason ``earnings.rate_cents`` is stamped
+            # at accrual: once this number is attached to money, recomputing it
+            # under new weights silently restates work a physician has already
+            # been paid for and told about.
+            #
+            # Nullable with no DEFAULT, deliberately: NULL means "never graded",
+            # which must stay distinguishable from a graded zero.
+            sub_cols = cols("submissions")
+            if "quality_score" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN quality_score REAL")
+            if "quality_components_json" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN quality_components_json TEXT")
+            if "quality_version" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN quality_version TEXT")
+            if "quality_graded_at" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN quality_graded_at TEXT")
             if "review_status" not in cols("submissions"):
                 conn.execute("ALTER TABLE submissions ADD COLUMN review_status TEXT")
             # Review CLAIM state (FIX A Phases 2/3). Three separate columns, all
@@ -2848,6 +2867,63 @@ class AsclepiusStore:
                 f"SELECT * FROM buyer_deliveries {where} ORDER BY sent_at DESC", tuple(params)
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # ─── Case quality (internal metric, stamped) ─────────────────────────────
+    def stamp_submission_quality(
+        self, submission_id: str, *, score: float, components: Dict[str, Any],
+        version: str,
+    ) -> bool:
+        """Record the per-case quality number, unless an older ruleset owns it.
+
+        Writes when nothing is stamped yet, or when the stamped version matches
+        the one being written (a re-grade under the SAME rules is a correction
+        and should land: a second reviewer can legitimately turn an accept into
+        a reject).
+
+        Refuses when a DIFFERENT version is stamped. That row was scored under
+        the coefficients in force at the time, it may already have been paid
+        against, and restating it is the thing this whole mechanism exists to
+        prevent. Same semantics as ``earnings.rate_cents``.
+
+        Returns True when the row was written.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT quality_version FROM submissions WHERE submission_id = ?",
+                (submission_id,),
+            ).fetchone()
+            if row is None:
+                return False
+            stamped = row["quality_version"]
+            if stamped and stamped != version:
+                return False
+            conn.execute(
+                "UPDATE submissions SET quality_score = ?, quality_components_json = ?, "
+                "quality_version = ?, quality_graded_at = ? WHERE submission_id = ?",
+                (float(score), json.dumps(components), version, _utcnow_iso(), submission_id),
+            )
+            return True
+
+    def submission_quality(self, submission_id: str) -> Optional[Dict[str, Any]]:
+        """The stamped quality of one case, or None when it was never graded."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT quality_score, quality_components_json, quality_version, "
+                "quality_graded_at FROM submissions WHERE submission_id = ?",
+                (submission_id,),
+            ).fetchone()
+        if not row or row["quality_score"] is None:
+            return None
+        try:
+            components = json.loads(row["quality_components_json"] or "{}")
+        except ValueError:
+            components = {}
+        return {
+            "score": float(row["quality_score"]),
+            "components": components,
+            "version": row["quality_version"],
+            "graded_at": row["quality_graded_at"],
+        }
 
     def get_user_by_id_hashed(self, id_hashed: str) -> Optional[Dict[str, Any]]:
         """Resolve the user (incl. onboarding-collected credential fields) from the
@@ -7638,6 +7714,19 @@ class AsclepiusStore:
         return self.get_user_by_id(user_id)
 
     # ─── Contributor scores (PRD-SCORE) ──────────────────────────────────────
+    def contributor_scores_by_user(self) -> Dict[str, float]:
+        """Every stored contributor score, keyed by user.
+
+        One query for the whole roster. The per-user ``compute`` walks that
+        physician's submissions and is a query per row, which is fine on a
+        dossier and is not fine on a list of everyone.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT user_id, score FROM contributor_scores"
+            ).fetchall()
+        return {r["user_id"]: r["score"] for r in rows if r["score"] is not None}
+
     def get_contributor_score(self, user_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(

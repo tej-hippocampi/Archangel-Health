@@ -3465,6 +3465,12 @@ async def qa_decision(
     new_status = asc_pipeline.apply_qa_decision(
         store, sub, decision=body.decision, reviewer_id=reviewer["id"], notes=body.notes
     )
+    # contributor_score's docstring has always claimed "the recompute hooks ride
+    # on QA decisions and review submissions". Only the review router ever
+    # called it, so a QA-only-graded submission never moved the stored score,
+    # and nothing tested it. Best-effort by contract: the module swallows its
+    # own failures, and a scoring problem must not undo a recorded decision.
+    asc_contributor_score.recompute_for_submission(store, submission_id)
     return {"submission_id": submission_id, "status": new_status}
 
 
