@@ -43,11 +43,19 @@ def test_the_score_never_renders_from_a_missing_payload():
     assert "if (!info || info.score == null) return null;" in _src()
 
 
-def test_the_case_difficulty_chip_is_on_the_open_case_header():
-    """The workspace meta row carries the colored difficulty chip."""
+def test_the_case_difficulty_chip_is_no_longer_on_the_open_case_header():
+    """It used to be, and deliberately is not any more.
+
+    The Doctor Portal UX PRD §7 deleted the metadata chip bar above the clinical
+    question: specialty, difficulty, modality and capture mode are our routing
+    vocabulary, and telling a specialist "Difficulty: hard" before they read the
+    chart primes the answer. The difficulty is still on the task record and
+    still drives routing — it is only no longer shown to the physician grading
+    the case. The full set of removal assertions lives in test_portal_ux.py.
+    """
     src = _src()
-    assert "DIFFICULTY_DOT" in src
-    assert "'Difficulty: ' + diff" in src
+    assert "DIFFICULTY_DOT" not in src
+    assert "'Difficulty: ' + diff" not in src
 
 
 def test_the_admin_profile_shows_the_score_and_trajectory():
