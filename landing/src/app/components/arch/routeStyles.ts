@@ -236,43 +236,53 @@ export const routeStyles = `
   to { transform: translate(-38%, -42%) rotate(-5deg); opacity: 0.94; }
 }
 
+/* With the sub-line gone the headline is the only voice in the hero, so it
+   takes the display size the old three-element stack could not afford, plus
+   the tighter tracking large type needs to stay optically even. */
 .arch-landing .hero-min h1 {
-  font-size: clamp(2.3rem, 5vw, 3.6rem);
+  font-size: clamp(1.65rem, 7.6vw, 4.4rem);
+  letter-spacing: -0.022em;
   margin: 0 auto;
   opacity: 0;
   transform: translateY(8px);
   animation: arch-mask-in 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-.arch-landing .hero-min .hero-sub {
-  margin: 1.3rem auto 0;
-  max-width: 34rem;
-  font-size: 1.02rem;
-  color: var(--ink-soft);
-  opacity: 0;
-  transform: translateY(8px);
-  animation: arch-mask-in 700ms cubic-bezier(0.16, 1, 0.3, 1) 90ms forwards;
-}
+/* Authored break (see HomePage): two blocks, so "Medical AI" always lands on
+   its own line and never splits. The lead half stays wrappable so narrow
+   phones fold it with balance instead of overflowing. */
+.arch-landing .h1-lead, .arch-landing .h1-tail { display: block; }
+.arch-landing .h1-tail { white-space: nowrap; }
+
+/* Headline to buttons is now a group break rather than a paragraph break, so
+   it scales with the display size instead of sitting at the old 2.5rem. */
 .arch-landing .hero-min .hero-ctas {
-  margin-top: 2.5rem;
+  gap: 0.85rem;
+  margin-top: clamp(2.5rem, 5.5vh, 3.4rem);
   opacity: 0;
   transform: translateY(8px);
-  animation: arch-mask-in 700ms cubic-bezier(0.16, 1, 0.3, 1) 200ms forwards;
+  animation: arch-mask-in 700ms cubic-bezier(0.16, 1, 0.3, 1) 120ms forwards;
 }
-/* The fourth stagger step, continuing the 0 / 90 / 200ms rhythm above so the
-   badge arrives after the buttons rather than with them. */
+/* The third stagger step, continuing the 0 / 120ms rhythm above so the badge
+   arrives after the buttons rather than with them. */
 .arch-landing .hero-min .hero-yc {
-  margin-top: 1.6rem;
+  margin-top: clamp(1.5rem, 3vh, 2rem);
+  font-size: clamp(0.72rem, 2.3vw, 0.8rem);
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  gap: 0.65em;
+  padding: 0.8em 1.25em;
+  border-radius: 8px; /* matches the :focus-visible ring radius */
   text-decoration: none;
   opacity: 0;
   transform: translateY(8px);
-  animation: arch-mask-in 700ms cubic-bezier(0.16, 1, 0.3, 1) 280ms forwards;
+  animation: arch-mask-in 700ms cubic-bezier(0.16, 1, 0.3, 1) 220ms forwards;
 }
-.arch-landing .hero-min .hero-yc:hover { border-color: rgba(26, 27, 26, 0.34); }
+.arch-landing .hero-min .hero-yc svg { flex: none; }
+.arch-landing .hero-min .hero-yc:hover { border-color: rgba(26, 27, 26, 0.34); color: var(--ink); }
 @keyframes arch-mask-in { to { opacity: 1; transform: none; } }
-.arch-landing .hero-min .btn { min-width: 12.5rem; justify-content: center; }
-/* Clean two-line headline on every width: "Frontier Data to Power" /
-   "Clinical and Medical AI". balance-wrap handles very narrow screens. */
-.arch-landing .h1-break { display: block; }
+/* Both labels clear this floor, so the pair renders as one equal-width unit
+   and holds its own under the larger headline. */
+.arch-landing .hero-min .btn { min-width: 14.5rem; justify-content: center; white-space: nowrap; }
 
 /* ============ route scaffolding ============ */
 
@@ -773,8 +783,8 @@ export const routeStyles = `
   .arch-landing .menu-row-btn .chrome { min-width: 0; }
   .arch-landing .nav-cluster .hide-sm { display: none; } /* container renamed from .nav-links */
   .arch-landing .menu-trigger .menu-label { display: none; }
-  .arch-landing .hero-min .hero-ctas { flex-direction: column; align-items: stretch; }
-  .arch-landing .hero-min .btn { width: 100%; min-height: 44px; }
+  .arch-landing .hero-min .hero-ctas { flex-direction: column; align-items: stretch; max-width: 22rem; margin-inline: auto; }
+  .arch-landing .hero-min .btn { width: 100%; min-width: 0; min-height: 48px; }
   .arch-landing .notify-form { flex-direction: column; }
   .arch-landing .fr-row, .arch-landing .contact-row { flex-direction: column; gap: 0.3rem; }
   .arch-landing .bench-grid { grid-template-columns: 1fr; gap: 0; }
@@ -796,7 +806,7 @@ export const routeStyles = `
   .arch-landing .menu-sub, .arch-landing .menu-chev, .arch-landing .topnav-chev { transition: none; }
   .arch-landing .topnav-menu { animation: arch-fade-once 120ms ease; }
   .arch-landing .hero-min .glow-a, .arch-landing .hero-min .glow-b { animation: none; }
-  .arch-landing .hero-min h1, .arch-landing .hero-min .hero-sub, .arch-landing .hero-min .hero-ctas, .arch-landing .hero-min .hero-yc { animation: arch-fade-once 120ms ease forwards; transform: none; }
+  .arch-landing .hero-min h1, .arch-landing .hero-min .hero-ctas, .arch-landing .hero-min .hero-yc { animation: arch-fade-once 120ms ease forwards; transform: none; }
   .arch-landing .trace-scroll .trace, .arch-landing .trace-scroll .trace-orange,
   .arch-landing .trace-scroll .trace-node, .arch-landing .wave-path, .arch-landing .wave-pulse {
     animation: none !important; stroke-dashoffset: 0; opacity: 1;

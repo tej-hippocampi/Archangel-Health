@@ -37,7 +37,7 @@ export const ARCH_PATHS: ArchPath[] = ["/", "/research", "/data", "/health-syste
 
 const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   "/": {
-    title: "Archangel Health · Frontier Data to Power Clinical and Medical AI",
+    title: "Archangel Health · Infrastructure to Power Medical AI",
     desc: "A network of hundreds of board-certified physicians behind 20+ clinical data products, plus fully bespoke collection. Training data for clinical and medical AI.",
   },
   "/research": {
