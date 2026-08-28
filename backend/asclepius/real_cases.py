@@ -171,8 +171,8 @@ def segment_longitudinal_record(
 # because they are single-date, few-event contacts — a repeat lab draw, a
 # prescription refill. A repeat lab draw is not a decision, and a task built on
 # one teaches a model that medicine is a series of trivia questions. Every point
-# below the gate is a point a specialist is paid $75 to answer
-# (``payments.tl_rate_cents``) and a buyer is asked to price as clinical judgment.
+# below the gate is a point a specialist is paid the standard per-submission rate
+# to answer, and a buyer is asked to price as clinical judgment.
 # The gate is the product.
 ENCOUNTER_MIN_DISTINCT_DATES = 2
 ENCOUNTER_MIN_EVENTS = 8

@@ -44,8 +44,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 #: One, deliberately, and this is a pricing decision as much as a routing one.
 #: Trajectory points are excluded from the κ pool by construction (§4.2.4), so a
 #: second label buys no agreement statistic. What it buys is a second independent
-#: walk of the same patient — a different and more expensive product at $75 a
-#: point (``payments.tl_rate_cents``), 13 points deep on patient-1. Double-walking
+#: walk of the same patient — a different and more expensive product at the
+#: standard per-submission rate, 13 points deep on patient-1. Double-walking
 #: a trajectory is a deliberate, priced decision an admin makes explicitly by
 #: passing ``max_labels=2``; it is never the default and never derived.
 TRAJECTORY_MAX_LABELS = 1

@@ -95,8 +95,8 @@ def wants_second_label(task: Dict[str, Any]) -> bool:
     # this branch EVERY trajectory point would answer True here, and
     # ``store._prd_r_lift_capacity`` would write ``max_labels = 2`` onto all
     # thirteen of patient-1's points on their first draw. Nobody decided that: it
-    # would double a $975 chart walk to $1,950 (``payments.tl_rate_cents`` is $75 a
-    # submission and a decision point is a submission) as a side effect of a
+    # would double a $975 chart walk to $1,950 (a decision point is one completed
+    # submission, at the standard per-submission rate) as a side effect of a
     # fleet-wide default, and buy nothing measurable — trajectory points are
     # excluded from the κ pool by construction (§4.2.4), so the second label
     # produces no agreement statistic. What it does produce is a second independent
