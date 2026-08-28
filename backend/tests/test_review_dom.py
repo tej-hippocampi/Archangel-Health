@@ -1437,3 +1437,32 @@ def test_the_evaluate_chooser_is_not_offered_to_a_session_that_cannot_review():
 # whichever generation is drawing, and a generation that ends without its reply
 # has it cleared by render() or teardown(). Written down here rather than
 # asserted, because that is the honest form of this particular claim.
+
+
+def test_the_view_reset_cannot_run_before_the_review_teardown():
+    """An ordering invariant that the Tasks-resets-the-view rule made
+    load-bearing.
+
+    `setPanel` does two things to a reviewer leaving the surface: it tears the
+    module down (stopping Agent P's beats and unbinding the keyboard), and — for
+    a non-admin — it resets `state.view` to 'home'. The teardown is conditional
+    on `state.view === 'review'`. So if the reset ever moves ABOVE it, the
+    condition is already false by the time it is read, the teardown silently
+    stops firing, and a reviewer who clicked Tasks goes on accruing paid time
+    against a dashboard with no work on it. That is the exact failure the
+    empty-queue stop exists to prevent, reintroduced by a line order.
+
+    Nothing about this is visible in the rendered output, which is why it is
+    asserted on the source.
+    """
+    src = _code(_PORTAL_JS.read_text(encoding="utf-8"))
+    body = src.split("function setPanel(")[1].split("\n  }\n")[0]
+    teardown = body.index("teardownReview()")
+    reset = body.index("state.view = 'home'")
+    assert teardown < reset, (
+        "the view reset now runs before the review teardown, so the teardown's "
+        "own condition is false when it is read and the session never stops"
+    )
+    # ...and the teardown is still skipped only for 'tasks', which is the one
+    # destination that keeps the reviewer on the surface.
+    assert "state.view === 'review' && dest !== 'tasks'" in body
