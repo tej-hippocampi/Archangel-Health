@@ -719,10 +719,24 @@ def test_an_empty_prediction_is_None_and_that_is_not_an_error():
     assert asc_trajectory.normalize_expected_trajectory({"expectations": []}) is None
 
 
-def test_horizon_is_clamped_not_rejected():
+def test_a_long_but_legitimate_horizon_survives_intact():
+    """Clamping rewrites the physician's stated prediction into one they did not
+    make, then scores them against it. On a 20-year chart "stable over two years"
+    is a real specialist claim; only nonsense is rejected."""
+    for days in (1, 21, 400, 730, 1825):
+        got = asc_trajectory.normalize_expected_trajectory({
+            "expectations": [{"expectation": "bilirubin falls steadily",
+                              "horizon_days": days}]})
+        assert got["expectations"][0]["horizon_days"] == days, days
+
+
+def test_a_nonsense_horizon_is_bounded_and_an_unreadable_one_is_None():
     got = asc_trajectory.normalize_expected_trajectory({
-        "expectations": [{"expectation": "bilirubin falls steadily", "horizon_days": 99999}]})
-    assert got["expectations"][0]["horizon_days"] == 400
+        "expectations": [{"expectation": "bilirubin falls steadily", "horizon_days": 999999}]})
+    assert got["expectations"][0]["horizon_days"] == 1825
+    got = asc_trajectory.normalize_expected_trajectory({
+        "expectations": [{"expectation": "bilirubin falls steadily", "horizon_days": 0}]})
+    assert got["expectations"][0]["horizon_days"] == 1
     got = asc_trajectory.normalize_expected_trajectory({
         "expectations": [{"expectation": "bilirubin falls steadily", "horizon_days": "soon"}]})
     assert got["expectations"][0]["horizon_days"] is None

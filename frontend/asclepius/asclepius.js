@@ -5751,7 +5751,7 @@
         }, exp.expectation || ''));
         text.addEventListener('input', () => { exp.expectation = text.value; saveDraft(); });
         const days = h('input', {
-          class: 'asc-input', type: 'number', min: '1', max: '400',
+          class: 'asc-input', type: 'number', min: '1', max: '1825',
           style: 'max-width:150px', placeholder: 'within … days',
           value: exp.horizon_days === '' || exp.horizon_days == null ? '' : String(exp.horizon_days),
         });

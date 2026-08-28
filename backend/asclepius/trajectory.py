@@ -168,13 +168,27 @@ def kappa_exclusion_reason(task: Optional[Dict[str, Any]]) -> Optional[str]:
 #: stray "yes", an "ok", a half-typed word left in an unused box.
 _MIN_FALSIFIER_WORDS = 2
 _MIN_EXPECTATION_WORDS = 2
-#: Horizon in days, clamped. A prediction with no horizon is not falsifiable
-#: ("bilirubin will fall" is true eventually); one with a 20-year horizon is not
-#: checkable against the next encounter. The ceiling is the widest gap the
-#: segmentation can put between two qualifying encounters and still call the second
-#: one an outcome.
+#: Horizon in days. A prediction with no horizon is not falsifiable — "bilirubin
+#: will fall" is true eventually — so the field is asked for every time, though it
+#: stays optional.
+#:
+#: The ceiling is deliberately GENEROUS, at five years, and that is the opposite of
+#: the obvious choice. A tight ceiling looks like discipline and is not: clamping
+#: rewrites the physician's stated prediction into one they did not make, and then
+#: scores them against it. On a 20-year chart "I expect this stable over two years"
+#: is a legitimate specialist claim, and turning it into "within 400 days" would be
+#: this product putting words in a board-certified clinician's mouth on the one
+#: field it sells as their own.
+#:
+#: Whether a horizon is checkable against the NEXT encounter is a different
+#: question, and it is answered where it belongs: the physician marks the
+#: expectation ``not_assessable`` when the record does not reach far enough. That is
+#: a judgment, not an arithmetic clamp.
+#:
+#: So the bounds here only reject nonsense — a zero, a negative, a mis-typed
+#: 999999 — and everything a clinician could plausibly mean survives intact.
 _HORIZON_MIN_DAYS = 1
-_HORIZON_MAX_DAYS = 400
+_HORIZON_MAX_DAYS = 1825
 
 _WS_RE = re.compile(r"\s+")
 
