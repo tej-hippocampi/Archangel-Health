@@ -1,4 +1,4 @@
-"""Landing lead-capture forms — "Request data" (AI-lab / health-AI buyers) and
+"""Landing lead-capture forms — "Request products" (AI-lab / health-AI buyers) and
 "Provide data" (health systems, practices & software companies).
 
 Two-field public forms (see design/Landing_Request_and_Provide_Forms_PRD.md):
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/leads", tags=["leads"])
 # Human labels for the two source streams so the notification email + subject
 # make the two pipelines obvious and separable.
 _SOURCE_LABELS = {
-    "request_data": "Request data · AI lab / buyer",
+    "request_data": "Request products · AI lab / buyer",
     "provide_data": "Provide data · data provider",
     "research_notify": "Research notify · publication list",
 }

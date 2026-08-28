@@ -439,7 +439,7 @@ export async function getDoctorProfile(token: string): Promise<DoctorProfile | n
 export type LeadSource = "request_data" | "provide_data" | "research_notify";
 
 /**
- * Submit a landing lead-capture form ("Request data" / "Provide data"). The
+ * Submit a landing lead-capture form ("Request products" / "Provide data"). The
  * backend stores the row and emails the configured recipient. Throws an
  * actionable error on failure so the form can show its "or email us" fallback.
  */

@@ -778,6 +778,17 @@ export const routeStyles = `
   .arch-landing .trust-row { grid-template-columns: 1fr; gap: 0.3rem; }
 }
 
+/* Below this the header cannot hold all three of wordmark, lead CTA and menu
+   button: at their natural sizes they need ~405px of viewport, so the CTA
+   wrapped to a second line on most phones. The CTA is the one duplicated
+   elsewhere — it is the primary button in the menu footer, one tap away —
+   while the wordmark is the only place the name appears in persistent chrome,
+   so the CTA is what gives way. Continues the collapse ladder above (section
+   nav at 1200px, "Sign in" and the menu label at 640px). */
+@media (max-width: 460px) {
+  .arch-landing .nav-cluster .nav-cta-lead { display: none; }
+}
+
 @media (max-width: 640px) {
   .arch-landing .menu-row-btn { min-height: 64px; gap: 0.9rem; }
   .arch-landing .menu-row-btn .chrome { min-width: 0; }
