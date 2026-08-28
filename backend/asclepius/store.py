@@ -2856,6 +2856,20 @@ class AsclepiusStore:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
 
+    def count_active_admins(self, *, excluding: Optional[str] = None) -> int:
+        """How many active admins are there besides ``excluding``?
+
+        Used by the env-admin bootstrap to decide whether refusing to re-promote
+        an account would lock the console's LAST operator out. "Is there another
+        way in?" has to be a real query, not an assumption."""
+        sql = "SELECT COUNT(*) FROM users WHERE role = 'admin' AND active = 1"
+        params: List[Any] = []
+        if excluding:
+            sql += " AND id != ?"
+            params.append(excluding)
+        with self._conn() as conn:
+            return int(conn.execute(sql, params).fetchone()[0])
+
     def list_evaluators_by_specialty(
         self, specialty: str, *, include_provisional: bool = False
     ) -> List[Dict[str, Any]]:

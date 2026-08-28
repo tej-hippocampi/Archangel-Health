@@ -302,6 +302,42 @@ Two things make the setting actually reach a running deployment:
   what is missing and never rewrites visibility, because a physician drawing a
   case must not change who else can see the corpus as a side effect.
 
+### ASCLEPIUS_ADMIN_EMAIL must never name a physician
+
+`ensure_admin_from_env` runs on **every boot** and forces the named account to
+`role='admin'`. Pointed at a doctor's email that is not a one-time promotion, it
+is a standing override: the console's own "set role" button appears to work and
+the next deploy silently undoes it.
+
+The real-data cost is indirect and was measured, not assumed. The admin role does
+**not** by itself block real cases — admins hold LABEL, so a *verified* admin does
+get the auto-grant. What actually happens is that an env-bootstrapped account is
+created by `create_user(role='admin')` and never enters the verification queue,
+so `verification_status` stays NULL, `sync_real_data_approval` does not grant, and
+the portal falls back to the synthetic queue. On screen: an ADMIN badge, an admin
+console in a doctor's nav, and "N cases available · Synthetic multimodal cases".
+
+Two guards now:
+
+* The bootstrap **refuses** to convert an account whose role is `evaluator`,
+  logging at ERROR with the fix. The one exception is lockout — if it is the only
+  active admin it still promotes, because an operator who cannot get in cannot
+  repair anything. That is a real `count_active_admins` query, not an assumption.
+* `/admin/real-case-access` reports `role` and `pinned_admin_by_env`, and
+  distinguishes a **blocker** (the pin will revert your change) from a **note**
+  (the guard is holding, but repoint the variable anyway).
+
+To repair an account this already happened to, in order — the order matters,
+because step 2 is reverted by the next deploy if step 1 is skipped:
+
+1. Repoint `ASCLEPIUS_ADMIN_EMAIL` at a separate operations account.
+2. Physicians roster → set role to `evaluator`
+   (`POST /api/asclepius/admin/users/{id}/role {"role":"evaluator"}`).
+3. Approve verification and assign the `labeler` tier
+   (`/api/asclepius/verify/queue/{id}/approve`, `/verify/tiering/{id}/decide`).
+   The approve route calls `sync_real_data_approval` itself, so real-data access
+   lands on the spot rather than waiting for the next boot.
+
 ### Is the fix actually deployed?
 
 `GET /api/version` — unauthenticated, no login needed:
