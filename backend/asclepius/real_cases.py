@@ -162,6 +162,124 @@ def segment_longitudinal_record(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Longitudinal Cases PRD §2 — the density gate, and why it is the product
+# ═══════════════════════════════════════════════════════════════════════════════
+# Measured across patient-1…patient-4: 59 encounters, of which 25 clear this gate
+# and 21 have a later qualifying encounter to be checked against.
+#
+# **DO NOT LOWER THESE TO RAISE THE COUNT.** 34 of the 59 fail, and they fail
+# because they are single-date, few-event contacts — a repeat lab draw, a
+# prescription refill. A repeat lab draw is not a decision, and a task built on
+# one teaches a model that medicine is a series of trivia questions. Every point
+# below the gate is a point a specialist is paid $75 to answer
+# (``payments.tl_rate_cents``) and a buyer is asked to price as clinical judgment.
+# The gate is the product.
+ENCOUNTER_MIN_DISTINCT_DATES = 2
+ENCOUNTER_MIN_EVENTS = 8
+ENCOUNTER_MIN_RESOURCE_TYPES = 2
+
+
+def _resource_types_in_window(case: Dict[str, Any], lo: int, hi: int) -> List[str]:
+    """Which activity collections actually recorded something in ``[lo, hi]``.
+
+    Scoped to ``_ACTIVITY_COLLECTIONS`` — the same definition of "activity" the
+    segmentation clusters on — deliberately, and not widened to medications or the
+    problem list. Those are chart STATE, not observations made in this window (see
+    the note on ``_ACTIVITY_COLLECTIONS``), and counting a decade-old problem entry
+    as a second "resource type" would let a single-lab-draw contact clear a gate
+    built to exclude exactly that.
+    """
+    out: List[str] = []
+    for key in _ACTIVITY_COLLECTIONS:
+        if any(lo <= off <= hi for off in _timed_offsets(case, (key,))):
+            out.append(key)
+    return out
+
+
+def qualify_encounter(
+    case: Optional[Dict[str, Any]], encounter: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Is this encounter a DECISION POINT? ``{qualifies, ...why}``.
+
+    The §2 density gate: **≥ 2 distinct dates, ≥ 8 events, ≥ 2 resource types.**
+
+    Returns the measurements alongside the verdict, always — never a bare bool.
+    An admin looking at a chart that yielded 3 points out of 17 encounters needs to
+    see *which* threshold each skipped encounter missed and by how much; a gate
+    that reports only its verdict is a gate nobody can argue with, and this one
+    should be arguable with evidence.
+
+    A chart with no timing at all (``undated``) never qualifies. The whole
+    construct is "truncate here, reveal what came after", and neither half of that
+    means anything without an axis to truncate on.
+    """
+    c = as_dict(case) or {}
+    enc = encounter or {}
+    offsets = list(enc.get("offsets") or [])
+    reasons: List[str] = []
+
+    if enc.get("undated") or not offsets:
+        return {"qualifies": False, "n_distinct_dates": 0, "n_events": 0,
+                "resource_types": [], "n_resource_types": 0,
+                "reasons": ["encounter has no recorded timepoint"]}
+
+    lo, hi = offsets[0], offsets[-1]
+    n_dates = len(set(offsets))
+    n_events = int(enc.get("n_events") or 0)
+    types = _resource_types_in_window(c, lo, hi)
+
+    if n_dates < ENCOUNTER_MIN_DISTINCT_DATES:
+        reasons.append(f"{n_dates} distinct date(s); the gate is "
+                       f"{ENCOUNTER_MIN_DISTINCT_DATES}")
+    if n_events < ENCOUNTER_MIN_EVENTS:
+        reasons.append(f"{n_events} recorded event(s); the gate is {ENCOUNTER_MIN_EVENTS}")
+    if len(types) < ENCOUNTER_MIN_RESOURCE_TYPES:
+        reasons.append(f"{len(types)} resource type(s) ({', '.join(types) or 'none'}); "
+                       f"the gate is {ENCOUNTER_MIN_RESOURCE_TYPES}")
+
+    return {
+        "qualifies": not reasons,
+        "n_distinct_dates": n_dates,
+        "n_events": n_events,
+        "resource_types": types,
+        "n_resource_types": len(types),
+        "reasons": reasons,
+    }
+
+
+def pair_decision_points(
+    case: Optional[Dict[str, Any]], encounters: Sequence[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Consecutive QUALIFYING encounters, as ``(k, k+1)`` pairs — the verifiable set.
+
+    Returns ``[{decision, outcome, decision_index, outcome_index}, ...]`` oldest
+    first, where each element is one of the input encounters.
+
+    "*k+1*" means **the next encounter that also qualifies**, not the next encounter
+    on the axis. A decision at *k* checked against a single stray lab draw is not
+    verified against anything; it is verified against noise, and the resulting
+    "outcome" would train a model on a coincidence. Non-qualifying encounters that
+    fall between the two are not skipped — they are part of the sealed future and
+    are revealed with the outcome — they simply cannot BE the outcome.
+
+    The last qualifying encounter is never a decision point: there is no later
+    qualifying encounter to check it against, which is the whole difference between
+    the 25 encounters that pass the gate and the 21 that are verifiable.
+    """
+    c = as_dict(case) or {}
+    qualifying = [e for e in (encounters or []) if qualify_encounter(c, e)["qualifies"]]
+    return [
+        {
+            "decision": qualifying[i],
+            "outcome": qualifying[i + 1],
+            "decision_index": qualifying[i].get("index"),
+            "outcome_index": qualifying[i + 1].get("index"),
+        }
+        for i in range(len(qualifying) - 1)
+    ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # §3.2  The decision point — the single most important choice in the pipeline
 # ═══════════════════════════════════════════════════════════════════════════════
 # What ENDS the window: the arrival of a definitive result, a therapeutic
@@ -1084,10 +1202,96 @@ def build_encounter_case(
         "study_findings_policy": c.get("study_findings_policy") or "visible",
         "ground_truth": _ground_truth_from_held_out(held_out),
     }
+    # §4.2.1 — the declaration is computed FROM THIS WINDOW, never inherited from
+    # the parent chart. See ``ingestion.modalities_present_in`` for why inheriting
+    # quarantines every early decision point with a clinical-sounding rejection for
+    # what is correct behaviour. Local import: ``ingestion`` pulls in the store, and
+    # this module is meant to stay runnable in an offline admin dry-run.
+    from asclepius.ingestion import modalities_present_in
+    visible["required_modalities"] = modalities_present_in(visible)
     stats = {"labs": lab_stats, "notes": note_stats, "medications": med_stats,
              "problems": len(problems), "studies": len(studies),
              "withheld_untimed": untimed}
     return visible, held_out, stats
+
+
+def outcome_delta(
+    outcome_case: Optional[Dict[str, Any]], *,
+    outcome_index_offset: int, decision_index_offset: int,
+) -> Dict[str, Any]:
+    """What encounter *k+1* adds that encounter *k* did not already show.
+
+    THE PHASE 4 REVEAL (Longitudinal Cases PRD §4, Phase 4). Both cases are stored
+    re-based to their OWN decision point, so this lifts the outcome case's items
+    back onto the parent chart's axis, keeps only what was recorded AFTER the
+    decision point being graded, and re-bases the survivors to that decision point
+    — so the physician reads "day +12", counted from the moment they committed.
+
+    Two rules make this safe to serve:
+
+    * It is a FILTER over a case that has already been de-identified, leak-gated
+      and stored. Nothing here reaches back into the parent chart, so the reveal
+      cannot surface a field the ingestion pipeline never cleared.
+    * ``> decision_index_offset``, strictly. An item recorded ON the decision day
+      was visible when the physician committed and is not an outcome; including it
+      would let a physician "verify" an expectation against a datum they had
+      already read.
+
+    Raises ``RealCaseError`` when either offset is missing. **FAIL CLOSED**: with no
+    axis to place the two windows on, the only alternatives are serving the outcome
+    case whole — which shows the physician chart state they already saw as if it
+    were new, and can reach further back than the decision point — or serving
+    nothing while saying it worked. Both are worse than an error the admin sees.
+    """
+    if not isinstance(outcome_index_offset, int) or not isinstance(decision_index_offset, int):
+        raise RealCaseError(
+            "cannot build the outcome reveal: one of the two decision-point offsets "
+            "is missing, so the two windows cannot be placed on a common axis")
+    c = as_dict(outcome_case) or {}
+    shift = outcome_index_offset - decision_index_offset   # ≥ 0 for a later encounter
+
+    def _after(key: str) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        for item in c.get(key) or []:
+            off = _offset_of(item)
+            if off is None or off + shift <= 0:
+                # Untimed items are dropped, not shown. On the visible side untimed
+                # FAILS CLOSED because it might be the answer; here it fails closed
+                # because an outcome we cannot date is not evidence that anything
+                # happened after the decision.
+                continue
+            rebased = dict(item)
+            rebased["collected_offset_days"] = off + shift
+            out.append(rebased)
+        return out
+
+    vitals = dict(c.get("vitals") or {})
+    v_off = vitals.get("collected_offset_days")
+    if isinstance(v_off, int) and v_off + shift > 0:
+        vitals["collected_offset_days"] = v_off + shift
+    else:
+        vitals = {}
+
+    delta = {
+        "lab_panels": _after("lab_panels"),
+        "notes": _after("notes"),
+        "studies": _after("studies"),
+        "medications": _after("medications"),
+        "problem_list": _after("problem_list"),
+        "vitals": vitals,
+        # Carried so the reveal renders under the same findings rule as the case it
+        # came from. §9.5: this legitimately VARIES across one trajectory — a window
+        # with no imaging is 'visible', a later one carrying a study asset is
+        # 'hidden' — and the physician may notice findings appearing or disappearing
+        # as they move forward in time. That is the policy reflecting what each
+        # window contains, and it is stated in the data dictionary rather than left
+        # to be discovered in a buyer's diligence.
+        "study_findings_policy": c.get("study_findings_policy") or "visible",
+        "days_after_decision": shift,
+    }
+    delta["n_events"] = sum(len(delta[k]) for k in
+                            ("lab_panels", "notes", "studies", "medications", "problem_list"))
+    return delta
 
 
 def _visible_vitals(case: Dict[str, Any], index_offset: int) -> Dict[str, Any]:
@@ -1707,14 +1911,30 @@ async def plan_cases(
     total_encounters = len(encounters)
     proposals: List[Dict[str, Any]] = []
 
+    # Longitudinal Cases PRD §2 — the density gate and the verifiable set,
+    # measured once for the whole chart so the plan can report BOTH numbers: how
+    # many encounters are decision points, and how many of those have a later
+    # decision point to be checked against. An admin pricing a chart walk needs the
+    # second number, and it is always the first minus one.
+    verifiable_pairs = pair_decision_points(c, encounters)
+    verifiable_indices = {p["decision_index"] for p in verifiable_pairs}
+
     for enc in encounters:
         index_offset, index_rationale = select_decision_point(c, enc)
+        density = qualify_encounter(c, enc)
         proposal: Dict[str, Any] = {
             "encounter_index": enc["index"],
             "encounter_span": [enc["start_offset"], enc["end_offset"]],
             "n_events": enc.get("n_events", 0),
             "index_event_offset": index_offset,
             "index_rationale": index_rationale,
+            # §2: reported on every proposal, passing or not, WITH the measurements.
+            # 34 of the 59 encounters across the four real charts fail this gate,
+            # and an admin looking at a chart that yielded 3 points out of 17 needs
+            # to see which threshold each one missed rather than only that it did.
+            "density": density,
+            "qualifies_as_decision_point": density["qualifies"],
+            "outcome_verifiable": enc["index"] in verifiable_indices,
             "blockers": [],
         }
         if index_offset is None:
@@ -1790,4 +2010,16 @@ async def plan_cases(
         "proposals": proposals,
         "generatable": len(generatable),
         "min_gap_days": min_gap_days,
+        # §2 — the two numbers a chart walk is priced on, stated separately because
+        # they are different facts. ``decision_points`` is what clears the density
+        # gate; ``verifiable_decision_points`` is how many of those the record can
+        # actually check, which is always one fewer (the last has no later
+        # qualifying encounter). Measured across the four real charts: 25 and 21.
+        "decision_points": sum(1 for p in proposals if p.get("qualifies_as_decision_point")),
+        "verifiable_decision_points": len(verifiable_pairs),
+        "density_gate": {
+            "min_distinct_dates": ENCOUNTER_MIN_DISTINCT_DATES,
+            "min_events": ENCOUNTER_MIN_EVENTS,
+            "min_resource_types": ENCOUNTER_MIN_RESOURCE_TYPES,
+        },
     }

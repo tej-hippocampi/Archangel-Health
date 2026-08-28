@@ -50,6 +50,8 @@ from asclepius import pipeline as asc_pipeline
 from asclepius import profiles as asc_profiles
 from asclepius import specialties as asc_specialties
 from asclepius import task_notify as asc_task_notify
+# Pure policy module (stdlib only) — safe at module scope, no cycle.
+from asclepius import trajectory as asc_trajectory
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
     ASCLEPIUS_ENGINE,
@@ -152,6 +154,7 @@ from asclepius.schemas import (
     PasswordChange,
     ProfileUpdate,
     TaskUploadRequest,
+    TrajectorySelfScore,
     TutorialStateUpdate,
 )
 from asclepius.tutorial_case import (
@@ -234,6 +237,13 @@ def _blind_task(task: Dict[str, Any]) -> Dict[str, Any]:
         # key — surfaced so admin/QA + the buyer export can see the difficulty.
         "empirical_difficulty": task.get("empirical_difficulty"),
         "difficulty_measured": bool(task.get("difficulty_measured")),
+        # Longitudinal trajectory (PRD 2 §3.5): which chart walk this point belongs
+        # to and where it sits in it, so the workspace can say "step 3 of 13 on one
+        # patient" instead of showing three unexplained cases. Metadata only — this
+        # whitelist is what an evaluator receives, and the sequence GATE is enforced
+        # in SQL and again on the by-ID path, never from these two fields.
+        "trajectory_id": task.get("trajectory_id"),
+        "sequence_index": task.get("sequence_index"),
     }
     return out
 
@@ -2211,6 +2221,12 @@ async def available_tasks(
             "modality": t.get("modality"),
             "case_source": t.get("case_source"),
             "created_at": t.get("created_at"),
+            # PRD 2 §3.5 — a trajectory card says which step it is, so a physician
+            # sees "step 3 of 13 on one patient" rather than three unexplained
+            # cards. Metadata only: the sequence GATE is enforced in SQL and again
+            # on the by-ID path; this is what the card reads, never what decides.
+            "trajectory_id": t.get("trajectory_id"),
+            "sequence_index": t.get("sequence_index"),
         }
         for t in rows
     ]
@@ -2251,12 +2267,66 @@ def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> Non
         )
 
 
+def _require_trajectory_sequence(store: Any, task: Dict[str, Any], user: Dict[str, Any]) -> None:
+    """The sealed future on DIRECT task access (Longitudinal Cases PRD §9.1).
+
+    A trajectory point is openable by this evaluator only once they have submitted
+    every earlier point in the same chart walk. The labeler queue enforces the same
+    rule in SQL (``store._PRD_2_SEQUENCE_GATE``); **a queue-only fix is not a fix**
+    — the physician has the task id in the URL, the dashboard opens cases by id,
+    and a second tab is a second draw. So this closes the by-ID paths (fetch,
+    reveal, answers, prelabel, submit), exactly as ``_require_real_data_access``
+    closes them for the V4 wall.
+
+    **409, not 403.** This is not an authorization failure and must not read as
+    one: the physician is fully entitled to this case, just not yet. A 403 would
+    tell them their account is the problem and send them to support; a 409 with
+    the sentence below tells them to finish the earlier steps.
+
+    Admins and QA reviewers are NOT exempt. The exemption on the V4 wall exists
+    because an admin can legitimately inspect real data; there is no equivalent
+    argument here, because the harm is not disclosure — it is that reading forward
+    destroys the physician's own prediction, and an admin who opens point 7 to
+    check something has destroyed nothing except their own ability to label it. If
+    an admin needs to see a trajectory whole, the admin trajectory view serves it
+    without recording a submission.
+    """
+    if not asc_trajectory.is_trajectory_point(task):
+        return
+    idx = asc_trajectory.sequence_index(task)
+    pending = store.unanswered_earlier_points(
+        trajectory_id=task["trajectory_id"], sequence_index=idx if idx is not None else 0,
+        evaluator_id=user["id"],
+    ) if idx is not None else []
+    reason = asc_trajectory.blocks_out_of_order(task, unanswered_earlier=pending)
+    if reason is None:
+        return
+    progress = store.evaluator_trajectory_progress(
+        trajectory_id=task["trajectory_id"], evaluator_id=user["id"])
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "error": "trajectory_out_of_order",
+            "message": reason,
+            "trajectory_id": task["trajectory_id"],
+            "sequence_index": idx,
+            # The next point they MAY open, so the client can offer a way forward
+            # rather than a dead end.
+            "next_task_id": progress.get("next_task_id"),
+            "n_points": progress.get("n_points"),
+            "n_answered": progress.get("n_answered"),
+        },
+    )
+
+
 @router.get("/tasks/{task_id}")
 async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
-    task = _store().get_task(task_id)
+    store = _store()
+    task = store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
+    _require_trajectory_sequence(store, task, user)
     # The flow this task is actually graded in, derived from the TASK on the same
     # rule the submit path enforces. Opening a case from the dashboard list skips
     # /tasks/next, so without this the client stamped the draft from whatever
@@ -2282,6 +2352,7 @@ async def reveal_task_answers(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
+    _require_trajectory_sequence(store, task, user)
     text = (body.text or "").strip()
     if not text:
         raise HTTPException(
@@ -2372,6 +2443,7 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on answer-describing surfaces
+    _require_trajectory_sequence(store, task, user)  # PRD 2 §9.1 sealed future
     if not store.get_independent_commit(task_id, user["id"]):
         raise HTTPException(
             status_code=403,
@@ -2391,6 +2463,263 @@ async def get_task_answers(task_id: str, user: Dict[str, Any] = Depends(asc_auth
     answer (POST /tasks/{id}/reveal). Texts are still blinded (no generator_model)."""
     task = _require_independent_commit(_store(), task_id, user)
     return {"answers": _task_answers(task)}
+
+
+# ─── Longitudinal trajectories (PRD 2 Phases 4 + 5) ───────────────────────────
+def _trajectory_submission(store: Any, task: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
+    """This evaluator's submission on this decision point, or a 409.
+
+    **The seal.** The outcome is revealed only after the action is committed, and a
+    committed action means a stored submission — not a draft, not an independent
+    answer, not a client assertion that it is ready. If the physician could see the
+    future before committing, the task collapses into narration: the seal is what
+    converts an opinion into a prediction, and a prediction is the only thing an
+    outcome can verify (§3.2).
+    """
+    for sub in store.submissions_for_task(task["task_id"]):
+        if sub.get("evaluator_id") == user["id"]:
+            return sub
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "error": "commitment_required",
+            "message": "Submit your assessment, plan and expected trajectory before "
+                       "the next encounter is revealed. Seeing what happened first "
+                       "would make this a summary rather than a prediction.",
+        },
+    )
+
+
+def _outcome_point(store: Any, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The next point in this walk — the encounter that verifies this decision.
+
+    The point with the SMALLEST sequence index greater than this one, not
+    ``idx + 1``. A walk can have a hole in it: generation is per-point isolated so
+    one encounter failing its case judge cannot fail the batch, and an admin can
+    retire a point later. Matching ``idx + 1`` exactly would make the point BEFORE
+    a hole report "this is the last decision point in this chart" — false, and
+    false in the direction that silently drops a verifiable point from the corpus.
+
+    The wider window that results is still a truthful outcome, and
+    ``days_after_decision`` states the gap it actually covers.
+    """
+    idx = asc_trajectory.sequence_index(task)
+    if idx is None:
+        return None
+    later = [p for p in store.trajectory_points(task.get("trajectory_id"))
+             if isinstance(p.get("sequence_index"), int) and p["sequence_index"] > idx]
+    return later[0] if later else None
+
+
+@router.get("/tasks/{task_id}/trajectory-outcome")
+async def trajectory_outcome(
+    task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """Reveal encounter *k+1* — the answer key the chart itself wrote (§4 Phase 4).
+
+    Returns what the record added AFTER this decision point, dated from the moment
+    the physician committed ("day +12"), together with the expectations they sealed,
+    so they can mark which held. Their own falsifier is the rubric; no reviewer
+    grades this and no model does.
+
+    WHAT THIS REVEALS, EXACTLY. The window runs from just after this decision point
+    up to and including the NEXT decision point in the walk. That is the presenting
+    data of encounter *k+1* — the GGT back at 983 — and not its resolution, which
+    belongs to the point after. Said plainly here rather than described as "the next
+    encounter", because a physician marking an expectation ``not_assessable`` needs
+    to know whether the observation is genuinely absent from the record or merely
+    beyond this window.
+
+    Also honest about what it is NOT: what happened next reflects the treatment
+    actually given, not the plan this physician proposed. Where they proposed
+    something different, this does not test their plan — it tests the one that was
+    followed (§6). The self-score therefore asks about ANTICIPATION of the observed
+    course, never about counterfactual outcomes.
+    """
+    from asclepius import real_cases
+
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)
+    if not asc_trajectory.is_trajectory_point(task):
+        raise HTTPException(
+            status_code=404,
+            detail="This case is not part of a longitudinal trajectory, so there "
+                   "is no next encounter to reveal.")
+    # NOTE: the sequence gate is deliberately NOT applied here. Reaching this point
+    # requires a stored submission on THIS task (below), and the gate already made
+    # that submission impossible out of order. Re-applying it would only add a way
+    # for the reveal to refuse a physician their own committed work.
+    submission = _trajectory_submission(store, task, user)
+
+    outcome_task = _outcome_point(store, task)
+    if outcome_task is None:
+        return {
+            "task_id": task_id,
+            "trajectory_id": task.get("trajectory_id"),
+            "sequence_index": task.get("sequence_index"),
+            "outcome": None,
+            # The terminal point of a walk. Named, not silently empty: a walk of N
+            # points yields N−1 verifiable ones, and a physician who reaches the
+            # end should be told that rather than left looking at a blank panel.
+            "reason": "This is the last decision point in this chart. There is no "
+                      "later encounter in the record to check it against.",
+            "expected_trajectory": submission.get("expected_trajectory"),
+            "self_score": submission.get("trajectory_self_score"),
+        }
+
+    decision_offset = ((task.get("generation") or {}).get("index_event_offset"))
+    outcome_offset = ((outcome_task.get("generation") or {}).get("index_event_offset"))
+    try:
+        delta = real_cases.outcome_delta(
+            asc_cases.public_case(outcome_task.get("case")),
+            outcome_index_offset=outcome_offset,
+            decision_index_offset=decision_offset,
+        )
+    except real_cases.RealCaseError as exc:
+        # FAIL CLOSED and say so. The alternative — serving the outcome case whole
+        # — would show the physician chart state they had already read as if it
+        # were new, and could reach back BEFORE their own decision point.
+        raise HTTPException(status_code=409, detail={
+            "error": "outcome_not_reconstructible", "message": str(exc)})
+
+    store.log_event(
+        entity_type="task", entity_id=task_id, event_type="trajectory_outcome_revealed",
+        actor=user["id"],
+        payload={"trajectory_id": task.get("trajectory_id"),
+                 "sequence_index": task.get("sequence_index"),
+                 "outcome_task_id": outcome_task["task_id"],
+                 "days_after_decision": delta.get("days_after_decision"),
+                 "n_events": delta.get("n_events")},
+    )
+    return {
+        "task_id": task_id,
+        "trajectory_id": task.get("trajectory_id"),
+        "sequence_index": task.get("sequence_index"),
+        "outcome": delta,
+        "outcome_task_id": outcome_task["task_id"],
+        # The physician's own sealed prediction, handed back so the client scores
+        # against what was actually stored rather than against a local draft that
+        # may have been edited after the commit.
+        "expected_trajectory": submission.get("expected_trajectory"),
+        "self_score": submission.get("trajectory_self_score"),
+        "submission_id": submission.get("submission_id"),
+        # §6, in front of the physician at the moment they grade, not only in the
+        # data dictionary a buyer reads.
+        "limitations": asc_trajectory.limitations_block(),
+    }
+
+
+@router.post("/tasks/{task_id}/trajectory-self-score")
+async def trajectory_self_score(
+    task_id: str, body: TrajectorySelfScore,
+    user: Dict[str, Any] = Depends(asc_auth.get_current_user),
+):
+    """Record which of the physician's own expectations held (§4 Phase 4).
+
+    This is the third signal — the one that is automatic and free of human grading,
+    and therefore the one that scales past the constraint the whole business runs
+    into: subspecialist hours. It is written from the physician's own submission
+    and graded against their own stated falsifier.
+
+    Marks are bounded by the prediction they grade: a mark pointing past the
+    committed expectations is dropped, because a self-score that does not line up
+    with the commitment it scores is not evidence of anything. A physician with no
+    stored prediction cannot self-score at all — there would be nothing to grade.
+    """
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    _require_real_data_access(task, user)
+    submission = _trajectory_submission(store, task, user)
+    expected = submission.get("expected_trajectory") or {}
+    n_expected = len(expected.get("expectations") or [])
+    if not n_expected:
+        raise HTTPException(status_code=409, detail={
+            "error": "no_prediction_to_score",
+            "message": "You did not record an expected trajectory on this case, so "
+                       "there is nothing here to check against the record."})
+    score = asc_trajectory.normalize_self_score(body.model_dump(), n_expectations=n_expected)
+    if score is None:
+        raise HTTPException(status_code=400, detail={
+            "error": "no_usable_marks",
+            "message": "Mark at least one expectation as held, did not hold, or not "
+                       "assessable from this encounter."})
+    store.set_submission_trajectory_self_score(submission["submission_id"], score)
+    store.log_event(
+        entity_type="submission", entity_id=submission["submission_id"],
+        event_type="trajectory_self_scored", actor=user["id"],
+        payload={"task_id": task_id, "trajectory_id": task.get("trajectory_id"),
+                 "sequence_index": task.get("sequence_index"),
+                 "n_held": score["n_held"], "n_did_not_hold": score["n_did_not_hold"],
+                 "n_not_assessable": score["n_not_assessable"],
+                 "falsifier_fired": score["falsifier_fired"]},
+    )
+    progress = store.evaluator_trajectory_progress(
+        trajectory_id=task["trajectory_id"], evaluator_id=user["id"])
+    return {"self_score": score, "progress": progress}
+
+
+@router.get("/trajectories/{trajectory_id}")
+async def get_trajectory(
+    trajectory_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+):
+    """This evaluator's walk through one chart (§4 Phase 5 — trajectory mode).
+
+    The session view: how many decision points this chart carries, how far this
+    physician has come, and which point they may open next. Per-evaluator on
+    purpose — two physicians walking the same chart are two independent
+    trajectories that happen to share a case set, and a shared "7 of 13" would be a
+    lie to both of them.
+
+    Returns METADATA ONLY. No case content, no prompts, no outcomes: the sequence
+    gate exists precisely so a physician cannot read ahead, and a session view that
+    rendered every point's chart would be that leak wearing a progress bar. Each
+    point is opened through the ordinary by-ID path, which re-checks the gate.
+    """
+    store = _store()
+    points = store.trajectory_points(trajectory_id)
+    if not points:
+        raise HTTPException(status_code=404, detail="Trajectory not found")
+    # The V4 wall applies to the walk exactly as it applies to each case in it.
+    _require_real_data_access(points[0], user)
+    answered = {
+        s["task_id"]
+        for p in points
+        for s in store.submissions_for_task(p["task_id"])
+        if s.get("evaluator_id") == user["id"]
+    }
+    progress = store.evaluator_trajectory_progress(
+        trajectory_id=trajectory_id, evaluator_id=user["id"])
+    return {
+        "trajectory_id": trajectory_id,
+        "specialty": points[0].get("specialty"),
+        "points": [
+            {
+                "task_id": p["task_id"],
+                "sequence_index": p.get("sequence_index"),
+                "difficulty": p.get("difficulty"),
+                "answered": p["task_id"] in answered,
+                # Openable RIGHT NOW by this evaluator: answered points stay
+                # readable, the next unanswered one is open, everything past it is
+                # sealed. Derived from the same rule the gate enforces so the UI
+                # cannot advertise a card the next click refuses.
+                "openable": (p["task_id"] in answered
+                             or p["task_id"] == progress.get("next_task_id")),
+                # A walk of N points yields N−1 verifiable ones: the terminal point
+                # has no later encounter to be checked against.
+                "outcome_verifiable": p.get("sequence_index") is not None
+                and p.get("sequence_index") < len(points) - 1,
+            }
+            for p in points
+        ],
+        "progress": progress,
+        "limitations": asc_trajectory.limitations_block(),
+        "kappa_exclusion": asc_trajectory.KAPPA_EXCLUSION_RATIONALE,
+    }
 
 
 # ─── Submissions ──────────────────────────────────────────────────────────────
@@ -2428,6 +2757,11 @@ async def submit(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on the submit path
+    # PRD 2 §9.1 on the submit path too. Not belt-and-braces: a client that
+    # obtained the case some other way (a stale tab, a hand-written POST) must not
+    # be able to bank a label on an out-of-order point, because that submission is
+    # what the NEXT point's gate reads to decide the walk has advanced.
+    _require_trajectory_sequence(store, task, user)
 
     # Stage-1 prompt validation gate (Eval Flow Upgrade §2): a clinician who
     # flagged the prompt as invalid never judged answers. Capture the flag for
@@ -2577,6 +2911,22 @@ async def submit(
     apply_step_notes(payload.get("reasoning_steps"))
     apply_step_notes((payload.get("from_scratch") or {}).get("reasoning_steps"))
 
+    # The sealed prediction (PRD 2 §3.3 field 3 / §4.2.3), normalized BEFORE the
+    # row is written so ``payload_json`` and the ``expected_trajectory_json``
+    # column carry the same object. Normalizing after the insert would leave the
+    # packaged record showing the client's raw block and the corpus query showing
+    # the cleaned one — two versions of the physician's own prediction, which is
+    # the last field in this product that should have two versions.
+    #
+    # Captured on EVERY task, not only trajectory points: a physician who names
+    # what they expect to see on an ordinary V4 case has written the same
+    # falsifiable object, and discarding it because the case is not part of a walk
+    # would throw away the exact artifact §7 prices. ``normalize_expected_trajectory``
+    # returns None for anything that is not a usable prediction, and None is stored
+    # as None — never an empty shell that would inflate the corpus count.
+    _expected = asc_trajectory.normalize_expected_trajectory(payload.get("expected_trajectory"))
+    payload["expected_trajectory"] = _expected
+
     # The independent answer that ships is the one COMMITTED before reveal (Eval
     # Flow Upgrade §1), not whatever the post-reveal client submits — so a client
     # can't unlock the answers with a throwaway commit and then pass off an
@@ -2697,6 +3047,23 @@ async def submit(
     # the test/action the correct answer depends on — persist it onto the task so
     # every packaged record from it ships an environment-verifiable outcome. Written
     # ONLY from the physician's own submission, never by an admin or a model.
+    if _expected:
+        # The column, alongside the payload. The payload is what packaging reads;
+        # the column is what the falsifier corpus and the outcome-verification
+        # metric query, and it is indexed-adjacent to the task's trajectory
+        # columns. Both carry the SAME normalized object — normalization happened
+        # before the row was written, precisely so the two cannot disagree.
+        store.set_submission_expected_trajectory(sid, _expected)
+        store.log_event(
+            entity_type="submission", entity_id=sid,
+            event_type="expected_trajectory_committed", actor=user["id"],
+            payload={"task_id": body.task_id,
+                     "trajectory_id": task.get("trajectory_id"),
+                     "sequence_index": task.get("sequence_index"),
+                     "n_expectations": len(_expected["expectations"]),
+                     "falsifiable": _expected["falsifiable"]},
+        )
+
     da = payload.get("decisive_action") or {}
     da_action = str(da.get("action") or "").strip()
     if da_action and len(da_action.split()) >= 2:
@@ -5365,6 +5732,13 @@ def _proposal_view(p: Dict[str, Any]) -> Dict[str, Any]:
         "case_type": p.get("case_type"),
         "difficulty": p.get("difficulty"),
         "curation": p.get("curation"),
+        # Longitudinal Cases PRD §2 — why this encounter is or is not a decision
+        # point, with the measurements. Surfaced on EVERY proposal, including the
+        # ones that fail: an admin who sees "3 of 17" needs to read which threshold
+        # each skipped encounter missed, or the gate is unarguable.
+        "density": p.get("density"),
+        "qualifies_as_decision_point": bool(p.get("qualifies_as_decision_point")),
+        "outcome_verifiable": bool(p.get("outcome_verifiable")),
     }
     case = p.get("case")
     if case is not None:
@@ -5385,6 +5759,12 @@ async def _generate_one_real_case(
     store: Any, ic: Dict[str, Any], p: Dict[str, Any], admin: Dict[str, Any], *,
     max_labels: int, grounding_mode: Optional[str], independent_mode: Optional[str],
     open_to_all_specialties: bool = False,
+    # Longitudinal trajectory (PRD 2 §4.2.2). All-or-nothing, passed explicitly by
+    # the trajectory batch and by nothing else; ``store.insert_task`` refuses half
+    # an identity. An ordinary batch passes neither and produces ordinary tasks,
+    # byte-for-byte as before.
+    trajectory_id: Optional[str] = None,
+    sequence_index: Optional[int] = None,
 ) -> Dict[str, Any]:
     """One proposed case → a gated, fully-tagged V4 task. Returns a result dict;
     never raises for a per-case failure, so one bad encounter cannot fail a batch.
@@ -5524,6 +5904,22 @@ async def _generate_one_real_case(
         "decision_offset_days": 0,
         "specialty_confidence": p.get("specialty_confidence"),
     }
+    if trajectory_id is not None:
+        # The walk, echoed on the generation block for the admin and the buyer; the
+        # COLUMNS are what the sequence gate and the export read.
+        #
+        # Deliberately absent: trajectory length and "is this point verifiable".
+        # Both are functions of which points actually exist, and a generation run
+        # can produce fewer than it planned (a per-encounter gate failure, an admin
+        # deleting a point later). Stamping either here would freeze a number that
+        # the next event makes wrong, on a buyer-facing field. Both are derived at
+        # read time from ``store.trajectory_points``, which cannot go stale.
+        generation.update({
+            "mode": "real_case_trajectory",
+            "trajectory_id": trajectory_id,
+            "sequence_index": sequence_index,
+            "density": p.get("density"),
+        })
     task = store.insert_task(
         prompt=prompt, specialty=specialty,
         # MEASURED, not hardcoded. This is the line the PRD is about.
@@ -5535,6 +5931,7 @@ async def _generate_one_real_case(
         case=case, generation=generation, created_by=admin["id"],
         # Launch-week fan-out (V4 PRD §4): VISIBILITY only, never max_labels.
         open_to_all_specialties=bool(open_to_all_specialties),
+        trajectory_id=trajectory_id, sequence_index=sequence_index,
     )
     store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
                     event_type="real_case_generated", actor=admin["id"],
@@ -5612,6 +6009,27 @@ async def generate_real_cases(
     selected = [p for p in plan["proposals"]
                 if p.get("generatable") and (not wanted or p["encounter_index"] in wanted)]
 
+    # ── Longitudinal trajectory mode (PRD 2 §4, Phase 5) ─────────────────────
+    # Same generation pipeline, three differences, each of them deliberate:
+    #
+    #   1. Only encounters clearing the §2 DENSITY GATE become points. A repeat lab
+    #      draw is not a decision, and the gate is the product (§2.1).
+    #   2. The points are ORDERED and share a trajectory_id, which is what makes
+    #      the sequence gate (§9.1) and the outcome reveal (Phase 4) work at all.
+    #   3. ``max_labels`` is forced to 1 (§9.6) — see the note at the loop.
+    #
+    # Order is by ``encounter_index``, which ``plan_cases`` already returns
+    # oldest-first, and it is re-sorted here rather than trusted: the sequence index
+    # IS the chronology, and a walk assembled in the wrong order would hand a
+    # physician the outcomes of decisions they have not made.
+    trajectory_mode = bool(body.trajectory)
+    trajectory_id = None
+    if trajectory_mode:
+        if body.apply_density_gate:
+            selected = [p for p in selected if p.get("qualifies_as_decision_point")]
+        selected = sorted(selected, key=lambda p: p["encounter_index"])
+        trajectory_id = asc_trajectory.new_trajectory_id()
+
     response: Dict[str, Any] = {
         "ingest_case_id": ingest_case_id,
         "upload_id": ic.get("upload_id"),
@@ -5622,6 +6040,13 @@ async def generate_real_cases(
         "specialty_hint": hint,
         "dry_run": bool(body.dry_run),
         "proposals": [_proposal_view(p) for p in plan["proposals"]],
+        # §2 — the two numbers a chart walk is priced on. Returned on every run,
+        # trajectory or not, because they are what an admin needs to decide whether
+        # this chart is worth walking.
+        "decision_points": plan.get("decision_points"),
+        "verifiable_decision_points": plan.get("verifiable_decision_points"),
+        "density_gate": plan.get("density_gate"),
+        "trajectory": trajectory_mode,
     }
     if body.dry_run:
         store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
@@ -5638,13 +6063,30 @@ async def generate_real_cases(
                                  for p in plan["proposals"]}})
 
     generated, gated, failed = [], [], []
+    # The sequence index advances ONLY on a point that actually became a task, so a
+    # walk is dense 0…n−1 even when an encounter fails its case judge. (The reveal
+    # tolerates a hole anyway — see ``_outcome_point`` — but a dense walk is what
+    # the physician's "step 3 of 13" should count, and a gap in it would read as a
+    # missing case rather than as a rejected one.)
+    seq = 0
     for p in selected:
         try:
             r = await _generate_one_real_case(
-                store, ic, p, admin, max_labels=body.max_labels,
+                store, ic, p, admin,
+                # PRD 2 §9.6 — trajectory points are SINGLE-LABELLED. They are
+                # excluded from the κ pool by construction (§4.2.4), so a second
+                # label buys no agreement statistic; it buys a second independent
+                # walk of the same chart, which is a different and more expensive
+                # product at $75 a point. Forced here rather than defaulted, so an
+                # admin cannot double the bill on a 13-point chart by leaving a
+                # batch-level ``max_labels`` at 2 without noticing.
+                max_labels=(asc_trajectory.TRAJECTORY_MAX_LABELS if trajectory_mode
+                            else body.max_labels),
                 grounding_mode=body.grounding_mode,
                 independent_mode=body.independent_mode,
-                open_to_all_specialties=body.open_to_all_specialties)
+                open_to_all_specialties=body.open_to_all_specialties,
+                trajectory_id=trajectory_id if trajectory_mode else None,
+                sequence_index=seq if trajectory_mode else None)
         except Exception as exc:  # pragma: no cover - per-case isolation
             log.warning("real-case generation failed for %s encounter %s: %s",
                         ingest_case_id, p.get("encounter_index"), exc)
@@ -5652,6 +6094,7 @@ async def generate_real_cases(
             continue
         if r.get("task_id"):
             generated.append(r)
+            seq += 1
         elif r.get("failures"):
             gated.append(r)
         else:
@@ -5672,4 +6115,23 @@ async def generate_real_cases(
         "task_ids": [g["task_id"] for g in generated],
         "details": {"generated": generated, "gated": gated, "failed": failed},
     })
+    if trajectory_mode and generated:
+        n = len(generated)
+        response["trajectory_id"] = trajectory_id
+        response["trajectory_points"] = n
+        # A walk of N points yields N−1 verifiable ones: the terminal point has no
+        # later encounter in the record to be checked against. Stated in the
+        # response because it is the number this artifact is SOLD on (§7), and
+        # because an admin reading "13 points" should not have to infer that 12 of
+        # them carry outcome verification.
+        response["trajectory_verifiable_points"] = max(0, n - 1)
+        # The cost, before anyone asks. A trajectory is not a discount on physician
+        # time; it is N tasks that happen to share a chart (§9.3).
+        from asclepius import payments as asc_payments
+        response["estimated_cost_usd"] = round(n * asc_payments.tl_rate_cents() / 100.0, 2)
+        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
+                        event_type="real_case_trajectory_generated", actor=admin["id"],
+                        payload={"trajectory_id": trajectory_id, "points": n,
+                                 "verifiable_points": max(0, n - 1),
+                                 "max_labels": asc_trajectory.TRAJECTORY_MAX_LABELS})
     return response

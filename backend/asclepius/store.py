@@ -233,6 +233,57 @@ _PRD_R_PRIORITY_ORDER = f"ORDER BY {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
 # ═══ END PRD-R ═══════════════════════════════════════════════════════════════
 
 
+# ═══ PRD-2 §9.1 — the sequence gate (BLOCKER) ════════════════════════════════
+# A trajectory point is servable to THIS evaluator only when every earlier point in
+# its trajectory already carries a submission FROM THIS EVALUATOR.
+#
+# WHY THIS IS A WHERE CLAUSE AND NOT A SORT. The priority order directly above
+# sorts on LABEL COUNT FIRST — a task carrying one label is offered before every
+# unlabelled task, and ``created_at`` only breaks ties. Put patient-1's 13 decision
+# points in that queue in sequence order and the ordinary behaviour of the sort
+# breaks the seal the moment two physicians touch the same chart:
+#
+#   1. Physician A labels point 0.                     → point 0 has label_count 1
+#   2. Physician B labels point 5, for any reason.     → point 5 has label_count 1
+#   3. Physician A returns. Point 0 is excluded (they wrote it), so **point 5 sorts
+#      first**, ahead of points 1–4, which are all still at 0.
+#   4. Physician A is served encounter 5 — whose visible state block contains
+#      encounters 1–4, the outcomes of the four decisions they were about to be
+#      asked to predict.
+#
+# That is not a race condition and not an edge case. And it is unrecoverable: a
+# physician cannot un-read a future, so the RLVR claim for their whole trajectory is
+# gone the first time it happens. Sequence is therefore a CORRECTNESS property of
+# the task, and it belongs in the query that decides servability — never in the
+# frontend, which cannot enforce it against a hand-typed task id or a second tab.
+# ``routers/asclepius`` applies the same rule to the direct-open path (409); both
+# read ``trajectory.blocks_out_of_order`` for the sentence itself.
+#
+# ``t.trajectory_id IS NULL`` comes FIRST so every existing V1–V4 task short-circuits
+# out of the correlated subquery entirely: unaffected by construction, and free.
+#
+# ``t.sequence_index IS NOT NULL`` is the second half of the same guarantee, and it
+# is not defensive noise. SQL three-valued logic would make ``p.sequence_index <
+# NULL`` evaluate to NULL for every earlier point, the NOT EXISTS would come back
+# true, and a trajectory row with no readable position would be SERVED — while
+# ``trajectory.blocks_out_of_order`` refuses that same row on the direct-open path.
+# Two enforcements of one rule that disagree is worse than either alone, so the row
+# is unservable here too. ``insert_task`` already refuses to create one.
+_PRD_2_SEQUENCE_GATE = """(
+              t.trajectory_id IS NULL
+              OR (t.sequence_index IS NOT NULL AND NOT EXISTS (
+                SELECT 1 FROM tasks p
+                WHERE p.trajectory_id = t.trajectory_id
+                  AND p.sequence_index < t.sequence_index
+                  AND NOT EXISTS (
+                    SELECT 1 FROM submissions s
+                    WHERE s.task_id = p.task_id AND s.evaluator_id = ?
+                  )
+              ))
+            )"""
+# ═══ END PRD-2 ═══════════════════════════════════════════════════════════════
+
+
 class AsclepiusStore:
     def __init__(self, db_path: Optional[str] = None):
         base_dir = os.path.dirname(__file__)
@@ -1525,6 +1576,54 @@ class AsclepiusStore:
             if "open_to_all_specialties" not in cols("tasks"):
                 conn.execute("ALTER TABLE tasks ADD COLUMN "
                              "open_to_all_specialties INTEGER NOT NULL DEFAULT 0")
+            # ═══ PRD-2: longitudinal trajectories (Longitudinal Cases §4.2.2) ═══
+            # One chart walked in order becomes many tasks, and the ORDER IS THE
+            # WHOLE POINT: task n's visible chart contains the outcomes of tasks
+            # 0…n−1, so serving them out of order hands a physician the answers to
+            # decisions they have not made yet.
+            #
+            #   trajectory_id   — shared by every decision point from one chart walk
+            #   sequence_index  — 0-based position within that walk
+            #
+            # Additive ALTER and **no DEFAULT**, the house rule for a decision
+            # column: NULL means "this task is not part of a trajectory", which is
+            # what every existing V1–V4 row genuinely is. A DEFAULT of 0 on
+            # ``sequence_index`` would back-stamp forty thousand ordinary tasks as
+            # "step 1 of something", and the sequence gate below reads that column.
+            #
+            # These are NOT put in ``env_runs``. That table already carries
+            # trajectory vocabulary — "a mode='rollout' row is one agent trajectory
+            # over that environment, sharing task_id" — but it holds AGENT ROLLOUTS
+            # for V5, not physician sessions. Same word, different actor, and
+            # merging them makes "trajectory" ambiguous in exactly the table a buyer
+            # audits.
+            for _col, _ddl in (("trajectory_id", "TEXT"), ("sequence_index", "INTEGER")):
+                if _col not in cols("tasks"):
+                    conn.execute(f"ALTER TABLE tasks ADD COLUMN {_col} {_ddl}")
+            # The sequence gate (§9.1) runs a correlated NOT EXISTS over
+            # (trajectory_id, sequence_index) on every labeler draw. Unindexed that
+            # is a full tasks scan per candidate row, on the hot queue path.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_trajectory "
+                         "ON tasks(trajectory_id, sequence_index)")
+            # §4.2.3 — the physician's sealed prediction, and their own grading of
+            # it once the next encounter is revealed. Genuinely new: no existing
+            # submission field is a variant of ``expected_trajectory``, and without
+            # a column of its own the falsifier corpus (§7) — the part of this
+            # product nobody else can sell — ships invisible.
+            #
+            # On the SUBMISSION, not the task: every physician who walks this
+            # decision point writes their own falsifier, and the whole claim is that
+            # a named specialist authored this one.
+            for _col in ("expected_trajectory_json", "trajectory_self_score_json"):
+                if _col not in cols("submissions"):
+                    conn.execute(f"ALTER TABLE submissions ADD COLUMN {_col} TEXT")
+            # §4.2.4 — why an agreement observation is out of the κ pool. Stored
+            # rather than re-derived at read time so the exclusion is auditable in
+            # the database a buyer's methodologist asks to see, and so a row whose
+            # task is later deleted still says why it was excluded.
+            if "kappa_excluded_reason" not in cols("agreement"):
+                conn.execute("ALTER TABLE agreement ADD COLUMN kappa_excluded_reason TEXT")
+            # ═══ END PRD-2 ═══
             # The advisor tier is retired: advisors are ordinary users now.
             # Remaining rows migrate to reviewer (advisor was a strict superset
             # of reviewer, so nothing they could do is lost) and become payable
@@ -3573,10 +3672,33 @@ class AsclepiusStore:
         # Launch-week fan-out (V4 PRD §4): VISIBILITY only. See the migration note
         # on the column. Never derived from anything — an explicit caller decision.
         open_to_all_specialties: bool = False,
+        # Longitudinal trajectory (PRD 2 §4.2.2): this task's chart walk and its
+        # 0-based position in it. ALL-OR-NOTHING and never derived — a caller that
+        # knows it is building step 4 of a walk passes both; everyone else passes
+        # neither and gets NULLs, which is what an ordinary V1–V4 task is.
+        trajectory_id: Optional[str] = None,
+        sequence_index: Optional[int] = None,
     ) -> Dict[str, Any]:
         from asclepius.constants import normalize_independent_mode
 
         tid = task_id or _new_id("t")
+        # Half a trajectory identity is worse than none: a row with an id and no
+        # index cannot be ordered, and a row with an index and no id belongs to no
+        # walk. The sequence gate reads both, so an inconsistent pair would either
+        # block a task forever or wave an out-of-order one through. Fail loudly at
+        # the write rather than silently at the draw.
+        if (trajectory_id is None) != (sequence_index is None):
+            raise ValueError(
+                "trajectory_id and sequence_index must be set together: a "
+                "trajectory point needs both a walk to belong to and a position "
+                "within it (PRD 2 §4.2.2)")
+        if sequence_index is not None:
+            try:
+                sequence_index = int(sequence_index)
+            except (TypeError, ValueError):
+                raise ValueError("sequence_index must be an integer")
+            if sequence_index < 0:
+                raise ValueError("sequence_index is 0-based and cannot be negative")
         gm = grounding_mode if grounding_mode in ("optional", "required") else "optional"
         im = normalize_independent_mode(independent_mode)
         # Multimodal (Synthetic Multimodal Cases PRD): modality is DERIVED from case
@@ -3609,8 +3731,9 @@ class AsclepiusStore:
                    candidate_answers_json, max_labels, grounding_mode, independent_mode,
                    buyer_request_id, generation_json, value_tier, modality, case_json,
                    case_source, empirical_difficulty, difficulty_measured,
-                   open_to_all_specialties, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   open_to_all_specialties, trajectory_id, sequence_index,
+                   status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -3632,6 +3755,8 @@ class AsclepiusStore:
                     ed_val,
                     ed_measured,
                     1 if open_to_all_specialties else 0,
+                    trajectory_id,
+                    sequence_index,
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -3733,6 +3858,163 @@ class AsclepiusStore:
                 ).fetchone()[0]
             )
 
+    # ═══ PRD-2: longitudinal trajectories ════════════════════════════════════
+    def trajectory_points(self, trajectory_id: str) -> List[Dict[str, Any]]:
+        """Every decision point in one chart walk, in sequence order.
+
+        Ordered by ``sequence_index``, with ``created_at`` only breaking ties —
+        insertion order is not the walk's order and must never be mistaken for it.
+        A regenerated point gets a later ``created_at`` and keeps its position.
+        """
+        if not trajectory_id:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE trajectory_id = ? "
+                "ORDER BY sequence_index ASC, created_at ASC",
+                (trajectory_id,),
+            ).fetchall()
+        return [self._task_row(r) for r in rows]
+
+    def unanswered_earlier_points(
+        self, *, trajectory_id: str, sequence_index: int, evaluator_id: str
+    ) -> List[Dict[str, Any]]:
+        """Earlier points in this walk that THIS evaluator has not submitted.
+
+        The direct-open half of the §9.1 sequence gate. The queue enforces the
+        same rule in its WHERE clause (``_PRD_2_SEQUENCE_GATE``); this exists
+        because **a queue-only fix is not a fix** — the physician has the task id
+        in the URL, the dashboard renders cards that open by id, and a second tab
+        is a second draw. Both halves ask ``trajectory.blocks_out_of_order`` for
+        the verdict so they cannot drift into two different rules.
+
+        Returns the rows, not a count, so the caller can say which points are
+        outstanding rather than only that some are.
+        """
+        if not trajectory_id:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT p.task_id, p.sequence_index
+                  FROM tasks p
+                 WHERE p.trajectory_id = ?
+                   AND p.sequence_index < ?
+                   AND NOT EXISTS (
+                       SELECT 1 FROM submissions s
+                        WHERE s.task_id = p.task_id AND s.evaluator_id = ?
+                   )
+                 ORDER BY p.sequence_index ASC
+                """,
+                (trajectory_id, int(sequence_index), evaluator_id),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def evaluator_trajectory_progress(
+        self, *, trajectory_id: str, evaluator_id: str
+    ) -> Dict[str, Any]:
+        """How far THIS evaluator has walked this chart — for the session header.
+
+        Progress is per-evaluator on purpose: two physicians walking the same
+        chart are two independent trajectories that happen to share a case set,
+        and a shared "7 of 13" would be a lie to both of them.
+        """
+        points = self.trajectory_points(trajectory_id)
+        if not points:
+            return {"trajectory_id": trajectory_id, "n_points": 0, "n_answered": 0,
+                    "next_task_id": None, "complete": False}
+        ids = [p["task_id"] for p in points]
+        placeholders = ",".join("?" for _ in ids)
+        with self._conn() as conn:
+            answered = {
+                r["task_id"] for r in conn.execute(
+                    f"SELECT DISTINCT task_id FROM submissions "
+                    f"WHERE evaluator_id = ? AND task_id IN ({placeholders})",
+                    tuple([evaluator_id] + ids),
+                ).fetchall()
+            }
+        remaining = [p for p in points if p["task_id"] not in answered]
+        return {
+            "trajectory_id": trajectory_id,
+            "n_points": len(points),
+            "n_answered": len(answered),
+            # The next point this evaluator may open — which, under the sequence
+            # gate, is always the earliest unanswered one.
+            "next_task_id": remaining[0]["task_id"] if remaining else None,
+            "next_sequence_index": remaining[0].get("sequence_index") if remaining else None,
+            "complete": not remaining,
+        }
+
+    def set_submission_expected_trajectory(
+        self, submission_id: str, expected: Optional[Dict[str, Any]]
+    ) -> None:
+        """Persist the physician's sealed prediction (§3.3 field 3, §4.2.3).
+
+        Written from the SUBMISSION and only from it — never by an admin, never by
+        a model. The whole value of the falsifier corpus is that a named,
+        board-certified specialist wrote this before seeing what happened."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE submissions SET expected_trajectory_json = ?, updated_at = ? "
+                "WHERE submission_id = ?",
+                (json.dumps(expected) if expected else None, _utcnow_iso(), submission_id),
+            )
+
+    def set_submission_trajectory_self_score(
+        self, submission_id: str, score: Optional[Dict[str, Any]]
+    ) -> None:
+        """Persist the physician's grading of their own prediction (Phase 4).
+
+        Their own falsifier is the rubric, so this is the one grading step in the
+        product with no reviewer in it. Idempotent by overwrite: a physician may
+        revise a mark while the revealed encounter is in front of them."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE submissions SET trajectory_self_score_json = ?, updated_at = ? "
+                "WHERE submission_id = ?",
+                (json.dumps(score) if score else None, _utcnow_iso(), submission_id),
+            )
+
+    def trajectory_verification_points(
+        self, *, trajectory_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """``[{task_id, trajectory_id, sequence_index, expected_trajectory,
+        self_score}, ...]`` — the input to ``trajectory.outcome_verification``.
+
+        Every trajectory submission is returned, INCLUDING those with no
+        prediction and those with a prediction but no self-score. The metric's
+        denominators are the honest part of it; filtering the unverified rows out
+        here would make ``anticipation_rate`` look like a property of the corpus
+        rather than of the slice that was actually checked."""
+        clauses = ["t.trajectory_id IS NOT NULL"]
+        params: List[Any] = []
+        if trajectory_id:
+            clauses.append("t.trajectory_id = ?")
+            params.append(trajectory_id)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT s.submission_id, s.task_id, s.evaluator_id,
+                       s.expected_trajectory_json, s.trajectory_self_score_json,
+                       t.trajectory_id, t.sequence_index, t.specialty
+                  FROM submissions s
+                  JOIN tasks t ON t.task_id = s.task_id
+                 WHERE {' AND '.join(clauses)}
+                 ORDER BY t.trajectory_id ASC, t.sequence_index ASC, s.created_at ASC
+                """,
+                tuple(params),
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            rec = dict(r)
+            rec["expected_trajectory"] = json.loads(
+                rec.pop("expected_trajectory_json", "null") or "null")
+            rec["self_score"] = json.loads(
+                rec.pop("trajectory_self_score_json", "null") or "null")
+            out.append(rec)
+        return out
+    # ═══ END PRD-2 ═══════════════════════════════════════════════════════════
+
     # ─── PRD-R: ONE labeler-queue builder (Audit R H4) ────────────────────────
     def labeler_queue_sql(
         self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
@@ -3761,6 +4043,12 @@ class AsclepiusStore:
             # Independence, in SQL rather than by caller discipline.
             "NOT EXISTS (SELECT 1 FROM submissions sm WHERE sm.task_id = t.task_id"
             " AND sm.evaluator_id = ?)",
+            # PRD 2 §9.1 — the sealed future. A correctness property of the task,
+            # so it is a WHERE clause here rather than a sort or a UI rule. See
+            # ``_PRD_2_SEQUENCE_GATE`` for the four steps by which the priority
+            # sort above otherwise serves a physician the outcomes of decisions
+            # they have not made yet.
+            _PRD_2_SEQUENCE_GATE,
             # An exact NECESSARY condition for remaining capacity: no policy can
             # raise a task's effective capacity above max(max_labels, 2). The
             # exact test still runs in Python, against ``routing`` — one policy,
@@ -3768,7 +4056,9 @@ class AsclepiusStore:
             # window entirely.
             f"{_PRD_R_LABEL_COUNT} < MAX(COALESCE(t.max_labels, 1), 2)",
         ]
-        params: List[Any] = [evaluator_id]
+        # One entry per ``?`` above, in clause order: the independence NOT EXISTS,
+        # then the sequence gate's.
+        params: List[Any] = [evaluator_id, evaluator_id]
         if specialty:
             # Launch-week fan-out (V4 PRD §4). ``open_to_all_specialties`` widens
             # VISIBILITY and nothing else: the task appears in this labeler's queue
@@ -4073,6 +4363,14 @@ class AsclepiusStore:
         rec["qa"] = json.loads(rec.pop("qa_json", "null") or "null")
         rec["annotator"] = json.loads(rec.pop("annotator_json", "null") or "null")
         rec["progress"] = json.loads(rec.pop("progress_json", "null") or "null")
+        # PRD 2 §4.2.3 — the sealed prediction and the physician's own grading of
+        # it. Deserialized here so packaging and export see dicts, not JSON
+        # strings; absent (None) on every non-trajectory submission, which is all
+        # of them until a trajectory is generated.
+        rec["expected_trajectory"] = json.loads(
+            rec.pop("expected_trajectory_json", "null") or "null")
+        rec["trajectory_self_score"] = json.loads(
+            rec.pop("trajectory_self_score_json", "null") or "null")
         return rec
 
     def set_submission_progress(
@@ -5160,6 +5458,7 @@ class AsclepiusStore:
         tags_a: List[str], tags_b: List[str], jaccard_tags: float,
         verdict_agree: bool, n_labels: int, flagged: bool,
         blinded: Optional[bool] = None,
+        kappa_excluded_reason: Optional[str] = None,
     ) -> None:
         # ``blinded`` (Buyer Response PRD §7 F1): whether the second annotator was
         # blind to the first's verdict. Only blinded observations enter κ.
@@ -5175,13 +5474,33 @@ class AsclepiusStore:
         # defect ``payload_is_blinded`` was built to remove — one layer down.
         # None means "not verified", which ``aggregate_kappa`` reports separately
         # from a measured False and excludes from κ either way.
+        #
+        # ``kappa_excluded_reason`` (PRD 2 §4.2.4) is a SEPARATE axis from
+        # ``blinded``, and that separation is the whole point: a trajectory
+        # observation is genuinely blinded and still must not enter κ, because
+        # blinding is about not seeing the other labeler's identity and says
+        # nothing about temporal independence. The observation is still RECORDED —
+        # discarding it would leave no evidence the exclusion happened — it is just
+        # kept out of the pool, with the reason stored next to it so a buyer's
+        # methodologist can audit the decision instead of taking our word for it.
+        #
+        # DERIVED HERE, not passed by the caller. "Excluded by construction" has to
+        # mean by construction: the pipeline that writes this row is not the place
+        # where somebody should have to remember a κ rule, and a rule that depends
+        # on being remembered is a rule that will be forgotten by the second caller.
+        # The parameter stays for an explicit override.
+        if kappa_excluded_reason is None:
+            from asclepius import trajectory as asc_trajectory
+            kappa_excluded_reason = asc_trajectory.kappa_exclusion_reason(
+                self.get_task(task_id) or {})
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO agreement
                   (task_id, specialty, sub_a, sub_b, verdict_a, verdict_b, tags_a_json,
-                   tags_b_json, jaccard_tags, verdict_agree, n_labels, flagged, blinded, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   tags_b_json, jaccard_tags, verdict_agree, n_labels, flagged, blinded,
+                   kappa_excluded_reason, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     task_id, specialty, sub_a, sub_b, verdict_a, verdict_b,
@@ -5189,6 +5508,7 @@ class AsclepiusStore:
                     jaccard_tags, 1 if verdict_agree else 0, int(n_labels),
                     1 if flagged else 0,
                     None if blinded is None else (1 if blinded else 0),
+                    kappa_excluded_reason or None,
                     _utcnow_iso(),
                 ),
             )
@@ -6464,8 +6784,18 @@ class AsclepiusStore:
             " AND sm.evaluator_id = ?)",
             "NOT EXISTS (SELECT 1 FROM ingest_cases ic WHERE ic.task_id = t.task_id"
             " AND ic.status = 'needs_review')",
+            # PRD 2 §9.1 — the sealed future applies to the SECOND-label draw too.
+            # A trajectory point only reaches this query when an admin explicitly
+            # set ``max_labels >= 2`` on it (§9.6 makes 1 the default), so this
+            # branch is rare — and rare is exactly how an ordering bug survives to
+            # production. The second walker is a physician reading the same chart
+            # forward, and out-of-order serving breaks the seal for them
+            # identically.
+            _PRD_2_SEQUENCE_GATE,
         ]
-        params: List[Any] = [user_id]
+        # One entry per ``?`` above, in clause order: the independence NOT EXISTS,
+        # then the sequence gate's.
+        params: List[Any] = [user_id, user_id]
         if specialty:
             clauses.append("t.specialty = ?")
             params.append(specialty)
