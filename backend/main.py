@@ -6197,10 +6197,18 @@ async def startup_team_scheduler():
         from asclepius.store import get_store as _get_store
         from asclepius.v4_cases import load_v4_cases
 
-        _v4 = load_v4_cases(_get_store())
+        from asclepius.constants import v4_open_to_all_specialties
+
+        _open_all = v4_open_to_all_specialties()
+        # reconcile_visibility: boot is where an operator's setting is allowed to
+        # change who sees the EXISTING cases. The request-path backstop never is.
+        _v4 = load_v4_cases(_get_store(), open_to_all_specialties=_open_all,
+                            reconcile_visibility=True)
         _auth_logger.info(
-            "[asclepius] V4 real cases: %d loaded, %d already present, %d held",
-            _v4.get("loaded", 0), _v4.get("skipped", 0), _v4.get("held", 0))
+            "[asclepius] V4 real cases: %d loaded, %d already present, %d held, "
+            "%d visibility-corrected (open_to_all_specialties=%s)",
+            _v4.get("loaded", 0), _v4.get("skipped", 0), _v4.get("held", 0),
+            _v4.get("revisited", 0), _open_all)
         for _cid, _why in (_v4.get("study_gaps") or {}).items():
             _auth_logger.info("[asclepius] V4 real case %s ships with a gap: %s", _cid, _why)
         for _cid, _why in (_v4.get("holds") or {}).items():
