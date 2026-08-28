@@ -2867,6 +2867,20 @@ class AsclepiusStore:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
 
+    def count_active_admins(self, *, excluding: Optional[str] = None) -> int:
+        """How many active admins are there besides ``excluding``?
+
+        Used by the env-admin bootstrap to decide whether refusing to re-promote
+        an account would lock the console's LAST operator out. "Is there another
+        way in?" has to be a real query, not an assumption."""
+        sql = "SELECT COUNT(*) FROM users WHERE role = 'admin' AND active = 1"
+        params: List[Any] = []
+        if excluding:
+            sql += " AND id != ?"
+            params.append(excluding)
+        with self._conn() as conn:
+            return int(conn.execute(sql, params).fetchone()[0])
+
     def list_evaluators_by_specialty(
         self, specialty: str, *, include_provisional: bool = False
     ) -> List[Dict[str, Any]]:
@@ -3535,6 +3549,30 @@ class AsclepiusStore:
                  years_experience, organization, email),
             )
         return self.get_user_by_email(email)  # type: ignore[return-value]
+
+    def set_task_open_to_all_specialties(self, task_id: str, open_to_all: bool) -> bool:
+        """Widen (or narrow) one task's VISIBILITY across specialties. Returns True
+        if the row's flag actually changed.
+
+        Exists because the seed path is idempotent on task id: a task that already
+        exists is skipped, so a change to the configured fan-out would never reach
+        the three ``v4real-*`` tasks already sitting in a deployed database. The
+        flag would be right for a fresh install and wrong for every real one —
+        which is the shape of bug that had a physician staring at an empty queue.
+
+        VISIBILITY only, exactly as at insert: ``max_labels``, capacity, the
+        independence rules and the ``real_deid`` wall are untouched, so this never
+        changes who may see real patient data or what we pay for a label."""
+        want = 1 if open_to_all else 0
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT open_to_all_specialties FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+            if row is None or int(row["open_to_all_specialties"] or 0) == want:
+                return False
+            conn.execute("UPDATE tasks SET open_to_all_specialties = ? WHERE task_id = ?",
+                         (want, task_id))
+        return True
 
     def annotator_block(self, user: Dict[str, Any]) -> Dict[str, Any]:
         """The credential block copied onto every emitted record (PRD §6.2).

@@ -1,7 +1,7 @@
 /**
  * Full-viewport menu panel (PRD §3). Canvas at ~98% opacity, hairline rows,
  * active route highlighted with a --card fill, Data-buyers accordion, footer
- * strip with Request data / Sign in / contact. Focus-trapped dialog; Esc
+ * strip with Request products / Sign in / contact. Focus-trapped dialog; Esc
  * closes and focus returns to the trigger (the shell handles restore).
  */
 
@@ -178,7 +178,7 @@ export function MenuPanel({
       </nav>
 
       <div className="menu-foot">
-        <button type="button" className="btn btn-primary" onClick={onRequestData}>Request data</button>
+        <button type="button" className="btn btn-primary" onClick={onRequestData}>Request products</button>
         {signedIn ? (
           <>
             {portalUrl && (

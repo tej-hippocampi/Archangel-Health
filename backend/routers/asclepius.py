@@ -109,6 +109,7 @@ from asclepius.critic import (
 from asclepius.constants import (
     company_name as _company_name,
     hard_only_generation,
+    v4_open_to_all_specialties,
     v3_multimodal_only,
     relax_multimodal_gates,
     ab_source,
@@ -1255,10 +1256,13 @@ async def load_v4_real_cases(
         description="Independent labels per case. Default 3 (one labeller + two "
                     "for Cohen's kappa). This is what we PAY for — it is not how "
                     "many physicians can SEE the case."),
-    open_to_all_specialties: bool = Query(
-        False, description="Show these cases to every approved physician, "
-                           "bypassing specialty routing. VISIBILITY only — it "
-                           "does not change max_labels or what we pay."),
+    open_to_all_specialties: Optional[bool] = Query(
+        None, description="Show these cases to every approved physician, "
+                          "bypassing specialty routing. VISIBILITY only — it "
+                          "does not change max_labels or what we pay. Omit to "
+                          "follow ASCLEPIUS_V4_OPEN_TO_ALL (default on), which is "
+                          "what the boot seeder uses; pass it explicitly to "
+                          "override for this call."),
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Load the three V4 REAL de-identified cases as ``partner_ehr`` tasks
@@ -1280,20 +1284,29 @@ async def load_v4_real_cases(
             status_code=400,
             detail=f"Specialty {sel!r} is not enabled in this release "
                    f"({sorted(s for s in asc_specialties.SPECIALTY_REGISTRY if asc_specialties.is_enabled(s))}).")
+    # Omitted => follow the deployment's configured fan-out, so this route and the
+    # boot seeder never disagree about who can see the real cases.
+    open_all = (v4_open_to_all_specialties() if open_to_all_specialties is None
+                else bool(open_to_all_specialties))
     try:
+        # An explicit admin action, so it reconciles the cases already in the queue
+        # rather than only affecting ones it creates — otherwise re-running this
+        # with the checkbox flipped would appear to do nothing.
         res = load_v4_cases(store, specialty=sel, max_labels=max_labels,
-                            open_to_all_specialties=open_to_all_specialties)
+                            open_to_all_specialties=open_all,
+                            reconcile_visibility=True)
     except Exception as exc:  # a broken entry must return a clear error, not a bare 500
         raise HTTPException(status_code=500, detail=f"Could not load V4 real cases: {exc}")
     res["max_labels"] = max_labels
-    res["open_to_all_specialties"] = bool(open_to_all_specialties)
+    res["open_to_all_specialties"] = open_all
     store.log_event(
         entity_type="generation_job", entity_id="v4_real_seed:" + (sel or "all"),
         event_type="v4_real_load", actor=admin["id"],
         payload={"loaded": res.get("loaded", 0), "skipped": res.get("skipped", 0),
                  "held": sorted((res.get("holds") or {}).keys()),
                  "max_labels": max_labels,
-                 "open_to_all_specialties": bool(open_to_all_specialties)},
+                 "revisited": res.get("revisited", 0),
+                 "open_to_all_specialties": open_all},
     )
     return res
 
@@ -1988,8 +2001,13 @@ def _ensure_v4_real_cases(store: Any, user: Dict[str, Any],
     if ensured:
         return 0
     try:
+        from asclepius.constants import v4_open_to_all_specialties
         from asclepius.v4_cases import load_v4_cases
-        res = load_v4_cases(store)
+        # Creates what is missing; never rewrites the visibility of what is already
+        # there. This runs on a physician's queue request, and a draw must not
+        # change who else can see the corpus (reconcile_visibility stays off).
+        res = load_v4_cases(
+            store, open_to_all_specialties=v4_open_to_all_specialties())
         for cid, reason in (res.get("holds") or {}).items():
             # Named, not swallowed: a case silently absent from the queue is the
             # exact failure this PRD exists to remove.
@@ -2221,6 +2239,161 @@ async def available_tasks(
     return {"tasks": tasks, "count": len(tasks),
             "served_portal_version": served if tasks else None,
             "continued_from": continued_from if tasks else None}
+
+
+@router.get("/admin/real-case-access")
+async def real_case_access_report(
+    email: Optional[str] = Query(None, description="Check one physician by email; omit for a summary."),
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Why can (or cannot) this physician see the V4 real cases?
+
+    Every gate between an approved doctor and a real chart, evaluated for a named
+    account, with the reason spelled out. This exists because the question kept
+    being answered by reading source: a physician reports an empty queue, and
+    ``real_data_approved`` is one flag, LABEL is another, specialty routing is a
+    third, and per-case capacity is a fourth — four different reasons for one
+    identical empty screen. An operator should be able to ask the product."""
+    from asclepius.capabilities import LABEL, can as _can
+    from asclepius.constants import v4_open_to_all_specialties as _open_all_cfg
+    from asclepius.v4_cases import V4_REAL_CASES, v4_task_id
+
+    store = _store()
+    seeded = []
+    for entry in V4_REAL_CASES:
+        t = store.get_task(v4_task_id(entry["case_id"]))
+        if t:
+            seeded.append({"case_id": entry["case_id"], "specialty": t.get("specialty"),
+                           "open_to_all_specialties": bool(t.get("open_to_all_specialties")),
+                           "max_labels": t.get("max_labels")})
+    # What the RUNNING process did at boot, not what the code would do now: an
+    # operator asking "did my deploy take?" needs the answer from this container.
+    try:
+        import main as _main_mod
+        boot = dict(getattr(_main_mod, "_V4_BOOT_SUMMARY", {}) or {})
+        build = _main_mod._running_commit()
+        build["started_at"] = getattr(_main_mod, "_BOOT_AT", None)
+    except Exception:  # a test app, or main imported under another name
+        boot, build = {}, {}
+    report: Dict[str, Any] = {
+        "build": build,
+        "v4_seeding_at_boot": boot,
+        "cases_in_queue": seeded,
+        "open_to_all_specialties_setting": _open_all_cfg(),
+        "specialties_with_a_real_case": sorted({c["specialty"] for c in seeded}),
+    }
+    if not email:
+        return report
+
+    u = store.get_user_by_email(email.strip().lower())
+    if not u:
+        raise HTTPException(status_code=404, detail=f"No account for {email!r}.")
+
+    blockers: List[str] = []
+    if not u.get("active"):
+        blockers.append("The account is deactivated.")
+    notes: List[str] = []
+    is_admin = (u.get("role") or "") == "admin"
+    if is_admin:
+        # NOT a real-data blocker, and saying so would be wrong: admins hold LABEL,
+        # so an admin who is also verified DOES get the auto-grant and can draw real
+        # cases. What the role actually costs them is the portal itself — the nav
+        # shows the admin console, and the roster files them outside "Approved &
+        # Labeling" — so a physician working from this account looks and is filed
+        # like an operator. Reported as context, not as the cause.
+        notes.append(
+            "The role is 'admin', not 'evaluator'. That does not block real cases "
+            "on its own, but it puts the admin console in their nav and keeps them "
+            "off the Approved & Labeling roster. Set it to 'evaluator' from the "
+            "Physicians roster.")
+    env_admin = (os.getenv("ASCLEPIUS_ADMIN_EMAIL") or "").strip().lower()
+    pinned = bool(env_admin and env_admin == (u.get("email") or "").strip().lower())
+    if pinned:
+        # The trap this endpoint exists to make visible: the console's own role
+        # button appears to work and the next deploy silently reverts it. Whether
+        # that is still true depends on the guard in ensure_admin_from_env, so
+        # answer for the state this deployment is ACTUALLY in rather than warning
+        # about something that can no longer happen.
+        protected = (not is_admin) and store.count_active_admins(excluding=u["id"]) > 0
+        if protected:
+            notes.append(
+                "ASCLEPIUS_ADMIN_EMAIL names this account. The boot-time admin "
+                "bootstrap now refuses to convert a physician account while another "
+                "admin exists, so the role will survive the next deploy — but "
+                "repoint that variable at a separate operations account so it stops "
+                "depending on that guard.")
+        else:
+            blockers.append(
+                "ASCLEPIUS_ADMIN_EMAIL names this account, so every boot forces it "
+                "back to role='admin'"
+                + ("" if is_admin else " (it is the only active admin, so the "
+                                       "bootstrap cannot stand down without locking "
+                                       "the console out)")
+                + ". Changing the role in the console will be undone by the next "
+                  "deploy. Point that variable at a separate operations account "
+                  "first.")
+    if u.get("verification_status") != "approved":
+        blockers.append(
+            f"Verification status is {u.get('verification_status')!r}, not 'approved'. "
+            "Real-data approval follows labeling approval, so nothing is granted until "
+            "this clears.")
+    if not _can(u, LABEL):
+        blockers.append(
+            f"Tier is {u.get('tier')!r}, which does not carry the LABEL capability. "
+            "Drawing any case requires it.")
+    if not u.get("real_data_approved"):
+        blockers.append(
+            "real_data_approved is off. It is granted automatically to approved "
+            "labelers at boot and on the approval route, UNLESS an admin set it "
+            f"explicitly (source={u.get('real_data_approval_source')!r}) — a human "
+            "decision is never overridden by the sync.")
+    spec = (u.get("specialty") or "").strip().lower()
+    visible = [c for c in seeded
+               if c["open_to_all_specialties"] or c["specialty"] == spec]
+    if not visible:
+        blockers.append(
+            f"No real case is routed to {spec or 'their (unset) specialty'}. Real "
+            f"cases exist for {sorted({c['specialty'] for c in seeded})}. Set "
+            "ASCLEPIUS_V4_OPEN_TO_ALL=1 (the default) so every approved physician "
+            "sees all of them, or promote a chart in their specialty.")
+
+    # What the queue ACTUALLY returns for them — the gates above are the reasons,
+    # this is the outcome, and if they ever disagree the outcome is the truth.
+    #
+    # The real-data wall lives in the ROUTER, not in the store query: passing
+    # real_only=True filters to real tasks, it does not ask whether this person may
+    # see one. Reproducing the router's own check here is the difference between a
+    # report and a lie — without it this endpoint would cheerfully tell an operator
+    # that an unapproved physician can see real cases that /tasks/next refuses them.
+    if u.get("real_data_approved") and u.get("active") and _can(u, LABEL):
+        eligible = store.eligible_tasks_for_evaluator(
+            evaluator_id=u["id"], specialty=spec or None, real_only=True, limit=50)
+    else:
+        eligible = []
+    report["physician"] = {
+        "email": u.get("email"), "specialty": u.get("specialty"),
+        "role": u.get("role"),
+        "pinned_admin_by_env": pinned,
+        "tier": u.get("tier"), "verification_status": u.get("verification_status"),
+        "active": bool(u.get("active")),
+        "real_data_approved": bool(u.get("real_data_approved")),
+        "real_data_approval_source": u.get("real_data_approval_source"),
+    }
+    report["notes"] = notes
+    report["real_cases_they_can_draw"] = [t.get("task_id") for t in eligible]
+    report["can_see_real_cases"] = bool(eligible)
+    report["blockers"] = blockers
+    if eligible and blockers:
+        # Belt and braces: a gate list that says "blocked" over a non-empty queue
+        # is a bug in this endpoint, and saying so beats quietly contradicting
+        # ourselves on the screen an operator is trusting.
+        report["note"] = ("The queue is not empty despite the blockers listed — "
+                          "treat the queue as authoritative and report this.")
+    elif not eligible and not blockers:
+        report["note"] = ("No gate is blocking them and the queue is still empty: "
+                          "every real case they can see is already at capacity or "
+                          "already labeled by them.")
+    return report
 
 
 @router.get("/me/stats")

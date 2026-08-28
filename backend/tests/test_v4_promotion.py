@@ -574,10 +574,15 @@ def test_open_to_all_specialties_is_off_by_default():
     assert task["open_to_all_specialties"] is False
 
 
-def _evaluator(specialty, *, real=True):
+def _evaluator(specialty, *, real=True, approved=True):
     st = _store()
     ev = A.make_user(st, role="evaluator", specialty=specialty,
                      board_cert=f"board_certified_{specialty}", years_experience=12)
+    if approved:
+        # A physician who can actually draw work: verified AND labeling. The
+        # real-case access report reads both, so a fixture that skipped
+        # verification would make "no blockers" unreachable for any account.
+        st.set_verification_status(ev["id"], "approved")
     if real:
         st.set_real_data_approved(ev["id"], True)
     return st.get_user_by_id(ev["id"])
@@ -901,9 +906,27 @@ def test_the_admin_load_endpoint_reports_holds_alongside_loads():
     r = client.post("/api/asclepius/generation/load-v4-real-cases", headers=_admin_h())
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["max_labels"] == 3 and body["open_to_all_specialties"] is False
+    assert body["max_labels"] == 3
+    # Omitted => follows the deployment's configured fan-out, so this route and the
+    # boot seeder can never disagree about who sees the real cases.
+    from asclepius.constants import v4_open_to_all_specialties
+    assert body["open_to_all_specialties"] is v4_open_to_all_specialties()
     assert body["loaded"] + body["held"] + body["skipped"] == body["total"]
     assert set(body["holds"]) == set(v4_cases.V4_HOLDS())
+
+
+def test_the_admin_load_endpoint_still_takes_an_explicit_fan_out_override():
+    """The setting is the default, not a ceiling: an operator can still force
+    either behaviour for one call without touching the environment."""
+    for want in (True, False):
+        r = client.post(
+            f"/api/asclepius/generation/load-v4-real-cases?open_to_all_specialties={str(want).lower()}",
+            headers=_admin_h())
+        assert r.status_code == 200, r.text
+        assert r.json()["open_to_all_specialties"] is want
+        for e in v4_cases.V4_REAL_CASES:
+            t = _store().get_task(v4_cases.v4_task_id(e["case_id"]))
+            assert bool(t["open_to_all_specialties"]) is want
 
 
 def test_the_admin_load_endpoint_refuses_an_unenabled_specialty():
@@ -1477,3 +1500,275 @@ def test_a_stale_pre_v4_portal_choice_does_not_outrank_the_real_cases():
     assert "stored === 'v4' && !approved" in body
     # The pick marker is only ever written by the picker.
     assert js.count("PORTAL_VERSION_PICKED_KEY, '1'") == 1
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CAUSE 6 — three real cases, divided by a growing roster of specialties
+#
+# A physician reported an empty V4 queue on an account that was approved,
+# labeling, and real-data cleared. Every gate was open. There simply was no real
+# case routed to their specialty: the corpus is hepatology + nephrology +
+# cardiology, and specialty routing hid all three from everyone else. "No cases
+# exist" and "no cases for you" rendered as the same empty screen.
+# ═════════════════════════════════════════════════════════════════════════════
+def test_an_approved_physician_outside_the_three_specialties_sees_the_real_cases():
+    """The reported failure. Oncology has no real chart, so under strict routing
+    this physician sees zero — with nothing on screen distinguishing that from a
+    corpus that does not exist yet."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True)
+    headers = A.headers_for(_evaluator("oncology"))
+    av = client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=oncology",
+                    headers=headers).json()
+    assert av["count"] == 3, "an approved physician saw none of the three real cases"
+    nxt = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=oncology",
+                     headers=headers).json()
+    assert nxt["served_portal_version"] == "v4"
+    assert (nxt["task"].get("case") or {}).get("case_source") == "real_deid"
+
+
+def test_strict_routing_still_hides_them_when_the_fan_out_is_off():
+    """The widening is a setting, not a new law. With it off, specialty routing is
+    exactly what it was — so turning it back on once each specialty has its own
+    corpus is one env var, not a revert."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=False)
+    headers = A.headers_for(_evaluator("oncology"))
+    av = client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=oncology",
+                    headers=headers).json()
+    assert av["count"] == 0
+
+
+def test_the_seed_corrects_visibility_on_cases_that_are_already_in_the_queue():
+    """THE PART THAT MAKES THE FIX REACH PRODUCTION. The seed is idempotent on task
+    id, so a deployed database already holding these three tasks would skip them
+    and never apply the new setting — correct on a fresh install, wrong on every
+    real one. Flipping the setting must reconcile rows that already exist."""
+    st = _store()
+    first = v4_cases.load_v4_cases(st, open_to_all_specialties=False)
+    assert first["loaded"] == 3 and first["revisited"] == 0
+    headers = A.headers_for(_evaluator("oncology"))
+    assert client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=oncology",
+                      headers=headers).json()["count"] == 0
+
+    again = v4_cases.load_v4_cases(st, open_to_all_specialties=True,
+                                   reconcile_visibility=True)
+    assert again["loaded"] == 0, "must not duplicate the tasks"
+    assert again["skipped"] == 3
+    assert again["revisited"] == 3, "the already-present tasks were not widened"
+    assert client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=oncology",
+                      headers=headers).json()["count"] == 3
+
+    # …and it narrows again, so the setting is genuinely reversible in place.
+    back = v4_cases.load_v4_cases(st, open_to_all_specialties=False,
+                                  reconcile_visibility=True)
+    assert back["revisited"] == 3
+    assert client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=oncology",
+                      headers=headers).json()["count"] == 0
+
+
+def test_the_fan_out_widens_visibility_and_nothing_else():
+    """It must not become a back door. Fan-out is a MATCHING control: the real-data
+    wall and what we pay per case are both untouched by it."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True)
+    for e in v4_cases.V4_REAL_CASES:
+        t = st.get_task(v4_cases.v4_task_id(e["case_id"]))
+        assert t["max_labels"] == v4_cases.V4_DEFAULT_MAX_LABELS, "fan-out changed what we pay"
+    # An unapproved physician is still walled off, fan-out or no fan-out.
+    headers = A.headers_for(_evaluator("oncology", real=False))
+    assert client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=oncology",
+                      headers=headers).json()["count"] == 0
+    assert client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=oncology",
+                      headers=headers).json()["task"] is None
+
+
+def test_the_access_report_names_the_gate_that_is_actually_shut():
+    """Four gates produce one identical empty screen. An operator must be able to
+    ask the product which one it is instead of reading source."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=False)
+    admin_h = _admin_h()
+    ev = _evaluator("oncology")
+
+    r = client.get(f"/api/asclepius/admin/real-case-access?email={ev['email']}",
+                   headers=admin_h)
+    assert r.status_code == 200, r.text
+    rep = r.json()
+    assert rep["can_see_real_cases"] is False
+    assert rep["real_cases_they_can_draw"] == []
+    assert any("No real case is routed to" in b for b in rep["blockers"]), rep["blockers"]
+    assert rep["specialties_with_a_real_case"] == ["cardiology", "hepatology", "nephrology"]
+
+    # Widen, and the report flips — and stops reporting a blocker that is now open.
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True, reconcile_visibility=True)
+    rep = client.get(f"/api/asclepius/admin/real-case-access?email={ev['email']}",
+                     headers=admin_h).json()
+    assert rep["can_see_real_cases"] is True
+    assert len(rep["real_cases_they_can_draw"]) == 3
+    assert rep["blockers"] == []
+
+
+def test_the_access_report_names_an_approval_gate_and_is_admin_only():
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True)
+    ev = _evaluator("nephrology", real=False)
+    rep = client.get(f"/api/asclepius/admin/real-case-access?email={ev['email']}",
+                     headers=_admin_h()).json()
+    assert rep["can_see_real_cases"] is False
+    assert any("real_data_approved is off" in b for b in rep["blockers"]), rep["blockers"]
+    # It reports on accounts and their access; it is not an evaluator-facing screen.
+    assert client.get("/api/asclepius/admin/real-case-access",
+                      headers=A.headers_for(ev)).status_code in (401, 403)
+    assert client.get("/api/asclepius/admin/real-case-access?email=nobody@example.com",
+                      headers=_admin_h()).status_code == 404
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# "I pushed a fix and I am not seeing it"
+#
+# A deploy that never ran, a deploy that failed back to the previous image, and
+# a real bug in the new code all present identically — as the old behaviour.
+# Nothing the running process served said which commit it was, so telling them
+# apart meant reading a dashboard or guessing.
+# ═════════════════════════════════════════════════════════════════════════════
+def test_the_running_build_is_reportable_without_a_login():
+    r = client.get("/api/version")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body) >= {"commit", "short_commit", "branch", "started_at"}
+    assert body["started_at"], "a process that cannot say when it started is not answering the question"
+    if body["commit"]:
+        assert body["short_commit"] == body["commit"][:7]
+    # Thin on purpose: a health surface must not become an environment dump.
+    assert not (set(body) - {"commit", "short_commit", "branch", "started_at",
+                             "deployment_id"}), body
+
+
+def test_the_running_commit_prefers_the_platform_over_the_filesystem(monkeypatch):
+    """In a container built from a tarball there is no .git, and a stale one
+    would be worse than nothing — so the platform's own value wins."""
+    import main as main_mod
+    monkeypatch.setenv("RAILWAY_GIT_COMMIT_SHA", "0" * 40)
+    monkeypatch.setenv("RAILWAY_GIT_BRANCH", "main")
+    got = main_mod._running_commit()
+    assert got["commit"] == "0" * 40 and got["branch"] == "main"
+    assert got["short_commit"] == "0000000"
+
+
+def test_the_access_report_says_what_the_running_process_did_at_boot():
+    """The fan-out reconcile happens at startup. An operator checking whether a
+    deploy took needs that answer from THIS container, not from the source."""
+    rep = client.get("/api/asclepius/admin/real-case-access", headers=_admin_h()).json()
+    assert "build" in rep and "v4_seeding_at_boot" in rep
+    assert "open_to_all_specialties_setting" in rep
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CAUSE 7 — an environment variable quietly owned a doctor's account
+#
+# ASCLEPIUS_ADMIN_EMAIL pointed at a physician. ensure_admin_from_env runs on
+# EVERY boot and forces role='admin', so it was not a one-time promotion but a
+# standing override: the console's "set role" button appeared to work and the
+# next deploy silently undid it. The physician also lost the real-case queue,
+# because real-data approval follows APPROVED + LABELING and an account parked at
+# role='admin' is not being verified as a labeler. The visible symptom was an
+# empty V4 queue with nothing on screen connecting it to an environment variable.
+# ═════════════════════════════════════════════════════════════════════════════
+def test_the_env_admin_bootstrap_will_not_take_over_a_physician_account(monkeypatch):
+    from asclepius import auth as asc_auth
+
+    st = _store()
+    doc = _evaluator("nephrology")
+    A.make_user(st, role="admin")                     # another way into the console
+    monkeypatch.setenv("ASCLEPIUS_ADMIN_EMAIL", doc["email"])
+    monkeypatch.setenv("ASCLEPIUS_ADMIN_PASSWORD", "unused-in-this-test")
+
+    assert asc_auth.ensure_admin_from_env(st) is None, "it hijacked a physician account"
+    assert st.get_user_by_id(doc["id"])["role"] == "evaluator", (
+        "a deliberate physician role was reverted by an environment variable")
+
+
+def test_it_still_promotes_when_that_would_otherwise_lock_the_console_out(monkeypatch):
+    """The guard must not become its own outage. With no other admin, an operator
+    who cannot get in cannot repair anything — so the bootstrap still runs."""
+    from asclepius import auth as asc_auth
+
+    st = _store()
+    doc = _evaluator("nephrology")
+    # No _admin_h() here on purpose: this store has no other admin, which is the
+    # whole condition under test.
+    assert st.count_active_admins(excluding=doc["id"]) == 0, "test setup left an admin standing"
+    monkeypatch.setenv("ASCLEPIUS_ADMIN_EMAIL", doc["email"])
+    monkeypatch.setenv("ASCLEPIUS_ADMIN_PASSWORD", "bootstrap-recovery-value")
+    assert asc_auth.ensure_admin_from_env(st) is not None
+    assert st.get_user_by_id(doc["id"])["role"] == "admin"
+
+
+def test_the_access_report_names_the_env_pin_and_the_admin_role(monkeypatch):
+    """Two gates that are invisible from the portal: the account's role, and the
+    environment variable that keeps putting it back."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True, reconcile_visibility=True)
+    doc = _evaluator("nephrology")
+    st.set_user_role(doc["id"], "admin")
+    monkeypatch.setenv("ASCLEPIUS_ADMIN_EMAIL", doc["email"])
+
+    rep = client.get(f"/api/asclepius/admin/real-case-access?email={doc['email']}",
+                     headers=_admin_h()).json()
+    assert rep["physician"]["role"] == "admin"
+    assert rep["physician"]["pinned_admin_by_env"] is True
+    # The env pin IS a blocker while the account sits at role='admin': the console
+    # button works and the next deploy undoes it.
+    assert any("ASCLEPIUS_ADMIN_EMAIL" in b for b in rep["blockers"]), rep["blockers"]
+    # The admin role is NOT reported as a real-data blocker, because it is not one:
+    # admins hold LABEL, so a verified admin does get the auto-grant. Claiming
+    # otherwise would send an operator chasing the wrong gate.
+    assert not any("role is 'admin'" in b for b in rep["blockers"]), rep["blockers"]
+    assert any("role is 'admin'" in n for n in rep["notes"]), rep["notes"]
+
+
+def test_a_verified_admin_is_not_told_the_role_is_what_blocks_them():
+    """Measured, not assumed: an approved, labeling account still draws real cases
+    at role='admin'. The report must not name the role as the cause."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True, reconcile_visibility=True)
+    doc = _evaluator("nephrology")
+    st.set_user_role(doc["id"], "admin")
+    st.sync_real_data_approval()
+    rep = client.get(f"/api/asclepius/admin/real-case-access?email={doc['email']}",
+                     headers=_admin_h()).json()
+    assert rep["can_see_real_cases"] is True
+    assert len(rep["real_cases_they_can_draw"]) == 3
+
+
+def test_the_env_pin_is_a_note_not_a_blocker_once_the_guard_protects_it():
+    """After the role is fixed and another admin exists, the bootstrap stands down
+    — so the report must stop warning about a revert that can no longer happen."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True, reconcile_visibility=True)
+    admin_h = _admin_h()                      # the other active admin
+    doc = _evaluator("nephrology")
+    import os as _os
+    _os.environ["ASCLEPIUS_ADMIN_EMAIL"] = doc["email"]
+    try:
+        rep = client.get(f"/api/asclepius/admin/real-case-access?email={doc['email']}",
+                         headers=admin_h).json()
+        assert rep["blockers"] == [], rep["blockers"]
+        assert any("survive the next deploy" in n for n in rep["notes"]), rep["notes"]
+        assert rep["can_see_real_cases"] is True
+    finally:
+        _os.environ.pop("ASCLEPIUS_ADMIN_EMAIL", None)
+
+
+def test_a_plain_physician_is_not_accused_of_an_env_pin(monkeypatch):
+    """The new blockers must not fire on an account they do not describe."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True, reconcile_visibility=True)
+    doc = _evaluator("nephrology")
+    monkeypatch.setenv("ASCLEPIUS_ADMIN_EMAIL", "ops@example.test")
+    rep = client.get(f"/api/asclepius/admin/real-case-access?email={doc['email']}",
+                     headers=_admin_h()).json()
+    assert rep["physician"]["pinned_admin_by_env"] is False
+    assert rep["blockers"] == [] and rep["notes"] == []
+    assert rep["can_see_real_cases"] is True

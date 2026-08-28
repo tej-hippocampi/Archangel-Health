@@ -876,6 +876,7 @@ def load_v4_cases(
     store: Any, *, specialty: Optional[str] = None,
     max_labels: int = V4_DEFAULT_MAX_LABELS,
     open_to_all_specialties: bool = False,
+    reconcile_visibility: bool = False,
 ) -> Dict[str, Any]:
     """Insert the V4 real cases as ready-to-serve ``partner_ehr`` tasks, idempotently.
 
@@ -889,6 +890,21 @@ def load_v4_cases(
 
     ``open_to_all_specialties`` widens VISIBILITY only (V4 PRD §4). It does not
     touch ``max_labels`` and therefore does not change what we pay.
+
+    ``reconcile_visibility`` also applies that flag to tasks that ALREADY EXIST
+    (counted as ``revisited``). Off by default and deliberately so — this splits
+    two jobs that look like one:
+
+      * *create what is missing*, which is safe to run on any request and is what
+        the ``/tasks/next`` backstop does;
+      * *change who can see the existing cases*, which is an *operator* decision
+        and belongs to boot and to the explicit admin route only.
+
+    Without the split, a physician drawing a case would silently rewrite the
+    visibility of the whole real corpus as a side effect of asking for work. With
+    it off, the seed is idempotent on task id exactly as before; with it on, a
+    deployed database picks up a changed setting instead of staying on whatever it
+    was first created with.
     """
     from asclepius.cases import case_type_signature, render_case_prompt
 
@@ -896,7 +912,7 @@ def load_v4_cases(
     eligible = [e for e in _validated()
                 if not want or e["case"].get("specialty") == want]
 
-    loaded, skipped, task_ids = 0, 0, []
+    loaded, skipped, task_ids, revisited = 0, 0, [], 0
     holds: Dict[str, str] = {}
     for entry in eligible:
         # Re-checked per call, not cached: attaching a missing study to a held case
@@ -910,6 +926,15 @@ def load_v4_cases(
         tid = v4_task_id(entry["case_id"])
         if store.get_task(tid):
             skipped += 1
+            # A deployed database already holds these three tasks, so a seed that
+            # only ever set this flag at INSERT would apply a changed setting to a
+            # fresh install and to nothing else — correct in a test, wrong in
+            # production, and an approved physician looking at an empty queue while
+            # the cases sit in the table. VISIBILITY only (see the store method),
+            # and only when the caller asked for it (see the docstring).
+            if reconcile_visibility and store.set_task_open_to_all_specialties(
+                    tid, bool(open_to_all_specialties)):
+                revisited += 1
             continue
         case = entry["case"]
         prompt = render_case_prompt(case, entry["question"])
@@ -960,6 +985,10 @@ def load_v4_cases(
         task_ids.append(tid)
     return {"loaded": loaded, "skipped": skipped, "held": len(holds),
             "total": len(eligible), "task_ids": task_ids, "holds": holds,
+            # How many ALREADY-PRESENT tasks had their visibility corrected on this
+            # call. Non-zero means a deployed queue was just widened (or narrowed)
+            # in place — worth a boot log line, because it changes who sees what.
+            "revisited": revisited,
             # A case that SHIPS with a named gap. Not a hold — it is in the queue —
             # but an operator should read it rather than discover an empty study list.
             "study_gaps": {cid: why for cid, why in V4_STUDY_GAPS().items()
