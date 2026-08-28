@@ -14,21 +14,15 @@ owns what the program added on top of that spine:
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-# The enterprise-note endpoint 503s unless an email transport is configured, and
-# it asserts on what the dev transport prints. This file used to get that for free
-# from whichever sibling had already set the flag process-wide at import — pure
-# collection-order luck, and it ran out the moment the CI shards were repacked and
-# this file landed beside a different set of neighbours. Set it here, like
-# test_asclepius_provider_portal and test_community already do, so the file passes
-# on its own and its result does not depend on who ran before it.
-os.environ.setdefault("EMAIL_DEV_MODE", "1")   # transport "configured": prints, never sends
+# NOTE: the enterprise-note endpoint 503s without an email transport. That is
+# guaranteed suite-wide by tests/conftest.py (EMAIL_DEV_MODE), which is where the
+# rule lives — this file used to depend on a sibling having set it first.
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

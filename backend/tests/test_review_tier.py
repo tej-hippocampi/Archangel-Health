@@ -44,6 +44,41 @@ def _isolated(monkeypatch):
 
     monkeypatch.setattr(asc_pipeline, "run_critic", _ok_critic)
     monkeypatch.setattr(asc_pipeline, "run_grounding_check", _ok_grounding)
+    # ─── Why the halt flag is pinned for this whole file ─────────────────────
+    # Most of this module tests the SINGLE-review flow: draw one submission,
+    # claim it, POST a verdict onto it. PRD-R made double-labeling the default,
+    # so a singly-labelled case now routes to the PAIR queue instead and the
+    # single-submission POST correctly 409s with ``became_a_pair`` — before it
+    # ever reaches the guard the test is about.
+    #
+    # Whether that happens was a COIN FLIP, and the file already says so at
+    # ``test_reviewer_cannot_draw_own_submission``: the route triggers the
+    # double-label sweep as a THROTTLED background task, so whether a case had
+    # been flagged depended on how much wall-clock other tests had burned in the
+    # same process. Twelve of the tests here could not pass alone at all, and one
+    # of them surfaced as a red CI shard the first time an unrelated test file was
+    # added and the shard packer reshuffled the suite.
+    #
+    # Pinning the flag is the same fix, for the same stated reason, that
+    # ``test_payments_accrual`` already applies: it is the one supported way to
+    # run without second labels. It does not weaken anything — these tests are
+    # about who may review what, not about how a case reaches a reviewer. The
+    # paired flow has its own module (``test_paired_review``), and the handful of
+    # tests HERE that drive the sweep deliberately call it themselves and clear
+    # the flag first.
+    monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_HALT", "1")
+    yield
+
+
+@pytest.fixture
+def paired_flow(monkeypatch):
+    """Opt back INTO the PRD-R default for a test that is about the paired flow.
+
+    The file-wide pin above is what makes the single-flow tests deterministic;
+    a test that wants a case to become a pair asks for it explicitly here, so
+    the two intentions are never confused for each other."""
+    monkeypatch.delenv("ASCLEPIUS_DOUBLE_LABEL_HALT", raising=False)
+    monkeypatch.delenv("ASCLEPIUS_DOUBLE_LABEL_RATE", raising=False)
     yield
 
 
@@ -159,7 +194,7 @@ def test_reviewer_tier_grants_access():
 
 
 # ─── Phase 1: the reviewer can never draw their own work ─────────────────────
-def test_reviewer_cannot_draw_own_submission():
+def test_reviewer_cannot_draw_own_submission(paired_flow):
     store = asc_store.get_store()
     reviewer = _reviewer(store)
     task = _mk_task(store)
@@ -350,7 +385,7 @@ def test_needs_review_stratification(monkeypatch):
     assert all(asc_review.needs_review(plain_task, sub) == first for _ in range(5))
 
 
-def test_sweep_double_label_routing_flags_hard_task():
+def test_sweep_double_label_routing_flags_hard_task(paired_flow):
     store = asc_store.get_store()
     labeler = A.make_user(store, specialty="nephrology")
     hard_case = {
@@ -642,7 +677,7 @@ def _submit_via_route(task_id, labeler, *, verdict="A_better", extra=None):
     return sid
 
 
-def test_double_label_is_reachable_through_the_real_submit_route():
+def test_double_label_is_reachable_through_the_real_submit_route(paired_flow):
     """THE TEST THAT WOULD HAVE CAUGHT F1.
 
     Builds every bit of state through HTTP. Before the fix this fails at the
@@ -684,7 +719,7 @@ def test_double_label_is_reachable_through_the_real_submit_route():
         evaluator_id=second["id"], specialty="nephrology", hard_only=True) is not None
 
 
-def test_reopened_task_is_never_served_back_to_the_first_labeler():
+def test_reopened_task_is_never_served_back_to_the_first_labeler(paired_flow):
     store = asc_store.get_store()
     admin_h = _admin_h()
     first = _labeler()
@@ -700,7 +735,7 @@ def test_reopened_task_is_never_served_back_to_the_first_labeler():
         evaluator_id=first["id"], specialty="nephrology", hard_only=True) is None
 
 
-def test_second_label_closes_the_task_again():
+def test_second_label_closes_the_task_again(paired_flow):
     store = asc_store.get_store()
     admin_h = _admin_h()
     tid = _create_task_via_route(admin_h)
@@ -716,7 +751,7 @@ def test_second_label_closes_the_task_again():
     assert store.next_double_label_for(_labeler()["id"], specialty="nephrology") is None
 
 
-def test_sweep_is_idempotent_across_two_actual_calls():
+def test_sweep_is_idempotent_across_two_actual_calls(paired_flow):
     """The hackathon test claimed idempotence in a comment and never made the
     second call — a vacuous assertion (FIX A Phase 1)."""
     store = asc_store.get_store()
@@ -748,7 +783,7 @@ def test_reopen_never_resurrects_a_terminally_flagged_task():
         assert tid not in [c["task_id"] for c in store.tasks_awaiting_double_label_decision()]
 
 
-def test_full_kappa_loop_through_the_route_produces_a_real_number():
+def test_full_kappa_loop_through_the_route_produces_a_real_number(paired_flow):
     """FIX A definition-of-done #1, end to end and route-only.
 
     30 cases, each labeled by two INDEPENDENT physicians via POST /submissions,
@@ -904,7 +939,12 @@ def test_view_no_longer_carries_an_asserted_blinded_literal():
 def test_submit_requires_holding_the_claim():
     """A-3.1: submit used to check only 'exists / not mine / not already
     reviewed', so any reviewer could POST onto a guessed submission id —
-    including one another reviewer was holding, evicting their in-flight work."""
+    including one another reviewer was holding, evicting their in-flight work.
+
+    A single-flow test: it relies on the file-wide halt pin (see ``_isolated``),
+    without which the POST 409s with ``became_a_pair`` before reaching the claim
+    guard at all, and the assertion below reads a dict ``detail`` and dies on
+    ``.lower()``."""
     store = asc_store.get_store()
     labeler = A.make_user(store, specialty="nephrology")
     task = _mk_task(store)
@@ -1001,7 +1041,7 @@ def test_declined_routing_decision_is_persisted_and_requeueable(monkeypatch):
     assert _draw(reviewer)["submission"]["submission_id"] == sub["submission_id"]
 
 
-def test_routing_sweep_is_off_the_draw_path_and_cheap():
+def test_routing_sweep_is_off_the_draw_path_and_cheap(paired_flow):
     """A-3.4: the sweep issued ~9 statements per candidate — each on a FRESH
     sqlite3 connection — on the request path, against the single writer that
     labeler submissions also need. Measured at 452 statements for 50 candidates.
@@ -1121,7 +1161,7 @@ def test_only_one_definition_of_expert_acceptance_exists():
     assert not offenders, f"second definition of acceptance in {offenders}"
 
 
-def test_double_label_rate_has_one_source_of_truth():
+def test_double_label_rate_has_one_source_of_truth(paired_flow):
     """A-4.3: review.py delegated to agreement.double_label_rate(), which
     defaulted to 0.20 while the PRD review.py implements specified 0.15.
 
@@ -1137,7 +1177,7 @@ def test_double_label_rate_has_one_source_of_truth():
     assert asc_routing.second_label_is_default() is True
 
 
-def test_double_label_rate_env_override_still_wins(monkeypatch):
+def test_double_label_rate_env_override_still_wins(paired_flow, monkeypatch):
     from asclepius import agreement as asc_agreement
 
     monkeypatch.setenv("ASCLEPIUS_DOUBLE_LABEL_RATE", "0.42")
