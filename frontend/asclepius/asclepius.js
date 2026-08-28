@@ -349,9 +349,43 @@
   function isAdminUser() {
     return !!state.user && (state.user.role === 'admin' || state.user.role === 'qa_reviewer');
   }
+  /* Draft storage for a section module.
+   *
+   * The shell owns localStorage. review.js deliberately has none of its own —
+   * its own hyperscript and its own token read were two of the four reasons
+   * review was structurally a different application, and a test pins that it
+   * has not grown them back. So a module that needs to survive a refresh asks
+   * for it through the ctx, exactly as it asks for `h` and `api`.
+   */
+  const SECTION_DRAFT_PREFIX = 'asclepius_section_draft_';
+  function sectionDraftStore(namespace) {
+    const keyFor = (id) => SECTION_DRAFT_PREFIX + namespace + ':' + id;
+    return {
+      save(id, value) {
+        if (!id) return;
+        try { localStorage.setItem(keyFor(id), JSON.stringify(value)); } catch (e) { /* quota */ }
+      },
+      load(id) {
+        if (!id) return null;
+        try {
+          const raw = localStorage.getItem(keyFor(id));
+          return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+      },
+      clear(id) {
+        if (!id) return;
+        try { localStorage.removeItem(keyFor(id)); } catch (e) { /* ignore */ }
+      },
+    };
+  }
+
   function reviewSectionCtx() {
     return {
       h, api, clear, toast, loadingCard, fmtDate,
+      // Survives a refresh mid-adjudication. Judgment on a hard pair is
+      // minutes of a senior physician's reading, and losing it to a stray
+      // reload is how a reviewer learns not to trust the surface.
+      drafts: sectionDraftStore('review'),
       // The clinical chart, from the shared module — the SAME component the
       // labeler reads. Handing over the ctx rather than a rendered panel is what
       // keeps the reviewer's chart from becoming a second implementation.

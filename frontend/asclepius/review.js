@@ -72,6 +72,7 @@
   var SESSION = null;   // Agent P's session block, opaque, server-owned
   var STATS = null;
   var R = null;         // the adjudication being authored
+  var RESTORED = null;  // a judgment recovered from a previous sitting
   var DIVERGENCE = [];  // the aligned reasoning-step forks (§2.3 / §3)
   var PREVIEW = false;  // admin sightseeing; nothing is recorded (§4.1)
   var clockTimer = null;
@@ -112,11 +113,57 @@
     }
   }
 
+  /* ── the judgment survives a refresh ──────────────────────────────────────
+     R lived only in memory, so a stray reload mid-adjudication threw away a
+     senior physician's reading of a hard pair. That is tolerable for four
+     segmented controls and stops being tolerable the moment the form is worth
+     filling in, which is what the richer card above makes it.
+
+     Storage belongs to the SHELL, not here: this module having its own
+     localStorage read was one of the reasons review was structurally a
+     different application, and a test pins that it has not grown one back. So
+     it asks through the ctx, exactly as it asks for `h` and `api`. A shell
+     that does not provide `drafts` simply gets the old in-memory behaviour. */
+  function drafts() {
+    return (CTX && CTX.drafts) || null;
+  }
+  function saveJudgment() {
+    var d = drafts();
+    if (!d || !PAIR || !PAIR.task_id || !R) return;
+    // Never persist a preview: an operator sightseeing must leave no trace a
+    // real reviewer could resume into.
+    if (PREVIEW) return;
+    d.save(PAIR.task_id, {
+      verdict: R.verdict, stronger: R.stronger, acceptedSide: R.acceptedSide,
+      dimensions: R.dimensions, startedAt: R.startedAt,
+      notes: notesArea ? notesArea.value : '',
+      edited: editedArea ? editedArea.value : '',
+    });
+  }
+  function clearJudgment(taskId) {
+    var d = drafts();
+    if (d && taskId) d.clear(taskId);
+  }
   function resetReview() {
     R = { verdict: null, stronger: null, acceptedSide: null, dimensions: {},
           startedAt: Date.now() };
     DIVERGENCE = [];
     focusedDim = 0;
+    RESTORED = null;
+    var d = drafts();
+    if (!PREVIEW && d && PAIR && PAIR.task_id) {
+      var saved = d.load(PAIR.task_id);
+      if (saved && typeof saved === 'object') {
+        R.verdict = saved.verdict || null;
+        R.stronger = saved.stronger || null;
+        R.acceptedSide = saved.acceptedSide || null;
+        R.dimensions = (saved.dimensions && typeof saved.dimensions === 'object')
+          ? saved.dimensions : {};
+        // startedAt is NOT restored. It measures time on this case in this
+        // sitting, and a resumed draft from yesterday would bill the gap.
+        RESTORED = saved;
+      }
+    }
   }
 
   // ── the session countdown ───────────────────────────────────────────────────
@@ -517,6 +564,65 @@
       h('summary', { class: 'asc-rv-kv' }, title), body);
   }
 
+  /* ── evidence anchors ────────────────────────────────────────────────────
+     A citation divorced from the claim it supports is not reviewable, so
+     anchors are rendered UNDER the thing they ground rather than collected in
+     a "Citations" fold at the bottom of the card.
+
+     There was such a fold, keyed on a top-level `citations` field. No
+     submission has ever carried one: citations live nested as
+     `evidence_anchor` (the back-compat singular alias) and `evidence_anchors`
+     on the revision, the from-scratch answer, the blind answer, every
+     reasoning step, every rubric row, and per error tag. So a reviewer had
+     never seen a single citation a labeler entered, while one of the four
+     things they grade is rubric quality. */
+  function anchorsOf(obj) {
+    if (!obj || typeof obj !== 'object') return [];
+    var out = [];
+    if (Array.isArray(obj.evidence_anchors)) out = out.concat(obj.evidence_anchors);
+    if (obj.evidence_anchor) out.push(obj.evidence_anchor);
+    // The singular is an alias for [0]; drop the duplicate it creates.
+    var seen = {}, uniq = [];
+    out.forEach(function (an) {
+      if (!an || typeof an !== 'object') return;
+      var key = [an.citation_text || '', an.identifier || '', an.url || ''].join('|');
+      if (key === '||' || seen[key]) return;
+      seen[key] = true;
+      uniq.push(an);
+    });
+    return uniq;
+  }
+  function anchorLine(an) {
+    var bits = [an.citation_text || '', an.identifier || '', an.source_type || '']
+      .filter(Boolean).join(' \u00b7 ');
+    var kids = [bits || (an.url || '')];
+    if (an.citation_confirmed) kids.push(h('span', { class: 'asc-chip asc-rv-chip-gap' }, 'confirmed'));
+    return h('div', { class: 'asc-rv-kv' }, kids);
+  }
+  /* The claim, then its sources directly beneath it. */
+  function grounded(node, obj) {
+    var anchors = anchorsOf(obj);
+    if (!anchors.length) return node;
+    return h('div', {}, node,
+      h('div', { class: 'asc-rv-citations' }, anchors.map(anchorLine)));
+  }
+  function chips(values) {
+    return h('div', {}, (values || []).map(function (t) {
+      return h('span', { class: 'asc-chip asc-rv-chip-gap' }, String(t));
+    }));
+  }
+  /* {key: value} maps -- severities, error_tag_reasons. Rendered as
+     "tag: value" pairs rather than raw JSON, which is what a reviewer can
+     actually read at speed. */
+  function pairs(map) {
+    if (!map || typeof map !== 'object') return null;
+    var keys = Object.keys(map);
+    if (!keys.length) return null;
+    return h('div', {}, keys.map(function (k) {
+      return h('span', { class: 'asc-chip asc-rv-chip-gap' }, k + ': ' + String(map[k]));
+    }));
+  }
+
   /* One physician's answer. Identical structure for A and B, identical accent,
      distinguished ONLY by the mono eyebrow and by which column it is in. */
   function answerCard(entry, task, forks) {
@@ -528,35 +634,69 @@
       ' ',
       entry.confidence ? h('span', { class: 'asc-chip' }, 'confidence: ' + entry.confidence) : null));
 
+    // Stage 1: their read on the QUESTION. Never reached the reviewer before,
+    // though a `valid` verdict is what upgrades a record's provenance from
+    // AI-drafted to clinician-reviewed.
+    var pr = a.prompt_review || null;
+    if (pr && (pr.verdict || pr.note)) {
+      var prKids = [];
+      if (pr.verdict) prKids.push(h('span', { class: 'asc-chip' }, 'question: ' + pr.verdict));
+      if (pr.note) prKids.push(h('div', { class: 'asc-rv-kv' }, pr.note));
+      body.push(section('Their read on the question', prKids));
+    }
+
     var rev = a.chosen_revision || null;
     var finalText = null;
     if (rev && rev.edited && rev.revised_text) {
       finalText = rev.revised_text;
       body.push(section('Corrected answer (as submitted)',
-        h('div', { class: 'asc-rv-answer-text' }, rev.revised_text)));
-      if (rev.why_better_notes) body.push(h('div', { class: 'asc-rv-kv' }, 'Why: ' + rev.why_better_notes));
+        grounded(h('div', { class: 'asc-rv-answer-text' }, rev.revised_text), rev)));
     } else if (a.verdict === 'A_better' || a.verdict === 'B_better') {
       finalText = candidateText(task, a.chosen_id);
       body.push(section('Chosen answer (unedited)',
         h('div', { class: 'asc-rv-answer-text' }, finalText)));
+    }
+    if (rev && ((rev.why_better_tags || []).length || rev.why_better_notes)) {
+      var whyKids = [];
+      if ((rev.why_better_tags || []).length) whyKids.push(chips(rev.why_better_tags));
+      if (rev.why_better_notes) whyKids.push(h('div', { class: 'asc-rv-kv' }, rev.why_better_notes));
+      body.push(section('Why it is better', whyKids));
     }
 
     var fs = a.from_scratch || null;
     if (fs && fs.ideal_answer) {
       finalText = fs.ideal_answer;
       body.push(section('Written from scratch',
-        h('div', { class: 'asc-rv-answer-text' }, fs.ideal_answer)));
+        grounded(h('div', { class: 'asc-rv-answer-text' }, fs.ideal_answer), fs)));
       if (fs.approach_notes) body.push(h('div', { class: 'asc-rv-kv' }, 'Approach: ' + fs.approach_notes));
     }
 
     var crit = a.rejected_critique || null;
-    if (crit && (crit.why_worse || (crit.error_tags || []).length)) {
+    if (crit && (crit.why_worse || (crit.error_tags || []).length
+                 || (crit.failure_tags || []).length)) {
       var critKids = [];
-      if ((crit.error_tags || []).length) critKids.push(h('div', {},
-        crit.error_tags.map(function (t) {
-          return h('span', { class: 'asc-chip asc-rv-chip-gap' }, t);
-        })));
+      if ((crit.error_tags || []).length) critKids.push(chips(crit.error_tags));
+      // How bad, and why. Captured all along, never shown.
+      var sev = pairs(crit.severities);
+      if (sev) critKids.push(sev);
+      var reasons = pairs(crit.error_tag_reasons);
+      if (reasons) critKids.push(reasons);
       if (crit.why_worse) critKids.push(h('div', { class: 'asc-rv-kv' }, crit.why_worse));
+      // The Model-Failure Taxonomy: a named export SKU, invisible here until now.
+      (crit.failure_tags || []).forEach(function (ft) {
+        if (!ft || typeof ft !== 'object') return;
+        critKids.push(h('div', { class: 'asc-rv-kv' },
+          h('span', { class: 'asc-chip asc-rv-chip-gap' }, String(ft.mode || 'other')),
+          ft.tier ? h('span', { class: 'asc-chip asc-rv-chip-gap' }, String(ft.tier)) : null,
+          ft.note ? h('span', {}, ' ' + String(ft.note)) : null));
+      });
+      // Anchors keyed per error tag.
+      var tagAnchors = crit.error_tag_anchors || {};
+      Object.keys(tagAnchors).forEach(function (tag) {
+        var an = tagAnchors[tag];
+        if (an) critKids.push(h('div', { class: 'asc-rv-citations' },
+          h('div', { class: 'asc-rv-kv' }, tag), anchorLine(an)));
+      });
       body.push(section('Critique of the rejected answer', critKids));
     }
 
@@ -565,16 +705,33 @@
       body.push(section('Reasoning steps', steps.map(function (s, i) {
         var text = stepText(s);
         var note = s && (s.note || s.step_note);
-        // The fork mark. Same class on both columns — it says "A and B parted
+        // The fork mark. Same class on both columns: it says "A and B parted
         // company here", never "this column is the wrong one".
         var diverges = !!forks[i];
+        var meta = [];
+        // What the physician DID to this step, which is the difference between
+        // endorsing the model and rewriting it.
+        if (s && s.added) meta.push('added');
+        else if (s && s.corrected) meta.push('corrected');
+        else if (s && s.confirmed) meta.push('confirmed');
+        if (s && s.label) meta.push(String(s.label));
+        if (s && s.step_error_tag) meta.push(String(s.step_error_tag));
+        if (s && s.correction_reason) meta.push(String(s.correction_reason));
+        var detail = [];
+        if (meta.length) detail.push(chips(meta));
+        // The model's original, so the reviewer sees what was corrected rather
+        // than only the corrected result.
+        if (s && s.corrected && s.original_text) {
+          detail.push(h('div', { class: 'asc-rv-kv' }, 'was: ' + String(s.original_text)));
+        }
+        if (note) detail.push(h('div', { class: 'asc-rv-kv' }, 'note: ' + note));
+        if (s && s.critique) detail.push(h('div', { class: 'asc-rv-kv' }, String(s.critique)));
         return h('div', {
           class: 'asc-rv-step' + (diverges ? ' asc-rv-step-fork' : ''),
           dataset: { stepIdx: String(i) },
         },
           h('span', { class: 'asc-rv-step-num' }, String(i + 1)),
-          h('span', {}, String(text),
-            note ? h('div', { class: 'asc-rv-kv' }, 'note: ' + note) : null));
+          h('span', {}, String(text), grounded(h('div', {}, detail), s)));
       })));
     }
 
@@ -582,25 +739,29 @@
     if (rubric.length) {
       body.push(section('Grading rubric (as confirmed)', rubric.map(function (cr) {
         var pts = (cr && cr.points != null) ? cr.points : '';
+        var tags = [];
+        // Criticality and axes decide how the rubric SCORES, and the grader
+        // hard-fails on a critical negative. A reviewer grading "rubric
+        // quality" was shown neither.
+        if (cr && cr.tier) tags.push(String(cr.tier));
+        (cr && cr.axes ? cr.axes : []).forEach(function (ax) { tags.push(String(ax)); });
+        if (cr && cr.specific === false) tags.push('not machine-checkable');
         return h('div', { class: 'asc-rv-step' },
           h('span', { class: 'asc-rv-step-num' }, String(pts)),
-          h('span', {}, (cr && (cr.text || cr.criterion)) || ''));
+          h('span', {}, (cr && (cr.text || cr.criterion)) || '',
+            tags.length ? chips(tags) : null,
+            grounded(h('div', {}), cr)));
       })));
     }
 
     var ia = a.independent_answer || null;
     if (ia && ia.text) {
+      // `kind` matters: a ten-second `stance` and a `full` blind ideal answer
+      // render identically without it, and they are not the same work.
       body.push(section('Pre-reveal independent answer',
-        h('div', { class: 'asc-rv-answer-text' }, ia.text)));
-    }
-    if (a.citations) {
-      body.push(fold('Citations', h('div', { class: 'asc-rv-citations' },
-        (Array.isArray(a.citations) ? a.citations : [a.citations]).map(function (cit) {
-          if (!cit || typeof cit !== 'object') return h('div', { class: 'asc-rv-kv' }, String(cit || ''));
-          return h('div', { class: 'asc-rv-kv' },
-            [cit.citation_text || cit.text || '', cit.source_type || '', cit.identifier || '']
-              .filter(Boolean).join(' · '));
-        }))));
+        h('div', {},
+          ia.kind ? h('span', { class: 'asc-chip' }, String(ia.kind)) : null,
+          grounded(h('div', { class: 'asc-rv-answer-text' }, ia.text), ia))));
     }
 
     // GREEN, because this is physician-authored. Same class for A and B.
@@ -664,6 +825,7 @@
       if (R.verdict === 'accept_with_edits') {
         R.acceptedSide = (v === 'A' || v === 'B') ? v : null;
       }
+      saveJudgment();
     }, 'state');
     return h('div', { class: 'asc-rv-dim' },
       h('div', { class: 'asc-rv-dim-label' }, 'Which is stronger?',
@@ -679,7 +841,10 @@
       var labels = states.map(function (s) {
         return s === 'agree' ? 'Agree' : s === 'disagree' ? 'Disagree' : "Can't assess";
       });
-      var seg = segmented(states, labels, function (v) { R.dimensions[key] = v; }, 'state');
+      var seg = segmented(states, labels, function (v) {
+        R.dimensions[key] = v;
+        saveJudgment();
+      }, 'state');
       dimSegs.push(seg);
       var row = h('div', {
         class: 'asc-rv-dim',
@@ -753,6 +918,37 @@
     }));
     return verdictWrap;
   }
+  /* Re-aim the controls from a judgment recovered on the previous line.
+     Done AFTER mount because the segmented controls and verdict buttons have
+     to exist before they can be aimed. Deliberately drives the same handlers a
+     click drives rather than setting classes directly: a restored judgment
+     that looks selected but did not run the side effects (the accept-with-
+     edits box, the acceptedSide coupling) is worse than no restore. */
+  function restoreJudgment(prefill) {
+    if (!RESTORED) return;
+    if (RESTORED.stronger && strongerSeg && strongerSeg._pick) {
+      strongerSeg._pick(RESTORED.stronger);
+    }
+    var dims = (ME && ME.dimensions) || [];
+    dims.forEach(function (d, i) {
+      var value = RESTORED.dimensions && RESTORED.dimensions[d[0]];
+      if (value && dimSegs[i] && dimSegs[i]._pick) dimSegs[i]._pick(value);
+    });
+    if (RESTORED.verdict) {
+      // The button's identity is the verdict plus any side it FIXES, which is
+      // exactly how it was stored.
+      var side = RESTORED.acceptedSide;
+      var key = RESTORED.verdict
+        + ((RESTORED.verdict === 'accept' && (side === 'A' || side === 'B')) ? ':' + side : '');
+      var spec = null;
+      OVERALL.forEach(function (v) {
+        if (!spec && v[0] === RESTORED.verdict
+            && (v[1] === side || v[1] === 'stronger' || (!v[1] && !side))) spec = v;
+      });
+      var btn = verdictButtonFor(key);
+      if (btn && spec) chooseVerdict(btn, spec, prefill);
+    }
+  }
   function chooseVerdict(btn, d, prefill) {
     R.verdict = d[0];
     // 'stronger' defers to the comparison the reviewer already made;
@@ -767,6 +963,7 @@
     if (R.verdict === 'accept_with_edits' && !editedArea.value && prefill) {
       editedArea.value = prefill;
     }
+    saveJudgment();
     refreshSubmit();
   }
   function verdictButtonFor(key) {
@@ -847,6 +1044,7 @@
       body.corrections = corrections;
     }
     var gen = GENERATION;
+    var submittedTaskId = PAIR.task_id;
     api('/review/pair/' + encodeURIComponent(PAIR.task_id), { method: 'POST', body: body })
       .then(function (res) {
         if (stale(gen)) return;
@@ -854,6 +1052,9 @@
         // from the buyer-facing block, and says so in the response SPECIFICALLY
         // so the reviewer can rewrite it. Advancing here — which this used to do
         // — means they find out months later, or never.
+        // The judgment is the server's now, so the local copy stops being a
+        // recovery aid and starts being a stale one.
+        clearJudgment(submittedTaskId);
         if (res && res.corrections_withheld) {
           renderWithheld(res.identifier_flags || []);
           return;
@@ -993,10 +1194,17 @@
     correctionsBox = null; notesArea = null; editedArea = null; submitBtn = null; errLine = null;
     clockNoteEl = h('span', { class: 'asc-session-note' }, clockNote() || '');
 
-    notesArea = h('textarea', { class: 'asc-textarea', onInput: refreshSubmit,
+    function onText() { saveJudgment(); refreshSubmit(); }
+    notesArea = h('textarea', { class: 'asc-textarea', onInput: onText,
       placeholder: 'What is wrong, and what should change? Required on edits and on reject.' });
-    editedArea = h('textarea', { class: 'asc-textarea', onInput: refreshSubmit,
+    editedArea = h('textarea', { class: 'asc-textarea', onInput: onText,
       placeholder: 'Optional: the corrected answer text.' });
+    // A judgment recovered from a previous sitting. The prose goes back into
+    // the boxes here; the segmented controls are re-aimed after they mount.
+    if (RESTORED) {
+      if (RESTORED.notes) notesArea.value = RESTORED.notes;
+      if (RESTORED.edited) editedArea.value = RESTORED.edited;
+    }
     correctionsBox = h('div', { style: 'display:none' },
       h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Corrections / reason'), notesArea),
       h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Edited answer'), editedArea));
@@ -1036,6 +1244,7 @@
         caseSection(task),
         judgment));
 
+    restoreJudgment(a.finalText || b.finalText);
     aimDimension(0);
     // The button is built with `disabled: true`, which the shell's hyperscript
     // writes as an ATTRIBUTE. Settle the PROPERTY here so there is one authority
