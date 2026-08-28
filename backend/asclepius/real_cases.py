@@ -1249,6 +1249,15 @@ def outcome_delta(
             "is missing, so the two windows cannot be placed on a common axis")
     c = as_dict(outcome_case) or {}
     shift = outcome_index_offset - decision_index_offset   # ≥ 0 for a later encounter
+    if shift < 0:
+        # The "outcome" precedes the decision it is meant to verify — a walk built
+        # out of chronological order. Every item would be filtered out and the
+        # physician would be shown an empty panel reading "the record adds
+        # nothing", which is a false statement about the chart rather than a
+        # missing one. Fail closed and name it.
+        raise RealCaseError(
+            f"the outcome encounter is {abs(shift)} day(s) BEFORE the decision it "
+            "would verify; the trajectory is not in chronological order")
 
     def _after(key: str) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []

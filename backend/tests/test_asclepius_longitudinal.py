@@ -27,6 +27,7 @@ LLM stubbed throughout; nothing here needs a key.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -348,6 +349,15 @@ def test_outcome_delta_fails_closed_without_an_axis():
     with pytest.raises(real_cases.RealCaseError):
         real_cases.outcome_delta({"notes": []}, outcome_index_offset=None,
                                  decision_index_offset=-30)
+
+
+def test_outcome_delta_refuses_an_outcome_that_precedes_its_decision():
+    """Everything would filter out and the physician would read "the record adds
+    nothing" — a false statement about the chart rather than a missing one."""
+    with pytest.raises(real_cases.RealCaseError) as exc:
+        real_cases.outcome_delta({"notes": []}, outcome_index_offset=-90,
+                                 decision_index_offset=-30)
+    assert "chronological order" in str(exc.value)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -798,6 +808,38 @@ def test_the_reveal_shows_only_what_came_after_the_decision():
     # data dictionary a buyer reads.
     assert any(l["limitation"] == "not_a_controlled_experiment"
                for l in body["limitations"])
+
+
+def test_the_reveal_carries_no_answer_key_and_no_field_it_did_not_name():
+    """The reveal is a filter over an already-de-identified, already-leak-gated
+    case, and it is built from an explicit key list rather than by copying the
+    case — so an internal key that ever slipped past ``public_case`` still could
+    not ride out through here."""
+    store = _store()
+    tid = asc_trajectory.new_trajectory_id()
+    early = store.insert_task(
+        prompt="point 0", specialty="gastroenterology", max_labels=1,
+        case=_traj_case(), generation={"index_event_offset": -60},
+        trajectory_id=tid, sequence_index=0)
+    store.insert_task(
+        prompt="point 1", specialty="gastroenterology", max_labels=1,
+        case=_traj_case(
+            lab_panels=[{"panel": "LFT", "collected_offset_days": -5,
+                         "results": [{"analyte": "GGT", "value": 983}]}],
+            ground_truth="Stent occlusion — the answer key.",
+            hard_hook="the trap"),
+        generation={"index_event_offset": -30}, trajectory_id=tid, sequence_index=1)
+
+    user = _approved_user(store)
+    _submit(store, early, user["id"])
+    body = client.get(f"/api/asclepius/tasks/{early['task_id']}/trajectory-outcome",
+                      headers=A.headers_for(user)).json()
+    blob = json.dumps(body)
+    assert "Stent occlusion" not in blob
+    assert "the trap" not in blob
+    assert set(body["outcome"]) == {
+        "lab_panels", "notes", "studies", "medications", "problem_list", "vitals",
+        "study_findings_policy", "days_after_decision", "n_events"}
 
 
 def test_the_terminal_point_says_so_rather_than_returning_an_empty_panel():
