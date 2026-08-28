@@ -181,7 +181,21 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         # it to stop showing a referral-only account a rail full of locked
         # doors it will never open.
         "account_kind": _caps.account_kind(user),
+        # The physician's own picture, or None until they upload one. The rail's
+        # profile avatar needs this from the SESSION payload: it renders on every
+        # screen, and /me/profile is fetched only when the profile page opens.
+        # Same URL shape and same sha cache-buster as the profile page's avatar
+        # block, so both surfaces hit one cached response rather than two.
+        # Display truth only — the endpoint itself is bearer-authenticated.
+        "avatar_url": _avatar_url(user),
     }
+
+
+def _avatar_url(user: Dict[str, Any]) -> Optional[str]:
+    sha = (user.get("avatar_asset_sha") or "").strip()
+    if not sha:
+        return None
+    return f"/api/asclepius/users/{user['id']}/avatar?v={sha[:12]}"
 
 
 def _parse_tutorial(raw: Any) -> Dict[str, Any]:

@@ -10,6 +10,17 @@
   // AUTH_GATE_HEADER): 'pending' or 'rejected'.
   const AUTH_GATE_HEADER = 'X-Asclepius-Auth-Gate';
   const TOKEN_KEY = 'asclepius_token';
+  // In-progress evaluation drafts, one key per task. Deliberately per-browser
+  // and client-only: the drafts are not mirrored to the server.
+  //
+  // That is a decided limit, not an oversight. A physician who starts a case on
+  // one machine and opens the portal on another sees "Start new case" and their
+  // work stays on the first machine — the same is true of a different browser,
+  // a cleared site-data, or a private window. The portal is a desktop workflow
+  // today, so that trade was taken on purpose. If a doctor is ever expected to
+  // move between devices mid-case, the answer is a server-side draft
+  // (PUT/GET/DELETE per (user_id, task_id), assignee-only, debounced, newer
+  // savedAt wins on conflict and NEVER a merge) — not a wider localStorage.
   const DRAFT_PREFIX = 'asclepius_draft_';
   // Contributor's chosen evaluator experience: 'v1' classic | 'v2' assisted |
   // 'v3' seamless (the recommended default). Persisted per browser; the default
@@ -71,7 +82,7 @@
     },
     task: null,            // current blinded task
     draft: null,           // in-progress submission draft
-    timerStart: 0,
+    timerStart: null,   // null = the clock is stopped (see getElapsed/stopTimer)
     baseElapsed: 0,
     timerInterval: null,
     submitting: false,
@@ -191,6 +202,9 @@
   }
 
   function handleUnauthorized() {
+    // Same reasoning as logout(): a session that expired mid-case did not
+    // un-work the case. Persist before the clock stops and the chrome goes.
+    saveDraft();
     state.token = null;
     state.user = null;
     localStorage.removeItem(TOKEN_KEY);
@@ -308,6 +322,17 @@
     // detached section nodes that setRoot() is about to replace.
     if (dest !== 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     state.panel = dest;
+    // §6: state.view is sticky, so a physician who was inside a case, went to
+    // Earnings, and clicked Tasks landed back INSIDE the case — renderEvalView
+    // resumes whatever state.view still said. Clicking Tasks means "take me to
+    // my dashboard", never "resume whatever I had open": Continue is a
+    // deliberate choice made ON the dashboard (§4.1), not a side effect of
+    // navigating. saveDraft() already ran above, so nothing is lost.
+    //
+    // 'admin' is preserved: for an admin or QA reviewer the Tasks rail item is
+    // the way back to the console they were in, and sending them to the
+    // physician dashboard instead would be the same bug pointing the other way.
+    if (dest === 'tasks' && state.view !== 'admin') state.view = 'home';
     renderSidePanel();
     if (dest === 'referral') {
       renderReferralView();
@@ -319,6 +344,10 @@
       renderGuide();
     } else if (state.view === 'admin') {
       renderAdminView();
+    } else if (state.view === 'home') {
+      // The branch the line above depends on. Without it 'home' fell through to
+      // renderEvalView() and the reset had no destination.
+      renderDashboardView();
     } else {
       renderEvalView();
     }
@@ -510,6 +539,30 @@
     return pretty ? ('Dr. ' + pretty) : 'Clinician';
   }
 
+  /** The circle of initials (or the physician's photo) in the rail foot.
+   *
+   *  Decorative: the name it stands for is the very next element, so a screen
+   *  reader announcing "TP" before "Dr. Tej Patel" would be noise.
+   *
+   *  `railDisplayName()` returns `Dr. Tej Patel` for an email-derived name, and
+   *  fallbackInitials would read that as first+last and return `DP`. Strip the
+   *  honorific first — the initials are the physician's, not the title's.
+   *
+   *  If they have uploaded a photo, prefer it, through the SAME authenticated
+   *  blob path the profile page uses (avatarImgEl) rather than a second image
+   *  implementation: an <img src> cannot send the bearer header the avatar
+   *  endpoint requires, and the initials stay put if that fetch fails.
+   */
+  function railAvatarEl(specColor) {
+    const initials = fallbackInitials(railDisplayName().replace(/^Dr\.?\s*/i, ''));
+    const url = (state.user && state.user.avatar_url) || null;
+    return h('span', {
+      class: 'asc-rail-avatar acc-' + String(specColor).replace('dot-', '')
+        + (url ? ' has-img' : ''),
+      'aria-hidden': 'true',
+    }, url ? avatarImgEl(url, initials) : initials);
+  }
+
   function railItemActive(dest) {
     if (dest === 'guide') return state.panel === 'guide';
     if (dest === 'referral') return state.panel === 'referral';
@@ -681,12 +734,14 @@
     const specColor = specialtyDotColor(state.user.specialty);
     const foot = h('div', { class: 'asc-rail-foot' },
       h('div', { class: 'asc-rail-user' },
-        h('span', { class: 'asc-rail-name', title: railDisplayName() }, railDisplayName()),
-        state.user.specialty
-          ? h('span', { class: 'asc-rail-spec' },
-              h('span', { class: 'dot ' + specColor, 'aria-hidden': 'true' }),
-              h('span', {}, state.user.specialty))
-          : null),
+        railAvatarEl(specColor),
+        h('div', { class: 'asc-rail-usertext' },
+          h('span', { class: 'asc-rail-name', title: railDisplayName() }, railDisplayName()),
+          state.user.specialty
+            ? h('span', { class: 'asc-rail-spec' },
+                h('span', { class: 'dot ' + specColor, 'aria-hidden': 'true' }),
+                h('span', {}, state.user.specialty))
+            : null)),
       h('button', { type: 'button', class: 'asc-rail-signout', onClick: logout }, 'Sign out'));
 
     // The bottom edge of the rail is the one place that is neither a destination
@@ -1353,6 +1408,11 @@
   }
 
   function logout() {
+    // §5.2: the elapsed on record must be the elapsed actually worked. Save
+    // before anything is torn down — saveDraft() reads state.draft and a live
+    // getElapsed() — then stop, so the clock cannot run on past the session.
+    saveDraft();
+    stopTimer();
     state.token = null;
     state.user = null;
     // Tear down the logged-in-only chrome (corner ? tab, its menu, the panel).
@@ -1907,14 +1967,25 @@
                             v2: 'Assisted evaluation', v1: 'Classic evaluation' };
       const queueLine = QUEUE_LABEL[servedVer] || null;
       const continuedFromV4 = data.continued_from === 'v4' && servedVer !== 'v4';
+      // §4.1 — ONE button. Routing decides which case a physician sees, so a
+      // queue of cases to choose between is a decision we are supposed to be
+      // making for them; and the case COUNT is queue depth, which is exactly
+      // the information this change exists to hide.
+      //
+      // A draft in localStorage means work in progress: Continue takes them
+      // back to where they stopped, Start hands them the next case routing
+      // chose. Same button, two honest labels.
+      const resumable = findResumableDraft(tasks);
       main.appendChild(h('div', { class: 'asc-dash-hero' },
         h('div', { class: 'asc-dash-hero-main' },
           h('span', { class: 'asc-dash-hero-icon', 'aria-hidden': 'true' }, '→'),
           h('div', {},
-            h('div', { class: 'asc-dash-hero-title' }, 'Start next case'),
+            h('div', { class: 'asc-dash-hero-title' },
+              resumable ? 'Continue case' : 'Start new case'),
             h('div', { class: 'asc-dash-hero-sub' },
-              String(tasks.length) + (tasks.length === 1 ? ' case available' : ' cases available')
-              + (queueLine ? ' · ' + queueLine : '')),
+              resumable
+                ? 'Picks up where you left off · ' + formatTime(resumable.elapsedSec || 0) + ' so far'
+                : (queueLine || 'Real de-identified cases')),
             continuedFromV4
               ? h('div', { class: 'asc-dash-hero-note' },
                   'You have completed every real de-identified case available to you '
@@ -1922,24 +1993,13 @@
               : null)),
         h('button', {
           class: 'asc-btn asc-btn-primary asc-btn-lg',
-          onClick: () => { state.view = 'eval'; renderHeader(); renderEvalView(); },
-        }, 'Start →')));
-
-      const VISIBLE_CAP = 6;
-      const list = h('div', { class: 'asc-dash-list' });
-      tasks.slice(0, VISIBLE_CAP).forEach((t) => list.appendChild(renderTaskCard(t)));
-      main.appendChild(list);
-      const hiddenCount = tasks.length - VISIBLE_CAP;
-      if (hiddenCount > 0) {
-        const moreBtn = h('button', {
-          class: 'asc-dash-more', type: 'button',
           onClick: () => {
-            tasks.slice(VISIBLE_CAP).forEach((t) => list.appendChild(renderTaskCard(t)));
-            moreBtn.remove();
+            state.view = 'eval';
+            renderHeader();
+            if (resumable) openTaskById(resumable.task_id);
+            else renderEvalView();
           },
-        }, 'Show ' + hiddenCount + ' more in your queue ↓');
-        main.appendChild(moreBtn);
-      }
+        }, resumable ? 'Continue →' : 'Start →')));
     }
     cols.appendChild(main);
     const side = h('div', { class: 'asc-dash-side' });
@@ -2040,25 +2100,6 @@
       h('div', { class: 'asc-dash-widget-row asc-dash-widget-row-last' },
         h('span', { class: 'asc-dash-widget-label' }, 'Last submission'),
         h('span', { class: 'asc-dash-widget-meta' }, formatRelativeTime(lastAt))));
-  }
-
-  function renderTaskCard(t) {
-    const spec = (t.specialty || 'general');
-    const specMeta = ((state.specialties || []).find((s) => s.specialty === spec)) || {};
-    const diff = t.difficulty || 'medium';
-    const isReal = t.case_source === 'real_deid';
-    return h('button', {
-      class: 'asc-dash-card', type: 'button', onClick: () => openTaskById(t.task_id),
-    },
-      h('div', { class: 'asc-dash-card-main' },
-        h('span', { class: 'asc-chip asc-chip-specialty asc-chip-' + (specMeta.accent || 'green') },
-          h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
-          h('span', {}, spec.charAt(0).toUpperCase() + spec.slice(1))),
-        h('span', { class: 'asc-dash-card-meta' },
-          h('span', { class: 'asc-dot ' + (DIFFICULTY_DOT[diff] || 'asc-dot-orange') }), 'Difficulty: ' + diff),
-        t.modality === 'multimodal' ? h('span', { class: 'asc-dash-card-meta' }, 'Multimodal case') : null,
-        isReal ? h('span', { class: 'asc-dash-card-meta' }, 'Real (de-identified)') : null),
-      h('span', { class: 'asc-dash-card-go' }, 'Open →'));
   }
 
   async function openTaskById(id) {
@@ -2222,10 +2263,24 @@
       if (getElapsed() % 5 === 0) saveDraft();
     }, 1000);
   }
+  // Stopping FREEZES the clock: the elapsed at this instant is folded into
+  // baseElapsed and timerStart is cleared. Without that fold, timerStart would
+  // still hold the moment the timer last STARTED, so any later getElapsed() —
+  // a beforeunload save fired from an already-hidden tab, the blur save below,
+  // a re-render of the header timer — would silently add back the whole away
+  // period. That is the exact overcount §5.1 exists to remove, and it is
+  // submitted as time_spent_sec, so it is not cosmetic.
   function stopTimer() {
     if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+    if (state.timerStart != null) {
+      state.baseElapsed = getElapsed();
+      state.timerStart = null;
+    }
   }
   function getElapsed() {
+    // Stopped clock: baseElapsed IS the elapsed. Never measure against a
+    // timerStart that no longer refers to a running interval.
+    if (state.timerStart == null) return Math.floor(state.baseElapsed);
     return Math.floor(state.baseElapsed + (Date.now() - state.timerStart) / 1000);
   }
   function formatTime(sec) {
@@ -2235,10 +2290,58 @@
   function saveDraft() {
     if (!state.draft) return;
     state.draft.elapsedSec = getElapsed();
+    // §4.1 needs "the newest draft" to be an answerable question: findResumableDraft
+    // picks between several stored drafts by this stamp.
+    state.draft.savedAt = Date.now();
     try { localStorage.setItem(draftKey(state.draft.task_id), JSON.stringify(state.draft)); } catch (e) { /* ignore quota */ }
+  }
+
+  /** The newest draft whose task is still in the served queue, or null.
+   *
+   *  A draft for a task that has since been claimed, expired, or fell out of
+   *  the queue must NOT offer a Continue that dead-ends — openTaskById would
+   *  bounce them back to the dashboard. Prefer a clean Start over a broken
+   *  resume, so the queue is the filter.
+   *
+   *  The tutorial's own draft is excluded: the practice case is replayed from
+   *  the help menu, never resumed as if it were paid work. It is not in the
+   *  served queue either, so this is belt and braces.
+   *
+   *  Known bound: `tasks` is the dashboard's own /tasks/available page, which
+   *  the server caps (default 50, priority-ordered). A physician with a deeper
+   *  queue than that whose in-progress task ranks below the page is offered
+   *  Start rather than Continue. Nothing is lost — the draft stays on disk and
+   *  resumes the moment that task is opened again — and the alternative, a
+   *  second request per dashboard load to re-check one task id, is a cost every
+   *  physician pays for a case very few will hit. */
+  function findResumableDraft(tasks) {
+    const ids = new Set((tasks || []).map((t) => t && t.task_id).filter(Boolean));
+    let best = null;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf(DRAFT_PREFIX) !== 0) continue;
+        const id = k.slice(DRAFT_PREFIX.length);
+        if (id === TUTORIAL_TASK_ID || !ids.has(id)) continue;
+        let d = null;
+        try { d = JSON.parse(localStorage.getItem(k) || 'null'); } catch (_) { d = null; }
+        // A corrupt or foreign entry under our prefix is skipped, not fatal:
+        // one unparseable key must not cost the physician a resumable case.
+        if (!d || d.task_id !== id) continue;
+        if (!best || (d.savedAt || 0) > (best.savedAt || 0)) best = d;
+      }
+    } catch (_) { return null; }
+    return best;
   }
   function clearDraft(taskId) {
     try { localStorage.removeItem(draftKey(taskId)); } catch (e) { /* ignore */ }
+    // …and drop the in-memory copy, or the next saveDraft() writes the key
+    // straight back. After a submit, state.draft still points at the finished
+    // draft until the next task replaces it, and three things fire in that
+    // window: the blur save, the tab-hide save, and beforeunload. A submitted
+    // case resurrected as a stored draft would then be offered as a Continue
+    // (§4.1) and leave a key behind that nothing ever cleans up.
+    if (state.draft && state.draft.task_id === taskId) state.draft = null;
   }
 
   // ─── Portal version (V1 classic · V2 assisted · V3 seamless) ────────────────
@@ -3386,12 +3489,12 @@
         : null);
   }
 
-  // ─── §6 semantic case-tag chips (V3/V4) ─────────────────────────────────────
-  // Consistent, meaningful color from the console palette (no blue, it left
-  // with the design-system migration): a stable hue per specialty, semantic
-  // difficulty (hard=pink, medium=orange, easy=green), lime=multimodal,
-  // orange=reasoning (model), pink=grounding (attention). Color always pairs
-  // with the text label, never the sole carrier.
+  // ─── Specialty accent dots ──────────────────────────────────────────────────
+  // A stable hue per specialty from the console palette (no blue, it left with
+  // the design-system migration). Color always pairs with the text label, never
+  // the sole carrier. This used to also drive the case-tag chip bar above the
+  // clinical question; that bar is gone (§7) and the specialty picker is the
+  // remaining consumer.
   // Kept in step with SpecialtyConfig.accent in backend/asclepius/specialties.py.
   // Hepatology shares nephrology's green — the palette has no fifth token and
   // the dot never carries the meaning alone; it always sits beside the label.
@@ -3407,11 +3510,6 @@
     for (let i = 0; i < s.length; i++) acc = (acc + s.charCodeAt(i)) % 997;
     return _SPECIALTY_CYCLE[acc % _SPECIALTY_CYCLE.length];
   }
-  const DIFFICULTY_DOT = { hard: 'asc-dot-pink', medium: 'asc-dot-orange', easy: 'asc-dot-green' };
-  function metaChip(label, dotClass, title) {
-    return h('span', { class: 'asc-meta-chip', title: title || null },
-      h('span', { class: 'asc-meta-chip-dot ' + dotClass, 'aria-hidden': 'true' }), label);
-  }
 
   function renderTaskWorkspace() {
     const task = state.task;
@@ -3423,41 +3521,39 @@
     // the prompt card carries only the clinical QUESTION (parsed out of the
     // rendered prompt); no duplicated wall of serialized case text.
     const promptText = caseObj ? caseQuestion(task.prompt) : (task.prompt || '');
-    const diff = (task.difficulty || 'medium');
-    // §6: V3/V4 get the semantic dot chips; V1/V2 keep the muted badges as-is.
-    const metaRow = isV3()
-      ? h('div', { class: 'asc-meta-row' },
-          metaChip(task.specialty || 'general', specialtyDot(task.specialty),
-            'Specialty: same specialty, same color, always'),
-          metaChip('Difficulty: ' + diff, DIFFICULTY_DOT[diff] || 'asc-dot-orange',
-            'hard = pink · medium = orange · easy = green'),
-          caseObj ? metaChip('Multimodal case', 'asc-dot-lime') : null,
-          task.capture_reasoning ? metaChip('Reasoning capture', 'asc-dot-orange',
-            'This task captures the model’s step-by-step reasoning') : null,
-          required ? metaChip('Grounding required', 'asc-dot-pink',
-            'Evidence citations are required on this task') : null)
-      : h('div', { class: 'asc-meta-row' },
-          h('span', { class: 'asc-badge asc-badge-primary' }, task.specialty || 'general'),
-          h('span', { class: 'asc-badge asc-badge-gray' }, 'Difficulty: ' + (task.difficulty || 'medium')),
-          caseObj ? h('span', { class: 'asc-badge asc-badge-accent' }, 'Multimodal case') : null,
-          task.capture_reasoning ? h('span', { class: 'asc-badge asc-badge-accent' }, 'Reasoning capture') : null,
-          required ? h('span', { class: 'asc-badge asc-badge-amber' }, 'Grounding required') : null,
-        );
+    // §7: no metadata chip bar above the question. Specialty, difficulty,
+    // modality and capture mode are OUR routing vocabulary, not the
+    // physician's. They arrived because a physician chose from a queue and
+    // needed to compare cases; with one-button entry (§4) there is nothing to
+    // compare, and telling a specialist "Difficulty: hard" before they read the
+    // chart primes the answer.
     const promptCard = h('div', { class: 'asc-card asc-prompt-card' },
       h('div', { class: 'asc-card-pad' },
-        metaRow,
         h('div', { class: 'asc-prompt-label' }, caseObj ? 'Clinical question' : 'Clinical prompt'),
         h('div', { class: 'asc-prompt-text' }, promptText),
       ));
 
-    // Grounding disclaimer banner (required mode only)
+    // Grounding disclaimer banner (required mode only).
+    //
+    // `Grounding required` was one of the chips deleted above, and this banner
+    // was gated on `task.grounding_disclaimer` — so a task in grounding_mode
+    // 'required' with an EMPTY disclaimer rendered no banner at all, and the
+    // chip was the only warning. Deleting the chip without widening the gate
+    // would mean that physician first learns about the requirement when submit
+    // refuses them. The gate is now the REQUIREMENT, and the copy has a default.
+    //
+    // The requirement itself is unchanged: groundingSatisfied() still enforces
+    // it at submit, so no chip and no banner could ever let a bad submission
+    // through — this is about warning them in time, not about the gate.
     let groundingBanner = null;
-    if (required && task.grounding_disclaimer) {
+    if (required) {
       groundingBanner = h('div', { class: 'asc-grounding-banner' },
         h('div', { class: 'asc-gb-icon', 'aria-hidden': 'true' }),
         h('div', {},
           h('div', { class: 'asc-gb-title' }, 'Evidence required for this task'),
-          h('div', { class: 'asc-gb-text' }, task.grounding_disclaimer),
+          h('div', { class: 'asc-gb-text' },
+            task.grounding_disclaimer
+              || 'Every claim in your answer needs a citation anchored to the case.'),
         ));
     }
 
@@ -7494,6 +7590,15 @@
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
+  /** Carry an avatar change from the profile page into the session, then
+   *  repaint the rail so both surfaces agree immediately. Both /me/avatar
+   *  responses return the same `avatar` block; a missing url means "cleared". */
+  function syncSessionAvatar(res) {
+    if (!state.user) return;
+    state.user.avatar_url = (res && res.avatar && res.avatar.url) || null;
+    renderSidePanel();
+  }
+
   function uploadAvatar(wrap, status, blob) {
     // The picture they already have stays on screen for the whole upload.
     // Swapping it for a spinner means a failed upload also loses them the
@@ -7506,7 +7611,11 @@
     form.append('file', blob);
     // isForm: the api() helper JSON-stringifies a body and stamps a JSON
     // Content-Type otherwise, which would destroy the multipart boundary.
-    api('/me/avatar', { method: 'POST', body: form, isForm: true }).then(() => {
+    api('/me/avatar', { method: 'POST', body: form, isForm: true }).then((res) => {
+      // The rail avatar (§3) reads state.user, which the SESSION payload filled
+      // at sign-in. Without this the physician would see their new photo on the
+      // profile and their old initials in the rail until the next page load.
+      syncSessionAvatar(res);
       renderProfileView();
     }).catch((err) => {
       wrap.classList.remove('is-busy');
@@ -7524,7 +7633,8 @@
     wrap.classList.add('is-busy');
     status.className = 'asc-me-avatar-status';
     status.textContent = 'Removing…';
-    api('/me/avatar', { method: 'DELETE' }).then(() => {
+    api('/me/avatar', { method: 'DELETE' }).then((res) => {
+      syncSessionAvatar(res);
       renderProfileView();
     }).catch((err) => {
       wrap.classList.remove('is-busy');
@@ -10910,9 +11020,34 @@
     else if (e.key === '3') { e.preventDefault(); selectVerdict('both_inadequate'); }
   });
 
-  // Persist draft on tab close / hide.
+  // ─── Session continuity: the clock only runs while somebody is there ───────
+  //
+  // The timer used to keep ticking on a hidden tab, and getElapsed() is what
+  // becomes `time_spent_sec` on the submission and what the admin per-case view
+  // reads. A case left open overnight billed the night.
+  //
+  // Tab hidden is the honest "not working" signal. Window BLUR is not: a
+  // physician clicking to a second monitor, a PDF or a reference is still
+  // working, and pausing there would undercount real effort. So blur saves and
+  // nothing else.
   window.addEventListener('beforeunload', saveDraft);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // Order matters: save FIRST (getElapsed is still measuring a running
+      // clock), then stop. Stopping first would be harmless now that stopTimer
+      // folds the elapsed into baseElapsed, but this order keeps the intent
+      // legible and does not depend on that.
+      saveDraft();
+      stopTimer();
+    } else if (state.draft && state.task && state.view === 'eval') {
+      // Rebase from the SAVED value, which is what makes the away time vanish.
+      // Gated on an actually-open task: a leftover draft on the dashboard or on
+      // the empty-queue screen must not start a clock nobody is watching, which
+      // would then have its 5s autosave inflate that draft's elapsed.
+      startTimer(state.draft.elapsedSec || 0);
+    }
+  });
+  window.addEventListener('blur', () => { if (state.draft) saveDraft(); });
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  Tutorial: Calibration Case 1 (first-run guided practice case)
