@@ -1422,3 +1422,18 @@ def test_the_evaluate_chooser_is_not_offered_to_a_session_that_cannot_review():
     nav = src.split("aria-haspopup")[0][-700:]
     assert "sessionCan('review')" in nav, "the chooser is offered without the capability"
     assert "canChoose ? openEvaluateChooser(e.currentTarget) : switchView('eval')" in src
+
+# NOTE — there is deliberately no test for `drawing` being cleared only by the
+# live generation, even though the code does exactly that.
+#
+# A test was written for it and DELETED: it passed against the mutated module
+# too, because the only ways to re-enter loadNext() (Retry, "Check again", "Next
+# case", a submit) all require a rendered screen, and while a draw is in flight
+# the screen is the loading state, which has no controls. So the ordering cannot
+# be observed from outside, and a test that cannot fail is worse than no test —
+# it reads as coverage.
+#
+# The ordering stays because it is correct by construction: the flag belongs to
+# whichever generation is drawing, and a generation that ends without its reply
+# has it cleared by render() or teardown(). Written down here rather than
+# asserted, because that is the honest form of this particular claim.

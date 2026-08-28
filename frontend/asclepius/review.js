@@ -255,8 +255,14 @@
       api('/review/pair/next' + (PREVIEW ? '?preview=true' : '')),
       api('/review/stats').catch(function () { return null; }),
     ]).then(function (results) {
-      drawing = false;
+      // AFTER the staleness check, not before. `drawing` belongs to whichever
+      // generation is currently drawing; a stale reply clearing it would unlock
+      // the flag while the CURRENT draw is still in flight, and the next click
+      // would claim a second pair — the exact thing the flag exists to stop.
+      // A generation that ends without its reply has `drawing` cleared by
+      // render() or teardown(), which is where that responsibility belongs.
       if (stale(gen)) return;
+      drawing = false;
       PAIR = results[0].pair;
       // The server is the authority on whether this draw is a preview. The
       // client ASKED for one; only the response says it got one, and the banner
@@ -291,8 +297,8 @@
       renderReview();
       startClock();
     }).catch(function (err) {
-      drawing = false;
       if (stale(gen)) return;
+      drawing = false;
       if (err && err.status === 401) return;
       renderFatal(errText(err));
     });
