@@ -970,6 +970,37 @@ def _reviewer_credential(review: Dict[str, Any], store: Any = None) -> Optional[
     return block.get("credential") or block.get("credentials")
 
 
+def _step_divergence(review: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """The stored reasoning-step forks, buyer-shaped, or None (PRD-1 §3).
+
+    ``None`` (the column is NULL, or predates the column) means NOT COMPARABLE —
+    one of the two labels carried no reasoning steps — and is a different fact
+    from ``[]``, which means the traces were compared and agreed everywhere. The
+    two must not be collapsed: an empty array asserts a measurement.
+
+    ``judged_submission_id`` is dropped: it is the internal, unambiguous form the
+    row stores for our own readers, and a buyer bundle carries no submission ids
+    inside a review annex. ``judged`` survives as the canonical A/B position,
+    which is the same frame ``supervision`` and the case-keyed companion use.
+    """
+    raw = review.get("step_divergence")
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(raw, list):
+        return None
+    out: List[Dict[str, Any]] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        out.append({"index": entry.get("index"), "judged": entry.get("judged")})
+    return out
+
+
 def review_block(reviews: List[Dict[str, Any]], store: Any = None) -> Dict[str, Any]:
     """The record's expert-review block: every review of the underlying labeler
     submission, plus the rollups a buyer filters on. ``blinded`` ships as a
@@ -995,6 +1026,17 @@ def review_block(reviews: List[Dict[str, Any]], store: Any = None) -> Dict[str, 
                 "corrections_withheld": _identifier_flagged(r),
                 "blinded": r.get("blinded") in (True, 1),
                 "reviewed_at": r.get("created_at"),
+                # PRD-1 §3 — process-level supervision from the REVIEWER: the
+                # reasoning-step indices where the two labels diverged and which
+                # side the reviewer judged correct at each.
+                #
+                # ABSENT when the review carries none, never `[]`. The two are
+                # different facts: absent means one of the two labels had no
+                # reasoning steps, so nothing was compared; `[]` means both did
+                # and they agreed at every step. Shipping a fabricated empty
+                # array would sell a measurement nobody made.
+                **({"step_divergence": _step_divergence(r)}
+                   if _step_divergence(r) is not None else {}),
             }
             for r in reviews
         ],

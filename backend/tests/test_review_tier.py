@@ -500,12 +500,21 @@ def test_cannot_assess_persists_as_its_own_value():
     assert json.loads(raw)["rubric_quality"] == "cannot_assess"
 
 
-def test_review_portal_page_served():
-    r = client.get("/asclepius/review")
-    assert r.status_code == 200
-    assert "/static/asclepius/review.js" in r.text
-    # The shell itself is identity-free (it is served unauthenticated).
-    assert "annotator" not in r.text
+def test_review_portal_page_redirects_into_the_shell():
+    """PRD-1 §2.1: there is no standalone review page any more — review is a view
+    inside the evaluation portal. The old URL is in bookmarks and in email we
+    have already sent, so it redirects rather than 404ing, and what it lands on
+    is the portal shell that mounts the review module.
+
+    The shell is still identity-free (it is served unauthenticated)."""
+    r = client.get("/asclepius/review", follow_redirects=False)
+    assert r.status_code in (307, 308)
+    assert r.headers["location"] == "/asclepius#review"
+
+    followed = client.get("/asclepius/review")
+    assert followed.status_code == 200
+    assert "/static/asclepius/review.js" in followed.text
+    assert "annotator" not in followed.text
 
 
 def test_review_js_builds_dom_with_h_and_no_innerhtml():
@@ -516,7 +525,11 @@ def test_review_js_builds_dom_with_h_and_no_innerhtml():
     assert ".innerHTML" not in src  # property access, not the word in comments
     assert ".outerHTML" not in src
     assert "insertAdjacentHTML" not in src
-    assert "function h(" in src
+    # PRD-1 §2.1: the hyperscript is the SHELL's, handed over through the ctx.
+    # The rule is unchanged — every server string still reaches the page as a
+    # text node — but there is now exactly one h() on the page instead of two.
+    assert "CTX.h.apply" in src
+    assert "window.AsclepiusReview" in src
 
 
 # ─── Phase 4: two statistics, named correctly ─────────────────────────────────

@@ -56,8 +56,18 @@
   <script src="/static/asclepius/referral.js" defer></script>
   <!-- Earnings (PRD-P §5) — defines window.EarningsSection, mounted by
        asclepius.js, and window.AsclepiusSession, the billable-session heartbeat
-       client the review surface drives. -->
+       client the review surface drives. It MUST load before review.js: the
+       review surface reads server-attested time from that client and computes
+       none of its own, and `defer` preserves document order. -->
   <script src="/static/asclepius/earnings.js" defer></script>
+  <!-- The clinical chart (PRD-1 §2.2) — window.AsclepiusCasePanel. ONE
+       component, rendered identically to the labeler and to the reviewer. It
+       loads before both of them because both call into it. -->
+  <script src="/static/asclepius/case_panel.js" defer></script>
+  <!-- Expert review (PRD-1 §2.1) — window.AsclepiusReview, mounted by
+       asclepius.js as `state.view === 'review'`. It is no longer a separate
+       page: a reviewer keeps the rail, the session and the design system. -->
+  <script src="/static/asclepius/review.js" defer></script>
   <script src="/static/asclepius/asclepius.js" defer></script>
 </body>
 </html>

@@ -620,8 +620,143 @@ def pair_is_blinded(
     return not _walk_for_values(view, needles)
 
 
-def validate_pair_review_payload(body: Dict[str, Any]) -> List[str]:
+# ─── Reasoning-step divergence (PRD-1 §3) ─────────────────────────────────────
+# The reviewer's version of "mark the exact step the reasoning breaks".
+#
+# Today the labeler produces step-level signal and the reviewer produces only a
+# verdict, so a senior physician's judgment lands as ONE BIT on a record carrying
+# dozens. Capturing where A and B diverged — and which side was right at each
+# fork — turns the reviewer into a second source of PROCESS-level supervision,
+# which is the signal a process-reward buyer is paying for.
+#
+# ``judged`` is a POSITION in what THIS reviewer was shown, exactly like
+# ``stronger``, and is canonicalized at the route before it is stored. A position
+# stored next to canonical columns is the H1 defect in miniature.
+DIVERGENCE_SIDES = ("A", "B", "neither")
+
+# Bounded so a hand-crafted POST cannot store an unbounded array. No pair of
+# clinical reasoning traces has this many steps; a payload that claims to is not
+# a review.
+MAX_DIVERGENCE_STEPS = 200
+
+
+def submission_reasoning_steps(submission: Dict[str, Any]) -> List[Any]:
+    """The reasoning steps a labeler actually submitted, from either shape.
+
+    A from-scratch answer carries its steps under ``from_scratch``; a chosen or
+    corrected candidate carries them at the top level. Both are 'this physician
+    produced step-level reasoning', and §3's rule ("emit only when BOTH
+    submissions carried reasoning steps") has to see them the same way or an
+    honest divergence would be refused as fabricated.
+    """
+    payload = (submission or {}).get("payload") or {}
+    steps = payload.get("reasoning_steps")
+    if not isinstance(steps, list) or not steps:
+        fs = payload.get("from_scratch")
+        steps = (fs or {}).get("reasoning_steps") if isinstance(fs, dict) else None
+    return steps if isinstance(steps, list) else []
+
+
+def validate_step_divergence(
+    value: Any, *, both_sides_have_steps: bool, n_steps: int
+) -> List[str]:
+    """All the ways a ``step_divergence`` payload can be unusable (empty = valid).
+
+    ABSENT IS VALID. A fabricated empty array is not: ``[]`` asserts "we compared
+    both traces and they agreed everywhere", which is a real measurement when
+    both physicians wrote steps and a lie when one of them wrote none. So the
+    array is admitted ONLY when both submissions carried reasoning steps, and
+    rejected — not silently dropped — otherwise. Silently dropping it would let a
+    client believe it had recorded process-level supervision that was never
+    stored.
+    """
+    errors: List[str] = []
+    if value is None:
+        return errors
+    if not both_sides_have_steps:
+        errors.append(
+            "step_divergence is only meaningful when BOTH submissions carried "
+            "reasoning steps; omit it")
+        return errors
+    if not isinstance(value, list):
+        errors.append("step_divergence must be a list of {index, judged} objects")
+        return errors
+    if len(value) > MAX_DIVERGENCE_STEPS:
+        errors.append(
+            f"step_divergence carries {len(value)} entries; at most "
+            f"{MAX_DIVERGENCE_STEPS} are accepted")
+        return errors
+    seen: set = set()
+    for entry in value:
+        if not isinstance(entry, dict):
+            errors.append("each step_divergence entry must be an object")
+            continue
+        idx = entry.get("index")
+        if not isinstance(idx, int) or isinstance(idx, bool) or idx < 0:
+            errors.append(f"step_divergence index must be a non-negative integer, got {idx!r}")
+            continue
+        # The index names a step position in the two traces. One past the end is
+        # not a fork the reviewer could have seen — it is a client that lost
+        # track of which case it was on.
+        if idx >= n_steps:
+            errors.append(
+                f"step_divergence index {idx} is past the end of both reasoning "
+                f"traces ({n_steps} steps)")
+            continue
+        if idx in seen:
+            errors.append(f"step_divergence names step {idx} twice")
+            continue
+        seen.add(idx)
+        judged = entry.get("judged")
+        if judged is not None and judged not in DIVERGENCE_SIDES:
+            errors.append(
+                f"step_divergence judged must be one of {list(DIVERGENCE_SIDES)} "
+                f"or null, got {judged!r}")
+        for key in entry:
+            if key not in ("index", "judged"):
+                errors.append(f"unknown step_divergence field {key!r}")
+    return errors
+
+
+def canonicalize_step_divergence(
+    value: Any, *, resolve, canonical,
+) -> Optional[List[Dict[str, Any]]]:
+    """Re-express each fork's ``judged`` side in CANONICAL terms.
+
+    ``resolve(side) -> submission_id`` and ``canonical(submission_id) -> 'A'|'B'``
+    are injected so this module stays import-light and free of routing knowledge;
+    the route supplies the same two functions it already uses for ``stronger``.
+
+    'neither' names no submission and survives unchanged. Both the canonical
+    letter AND the submission id are stored, for the same reason ``stronger`` is:
+    the id is the form no reader can misinterpret.
+    """
+    if value is None:
+        return None
+    out: List[Dict[str, Any]] = []
+    for entry in value:
+        judged = entry.get("judged")
+        sub_id = resolve(judged) if judged in ("A", "B") else None
+        out.append({
+            "index": int(entry.get("index")),
+            "judged": (canonical(sub_id) if sub_id else
+                       ("neither" if judged == "neither" else None)),
+            "judged_submission_id": sub_id,
+        })
+    out.sort(key=lambda d: d["index"])
+    return out
+
+
+def validate_pair_review_payload(
+    body: Dict[str, Any], *, pair_steps: Optional[Dict[str, Any]] = None,
+) -> List[str]:
     """All the ways a PAIRED adjudication can be unusable (empty = valid).
+
+    ``pair_steps`` is ``{"both": bool, "n_steps": int}`` — whether BOTH labels
+    carried reasoning steps, and how long the longer trace is. Only the route
+    can know that (it holds the two submissions), and §3's rule about
+    ``step_divergence`` turns on it. Omitted, the divergence array is checked for
+    shape alone, which is what a unit test of the other rules wants.
 
     Pure, so the rules are unit-testable without HTTP, and reused verbatim by the
     route — the reason an unexplained rejection cannot reach the database is that
@@ -677,5 +812,18 @@ def validate_pair_review_payload(body: Dict[str, Any]) -> List[str]:
                 errors.append("time_spent_sec must be >= 0")
         except (TypeError, ValueError):
             errors.append("time_spent_sec must be an integer")
+
+    # PRD-1 §3. Whether both submissions actually carried reasoning steps is a
+    # fact about the PAIR, which this pure function cannot see, so the route
+    # passes it in. With no pair context the field is checked for SHAPE only —
+    # never waved through, and never silently dropped: a client that believed it
+    # had recorded process-level supervision must not be told nothing.
+    if b.get("step_divergence") is not None:
+        errors.extend(validate_step_divergence(
+            b.get("step_divergence"),
+            both_sides_have_steps=True if pair_steps is None
+            else bool(pair_steps.get("both")),
+            n_steps=MAX_DIVERGENCE_STEPS if pair_steps is None
+            else int(pair_steps.get("n_steps") or 0)))
 
     return errors

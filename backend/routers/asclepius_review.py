@@ -14,13 +14,14 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from asclepius import auth as asc_auth
+from asclepius import capabilities as asc_caps
 from asclepius import review as asc_review
 from asclepius import routing as asc_routing
 from asclepius.store import get_store
@@ -66,9 +67,43 @@ def _open_review_session(store: Any, user_id: str) -> Optional[Dict[str, Any]]:
 
 router = APIRouter(tags=["asclepius-review"])
 
-_REVIEW_HTML = os.path.join(
-    os.path.dirname(__file__), "..", "..", "frontend", "asclepius", "review.html"
-)
+# ─── Preview draws (PRD-1 §4.1) ───────────────────────────────────────────────
+# An operator must be able to SEE the reviewer surface without adjudicating a
+# real pair. A preview draw therefore:
+#
+#   * claims nothing — the pair stays at the head of a real reviewer's queue;
+#   * opens no billable session — nobody is being paid to sightsee;
+#   * carries a draw token whose prefix the submit endpoint REFUSES with a 409.
+#
+# The refusal is loud on purpose. A silent no-op would leave an operator
+# believing they had recorded a judgment, and a real submit would grade a
+# physician's work by an admin who was looking around — with ``blinded`` false
+# on a row nobody meant to create.
+PREVIEW_TOKEN_PREFIX = "preview:"
+
+
+def _preview_draw_token(task_id: str) -> str:
+    """The marker a preview draw hands the client and the submit path refuses.
+
+    Not a credential and deliberately not secret: it is a statement about which
+    DRAW produced this payload, and the only thing it is used for is refusing.
+    A guessable value cannot widen anything — the worst a forged one achieves is
+    the client refusing its own submission.
+    """
+    return PREVIEW_TOKEN_PREFIX + str(task_id or "")
+
+
+def _is_preview_operator(user: Dict[str, Any]) -> bool:
+    """True when this account reaches review ONLY through the admin override.
+
+    ``capabilities.can`` admits every admin to every surface, so an operator with
+    no reviewer tier can already open this queue — and, before §4.1, could
+    adjudicate through it. Their TIER is what says whether they are a reviewer;
+    the override says they may look. Served to the client so the banner and the
+    preview draw follow the same rule the server enforces, rather than the
+    frontend re-deriving a tier check it must not own.
+    """
+    return not (asc_caps.REVIEW in asc_caps.capabilities(user))
 
 
 def _store():
@@ -121,15 +156,16 @@ def require_reviewer(
 
 
 # ─── Page ─────────────────────────────────────────────────────────────────────
-@router.get("/asclepius/review", response_class=HTMLResponse)
+@router.get("/asclepius/review")
 async def review_portal_page():
-    """The review portal shell. Served unauthenticated by design (same pattern
-    as ``/asclepius`` and ``/asclepius/v5/annotate``): the page JS gates on the
-    Asclepius token and shows its own sign-in. No PHI in the shell."""
-    if not os.path.exists(_REVIEW_HTML):
-        raise HTTPException(status_code=404, detail="Review portal not built")
-    with open(_REVIEW_HTML, encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+    """PRD-1 §2.1: there is no standalone review page any more.
+
+    Review is a VIEW INSIDE the evaluation portal — same shell, same rail, same
+    session, same design system — so this route redirects into it rather than
+    404ing. The old URL is in physicians' bookmarks and in email we have already
+    sent; a dead link is a reviewer who cannot find their work.
+    """
+    return RedirectResponse(url="/asclepius#review", status_code=307)
 
 
 # ─── Session / vocabulary ─────────────────────────────────────────────────────
@@ -149,6 +185,12 @@ async def review_me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
         # about the paired vocabulary, exactly as with the dimensions.
         "strength_choices": list(asc_review.PAIR_STRENGTH),
         "paired": True,
+        # PRD-1 §4.1. True when this account can only reach review through the
+        # admin override, so the surface renders read-only with a banner and
+        # draws in preview mode. Decided HERE, not in the frontend: "is this a
+        # real reviewer or an operator looking around" is a tier question, and
+        # the tier table is not the client's to interpret.
+        "preview_only": asc_review.can_review(user) and _is_preview_operator(user),
     }
 
 
@@ -166,6 +208,12 @@ async def review_stats(_reviewer: Dict[str, Any] = Depends(require_reviewer)):
 @router.get("/api/asclepius/review/pair/next")
 async def next_review_pair(
     background: BackgroundTasks = None,
+    preview: bool = Query(
+        False,
+        description="Operator preview (PRD-1 §4.1): serve a pair WITHOUT "
+                    "claiming it, open no session, and mark the response so a "
+                    "submit against it is refused.",
+    ),
     reviewer: Dict[str, Any] = Depends(require_reviewer),
 ):
     """Draw + claim the oldest ``review_ready`` CASE for this reviewer.
@@ -178,14 +226,28 @@ async def next_review_pair(
     The store query already excludes cases this reviewer labelled or reviewed;
     the claim is compare-and-set on the TASK, so two reviewers drawing
     concurrently can never hold the same pair.
+
+    PREVIEW (§4.1) is a different draw, not a flag on this one: no claim, no
+    session, and a draw token the submit path refuses. Restricted to operators —
+    a real reviewer asking for a preview would be asking to work for free, and a
+    labeler asking for one would be asking to read a pair they were excluded
+    from. An operator whose tier does not carry review is FORCED into it, which
+    is the whole point: clicking through the reviewer surface must not grade a
+    physician's work by accident.
     """
     store = _store()
+    forced_preview = _is_preview_operator(reviewer)
+    preview = bool(preview) or forced_preview
+    if preview and not (reviewer.get("role") == "admin" or forced_preview):
+        raise HTTPException(
+            status_code=403,
+            detail="Preview draws are for operators; draw a real pair instead.")
     # Same off-request discipline as the single-submission draw: the fleet-wide
     # routing sweep is throttled and handed to a background task so no reviewer
     # waits on it. Under the paired flow it is a SECOND path to capacity — the
     # labeler queue lifts capacity synchronously as it serves — so its latency
     # can no longer hide a case from the priority queue.
-    if background is not None and _sweep_due():
+    if background is not None and not preview and _sweep_due():
         background.add_task(_run_sweep)
 
     lease = asc_review.review_lease_minutes()
@@ -211,12 +273,17 @@ async def next_review_pair(
                 "asclepius-review: task %s has two labels from one physician; "
                 "parking it rather than serving a pair that is not independent",
                 task["task_id"])
-            store.mark_task_reviewed(task["task_id"])
-            store.log_event(
-                entity_type="task", entity_id=task["task_id"],
-                event_type="review_pair_rejected", actor=reviewer["id"],
-                payload={"reason": "not_independent"},
-            )
+            # A PREVIEW WRITES NOTHING (§4.1) — not even a park. An operator
+            # looking around must not retire a case two physicians were paid
+            # for; the next real draw parks it, which is where that decision
+            # belongs.
+            if not preview:
+                store.mark_task_reviewed(task["task_id"])
+                store.log_event(
+                    entity_type="task", entity_id=task["task_id"],
+                    event_type="review_pair_rejected", actor=reviewer["id"],
+                    payload={"reason": "not_independent"},
+                )
             continue
 
         shown_a, shown_b = asc_routing.ab_pair(
@@ -230,6 +297,17 @@ async def next_review_pair(
         view, redacted = asc_review.redact_identity(view, labelers)
         blinded = asc_review.pair_is_blinded(
             view, reviewer_role=reviewer.get("role") or "", labelers=labelers)
+        if preview:
+            # No claim, no event, no session. The pair stays exactly where it was
+            # in a real reviewer's queue, and the token below is what the submit
+            # path refuses. ``blinded`` still ships so the surface renders
+            # honestly — an operator is never blind, and the banner says so.
+            return {
+                "pair": {**view, "blinded": blinded, "preview": True,
+                         "draw_token": _preview_draw_token(task["task_id"])},
+                "preview": True,
+                "session": None,
+            }
         if redacted:
             # Never the strings themselves — that would put the identity into the
             # event log, one hop from where it was removed.
@@ -473,6 +551,14 @@ class PairReviewSubmitBody(BaseModel):
     corrections: Optional[Dict[str, Any]] = None
     reviewer_notes: Optional[str] = None
     time_spent_sec: Optional[int] = None
+    # PRD-1 §3 — the reasoning-step forks and which side the reviewer judged
+    # correct at each. ``judged`` is a POSITION in what this reviewer was shown
+    # and is canonicalized below, exactly like ``stronger``. Absent is valid; an
+    # array is admitted only when both labels carried reasoning steps.
+    step_divergence: Optional[List[Dict[str, Any]]] = None
+    # PRD-1 §4.1 — echoed back from the draw. A preview token is REFUSED here
+    # with a 409, never quietly dropped.
+    draw_token: Optional[str] = None
 
 
 @router.post("/api/asclepius/review/pair/{task_id}")
@@ -490,6 +576,25 @@ async def submit_pair_review(
     assert — whose work it accepted.
     """
     store = _store()
+    # PRD-1 §4.1, FIRST, before anything is read or written. A preview draw is
+    # refused loudly — 409, not a silent no-op — so an operator who clicked
+    # through the reviewer surface cannot come away believing they recorded a
+    # judgment, and a physician's work is never graded by someone sightseeing.
+    #
+    # Belt AND braces: a preview never claimed the task, so the claim check below
+    # would refuse it too. That refusal says "your claim has expired", which is
+    # true but useless. This one says what actually happened.
+    if (body.draw_token or "").startswith(PREVIEW_TOKEN_PREFIX):
+        raise HTTPException(
+            status_code=409,
+            detail="This pair was drawn in preview. Nothing submitted from a "
+                   "preview is recorded — draw a real pair to adjudicate.")
+    if _is_preview_operator(reviewer):
+        raise HTTPException(
+            status_code=409,
+            detail="This account previews the reviewer surface and cannot record "
+                   "an adjudication. Nothing you submit here is recorded.")
+
     task = store.get_task(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -520,7 +625,17 @@ async def submit_pair_review(
     # PRD R §2.3: 400, server-side, on an unexplained rejection or an
     # "accept with edits" with no edits. Same rule as the single flow, and for
     # the same reason — it is unusable to the labeler, the buyer, and us.
-    errors = asc_review.validate_pair_review_payload(body.model_dump())
+    # §3: whether ``step_divergence`` is a real measurement or a fabrication is a
+    # fact about THE PAIR, so the two traces are read here and handed to the pure
+    # validator. Both sides must have carried reasoning steps, or the array is
+    # rejected rather than dropped.
+    _steps = [asc_review.submission_reasoning_steps(s) for s in subs]
+    pair_steps = {
+        "both": all(bool(st) for st in _steps),
+        "n_steps": max((len(st) for st in _steps), default=0),
+    }
+    errors = asc_review.validate_pair_review_payload(
+        body.model_dump(), pair_steps=pair_steps)
     if errors:
         raise HTTPException(status_code=400, detail={"errors": errors})
 
@@ -552,6 +667,17 @@ async def submit_pair_review(
         body.stronger, subs, task_id=task_id, reviewer_id=reviewer["id"])
     stronger = asc_routing.canonical_side(stronger_sub, subs) or body.stronger
 
+    # §3, same frame problem as H1: every ``judged`` side arrives as a position in
+    # what THIS reviewer was shown. Re-expressed in canonical terms — and stored
+    # alongside the submission id, the form no reader can misinterpret — so two
+    # reviewers' forks on one case mean the same thing.
+    step_divergence = asc_review.canonicalize_step_divergence(
+        body.step_divergence,
+        resolve=lambda side: asc_routing.resolve_side(
+            side, subs, task_id=task_id, reviewer_id=reviewer["id"]),
+        canonical=lambda sid: asc_routing.canonical_side(sid, subs),
+    )
+
     review = store.insert_pair_review(
         task_id=task_id,
         reviewer_user_id=reviewer["id"],
@@ -571,6 +697,10 @@ async def submit_pair_review(
         # longer serving — that would reintroduce the assumption in a new place.
         blinded=claim["blinded"],
         identifier_flags=identifier_flags,
+        # NULL when either label carried no reasoning steps (nothing was
+        # compared); '[]' when both did and they agreed at every step. The two
+        # are different findings and are stored as different values.
+        step_divergence=step_divergence,
     )
     # The task status and the retirement of the two labels commit INSIDE
     # ``insert_pair_review`` (Audit R M2) — they used to be three more writes

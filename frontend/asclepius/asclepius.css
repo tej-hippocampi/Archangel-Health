@@ -3970,6 +3970,158 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   .asc-me-avatar-initials { font-size: 24px; }
 }
 
+/* ═══ PRD-1: review inside the shell ═════════════════════════════════════════
+   Review used to be a standalone page with its own `<style>` block and its own
+   `rv-` namespace, which is precisely why it did not feel like the same product:
+   it structurally wasn't. Those rules live here now, under `asc-`, so the design
+   guard that scans this file scans them too — a styled-but-unemitted rule is a
+   test failure rather than dead weight nobody notices.
+
+   Placed BEFORE the PRD-R block on purpose: three tests split this stylesheet on
+   that heading and assert what does and does not appear after it (no second
+   grid definition, no raw hex, the clock rule's colour). New rules go in front
+   of the split, not through it.
+
+   The one structural rule that carries meaning: the JUDGMENT PANEL IS PINNED.
+   A reviewer must reach the verdict and all four dimensions without scrolling
+   past the case, so it sticks to the bottom of the viewport and the case fold
+   scrolls underneath it.
+   ═════════════════════════════════════════════════════════════════════════════ */
+.asc-wrap-review { padding-bottom: 0; }
+.asc-rv-header {
+  display: flex; align-items: baseline; gap: var(--sp-3);
+  flex-wrap: wrap; margin-bottom: var(--sp-3);
+}
+.asc-rv-headstats { flex: 1; display: flex; gap: var(--sp-3); align-items: baseline; flex-wrap: wrap; }
+.asc-rv-chrome {
+  font-family: var(--mono); font-size: var(--t-chrome);
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint);
+}
+.asc-rv-kv { font-size: var(--t-sm); color: var(--ink-soft); }
+.asc-rv-kv b { color: var(--ink); font-weight: 500; }
+.asc-rv-kv-lead { margin: var(--sp-3) 0 var(--sp-2); }
+.asc-rv-main { display: block; }
+.asc-rv-pairbar {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-3); flex-wrap: wrap; margin: var(--sp-4) 0 var(--sp-2);
+}
+.asc-rv-answer-text { white-space: pre-wrap; margin-top: var(--sp-2); }
+.asc-rv-chip-gap { margin-right: 6px; }
+.asc-rv-step {
+  display: flex; gap: var(--sp-2); padding: var(--sp-2) 0;
+  border-top: 1px solid var(--asc-line); font-size: var(--t-sm);
+}
+.asc-rv-step:first-of-type { border-top: 0; }
+.asc-rv-step-num { font-family: var(--mono); color: var(--ink-faint); flex: none; width: 22px; }
+
+/* THE FORK MARK. The single highest-leverage thing on this page: the reviewer's
+   attention belongs where A and B parted company, not at the eight steps where
+   they agree. LIME, because a fork is "needs attention" — not pink, which in
+   this palette means critical and blocking, and not a per-column hue, which
+   would tell the reviewer which physician to distrust before they have read it.
+   The SAME mark appears on both columns for the same reason. */
+.asc-rv-step-fork {
+  background: var(--lime-wash);
+  border-left: 2px solid var(--lime-line);
+  padding-left: var(--sp-2);
+  margin-left: -2px;
+}
+.asc-rv-forks { margin-top: var(--sp-3); }
+.asc-rv-fork-row .asc-rv-dim-label { color: var(--ink); }
+
+.asc-rv-case { margin: var(--sp-3) 0; }
+.asc-rv-case > summary { cursor: pointer; font-weight: 600; font-size: var(--t-sm); }
+.asc-rv-case-body { margin-top: var(--sp-3); }
+.asc-rv-fold > summary { cursor: pointer; }
+.asc-rv-candidates { margin-top: var(--sp-3); }
+.asc-rv-candidate { margin-top: var(--sp-2); }
+.asc-rv-citations { margin-top: var(--sp-2); }
+
+/* The judgment, pinned (§2.3). `position: sticky` with `bottom: 0` keeps the
+   verdict and the four dimensions on screen no matter how far the case is
+   scrolled, which is the layout enforcing what the copy already promised. */
+.asc-rv-judgment {
+  position: sticky; bottom: 0; z-index: 5;
+  margin-top: var(--sp-3);
+  box-shadow: var(--shadow-card);
+  max-height: 62vh; overflow-y: auto;
+}
+.asc-rv-dim {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-2) 0; border-top: 1px solid var(--asc-line);
+}
+.asc-rv-dim:first-of-type { border-top: 0; }
+.asc-rv-dim-label { flex: 1 1 220px; min-width: 200px; }
+.asc-rv-dim-label small { display: block; color: var(--ink-faint); }
+/* The 1-4 key, on the control the key aims at. The reviewer's main loop is
+   keyboard, and a shortcut nobody can see is a shortcut nobody uses. */
+.asc-rv-dim-key {
+  font-family: var(--mono); font-size: var(--t-chrome); color: var(--ink-faint);
+  background: var(--card-in); border-radius: 4px; padding: 1px 6px;
+}
+.asc-rv-dim-aimed { box-shadow: inset 2px 0 0 0 var(--green-line); }
+.asc-rv-seg {
+  display: inline-flex; border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip); overflow: hidden; flex: none;
+}
+.asc-rv-seg button {
+  border: 0; background: transparent; color: var(--ink-soft);
+  font: inherit; font-size: var(--t-sm); padding: 6px 12px; cursor: pointer;
+}
+.asc-rv-seg button + button { border-left: 1px solid var(--asc-line); }
+.asc-rv-seg button.is-on[data-state="agree"] { background: var(--green); color: var(--card); }
+.asc-rv-seg button.is-on[data-state="disagree"] { background: var(--pink); color: var(--card); }
+.asc-rv-seg button.is-on[data-state="cannot_assess"] { background: var(--ink-faint); color: var(--card); }
+/* "Which is stronger?" and the per-fork rows share the segmented control but not
+   its agree/disagree semantics: A, B and Neither are three NEUTRAL choices, so
+   the selected one is filled with ink rather than an accent. Giving A or B a hue
+   here is the exact bias the design forbids — a reviewer who reads colour as
+   "which doctor" starts reading it as "which is better". */
+.asc-rv-seg button.is-on[data-state="A"],
+.asc-rv-seg button.is-on[data-state="B"],
+.asc-rv-seg button.is-on[data-state="equivalent"],
+.asc-rv-seg button.is-on[data-fork="A"],
+.asc-rv-seg button.is-on[data-fork="B"],
+.asc-rv-seg button.is-on[data-fork="neither"] { background: var(--ink); color: var(--card); }
+.asc-rv-verdicts { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.asc-rv-verdicts button {
+  flex: 1 1 160px; border: 1px solid var(--asc-line);
+  background: var(--card-in); color: var(--ink); font: inherit; font-size: var(--t-sm);
+  border-radius: var(--r-sm); padding: var(--sp-3); cursor: pointer; text-align: left;
+}
+.asc-rv-verdicts button.is-on[data-verdict="accept"],
+.asc-rv-verdicts button.is-on[data-verdict="accept:A"],
+.asc-rv-verdicts button.is-on[data-verdict="accept:B"] {
+  border-color: var(--green-line); box-shadow: 0 0 0 2px var(--green);
+}
+/* NOT orange. Orange means MODEL OUTPUT in this product, and this is a
+   physician's judgment control — the same mistake as giving one of the two
+   doctors a different hue. Lime is the honest accent: an accept that needs
+   corrections is exactly "needs attention". Accept stays green
+   (physician-authored) and reject stays pink (blocking). */
+.asc-rv-verdicts button.is-on[data-verdict="accept_with_edits"] {
+  border-color: var(--lime-line); box-shadow: 0 0 0 2px var(--lime);
+}
+.asc-rv-verdicts button.is-on[data-verdict="reject"] {
+  border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink);
+}
+.asc-rv-actions { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); }
+.asc-rv-actions-center { justify-content: center; }
+
+/* §4.1 — the preview banner. LIME: an operator looking around is "needs
+   attention", not an emergency, and the server refuses the submit regardless. */
+.asc-rv-preview {
+  display: flex; align-items: baseline; gap: var(--sp-2);
+  background: var(--lime-wash); border: 1px solid var(--lime-line);
+  border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-3); font-size: var(--t-sm); color: var(--ink);
+}
+
+/* §4 — the Evaluate chooser, on the shared menu primitive so it cannot drift
+   from the help menu it is a sibling of. */
+.asc-eval-chooser { min-width: 240px; }
+.asc-eval-chooser .asc-help-menu-item { display: block; text-align: left; }
+
 /* ═══ PRD-R: the paired review surface ═══════════════════════════════════════
    The TR page mirrors the TL page's structure, because a physician who has
    labelled already knows how to read it. The ACCENT is what changes, and the
