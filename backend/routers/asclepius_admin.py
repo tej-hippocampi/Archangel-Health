@@ -42,58 +42,18 @@ def _store():
     return get_store()
 
 
-# ─── Username derivation ─────────────────────────────────────────────────────
-# Generic org-name words that carry no identity. "Mass General Hospital" should
-# become "massgeneral", not "massgeneralhospital".
-_USERNAME_STOPWORDS = {
-    "hospital", "hospitals", "health", "healthcare", "system", "systems",
-    "medical", "medicine", "center", "centers", "centre", "centres", "clinic",
-    "clinics", "the", "of", "and", "for", "group", "network", "regional",
-    "university", "institute", "foundation", "associates", "partners", "care",
-}
-
-
-def derive_hs_username(org_name: str) -> str:
-    """A username the recipient can recognise ("Mass General Hospital" ->
-    "massgeneral"). Falls back to the full word list when stopwords would strip
-    everything (e.g. "University Health System" -> "universityhealthsystem")."""
-    words = re.findall(r"[a-z0-9]+", (org_name or "").lower())
-    kept = [w for w in words if w not in _USERNAME_STOPWORDS]
-    base = "".join(kept or words)[:20]
-    return base or "partner"
-
-
-def unique_hs_username(store: Any, base: str) -> str:
-    """Collision-suffix: base, base2 … base9, then a short random suffix."""
-    if not store.hs_username_exists(base):
-        return base
-    for n in range(2, 10):
-        cand = f"{base}{n}"
-        if not store.hs_username_exists(cand):
-            return cand
-    while True:
-        cand = f"{base}-{secrets.token_hex(2)}"
-        if not store.hs_username_exists(cand):
-            return cand
-
-
-# ─── Passphrase generation ───────────────────────────────────────────────────
-# Word-based so hospital IT can retype it from an email without transcription
-# errors; the trailing hex keeps the space large. Shown once, stored hashed,
-# and must_reset=1 forces replacement at first login.
-_PASSPHRASE_WORDS = [
-    "amber", "aspen", "basil", "birch", "canyon", "cedar", "clover", "coral",
-    "delta", "dune", "ember", "fjord", "garnet", "grove", "harbor", "hazel",
-    "indigo", "juniper", "kestrel", "lagoon", "linden", "lumen", "maple",
-    "meadow", "north", "opal", "orchid", "prairie", "quartz", "raven", "river",
-    "saffron", "sierra", "summit", "thistle", "tundra", "umber", "violet",
-    "willow", "zephyr",
-]
-
-
-def generate_portal_passphrase() -> str:
-    words = [secrets.choice(_PASSPHRASE_WORDS) for _ in range(3)]
-    return "-".join(words) + "-" + secrets.token_hex(3)
+# ─── Portal account naming ───────────────────────────────────────────────────
+# Username derivation and passphrase generation moved to
+# asclepius/portal_accounts.py when self-signup needed the same naming: the
+# provider router cannot import this module to reach them. Re-exported here so
+# every call site and test that reaches them through this router is unchanged.
+from asclepius.portal_accounts import (  # noqa: E402,F401
+    derive_hs_username,
+    generate_portal_passphrase,
+    unique_hs_username,
+    _PASSPHRASE_WORDS,
+    _USERNAME_STOPWORDS,
+)
 
 
 # ─── Request/response models ─────────────────────────────────────────────────
