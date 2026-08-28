@@ -42,7 +42,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 _FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
 _DOM_SHIM = Path(__file__).resolve().parent / "_asclepius_dom.js"
-_REVIEW_HTML = _FRONTEND / "review.html"
+# PRD-1 §2.1: review is a MODULE mounted inside the evaluation portal, not a
+# page of its own, so the portal's shell is where the script ordering has to hold.
+_PORTAL_HTML = _FRONTEND / "index.html"
 _REVIEW_JS = _FRONTEND / "review.js"
 _EARNINGS_JS = _FRONTEND / "earnings.js"
 
@@ -76,15 +78,18 @@ def _run_node(script: str) -> dict:
 
 
 # ─── The deploy wiring ────────────────────────────────────────────────────────
-def test_the_review_page_loads_the_session_client_before_review_js():
+def test_the_portal_loads_the_session_client_before_review_js():
     """A missing script tag is how the whole clock went missing once already.
-    Order matters: the review page reads ``window.AsclepiusSession`` at draw
+    Order matters: the review surface reads ``window.AsclepiusSession`` at draw
     time, so the client must be defined by then. Both are ``defer``, which
-    preserves document order."""
-    html = _REVIEW_HTML.read_text(encoding="utf-8")
+    preserves document order.
+
+    The page moved (PRD-1 §2.1) — review mounts inside the portal now — so the
+    ordering is asserted where the scripts actually are. The rule did not move."""
+    html = _PORTAL_HTML.read_text(encoding="utf-8")
     scripts = re.findall(r'src="/static/asclepius/([\w.-]+\.js)"', html)
-    assert "earnings.js" in scripts, "review.html does not load the session client"
-    assert "review.js" in scripts
+    assert "earnings.js" in scripts, "the portal does not load the session client"
+    assert "review.js" in scripts, "the portal does not load the review module"
     assert scripts.index("earnings.js") < scripts.index("review.js")
 
 

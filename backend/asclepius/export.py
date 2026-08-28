@@ -324,6 +324,7 @@ indistinguishable from a leak.
 | `review.reviews[].corrections_withheld` | `true` when an insert-time Safe-Harbor scan found an identifier in the reviewer's free text, or when that text predates scanning. The verdict and dimensions still ship; only the prose is held back |
 | `review.reviews[].reviewer_credential` | credential ATTRIBUTE only (e.g. board_certified_nephrology) — never a name, NPI or licence number |
 | `review.reviews[].blinded` | `true` only when the payload served to that reviewer verifiably carried no labeler identity. **Derived from the served payload, not asserted.** An admin reviewer is always `false` (an admin can de-blind by other means) |
+| `review.reviews[].step_divergence` | process-level supervision from the reviewer: `[{{index, judged}}]` — the reasoning-step positions where the two independent labels diverged, and which side (`A` / `B` / `neither`, in CANONICAL oldest-first terms, or `null` for undecided) the reviewer judged correct at each. **Absent — never `[]` — when the two labels were not comparable**, i.e. one of them carried no reasoning steps and nothing was measured; `[]` means both carried steps and they agreed at every one. Present only on paired adjudications |
 | `review.accepted_without_edits` | true only when every review was a plain `accept` |
 | `supervision.labeler_id_hashed` | stable hashed id of the labeler (no PII) |
 | `supervision.independent_second_label` | `true` only for the double-labeled slice whose second observation was explicitly blinded — the slice a real Cohen's κ is computed on |

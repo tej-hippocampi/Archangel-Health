@@ -1257,6 +1257,17 @@ class AsclepiusStore:
                 # reviewer answered 'equivalent' — there is no stronger side.
                 ("stronger_submission_id", "TEXT"),
                 ("accepted_submission_id", "TEXT"),
+                # PRD-1 §3 — the reasoning-step forks between A and B, and which
+                # side the reviewer judged correct at each. JSON list of
+                # {index, judged, judged_submission_id}, canonicalized like
+                # ``stronger`` before it is written.
+                #
+                # TRI-STATE and it matters: NULL means "not comparable" — one of
+                # the two labels carried no reasoning steps, so nothing was
+                # measured. '[]' means "compared, and they agreed at every
+                # step", which is a real finding. Collapsing the two would ship a
+                # measurement nobody made.
+                ("step_divergence", "TEXT"),
             ):
                 if _col not in cols("case_reviews"):
                     conn.execute(f"ALTER TABLE case_reviews ADD COLUMN {_col} {_ddl}")
@@ -6120,6 +6131,13 @@ class AsclepiusStore:
         # None (never scanned) stays distinct from [] (scanned clean).
         rec["identifier_flags"] = json.loads(raw_flags) if raw_flags else (
             [] if raw_flags == "[]" else None)
+        # PRD-1 §3. Same tri-state discipline as the flags above: NULL means the
+        # two labels were not comparable (one carried no reasoning steps, so
+        # nothing was measured); '[]' means they were compared and agreed at
+        # every step. Parsed here so every reader gets a list or a None, never a
+        # JSON string one caller remembers to decode and the next does not.
+        raw_div = rec.get("step_divergence")
+        rec["step_divergence"] = json.loads(raw_div) if raw_div else None
         return rec
 
     def insert_case_review(
@@ -6769,6 +6787,7 @@ class AsclepiusStore:
         time_spent_sec: Optional[int] = None,
         blinded: Optional[bool] = None,
         identifier_flags: Optional[List[str]] = None,
+        step_divergence: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """One senior-reviewer adjudication of a PAIR (PRD R §2.3).
 
@@ -6818,8 +6837,8 @@ class AsclepiusStore:
                    verdict, dimension_json, corrections_json, reviewer_notes,
                    time_spent_sec, blinded, identifier_flags, created_at,
                    pair_sub_a, pair_sub_b, stronger, stronger_submission_id,
-                   accepted_submission_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   accepted_submission_id, step_divergence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     review_id, task_id, anchor, reviewer_user_id, reviewer_id_hashed,
@@ -6833,6 +6852,8 @@ class AsclepiusStore:
                     now,
                     pair_sub_a, pair_sub_b, stronger, stronger_submission_id,
                     accepted_submission_id,
+                    # NULL vs '[]' is load-bearing here — see the column comment.
+                    None if step_divergence is None else json.dumps(step_divergence),
                 ),
             )
             conn.execute(

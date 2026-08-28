@@ -10,6 +10,17 @@
   // AUTH_GATE_HEADER): 'pending' or 'rejected'.
   const AUTH_GATE_HEADER = 'X-Asclepius-Auth-Gate';
   const TOKEN_KEY = 'asclepius_token';
+  // In-progress evaluation drafts, one key per task. Deliberately per-browser
+  // and client-only: the drafts are not mirrored to the server.
+  //
+  // That is a decided limit, not an oversight. A physician who starts a case on
+  // one machine and opens the portal on another sees "Start new case" and their
+  // work stays on the first machine — the same is true of a different browser,
+  // a cleared site-data, or a private window. The portal is a desktop workflow
+  // today, so that trade was taken on purpose. If a doctor is ever expected to
+  // move between devices mid-case, the answer is a server-side draft
+  // (PUT/GET/DELETE per (user_id, task_id), assignee-only, debounced, newer
+  // savedAt wins on conflict and NEVER a merge) — not a wider localStorage.
   const DRAFT_PREFIX = 'asclepius_draft_';
   // Contributor's chosen evaluator experience: 'v1' classic | 'v2' assisted |
   // 'v3' seamless (the recommended default). Persisted per browser; the default
@@ -71,7 +82,7 @@
     },
     task: null,            // current blinded task
     draft: null,           // in-progress submission draft
-    timerStart: 0,
+    timerStart: null,   // null = the clock is stopped (see getElapsed/stopTimer)
     baseElapsed: 0,
     timerInterval: null,
     submitting: false,
@@ -92,6 +103,11 @@
     // the launch authority; this is only the live tour position.
     tutorial: null,
     instrOpen: false,       // instruction drawer visibility
+    // Admin-only (PRD-1 §4.1): the reviewer surface is being PREVIEWED, so the
+    // draw is unclaimed, no session opens, and a submit is refused with a 409.
+    // Never true for a real reviewer — reviewPreviewMode() re-checks the role
+    // rather than trusting this flag on its own.
+    reviewPreview: false,
   };
   function tutorialActive() { return !!(state.tutorial && state.tutorial.active); }
 
@@ -191,9 +207,16 @@
   }
 
   function handleUnauthorized() {
+    // Same reasoning as logout(): a session that expired mid-case did not
+    // un-work the case. Persist before the clock stops and the chrome goes.
+    saveDraft();
     state.token = null;
     state.user = null;
     localStorage.removeItem(TOKEN_KEY);
+    // A signed-out session is a no-work transition like any other: stop Agent
+    // P's beats and take the review keyboard handler off the document, or it
+    // outlives the screen it belongs to and keys keep mutating a detached DOM.
+    teardownReview();
     stopTimer();
     stopCommunityPolling();
     resetCommunityState(); // bump generation now so any in-flight fetch is voided
@@ -229,9 +252,22 @@
     }, 'Dashboard'));
     const isAdmin = state.user.role === 'admin' || state.user.role === 'qa_reviewer';
     if (isAdmin) {
+      // Admin only. Evaluate opens a two-way chooser so an operator can see BOTH
+      // physician experiences without holding two accounts. It changes what is
+      // rendered, never what is recorded — the reviewer side draws in PREVIEW
+      // mode, which opens no session and is refused at submit (§4.1).
+      //
+      // ...but only when the session actually holds `review`. A qa_reviewer is
+      // an admin for this button and NOT an admin for the capability table
+      // (`capabilities.granted` overrides for role 'admin' alone), so offering
+      // them the chooser would offer a door that bounces them straight back to
+      // the dashboard. Without the capability the button stays what it was.
+      const canChoose = sessionCan('review');
       nav.appendChild(h('button', {
-        class: 'asc-nav-btn' + (state.view === 'eval' ? ' active' : ''),
-        onClick: () => switchView('eval'),
+        class: 'asc-nav-btn'
+          + ((state.view === 'eval' || state.view === 'review') ? ' active' : ''),
+        'aria-haspopup': canChoose ? 'menu' : null,
+        onClick: (e) => (canChoose ? openEvaluateChooser(e.currentTarget) : switchView('eval')),
       }, 'Evaluate'));
       nav.appendChild(h('button', {
         class: 'asc-nav-btn' + (state.view === 'admin' ? ' active' : ''),
@@ -264,6 +300,16 @@
 
   function switchView(view) {
     if (view === 'admin' && state.view !== 'admin') saveDraft();
+    // Leaving the labeling view for review is the same hazard for the same
+    // reason: setRoot() is about to wipe an in-progress case, and an admin using
+    // the Evaluate chooser to look at the other surface must not lose a draft to
+    // it.
+    if (view === 'review' && state.view === 'eval') saveDraft();
+    // Leaving review is a NO-WORK transition, exactly like an empty queue: the
+    // reviewer is no longer looking at a pair, so Agent P's beats must stop and
+    // the module's keyboard handler must come off the document. Without this a
+    // session went on accruing paid time against the Guide.
+    if (state.view === 'review' && view !== 'review') teardownReview();
     state.view = view;
     // The header nav (Evaluate / Admin console) always lands back inside the
     // Tasks side-panel destination: the Guide is a peer, not a sub-view of it.
@@ -274,7 +320,126 @@
     renderSidePanel();
     if (view === 'home') renderDashboardView();
     else if (view === 'eval') renderEvalView();
+    else if (view === 'review') renderReviewView();
     else renderAdminView();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     REVIEW, INSIDE THE SHELL (PRD-1 §2.1)
+
+     Review used to be `window.open('/asclepius/review', '_blank')` — a second
+     application with its own hyperscript, its own token read, its own class
+     namespace, no rail and no way back. It is now a view in this shell, so a
+     reviewer keeps Community, Guide and Earnings one click away and a finished
+     pair lands them on their dashboard rather than on a dead tab.
+
+     `review.js` is mounted through the same `render(el, ctx)` contract the
+     admin sections use. The ctx it gets is the shell's own hyperscript, fetch
+     helper and case-panel context — that sharing IS the fix, not a convenience.
+     ═══════════════════════════════════════════════════════════════════════════ */
+  // Preview mode is an ADMIN-ONLY rendering choice, remembered for the tab (§4):
+  // sessionStorage, never localStorage, so a reload keeps context but a new
+  // session starts neutral.
+  const EVAL_CHOICE_KEY = 'asclepius_eval_surface';
+  function reviewPreviewMode() {
+    // Only an admin can be previewing. A real reviewer drawing a real pair must
+    // never inherit a stale flag from anything the browser remembers.
+    return isAdminUser() && state.reviewPreview === true;
+  }
+  function isAdminUser() {
+    return !!state.user && (state.user.role === 'admin' || state.user.role === 'qa_reviewer');
+  }
+  function reviewSectionCtx() {
+    return {
+      h, api, clear, toast, loadingCard, fmtDate,
+      // The clinical chart, from the shared module — the SAME component the
+      // labeler reads. Handing over the ctx rather than a rendered panel is what
+      // keeps the reviewer's chart from becoming a second implementation.
+      casePanelCtx,
+      specialties: state.specialties,
+      preview: reviewPreviewMode(),
+      goHome: () => switchView('home'),
+    };
+  }
+  function teardownReview() {
+    if (window.AsclepiusReview && typeof window.AsclepiusReview.teardown === 'function') {
+      try { window.AsclepiusReview.teardown(); } catch (e) { /* never block navigation */ }
+    }
+  }
+  function renderReviewView() {
+    stopTimer();
+    updateHeaderProgress();
+    // Re-checked here, not only hidden in the rail: a hand-typed state change
+    // must not open a surface the session was never granted. (The API 403s
+    // regardless — this is so the operator sees a sentence, not a stack trace.)
+    if (!sessionCan('review')) { switchView('home'); return; }
+    const host = h('div', { class: 'asc-wrap asc-wrap-review' });
+    setRoot(host);
+    if (window.AsclepiusReview && typeof window.AsclepiusReview.render === 'function') {
+      window.AsclepiusReview.render(host, reviewSectionCtx());
+    } else {
+      sectionModuleMissing(host, 'The review console');
+    }
+  }
+
+  /* ═══ §4 — the admin Evaluate chooser ══════════════════════════════════════
+     An operator needs to see BOTH physician experiences without holding two
+     accounts. Two rows, anchored to the button: Labeler builds an answer,
+     Reviewer adjudicates a pair. Dismisses on outside click and on Escape, and
+     returns focus to the button it came from. */
+  let evalChooser = null;
+  function closeEvaluateChooser(refocus) {
+    if (!evalChooser) return;
+    const { pop, onDocClick, onKey, anchor } = evalChooser;
+    document.removeEventListener('mousedown', onDocClick, true);
+    document.removeEventListener('keydown', onKey, true);
+    if (pop.parentNode) pop.parentNode.removeChild(pop);
+    evalChooser = null;
+    if (refocus && anchor && typeof anchor.focus === 'function') anchor.focus();
+  }
+  function openEvaluateChooser(anchor) {
+    if (evalChooser) { closeEvaluateChooser(true); return; }
+    const choose = (surface) => {
+      try { sessionStorage.setItem(EVAL_CHOICE_KEY, surface); } catch (e) { /* private mode */ }
+      closeEvaluateChooser(false);
+      if (surface === 'reviewer') {
+        // The preview is what makes this safe to click: it draws a pair without
+        // claiming it, opens no session, and is refused at submit with a 409.
+        state.reviewPreview = true;
+        switchView('review');
+      } else {
+        state.reviewPreview = false;
+        switchView('eval');
+      }
+    };
+    const row = (surface, title, sub) => h('button', {
+      class: 'asc-help-menu-item', type: 'button', role: 'menuitem',
+      dataset: { evalSurface: surface },
+      onClick: () => choose(surface),
+    }, h('b', {}, title), ' ', h('span', { class: 'asc-rv-chrome' }, sub));
+    const pop = h('div', { class: 'asc-help-menu asc-eval-chooser', role: 'menu' },
+      row('labeler', 'Labeler', 'build an answer'),
+      row('reviewer', 'Reviewer', 'adjudicate a pair'));
+    // Anchored to the button, portaled to <body> so a re-render of #ascRoot
+    // cannot leave it orphaned mid-air. Viewport coordinates, because
+    // `.asc-help-menu` is `position: fixed` — the shared primitive keeps its own
+    // positioning model and its own stacking order rather than being talked out
+    // of either one property at a time.
+    const rect = anchor.getBoundingClientRect();
+    pop.style.top = (rect.bottom + 6) + 'px';
+    pop.style.left = rect.left + 'px';
+    const onDocClick = (e) => {
+      if (pop.contains && pop.contains(e.target)) return;
+      if (anchor.contains && anchor.contains(e.target)) return;
+      closeEvaluateChooser(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); closeEvaluateChooser(true); } };
+    document.body.appendChild(pop);
+    document.addEventListener('mousedown', onDocClick, true);
+    document.addEventListener('keydown', onKey, true);
+    evalChooser = { pop, onDocClick, onKey, anchor };
+    const first = pop.children[0];
+    if (first && typeof first.focus === 'function') first.focus();
   }
 
   // ─── Side panel destination router (Tasks / Guide; Community is external) ────
@@ -282,12 +447,14 @@
   // in-portal Instruction Manual. Community never routes here: it opens a tab.
   function setPanel(dest) {
     if (dest === 'community') { openCommunity(); return; }
-    // PRD-R: the expert review console is its own page (review.html). It is
-    // external for the same reason Community is: it is not a panel inside this
-    // shell. Gated on the SERVER's capability list, never on a tier string.
+    // PRD-1 §2.1: the expert review console is a VIEW IN THIS SHELL, not a
+    // second page in a new tab. It keeps the rail, the session and the design
+    // system. Still gated on the SERVER's capability list, never on a tier
+    // string — the rail hides it and this re-checks it.
     if (dest === 'review') {
       if (!sessionCan('review')) return;
-      window.open('/asclepius/review', '_blank', 'noopener');
+      state.reviewPreview = false;   // a real reviewer, never an admin preview
+      switchView('review');
       return;
     }
     if (dest !== 'tasks' && dest !== 'guide' && dest !== 'earnings'
@@ -303,11 +470,28 @@
         && !sessionHasSurface('tutorial')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
+    // Leaving the review surface for another rail destination is a no-work
+    // transition: Agent P's beats must stop and the keyboard handler must come
+    // off the document, or a session accrues paid time against the Guide.
+    // Coming back re-mounts and draws again; the abandoned claim expires on its
+    // lease, which is what the lease is for.
+    if (state.view === 'review' && dest !== 'tasks') teardownReview();
     saveDraft(); // preserve any in-progress eval draft before setRoot() wipes it
     // Leaving the Guide: stop the scroll-spy observer so it never watches the
     // detached section nodes that setRoot() is about to replace.
     if (dest !== 'guide' && guideObserver) { guideObserver.disconnect(); guideObserver = null; }
     state.panel = dest;
+    // §6: state.view is sticky, so a physician who was inside a case, went to
+    // Earnings, and clicked Tasks landed back INSIDE the case — renderEvalView
+    // resumes whatever state.view still said. Clicking Tasks means "take me to
+    // my dashboard", never "resume whatever I had open": Continue is a
+    // deliberate choice made ON the dashboard (§4.1), not a side effect of
+    // navigating. saveDraft() already ran above, so nothing is lost.
+    //
+    // 'admin' is preserved: for an admin or QA reviewer the Tasks rail item is
+    // the way back to the console they were in, and sending them to the
+    // physician dashboard instead would be the same bug pointing the other way.
+    if (dest === 'tasks' && state.view !== 'admin') state.view = 'home';
     renderSidePanel();
     if (dest === 'referral') {
       renderReferralView();
@@ -319,6 +503,16 @@
       renderGuide();
     } else if (state.view === 'admin') {
       renderAdminView();
+    } else if (state.view === 'review') {
+      // Reachable when the reset above did NOT fire — i.e. an admin, for whom
+      // Tasks means "back to the console I was in". A reviewer's Tasks click
+      // lands on the dashboard like everyone else's, and the review card is
+      // one click from there.
+      renderReviewView();
+    } else if (state.view === 'home') {
+      // The branch the line above depends on. Without it 'home' fell through to
+      // renderEvalView() and the reset had no destination.
+      renderDashboardView();
     } else {
       renderEvalView();
     }
@@ -510,6 +704,30 @@
     return pretty ? ('Dr. ' + pretty) : 'Clinician';
   }
 
+  /** The circle of initials (or the physician's photo) in the rail foot.
+   *
+   *  Decorative: the name it stands for is the very next element, so a screen
+   *  reader announcing "TP" before "Dr. Tej Patel" would be noise.
+   *
+   *  `railDisplayName()` returns `Dr. Tej Patel` for an email-derived name, and
+   *  fallbackInitials would read that as first+last and return `DP`. Strip the
+   *  honorific first — the initials are the physician's, not the title's.
+   *
+   *  If they have uploaded a photo, prefer it, through the SAME authenticated
+   *  blob path the profile page uses (avatarImgEl) rather than a second image
+   *  implementation: an <img src> cannot send the bearer header the avatar
+   *  endpoint requires, and the initials stay put if that fetch fails.
+   */
+  function railAvatarEl(specColor) {
+    const initials = fallbackInitials(railDisplayName().replace(/^Dr\.?\s*/i, ''));
+    const url = (state.user && state.user.avatar_url) || null;
+    return h('span', {
+      class: 'asc-rail-avatar acc-' + String(specColor).replace('dot-', '')
+        + (url ? ' has-img' : ''),
+      'aria-hidden': 'true',
+    }, url ? avatarImgEl(url, initials) : initials);
+  }
+
   function railItemActive(dest) {
     if (dest === 'guide') return state.panel === 'guide';
     if (dest === 'referral') return state.panel === 'referral';
@@ -681,12 +899,14 @@
     const specColor = specialtyDotColor(state.user.specialty);
     const foot = h('div', { class: 'asc-rail-foot' },
       h('div', { class: 'asc-rail-user' },
-        h('span', { class: 'asc-rail-name', title: railDisplayName() }, railDisplayName()),
-        state.user.specialty
-          ? h('span', { class: 'asc-rail-spec' },
-              h('span', { class: 'dot ' + specColor, 'aria-hidden': 'true' }),
-              h('span', {}, state.user.specialty))
-          : null),
+        railAvatarEl(specColor),
+        h('div', { class: 'asc-rail-usertext' },
+          h('span', { class: 'asc-rail-name', title: railDisplayName() }, railDisplayName()),
+          state.user.specialty
+            ? h('span', { class: 'asc-rail-spec' },
+                h('span', { class: 'dot ' + specColor, 'aria-hidden': 'true' }),
+                h('span', {}, state.user.specialty))
+            : null)),
       h('button', { type: 'button', class: 'asc-rail-signout', onClick: logout }, 'Sign out'));
 
     // The bottom edge of the rail is the one place that is neither a destination
@@ -1310,11 +1530,34 @@
     return state.taxonomy;
   }
 
+  /* True when the URL asks for the review surface, consuming the hash so the
+     request is honoured exactly once. Kept narrow: only the bare `#review`,
+     never a prefix match, so the Guide's `#section-id` deep links and the
+     onboarding module's `#/calibration` route are untouched. */
+  function readReviewHash() {
+    let hash = '';
+    try { hash = (location.hash || '').replace(/^#/, ''); } catch (e) { hash = ''; }
+    if (hash !== 'review') return false;
+    try { history.replaceState(null, '', location.pathname + location.search); }
+    catch (e) { /* a browser that refuses is not a reason to lose the route */ }
+    return true;
+  }
+
   function enterApp() {
     // Land on the dashboard (home), not straight into a case. The dashboard
     // routes into the existing eval flow when the doctor picks or starts a case.
     state.view = 'home';
     state.panel = 'tasks';
+    // §4: an ADMIN who chose the Reviewer surface in this tab keeps it across a
+    // reload. sessionStorage, so a new session starts neutral, and re-gated on
+    // the role AND the capability so a stale key can never put a non-admin on a
+    // preview draw.
+    state.reviewPreview = false;
+    if (isAdminUser() && sessionCan('review')) {
+      let stored = null;
+      try { stored = sessionStorage.getItem(EVAL_CHOICE_KEY); } catch (e) { stored = null; }
+      if (stored === 'reviewer') state.reviewPreview = true;
+    }
     // Fresh community state for this session. On a shared device, a prior user's
     // unread count or (more importantly) their signed handoff token must never
     // bleed into the next login before the first poll overwrites it.
@@ -1326,6 +1569,12 @@
     // in the practice case; in_progress resumes it. completed/skipped NEVER
     // re-trigger (server-authoritative via PATCH /me/tutorial). Admin/QA skip it.
     if (isReferralOnly()) { setPanel('referral'); return; }
+    // `/asclepius/review` redirects here with `#review` (PRD-1 §2.1). The old
+    // standalone URL is in bookmarks and in email we have already sent, so it
+    // has to land a reviewer on their work rather than on a generic dashboard.
+    // Consumed once — the hash is cleared so a later reload is not permanently
+    // pinned to review — and gated on the capability like every other route in.
+    if (readReviewHash() && sessionCan('review')) { setPanel('review'); return; }
     // An advisor lands on the dashboard, not inside the tutorial. Being dropped
     // straight into a case is right for a physician whose first job is to learn
     // the interface; someone here to look around should be shown the product
@@ -1353,8 +1602,14 @@
   }
 
   function logout() {
+    // §5.2: the elapsed on record must be the elapsed actually worked. Save
+    // before anything is torn down — saveDraft() reads state.draft and a live
+    // getElapsed() — then stop, so the clock cannot run on past the session.
+    saveDraft();
+    stopTimer();
     state.token = null;
     state.user = null;
+    teardownReview();
     // Tear down the logged-in-only chrome (corner ? tab, its menu, the panel).
     const instrTab = document.getElementById('ascInstrTab');
     if (instrTab) instrTab.remove();
@@ -1907,14 +2162,25 @@
                             v2: 'Assisted evaluation', v1: 'Classic evaluation' };
       const queueLine = QUEUE_LABEL[servedVer] || null;
       const continuedFromV4 = data.continued_from === 'v4' && servedVer !== 'v4';
+      // §4.1 — ONE button. Routing decides which case a physician sees, so a
+      // queue of cases to choose between is a decision we are supposed to be
+      // making for them; and the case COUNT is queue depth, which is exactly
+      // the information this change exists to hide.
+      //
+      // A draft in localStorage means work in progress: Continue takes them
+      // back to where they stopped, Start hands them the next case routing
+      // chose. Same button, two honest labels.
+      const resumable = findResumableDraft(tasks);
       main.appendChild(h('div', { class: 'asc-dash-hero' },
         h('div', { class: 'asc-dash-hero-main' },
           h('span', { class: 'asc-dash-hero-icon', 'aria-hidden': 'true' }, '→'),
           h('div', {},
-            h('div', { class: 'asc-dash-hero-title' }, 'Start next case'),
+            h('div', { class: 'asc-dash-hero-title' },
+              resumable ? 'Continue case' : 'Start new case'),
             h('div', { class: 'asc-dash-hero-sub' },
-              String(tasks.length) + (tasks.length === 1 ? ' case available' : ' cases available')
-              + (queueLine ? ' · ' + queueLine : '')),
+              resumable
+                ? 'Picks up where you left off · ' + formatTime(resumable.elapsedSec || 0) + ' so far'
+                : (queueLine || 'Real de-identified cases')),
             continuedFromV4
               ? h('div', { class: 'asc-dash-hero-note' },
                   'You have completed every real de-identified case available to you '
@@ -1922,24 +2188,13 @@
               : null)),
         h('button', {
           class: 'asc-btn asc-btn-primary asc-btn-lg',
-          onClick: () => { state.view = 'eval'; renderHeader(); renderEvalView(); },
-        }, 'Start →')));
-
-      const VISIBLE_CAP = 6;
-      const list = h('div', { class: 'asc-dash-list' });
-      tasks.slice(0, VISIBLE_CAP).forEach((t) => list.appendChild(renderTaskCard(t)));
-      main.appendChild(list);
-      const hiddenCount = tasks.length - VISIBLE_CAP;
-      if (hiddenCount > 0) {
-        const moreBtn = h('button', {
-          class: 'asc-dash-more', type: 'button',
           onClick: () => {
-            tasks.slice(VISIBLE_CAP).forEach((t) => list.appendChild(renderTaskCard(t)));
-            moreBtn.remove();
+            state.view = 'eval';
+            renderHeader();
+            if (resumable) openTaskById(resumable.task_id);
+            else renderEvalView();
           },
-        }, 'Show ' + hiddenCount + ' more in your queue ↓');
-        main.appendChild(moreBtn);
-      }
+        }, resumable ? 'Continue →' : 'Start →')));
     }
     cols.appendChild(main);
     const side = h('div', { class: 'asc-dash-side' });
@@ -2042,32 +2297,23 @@
         h('span', { class: 'asc-dash-widget-meta' }, formatRelativeTime(lastAt))));
   }
 
-  function renderTaskCard(t) {
-    const spec = (t.specialty || 'general');
-    const specMeta = ((state.specialties || []).find((s) => s.specialty === spec)) || {};
-    const diff = t.difficulty || 'medium';
-    const isReal = t.case_source === 'real_deid';
-    return h('button', {
-      class: 'asc-dash-card', type: 'button', onClick: () => openTaskById(t.task_id),
-    },
-      h('div', { class: 'asc-dash-card-main' },
-        h('span', { class: 'asc-chip asc-chip-specialty asc-chip-' + (specMeta.accent || 'green') },
-          h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
-          h('span', {}, spec.charAt(0).toUpperCase() + spec.slice(1))),
-        h('span', { class: 'asc-dash-card-meta' },
-          h('span', { class: 'asc-dot ' + (DIFFICULTY_DOT[diff] || 'asc-dot-orange') }), 'Difficulty: ' + diff),
-        t.modality === 'multimodal' ? h('span', { class: 'asc-dash-card-meta' }, 'Multimodal case') : null,
-        isReal ? h('span', { class: 'asc-dash-card-meta' }, 'Real (de-identified)') : null),
-      h('span', { class: 'asc-dash-card-go' }, 'Open →'));
-  }
-
   async function openTaskById(id) {
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
         h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), 'Opening case…'))));
     try {
       const data = await api('/tasks/' + encodeURIComponent(id));
-      if (!data || !data.task) { renderDashboardView(); return; }
+      // A 200 carrying no task is the same fact as a 404 — the server has
+      // nothing under this id — so it gets the same treatment. Returning to the
+      // dashboard while leaving the draft in place would loop the physician
+      // between Continue and the dashboard with no error to explain it, which is
+      // worse than the stranded loading card: at least that one looks broken.
+      if (!data || !data.task) {
+        clearDraft(id);
+        toast('That case is no longer available.', 'error');
+        renderDashboardView();
+        return;
+      }
       state.view = 'eval';
       state.portalChosen = true;
       state.specialtyChosen = true;
@@ -2085,7 +2331,25 @@
       }
       renderTaskWorkspace();
     } catch (e) {
-      if (e.status !== 401) toast('Could not open that case: ' + e.message, 'error');
+      // 401 already took the screen (handleUnauthorized renders the login form).
+      if (e.status === 401) return;
+      // Everything else used to leave the physician looking at "Opening case…"
+      // forever: the loading card had already replaced the whole root, so a
+      // toast with nothing behind it is a dead end. With §4 this is the
+      // dashboard's only button, so it has to land somewhere.
+      //
+      // Gone (404), refused (403) or withdrawn (410) is TERMINAL for this case:
+      // drop its draft, or the dashboard reads it straight back and offers the
+      // same Continue that just failed — an inescapable loop on the one control
+      // the physician has. "Prefer a clean Start over a broken resume" (§4.1)
+      // is exactly this rule, applied one step later.
+      //
+      // Any other failure (5xx, offline, a client-side bug) may well be
+      // transient, so the draft is KEPT and only the screen is restored: a
+      // flaky network must never cost somebody an hour of clinical reasoning.
+      if (e.status === 403 || e.status === 404 || e.status === 410) clearDraft(id);
+      toast('Could not open that case: ' + e.message, 'error');
+      renderDashboardView();
     }
   }
 
@@ -2181,6 +2445,27 @@
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(draftKey(task.task_id)) || 'null'); } catch (e) { draft = null; }
     if (!draft || draft.task_id !== task.task_id) draft = newDraft(task);
+    // ── Structural backfill, BEFORE anything reaches inside these objects ──
+    // Every member backfill below dereferences one of them, so a draft missing
+    // one threw a TypeError right here — and openTaskById caught it, leaving
+    // the physician on "Opening case…" with a toast and no way back. §4 made
+    // that reachable from the ONLY button on the dashboard, so it is no longer
+    // an obscure path.
+    //
+    // A draft can arrive shaped like this: written before one of these fields
+    // existed, or truncated by a quota failure part-way through a write. Repair
+    // it in place rather than discarding it — whatever real work it holds is in
+    // the fields that DID survive, and this is where every other backfill lives.
+    const skeleton = newDraft(task);
+    ['prompt_review', 'independent_answer', 'chosen_revision', 'rejected_critique',
+      'from_scratch', 'decisive_action'].forEach((k) => {
+      if (!draft[k] || typeof draft[k] !== 'object' || Array.isArray(draft[k])) {
+        draft[k] = skeleton[k];
+      }
+    });
+    ['reasoning_steps', 'rubric'].forEach((k) => {
+      if (!Array.isArray(draft[k])) draft[k] = [];
+    });
     // Backfill any newly-added fields for older drafts.
     if (!draft.chosen_revision.evidence_anchor) draft.chosen_revision.evidence_anchor = emptyAnchor();
     if (!draft.from_scratch.evidence_anchor) draft.from_scratch.evidence_anchor = emptyAnchor();
@@ -2222,10 +2507,24 @@
       if (getElapsed() % 5 === 0) saveDraft();
     }, 1000);
   }
+  // Stopping FREEZES the clock: the elapsed at this instant is folded into
+  // baseElapsed and timerStart is cleared. Without that fold, timerStart would
+  // still hold the moment the timer last STARTED, so any later getElapsed() —
+  // a beforeunload save fired from an already-hidden tab, the blur save below,
+  // a re-render of the header timer — would silently add back the whole away
+  // period. That is the exact overcount §5.1 exists to remove, and it is
+  // submitted as time_spent_sec, so it is not cosmetic.
   function stopTimer() {
     if (state.timerInterval) { clearInterval(state.timerInterval); state.timerInterval = null; }
+    if (state.timerStart != null) {
+      state.baseElapsed = getElapsed();
+      state.timerStart = null;
+    }
   }
   function getElapsed() {
+    // Stopped clock: baseElapsed IS the elapsed. Never measure against a
+    // timerStart that no longer refers to a running interval.
+    if (state.timerStart == null) return Math.floor(state.baseElapsed);
     return Math.floor(state.baseElapsed + (Date.now() - state.timerStart) / 1000);
   }
   function formatTime(sec) {
@@ -2235,10 +2534,58 @@
   function saveDraft() {
     if (!state.draft) return;
     state.draft.elapsedSec = getElapsed();
+    // §4.1 needs "the newest draft" to be an answerable question: findResumableDraft
+    // picks between several stored drafts by this stamp.
+    state.draft.savedAt = Date.now();
     try { localStorage.setItem(draftKey(state.draft.task_id), JSON.stringify(state.draft)); } catch (e) { /* ignore quota */ }
+  }
+
+  /** The newest draft whose task is still in the served queue, or null.
+   *
+   *  A draft for a task that has since been claimed, expired, or fell out of
+   *  the queue must NOT offer a Continue that dead-ends — openTaskById would
+   *  bounce them back to the dashboard. Prefer a clean Start over a broken
+   *  resume, so the queue is the filter.
+   *
+   *  The tutorial's own draft is excluded: the practice case is replayed from
+   *  the help menu, never resumed as if it were paid work. It is not in the
+   *  served queue either, so this is belt and braces.
+   *
+   *  Known bound: `tasks` is the dashboard's own /tasks/available page, which
+   *  the server caps (default 50, priority-ordered). A physician with a deeper
+   *  queue than that whose in-progress task ranks below the page is offered
+   *  Start rather than Continue. Nothing is lost — the draft stays on disk and
+   *  resumes the moment that task is opened again — and the alternative, a
+   *  second request per dashboard load to re-check one task id, is a cost every
+   *  physician pays for a case very few will hit. */
+  function findResumableDraft(tasks) {
+    const ids = new Set((tasks || []).map((t) => t && t.task_id).filter(Boolean));
+    let best = null;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf(DRAFT_PREFIX) !== 0) continue;
+        const id = k.slice(DRAFT_PREFIX.length);
+        if (id === TUTORIAL_TASK_ID || !ids.has(id)) continue;
+        let d = null;
+        try { d = JSON.parse(localStorage.getItem(k) || 'null'); } catch (_) { d = null; }
+        // A corrupt or foreign entry under our prefix is skipped, not fatal:
+        // one unparseable key must not cost the physician a resumable case.
+        if (!d || d.task_id !== id) continue;
+        if (!best || (d.savedAt || 0) > (best.savedAt || 0)) best = d;
+      }
+    } catch (_) { return null; }
+    return best;
   }
   function clearDraft(taskId) {
     try { localStorage.removeItem(draftKey(taskId)); } catch (e) { /* ignore */ }
+    // …and drop the in-memory copy, or the next saveDraft() writes the key
+    // straight back. After a submit, state.draft still points at the finished
+    // draft until the next task replaces it, and three things fire in that
+    // window: the blur save, the tab-hide save, and beforeunload. A submitted
+    // case resurrected as a stored draft would then be offered as a Continue
+    // (§4.1) and leave a key behind that nothing ever cleans up.
+    if (state.draft && state.draft.task_id === taskId) state.draft = null;
   }
 
   // ─── Portal version (V1 classic · V2 assisted · V3 seamless) ────────────────
@@ -2314,40 +2661,6 @@
     return ((c && c.specialty) || (state.task && state.task.specialty) || 'nephrology').toLowerCase();
   }
 
-  // Per-specialty case-panel layout: ONE code path, config not a render fork
-  // (PRD §6). Each entry is an ordered list of tab specs; a tab appears only when
-  // its data exists. ``study`` groups the case's ``studies`` by modality; ``strip``
-  // renders a scannable ECG findings block; ``timeline`` renders imaging as a
-  // baseline→on-treatment sequence; ``ngs`` renders molecular variants as a VAF table.
-  const SPECIALTY_UI = {
-    nephrology: [
-      { kind: 'overview' },
-      { kind: 'labs', label: 'Labs (trend)' },
-      { kind: 'study', key: 'studies', label: 'Studies', modalities: ['pathology', 'ct', 'mri', 'pet', 'echo', 'other'] },
-      { kind: 'notes' }, { kind: 'meds' }, { kind: 'vitals' },
-    ],
-    cardiology: [
-      { kind: 'overview' },
-      { kind: 'study', key: 'ecg', label: 'ECG', modalities: ['ecg'], strip: true },
-      { kind: 'study', key: 'echoimg', label: 'Echo/Imaging', modalities: ['echo', 'cath', 'ct', 'mri', 'pet'] },
-      { kind: 'labs', label: 'Labs' },
-      { kind: 'notes' }, { kind: 'meds' }, { kind: 'vitals' },
-    ],
-    oncology: [
-      { kind: 'overview' },
-      { kind: 'study', key: 'pathology', label: 'Pathology', modalities: ['pathology'] },
-      { kind: 'study', key: 'imaging', label: 'Imaging', modalities: ['ct', 'mri', 'pet'], timeline: true },
-      { kind: 'study', key: 'molecular', label: 'Molecular', modalities: ['molecular'], ngs: true },
-      { kind: 'labs', label: 'Labs' },
-      { kind: 'notes' }, { kind: 'meds' }, { kind: 'vitals' },
-    ],
-  };
-  const DEFAULT_SPECIALTY_UI = SPECIALTY_UI.nephrology;
-  // Modality → short chip label for the modality chips in a study tab.
-  const MODALITY_LABEL = {
-    ecg: 'ECG', echo: 'Echo', cath: 'Cath', ct: 'CT', mri: 'MRI', pet: 'PET',
-    pathology: 'Pathology', molecular: 'Molecular', other: 'Study',
-  };
   // The version a task is graded under: pinned onto the draft when the doctor
   // leaves Stage 1 (so a switch mid-task can't produce a half-assisted record);
   // until then it mirrors the live selection.
@@ -2385,79 +2698,6 @@
     return head.replace(/^CLINICAL QUESTION:\s*/i, '').trim() || s.trim();
   }
 
-  // Lab out-of-range flag → severity class for cell highlighting.
-  function labFlagClass(flag) {
-    const f = String(flag || '').toUpperCase();
-    if (f === 'LL' || f === 'HH') return 'asc-lab-crit';
-    if (f === 'L' || f === 'H') return 'asc-lab-warn';
-    return '';
-  }
-  function fmtOffset(off) {
-    const n = parseInt(off, 10) || 0;
-    if (n === 0) return 'day 0';
-    return 'day ' + (n > 0 ? '+' : '') + n;
-  }
-
-  // A trend table across all lab panels: one row per analyte, one column per
-  // distinct collection offset (oldest → newest), so a clinician reads the
-  // trajectory (e.g. a falling sodium) at a glance. Cells are flag-highlighted.
-  function renderLabsTrend(panels) {
-    const ps = (panels || []).slice().sort(
-      (a, b) => (parseInt(a.collected_offset_days, 10) || 0) - (parseInt(b.collected_offset_days, 10) || 0));
-    if (!ps.length) return null;
-    const offsets = [];
-    ps.forEach((p) => { const o = parseInt(p.collected_offset_days, 10) || 0; if (offsets.indexOf(o) === -1) offsets.push(o); });
-    // analyte order = first-seen; carry unit + ref range + which panel.
-    const order = [];
-    const meta = {};
-    const cell = {}; // analyte -> offset -> {value, flag}
-    ps.forEach((p) => {
-      const off = parseInt(p.collected_offset_days, 10) || 0;
-      (p.results || []).forEach((r) => {
-        const a = String(r.analyte || '');
-        if (!a) return;
-        if (order.indexOf(a) === -1) { order.push(a); meta[a] = { unit: r.unit || '', ref: refRange(r), panel: p.panel || '' }; }
-        cell[a] = cell[a] || {};
-        cell[a][off] = { value: r.value, flag: r.flag };
-      });
-    });
-    const head = h('tr', {},
-      h('th', {}, 'Analyte'),
-      h('th', {}, 'Ref'),
-      ...offsets.map((o) => h('th', { class: 'asc-lab-num' }, fmtOffset(o))));
-    const rows = order.map((a) => h('tr', {},
-      h('td', { class: 'asc-lab-analyte' }, a + (meta[a].unit ? ' (' + meta[a].unit + ')' : '')),
-      h('td', { class: 'asc-lab-ref' }, meta[a].ref),
-      ...offsets.map((o) => {
-        const c = (cell[a] || {})[o];
-        if (!c || c.value == null || c.value === '') return h('td', { class: 'asc-lab-num' }, '·');
-        return h('td', { class: 'asc-lab-num ' + labFlagClass(c.flag) },
-          String(c.value) + (c.flag ? ' ' + String(c.flag).toUpperCase() : ''));
-      })));
-    return h('div', { class: 'asc-lab-scroll' },
-      h('table', { class: 'asc-lab-table' }, h('thead', {}, head), h('tbody', {}, ...rows)));
-  }
-  function refRange(r) {
-    const lo = (r.ref_low === null || r.ref_low === undefined) ? '' : r.ref_low;
-    const hi = (r.ref_high === null || r.ref_high === undefined) ? '' : r.ref_high;
-    if (lo === '' && hi === '') return 'n/a';
-    return lo + '–' + hi;
-  }
-
-  // A compact measurements/variants table (reuses the lab flag classes) for a
-  // study's numeric findings: EF %, valve gradient, SUVmax, molecular VAF, etc.
-  function renderMeasurements(measurements, valueHead) {
-    const ms = (measurements || []).filter((m) => m && m.analyte);
-    if (!ms.length) return null;
-    const head = h('tr', {}, h('th', {}, valueHead || 'Measure'), h('th', { class: 'asc-lab-num' }, 'Value'),
-      h('th', {}, 'Ref'));
-    const rows = ms.map((m) => h('tr', {},
-      h('td', { class: 'asc-lab-analyte' }, String(m.analyte) + (m.unit ? ' (' + m.unit + ')' : '')),
-      h('td', { class: 'asc-lab-num ' + labFlagClass(m.flag) }, String(m.value == null ? '·' : m.value) + (m.flag ? ' ' + String(m.flag).toUpperCase() : '')),
-      h('td', { class: 'asc-lab-ref' }, refRange(m))));
-    return h('div', { class: 'asc-lab-scroll' },
-      h('table', { class: 'asc-lab-table' }, h('thead', {}, head), h('tbody', {}, ...rows)));
-  }
 
   // Fetch a cleaned image asset over the AUTHENTICATED endpoint (Bearer token, an
   // <img src> can't carry it, so we fetch a blob and use an object URL). Blinding
@@ -2471,230 +2711,38 @@
     return URL.createObjectURL(blob);
   }
 
-  // The V4 image viewer (V4 Image Embedding PRD §6): the image renders ABOVE its
-  // structured findings, with zoom (scroll / ＋－), pan (drag), fit/reset, and a
-  // full-screen toggle, keyboard-operable (＋/－/0, arrows, Esc). One component,
-  // design-tokens only, with a real load-failure state (never a broken-image icon).
-  function renderStudyImage(study) {
-    if (!study || !study.asset || !study.asset.asset_id) return null;
-    const asset = study.asset;
-    const pageCount = parseInt(asset.page_count, 10) || 1;
-    const shownPage = parseInt(asset.page, 10) || 1;
-    const view = { scale: 1, x: 0, y: 0 };
-    const wrap = h('div', { class: 'asc-img-viewer' });
-    const stage = h('div', { class: 'asc-img-stage', tabindex: '0', role: 'img',
-      'aria-label': (study.label || study.modality || 'clinical') + ' image' });
-    const img = h('img', { class: 'asc-img', alt: (study.label || study.modality || 'clinical image'), draggable: 'false' });
-    const skeleton = h('div', { class: 'asc-img-skeleton' }, h('div', { class: 'loading-spinner' }));
-    stage.appendChild(skeleton);
-    // Track the blob URL so it is revoked (no leaked decoded-image memory over a
-    // long grading session). Cleaned up on load, on error/reload, and on teardown.
-    let objUrl = null;
-    function revoke() { if (objUrl) { try { URL.revokeObjectURL(objUrl); } catch (e) { /* ignore */ } objUrl = null; } }
-
-    function apply() {
-      img.style.transform = 'translate(' + view.x + 'px,' + view.y + 'px) scale(' + view.scale + ')';
-    }
-    function zoom(delta) {
-      const next = Math.min(8, Math.max(1, view.scale + delta));
-      view.scale = next;
-      if (next === 1) { view.x = 0; view.y = 0; }
-      apply();
-    }
-    function reset() { view.scale = 1; view.x = 0; view.y = 0; apply(); }
-
-    // Zoom on scroll; pan on drag. The pan listeners live on `window` ONLY for the
-    // duration of a drag (added on mousedown, removed on mouseup) so they never
-    // accumulate across cases/tabs; the stage-scoped listeners are GC'd with the node.
-    stage.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 0.25 : -0.25); }, { passive: false });
-    let drag = null;
-    function onMove(e) { if (!drag) return; view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; apply(); }
-    function onUp() { drag = null; stage.classList.remove('asc-img-grabbing');
-      window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); }
-    stage.addEventListener('mousedown', (e) => {
-      drag = { x: e.clientX - view.x, y: e.clientY - view.y };
-      stage.classList.add('asc-img-grabbing');
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    });
-    // Keyboard: +/- zoom, 0 reset, arrows pan, Esc exit full-screen.
-    stage.addEventListener('keydown', (e) => {
-      const step = 40;
-      if (e.key === '+' || e.key === '=') { zoom(0.25); }
-      else if (e.key === '-' || e.key === '_') { zoom(-0.25); }
-      else if (e.key === '0') { reset(); }
-      else if (e.key === 'ArrowLeft') { view.x += step; apply(); }
-      else if (e.key === 'ArrowRight') { view.x -= step; apply(); }
-      else if (e.key === 'ArrowUp') { view.y += step; apply(); }
-      else if (e.key === 'ArrowDown') { view.y -= step; apply(); }
-      else if (e.key === 'Escape') { if (wrap.classList.contains('asc-img-full')) toggleFull(); return; }
-      else { return; }
-      e.preventDefault();
-    });
-    function toggleFull() { wrap.classList.toggle('asc-img-full'); reset(); stage.focus(); }
-
-    const toolbar = h('div', { class: 'asc-img-toolbar' },
-      h('button', { class: 'asc-img-btn', type: 'button', title: 'Zoom out (−)', onClick: () => zoom(-0.25) }, '−'),
-      h('button', { class: 'asc-img-btn', type: 'button', title: 'Zoom in (+)', onClick: () => zoom(0.25) }, '＋'),
-      h('button', { class: 'asc-img-btn', type: 'button', title: 'Reset view (0)', onClick: reset }, 'Reset'),
-      h('button', { class: 'asc-img-btn', type: 'button', title: 'Full screen', onClick: toggleFull }, '⤢'));
-    // Multi-page PDF: the ingested asset is a SINGLE rendered page (page N of the
-    // source), so we show an honest static indicator, never non-functional nav
-    // buttons that would let a clinician believe they are viewing a page that isn't
-    // loaded. (Per-page fetch is a follow-up; the endpoint serves one page today.)
-    if (pageCount > 1) {
-      toolbar.appendChild(h('span', { class: 'asc-img-page' }, 'Page ' + shownPage + ' of ' + pageCount));
-    }
-
-    stage.appendChild(img);
-    wrap.appendChild(toolbar);
-    wrap.appendChild(stage);
-
-    // Load the bytes. On failure show a real error state with a reload; the doctor
-    // must NEVER grade a case whose image didn't render (PRD §6).
-    fetchAssetBlobUrl(asset.asset_id).then((url) => {
-      objUrl = url;
-      // Revoke once decoded. The browser keeps the rendered image; frees the blob.
-      img.onload = () => { if (skeleton.parentNode) skeleton.parentNode.removeChild(skeleton); apply(); revoke(); };
-      img.onerror = () => { revoke(); showError(); };
-      img.src = url;
-    }).catch(() => showError());
-    function showError() {
-      revoke();
-      onUp();  // ensure any in-flight drag listeners are removed
-      clear(stage);
-      stage.appendChild(h('div', { class: 'asc-img-error' },
-        h('div', {}, 'Could not load the image.'),
-        h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
-          onClick: () => { const p = wrap.parentNode; if (p) { const fresh = renderStudyImage(study); p.replaceChild(fresh, wrap); } } }, 'Reload')));
-    }
-    return wrap;
+  // The tabbed case panel — DELEGATED, not implemented here (PRD-1 §2.2).
+  //
+  // The chart itself lives in ``case_panel.js`` and is rendered by the SAME
+  // component on the reviewer's surface. It used to live in this file, which is
+  // why review had to invent its own — a `JSON.stringify` inside a collapsed
+  // <details>. A reviewer and a labeler disagreeing because they read
+  // differently-rendered versions of one chart is a data-integrity bug, so the
+  // panel is shared rather than forked.
+  //
+  // Active-tab memory moved into the module with it, keyed by task id.
+  function casePanelCtx() {
+    return { h, clear, fetchAssetBlobUrl };
   }
-
-  // One study rendered inside its tab: the image first (if any), then the modality
-  // chip, the structured findings report (as a scannable "rhythm strip" block for an
-  // ECG), the numeric measurements table, and the impression. This is the grounding
-  // anchor the model is supposed to read, surfaced prominently (PRD §3/§6).
-  function renderStudyCard(study, opts) {
-    opts = opts || {};
-    const modality = String(study.modality || 'study').toLowerCase();
-    const chipLabel = MODALITY_LABEL[modality] || modality.toUpperCase();
-    const findings = (study.findings || '').trim();
-    const isNgs = opts.ngs || modality === 'molecular';
-    return h('div', { class: 'asc-study' },
-      h('div', { class: 'asc-study-head' },
-        h('span', { class: 'asc-chip asc-chip-modality' },
-          h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
-          h('span', {}, chipLabel)),
-        study.label ? h('span', { class: 'asc-study-label' }, study.label) : null),
-      renderStudyImage(study),
-      findings
-        ? (opts.strip
-            ? h('div', { class: 'asc-ecg-strip' }, h('div', { class: 'asc-ecg-strip-text' }, findings))
-            : h('div', { class: 'asc-study-findings' }, findings))
-        : null,
-      renderMeasurements(study.measurements, isNgs ? 'Variant' : 'Measure'),
-      study.impression ? h('div', { class: 'asc-study-impression' }, h('strong', {}, 'Impression: '), study.impression) : null);
-  }
-
-  // Build a study tab body from the case's ``studies`` filtered to ``modalities``.
-  // ``timeline`` lays the studies out as a baseline→on-treatment sequence (the
-  // temporal judgment pseudoprogression turns on, PRD §6).
-  function renderStudyTab(studies, spec) {
-    const mods = spec.modalities;
-    const items = (studies || []).filter((s) => s && (!mods || mods.indexOf(String(s.modality || '').toLowerCase()) !== -1));
-    if (!items.length) return null;
-    if (spec.timeline && items.length) {
-      return h('div', { class: 'asc-case-body' },
-        h('div', { class: 'asc-timeline' }, ...items.map((s, i) => h('div', { class: 'asc-timeline-step' },
-          h('div', { class: 'asc-timeline-marker', 'aria-hidden': 'true' }),
-          renderStudyCard(s, spec)))));
-    }
-    return h('div', { class: 'asc-case-body' }, ...items.map((s) => renderStudyCard(s, spec)));
-  }
-
-  // The tabbed case panel. Tabs are built only for sections that carry data, driven
-  // by the per-specialty ``SPECIALTY_UI`` config (one code path, never a render fork
-  // per specialty, PRD §6). State (active tab) lives on ``state._caseTab`` keyed by
-  // task so it survives re-renders within a task.
   function renderCasePanel() {
     const c = multimodalCase();
     if (!c) return null;
-    const spec = caseSpecialty();
-    const ui = SPECIALTY_UI[spec] || DEFAULT_SPECIALTY_UI;
-    const demo = c.demographics || {};
-    const who = [demo.sex, demo.age_band ? ('age ' + demo.age_band) : null].filter(Boolean).join(', ');
-    const meds = c.medications || [];
-    const vitals = c.vitals || {};
-    const vkeys = Object.keys(vitals).filter((k) => vitals[k] !== null && vitals[k] !== undefined && vitals[k] !== '');
-    const studies = c.studies || [];
-
-    const tabs = [];
-    ui.forEach((t) => {
-      if (t.kind === 'overview') {
-        tabs.push({ key: 'overview', label: 'Patient', body: h('div', { class: 'asc-case-body' },
-          h('div', { class: 'asc-case-patient' }, who ? ('Patient: ' + who) : 'Patient (de-identified)'),
-          (c.problem_list && c.problem_list.length)
-            ? h('div', { class: 'asc-case-sub' }, 'Active problems: ' + c.problem_list.map((p) => p.condition + (p.since ? ' (since ' + p.since + ')' : '')).join('; '))
-            : null,
-          h('div', { class: 'asc-case-note-meta' }, 'De-identified · relative dates · structured studies')) });
-      } else if (t.kind === 'labs' && c.lab_panels && c.lab_panels.length) {
-        tabs.push({ key: 'labs', label: t.label || 'Labs', body: h('div', { class: 'asc-case-body' }, renderLabsTrend(c.lab_panels)) });
-      } else if (t.kind === 'study') {
-        const body = renderStudyTab(studies, t);
-        if (body) tabs.push({ key: t.key, label: t.label, body: body });
-      } else if (t.kind === 'notes' && c.notes && c.notes.length) {
-        tabs.push({ key: 'notes', label: 'EHR' + (c.notes.length > 1 ? ' (' + c.notes.length + ')' : ''),
-          body: h('div', { class: 'asc-case-body' }, ...c.notes.map((n) => h('div', { class: 'asc-case-note' },
-            h('div', { class: 'asc-case-note-meta' }, '[' + (n.note_type || 'Note') + ' · ' + (n.author_role || 'clinician') + ']'),
-            h('div', { class: 'asc-case-note-text' }, (n.text || '').trim())))) });
-      } else if (t.kind === 'meds' && meds.length) {
-        tabs.push({ key: 'meds', label: 'Meds', body: h('div', { class: 'asc-case-body' },
-          h('ul', { class: 'asc-case-list' }, ...meds.map((m) => h('li', {},
-            [m.drug, m.dose, m.route, m.freq].filter(Boolean).join(' '))))) });
-      } else if (t.kind === 'vitals' && vkeys.length) {
-        tabs.push({ key: 'vitals', label: 'Vitals', body: h('div', { class: 'asc-case-body' },
-          h('div', { class: 'asc-case-vitals' }, ...vkeys.map((k) => h('span', { class: 'asc-vital' },
-            h('span', { class: 'asc-vital-k' }, k), ' ', h('span', { class: 'asc-vital-v' }, String(vitals[k])))))) });
-      }
-    });
-    if (!tabs.length) return null;
-
-    const tid = state.task && state.task.task_id;
-    if (!state._caseTab || state._caseTabTask !== tid) { state._caseTab = tabs[0].key; state._caseTabTask = tid; }
-    if (!tabs.some((t) => t.key === state._caseTab)) state._caseTab = tabs[0].key;
-
-    const bodyHost = h('div', { class: 'asc-case-host' });
-    const tabRow = h('div', { class: 'asc-case-tabs', role: 'tablist', dataset: { tour: 'case-tabs' } });
-    function paint() {
-      clear(bodyHost);
-      const active = tabs.find((t) => t.key === state._caseTab) || tabs[0];
-      bodyHost.appendChild(active.body);
-      Array.prototype.forEach.call(tabRow.children, (btn) => {
-        btn.classList.toggle('asc-case-tab-active', btn.getAttribute('data-tab') === state._caseTab);
-      });
+    const mod = window.AsclepiusCasePanel;
+    if (!mod || typeof mod.render !== 'function') {
+      // A missing module is a VISIBLE failure. A physician must never grade a
+      // multimodal case whose chart silently did not render — the case panel is
+      // the evidence, and its absence looks identical to a text-only task.
+      return h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' },
+          'The clinical chart failed to load: refresh the page. Do not grade '
+          + 'this case from the question alone.')));
     }
-    tabs.forEach((t) => {
-      const btn = h('button', { class: 'asc-case-tab', type: 'button', role: 'tab', 'data-tab': t.key,
-        onClick: () => { state._caseTab = t.key; paint(); } }, t.label);
-      tabRow.appendChild(btn);
+    return mod.render(casePanelCtx(), {
+      case: c,
+      specialty: caseSpecialty(),
+      specialties: state.specialties,
+      tabKey: (state.task && state.task.task_id) || '',
     });
-
-    // Specialty chip (deterministic color: nephrology green, cardiology orange,
-    // oncology pink; PRD §6). Accent comes from the cached /specialties listing so
-    // a new specialty needs no frontend change.
-    const specMeta = ((state.specialties || []).find((s) => s.specialty === spec)) || {};
-    const specChip = h('span', { class: 'asc-chip asc-chip-specialty asc-chip-' + (specMeta.accent || 'green') },
-      h('span', { class: 'asc-chip-dot', 'aria-hidden': 'true' }),
-      h('span', {}, spec.charAt(0).toUpperCase() + spec.slice(1)));
-    const panel = h('div', { class: 'asc-card asc-case-card' },
-      h('div', { class: 'asc-case-head' },
-        specChip,
-        h('span', { class: 'asc-badge asc-badge-accent' }, 'Multimodal case'),
-        h('span', { class: 'asc-case-source' }, (c.case_source === 'real_deid' ? 'Real (de-identified)' : 'Synthetic'))),
-      tabRow, bodyHost);
-    paint();
-    return panel;
   }
 
   // ─── Grounding (mirror of backend validation.grounding_status) ──────────────
@@ -3397,12 +3445,12 @@
         : null);
   }
 
-  // ─── §6 semantic case-tag chips (V3/V4) ─────────────────────────────────────
-  // Consistent, meaningful color from the console palette (no blue, it left
-  // with the design-system migration): a stable hue per specialty, semantic
-  // difficulty (hard=pink, medium=orange, easy=green), lime=multimodal,
-  // orange=reasoning (model), pink=grounding (attention). Color always pairs
-  // with the text label, never the sole carrier.
+  // ─── Specialty accent dots ──────────────────────────────────────────────────
+  // A stable hue per specialty from the console palette (no blue, it left with
+  // the design-system migration). Color always pairs with the text label, never
+  // the sole carrier. This used to also drive the case-tag chip bar above the
+  // clinical question; that bar is gone (§7) and the specialty picker is the
+  // remaining consumer.
   // Kept in step with SpecialtyConfig.accent in backend/asclepius/specialties.py.
   // Hepatology shares nephrology's green — the palette has no fifth token and
   // the dot never carries the meaning alone; it always sits beside the label.
@@ -3418,11 +3466,6 @@
     for (let i = 0; i < s.length; i++) acc = (acc + s.charCodeAt(i)) % 997;
     return _SPECIALTY_CYCLE[acc % _SPECIALTY_CYCLE.length];
   }
-  const DIFFICULTY_DOT = { hard: 'asc-dot-pink', medium: 'asc-dot-orange', easy: 'asc-dot-green' };
-  function metaChip(label, dotClass, title) {
-    return h('span', { class: 'asc-meta-chip', title: title || null },
-      h('span', { class: 'asc-meta-chip-dot ' + dotClass, 'aria-hidden': 'true' }), label);
-  }
 
   function renderTaskWorkspace() {
     const task = state.task;
@@ -3434,41 +3477,44 @@
     // the prompt card carries only the clinical QUESTION (parsed out of the
     // rendered prompt); no duplicated wall of serialized case text.
     const promptText = caseObj ? caseQuestion(task.prompt) : (task.prompt || '');
-    const diff = (task.difficulty || 'medium');
-    // §6: V3/V4 get the semantic dot chips; V1/V2 keep the muted badges as-is.
-    const metaRow = isV3()
-      ? h('div', { class: 'asc-meta-row' },
-          metaChip(task.specialty || 'general', specialtyDot(task.specialty),
-            'Specialty: same specialty, same color, always'),
-          metaChip('Difficulty: ' + diff, DIFFICULTY_DOT[diff] || 'asc-dot-orange',
-            'hard = pink · medium = orange · easy = green'),
-          caseObj ? metaChip('Multimodal case', 'asc-dot-lime') : null,
-          task.capture_reasoning ? metaChip('Reasoning capture', 'asc-dot-orange',
-            'This task captures the model’s step-by-step reasoning') : null,
-          required ? metaChip('Grounding required', 'asc-dot-pink',
-            'Evidence citations are required on this task') : null)
-      : h('div', { class: 'asc-meta-row' },
-          h('span', { class: 'asc-badge asc-badge-primary' }, task.specialty || 'general'),
-          h('span', { class: 'asc-badge asc-badge-gray' }, 'Difficulty: ' + (task.difficulty || 'medium')),
-          caseObj ? h('span', { class: 'asc-badge asc-badge-accent' }, 'Multimodal case') : null,
-          task.capture_reasoning ? h('span', { class: 'asc-badge asc-badge-accent' }, 'Reasoning capture') : null,
-          required ? h('span', { class: 'asc-badge asc-badge-amber' }, 'Grounding required') : null,
-        );
+    // §7: no metadata chip bar above the question. Specialty, difficulty,
+    // modality and capture mode are OUR routing vocabulary, not the
+    // physician's. They arrived because a physician chose from a queue and
+    // needed to compare cases; with one-button entry (§4) there is nothing to
+    // compare, and telling a specialist "Difficulty: hard" before they read the
+    // chart primes the answer.
     const promptCard = h('div', { class: 'asc-card asc-prompt-card' },
       h('div', { class: 'asc-card-pad' },
-        metaRow,
         h('div', { class: 'asc-prompt-label' }, caseObj ? 'Clinical question' : 'Clinical prompt'),
         h('div', { class: 'asc-prompt-text' }, promptText),
       ));
 
-    // Grounding disclaimer banner (required mode only)
+    // Grounding disclaimer banner (required mode only).
+    //
+    // `Grounding required` was one of the chips deleted above, which makes this
+    // banner the ONLY warning a physician gets before submit refuses them. It
+    // was gated on `task.grounding_disclaimer` as well as on the requirement —
+    // so the warning depended on a field the client does not control.
+    //
+    // Today that field is safe: routers/asclepius.py sends the
+    // GROUNDED_PREMIUM_DISCLAIMER constant for every required task, so it is
+    // never empty on the wire and this gate has nothing to catch yet. It is
+    // widened anyway, because "the only warning" must not be one server-side
+    // refactor away from disappearing — the day the disclaimer becomes
+    // per-task or nullable, the warning stays.
+    //
+    // The requirement itself is unchanged: groundingSatisfied() still enforces
+    // it at submit, so neither the chip nor this banner could ever let a bad
+    // submission through — this is about warning them in time, not the gate.
     let groundingBanner = null;
-    if (required && task.grounding_disclaimer) {
+    if (required) {
       groundingBanner = h('div', { class: 'asc-grounding-banner' },
         h('div', { class: 'asc-gb-icon', 'aria-hidden': 'true' }),
         h('div', {},
           h('div', { class: 'asc-gb-title' }, 'Evidence required for this task'),
-          h('div', { class: 'asc-gb-text' }, task.grounding_disclaimer),
+          h('div', { class: 'asc-gb-text' },
+            task.grounding_disclaimer
+              || 'Every claim in your answer needs a citation anchored to the case.'),
         ));
     }
 
@@ -7471,6 +7517,12 @@
      fails, which is the right fallback -- a broken-image glyph on somebody's
      own face is a worse outcome than the two letters they started with. */
   const avatarBlobCache = {};
+  // Requests still in flight, keyed by url. Before §3 this path ran once, when
+  // the profile page opened. It now runs on every renderSidePanel() — i.e. on
+  // every navigation — so without in-flight de-duplication a physician clicking
+  // through the rail fires several concurrent fetches for the same picture, and
+  // every one that resolves mints another object URL that nothing revokes.
+  const avatarBlobPending = {};
   function avatarImgEl(url, initials) {
     const img = h('img', { class: 'asc-me-avatar-img', alt: '' });
     const fallback = h('span', { class: 'asc-me-avatar-initials' }, initials);
@@ -7486,7 +7538,8 @@
 
   function loadAvatarBlob(url) {
     if (avatarBlobCache[url]) return Promise.resolve(avatarBlobCache[url]);
-    return fetch(url, {
+    if (avatarBlobPending[url]) return avatarBlobPending[url];
+    const inflight = fetch(url, {
       headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
     }).then((res) => (res.ok ? res.blob() : null))
       .then((blob) => {
@@ -7496,6 +7549,12 @@
         return objectUrl;
       })
       .catch(() => null);
+    // Cleared either way: a failed fetch must be retryable on the next render,
+    // and a successful one is answered from avatarBlobCache from here on.
+    avatarBlobPending[url] = inflight;
+    inflight.then(() => { delete avatarBlobPending[url]; },
+                  () => { delete avatarBlobPending[url]; });
+    return inflight;
   }
 
   function fallbackInitials(name) {
@@ -7503,6 +7562,15 @@
     if (!parts.length) return '?';
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  /** Carry an avatar change from the profile page into the session, then
+   *  repaint the rail so both surfaces agree immediately. Both /me/avatar
+   *  responses return the same `avatar` block; a missing url means "cleared". */
+  function syncSessionAvatar(res) {
+    if (!state.user) return;
+    state.user.avatar_url = (res && res.avatar && res.avatar.url) || null;
+    renderSidePanel();
   }
 
   function uploadAvatar(wrap, status, blob) {
@@ -7517,7 +7585,11 @@
     form.append('file', blob);
     // isForm: the api() helper JSON-stringifies a body and stamps a JSON
     // Content-Type otherwise, which would destroy the multipart boundary.
-    api('/me/avatar', { method: 'POST', body: form, isForm: true }).then(() => {
+    api('/me/avatar', { method: 'POST', body: form, isForm: true }).then((res) => {
+      // The rail avatar (§3) reads state.user, which the SESSION payload filled
+      // at sign-in. Without this the physician would see their new photo on the
+      // profile and their old initials in the rail until the next page load.
+      syncSessionAvatar(res);
       renderProfileView();
     }).catch((err) => {
       wrap.classList.remove('is-busy');
@@ -7535,7 +7607,8 @@
     wrap.classList.add('is-busy');
     status.className = 'asc-me-avatar-status';
     status.textContent = 'Removing…';
-    api('/me/avatar', { method: 'DELETE' }).then(() => {
+    api('/me/avatar', { method: 'DELETE' }).then((res) => {
+      syncSessionAvatar(res);
       renderProfileView();
     }).catch((err) => {
       wrap.classList.remove('is-busy');
@@ -10921,9 +10994,34 @@
     else if (e.key === '3') { e.preventDefault(); selectVerdict('both_inadequate'); }
   });
 
-  // Persist draft on tab close / hide.
+  // ─── Session continuity: the clock only runs while somebody is there ───────
+  //
+  // The timer used to keep ticking on a hidden tab, and getElapsed() is what
+  // becomes `time_spent_sec` on the submission and what the admin per-case view
+  // reads. A case left open overnight billed the night.
+  //
+  // Tab hidden is the honest "not working" signal. Window BLUR is not: a
+  // physician clicking to a second monitor, a PDF or a reference is still
+  // working, and pausing there would undercount real effort. So blur saves and
+  // nothing else.
   window.addEventListener('beforeunload', saveDraft);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      // Order matters: save FIRST (getElapsed is still measuring a running
+      // clock), then stop. Stopping first would be harmless now that stopTimer
+      // folds the elapsed into baseElapsed, but this order keeps the intent
+      // legible and does not depend on that.
+      saveDraft();
+      stopTimer();
+    } else if (state.draft && state.task && state.view === 'eval') {
+      // Rebase from the SAVED value, which is what makes the away time vanish.
+      // Gated on an actually-open task: a leftover draft on the dashboard or on
+      // the empty-queue screen must not start a clock nobody is watching, which
+      // would then have its 5s autosave inflate that draft's elapsed.
+      startTimer(state.draft.elapsedSec || 0);
+    }
+  });
+  window.addEventListener('blur', () => { if (state.draft) saveDraft(); });
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  Tutorial: Calibration Case 1 (first-run guided practice case)
