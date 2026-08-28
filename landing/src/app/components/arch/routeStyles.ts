@@ -628,6 +628,50 @@ export const routeStyles = `
 .arch-landing .earn-way .per { font-size: 0.42em; color: var(--ink-faint); letter-spacing: 0; }
 .arch-landing .earn-way .label { color: var(--ink-soft); margin-top: 0.15rem; }
 
+/* The honesty furniture under the pay figure. Mono chrome is wayfinding here as
+   everywhere: the qualifier reads as a label ON the number, not as a footnote
+   hidden below it, so it cannot be skimmed past on the way to "$300". */
+.arch-landing .earn-way .pay-qualifier {
+  color: var(--ink-faint);
+  margin-top: -0.15rem;
+}
+/* Factors, not fine print. Same ink as .label, hairline ticks instead of
+   bullets so the list stays inside the system's "zero black fills" law. */
+.arch-landing .rate-factors {
+  list-style: none;
+  margin: 0.1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.arch-landing .rate-factors li {
+  position: relative;
+  padding-left: 0.95rem;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.arch-landing .rate-factors li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 0.45rem;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+/* Sits a step back from the bounty terms above it: same role as .rate-factors
+   opposite, so the two columns stay the equal weight .earn-grid intends. */
+.arch-landing .earn-way .refer-eligible {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--hairline);
+  max-width: 24rem;
+}
+
 .arch-landing .steps-strip { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: clamp(1.8rem, 4vh, 2.6rem); }
 .arch-landing .steps-strip::before {
   content: '';

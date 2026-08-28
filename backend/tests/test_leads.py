@@ -103,3 +103,31 @@ def test_honeypot_silently_dropped(client, store):
     assert r.status_code == 200
     assert r.json() == {"ok": True}
     assert _count(store) == 0
+
+
+def test_health_system_partner_lead_stored(client, store):
+    """The /partner one-pager link. Its six answers arrive folded into one
+    labelled `message`, so the endpoint needs no schema change — only the new
+    source label, which is what this asserts is actually wired."""
+    r = client.post(
+        "/api/leads",
+        json={
+            "source": "health_system_partner",
+            "email": "d.reyes@stmarys.org",
+            "message": (
+                "Health system:\nSt Mary's Health\n\n"
+                "Their role:\nCMIO\n\n"
+                "Data they hold:\nEpic, ~12 years of nephrology encounters."
+            ),
+        },
+    )
+    assert r.status_code == 200
+    assert _count(store) == 1
+    with store._conn() as conn:
+        row = conn.execute(
+            "SELECT source, email FROM lead_submissions ORDER BY rowid DESC LIMIT 1"
+        ).fetchone()
+    # Stored under its own source so the health-system pipeline stays separable
+    # from the generic provide_data one.
+    assert row[0] == "health_system_partner"
+    assert row[1] == "d.reyes@stmarys.org"

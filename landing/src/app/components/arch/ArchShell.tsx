@@ -38,7 +38,7 @@ export const ARCH_PATHS: ArchPath[] = ["/", "/research", "/data", "/health-syste
 const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   "/": {
     title: "Archangel Health · Infrastructure to Power Medical AI",
-    desc: "A network of hundreds of board-certified physicians behind 20+ clinical data products, plus fully bespoke collection. Training data for clinical and medical AI.",
+    desc: "A network of hundreds of credentialed physicians behind 20+ clinical data products, plus fully bespoke collection. Training data for clinical and medical AI.",
   },
   "/research": {
     title: "Research · Archangel Health",
@@ -54,7 +54,7 @@ const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   },
   "/physicians": {
     title: "Physicians & experts · Archangel Health",
-    desc: "Work through real de-identified cases, judge AI reasoning, and earn $150–$300+/hour for your expertise.",
+    desc: "Work through real de-identified cases and judge AI reasoning. Typically $150–$300+/hour, set per case. Open to physicians worldwide, including retired doctors and those in training.",
   },
   "/mission": {
     title: "Mission · Archangel Health",

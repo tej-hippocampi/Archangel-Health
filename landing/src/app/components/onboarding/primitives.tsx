@@ -81,9 +81,18 @@ export function Brandmark({ size = "md" }: { size?: BrandmarkSize }) {
    ChromeHeader — sticky top bar with brandmark + help/exit.
    ───────────────────────────────────────────────────────────── */
 
-export function ChromeHeader({ onExit, helpHref = "mailto:tejpatel@archangelhealth.ai" }: {
+export function ChromeHeader({
+  onExit,
+  helpHref = "mailto:tejpatel@archangelhealth.ai",
+  /* "Save & exit" is true of the wizard, which resumes from server state, and
+     false of the single-screen pages built on these primitives: nothing there
+     is saved, so the label promises something that will not happen. Defaulted,
+     so every existing caller keeps the wizard wording. */
+  exitLabel = "Save & exit",
+}: {
   onExit?: () => void;
   helpHref?: string;
+  exitLabel?: string;
 }) {
   return (
     <header
@@ -127,7 +136,7 @@ export function ChromeHeader({ onExit, helpHref = "mailto:tejpatel@archangelheal
             borderRadius: 9999,
           }}
         >
-          Save & exit
+          {exitLabel}
         </button>
       </div>
     </header>

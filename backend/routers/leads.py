@@ -25,6 +25,11 @@ _SOURCE_LABELS = {
     "request_data": "Request products · AI lab / buyer",
     "provide_data": "Provide data · data provider",
     "research_notify": "Research notify · publication list",
+    # /partner — the link on the health-system one-pager. Six labelled answers
+    # arrive folded into `message`, because the point of that page is to make the
+    # intro call start from something real. Its own label so the health-system
+    # pipeline is separable from the generic "provide data" one in an inbox.
+    "health_system_partner": "Partner interest · health system",
 }
 
 _LEAD_SOURCES = tuple(_SOURCE_LABELS.keys())
