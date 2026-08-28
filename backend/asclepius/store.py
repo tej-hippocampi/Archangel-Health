@@ -2856,6 +2856,38 @@ class AsclepiusStore:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
 
+    def backfill_tier_on_role_restore(self, user_id: str, *, by: str) -> Optional[str]:
+        """Give a newly-restored physician the default tier, if they have none.
+
+        The boot migration assigns ``labeler`` to any tier-less account whose role
+        is evaluator/qa_reviewer and whose verification is approved or unset. An
+        account that was filed under an operator role was excluded from it — so
+        moving the role back leaves them tier-less, and a NULL tier fails the LABEL
+        capability: they are on the roster, look correct, and still cannot draw a
+        single case. Applying the same rule at the moment they become an evaluator
+        is what makes the repair one action instead of two, the second of which
+        nothing on screen asks for.
+
+        Returns the tier assigned, or None when nothing needed doing."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT role, tier, verification_status FROM users WHERE id = ?",
+                (user_id,)).fetchone()
+            if row is None or row["tier"]:
+                return None
+            if (row["role"] or "") not in ("evaluator", "qa_reviewer"):
+                return None
+            # Same exclusion as the migration: pending/rejected cannot label
+            # anyway, so a tier would grant nothing and would report a decision
+            # nobody made.
+            if (row["verification_status"] or None) not in (None, "approved"):
+                return None
+            conn.execute(
+                "UPDATE users SET tier = 'labeler', tier_assigned_at = ?, "
+                "tier_assigned_by = ? WHERE id = ?",
+                (_utcnow_iso(), by, user_id))
+        return "labeler"
+
     def count_active_admins(self, *, excluding: Optional[str] = None) -> int:
         """How many active admins are there besides ``excluding``?
 
@@ -3522,7 +3554,12 @@ class AsclepiusStore:
                 # would leave the demo login unable to draw a case.
                 tier="labeler",
             )
-            self.set_real_data_approved(u["id"], bool(real_data_approved))
+            # Explicit source: the default is "admin", which ``sync_real_data_approval``
+            # treats as a HUMAN decision and never touches again. Letting the mock
+            # account default into that would permanently pin it outside the policy
+            # that manages every other account.
+            self.set_real_data_approved(u["id"], bool(real_data_approved),
+                                        source="auto:mock_contributor")
             return self.get_user_by_id(u["id"])  # type: ignore[return-value]
         with self._conn() as conn:
             conn.execute(

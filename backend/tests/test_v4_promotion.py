@@ -1772,3 +1772,138 @@ def test_a_plain_physician_is_not_accused_of_an_env_pin(monkeypatch):
     assert rep["physician"]["pinned_admin_by_env"] is False
     assert rep["blockers"] == [] and rep["notes"] == []
     assert rep["can_see_real_cases"] is True
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CAUSE 8 — a physician filed under an operator role is INVISIBLE, not mislabelled
+#
+# The Physicians roster is `role == 'evaluator'`. The verification queue and the
+# tier backfill filter the same way. So an account whose row says role='admin'
+# appears on no screen an operator has: it cannot be approved, cannot be tiered,
+# and cannot be moved back, because every control that would do it lives on a row
+# that is never rendered. It also never gets real-data approval — that follows
+# APPROVED + LABELING — so the portal serves it synthetic cases forever.
+#
+# The self-serve director onboarding provisioned role="admin" until it was
+# changed to "evaluator". The code fix did not repair the rows already written,
+# and nothing surfaced them.
+# ═════════════════════════════════════════════════════════════════════════════
+def _doctor_filed_as_admin(st, specialty="nephrology"):
+    u = A.make_user(st, role="admin", specialty=specialty,
+                    board_cert=f"board_certified_{specialty}", years_experience=15)
+    st.set_verification_status(u["id"], "approved")
+    return st.get_user_by_id(u["id"])
+
+
+def test_a_doctor_filed_as_admin_is_absent_from_the_roster():
+    """The defect itself, pinned: not a cosmetic mislabel — an absence."""
+    st = _store()
+    doc = _doctor_filed_as_admin(st)
+    body = client.get("/api/asclepius/admin/physicians", headers=_admin_h()).json()
+    assert doc["email"] not in [p["email"] for p in body["physicians"]]
+
+
+def test_but_the_console_now_says_the_account_exists_and_why():
+    st = _store()
+    doc = _doctor_filed_as_admin(st)
+    body = client.get("/api/asclepius/admin/physicians", headers=_admin_h()).json()
+    row = next((m for m in body["misfiled_physicians"] if m["email"] == doc["email"]), None)
+    assert row is not None, "the account is still invisible on every screen"
+    assert row["role"] == "admin"
+    assert body["misfiled_count"] >= 1
+    # Named evidence, so the operator can judge rather than trust the screen.
+    assert "specialty" in row["physician_markers"]
+    assert "verification_status" in row["physician_markers"]
+
+
+def test_a_real_operator_is_not_flagged_as_a_misfiled_doctor():
+    """The card must not accuse every admin of being a doctor, or it becomes
+    noise an operator learns to scroll past."""
+    st = _store()
+    A.make_user(st, role="admin")           # a plain operator: no clinical markers
+    body = client.get("/api/asclepius/admin/physicians", headers=_admin_h()).json()
+    assert body["misfiled_count"] == 0, body["misfiled_physicians"]
+
+
+def test_the_mock_contributor_is_never_listed_as_misfiled():
+    st = _store()
+    from asclepius.auth import ensure_mock_contributor
+    ensure_mock_contributor(st)
+    body = client.get("/api/asclepius/admin/physicians", headers=_admin_h()).json()
+    assert all(not (m["email"] or "").startswith("mock")
+               for m in body["misfiled_physicians"]), body["misfiled_physicians"]
+
+
+def test_moving_the_account_back_restores_the_roster_and_the_real_cases():
+    """The whole repair, through the console's own routes — this is the path the
+    card's button drives, and it must end with the doctor holding real cases."""
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True, reconcile_visibility=True)
+    admin_h = _admin_h()
+    doc = _doctor_filed_as_admin(st)
+
+    before = client.get(f"/api/asclepius/admin/real-case-access?email={doc['email']}",
+                        headers=admin_h).json()
+    assert before["physician"]["role"] == "admin"
+
+    r = client.post(f"/api/asclepius/admin/users/{doc['id']}/role",
+                    json={"role": "evaluator"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    # One action, not two: the role move also restores the tier the boot backfill
+    # skipped and re-runs the real-data policy, so the doctor can actually work.
+    assert r.json()["tier"] == "labeler"
+    assert r.json()["tier_assigned"] == "labeler"
+    assert r.json()["real_data_approved"] is True
+
+    body = client.get("/api/asclepius/admin/physicians", headers=admin_h).json()
+    assert doc["email"] in [p["email"] for p in body["physicians"]], "still not on the roster"
+    assert body["misfiled_count"] == 0
+
+    after = client.get(f"/api/asclepius/admin/real-case-access?email={doc['email']}",
+                       headers=admin_h).json()
+    assert after["can_see_real_cases"] is True, after["blockers"]
+    assert len(after["real_cases_they_can_draw"]) == 3
+    assert after["blockers"] == []
+
+
+def test_the_mock_contributors_approval_is_not_pinned_as_a_human_decision():
+    """set_real_data_approved defaults to source='admin', which the sync treats as
+    a human decision and never revisits. The mock account defaulting into that
+    would pin it permanently outside the policy managing everyone else."""
+    st = _store()
+    from asclepius.auth import ensure_mock_contributor
+    u = ensure_mock_contributor(st)
+    if u is None:
+        pytest.skip("mock contributor disabled in this environment")
+    row = st.get_user_by_id(u["id"])
+    assert (row.get("real_data_approval_source") or "").startswith("auto:"), (
+        row.get("real_data_approval_source"))
+
+
+def test_the_role_restore_does_not_invent_a_tier_for_a_rejected_account():
+    """The tier backfill's own exclusion, kept: pending and rejected cannot label,
+    so a tier would grant nothing and would report a decision nobody made."""
+    st = _store()
+    admin_h = _admin_h()
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    st.set_verification_status(doc["id"], "rejected")
+    r = client.post(f"/api/asclepius/admin/users/{doc['id']}/role",
+                    json={"role": "evaluator"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    assert r.json()["tier_assigned"] is None
+    assert st.get_user_by_id(doc["id"])["tier"] is None
+
+
+def test_the_role_restore_never_overwrites_a_tier_someone_decided():
+    st = _store()
+    admin_h = _admin_h()
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    st.set_verification_status(doc["id"], "approved")
+    st.record_verification_decision(
+        user_id=doc["id"], status="approved", decided_by="a@b.c", tier="reviewer")
+    r = client.post(f"/api/asclepius/admin/users/{doc['id']}/role",
+                    json={"role": "evaluator"}, headers=admin_h)
+    assert r.json()["tier_assigned"] is None
+    assert st.get_user_by_id(doc["id"])["tier"] == "reviewer"

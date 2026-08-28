@@ -347,6 +347,10 @@
     clear(container);
     container.appendChild(tabStrip(ctx, approved.length, pendingRows.length,
                                    approvedErr, pendingErr));
+    // Above the tabs on purpose: an account in here is invisible in BOTH of
+    // them, so a banner inside a tab would be hidden by the same bug it reports.
+    const misfiled = misfiledCard(ctx, container);
+    if (misfiled) container.appendChild(misfiled);
 
     if (activeTab === 'pending') {
       if (pendingErr) {
@@ -364,6 +368,74 @@
       return;
     }
     renderApprovedTab(container, ctx, approved);
+  }
+
+  /* ─── Physician credentials filed under an operator role ──────────────────
+   *
+   * The roster is `role === 'evaluator'`. An account whose row says
+   * `role = 'admin'` is therefore not mislabelled, it is ABSENT — and so is it
+   * from the verification queue and the tier backfill, which filter the same
+   * way. A doctor in that state cannot be approved, tiered, or moved back,
+   * because every control that would do it lives on a row that is not rendered.
+   * They also never get real-data approval (it follows APPROVED + LABELING),
+   * so the portal quietly serves them synthetic cases forever.
+   *
+   * The self-serve director onboarding provisioned `role="admin"` until it was
+   * changed to `"evaluator"`; the code fix did not repair the rows it had
+   * already written. This card is where those rows become visible, with the one
+   * action that fixes them.  */
+  function misfiledCard(ctx, container) {
+    const { h } = ctx;
+    const rows = ((cache || {}).misfiled_physicians) || [];
+    if (!rows.length) return null;
+    const list = h('div', { class: 'asc-misfiled-rows' });
+    rows.forEach((p) => list.appendChild(misfiledRow(ctx, p, container)));
+    return h('div', { class: 'asc-card asc-misfiled' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-chrome' }, 'Filed under the wrong role'),
+      h('h3', {}, rows.length === 1
+        ? 'One account has a physician\u2019s credentials and an operator\u2019s role.'
+        : rows.length + ' accounts have physician credentials and an operator role.'),
+      h('p', {},
+        'They do not appear in the roster or the verification queue, so they '
+        + 'cannot be approved, tiered, or given real cases from this console. '
+        + 'Moving one to \u201cphysician\u201d puts it back in the roster below, '
+        + 'where it can be verified and tiered like any other doctor.'),
+      list));
+  }
+
+  function misfiledRow(ctx, p, container) {
+    const { h, api } = ctx;
+    const status = h('span', { class: 'asc-misfiled-status' }, '');
+    const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button' },
+      'Move to physician');
+    btn.onclick = async () => {
+      btn.disabled = true;
+      status.textContent = 'Moving\u2026';
+      try {
+        await api('/admin/users/' + encodeURIComponent(p.id) + '/role',
+                  { method: 'POST', body: { role: 'evaluator' } });
+        // Re-render rather than patch the row: it now belongs in the roster
+        // below, and a half-updated screen is how an operator ends up trusting a
+        // stale one. Same entry point the tabs themselves use.
+        await renderTabs(container, ctx);
+      } catch (e) {
+        btn.disabled = false;
+        // Self-demotion is refused by the server on purpose; say which case this
+        // is rather than showing a bare failure.
+        status.textContent = errText(e);
+        status.classList.add('asc-inline-error');
+      }
+    };
+    const bits = [p.role ? 'role: ' + p.role : null,
+                  p.specialty || null,
+                  p.verification_status ? 'verification: ' + p.verification_status
+                                        : 'never verified',
+                  p.tier ? 'tier: ' + p.tier : 'no tier'].filter(Boolean);
+    return h('div', { class: 'asc-misfiled-row' },
+      h('div', {},
+        h('div', { class: 'asc-misfiled-email' }, p.email || p.name || p.id),
+        h('div', { class: 'asc-misfiled-meta' }, bits.join(' \u00b7 '))),
+      h('div', { class: 'asc-misfiled-act' }, status, btn));
   }
 
   function errText(e) {
