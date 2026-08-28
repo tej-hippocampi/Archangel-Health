@@ -88,6 +88,7 @@ irrelevant unless a rate changes inside that window.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
@@ -1202,6 +1203,53 @@ def _verdict_status(verdicts: Optional[str]) -> Optional[str]:
     return None
 
 
+def _payout_amount(rate_cents: int, multiplier: float) -> int:
+    """The payable amount for a case. One definition, in payout.py, so a
+    fractional cent resolves the same way everywhere and resolves in the
+    physician's favour."""
+    from asclepius import payout as _payout  # noqa: PLC0415
+
+    return _payout.amount_for(rate_cents, multiplier)
+
+
+def _quality_terms(store, submission_id: str, verdicts: Optional[str]) -> Dict[str, Any]:
+    """The payout multiplier for one case, from what has already been stamped.
+
+    Reads the case-quality stamp written at grade time rather than recomputing
+    it. Two reasons. The stamp carries the coefficient version that produced it,
+    so a case graded under older rules keeps its number. And this sweep runs on
+    every Earnings page load; recomputing a score here would put a per-row walk
+    of a physician's submissions inside their page render.
+
+    Never raises. A quality-lookup problem must not stop a physician accruing:
+    the fallback is a multiplier of 1.0, which pays the full posted rate.
+    """
+    from asclepius import payout as _payout  # noqa: PLC0415 — pure, import-light
+
+    quality = None
+    try:
+        stamped = store.submission_quality(submission_id)
+        if stamped:
+            quality = stamped.get("score")
+    except Exception:  # noqa: BLE001
+        log.warning("payments: could not read case quality for %s; paying full rate",
+                    submission_id, exc_info=True)
+
+    seen = {v.strip() for v in (verdicts or "").split(",") if v.strip()}
+    # The WORST verdict decides, matching _verdict_status and
+    # contributor_score._outcome_for: a case one reviewer accepted and another
+    # corrected is a disagreement, not a clean accept.
+    if "reject" in seen:
+        worst = "reject"
+    elif "accept_with_edits" in seen:
+        worst = "accept_with_edits"
+    elif "accept" in seen:
+        worst = "accept"
+    else:
+        worst = None
+    return _payout.quality_multiplier(quality_score=quality, review_verdict=worst)
+
+
 def reconcile_task_accruals(
     store, *, user_id: Optional[str] = None, limit: int = 2000,
     now: Optional[datetime] = None,
@@ -1242,13 +1290,32 @@ def reconcile_task_accruals(
         # sweep noticed it — otherwise a backfill would restart every auto-approve
         # clock and a doctor's ledger would be dated by our deploy schedule.
         accrued_at = _ledger_ts(_parse(row.get("created_at")) or now)
+        # A rejected case is VOIDED, not reduced: it pays nothing, and running a
+        # multiplier over it would both mean nothing and misreport the voided
+        # amount. The quality adjustment only ever applies to work we are paying
+        # for.
+        terms = (None if implied == VOID
+                 else _quality_terms(store, ref, row.get("review_verdicts")))
+        amount = rate if terms is None else _payout_amount(rate, terms["multiplier"])
+        # A row the algorithm wants to pay LESS than the posted rate is a
+        # proposal, not a decision. It stays accrued and held until an admin
+        # acts, even when the verdict would otherwise approve it: an automated
+        # pay cut and a proposed cut a person approves are different objects.
+        held = bool(terms and terms["proposed"])
         written = store.insert_earning(
             earning_id=_new_id("earn"), user_id=row["evaluator_id"], kind=KIND_TASK,
-            ref_id=ref, amount_cents=rate, rate_cents=rate,
-            status=implied or ACCRUED, accrued_at=accrued_at,
-            resolved_at=_ledger_ts(now) if implied else None,
+            ref_id=ref, amount_cents=amount, rate_cents=rate,
+            status=(implied if (implied and not held) else (VOID if implied == VOID else ACCRUED)),
+            accrued_at=accrued_at,
+            resolved_at=_ledger_ts(now) if (implied and not held) else None,
             note=_reject_note(row) if implied == VOID else None,
         )
+        if written is not None and terms is not None:
+            store.set_earning_quality(
+                written["earning_id"], multiplier=terms["multiplier"],
+                reasons=terms["reasons"], version=terms["version"],
+                hold=held and written["status"] != VOID,
+            )
         if written is not None:
             counts["accrued"] += 1
             if written["status"] == APPROVED:
@@ -1265,6 +1332,28 @@ def reconcile_task_accruals(
         ref = row["submission_id"]
         status = row["status"]
         implied = _verdict_status(row.get("review_verdicts"))
+        # The verdict has landed, so the case now has a graded quality number
+        # that it may not have had when the row was written. Recompute the terms
+        # and restamp the amount while the row is still ACCRUED (never once it
+        # is approved or paid: that is the restatement this design refuses).
+        if status == ACCRUED and implied != VOID:
+            terms = _quality_terms(store, ref, row.get("review_verdicts"))
+            # The row's OWN stamped rate, never the current env rate. The rate
+            # in force at accrual is what this row is worth, and recomputing
+            # from today's env var would restate an accrual every time the
+            # posted rate changed. That guarantee predates this feature and is
+            # pinned by test_the_rate_is_read_from_env_and_stamped_on_the_row.
+            row_rate = int(row.get("rate_cents") or rate)
+            store.set_earning_quality(
+                row["earning_id"], multiplier=terms["multiplier"],
+                reasons=terms["reasons"], version=terms["version"],
+                hold=bool(terms["proposed"]),
+                amount_cents=_payout_amount(row_rate, terms["multiplier"]),
+            )
+            if terms["proposed"]:
+                # Held for a human. The verdict does not approve it.
+                counts["quality_held"] = counts.get("quality_held", 0) + 1
+                continue
         if implied == APPROVED and status in (ACCRUED, VOID):
             if store.resolve_earning(kind=KIND_TASK, ref_id=ref, status=APPROVED,
                                      resolved_at=_ledger_ts(now),
@@ -1663,6 +1752,21 @@ def _line(
     }
 
 
+def _quality_reasons(row: Any) -> Optional[List[str]]:
+    """The itemization stored on a ledger row, or None."""
+    try:
+        raw = row["quality_reasons_json"] if "quality_reasons_json" in row.keys() else None
+    except (TypeError, AttributeError):
+        raw = None
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return None
+    return [str(x) for x in parsed] if isinstance(parsed, list) else None
+
+
 def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
     """Everything the Earnings page shows, for ONE physician.
 
@@ -1724,6 +1828,17 @@ def earnings_summary(store, *, user_id: str, limit: int = 50) -> Dict[str, Any]:
             "note": r["note"],
             "payout_batch_id": r["payout_batch_id"],
             "detail": None,
+            # Why this row is worth what it is worth. A silent deduction is the
+            # worst possible version of this feature: a physician watching a
+            # number go down with no reason attached learns only that the number
+            # can go down. Present on every row, including the ones paid at full
+            # rate, so the explanation is not itself a signal that something is
+            # wrong.
+            "quality_multiplier": r["quality_multiplier"] if "quality_multiplier" in r.keys() else None,
+            "quality_reasons": _quality_reasons(r),
+            # "We are still deciding" is honest, and it is better than a number
+            # that silently changes under them later.
+            "awaiting_review": bool(r["quality_hold"]) if "quality_hold" in r.keys() else False,
         }
         if r["kind"] == KIND_REVIEW_SESSION:
             s = sessions.get(r["ref_id"])

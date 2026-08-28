@@ -1996,6 +1996,32 @@ class AsclepiusStore:
             for _col in ("void_reason", "voided_by", "voided_at"):
                 if _col not in cols("earnings"):
                     conn.execute(f"ALTER TABLE earnings ADD COLUMN {_col} TEXT")
+            # ─── Quality-adjusted pay ────────────────────────────────────────
+            # The multiplier applied to the rate, WHY it was applied, and which
+            # ruleset produced it. Stamped for the same reason rate_cents is
+            # stamped at accrual: a tuned coefficient must never restate a row
+            # a physician has already been paid for and been given a reason for.
+            #
+            # ``quality_hold`` is the human gate. It is set when the computed
+            # multiplier is below 1.0, and while it is set the row does NOT
+            # auto-approve and a verdict does not approve it either. An admin
+            # decides. An algorithm that applies a pay cut on its own is a
+            # materially different object from one that proposes a cut a person
+            # approves, and this column is the difference.
+            earn_cols = cols("earnings")
+            if "quality_multiplier" not in earn_cols:
+                conn.execute("ALTER TABLE earnings ADD COLUMN quality_multiplier REAL")
+            if "quality_reasons_json" not in earn_cols:
+                conn.execute("ALTER TABLE earnings ADD COLUMN quality_reasons_json TEXT")
+            if "payout_version" not in earn_cols:
+                conn.execute("ALTER TABLE earnings ADD COLUMN payout_version TEXT")
+            # No DEFAULT, same rule as every other decision column here: NULL
+            # reads as "never held", not as a decision nobody made.
+            if "quality_hold" not in earn_cols:
+                conn.execute("ALTER TABLE earnings ADD COLUMN quality_hold INTEGER")
+            for _col in ("quality_released_by", "quality_released_at"):
+                if _col not in earn_cols:
+                    conn.execute(f"ALTER TABLE earnings ADD COLUMN {_col} TEXT")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_earnings_user ON earnings(user_id, status)")
             # Reconciling a disbursement against the ledger is the first thing
@@ -2869,6 +2895,84 @@ class AsclepiusStore:
         return [dict(r) for r in rows]
 
     # ─── Case quality (internal metric, stamped) ─────────────────────────────
+    def set_earning_quality(
+        self, earning_id: str, *, multiplier: float, reasons: List[str],
+        version: str, hold: bool, amount_cents: Optional[int] = None,
+    ) -> bool:
+        """Record the quality adjustment on one ledger row, and its hold state.
+
+        Refuses to touch a row that is no longer ``accrued``. An approved or
+        paid row has been decided and, in the paid case, the money has left; a
+        recomputed multiplier landing on it would restate something a physician
+        has already been told and possibly banked. Same rule as ``rate_cents``,
+        which is stamped at accrual and never revisited.
+
+        ``hold`` is the human gate: while it is set, neither a verdict nor the
+        auto-approve sweep may approve the row.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT status FROM earnings WHERE earning_id = ?", (earning_id,)
+            ).fetchone()
+            if not row or row["status"] != "accrued":
+                return False
+            if amount_cents is None:
+                conn.execute(
+                    "UPDATE earnings SET quality_multiplier = ?, quality_reasons_json = ?, "
+                    "payout_version = ?, quality_hold = ? WHERE earning_id = ?",
+                    (float(multiplier), json.dumps(list(reasons)), version,
+                     1 if hold else 0, earning_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE earnings SET quality_multiplier = ?, quality_reasons_json = ?, "
+                    "payout_version = ?, quality_hold = ?, amount_cents = ? "
+                    "WHERE earning_id = ?",
+                    (float(multiplier), json.dumps(list(reasons)), version,
+                     1 if hold else 0, int(amount_cents), earning_id),
+                )
+            return True
+
+    def release_earning_hold(
+        self, earning_id: str, *, by: str, pay_full_rate: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """An admin decides a held row. Returns the updated row, or None.
+
+        ``pay_full_rate`` overrides the proposed reduction and pays the posted
+        rate: the algorithm proposed, and a person may disagree with it. Either
+        way the decision is attributed and timestamped, because reducing a
+        physician's pay is consequential and an unattributable reduction cannot
+        be appealed. Same shape as the void columns above it.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM earnings WHERE earning_id = ?", (earning_id,)
+            ).fetchone()
+            if not row or row["status"] != "accrued" or not row["quality_hold"]:
+                return None
+            amount = int(row["rate_cents"]) if pay_full_rate else int(row["amount_cents"])
+            conn.execute(
+                "UPDATE earnings SET quality_hold = 0, amount_cents = ?, "
+                "quality_released_by = ?, quality_released_at = ? WHERE earning_id = ?",
+                (amount, by, _utcnow_iso(), earning_id),
+            )
+            updated = conn.execute(
+                "SELECT * FROM earnings WHERE earning_id = ?", (earning_id,)
+            ).fetchone()
+            return dict(updated) if updated else None
+
+    def held_earnings(
+        self, *, user_id: Optional[str] = None, limit: int = 500
+    ) -> List[Dict[str, Any]]:
+        """Rows waiting on a human to decide a proposed reduction."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM earnings WHERE quality_hold = 1 AND status = 'accrued' "
+                "AND (? IS NULL OR user_id = ?) ORDER BY accrued_at ASC LIMIT ?",
+                (user_id, user_id, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def stamp_submission_quality(
         self, submission_id: str, *, score: float, components: Dict[str, Any],
         version: str,
@@ -9697,8 +9801,10 @@ class AsclepiusStore:
             rows = conn.execute(
                 """
                 SELECT e.ref_id AS submission_id,
+                       e.earning_id,
                        e.user_id,
                        e.status,
+                       e.rate_cents,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = e.ref_id
                             OR cr.pair_sub_a   = e.ref_id
@@ -9747,7 +9853,14 @@ class AsclepiusStore:
         own Earnings read is entitled to touch. The unscoped form is the admin
         sweep, and it has to keep existing: the fourteen-day promise cannot depend
         on the physician remembering to open the page."""
-        sql = "SELECT * FROM earnings WHERE status = 'accrued' AND accrued_at < ?"
+        # A row HELD for a human decision is excluded. The fourteen-day promise
+        # is "a labeler is never held hostage by a review backlog"; it is not
+        # "an unreviewed pay reduction applies itself after a fortnight". A held
+        # row is waiting on a person, and letting the sweep approve it would turn
+        # the proposal this whole mechanism is built around into an automated
+        # pay cut with a two-week fuse.
+        sql = ("SELECT * FROM earnings WHERE status = 'accrued' AND accrued_at < ? "
+               "AND (quality_hold IS NULL OR quality_hold = 0)")
         params: List[Any] = [cutoff_iso]
         if user_id:
             sql += " AND user_id = ?"

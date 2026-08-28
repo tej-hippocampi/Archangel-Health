@@ -2395,7 +2395,7 @@ export function Step6Attestations({
         checked={a.attestWorkQuality}
         onToggle={() => set({ attestWorkQuality: !a.attestWorkQuality })}
         title="Work is paid when it meets the rubric"
-        body="I understand that each case is reviewed, and that work which does not follow the rubric, or is rushed or incomplete, may not be paid. If a case is not paid I will be told which one and why, and I can ask for it to be looked at again."
+        body="I understand that each case is reviewed, and that work which does not follow the rubric, or is rushed or incomplete, may be paid at a reduced rate or, if it is unusable, not paid at all. A reduction is decided by a person, never automatically, and it is never below 60% of the posted rate for a case I completed. If a case is reduced or not paid I will be told which one and why, and I can ask for it to be looked at again."
       />
       <CheckRow
         checked={a.ipAssignment}
