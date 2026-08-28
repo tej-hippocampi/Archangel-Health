@@ -1098,24 +1098,50 @@ def _insert_tasks_from_dicts(
 
 
 async def _notify_new_tasks(
-    store: Any, background_tasks: BackgroundTasks, created: List[Dict[str, Any]], *, admin_id: str,
+    store: Any, background_tasks: Optional[BackgroundTasks], created: List[Dict[str, Any]],
+    *, admin_id: str,
 ) -> None:
     """Enqueue the outbox rows synchronously (fast), then drain in the
     background so the admin's request never blocks on ~1000 emails. Also
-    posts a one-line announcement to #task-announcements (in-app, plus the
-    channel's existing digest-email fan-out) — cheap enough to do inline.
+    posts the in-app announcements (general room plus each affected specialty
+    room) — cheap enough to do inline.
 
     Awaited rather than bridged through a worker-thread loop: the announcement
     ends in a WebSocket broadcast, and the hub's sockets belong to this loop.
+
+    ``background_tasks`` is optional. The outbox is durable and a periodic loop
+    drains it (``main._asclepius_task_notify_loop``), so a caller with no
+    request-scoped handle still gets its mail sent; passing one only makes the
+    send prompt instead of waiting for the next tick.
     """
     if not created:
         return
     batch_id = uuid.uuid4().hex
     asc_task_notify.enqueue_for_batch(store, batch_id=batch_id, created_tasks=created)
-    background_tasks.add_task(asc_task_notify.drain_outbox, store)
+    if background_tasks is not None:
+        background_tasks.add_task(asc_task_notify.drain_outbox, store)
     await asc_task_notify.post_community_announcement(
         store, admin_user_id=admin_id, created_tasks=created
     )
+
+
+def _notifiable(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Reduce inserted task rows to what notification needs.
+
+    Accepts the full task dicts the insert paths return and keeps only
+    ``task_id`` and ``specialty``, dropping anything without both. Written so
+    the five previously-silent insert paths can each hand over whatever shape
+    they already have.
+    """
+    out: List[Dict[str, Any]] = []
+    for t in tasks or []:
+        if not isinstance(t, dict):
+            continue
+        task_id = t.get("task_id")
+        specialty = (t.get("specialty") or "").strip()
+        if task_id and specialty:
+            out.append({"task_id": task_id, "specialty": specialty})
+    return out
 
 
 @router.post("/tasks")
@@ -1214,7 +1240,8 @@ def _parse_csv_tasks(raw: str) -> List[Dict[str, Any]]:
 
 @router.post("/tasks/generate")
 async def generate_task(
-    body: CandidateGenRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+    body: CandidateGenRequest, background_tasks: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Generate two candidate answers via the LLM and store them as a task."""
     if not (body.prompt or "").strip():
@@ -1240,6 +1267,9 @@ async def generate_task(
     store.log_event(
         entity_type="task", entity_id=task["task_id"], event_type="task_generated", actor=admin["id"]
     )
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable([task]), admin_id=admin["id"]
+    )
     return {"task_id": task["task_id"]}
 
 
@@ -1263,6 +1293,7 @@ async def load_v4_real_cases(
                           "follow ASCLEPIUS_V4_OPEN_TO_ALL (default on), which is "
                           "what the boot seeder uses; pass it explicitly to "
                           "override for this call."),
+    background_tasks: BackgroundTasks = None,  # noqa: RUF013 — FastAPI injects it
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Load the three V4 REAL de-identified cases as ``partner_ehr`` tasks
@@ -1308,6 +1339,16 @@ async def load_v4_real_cases(
                  "revisited": res.get("revisited", 0),
                  "open_to_all_specialties": open_all},
     )
+    # ``task_ids`` accumulates only cases created on THIS call (the loader
+    # appends alongside its ``loaded`` counter), so a re-run that loads nothing
+    # announces nothing. The boot seeder calls load_v4_cases directly rather
+    # than through this route, so starting the process never mails anyone.
+    if res.get("task_ids"):
+        rows = [store.get_task(tid) for tid in res["task_ids"]]
+        await _notify_new_tasks(
+            store, background_tasks, _notifiable([r for r in rows if r]),
+            admin_id=admin["id"],
+        )
     return res
 
 
@@ -4108,7 +4149,8 @@ async def set_buyer_request_status(
 
 @router.post("/buyer-requests/{request_id}/batch")
 async def batch_from_request(
-    request_id: str, body: BatchFromRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+    request_id: str, body: BatchFromRequest, background_tasks: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Spin up a task batch from a buyer request in one step (opt §2.5).
 
@@ -4133,6 +4175,7 @@ async def batch_from_request(
     # Prompts: those uploaded on the request + any passed at batch time.
     uploaded = list(req.get("uploaded") or []) + [t.model_dump() for t in body.prompts]
     created: List[str] = []
+    created_rows: List[Dict[str, Any]] = []
 
     for t in uploaded:
         prompt = (t.get("prompt") or "").strip()
@@ -4152,6 +4195,7 @@ async def batch_from_request(
             created_by=admin["id"],
         )
         created.append(task["task_id"])
+        created_rows.append(task)
 
     # Constraints-only: invoke the Seedmaker engine to generate ``count`` validated
     # tasks (prompt + 2 candidates) grounded in the seed corpus, stamped to this
@@ -4170,7 +4214,11 @@ async def batch_from_request(
                 buyer_request_id=request_id,
                 created_by=admin["id"],
             )
-            created.extend(gen_summary.get("created") or [])
+            gen_ids = gen_summary.get("created") or []
+            created.extend(gen_ids)
+            # generate_tasks was invoked with one specialty, so every id it
+            # returns carries it; no per-row lookup needed.
+            created_rows.extend({"task_id": tid, "specialty": specialty} for tid in gen_ids)
         except asc_specialties.SpecialtyNotEnabled as exc:
             raise HTTPException(status_code=400, detail={"error": "specialty_not_enabled", "message": str(exc)})
         except asc_generation.GenerationDisabled as exc:
@@ -4180,6 +4228,9 @@ async def batch_from_request(
     store.log_event(
         entity_type="buyer_request", entity_id=request_id, event_type="batch_created",
         actor=admin["id"], payload={"count": len(created)},
+    )
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable(created_rows), admin_id=admin["id"]
     )
     out = {"request_id": request_id, "created": created, "count": len(created)}
     if gen_summary is not None:
@@ -5232,6 +5283,7 @@ def _commit_promoted_task(
 @router.post("/ingestion/cases/{ingest_case_id}/promote")
 async def promote_ingest_case(
     ingest_case_id: str, body: PromoteCaseRequest,
+    background_tasks: BackgroundTasks,
     dry_run: bool = False,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
@@ -5347,6 +5399,11 @@ async def promote_ingest_case(
         store, ic, conv, admin, max_labels=body.max_labels,
         grounding_mode=body.grounding_mode, independent_mode=body.independent_mode,
         open_to_all_specialties=body.open_to_all_specialties)
+    # A real de-identified chart is the highest-value case we produce, and until
+    # now promoting one told nobody: no email, no room post, no broadcast.
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable([task]), admin_id=admin["id"]
+    )
     return {"task_id": task["task_id"], "case_source": task.get("case_source"),
             "modality": task.get("modality"),
             "open_to_all_specialties": bool(task.get("open_to_all_specialties"))}
@@ -5428,6 +5485,7 @@ async def prepare_upload_promotion(
 @router.post("/ingestion/uploads/{upload_id}/promote-all")
 async def promote_upload_all(
     upload_id: str, body: UploadPromoteRequest,
+    background_tasks: BackgroundTasks,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Step 2 of the upload-scoped promote: after the admin approved the sample,
@@ -5464,6 +5522,7 @@ async def promote_upload_all(
                   "brokering link and cannot be promoted.")
         raise HTTPException(status_code=409, detail=detail)
     promoted: List[Dict[str, Any]] = []
+    promoted_tasks: List[Dict[str, Any]] = []
     gated: List[Dict[str, Any]] = []
     failed: List[Dict[str, Any]] = []
     for ic in ingested:
@@ -5496,11 +5555,18 @@ async def promote_upload_all(
             open_to_all_specialties=body.open_to_all_specialties,
             grounding_mode=body.grounding_mode, independent_mode=body.independent_mode)
         promoted.append({"ingest_case_id": ic.get("ingest_case_id"), "task_id": task["task_id"]})
+        promoted_tasks.append(task)
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="promote_all", actor=admin["id"],
                     payload={"promoted": len(promoted), "gated": len(gated),
                              "failed": len(failed),
                              "skipped_brokering": len(skipped_brokering)})
+    # One notification for the whole batch, counted per specialty, rather than
+    # one per case: promoting a 100-case partner file must not send a physician
+    # 100 emails.
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable(promoted_tasks), admin_id=admin["id"]
+    )
     return {"upload_id": upload_id, "promoted": len(promoted), "gated": len(gated),
             "failed": len(failed), "skipped_brokering": len(skipped_brokering),
             "task_ids": [p["task_id"] for p in promoted],
@@ -5717,6 +5783,7 @@ async def _generate_one_real_case(
                              "measured": difficulty["measured"],
                              "taxonomy_bucket": p.get("taxonomy_bucket")})
     result["task_id"] = task["task_id"]
+    result["specialty"] = task.get("specialty")
     result["difficulty"] = difficulty
     result["judges"] = {"case_judge": case_judge, "hardness": hardness}
     return result
@@ -5725,6 +5792,7 @@ async def _generate_one_real_case(
 @router.post("/ingestion/cases/{ingest_case_id}/generate")
 async def generate_real_cases(
     ingest_case_id: str, body: GenerateRealCasesRequest,
+    background_tasks: BackgroundTasks,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """One ingested real chart → many tagged V4 tasks (Real-Case Generation PRD §5).
@@ -5840,6 +5908,10 @@ async def generate_real_cases(
                     event_type="real_cases_generated", actor=admin["id"],
                     payload={"generated": len(generated), "gated": len(gated),
                              "failed": len(failed)})
+    # One chart can produce many tasks; they announce as one batch.
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable(generated), admin_id=admin["id"]
+    )
     response.update({
         "generated": len(generated), "gated": len(gated), "failed": len(failed),
         "task_ids": [g["task_id"] for g in generated],

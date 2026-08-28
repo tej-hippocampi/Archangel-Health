@@ -164,11 +164,13 @@ def test_the_flush_does_not_mail_a_member_who_opted_out(monkeypatch):
 
     monkeypatch.setattr("email_utils.send_html_email", _capture)
 
-    n = asyncio.run(notify.flush_pending(
+    # Assert on WHO was mailed, not on the global count: flush_pending drains
+    # every pending row in the shared suite DB, including rows other test files
+    # queued for other members.
+    asyncio.run(notify.flush_pending(
         cstore, resolve_member=lambda uid: {"email": f"{uid}@example.org", "display_name": uid}
     ))
-    assert n == 0
-    assert sent == []
+    assert f"{uid_quiet}@example.org" not in sent
 
 
 def test_an_opted_out_members_rows_are_marked_handled_not_left_pending(monkeypatch):
@@ -206,18 +208,17 @@ def test_a_subscribed_member_still_gets_the_digest(monkeypatch, origin):
     )
     cstore.enqueue_notification(user_id=uid_loud, kind="mention", message_id=msg["id"])
 
-    bodies: list = []
+    recipients: list = []
 
     async def _capture(to, subject, body):
-        bodies.append(body)
+        recipients.append(to)
         return True
 
     monkeypatch.setattr("email_utils.send_html_email", _capture)
-    n = asyncio.run(notify.flush_pending(
+    asyncio.run(notify.flush_pending(
         cstore, resolve_member=lambda uid: {"email": f"{uid}@example.org", "display_name": uid}
     ))
-    assert n == 1
-    assert len(bodies) == 1
+    assert f"{uid_loud}@example.org" in recipients
 
 
 # ─── The mail carries the way out ────────────────────────────────────────────

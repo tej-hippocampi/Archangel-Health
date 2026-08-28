@@ -159,21 +159,66 @@ def _announcement_text(created_tasks: List[Dict[str, Any]]) -> str:
     return f"{joined} {verb} ready to review."
 
 
+def _specialty_channel_slug(specialty: str) -> str:
+    """The room a case of this specialty belongs in, or "" if we cannot tell.
+
+    Goes through ``match_specialty`` so "renal" and "Nephrology - Transplant"
+    both land in #nephrology, and an unrecognised specialty lands nowhere
+    rather than in the wrong room.
+    """
+    from asclepius import specialties as _sp  # noqa: PLC0415 — config only
+
+    return _sp.match_specialty(specialty) or ""
+
+
+def _visible_channel_slugs() -> set:
+    """Channels members can actually see.
+
+    Posting into a hidden channel would MAKE it visible: ``visible_channels``
+    keeps any channel that has history, so writing into a below-threshold
+    #hepatology would open the room by writing to it. Same rule the morning
+    routine follows (community/morning.py:_visible_channel_slugs).
+    """
+    try:
+        from community.router import member_map, visible_channels  # noqa: PLC0415
+
+        return {c["slug"] for c in visible_channels(member_map())}
+    except Exception:  # noqa: BLE001
+        log.warning("task_notify: could not resolve visible channels", exc_info=True)
+        return set()
+
+
 async def post_community_announcement(
     store: Any, *, admin_user_id: str, created_tasks: List[Dict[str, Any]],
 ) -> bool:
-    """Post a one-line announcement to #task-announcements when new tasks land,
-    so contributors see it in-app — not just via email.
+    """Announce new tasks in-app: once in #task-announcements for everyone, and
+    once in each affected specialty room.
 
-    Authored by the Archangel bot, not by the uploading admin. An admin-signed
-    announcement renders as "Former member" to everyone the moment that account
-    is deprovisioned, and the platform — not a person — is what is speaking
-    here. ``announce=True`` keeps the channel's all-member email fan-out, which
-    is the rest of this integration; no new channel/membership model needed.
+    #task-announcements is the general room. It is admin-post-only, every member
+    is subscribed, and ``announce=True`` gives it the all-member fan-out. That
+    is the "everybody hears about it" half, and it is what this function did.
 
-    Same text already posted today is skipped: repeated uploads of one task are
-    one piece of news. Never raises — a community-post problem must not break
-    task upload.
+    The specialty room is the half that was missing. Nothing in the codebase has
+    ever written into #nephrology: the only writers to a specialty channel are
+    the morning brief and the one-time pinned topic, both of which ship
+    disabled. A nephrologist looking at their own room saw an empty room while
+    nephrology work sat in the queue.
+
+    Both posts are authored by the Archangel bot, not the uploading admin. An
+    admin-signed announcement renders as "Former member" to everyone the moment
+    that account is deprovisioned, and the platform, not a person, is what is
+    speaking.
+
+    A hidden specialty room is skipped rather than written into. Posting to it
+    would MAKE it visible (``visible_channels`` keeps any channel with history),
+    so a below-threshold room would open itself by being announced into, which
+    is backwards. The general post still goes out, so the work is never silent.
+
+    Same text already posted to the same channel today is skipped: repeated
+    uploads of one task are one piece of news. Never raises, because a
+    community-post problem must not break task upload.
+
+    Returns True if anything was posted anywhere.
     """
     try:
         text = _announcement_text(created_tasks)
@@ -184,36 +229,58 @@ async def post_community_announcement(
         from community.system_posts import post_system_message
 
         cstore = get_community_store()
-        channel = cstore.get_channel_by_slug("task-announcements")
-        if not channel:
-            log.warning("task_notify: #task-announcements channel missing")
-            return False
-
         since = (datetime.now(timezone.utc) - timedelta(days=1)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-        if cstore.system_post_exists_since(
-            channel_id=channel["id"], kind=_ANNOUNCEMENT_KIND, body=text, since_iso=since
-        ):
-            log.info("task_notify: identical announcement already posted today, skipping")
-            return False
 
-        # The PHI gate runs inside post_system_message. This text is
-        # server-generated boilerplate (specialty names + counts), but every
-        # write path into this channel is scanned — stay consistent rather
-        # than assume this one is exempt.
-        msg = await post_system_message(
-            channel_slug="task-announcements",
-            body=text,
-            kind=_ANNOUNCEMENT_KIND,
-            announce=True,
-        )
-        if not msg:
-            return False
+        async def _post_once(slug: str, body: str, *, announce: bool) -> bool:
+            channel = cstore.get_channel_by_slug(slug)
+            if not channel:
+                log.warning("task_notify: #%s channel missing", slug)
+                return False
+            if cstore.system_post_exists_since(
+                channel_id=channel["id"], kind=_ANNOUNCEMENT_KIND, body=body,
+                since_iso=since,
+            ):
+                log.info("task_notify: identical announcement already in #%s today", slug)
+                return False
+            # The PHI gate runs inside post_system_message. This text is
+            # server-generated boilerplate (specialty names + counts), but every
+            # write path into a channel is scanned; stay consistent rather than
+            # assume this one is exempt.
+            msg = await post_system_message(
+                channel_slug=slug, body=body, kind=_ANNOUNCEMENT_KIND, announce=announce,
+            )
+            if not msg:
+                return False
+            store.log_event(
+                entity_type="task_notify",
+                event_type="task_notification_community_posted",
+                actor=admin_user_id,
+                payload={"message_id": msg["id"], "text": body, "channel": slug},
+            )
+            return True
 
-        store.log_event(
-            entity_type="task_notify", event_type="task_notification_community_posted",
-            actor=admin_user_id, payload={"message_id": msg["id"], "text": text},
-        )
-        return True
+        # The general room: everyone, one line covering the whole batch.
+        posted = await _post_once("task-announcements", text, announce=True)
+
+        # The specialty rooms: one line each, counting only that specialty.
+        # announce=False because the all-member fan-out belongs to
+        # #task-announcements alone (notify.queue_for_message only fans out for
+        # that slug anyway); a second copy of the same news in everyone's inbox
+        # is how a useful announcement becomes noise.
+        visible = _visible_channel_slugs()
+        for specialty, count in _counts_by_specialty(created_tasks).items():
+            slug = _specialty_channel_slug(specialty)
+            if not slug or slug not in visible:
+                if not slug:
+                    log.info(
+                        "task_notify: no specialty room for %r; general post only", specialty
+                    )
+                continue
+            noun = "task" if count == 1 else "tasks"
+            body = f"{count} new {_specialty_label(specialty)} {noun} {'is' if count == 1 else 'are'} ready to review."
+            posted = await _post_once(slug, body, announce=False) or posted
+
+        return posted
     except Exception as exc:  # pragma: no cover - defensive; never break task upload
         log.warning("task_notify: post_community_announcement failed: %s", exc)
         return False
