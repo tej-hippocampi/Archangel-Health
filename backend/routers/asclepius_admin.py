@@ -20,9 +20,9 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 from onboarding_emails import build_asclepius_invite_email
 
@@ -1078,6 +1078,102 @@ async def set_user_role(
     return {"ok": True, "user_id": user_id, "role": (updated or {}).get("role"),
             "tier": fresh.get("tier"), "tier_assigned": tier_assigned,
             "real_data_approved": bool(fresh.get("real_data_approved"))}
+
+
+class RestorePhysicianBody(BaseModel):
+    """Deliberate, itemised repair. Nothing here defaults to on: each field is a
+    decision an operator is making on the record, with their identity stamped."""
+    model_config = ConfigDict(extra="forbid")
+    approve_verification: bool = False
+    tier: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.post("/physicians/restore")
+async def restore_physician(
+    body: RestorePhysicianBody,
+    email: str = Query(..., description="The account to restore, by email."),
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Put one account back together as a labeling physician, in a single call.
+
+    The repair is four writes across three screens — role, tier, verification,
+    real-data approval — and an account filed under an operator role is on NONE
+    of those screens, so the sequence could not be started from the console at
+    all. Every step here is reachable through its own route; what this adds is
+    that they can be done in one action on an account the UI cannot reach, and
+    that the response says what each one did.
+
+    Nothing is implicit. ``approve_verification`` is a credentialing decision and
+    is off by default; when set, it is recorded as a human decision by the calling
+    admin (``verified_by``), exactly as the queue would. Real-data approval is
+    never set directly — it is left to the same APPROVED + LABELING policy that
+    governs everyone else, so this endpoint cannot become a side door around it."""
+    store = _store()
+    target = store.get_user_by_email((email or "").strip().lower())
+    if not target:
+        raise HTTPException(status_code=404, detail=f"No account for {email!r}.")
+    if target["id"] == admin["id"]:
+        raise HTTPException(
+            status_code=422,
+            detail="You cannot convert your own account to a physician; you would "
+                   "lose the admin access you are using. Ask the other admin.")
+    if (target.get("role") or "") not in ("admin", "evaluator", "qa_reviewer"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Role {target.get('role')!r} is provisioned by its own flow and "
+                   "is not a physician account.")
+    tier = (body.tier or "").strip().lower() or None
+    if tier and tier not in asc_caps.TIERS:
+        raise HTTPException(status_code=422,
+                            detail=f"Tier must be one of {sorted(asc_caps.TIERS)}.")
+
+    before = {k: target.get(k) for k in
+              ("role", "tier", "verification_status", "real_data_approved")}
+    did: List[str] = []
+    if (target.get("role") or "") != "evaluator":
+        store.set_user_role(target["id"], "evaluator")
+        did.append("role -> evaluator")
+    if body.approve_verification and target.get("verification_status") != "approved":
+        store.record_verification_decision(
+            user_id=target["id"], status="approved",
+            decided_by=admin.get("email") or admin["id"],
+            tier=tier, note=body.note)
+        did.append("verification -> approved")
+        if tier:
+            did.append(f"tier -> {tier}")
+    elif tier and target.get("tier") != tier:
+        # The tier is written by the verification decision, deliberately — it is a
+        # decision, not a computation, and it arrives from one place. Re-stamping
+        # the CURRENT status carries the tier through that same door rather than
+        # opening a second one.
+        store.record_verification_decision(
+            user_id=target["id"], status=(target.get("verification_status") or "approved"),
+            decided_by=admin.get("email") or admin["id"], tier=tier, note=body.note)
+        did.append(f"tier -> {tier}")
+    # The same default the boot migration would have applied had this account
+    # been filed as a physician all along. Never overwrites a decided tier.
+    if store.backfill_tier_on_role_restore(
+            target["id"], by=f"restore:{admin.get('email') or admin['id']}"):
+        did.append("tier -> labeler (default backfill)")
+    # Derived, never set: APPROVED + LABELING is the policy, and this endpoint
+    # must not be a way around it.
+    store.sync_real_data_approval()
+
+    after_row = store.get_user_by_id(target["id"]) or {}
+    after = {k: after_row.get(k) for k in
+             ("role", "tier", "verification_status", "real_data_approved")}
+    after["real_data_approved"] = bool(after["real_data_approved"])
+    store.log_event(
+        entity_type="user", entity_id=target["id"], event_type="physician_restored",
+        actor=admin.get("email"), payload={"before": before, "after": after,
+                                           "changes": did, "note": body.note})
+    return {"ok": True, "user_id": target["id"], "email": target.get("email"),
+            "changes": did, "before": before, "after": after,
+            # The outcome that was actually being chased. If this is false the
+            # response above says which gate is still shut.
+            "can_label_real_cases": bool(after_row.get("real_data_approved"))
+            and asc_caps.can(after_row, asc_caps.LABEL)}
 
 
 @router.get("/signups")

@@ -1489,13 +1489,14 @@ def test_a_stale_pre_v4_portal_choice_does_not_outrank_the_real_cases():
           / "frontend" / "asclepius" / "asclepius.js").read_text()
     start = js.index("function getPortalVersion()")
     body = js[start:js.index("function setPortalVersion", start)]
-    # An un-marked 'v3' predates V4 and is migrated; a marked one is a real choice.
+    # ANY un-marked stored value predates V4 and is migrated; a marked one is a
+    # real choice made from a menu that listed the real cases.
     assert "portalVersionWasPicked()" in body
-    assert "stored === 'v3' && !portalVersionWasPicked()" in body
-    # v1/v2 are deliberate departures and are NOT migrated — no branch mentions
-    # them (comments stripped, so the note explaining WHY does not satisfy this).
     code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("//"))
-    assert "'v1'" not in code and "'v2'" not in code
+    assert "if (approved && !portalVersionWasPicked()) return 'v4';" in code
+    # No per-version carve-out: rescuing only 'v3' left the same physician pinned
+    # to 'v2' instead, which is the identical bug wearing a different number.
+    assert "'v1'" not in code and "'v2'" not in code and "stored === 'v3'" not in code
     # A stored v4 must not outlive the approval that earned it.
     assert "stored === 'v4' && !approved" in body
     # The pick marker is only ever written by the picker.
@@ -1907,3 +1908,108 @@ def test_the_role_restore_never_overwrites_a_tier_someone_decided():
                     json={"role": "evaluator"}, headers=admin_h)
     assert r.json()["tier_assigned"] is None
     assert st.get_user_by_id(doc["id"])["tier"] == "reviewer"
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# The repair, in ONE call
+#
+# Putting a misfiled account back together is four writes across three screens —
+# role, tier, verification, real-data approval — and an account filed under an
+# operator role is on NONE of those screens, so the sequence could not be
+# started from the console at all.
+# ═════════════════════════════════════════════════════════════════════════════
+def test_one_call_restores_a_misfiled_doctor_all_the_way_to_real_cases():
+    st = _store()
+    v4_cases.load_v4_cases(st, open_to_all_specialties=True, reconcile_visibility=True)
+    admin_h = _admin_h()
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+
+    r = client.post("/api/asclepius/admin/physicians/restore"
+                    f"?email={doc['email']}",
+                    json={"approve_verification": True, "tier": "labeler"},
+                    headers=admin_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["after"] == {"role": "evaluator", "tier": "labeler",
+                             "verification_status": "approved",
+                             "real_data_approved": True}, body
+    assert body["can_label_real_cases"] is True
+
+    headers = A.headers_for(st.get_user_by_id(doc["id"]))
+    nxt = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
+                     headers=headers).json()
+    assert nxt["served_portal_version"] == "v4"
+    assert (nxt["task"].get("case") or {}).get("case_source") == "real_deid"
+
+
+def test_the_restore_does_not_approve_credentials_unless_asked():
+    """Verification is a credentialing decision. It must never be a side effect of
+    fixing a role, or the audit trail says a review happened that did not."""
+    st = _store()
+    admin_h = _admin_h()
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    body = client.post(f"/api/asclepius/admin/physicians/restore?email={doc['email']}",
+                       json={}, headers=admin_h).json()
+    assert body["after"]["role"] == "evaluator"
+    assert body["after"]["verification_status"] is None
+    assert body["after"]["real_data_approved"] is False
+    assert body["can_label_real_cases"] is False
+
+
+def test_the_restore_records_who_made_the_credentialing_decision():
+    st = _store()
+    admin = A.make_user(_store(), role="admin")
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    client.post(f"/api/asclepius/admin/physicians/restore?email={doc['email']}",
+                json={"approve_verification": True, "tier": "labeler"},
+                headers=A.headers_for(admin))
+    row = st.get_user_by_id(doc["id"])
+    assert row["verified_by"] == admin["email"], row["verified_by"]
+    assert row["verified_at"]
+
+
+def test_the_restore_refuses_to_take_away_the_callers_own_admin_access():
+    admin = A.make_user(_store(), role="admin")
+    r = client.post(f"/api/asclepius/admin/physicians/restore?email={admin['email']}",
+                    json={}, headers=A.headers_for(admin))
+    assert r.status_code == 422
+    assert "your own account" in r.json()["detail"]
+
+
+def test_the_restore_is_admin_only_and_404s_on_an_unknown_account():
+    st = _store()
+    ev = _evaluator("nephrology")
+    assert client.post("/api/asclepius/admin/physicians/restore?email=x@y.z",
+                       json={}, headers=A.headers_for(ev)).status_code in (401, 403)
+    assert client.post("/api/asclepius/admin/physicians/restore?email=nobody@example.test",
+                       json={}, headers=_admin_h()).status_code == 404
+
+
+def test_the_restore_cannot_become_a_side_door_around_the_real_data_policy():
+    """It never writes real_data_approved directly — the APPROVED + LABELING
+    policy derives it, so an account that does not qualify does not get it."""
+    st = _store()
+    admin_h = _admin_h()
+    doc = A.make_user(st, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    st.set_verification_status(doc["id"], "rejected")
+    body = client.post(f"/api/asclepius/admin/physicians/restore?email={doc['email']}",
+                       json={}, headers=admin_h).json()
+    assert body["after"]["real_data_approved"] is False
+    assert body["can_label_real_cases"] is False
+
+
+def test_a_stored_v2_does_not_outrank_the_real_cases_either():
+    """The v3-only carve-out was wrong and cost a round: the same physician turned
+    up pinned to V2 instead. Any stored value without the pick marker predates V4."""
+    js = (Path(__file__).resolve().parents[2]
+          / "frontend" / "asclepius" / "asclepius.js").read_text()
+    start = js.index("function getPortalVersion()")
+    body = js[start:js.index("function setPortalVersion", start)]
+    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("//"))
+    assert "if (approved && !portalVersionWasPicked()) return 'v4';" in code
+    # No version-specific carve-out survives in the migration branch.
+    assert "stored === 'v3'" not in code
