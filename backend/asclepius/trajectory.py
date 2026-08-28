@@ -157,12 +157,17 @@ def kappa_exclusion_reason(task: Optional[Dict[str, Any]]) -> Optional[str]:
 
 
 # ─── §3.3 field 3 — the falsifier ─────────────────────────────────────────────
-#: A falsifier needs enough words to be checkable. Two words ("it worsens") names
-#: nothing a chart can confirm or refute; the floor is low on purpose — this is a
-#: shape check, not a quality judgment, and a specialist's terse "GGT climbs again"
-#: is a perfectly good falsifier.
-_MIN_FALSIFIER_WORDS = 3
-_MIN_EXPECTATION_WORDS = 3
+#: The floor is a SHAPE check, not a quality judgment, and it is set at two words
+#: for a reason worth stating: clinical shorthand is terse and correct. "GGT
+#: climbs", "bilirubin falls", "creatinine plateaus" are all perfectly good,
+#: chart-checkable predictions, and a three-word floor would have silently deleted
+#: every one of them — discarding a board-certified specialist's falsifier without
+#: telling anyone, which is the single worst thing this normalizer could do.
+#:
+#: What two words does exclude is the degenerate input the floor exists for: a
+#: stray "yes", an "ok", a half-typed word left in an unused box.
+_MIN_FALSIFIER_WORDS = 2
+_MIN_EXPECTATION_WORDS = 2
 #: Horizon in days, clamped. A prediction with no horizon is not falsifiable
 #: ("bilirubin will fall" is true eventually); one with a 20-year horizon is not
 #: checkable against the next encounter. The ceiling is the widest gap the

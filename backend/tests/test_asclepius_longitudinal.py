@@ -676,7 +676,7 @@ def test_expected_trajectory_normalization_keeps_only_usable_predictions():
     got = asc_trajectory.normalize_expected_trajectory({
         "expectations": [
             {"expectation": "enzymes stay down and bilirubin falls", "horizon_days": 21},
-            {"expectation": "yes"},                       # too short — dropped
+            {"expectation": "yes"},                       # degenerate — dropped
             "GGT remains below 200",                      # bare string — accepted
         ],
         "falsifiers": ["GGT climbs again above 500", "no"],
@@ -687,6 +687,21 @@ def test_expected_trajectory_normalization_keeps_only_usable_predictions():
     assert got["falsifiers"] == ["GGT climbs again above 500"]
     assert got["falsifiable"] is True
     assert got["note"] == "drainage worked"
+
+
+def test_clinical_shorthand_survives_normalization():
+    """The word floor is a shape check, not a quality judgment. "GGT climbs" is a
+    perfectly good chart-checkable falsifier, and silently deleting a specialist's
+    falsifier is the worst thing this normalizer could do."""
+    got = asc_trajectory.normalize_expected_trajectory({
+        "expectations": [{"expectation": "bilirubin falls"},
+                         {"expectation": "creatinine plateaus"}],
+        "falsifiers": ["GGT climbs"],
+    })
+    assert [e["expectation"] for e in got["expectations"]] == [
+        "bilirubin falls", "creatinine plateaus"]
+    assert got["falsifiers"] == ["GGT climbs"]
+    assert got["falsifiable"] is True
 
 
 def test_a_prediction_with_no_falsifier_is_stored_and_marked_unfalsifiable():
