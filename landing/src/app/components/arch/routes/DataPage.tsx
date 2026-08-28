@@ -396,7 +396,7 @@ export function DataPage({ actions }: { actions: ShellActions }) {
           <p className="sub">Tell us the stage and the gap. We scope and pilot within weeks.</p>
           <div className="env-cta">
             <button type="button" className="btn btn-primary" onClick={() => actions.openLead("request_data")}>
-              Request data →
+              Request products →
             </button>
           </div>
           <p className="env-bench"><span className="chrome">Already helping labs climb</span> {BENCH_NAMES.join(" · ")}</p>

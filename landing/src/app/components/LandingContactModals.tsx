@@ -2,7 +2,7 @@
  * Landing lead-capture modals for the v3 "console" landing — light theme,
  * portaled to <body> so they layer cleanly above the sticky nav.
  *
- *  - LeadFormModal: the two-field "Request data" / "Provide data" forms from
+ *  - LeadFormModal: the two-field "Request products" / "Provide data" forms from
  *    the PRD (Landing_Request_and_Provide_Forms_PRD.md). One screen, two
  *    required fields, honeypot + inline validation, "or email us" fallback,
  *    and an in-place success state. Submissions post to the backend lead
@@ -33,7 +33,7 @@ type LeadCopy = {
 
 const COPY: Record<LeadKind, LeadCopy> = {
   request_data: {
-    heading: "Request data",
+    heading: "Request products",
     subhead:
       "Tell us what you're building. We'll send our data book: the full menu of data we offer and what we can build for you.",
     emailLabel: "Work email",
@@ -41,7 +41,7 @@ const COPY: Record<LeadKind, LeadCopy> = {
     messageLabel: "What are you building, and what do you need?",
     messagePlaceholder:
       "e.g., improving our medical model's reasoning on hard cases, targeting HealthBench Hard",
-    submit: "Request data →",
+    submit: "Request products →",
     success: "Got it. We'll reply within 24h with our data book, the full menu of what we can offer.",
   },
   provide_data: {
