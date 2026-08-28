@@ -2097,3 +2097,34 @@ def test_an_approved_contributor_is_never_stranded_on_the_synthetic_default():
     # The bare fallthrough that produced the bug must not survive anywhere in the
     # function -- it is the last statement, so a stray copy is the whole defect.
     assert "return DEFAULT_PORTAL_VERSION;\n  }" not in code
+
+
+def test_the_sandbox_keeps_its_real_case_access_across_boots():
+    """AUDIT REGRESSION. The mock contributor's real-data access is decided by
+    ensure_mock_contributor (custom password in production / anything outside it)
+    and re-asserted every boot. It never enters the verification queue, so
+    measuring it against APPROVED + LABELING revokes it every time — which is
+    what happened when its approval source was changed from a human stamp to an
+    auto one: the one account that WAS showing real cases lost them on the next
+    deploy. Two syncs, because the first is the one that used to break it."""
+    st = _store()
+    from asclepius.auth import ensure_mock_contributor
+    u = ensure_mock_contributor(st)
+    if u is None:
+        pytest.skip("mock contributor disabled in this environment")
+    assert bool(st.get_user_by_id(u["id"])["real_data_approved"]) is True
+    for boot in range(2):
+        st.sync_real_data_approval()
+        assert bool(st.get_user_by_id(u["id"])["real_data_approved"]) is True, (
+            f"the sandbox lost real-case access on boot {boot + 1}")
+
+
+def test_the_sandbox_exemption_does_not_leak_to_real_accounts():
+    """The skip is keyed on is_mock and nothing else: a real physician who does
+    not qualify must still be revoked."""
+    st = _store()
+    doc = _evaluator("nephrology", real=False)
+    st.set_real_data_approved(doc["id"], True, source="auto:approved_labeler")
+    st.set_verification_status(doc["id"], "pending")
+    st.sync_real_data_approval()
+    assert bool(st.get_user_by_id(doc["id"])["real_data_approved"]) is False

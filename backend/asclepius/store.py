@@ -3465,10 +3465,21 @@ class AsclepiusStore:
         with self._conn() as conn:
             rows = [dict(r) for r in conn.execute(
                 "SELECT id, tier, verification_status, real_data_approved, "
-                "       real_data_approval_source FROM users"
+                "       is_mock, real_data_approval_source FROM users"
             ).fetchall()]
         eligible = 0
         for u in rows:
+            # The sandbox is governed by a DIFFERENT policy, on purpose:
+            # ``auth.ensure_mock_contributor`` decides its real-data access from
+            # whether its password is the published default in production, and
+            # re-asserts that on every boot. It never enters the verification
+            # queue, so measuring it against APPROVED + LABELING revokes it every
+            # time — which is exactly what happened when its approval source was
+            # changed from a human stamp to an auto one: the one account that WAS
+            # showing real cases lost them on the next deploy. Skipping it here
+            # states the boundary instead of leaning on a source string.
+            if u.get("is_mock"):
+                continue
             qualifies = (u.get("verification_status") == "approved"
                          and asc_caps.can(u, asc_caps.LABEL))
             eligible += 1 if qualifies else 0
