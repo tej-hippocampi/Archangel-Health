@@ -2292,6 +2292,46 @@ async def real_case_access_report(
     blockers: List[str] = []
     if not u.get("active"):
         blockers.append("The account is deactivated.")
+    notes: List[str] = []
+    is_admin = (u.get("role") or "") == "admin"
+    if is_admin:
+        # NOT a real-data blocker, and saying so would be wrong: admins hold LABEL,
+        # so an admin who is also verified DOES get the auto-grant and can draw real
+        # cases. What the role actually costs them is the portal itself — the nav
+        # shows the admin console, and the roster files them outside "Approved &
+        # Labeling" — so a physician working from this account looks and is filed
+        # like an operator. Reported as context, not as the cause.
+        notes.append(
+            "The role is 'admin', not 'evaluator'. That does not block real cases "
+            "on its own, but it puts the admin console in their nav and keeps them "
+            "off the Approved & Labeling roster. Set it to 'evaluator' from the "
+            "Physicians roster.")
+    env_admin = (os.getenv("ASCLEPIUS_ADMIN_EMAIL") or "").strip().lower()
+    pinned = bool(env_admin and env_admin == (u.get("email") or "").strip().lower())
+    if pinned:
+        # The trap this endpoint exists to make visible: the console's own role
+        # button appears to work and the next deploy silently reverts it. Whether
+        # that is still true depends on the guard in ensure_admin_from_env, so
+        # answer for the state this deployment is ACTUALLY in rather than warning
+        # about something that can no longer happen.
+        protected = (not is_admin) and store.count_active_admins(excluding=u["id"]) > 0
+        if protected:
+            notes.append(
+                "ASCLEPIUS_ADMIN_EMAIL names this account. The boot-time admin "
+                "bootstrap now refuses to convert a physician account while another "
+                "admin exists, so the role will survive the next deploy — but "
+                "repoint that variable at a separate operations account so it stops "
+                "depending on that guard.")
+        else:
+            blockers.append(
+                "ASCLEPIUS_ADMIN_EMAIL names this account, so every boot forces it "
+                "back to role='admin'"
+                + ("" if is_admin else " (it is the only active admin, so the "
+                                       "bootstrap cannot stand down without locking "
+                                       "the console out)")
+                + ". Changing the role in the console will be undone by the next "
+                  "deploy. Point that variable at a separate operations account "
+                  "first.")
     if u.get("verification_status") != "approved":
         blockers.append(
             f"Verification status is {u.get('verification_status')!r}, not 'approved'. "
@@ -2332,11 +2372,14 @@ async def real_case_access_report(
         eligible = []
     report["physician"] = {
         "email": u.get("email"), "specialty": u.get("specialty"),
+        "role": u.get("role"),
+        "pinned_admin_by_env": pinned,
         "tier": u.get("tier"), "verification_status": u.get("verification_status"),
         "active": bool(u.get("active")),
         "real_data_approved": bool(u.get("real_data_approved")),
         "real_data_approval_source": u.get("real_data_approval_source"),
     }
+    report["notes"] = notes
     report["real_cases_they_can_draw"] = [t.get("task_id") for t in eligible]
     report["can_see_real_cases"] = bool(eligible)
     report["blockers"] = blockers

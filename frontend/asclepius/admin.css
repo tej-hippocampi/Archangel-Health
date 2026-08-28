@@ -1,0 +1,14 @@
+
+/* ─── Physician credentials filed under an operator role ─────────────────────
+   Sits above the roster tabs: an account in this state is absent from BOTH of
+   them, so a banner inside a tab would be hidden by the bug it reports. */
+.asc-misfiled { border-color: var(--pink-line, #e5c9d4); }
+.asc-misfiled-rows { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.asc-misfiled-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+}
+.asc-misfiled-email { font-weight: 500; }
+.asc-misfiled-meta { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 2px; }
+.asc-misfiled-act { display: flex; align-items: center; gap: 10px; flex: none; }
+.asc-misfiled-status { font-size: var(--t-sm); color: var(--ink-soft); }

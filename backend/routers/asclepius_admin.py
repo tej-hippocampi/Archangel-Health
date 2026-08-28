@@ -610,6 +610,54 @@ def _physician_users(store: Any) -> List[Dict[str, Any]]:
             if u.get("role") == "evaluator" and not u.get("is_mock")]
 
 
+#: Row fields that only a physician account ever carries. Used to tell a real
+#: doctor filed under an operator role apart from an actual operator.
+_PHYSICIAN_MARKERS = ("specialty", "npi", "board_cert", "verification_status",
+                      "tier", "clinical_role", "years_experience")
+
+
+def _misfiled_physicians(store: Any) -> List[Dict[str, Any]]:
+    """Accounts that carry physician credentials but are NOT filed as physicians.
+
+    The roster above is ``role == 'evaluator'``, so an account whose row says
+    ``role = 'admin'`` is not merely mislabelled — it is INVISIBLE. It cannot be
+    approved, tiered or role-changed from the console, because the roster is how
+    an operator reaches an account at all. The verification queue and the tier
+    backfill filter the same way, so nothing else surfaces it either.
+
+    That is not hypothetical: the self-serve director onboarding provisioned
+    ``role="admin"`` until it was changed to ``"evaluator"``, and every account
+    created before that fix still carries it. The code change did not repair the
+    rows, and there was no screen on which the damage was visible — a doctor
+    reports an empty queue, the roster does not list them, and the only remaining
+    move is to read the database.
+
+    Deliberately a SEPARATE list rather than a widened roster: these accounts are
+    not supply until somebody decides they are, so they must not silently join
+    the counts. They are shown so the decision can be made."""
+    out: List[Dict[str, Any]] = []
+    for u in store.list_users():
+        if u.get("is_mock") or (u.get("role") or "") == "evaluator":
+            continue
+        if not any(u.get(k) for k in _PHYSICIAN_MARKERS):
+            continue
+        out.append({
+            "id": u["id"],
+            "name": _display_name(u),
+            "email": u.get("email"),
+            "role": u.get("role"),
+            "specialty": u.get("specialty"),
+            "tier": u.get("tier"),
+            "verification_status": u.get("verification_status"),
+            "real_data_approved": bool(u.get("real_data_approved")),
+            "created_at": u.get("created_at"),
+            # Why we think this is a doctor and not an operator — named, so the
+            # decision is reviewable rather than a claim the screen makes.
+            "physician_markers": [k for k in _PHYSICIAN_MARKERS if u.get(k)],
+        })
+    return out
+
+
 def _hs_name_map(store: Any) -> Dict[str, str]:
     return {hs["hs_id"]: hs["name"] for hs in store.list_health_systems()}
 
@@ -671,7 +719,12 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "health_system_name": hs_names.get(hs_id) if hs_id else None,
             "active": bool(u.get("active", 1)),
         })
-    return {"physicians": out, "counts": counts}
+    # Accounts with a doctor's credentials and an operator's role. Not part of
+    # ``physicians`` or ``counts`` — they are not supply until someone decides
+    # they are — but never again invisible.
+    misfiled = _misfiled_physicians(store)
+    return {"physicians": out, "counts": counts,
+            "misfiled_physicians": misfiled, "misfiled_count": len(misfiled)}
 
 
 @router.get("/physicians/{user_id}")
@@ -1000,11 +1053,31 @@ async def set_user_role(
             status_code=422,
             detail="Only physician or admin accounts can move between those roles.")
     updated = store.set_user_role(user_id, role)
+    # Restoring a physician is not finished at the role. The boot tier backfill
+    # skips operator-role accounts, so one moved back arrives with a NULL tier —
+    # which fails the LABEL capability. They would sit on the roster looking
+    # correct and be unable to draw a single case, with nothing on screen asking
+    # for the second step. Same rule the migration uses, applied here.
+    tier_assigned = (store.backfill_tier_on_role_restore(
+        user_id, by=f"role_restore:{admin.get('email') or admin['id']}")
+        if role == "evaluator" else None)
+    # Real-data access follows APPROVED + LABELING, and both may have just become
+    # true. Running the sync here means the repair lands now instead of at the
+    # next deploy.
+    if role == "evaluator":
+        try:
+            store.sync_real_data_approval()
+        except Exception:  # never fail a role change on the follow-on policy
+            log.exception("asclepius: real-data sync after role restore failed")
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="role_changed",
         actor=admin.get("email"),
-        payload={"from": target.get("role"), "to": role})
-    return {"ok": True, "user_id": user_id, "role": (updated or {}).get("role")}
+        payload={"from": target.get("role"), "to": role,
+                 "tier_assigned": tier_assigned})
+    fresh = store.get_user_by_id(user_id) or {}
+    return {"ok": True, "user_id": user_id, "role": (updated or {}).get("role"),
+            "tier": fresh.get("tier"), "tier_assigned": tier_assigned,
+            "real_data_approved": bool(fresh.get("real_data_approved"))}
 
 
 @router.get("/signups")
