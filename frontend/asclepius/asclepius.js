@@ -1669,6 +1669,16 @@
       // hand the doctor a task their own submission would be rejected for.
       state.servedVersion = data.served_portal_version || null;
       state.continuedFrom = data.continued_from || null;
+      // Reset first, then hydrate: a stale walk count carried over from the
+      // previous case would put "Decision 4 of 13" on an unrelated chart, which
+      // is worse than no banner at all.
+      state.trajectoryProgress = null;
+      if (state.task.trajectory_id) {
+        try {
+          const walk = await api('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
+          state.trajectoryProgress = walk.progress || null;
+        } catch (e) { /* the banner degrades to "Longitudinal case" */ }
+      }
       initDraftForTask(state.task);
       // Resuming straight into the compare stage (e.g. mid-task refresh) needs the
       // withheld answer texts loaded before they're rendered.
@@ -2057,7 +2067,13 @@
         h('span', { class: 'asc-dash-card-meta' },
           h('span', { class: 'asc-dot ' + (DIFFICULTY_DOT[diff] || 'asc-dot-orange') }), 'Difficulty: ' + diff),
         t.modality === 'multimodal' ? h('span', { class: 'asc-dash-card-meta' }, 'Multimodal case') : null,
-        isReal ? h('span', { class: 'asc-dash-card-meta' }, 'Real (de-identified)') : null),
+        isReal ? h('span', { class: 'asc-dash-card-meta' }, 'Real (de-identified)') : null,
+        // A trajectory card names its step, so three cards from one chart do not
+        // read as three unrelated patients. Only the next openable point ever
+        // appears here — the queue's sequence gate decides that, not this label.
+        t.trajectory_id != null && t.sequence_index != null
+          ? h('span', { class: 'asc-dash-card-meta' },
+              'Longitudinal · decision ' + (t.sequence_index + 1)) : null),
       h('span', { class: 'asc-dash-card-go' }, 'Open →'));
   }
 
@@ -2078,6 +2094,16 @@
       // own submission the server rejects with a 400.
       state.servedVersion = data.served_portal_version || null;
       state.continuedFrom = null;
+      // Trajectory progress for the banner. Best-effort and non-blocking: the
+      // case must open whether or not the walk metadata resolves, because the
+      // banner is context and the case is the work.
+      state.trajectoryProgress = null;
+      if (state.task.trajectory_id) {
+        try {
+          const walk = await api('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
+          state.trajectoryProgress = walk.progress || null;
+        } catch (e) { /* the banner degrades to "Longitudinal case" */ }
+      }
       renderHeader();
       initDraftForTask(state.task);
       if (state.draft.stage === 'compare') {
@@ -2085,6 +2111,16 @@
       }
       renderTaskWorkspace();
     } catch (e) {
+      // 409 trajectory_out_of_order (§9.1): the physician is entitled to this
+      // case, just not yet — its history contains the outcomes of decisions they
+      // have not made. Say that, and hand them the one they may open, rather than
+      // reporting a generic failure for a rule that is working correctly.
+      if (e.status === 409 && e.detail && e.detail.error === 'trajectory_out_of_order') {
+        toast(e.detail.message || 'Answer the earlier decisions in this chart first.', 'error');
+        if (e.detail.next_task_id) { openTaskById(e.detail.next_task_id); return; }
+        renderDashboardView();
+        return;
+      }
       if (e.status !== 401) toast('Could not open that case: ' + e.message, 'error');
     }
   }
@@ -2150,6 +2186,11 @@
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
       // Decisive action (Audit §13): physician-named verifiable outcome, skippable.
       decisive_action: { action: '', tool_name: '', rationale: '', must_precede_final_answer: true },
+      // Expected trajectory (Longitudinal Cases §3.3 field 3): what should happen
+      // next if this assessment is right, and what would say it is wrong. Skippable
+      // — a fabricated falsifier is worth less than none, because it gets scored
+      // against a real chart and the score means nothing.
+      expected_trajectory: { expectations: [{ expectation: '', horizon_days: '' }], falsifiers: [''], note: '' },
       reasoning_steps: [],
       // §1 substage machine (Evaluation UX Overhaul): V3/V4 only. ``substage``
       // is the persisted position INSIDE stage==='compare'; the *_done flags are
@@ -2195,6 +2236,13 @@
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
     if (!Array.isArray(draft.rubric)) draft.rubric = [];
     if (!draft.decisive_action) draft.decisive_action = { action: '', tool_name: '', rationale: '', must_precede_final_answer: true };
+    if (!draft.expected_trajectory) draft.expected_trajectory = { expectations: [{ expectation: '', horizon_days: '' }], falsifiers: [''], note: '' };
+    if (!Array.isArray(draft.expected_trajectory.expectations) || !draft.expected_trajectory.expectations.length) {
+      draft.expected_trajectory.expectations = [{ expectation: '', horizon_days: '' }];
+    }
+    if (!Array.isArray(draft.expected_trajectory.falsifiers) || !draft.expected_trajectory.falsifiers.length) {
+      draft.expected_trajectory.falsifiers = [''];
+    }
     if (draft.rubricSeeded === undefined) draft.rubricSeeded = false;
     if (!draft.stage) draft.stage = 'prompt_review';
     // §1 substage machine backfill (all additive; an in-flight draft resumes at
@@ -2684,6 +2732,263 @@
       tabRow, bodyHost);
     paint();
     return panel;
+  }
+
+  // A physician mid-walk is looking at the SAME PATIENT they saw a moment ago, and
+  // saying so is not decoration: it is why the case does not read as a fourth
+  // unrelated chart, and it is what makes "context loads once, amortised over
+  // several decisions" (§5) true rather than merely claimed.
+  //
+  // Rendered from ``state.trajectoryProgress``, hydrated by ``openTaskById`` on the
+  // way in. Absent on every ordinary case, so V1–V4 render byte-for-byte as before.
+  function renderTrajectoryBanner() {
+    const task = state.task;
+    if (!task || !task.trajectory_id) return null;
+    const prog = state.trajectoryProgress;
+    const step = (task.sequence_index == null) ? null : (task.sequence_index + 1);
+    const of = prog && prog.n_points ? (' of ' + prog.n_points) : '';
+    return h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
+      h('span', { class: 'asc-badge asc-badge-accent' },
+        step ? ('Decision ' + step + of) : 'Longitudinal case'),
+      h('span', { class: 'asc-case-note-meta' },
+        'One patient, in order. You are seeing this chart as it stood at this '
+        + 'moment; what happened afterwards is sealed until you submit.'));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  LONGITUDINAL: the reveal and the self-score (Longitudinal Cases §4, Phase 4)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Nothing else in this product tells a physician whether their judgment held.
+  // This does — from the chart, not from a reviewer's opinion — and it is the
+  // single most requested thing in expert annotation work.
+  //
+  // It renders only AFTER the submission is committed. The seal is not a UI rule
+  // here: the server refuses this endpoint without a stored submission (409
+  // commitment_required), so a client bug cannot open the future early.
+
+  const SELF_SCORE_CHOICES = [
+    ['held', 'Held', 'the record shows what you expected'],
+    ['did_not_hold', 'Did not hold', 'the record shows otherwise'],
+    ['not_assessable', 'Not assessable', 'this encounter does not say either way'],
+  ];
+
+  async function renderTrajectoryOutcomeView(task) {
+    state.view = 'trajectory_outcome';
+    stopTimer();
+    renderHeader();
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }),
+          'Opening what happened next…'))));
+    let data;
+    try {
+      data = await api('/tasks/' + encodeURIComponent(task.task_id) + '/trajectory-outcome');
+    } catch (e) {
+      if (e.status === 401) return;
+      // A VISIBLE failure, and the work is safe: the submission is already
+      // committed server-side. Never a silent fall-through to the next case,
+      // which would look like the reveal simply does not exist.
+      toast('Your answer is saved. The next encounter could not be loaded: '
+        + (e.message || 'unknown error'), 'error');
+      renderEvalView();
+      return;
+    }
+    paintTrajectoryOutcome(task, data);
+  }
+
+  function paintTrajectoryOutcome(task, data) {
+    const outcome = data.outcome;
+    const expected = (data.expected_trajectory || {}).expectations || [];
+    const falsifiers = (data.expected_trajectory || {}).falsifiers || [];
+    const step = (data.sequence_index == null) ? null : (data.sequence_index + 1);
+
+    const head = h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step' }, step ? ('Step ' + step) : 'Outcome'),
+        h('div', { class: 'asc-substage-title' }, 'What happened next')),
+      h('div', { class: 'asc-help' },
+        outcome
+          ? 'This is the same patient’s record, ' + outcome.days_after_decision
+            + ' day' + (outcome.days_after_decision === 1 ? '' : 's')
+            + ' after the moment you decided. You could not see it when you answered.'
+          : (data.reason || 'There is no later encounter in this record.')));
+
+    const wrap = h('div', { class: 'asc-wrap' }, head);
+    if (outcome) wrap.appendChild(renderOutcomePanel(outcome));
+
+    if (expected.length) {
+      wrap.appendChild(renderSelfScoreCard(task, data, expected, falsifiers));
+    } else {
+      // No prediction was recorded, so there is nothing to grade. Say that
+      // plainly rather than showing an empty scoring card.
+      wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'asc-help' },
+          'You did not record an expected trajectory on this case, so there is '
+          + 'nothing here to check against the record.'),
+        h('div', { style: 'margin-top:16px' }, trajectoryContinueButton(data))));
+    }
+    // §6, in front of the physician at the moment they grade — not only in the
+    // data dictionary a buyer reads.
+    if ((data.limitations || []).length) {
+      wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'asc-substage-title' }, 'What this check can and cannot show'),
+        h('ul', { class: 'asc-case-list', style: 'margin-top:10px' },
+          ...data.limitations.map((l) => h('li', {}, l.detail)))));
+    }
+    setRoot(wrap);
+  }
+
+  function renderOutcomePanel(outcome) {
+    const parts = [];
+    if ((outcome.lab_panels || []).length) {
+      parts.push(h('div', { class: 'asc-case-body' }, renderLabsTrend(outcome.lab_panels)));
+    }
+    (outcome.notes || []).forEach((n) => {
+      parts.push(h('div', { class: 'asc-case-note' },
+        h('div', { class: 'asc-case-note-meta' },
+          '[' + (n.note_type || 'Note') + ' · ' + (n.author_role || 'clinician')
+          + ' · day +' + n.collected_offset_days + ']'),
+        h('div', { class: 'asc-case-note-text' }, (n.text || '').trim())));
+    });
+    (outcome.studies || []).forEach((st) => {
+      // ``study_findings_policy`` is computed per truncation and legitimately
+      // varies across one walk (§9.5): a window with no imaging is 'visible', a
+      // later one carrying an image asset is 'hidden'. Honoured here rather than
+      // assumed, so the reveal never prints findings the case is holding back.
+      const showFindings = (outcome.study_findings_policy || 'visible') === 'visible';
+      parts.push(h('div', { class: 'asc-case-note' },
+        h('div', { class: 'asc-case-note-meta' },
+          '[' + (st.label || st.modality || 'Study') + ' · day +' + st.collected_offset_days + ']'),
+        showFindings && st.findings
+          ? h('div', { class: 'asc-case-note-text' }, st.findings)
+          : h('div', { class: 'asc-case-note-text' }, 'Findings withheld for this window.')));
+    });
+    if ((outcome.medications || []).length) {
+      parts.push(h('div', { class: 'asc-case-body' },
+        h('div', { class: 'asc-case-sub' }, 'Started after your decision'),
+        h('ul', { class: 'asc-case-list' }, ...outcome.medications.map((m) => h('li', {},
+          [m.drug, m.dose, m.route, m.freq].filter(Boolean).join(' ')
+          + ' (day +' + m.collected_offset_days + ')')))));
+    }
+    if ((outcome.problem_list || []).length) {
+      parts.push(h('div', { class: 'asc-case-body' },
+        h('div', { class: 'asc-case-sub' }, 'Added to the problem list'),
+        h('ul', { class: 'asc-case-list' }, ...outcome.problem_list.map((pr) => h('li', {},
+          pr.condition + ' (day +' + pr.collected_offset_days + ')')))));
+    }
+    if (!parts.length) {
+      // A window with nothing in it is a real answer about the record — an
+      // encounter can genuinely add nothing this physician's expectations touch —
+      // and it must not render as a broken panel.
+      parts.push(h('div', { class: 'asc-help' },
+        'The record adds nothing between your decision and the next one.'));
+    }
+    return h('div', { class: 'asc-card asc-case-card' },
+      h('div', { class: 'asc-case-head' },
+        h('span', { class: 'asc-badge asc-badge-accent' }, 'The record, after your decision')),
+      h('div', { class: 'asc-case-host' }, ...parts));
+  }
+
+  function renderSelfScoreCard(task, data, expected, falsifiers) {
+    // The physician's own falsifier is the rubric. No reviewer grades this.
+    const marks = expected.map((_, i) => ({ index: i, state: null, note: '' }));
+    let falsifierFired = false;
+    const rows = h('div', {});
+
+    expected.forEach((exp, i) => {
+      // The confidence pills' styling, reused rather than re-invented: a class
+      // with no CSS behind it renders as an unstyled button and is invisible to
+      // every source assertion, which is the exact defect class the rendered-
+      // appearance gate exists to catch.
+      const pills = h('div', { class: 'asc-conf-pills', style: 'margin-top:8px' });
+      SELF_SCORE_CHOICES.forEach(([key, label, why]) => {
+        const btn = h('button', { class: 'asc-conf-pill', type: 'button', title: why }, label);
+        btn.addEventListener('click', () => {
+          marks[i].state = key;
+          Array.prototype.forEach.call(pills.children, (b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          refresh();
+        });
+        pills.appendChild(btn);
+      });
+      const note = h('input', { class: 'asc-input', style: 'margin-top:8px',
+        placeholder: 'What in the record shows that? (optional)' });
+      note.addEventListener('input', () => { marks[i].note = note.value; });
+      rows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:18px' : '' },
+        h('div', { class: 'asc-prompt-text' },
+          exp.expectation
+          + (exp.horizon_days ? ' (within ' + exp.horizon_days + ' days)' : '')),
+        pills, note));
+    });
+
+    let falsifierBlock = null;
+    if (falsifiers.length) {
+      const box = h('input', { type: 'checkbox', id: 'ascFalsifierFired' });
+      box.addEventListener('change', () => { falsifierFired = box.checked; });
+      falsifierBlock = h('div', { class: 'asc-field', style: 'margin-top:22px' },
+        h('label', { class: 'asc-label' }, 'You said you would be wrong if:'),
+        h('ul', { class: 'asc-case-list' }, ...falsifiers.map((f) => h('li', {}, f))),
+        h('label', { class: 'asc-submit-row', style: 'margin-top:10px;cursor:pointer' },
+          box, h('span', {}, 'That happened.')));
+    }
+
+    const save = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg' }, 'Save and continue');
+    const hint = h('span', { class: 'asc-submit-hint' });
+    function refresh() {
+      const marked = marks.filter((m) => m.state).length;
+      save.disabled = marked === 0;
+      hint.textContent = marked
+        ? ''
+        : 'Mark at least one expectation before continuing.';
+    }
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      save.textContent = 'Saving…';
+      try {
+        await api('/tasks/' + encodeURIComponent(task.task_id) + '/trajectory-self-score', {
+          method: 'POST',
+          body: {
+            marks: marks.filter((m) => m.state),
+            falsifier_fired: falsifierFired,
+          },
+        });
+        toast('Recorded. Your own expectations, checked against the record.', 'success');
+        continueTrajectory(data);
+      } catch (e) {
+        if (e.status === 401) return;
+        save.disabled = false;
+        save.textContent = 'Save and continue';
+        toast('Could not save that: ' + (e.message || 'unknown error'), 'error');
+      }
+    });
+    refresh();
+
+    return h('div', { class: 'asc-card asc-card-pad asc-substage' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step' }, 'Your call'),
+        h('div', { class: 'asc-substage-title' }, 'Which of your expectations held?')),
+      h('div', { class: 'asc-help', style: 'margin-bottom:12px' },
+        'Judge against what this record actually shows. It reflects the treatment '
+        + 'that was actually given — where you proposed something different, this '
+        + 'does not test your plan.'),
+      rows, falsifierBlock,
+      h('div', { class: 'asc-submit-row', style: 'margin-top:22px' }, hint, save));
+  }
+
+  function trajectoryContinueButton(data) {
+    const btn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Continue');
+    btn.addEventListener('click', () => continueTrajectory(data));
+    return btn;
+  }
+
+  // Continue the walk. The next point is opened by id rather than by drawing from
+  // the queue, so a physician mid-chart stays on that patient — reading a new
+  // chart is the expensive part of a task, and the whole per-decision time saving
+  // (§5) comes from paying it once.
+  function continueTrajectory(data) {
+    const next = (data.progress || {}).next_task_id;
+    if (next) { openTaskById(next); return; }
+    renderEvalView();
   }
 
   // ─── Grounding (mirror of backend validation.grounding_status) ──────────────
@@ -3446,6 +3751,7 @@
     const promptCard = h('div', { class: 'asc-card asc-prompt-card' },
       h('div', { class: 'asc-card-pad' },
         metaRow,
+        renderTrajectoryBanner(),
         h('div', { class: 'asc-prompt-label' }, caseObj ? 'Clinical question' : 'Clinical prompt'),
         h('div', { class: 'asc-prompt-text' }, promptText),
       ));
@@ -5409,8 +5715,114 @@
     setTimeout(updateSubmitState, 0);
     // The decisive-action capture is OPTIONAL, so it lives in its own card ABOVE the
     // confidence + submit gate: never wedged into the commit moment (Audit §13).
-    const decisive = renderDecisiveActionCard();
-    return decisive ? h('div', {}, decisive, confidenceCard) : confidenceCard;
+    // The expected-trajectory card sits above BOTH, because on a longitudinal case
+    // it is the highest-value thing the physician writes and must not read as an
+    // afterthought bolted to the submit button.
+    const parts = [renderExpectedTrajectoryCard(), renderDecisiveActionCard(), confidenceCard]
+      .filter(Boolean);
+    return parts.length > 1 ? h('div', {}, ...parts) : confidenceCard;
+  }
+
+  // ── Expected trajectory (Longitudinal Cases §3.3, field 3) ─────────────────
+  // "What should happen next if this assessment is right, and what would tell me I
+  // am wrong." Assessment and plan are opinions; this is a PREDICTION, and a
+  // prediction is the only thing an outcome can verify. On a trajectory case the
+  // chart's own next encounter checks it — nobody grades it, the record does.
+  //
+  // Clearly OPTIONAL, in its own card, never a required step and never wedged into
+  // the submit gate. A physician who cannot name a falsifier for this decision must
+  // be able to say so: a fabricated one is worse than none, because it will be
+  // scored against a real chart and the score will mean nothing.
+  function renderExpectedTrajectoryCard() {
+    const d = state.draft;
+    if (!isV3()) return null;
+    const et = d.expected_trajectory;
+    const onTrajectory = !!(state.task && state.task.trajectory_id);
+
+    const rows = h('div', {});
+    const paintRows = () => {
+      clear(rows);
+      et.expectations.forEach((exp, i) => {
+        const text = autoGrow(h('textarea', {
+          class: 'asc-textarea',
+          placeholder: i === 0
+            ? 'e.g. enzymes stay down and bilirubin falls over 2–3 weeks'
+            : 'another thing you expect to see',
+        }, exp.expectation || ''));
+        text.addEventListener('input', () => { exp.expectation = text.value; saveDraft(); });
+        const days = h('input', {
+          class: 'asc-input', type: 'number', min: '1', max: '400',
+          style: 'max-width:150px', placeholder: 'within … days',
+          value: exp.horizon_days === '' || exp.horizon_days == null ? '' : String(exp.horizon_days),
+        });
+        // A prediction with no horizon is not falsifiable — "bilirubin will fall"
+        // is true eventually. Optional, because a specialist may genuinely not want
+        // to commit to a window, but asked for every time.
+        days.addEventListener('input', () => { exp.horizon_days = days.value; saveDraft(); });
+        const remove = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button' }, 'Remove');
+        remove.addEventListener('click', () => {
+          et.expectations.splice(i, 1);
+          if (!et.expectations.length) et.expectations.push({ expectation: '', horizon_days: '' });
+          saveDraft(); paintRows();
+        });
+        rows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:14px' : '' },
+          text,
+          h('div', { class: 'asc-submit-row', style: 'margin-top:8px' },
+            days, et.expectations.length > 1 ? remove : null)));
+      });
+    };
+    paintRows();
+    const addExp = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button', style: 'margin-top:10px' },
+      '+ Add another expectation');
+    addExp.addEventListener('click', () => {
+      et.expectations.push({ expectation: '', horizon_days: '' }); saveDraft(); paintRows();
+    });
+
+    const falsRows = h('div', {});
+    const paintFals = () => {
+      clear(falsRows);
+      et.falsifiers.forEach((f, i) => {
+        const ta = autoGrow(h('textarea', {
+          class: 'asc-textarea',
+          placeholder: 'e.g. if GGT climbs again, the stent has occluded',
+        }, f || ''));
+        ta.addEventListener('input', () => { et.falsifiers[i] = ta.value; saveDraft(); });
+        falsRows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:12px' : '' }, ta));
+      });
+    };
+    paintFals();
+    const addFals = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button', style: 'margin-top:10px' },
+      '+ Add another');
+    addFals.addEventListener('click', () => { et.falsifiers.push(''); saveDraft(); paintFals(); });
+
+    const info = infoDot('Why we ask', [
+      onTrajectory
+        ? 'This chart continues. Once you submit, we show you what actually happened '
+          + 'next and you mark which of your expectations held — from the record, not '
+          + 'from a reviewer’s opinion.'
+        : 'A stated expectation with a stated falsifier is a prediction rather than an '
+          + 'opinion, and a prediction is the only thing an outcome can check.',
+      'Skip it when you cannot name one. A made-up falsifier is worse than none: it '
+      + 'gets checked against a real chart, and the check means nothing.',
+      'We score anticipation of what the record shows, never a counterfactual. What '
+      + 'happened next reflects the treatment actually given, not the plan you propose.',
+    ]);
+
+    return h('div', { class: 'asc-card asc-card-pad asc-substage' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step asc-substage-step--optional' }, 'Optional'),
+        h('div', { class: 'asc-substage-title' }, 'Expected trajectory', info)),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' },
+          'If your assessment is right, what should happen next?'),
+        h('div', { class: 'asc-help', style: 'margin-bottom:8px' },
+          'One expectation per box. Add a time window where you can commit to one.'),
+        rows, addExp),
+      h('div', { class: 'asc-field', style: 'margin-top:18px;margin-bottom:0' },
+        h('label', { class: 'asc-label' }, 'What would tell you that you are wrong?'),
+        h('div', { class: 'asc-help', style: 'margin-bottom:8px' },
+          'The observation that would make you abandon this assessment.'),
+        falsRows, addFals));
   }
 
   // Decisive action (Audit §13): the physician-named verifiable outcome: the test or
@@ -7018,10 +7430,24 @@
         timedOut = !done.done;
       }
       const n = recordCount != null ? recordCount : 0;
+      // Longitudinal reveal (§4 Phase 4). Captured BEFORE the draft is cleared and
+      // the view is re-rendered: the seal has just been honoured — the action is
+      // committed — so this is the first legal moment to show what happened next.
+      const revealTask = (state.task && state.task.trajectory_id
+                          && payload.expected_trajectory) ? state.task : null;
       // The submission is committed server-side the moment we got the 202, so a
       // poll timeout is "still finalizing", NOT a failure; never lose the work.
       clearDraft(taskId);
       stopTimer();
+      if (revealTask) {
+        // Straight to the reveal, not through a toast and a fresh queue draw. The
+        // physician has just made a prediction about a real patient; making them
+        // click back to find out whether it held is the single most disengaging
+        // thing this product could do with it.
+        state.submitting = false;
+        renderTrajectoryOutcomeView(revealTask);
+        return;
+      }
       if (timedOut) {
         toast('Submitted. Still finalizing in the background. It will appear once the pipeline completes.', 'success');
       } else if (finalStatus === 'needs_qa') {
@@ -7229,6 +7655,27 @@
         tool_name: (da.tool_name || '').trim() || null,
         must_precede_final_answer: da.must_precede_final_answer !== false,
         rationale: (da.rationale || '').trim(),
+      };
+    }
+    // Expected trajectory (Longitudinal Cases §3.3 field 3). Sent only when the
+    // physician actually wrote an expectation; the server normalizes and stores
+    // None for anything that is not a usable prediction, so an empty shell here
+    // would only inflate the falsifier corpus's count with nothing behind it.
+    const et = d.expected_trajectory || {};
+    const expectations = (et.expectations || [])
+      .filter((e) => e && (e.expectation || '').trim())
+      .map((e) => {
+        const days = parseInt(e.horizon_days, 10);
+        return {
+          expectation: e.expectation.trim(),
+          horizon_days: Number.isFinite(days) ? days : null,
+        };
+      });
+    if (expectations.length) {
+      payload.expected_trajectory = {
+        expectations,
+        falsifiers: (et.falsifiers || []).map((f) => (f || '').trim()).filter(Boolean),
+        note: (et.note || '').trim(),
       };
     }
     return payload;
@@ -8847,6 +9294,26 @@
   const _diffBadgeClass = (band) => (
     band === 'hard' ? 'asc-badge-red' : band === 'medium' ? 'asc-badge-amber' : 'asc-badge-gray');
 
+  // Longitudinal density (PRD 2 §2): why this encounter is or is not a decision
+  // point, WITH the measurements. 34 of the 59 encounters across the four real
+  // charts fail this gate; an admin looking at a chart that yielded 3 points out
+  // of 17 needs to read which threshold each one missed, or the gate is
+  // unarguable — and the gate is the product.
+  function renderDensityLine(p) {
+    const d = p.density;
+    if (!d) return null;
+    if (p.qualifies_as_decision_point) {
+      return h('div', { class: 'asc-case-note-meta' },
+        'Decision point · ' + d.n_distinct_dates + ' date(s), ' + d.n_events
+        + ' event(s), ' + d.n_resource_types + ' resource type(s)'
+        + (p.outcome_verifiable
+            ? ' · a later encounter can check it'
+            : ' · nothing later in the record to check it against'));
+    }
+    return h('div', { class: 'asc-case-note-meta' },
+      'Below the decision-point gate: ' + (d.reasons || []).join('; '));
+  }
+
   function renderProposalRow(ic, p, refresh) {
     const wrap = h('div', {
       class: 'asc-card-pad',
@@ -8861,7 +9328,8 @@
           'index event day ' + p.index_event_offset
           + ' · window ' + (p.encounter_span || []).join(' … ')
           + ' · ' + (p.n_events || 0) + ' recorded events'),
-        h('div', { class: 'asc-card-sub' }, (p.index_rationale || {}).reason || '')),
+        h('div', { class: 'asc-card-sub' }, (p.index_rationale || {}).reason || ''),
+        renderDensityLine(p)),
       h('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap' },
         // The difficulty band is a CLAIM until it is measured, and the plan never
         // measures — so the preview says so rather than showing a bare band.
@@ -8981,6 +9449,51 @@
       }
     });
 
+    // ── Longitudinal trajectory (PRD 2 §4 Phase 5) ───────────────────────────
+    // A different product from a batch of independent cases, so it is a different
+    // button with its own stated count and its own stated price. The confirm is not
+    // ceremony: this writes N tasks at $75 a completed submission, and §9.3 exists
+    // because "a trajectory is not a discount on physician time — it is N tasks
+    // that happen to share a chart".
+    const nPoints = plan.decision_points || 0;
+    const nVerifiable = plan.verifiable_decision_points || 0;
+    const trajBtn = h('button', { class: 'asc-btn asc-btn-primary' },
+      'Chain ' + nPoints + ' decision point(s) into one trajectory');
+    if (!nPoints) trajBtn.setAttribute('disabled', '');
+    trajBtn.addEventListener('click', async () => {
+      const cost = (nPoints * 75).toLocaleString();
+      if (!window.confirm(
+        'Create a ' + nPoints + '-point longitudinal trajectory from this chart?\n\n'
+        + '· ' + nVerifiable + ' of the ' + nPoints + ' points can be checked against a later '
+        + 'encounter. The last point has nothing after it in the record.\n'
+        + '· Points are single-labelled. They are excluded from the κ pool by '
+        + 'construction, so a second label buys no agreement statistic.\n'
+        + '· Physician cost at the standard rate: about $' + cost + '.\n\n'
+        + 'Each physician answers the points in order and cannot read ahead.')) return;
+      trajBtn.setAttribute('disabled', '');
+      trajBtn.textContent = 'Generating trajectory…';
+      clear(status);
+      try {
+        const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
+          { method: 'POST', body: { dry_run: false, trajectory: true } });
+        overlay.remove();
+        clear(statusBox);
+        statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
+          'Trajectory ' + (r.trajectory_id || '') + ': ' + (r.trajectory_points || 0)
+          + ' point(s), ' + (r.trajectory_verifiable_points || 0) + ' outcome-verifiable'
+          + (r.estimated_cost_usd ? ' · est. $' + r.estimated_cost_usd : '')
+          + (r.gated ? ' · ' + r.gated + ' gated' : '')
+          + (r.failed ? ' · ' + r.failed + ' failed' : '') + '.'));
+        toast('Chained ' + (r.trajectory_points || 0) + ' decision points into one trajectory.', 'success');
+        loadIngestionLists();
+      } catch (e) {
+        status.appendChild(h('div', { class: 'asc-inline-error' },
+          (e && e.detail && e.detail.error) || e.message || 'Trajectory generation failed.'));
+        trajBtn.removeAttribute('disabled');
+        trajBtn.textContent = 'Chain ' + nPoints + ' decision point(s) into one trajectory';
+      }
+    });
+
     const popup = h('div', {
       class: 'call-team-popup',
       style: 'max-width:900px;max-height:90vh;overflow:auto;text-align:left',
@@ -8992,13 +9505,19 @@
         (ic.patient_key || '') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
         + nGen + ' generatable'
         + (plan.specialty_hint ? ' · specialty ' + plan.specialty_hint : '')),
-      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:6px' },
         'Nothing here has been written. Difficulty is measured only when you generate — '
         + 'a band shown as "proposed" is the structural prior, not a frontier failure rate.'),
+      // Both numbers, always, because they are what a chart walk is priced on and
+      // they are never the same number.
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
+        nPoints + ' encounter(s) clear the decision-point gate (≥2 dates, ≥8 events, '
+        + '≥2 resource types) · ' + nVerifiable + ' have a later encounter to be checked '
+        + 'against. Encounters below the gate are single-contact draws, not decisions.'),
       list,
       status,
-      h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
-        allBtn,
+      h('div', { style: 'display:flex;gap:10px;margin-top:16px;flex-wrap:wrap' },
+        allBtn, trajBtn,
         h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto',
                       onClick: () => overlay.remove() }, 'Close')));
     overlay.appendChild(popup);

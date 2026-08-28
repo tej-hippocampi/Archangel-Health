@@ -3699,6 +3699,26 @@ class AsclepiusStore:
                 raise ValueError("sequence_index must be an integer")
             if sequence_index < 0:
                 raise ValueError("sequence_index is 0-based and cannot be negative")
+        elif task_id:
+            # This statement is INSERT OR REPLACE, so re-inserting an existing
+            # ``task_id`` without the trajectory columns would NULL them — and a
+            # trajectory point that loses its position stops being one. The
+            # sequence gate would then wave it through as an ordinary task, which
+            # is the §9.1 blocker returning through a side door, silently, on an
+            # admin's task upload.
+            #
+            # One indexed lookup, only on the explicit-id path (generation always
+            # mints its own id and skips this entirely).
+            with self._conn() as conn:
+                prior = conn.execute(
+                    "SELECT trajectory_id FROM tasks WHERE task_id = ?", (task_id,)
+                ).fetchone()
+            if prior and prior["trajectory_id"]:
+                raise ValueError(
+                    f"task {task_id!r} is decision point in trajectory "
+                    f"{prior['trajectory_id']!r}; re-inserting it without its "
+                    "trajectory_id and sequence_index would strip its position in "
+                    "the chart walk and let it be served out of order")
         gm = grounding_mode if grounding_mode in ("optional", "required") else "optional"
         im = normalize_independent_mode(independent_mode)
         # Multimodal (Synthetic Multimodal Cases PRD): modality is DERIVED from case

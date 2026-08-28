@@ -440,6 +440,21 @@ def test_a_trajectory_row_with_no_position_is_never_served():
     assert asc_trajectory.blocks_out_of_order(broken, unanswered_earlier=[]) is not None
 
 
+def test_reinserting_a_trajectory_point_without_its_position_is_refused():
+    """``insert_task`` is INSERT OR REPLACE, so an admin re-uploading a task by id
+    would NULL the trajectory columns — and a point that loses its position stops
+    being one, which is §9.1 returning through a side door on an admin action."""
+    store = _store()
+    _tid, points = _walk(store, n=2)
+    with pytest.raises(ValueError) as exc:
+        store.insert_task(task_id=points[0]["task_id"], prompt="replaced")
+    assert "chart walk" in str(exc.value)
+    # An ordinary task is still replaceable, exactly as before.
+    plain = store.insert_task(task_id="t-plain", prompt="one", specialty="gastroenterology")
+    again = store.insert_task(task_id="t-plain", prompt="two", specialty="gastroenterology")
+    assert again["prompt"] == "two" and plain["task_id"] == again["task_id"]
+
+
 def test_insert_task_refuses_half_a_trajectory_identity():
     store = _store()
     with pytest.raises(ValueError):

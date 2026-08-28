@@ -1058,7 +1058,16 @@ def trajectory_block(
     payload = s.get("payload") or {}
     # The column is authoritative; the payload is the fallback for a record whose
     # submission row is not in hand (the case bundle builds from mapped records).
-    expected = s.get("expected_trajectory") or payload.get("expected_trajectory")
+    #
+    # The fallback is re-normalized rather than trusted. The column is written from
+    # an already-normalized object, but a payload can carry whatever a client sent
+    # — the flagged-prompt paths, for instance, store ``body.model_dump()`` verbatim
+    # — and raw client data must never ride into a buyer-facing annex on a
+    # last-resort branch nobody looks at.
+    expected = s.get("expected_trajectory")
+    if not expected:
+        expected = asc_trajectory.normalize_expected_trajectory(
+            payload.get("expected_trajectory"))
     self_score = s.get("trajectory_self_score")
     if not asc_trajectory.is_trajectory_point(t) and not expected:
         return None
