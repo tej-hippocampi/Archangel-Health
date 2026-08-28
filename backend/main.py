@@ -6529,12 +6529,67 @@ async def startup_community():
         from community import morning as _cmorning
         if _cmorning.enabled():
             _cmorning.start_morning_loop()
+        _start_asclepius_task_notify_loop()
     except Exception:
         _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
 
 
+_asclepius_task_notify_task = None
+
+
+def asclepius_task_notify_interval_sec() -> int:
+    try:
+        return max(15, int(os.getenv("ASCLEPIUS_TASK_NOTIFY_INTERVAL_SECONDS", "60")))
+    except (TypeError, ValueError):
+        return 60
+
+
+def _start_asclepius_task_notify_loop() -> None:
+    """Drain the asclepius task-notify outbox on a tick.
+
+    The outbox is durable, but nothing periodic ever drained it: delivery rode
+    a single ``BackgroundTasks.add_task`` fired right after upload, with no
+    retry. A worker that died mid-send (or a promote path that had no
+    request-scoped handle to add a task to) left rows ``pending`` forever, and
+    the only way to move them was an admin hitting the manual re-drain endpoint
+    -- which nothing tells them to do.
+
+    Distinct from ``_task_notification_loop``, which drains the CareGuide/team
+    patient-task queue on the other plane. Same idea, different outbox.
+    """
+    global _asclepius_task_notify_task
+    if _asclepius_task_notify_task is not None and not _asclepius_task_notify_task.done():
+        return
+
+    async def _run() -> None:
+        from asclepius import task_notify as _asc_task_notify
+
+        while True:
+            await asyncio.sleep(asclepius_task_notify_interval_sec())
+            try:
+                store = getattr(app.state, "asclepius_store", None)
+                if store is None:
+                    continue
+                # Sending is blocking (SendGrid over requests), so keep it off
+                # the event loop.
+                await asyncio.to_thread(_asc_task_notify.drain_outbox, store)
+            except Exception:  # pragma: no cover -- the loop must survive
+                _auth_logger.warning(
+                    "[asclepius] task-notify drain failed", exc_info=True
+                )
+
+    _asclepius_task_notify_task = asyncio.create_task(_run())
+
+
 @app.on_event("shutdown")
 async def shutdown_community():
+    global _asclepius_task_notify_task
+    try:
+        if _asclepius_task_notify_task is not None:
+            _asclepius_task_notify_task.cancel()
+            _asclepius_task_notify_task = None
+    except Exception:
+        pass
     try:
         from community import notify as _cnotify
 

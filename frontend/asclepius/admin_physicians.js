@@ -528,6 +528,11 @@
         h('thead', {}, h('tr', {},
           h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Phone'),
           h('th', {}, 'Specialty'), h('th', {}, 'Tier'),
+          /* The running contributor score. Internal: it is in no package and
+           * no buyer sees it. It is on the roster because "who is doing good
+           * work" was answerable only by opening physicians one at a time. */
+          h('th', { title: 'Running quality score across graded cases. Internal.' },
+            'Score'),
           /* Real-data approval was API-only: the flag gates the entire V4 real
            * de-identified queue, and the only way to grant it was curl. So the
            * real cases sat in the queue while every physician's picker showed
@@ -564,6 +569,11 @@
       h('td', {}, p.phone || '—'),
       h('td', {}, p.specialty || '—'),
       h('td', {}, tierCell(h, p)),
+      /* An em dash, never a 0. Nobody has graded them yet is not the same
+       * claim as they scored zero, and on a roster the two read identically. */
+      h('td', { class: 'asc-mono' },
+        (p.contributor_score === null || p.contributor_score === undefined)
+          ? '—' : String(Math.round(Number(p.contributor_score)))),
       realDataCell,
       communityCell,
       actionCell);

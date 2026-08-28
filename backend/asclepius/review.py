@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+from asclepius import label_view
 from typing import Any, Dict, List, Optional, Tuple
 
 from asclepius import agreement as asc_agreement
@@ -193,10 +194,14 @@ _TASK_VIEW_KEYS = (
     "task_id", "specialty", "difficulty", "modality", "case_source",
     "prompt", "case", "decisive_action", "grounding_mode",
 )
-_SUBMISSION_PAYLOAD_VIEW_KEYS = (
-    "verdict", "chosen_id", "rejected_id", "chosen_revision", "rejected_critique",
-    "from_scratch", "reasoning_steps", "rubric", "independent_answer", "citations",
-)
+#: DERIVED from asclepius.label_view, not hand-maintained. This tuple used to
+#: be ten strings kept in step by hand, and it drifted: "citations" sat in it
+#: for months as a phantom (no submission has ever carried a top-level
+#: citations key -- they live nested as evidence anchors), while prompt_review
+#: was missing entirely. label_view declares every field of SubmissionIn as
+#: shown-with-a-place or withheld-with-a-reason, and test_label_view walks the
+#: schema and fails when a new field is neither.
+_SUBMISSION_PAYLOAD_VIEW_KEYS = label_view.submission_view_keys()
 
 
 def _blinded_task_view(task: Dict[str, Any]) -> Dict[str, Any]:
@@ -249,6 +254,11 @@ def _answer_view(submission: Dict[str, Any], *, scrub: bool = False) -> Dict[str
     view: Dict[str, Any] = {k: payload.get(k) for k in _SUBMISSION_PAYLOAD_VIEW_KEYS
                             if payload.get(k) is not None}
     view["verdict"] = s.get("verdict") or payload.get("verdict")
+    # Prune the leaves label_view withholds. Applied to BOTH flows, unlike
+    # ``scrub``: withholding the model's own pre-label suggestions is about not
+    # anchoring the reviewer, which is true of a single review as much as a
+    # pair, and has nothing to do with ordering tells.
+    view = label_view.prune(view)
     return _scrub_metadata(view) if scrub else view
 
 

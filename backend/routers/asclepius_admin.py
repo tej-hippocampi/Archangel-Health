@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from onboarding_emails import build_asclepius_invite_email
 
@@ -677,6 +677,7 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     out: List[Dict[str, Any]] = []
     counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0,
               "unassigned": 0}
+    score_by_user = store.contributor_scores_by_user()
     for u in _physician_users(store):
         tier = u.get("tier")
         verification = u.get("verification_status")
@@ -718,6 +719,13 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "health_system_id": hs_id,
             "health_system_name": hs_names.get(hs_id) if hs_id else None,
             "active": bool(u.get("active", 1)),
+            # The running contributor score. Read from the stored row, not
+            # recomputed: this is a roster of everyone and ``compute`` is a
+            # query per submission. None means nobody has graded them yet, and
+            # the roster renders an em dash rather than a zero, because a zero
+            # here reads as a physician who does bad work rather than one whose
+            # first case is still in the queue.
+            "contributor_score": score_by_user.get(u["id"]),
         })
     # Accounts with a doctor's credentials and an operator's role. Not part of
     # ``physicians`` or ``counts`` — they are not supply until someone decides
@@ -1887,3 +1895,178 @@ async def invite_to_community(
             "email": user["email"], "sent": True, "expires_at": expires_at,
             "invited_at": (store.latest_community_invite_for_user(user["id"]) or {})
             .get("created_at")}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Assignment (PRD-ASSIGN) — proposing who does which case
+# ═══════════════════════════════════════════════════════════════════════════════
+class AllocateBody(BaseModel):
+    """Which cases to allocate, and to whom.
+
+    ``dry_run`` defaults to TRUE. Same shape as ingest promotion, and for the
+    same reason: an admin should be able to iterate on an allocation before a
+    physician is told to do anything.
+    """
+
+    task_ids: List[str] = Field(default_factory=list)
+    labels_per_case: int = Field(2, ge=1, le=5)
+    reviewers_per_case: int = Field(1, ge=0, le=3)
+    max_share: float = Field(0.35, gt=0.0, le=1.0)
+    dry_run: bool = True
+    due_at: Optional[str] = None
+    # Exclusivity is offered ONLY with an expiry. An exclusive assignment with
+    # no timeout is a queue that wedges the moment somebody goes on holiday.
+    exclusive_hours: Optional[int] = Field(None, ge=1, le=720)
+
+
+def _allocation_inputs(store: Any, task_ids: List[str]):
+    """Build the allocator's pure inputs from the store.
+
+    Every eligibility answer is READ from the module that owns that question:
+    the capability layer for labeling, ``review.can_review`` for reviewing,
+    ``tiering.domain_match`` for domain fit. A hard gate implemented twice is a
+    hard gate that will disagree with itself.
+    """
+    from asclepius import allocation as asc_allocation
+    from asclepius import capabilities as _caps
+    from asclepius import review as _review
+    from asclepius import tiering as _tiering
+
+    cases = []
+    for tid in task_ids:
+        t = store.get_task(tid)
+        if not t:
+            continue
+        cases.append(asc_allocation.Case(
+            task_id=t["task_id"],
+            specialty=(t.get("specialty") or ""),
+            real_deid=(t.get("case_source") == "real_deid"),
+            difficulty=(
+                float(t["empirical_difficulty"])
+                if t.get("difficulty_measured") and t.get("empirical_difficulty") is not None
+                else {"easy": 0.2, "medium": 0.5, "hard": 0.8}.get(
+                    (t.get("difficulty") or "").strip().lower())
+            ),
+        ))
+
+    domains = {c.specialty for c in cases if c.specialty}
+    domain = next(iter(domains)) if len(domains) == 1 else None
+    scores = store.contributor_scores_by_user()
+    loads = store.open_assignment_counts()
+
+    physicians = []
+    for u in store.list_users():
+        if (u.get("role") or "") != "evaluator" or not u.get("active", 1):
+            continue
+        if u.get("is_mock"):
+            continue
+        if (u.get("verification_status") or "approved") not in ("approved",):
+            continue
+        match, _why = _tiering.domain_match(u, domain) if domain else (0.0, "mixed batch")
+        physicians.append(asc_allocation.Physician(
+            user_id=u["id"],
+            can_label=_caps.can(u, _caps.LABEL),
+            can_review=_review.can_review(u),
+            domain_match=match,
+            contributor_score=scores.get(u["id"]),
+            real_data_approved=bool(u.get("real_data_approved")),
+            open_assignments=loads.get(u["id"], 0),
+        ))
+    return cases, physicians, domain
+
+
+@router.post("/assignments/allocate")
+async def admin_allocate(
+    body: AllocateBody, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Propose an allocation, and commit it only when asked.
+
+    THE POINT: the allocator proposes and an admin commits. The response is a
+    table an operator reads and adjusts, and a case nothing could be proposed
+    for comes back in ``unassigned`` WITH A REASON rather than quietly vanishing
+    from the list.
+
+    Committing writes ``assignments`` rows, which are a PRIORITY and not a
+    permission: an assigned case sorts to the top of its assignee's queue and
+    every other physician still sees it exactly where it was. Nothing about who
+    MAY draw a case changes here.
+    """
+    from asclepius import allocation as asc_allocation
+
+    if not body.task_ids:
+        raise HTTPException(status_code=400, detail="task_ids is required.")
+    store = _store()
+    cases, physicians, domain = _allocation_inputs(store, body.task_ids)
+    if not cases:
+        raise HTTPException(status_code=404, detail="None of those task ids exist.")
+
+    proposal = asc_allocation.allocate(
+        cases, physicians,
+        labels_per_case=body.labels_per_case,
+        reviewers_per_case=body.reviewers_per_case,
+        max_share=body.max_share,
+    )
+
+    committed = []
+    if not body.dry_run:
+        expires_at = None
+        if body.exclusive_hours:
+            expires_at = (
+                datetime.now(timezone.utc) + timedelta(hours=int(body.exclusive_hours))
+            ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        for a in proposal.assignments:
+            row = store.upsert_assignment(
+                task_id=a["task_id"], user_id=a["user_id"], role=a["role"],
+                assigned_by=admin["email"], due_at=body.due_at,
+                exclusive=bool(body.exclusive_hours), expires_at=expires_at,
+            )
+            committed.append(row["assignment_id"])
+        store.log_event(
+            entity_type="assignment", event_type="assignments_committed",
+            actor=admin["email"],
+            payload={"n": len(committed), "cases": len(cases), "domain": domain,
+                     "labels_per_case": body.labels_per_case,
+                     "reviewers_per_case": body.reviewers_per_case},
+        )
+
+    return {
+        "dry_run": bool(body.dry_run),
+        "domain": domain,
+        "cases": len(cases),
+        "physicians_considered": len(physicians),
+        "assignments": proposal.assignments,
+        "unassigned": proposal.unassigned,
+        "per_physician": proposal.per_physician,
+        "notes": proposal.notes,
+        "committed": committed,
+    }
+
+
+@router.get("/assignments")
+async def admin_list_assignments(
+    task_id: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    if task_id:
+        return {"assignments": store.assignments_for_task(task_id)}
+    if user_id:
+        return {"assignments": store.assignments_for_user(user_id)}
+    raise HTTPException(status_code=400, detail="task_id or user_id is required.")
+
+
+@router.post("/assignments/{assignment_id}/revoke")
+async def admin_revoke_assignment(
+    assignment_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Take an assignment back. The case returns to the ordinary queue, where it
+    always was: revoking removes a priority, not an access grant."""
+    store = _store()
+    if not store.set_assignment_status(assignment_id, "revoked"):
+        raise HTTPException(status_code=404, detail="No such assignment.")
+    store.log_event(
+        entity_type="assignment", entity_id=assignment_id,
+        event_type="assignment_revoked", actor=admin["email"],
+    )
+    return {"assignment_id": assignment_id, "status": "revoked"}

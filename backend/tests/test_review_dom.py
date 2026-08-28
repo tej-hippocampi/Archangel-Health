@@ -291,14 +291,25 @@ globalThis.__report = function () {
     judgmentBeforeCaseBody: judgment !== null,
     calls: globalThis.__calls.map((c) => c.url),
     sessionCalls: globalThis.__sessionCalls,
+    drafts: globalThis.__drafts,
   };
 };
 globalThis.__host = host;
+
+// The shell owns storage; the module asks for it through the ctx. Seeded so a
+// restore can be driven, and observable so a save can be asserted.
+globalThis.__drafts = %(drafts)s || {};
+const DRAFTS = {
+  save: function (id, value) { globalThis.__drafts[id] = value; },
+  load: function (id) { return globalThis.__drafts[id] || null; },
+  clear: function (id) { delete globalThis.__drafts[id]; },
+};
 
 const CTX = {
   h: h,
   clear: clear,
   api: api,
+  drafts: %(with_drafts)s ? DRAFTS : undefined,
   toast: function () {},
   loadingCard: function (t) { return h('div', { class: 'asc-empty' }, t); },
   fmtDate: function (d) { return String(d); },
@@ -437,7 +448,8 @@ def _routes(**over):
 
 
 def _render(routes, drive: str = "", session_state=None,
-            session_methods=("start", "stop", "state"), preview=False) -> dict:
+            session_methods=("start", "stop", "state"), preview=False,
+            drafts=None, with_drafts=True) -> dict:
     """``session_state`` is what Agent P's ``AsclepiusSession.state()`` returns.
     ``None`` means the page has no heartbeat client at all — which is what a
     reviewer sees before P's script is on the page.
@@ -454,6 +466,8 @@ def _render(routes, drive: str = "", session_state=None,
         "session_state": json.dumps(session_state) if session_state is not None else "null",
         "session_methods": json.dumps(list(session_methods)),
         "preview": "true" if preview else "false",
+        "drafts": json.dumps(drafts or {}),
+        "with_drafts": "true" if with_drafts else "false",
     })
 
 
@@ -1466,3 +1480,254 @@ def test_the_view_reset_cannot_run_before_the_review_teardown():
     # ...and the teardown is still skipped only for 'tasks', which is the one
     # destination that keeps the reviewer on the surface.
     assert "state.view === 'review' && dest !== 'tasks'" in body
+
+
+# ═══ what the labeler captured actually reaches the reviewer ═════════════════
+#
+# Every test above this block asserts a NEGATIVE (no identity leak, no ordering
+# tell, no colour bias) or the reviewer's own output shape. Nothing asserted
+# that the reviewer can see what the physician wrote, which is why a phantom
+# `citations` key sat in the server whitelist and in this module's renderer for
+# months while no submission has ever carried one. Citations live nested as
+# `evidence_anchor`/`evidence_anchors` in six places, so a reviewer had never
+# seen a single citation a labeler entered, while one of the four things they
+# grade is rubric quality and the premium export SKU is literally "grounded".
+
+_ANCHOR = {"citation_text": "KDIGO 2024 hyperkalemia", "identifier": "KDIGO-2024-3.2",
+           "source_type": "guideline"}
+
+
+def _rich_pair_body():
+    """A pair carrying the fields that were captured and never rendered."""
+    body = _pair_body()
+    a = body["pair"]["answers"][0]["answer"]
+    a["verdict"] = "A_better"
+    a["prompt_review"] = {"reviewed": True, "verdict": "valid",
+                          "note": "The question is answerable as written."}
+    a["independent_answer"] = {"text": "Stabilise the myocardium first.",
+                               "kind": "full", "evidence_anchors": [_ANCHOR]}
+    a["chosen_revision"] = {"edited": True, "revised_text": "IV calcium gluconate now.",
+                            "why_better_tags": ["safer", "more_specific"],
+                            "why_better_notes": "It sequences the treatment.",
+                            "evidence_anchors": [_ANCHOR]}
+    a["rejected_critique"] = {
+        "error_tags": ["dosing_error"],
+        "severities": {"dosing_error": "severe"},
+        "error_tag_reasons": {"dosing_error": "wrong_units"},
+        "why_worse": "It dialyses before stabilising.",
+        "failure_tags": [{"mode": "hallucinated_fact", "note": "Invents a potassium threshold",
+                          "tier": "critical"}],
+        "error_tag_anchors": {"dosing_error": _ANCHOR},
+    }
+    a["reasoning_steps"] = [
+        {"text": "Stabilise the myocardium.", "corrected": True,
+         "original_text": "Give insulin first.", "correction_reason": "wrong_order",
+         "step_error_tag": "sequencing", "label": "bad",
+         "critique": "Insulin does not protect the heart.",
+         "evidence_anchors": [_ANCHOR]},
+        {"text": "Then shift potassium.", "confirmed": True, "label": "good"},
+    ]
+    a["rubric"] = [{"text": "Must give calcium before insulin.", "points": 3.0,
+                    "axes": ["safety", "accuracy"], "tier": "critical", "critical": True,
+                    "specific": True, "evidence_anchor": _ANCHOR}]
+    return body
+
+
+def _rich_routes():
+    return _routes(**{"/review/pair/next": {"status": 200, "body": _rich_pair_body()}})
+
+
+def test_the_reviewer_sees_a_citation_the_labeler_entered():
+    """The defect this block exists for. Anchors are nested, and the renderer
+    was looking for a top-level key that has never existed."""
+    out = _render(_rich_routes())
+    assert "KDIGO 2024 hyperkalemia" in out["text"]
+
+
+def test_a_citation_is_rendered_beside_the_claim_it_supports():
+    """A citation divorced from its claim is not reviewable, so anchors render
+    under the thing they ground rather than in one fold at the bottom."""
+    out = _render(_rich_routes())
+    text = out["text"]
+    claim = text.find("IV calcium gluconate now.")
+    cite = text.find("KDIGO-2024-3.2")
+    assert claim != -1 and cite != -1
+    # The first citation occurrence follows the claim it grounds.
+    assert cite > claim
+
+
+def test_the_model_failure_taxonomy_reaches_the_reviewer():
+    """A named export SKU that was captured and never shown."""
+    out = _render(_rich_routes())
+    assert "hallucinated_fact" in out["text"]
+    assert "Invents a potassium threshold" in out["text"]
+
+
+def test_error_severity_and_reason_reach_the_reviewer():
+    out = _render(_rich_routes())
+    assert "severe" in out["text"]
+    assert "wrong_units" in out["text"]
+
+
+def test_the_reviewer_sees_what_the_physician_did_to_each_step():
+    """"They endorsed the model" and "they rewrote it" are different pieces of
+    work and rendered identically before."""
+    out = _render(_rich_routes())
+    text = out["text"]
+    assert "corrected" in text
+    assert "confirmed" in text
+    assert "Give insulin first." in text, "the model's original is not shown"
+    assert "Insulin does not protect the heart." in text
+
+
+def test_the_rubric_criticality_and_axes_reach_the_reviewer():
+    """The grader hard-fails on a critical negative, and a reviewer grading
+    "rubric quality" was shown neither the tier nor the axes."""
+    out = _render(_rich_routes())
+    text = out["text"]
+    assert "critical" in text
+    assert "safety" in text
+
+
+def test_why_better_tags_reach_the_reviewer():
+    out = _render(_rich_routes())
+    assert "more_specific" in out["text"]
+
+
+def test_the_stage_one_signoff_reaches_the_reviewer():
+    out = _render(_rich_routes())
+    assert "The question is answerable as written." in out["text"]
+
+
+def test_a_ten_second_stance_is_distinguishable_from_a_full_blind_answer():
+    """Without `kind` they render identically, and they are not the same work."""
+    out = _render(_rich_routes())
+    assert "full" in out["text"]
+
+
+def test_the_phantom_citations_key_is_gone_from_the_renderer():
+    src = _code(_REVIEW_JS.read_text(encoding="utf-8"))
+    assert "a.citations" not in src, "the renderer still reads a key nothing produces"
+
+
+def test_a_pair_with_none_of_these_fields_still_renders():
+    """The additions are all conditional; a sparse answer must not blank the
+    card."""
+    out = _render(_routes())
+    assert out["errors"] == [] or not any(out["errors"])
+    assert "Calcium gluconate first." in out["text"]
+
+
+# ═══ the judgment survives a refresh ═════════════════════════════════════════
+#
+# R lived only in memory, so a stray reload mid-adjudication threw away a
+# senior physician's reading of a hard pair. Tolerable for four segmented
+# controls; not tolerable now the card is worth reading properly.
+#
+# Storage belongs to the SHELL. This module having its own localStorage read
+# was one of the reasons review was structurally a different application, and
+# `test_the_module_has_no_hyperscript_or_token_of_its_own` pins that it has not
+# grown one back, so the draft arrives through the ctx like `h` and `api`.
+
+_PROBE_CORRECTIONS = """
+globalThis.__report = (function (o) { return function () {
+  var r = o();
+  var boxes = [];
+  (function walk(el){ if (el.style && el.style.display === 'none') boxes.push(el);
+                      (el.children||[]).forEach(walk); })(globalThis.__host);
+  var areas = [];
+  (function walk(el){ if (el.tagName === 'TEXTAREA') areas.push(el);
+                      (el.children||[]).forEach(walk); })(globalThis.__host);
+  r.hiddenBoxes = boxes.length;
+  r.textareaValues = areas.map(function (a) { return a.value || ''; });
+  var segs = [];
+  (function walk(el){ if (el.className === 'asc-rv-seg') segs.push(el);
+                      (el.children||[]).forEach(walk); })(globalThis.__host);
+  r.aimedStronger = (function () {
+    if (!segs.length) return null;
+    var on = segs[0].children.filter(function (b) { return b.classList.contains('is-on'); });
+    return on.length ? on[0].dataset.state : null;
+  })();
+  return r; }; })(globalThis.__report);
+"""
+
+
+def test_a_judgment_is_saved_as_it_is_made():
+    out = _render(_routes(), "globalThis.__click('state', 'A');")
+    saved = out["drafts"].get("t-1")
+    assert saved, "nothing was stored for the pair being judged"
+    assert saved["stronger"] == "A"
+
+
+def test_free_text_is_saved_as_it_is_typed():
+    drive = """
+globalThis.__click('state', 'equivalent');
+globalThis.__click('verdict', 'reject');
+globalThis.__type(0, 'half-written reason');
+"""
+    out = _render(_routes(), drive)
+    assert out["drafts"]["t-1"]["notes"] == "half-written reason"
+
+
+def test_a_saved_judgment_comes_back_after_a_reload():
+    prior = {"t-1": {"verdict": "reject", "stronger": "equivalent", "acceptedSide": None,
+                     "dimensions": {}, "notes": "half-written", "edited": ""}}
+    out = _render(_routes(), _PROBE_CORRECTIONS, drafts=prior)
+    assert "half-written" in out["textareaValues"]
+    assert out["aimedStronger"] == "equivalent"
+
+
+def test_restoring_drives_the_real_handlers_not_just_the_classes():
+    """A restored judgment that LOOKS selected but did not run the side effects
+    (the corrections box opening, acceptedSide coupling to `stronger`) is worse
+    than no restore: the reviewer submits something they never chose."""
+    prior = {"t-1": {"verdict": "reject", "stronger": "equivalent", "acceptedSide": None,
+                     "dimensions": {}, "notes": "a reason", "edited": ""}}
+    out = _render(_routes(), _PROBE_CORRECTIONS, drafts=prior)
+    # reject opens the corrections box; a class-only restore leaves it hidden.
+    assert out["hiddenBoxes"] == 0, "the corrections box stayed hidden after restore"
+
+
+def test_a_preview_leaves_no_trace_a_real_reviewer_could_resume_into():
+    """An operator sightseeing must not leave a judgment a real reviewer could
+    resume into."""
+    out = _render(
+        _routes(**{"/review/pair/next": {"status": 200, "body": _pair_body(preview=True)}}),
+        "globalThis.__click('state', 'A');",
+        preview=True,
+    )
+    assert out["drafts"] == {}
+
+
+def test_submitting_clears_the_local_copy():
+    """Once the server has the judgment the local copy stops being a recovery
+    aid and starts being a stale one."""
+    drive = """
+globalThis.__click('state', 'A');
+globalThis.__click('verdict', 'accept:A');
+globalThis.__click('dim-state-0', 'agree');
+"""
+    prior = {"t-1": {"verdict": "accept", "stronger": "A", "acceptedSide": "A",
+                     "dimensions": {"clinical_accuracy": "agree",
+                                    "reasoning_quality": "agree",
+                                    "completeness": "agree",
+                                    "rubric_quality": "agree"},
+                     "notes": "", "edited": ""}}
+    out = _render(_routes(), "if (globalThis.__submitState() === false) globalThis.__submit();",
+                  drafts=prior)
+    assert "t-1" not in out["drafts"]
+
+
+def test_a_shell_that_offers_no_draft_store_still_works():
+    """The module degrades to the old in-memory behaviour rather than throwing
+    on a shell that predates the contract."""
+    out = _render(_routes(), with_drafts=False)
+    assert out["errors"] == [] or not any(out["errors"])
+
+
+def test_the_restored_clock_does_not_bill_the_gap():
+    """`startedAt` is deliberately NOT restored: it measures time on this case
+    in this sitting, and a draft resumed tomorrow would bill the interval."""
+    src = _REVIEW_JS.read_text(encoding="utf-8")
+    assert "startedAt is NOT restored" in src
+    assert "R.startedAt = saved" not in _code(src)

@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from community import countries as ccountries
+from community import links
 from community import morning as cmorning
 from community.store import get_community_store
 
@@ -160,11 +161,7 @@ async def send_for_member(
     from email_utils import send_html_email
     from onboarding_emails import build_community_morning_email
 
-    base = (os.getenv("PUBLIC_BASE_URL") or os.getenv("BASE_URL") or "").strip().rstrip("/")
-    unsubscribe = (
-        f"{base}/api/community/unsubscribe?token={prefs.get('unsubscribe_token')}"
-        if base and prefs.get("unsubscribe_token") else ""
-    )
+    unsubscribe = links.unsubscribe_url(prefs.get("unsubscribe_token") or "")
     html = build_community_morning_email(
         first_name=(member.get("display_name") or "").split(" ")[-1] or None,
         sections=sections,

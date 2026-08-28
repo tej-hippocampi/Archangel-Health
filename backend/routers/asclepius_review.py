@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
+from asclepius import label_view as asc_label_view
 from asclepius import review as asc_review
 from asclepius import routing as asc_routing
 from asclepius.store import get_store
@@ -196,6 +197,15 @@ async def review_me(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
         # real reviewer or an operator looking around" is a tier question, and
         # the tier table is not the client's to interpret.
         "preview_only": asc_review.can_review(user) and _is_preview_operator(user),
+        # What the reviewer is shown of a label, and in what order. Served over
+        # the same server-to-client vocabulary channel as ``dimensions``, which
+        # is the reason the four review dimensions have never drifted between
+        # page and server while the LABEL fields silently did. The client
+        # renders from this rather than from its own hand-written branches, so
+        # a field added to asclepius.label_view appears without a matching JS
+        # edit and cannot fail to appear silently.
+        "label_groups": asc_label_view.group_labels(),
+        "label_fields": asc_label_view.render_spec(),
     }
 
 

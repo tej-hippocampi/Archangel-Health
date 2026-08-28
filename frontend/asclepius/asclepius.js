@@ -349,9 +349,43 @@
   function isAdminUser() {
     return !!state.user && (state.user.role === 'admin' || state.user.role === 'qa_reviewer');
   }
+  /* Draft storage for a section module.
+   *
+   * The shell owns localStorage. review.js deliberately has none of its own —
+   * its own hyperscript and its own token read were two of the four reasons
+   * review was structurally a different application, and a test pins that it
+   * has not grown them back. So a module that needs to survive a refresh asks
+   * for it through the ctx, exactly as it asks for `h` and `api`.
+   */
+  const SECTION_DRAFT_PREFIX = 'asclepius_section_draft_';
+  function sectionDraftStore(namespace) {
+    const keyFor = (id) => SECTION_DRAFT_PREFIX + namespace + ':' + id;
+    return {
+      save(id, value) {
+        if (!id) return;
+        try { localStorage.setItem(keyFor(id), JSON.stringify(value)); } catch (e) { /* quota */ }
+      },
+      load(id) {
+        if (!id) return null;
+        try {
+          const raw = localStorage.getItem(keyFor(id));
+          return raw ? JSON.parse(raw) : null;
+        } catch (e) { return null; }
+      },
+      clear(id) {
+        if (!id) return;
+        try { localStorage.removeItem(keyFor(id)); } catch (e) { /* ignore */ }
+      },
+    };
+  }
+
   function reviewSectionCtx() {
     return {
       h, api, clear, toast, loadingCard, fmtDate,
+      // Survives a refresh mid-adjudication. Judgment on a hard pair is
+      // minutes of a senior physician's reading, and losing it to a stray
+      // reload is how a reviewer learns not to trust the surface.
+      drafts: sectionDraftStore('review'),
       // The clinical chart, from the shared module — the SAME component the
       // labeler reads. Handing over the ctx rather than a rendered panel is what
       // keeps the reviewer's chart from becoming a second implementation.
@@ -8089,13 +8123,127 @@
     // §1.3 — QA is NOT deleted. Removing it orphans POST /qa/approve-all and the
     // submission queue, both live. It lands here, beside the work it grades.
     body.appendChild(adminSubnav('work', [
-      ['tasks', 'Tasks'], ['qa', 'QA'], ['metrics', 'Metrics'],
+      ['tasks', 'Tasks'], ['assign', 'Assign'], ['qa', 'QA'], ['metrics', 'Metrics'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
     if (state.adminSub.work === 'qa') renderAdminQA(inner);
+    else if (state.adminSub.work === 'assign') renderAdminAssign(inner);
     else if (state.adminSub.work === 'metrics') renderAdminMetrics(inner);
     else renderAdminTasks(inner);
+  }
+
+  /* Assign: who does which case.
+   *
+   * Cases reached physicians purely by pull before this: whoever opened the
+   * queue first got the oldest one, so a hundred promoted nephrology cases
+   * could land on one fast labeler and nobody could say who was meant to do
+   * what.
+   *
+   * DRY RUN FIRST, always. The proposal is a table an operator reads and can
+   * disagree with, and committing is a second, deliberate click. Same shape as
+   * ingest promotion, for the same reason: iterate before a physician is told
+   * to do anything.
+   */
+  function renderAdminAssign(body) {
+    clear(body);
+    let proposal = null;
+    let busy = false;
+    let err = null;
+
+    const idsArea = h('textarea', {
+      class: 'asc-textarea',
+      placeholder: 'Task ids, one per line. Paste them from the Tasks tab.',
+      rows: 6,
+    });
+    const labelsInput = h('input', { class: 'asc-input', type: 'number', value: '2', min: '1', max: '5' });
+    const reviewsInput = h('input', { class: 'asc-input', type: 'number', value: '1', min: '0', max: '3' });
+    const shareInput = h('input', { class: 'asc-input', type: 'number', value: '0.35', min: '0.05', max: '1', step: '0.05' });
+
+    const results = h('div', {});
+
+    function taskIds() {
+      return idsArea.value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+    }
+
+    function run(dryRun) {
+      const ids = taskIds();
+      if (!ids.length) { err = 'Paste at least one task id.'; paint(); return; }
+      busy = true; err = null; paint();
+      api('/admin/assignments/allocate', {
+        method: 'POST',
+        body: {
+          task_ids: ids,
+          labels_per_case: Number(labelsInput.value) || 2,
+          reviewers_per_case: Number(reviewsInput.value),
+          max_share: Number(shareInput.value) || 0.35,
+          dry_run: dryRun,
+        },
+      }).then((res) => {
+        proposal = res; busy = false; paint();
+        if (!dryRun) toast(`Assigned ${res.committed.length} slot(s).`);
+      }).catch((e) => {
+        busy = false; err = (e && e.message) || 'Allocation failed.'; paint();
+      });
+    }
+
+    function paint() {
+      clear(results);
+      if (err) results.appendChild(h('div', { class: 'asc-inline-error' }, err));
+      if (busy) { results.appendChild(loadingCard('Working out who should do what...')); return; }
+      if (!proposal) return;
+
+      /* Per physician first. It is the question an operator actually has:
+       * "who is this landing on?" A list of 300 rows does not answer it. */
+      const per = proposal.per_physician || {};
+      const uids = Object.keys(per);
+      results.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, proposal.dry_run ? 'Proposed' : 'Committed'),
+        h('div', { class: 'asc-dim' },
+          `${proposal.cases} case(s), ${proposal.physicians_considered} physician(s) considered`),
+        h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+          h('thead', {}, h('tr', {}, h('th', {}, 'Physician'), h('th', {}, 'Labels'),
+            h('th', {}, 'Reviews'), h('th', {}, 'Total'))),
+          h('tbody', {}, uids.map((uid) => h('tr', {},
+            h('td', { class: 'asc-mono' }, uid),
+            h('td', { class: 'asc-mono' }, String(per[uid].label)),
+            h('td', { class: 'asc-mono' }, String(per[uid].review)),
+            h('td', { class: 'asc-mono' }, String(per[uid].total))))))))));
+
+      /* A case nobody could take is shown WITH ITS REASON. Dropping it from
+       * the list would read as "all handled". */
+      if ((proposal.unassigned || []).length) {
+        results.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+          h('h3', {}, `${proposal.unassigned.length} case(s) nobody could take`),
+          h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+            h('thead', {}, h('tr', {}, h('th', {}, 'Case'), h('th', {}, 'Why'))),
+            h('tbody', {}, proposal.unassigned.map((u) => h('tr', {},
+              h('td', { class: 'asc-mono' }, u.task_id),
+              h('td', {}, u.reason)))))))));
+      }
+      (proposal.notes || []).forEach((n) => {
+        results.appendChild(h('div', { class: 'asc-dim' }, n));
+      });
+    }
+
+    const dryBtn = h('button', { class: 'asc-btn', type: 'button' }, 'Preview allocation');
+    dryBtn.addEventListener('click', () => run(true));
+    const commitBtn = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Assign');
+    commitBtn.addEventListener('click', () => run(false));
+
+    body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+      h('h3', {}, 'Assign cases'),
+      h('div', { class: 'asc-dim' },
+        'An assignment is a priority, not a permission: an assigned case goes to '
+        + 'the top of that physician\'s queue, and everyone else still sees it '
+        + 'exactly where it was.'),
+      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Cases'), idsArea),
+      h('div', { class: 'asc-row' },
+        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Labels per case'), labelsInput),
+        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Reviewers per case'), reviewsInput),
+        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Max share per person'), shareInput)),
+      h('div', { class: 'asc-rv-actions' }, dryBtn, ' ', commitBtn))));
+    body.appendChild(results);
   }
 
   // Money: the ledger and the referral book. Both were API-only for a while;
