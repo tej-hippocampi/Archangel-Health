@@ -16,6 +16,7 @@ The bundle fixture is the real ``nephrology_pgnmid_bundle.json`` (§12).
 from __future__ import annotations
 
 import base64
+import io
 import json
 import os
 import sys
@@ -211,6 +212,40 @@ def test_both_upload_doors_identical():
     assert a == b, "both doors must wrap identically"
     # Determinism: wrapping again yields the same bytes (no timestamps leak in).
     assert I.wrap_loose_files(files, specialty="nephrology") == a
+
+
+def test_the_packer_is_deterministic_across_a_clock_tick():
+    """The assertion above is true a thousand times in a row and then false.
+
+    ZIP stores a per-entry modification time at two-second resolution, and
+    ``writestr`` given a plain string stamps it with the wall clock. So the
+    packer was deterministic only WITHIN a two-second window: two calls either
+    side of a tick produced different bytes, and this file's own determinism
+    check failed on a clock boundary rather than on a defect.
+
+    It is not only a test problem. ``routers/asclepius_provider`` wraps an upload
+    and then hashes THE WRAPPED BYTES, so the same upload submitted twice got
+    two different digests and anything keyed on that digest silently missed.
+
+    Asserted on the stored dates rather than by sleeping through a boundary: a
+    two-second sleep in the suite would be a real cost paid on every run to catch
+    a defect that a direct assertion catches for free.
+    """
+    import zipfile
+
+    raw = _bundle_bytes()
+    files = [{"filename": "bundle.json", "content": raw}]
+    packed = I.wrap_loose_files(files, specialty="nephrology")
+    with zipfile.ZipFile(io.BytesIO(packed)) as z:
+        entries = z.infolist()
+        assert entries, "nothing was packed"
+        for info in entries:
+            assert info.date_time == (1980, 1, 1, 0, 0, 0), (
+                f"{info.filename} carries a wall-clock timestamp {info.date_time}; "
+                "the packer is only deterministic until the next two-second tick"
+            )
+        # ...and the contents still survive the round trip.
+        assert z.read("bundle.json") == raw
 
 
 def test_media_becomes_study_asset():

@@ -749,6 +749,30 @@ def malware_scan(path: str) -> Tuple[bool, str]:
 # succeeded or failed depending only on which URL we happened to send. This is the
 # one packing implementation both doors call before ``store_raw``, so they cannot
 # drift again.
+# The ZIP format stores a modification time per entry, and ``writestr`` given a
+# plain string stamps it with ``time.localtime()`` — at the format's two-second
+# resolution. That makes the packer NON-DETERMINISTIC across a two-second tick,
+# which is not a cosmetic detail here: ``routers/asclepius_provider`` wraps an
+# upload and then takes ``sha256_hex`` OF THE WRAPPED BYTES, so the same upload
+# submitted twice hashed differently and anything keyed on that digest silently
+# failed to match. It also made ``test_both_upload_doors_identical`` fail on a
+# clock boundary rather than on a defect — the two doors had not drifted, the
+# second between them had.
+#
+# A fixed date is the standard fix (it is what reproducible-build tooling does).
+# 1980-01-01 because it is the earliest instant the format can express, so it
+# reads as "deliberately none" rather than as a real timestamp. Everything else
+# is set to exactly what ``writestr`` would have set, so only the clock changes.
+_ZIP_FIXED_DATE = (1980, 1, 1, 0, 0, 0)
+
+
+def _zip_entry(name: str) -> "zipfile.ZipInfo":
+    info = zipfile.ZipInfo(filename=name, date_time=_ZIP_FIXED_DATE)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    info.external_attr = 0o600 << 16
+    return info
+
+
 def wrap_loose_files(files: List[Dict[str, Any]], *, specialty: Optional[str]) -> bytes:
     """Loose partner files -> one zip for the shared pipeline.
 
@@ -771,10 +795,10 @@ def wrap_loose_files(files: List[Dict[str, Any]], *, specialty: Optional[str]) -
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for f in files:
-            z.writestr(os.path.basename(f.get("filename") or "") or "file",
+            z.writestr(_zip_entry(os.path.basename(f.get("filename") or "") or "file"),
                        f.get("content") or b"")
         if not has_manifest and specialty:
-            z.writestr("manifest.json", json.dumps({"specialty": specialty}))
+            z.writestr(_zip_entry("manifest.json"), json.dumps({"specialty": specialty}))
     return buf.getvalue()
 
 
