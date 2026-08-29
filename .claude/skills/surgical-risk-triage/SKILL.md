@@ -22,7 +22,8 @@ job is extracting clinical facts from documents.
 2. **Every tier is explained.** Output is a `TierAssignment` with itemized
    `TierReason` entries (HARD/BASE/SOFT, code, label, weight) plus
    `model_version`/`tuning_version` — these feed the audit log and the
-   clinician-facing explanation (`backend/routers/triage_explain.py`).
+   clinician-facing explanation (the `triage_explain` router is retired; it is
+   preserved on the `claude/legacy-periop-archive` branch).
    Any new factor must produce a reason entry.
 3. **LLM extracts, Python decides.** Intra-op reassessment extracts operative
    note fields via forced tool-use with per-field confidence

@@ -33,6 +33,16 @@ from eligibility.parse_x12 import InvalidX12Error, X12_271_AST, format_for_llm a
 from pipeline.gated_synthesis import synthesize_script
 from team_store import TeamStore
 
+# Where uploaded eligibility documents live on disk.
+#
+# This used to be defined in ``routers/eligibility.py`` and imported back into
+# this module function-locally, which made the data layer depend on the HTTP
+# layer — so retiring the router took the package's file handling down with it.
+# The directory is the package's own concern; it is declared here, next to the
+# code that writes into it. Same path, same env var, same 0700 root as before.
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/tmp/elysium-eligibility")).resolve()
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+
 log = logging.getLogger("eligibility.pipeline")
 _store = TeamStore()
 
@@ -615,7 +625,6 @@ async def _process_batch_split(
     store_dict = app.state.patient_store
 
     doc_id = uuid.uuid4().hex
-    from routers.eligibility import UPLOAD_DIR
 
     tmp_dir = UPLOAD_DIR / "batch-staging"
     tmp_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -863,7 +872,6 @@ async def _register_one_segment_and_enqueue(
         sd = store_dict[pid].setdefault("structured_data", {})
         sd["pre_op_instructions"] = pre_op_instructions
 
-    from routers.eligibility import UPLOAD_DIR
     from pathlib import Path as _P
 
     patient_dir = UPLOAD_DIR / pid

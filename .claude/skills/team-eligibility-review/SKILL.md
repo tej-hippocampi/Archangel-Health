@@ -58,7 +58,7 @@ Never re-derive verdicts with the LLM. Run the deterministic evaluator:
 | Extraction tool schemas | `backend/eligibility/extract.py` |
 | Verdict logic + rationale rubric | `backend/eligibility/evaluate.py` |
 | Pipeline (parse → extract → evaluate → SSE) | `backend/eligibility/pipeline.py` |
-| HTTP surface (checks, override, finalize) | `backend/routers/eligibility.py` |
+| HTTP surface (checks, override, finalize) | retired — was backend/routers/eligibility.py, preserved on the `claude/legacy-periop-archive` branch |
 | Review/override UI | `frontend/doctor.html` (`renderDetermineResult`) |
 | Tests | `backend/tests/test_eligibility_*.py` |
 
