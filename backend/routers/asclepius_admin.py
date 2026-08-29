@@ -30,6 +30,7 @@ from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
 from asclepius import route_notify as asc_route_notify
+from asclepius import trajectory as asc_trajectory
 from asclepius import specialties as asc_specialties
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
@@ -2031,6 +2032,112 @@ async def admin_batch_cases(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return {"batch": batch, "cases": rows, "count": len(rows)}
+
+
+class RelaySendBody(BaseModel):
+    """Send one whole trajectory as a care-team relay (§8.3)."""
+
+    trajectory_id: str
+    user_ids: List[str] = Field(default_factory=list)
+    dry_run: bool = True
+    #: Fixes the rotation so the mapping an admin was SHOWN is the one committed.
+    #: Without it, preview and commit are two independent draws from the same
+    #: distribution and the screen is a lie the admin cannot detect.
+    seed: Optional[int] = None
+    due_at: Optional[str] = None
+
+
+@router.post("/batches/relay")
+async def admin_send_relay(
+    body: RelaySendBody, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """One trajectory, N doctors, one point each, walked in sequence.
+
+    A different product from the solo walk, not a variant of it. The solo walk
+    captures one physician's evolving judgment about a patient; this captures how
+    clinicians build on each other's reasoning — doctor k reads doctor k−1's
+    committed assessment before writing their own, exactly like a real handoff.
+
+    What this commits, atomically enough that a partial state is not servable:
+    the rotation as assignment rows, ``walk_mode='relay'`` on every point, and
+    ``distribution`` left at ``assigned_only``. Only doctor #0's point is
+    serveable on send; everyone else's assignment exists and is held closed by the
+    relay gate until the chart reaches them.
+    """
+    store = _store()
+    points = store.trajectory_points(body.trajectory_id)
+    if not points:
+        raise HTTPException(status_code=404, detail="No such trajectory.")
+
+    # Re-sending would write a second rotation over the first, and a doctor
+    # already told "point 4 is yours" would lose it with nobody informed.
+    if not body.dry_run and store.trajectory_is_sent(body.trajectory_id):
+        raise HTTPException(status_code=409, detail={
+            "error": "trajectory_already_sent",
+            "message": ("This chart walk has already been sent. Re-sending would "
+                        "overwrite the current assignments; revoke them first if "
+                        "you mean to re-route it."),
+            "trajectory_id": body.trajectory_id})
+
+    people = _resolve_send_targets(
+        store, AllocateBody(task_ids=[p["task_id"] for p in points],
+                            user_ids=body.user_ids))
+    if not people:
+        raise HTTPException(status_code=400, detail="user_ids is required for a relay.")
+
+    # ── the two shape rules, refused rather than silently accommodated ───────
+    if len(people) > len(points):
+        raise HTTPException(status_code=400, detail={
+            "error": "too_many_doctors",
+            "message": (f"{len(people)} doctors for {len(points)} decision points. "
+                        f"A relay gives each doctor at least one point; somebody "
+                        f"here would be told they are on a relay and never get a "
+                        f"turn."),
+            "n_points": len(points), "n_doctors": len(people)})
+    if len(people) < 2:
+        raise HTTPException(status_code=400, detail={
+            "error": "relay_needs_two_doctors",
+            "message": ("A relay with one doctor is a solo walk wearing a relay "
+                        "label: every handoff would be that physician reading "
+                        "their own note back, and the κ annex would claim "
+                        "independent raters that do not exist. Send it as a solo "
+                        "walk instead."),
+            "n_doctors": len(people)})
+
+    rotation = asc_trajectory.relay_rotation(
+        len(points), [u["id"] for u in people], seed=body.seed)
+    by_id = {u["id"]: u for u in people}
+    mapping = [{
+        "sequence_index": p.get("sequence_index"),
+        "task_id": p["task_id"],
+        "user_id": uid,
+        "email": (by_id.get(uid) or {}).get("email"),
+    } for p, uid in zip(points, rotation)]
+
+    if body.dry_run:
+        return {"dry_run": True, "trajectory_id": body.trajectory_id,
+                "n_points": len(points), "n_doctors": len(people),
+                "seed": body.seed, "mapping": mapping,
+                "notes": ["Only the first point is serveable on send; each later "
+                          "point unlocks when the one before it is submitted."]}
+
+    committed = []
+    for row in mapping:
+        committed.append(store.upsert_assignment(
+            task_id=row["task_id"], user_id=row["user_id"], role="label",
+            assigned_by=admin["email"], due_at=body.due_at)["assignment_id"])
+    store.set_walk_mode([p["task_id"] for p in points],
+                        asc_trajectory.WALK_MODE_RELAY)
+    # distribution stays 'assigned_only': a relay is the opposite of an open queue.
+    store.log_event(
+        entity_type="assignment", event_type="relay_sent", actor=admin["email"],
+        payload={"trajectory_id": body.trajectory_id, "n_points": len(points),
+                 "n_doctors": len(people), "seed": body.seed})
+    notified = asc_route_notify.notify_relay_send(
+        store, mapping=mapping, trajectory_id=body.trajectory_id)
+    return {"dry_run": False, "trajectory_id": body.trajectory_id,
+            "n_points": len(points), "n_doctors": len(people),
+            "mapping": mapping, "committed": committed, "notified": notified}
 
 
 class ResolveSelectionBody(BaseModel):

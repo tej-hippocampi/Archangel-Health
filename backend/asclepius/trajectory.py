@@ -34,6 +34,7 @@ the rule itself so the queue and the URL can never disagree about it.
 
 from __future__ import annotations
 
+import random
 import re
 import uuid
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -139,8 +140,91 @@ def is_retired(task: Optional[Dict[str, Any]]) -> bool:
     return str(((task or {}).get("status") or "")).strip().lower() in RETIRED_STATUSES
 
 
+# ═══ PRD CASE-BATCHES §8 — relay mode ════════════════════════════════════════
+#: How a chart walk is distributed across physicians.
+#:
+#: ``solo``  — one physician takes every point. What the walk has always been:
+#:             their evolving judgment about one patient over time.
+#: ``relay`` — one physician per point, in sequence, each reading the previous
+#:             one's committed assessment before writing their own. A care-team
+#:             handoff, which is a DIFFERENT product: it captures how clinicians
+#:             build on each other's reasoning rather than how one clinician's
+#:             reasoning develops. The export labels which mode produced a record
+#:             because a buyer cannot tell them apart from the rows alone.
+WALK_MODE_SOLO = "solo"
+WALK_MODE_RELAY = "relay"
+WALK_MODES = (WALK_MODE_SOLO, WALK_MODE_RELAY)
+
+
+def walk_mode(task: Optional[Dict[str, Any]]) -> str:
+    """This point's distribution mode. NULL reads as solo — every walk that
+    existed before relay did was a solo walk, and the gate must treat an
+    unstamped row as the stricter of the two rules, not the looser."""
+    raw = str(((task or {}).get("walk_mode") or "")).strip().lower()
+    return raw if raw in WALK_MODES else WALK_MODE_SOLO
+
+
+def is_relay(task: Optional[Dict[str, Any]]) -> bool:
+    return walk_mode(task) == WALK_MODE_RELAY
+
+
+#: Why a relay observation is out of the κ pool — and it is NOT the solo reason.
+#:
+#: The solo exclusion says blinding does not make one physician's sequential
+#: labels independent, because they carry their own model of the patient forward.
+#: In relay mode every point has a DIFFERENT physician, so that objection simply
+#: does not apply: these labels ARE independent of one another in the way κ cares
+#: about. They are excluded for the ordinary, boring reason instead — one label
+#: per point, which is below the floor a two-rater statistic needs.
+#:
+#: The distinction is not pedantry. A buyer's methodologist reading the annex has
+#: to be able to tell "we judged this dependent" from "we only have one rater",
+#: because the second can be fixed by paying for a second walk and the first
+#: cannot. Two rules, two strings, and neither may be paraphrased into the other.
+KAPPA_EXCLUSION_RELAY_SINGLE = "single_label"
+KAPPA_EXCLUSION_RELAY_RATIONALE = (
+    "Relay trajectory points carry one label each and are excluded from the "
+    "Cohen's κ pool on that basis alone — the double-label floor, not the "
+    "sequential-dependence rule that excludes solo walks. Each point in a relay "
+    "walk was answered by a DIFFERENT physician, so the within-physician "
+    "dependence that disqualifies a solo walk does not arise here."
+)
+
+
+def relay_rotation(
+    n_points: int, doctor_ids: Sequence[str], *, seed: Optional[int] = None,
+) -> List[str]:
+    """Which doctor takes each point: ``[doctor_for_point_0, …]`` (§8.3).
+
+    Round-robin over a SHUFFLED roster, which does two things at once. The
+    shuffle stops the same person always drawing point 0 across many relays —
+    point 0 is the only point with no handoff to read, so it is systematically
+    the easiest, and always handing it to whoever sorts first is a quiet pay and
+    workload bias. The round-robin then guarantees the property that actually
+    matters clinically: **adjacent points go to different physicians** whenever
+    there is more than one, so every handoff is a real handoff rather than a
+    physician reading their own note back.
+
+    With 13 points and 5 doctors each takes 2–3, and no doctor ever holds two
+    consecutive points. With ONE doctor the rotation degenerates to a solo walk
+    wearing a relay label, so the caller refuses that case rather than this
+    function pretending otherwise.
+
+    ``seed`` makes a rotation reproducible, which the send preview needs: the
+    admin is shown the mapping and can commit it, so "shown" and "committed" must
+    be the same permutation and not two draws from the same distribution.
+    """
+    ids = [d for d in (doctor_ids or []) if d]
+    if not ids or n_points <= 0:
+        return []
+    order = list(ids)
+    random.Random(seed).shuffle(order)
+    return [order[i % len(order)] for i in range(int(n_points))]
+
+
 def blocks_out_of_order(
     task: Optional[Dict[str, Any]], *, unanswered_earlier: Sequence[Any],
+    is_assignee: Optional[bool] = None,
 ) -> Optional[str]:
     """``None`` when this evaluator may open this point; a reason string when not.
 
@@ -168,6 +252,26 @@ def blocks_out_of_order(
             "it rather than risk revealing a future the physician is being asked "
             "to predict."
         )
+    # RELAY: the two halves of the rule are different questions from solo's.
+    # Predecessors must be done BY ANYONE (the caller resolves that), and this
+    # point must be THIS physician's turn — which is an assignment, not a
+    # submission history. Both are required; either alone would be a hole.
+    if is_relay(task):
+        if is_assignee is False:
+            return (
+                "This decision point belongs to another physician on the relay. "
+                "You'll get a message when a point on this chart is yours."
+            )
+        pending = list(unanswered_earlier or [])
+        if pending:
+            done = len(pending)
+            return (
+                f"The relay has not reached this point yet: {done} earlier "
+                f"decision(s) on this chart are still with other physicians. "
+                f"You'll be messaged the moment it is your turn."
+            )
+        return None
+
     pending = list(unanswered_earlier or [])
     if not pending:
         return None
@@ -192,8 +296,29 @@ def kappa_exclusion_reason(task: Optional[Dict[str, Any]]) -> Optional[str]:
 
     Aggregate that and you are reporting within-physician consistency as
     between-physician agreement — on the one number a buyer audits.
+
+    **§8.1 — relay inverts the argument and keeps the outcome.** In a relay walk
+    every point has a DIFFERENT physician, so the shared-prior objection does not
+    apply: those labels are independent in exactly the way κ cares about. They are
+    still excluded, for the ordinary reason — one label per point, below the
+    double-label floor — and the reason string SAYS SO. A methodologist reading
+    the annex has to be able to tell "we judged this dependent" from "we only have
+    one rater", because the second is fixed by paying for a second walk and the
+    first is not.
     """
-    return KAPPA_EXCLUSION_SEQUENTIAL if is_trajectory_point(task) else None
+    if not is_trajectory_point(task):
+        return None
+    return (KAPPA_EXCLUSION_RELAY_SINGLE if is_relay(task)
+            else KAPPA_EXCLUSION_SEQUENTIAL)
+
+
+def kappa_exclusion_rationale(task: Optional[Dict[str, Any]]) -> Optional[str]:
+    """The sentence that goes in front of a buyer for this task's exclusion."""
+    reason = kappa_exclusion_reason(task)
+    if reason is None:
+        return None
+    return (KAPPA_EXCLUSION_RELAY_RATIONALE if reason == KAPPA_EXCLUSION_RELAY_SINGLE
+            else KAPPA_EXCLUSION_RATIONALE)
 
 
 # ─── §3.3 field 3 — the falsifier ─────────────────────────────────────────────

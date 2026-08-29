@@ -32,6 +32,14 @@ from asclepius import trajectory as asc_trajectory
 
 KAPPA_EXCLUSION_SEQUENTIAL = asc_trajectory.KAPPA_EXCLUSION_SEQUENTIAL
 KAPPA_EXCLUSION_RATIONALE = asc_trajectory.KAPPA_EXCLUSION_RATIONALE
+# §8.1 — relay points are excluded too, but on the single-label floor rather than
+# the sequential-dependence rule. Two reasons, reported separately, because they
+# are fixed by different things: a second walk fixes one and nothing fixes the
+# other. Imported rather than re-spelled so the writer and the reporter cannot
+# drift (the same discipline the sequential token already follows).
+KAPPA_EXCLUSION_RELAY_SINGLE = asc_trajectory.KAPPA_EXCLUSION_RELAY_SINGLE
+KAPPA_EXCLUSION_RELAY_RATIONALE = asc_trajectory.KAPPA_EXCLUSION_RELAY_RATIONALE
+_TRAJECTORY_EXCLUSIONS = (KAPPA_EXCLUSION_SEQUENTIAL, KAPPA_EXCLUSION_RELAY_SINGLE)
 
 try:  # pydantic is a hard dep; the model is optional sugar for the routing layer
     from pydantic import BaseModel, Field
@@ -344,13 +352,17 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
     # excluded.
     excluded_unblinded = sum(1 for o in eligible if o.get("blinded") in (False, 0))
     excluded_unverified = sum(1 for o in eligible if o.get("blinded") is None)
-    excluded_trajectory = sum(
+    excluded_sequential = sum(
         1 for o in observations
         if o.get("kappa_excluded_reason") == KAPPA_EXCLUSION_SEQUENTIAL)
+    excluded_relay_single = sum(
+        1 for o in observations
+        if o.get("kappa_excluded_reason") == KAPPA_EXCLUSION_RELAY_SINGLE)
+    excluded_trajectory = excluded_sequential + excluded_relay_single
     excluded_other = sum(
         1 for o in observations
         if o.get("kappa_excluded_reason")
-        and o.get("kappa_excluded_reason") != KAPPA_EXCLUSION_SEQUENTIAL)
+        and o.get("kappa_excluded_reason") not in _TRAJECTORY_EXCLUSIONS)
     pairs = [(o.get("verdict_a"), o.get("verdict_b")) for o in blinded]
     usable = [p for p in pairs if p[0] is not None and p[1] is not None]
     n = len(usable)
@@ -402,9 +414,16 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
         # carry outcome verification instead — reported under its own name by
         # ``trajectory.outcome_verification``, never folded in here.
         "excluded_trajectory": excluded_trajectory,
+        # Broken out, because "we judged these dependent" and "we only have one
+        # rater for these" are different facts about the same smaller n, and only
+        # the second is fixable by buying a second walk.
+        "excluded_trajectory_sequential": excluded_sequential,
+        "excluded_trajectory_relay_single": excluded_relay_single,
         "excluded_other": excluded_other,
         "exclusion_rationale": (KAPPA_EXCLUSION_RATIONALE
-                                if excluded_trajectory else None),
+                                if excluded_sequential else None),
+        "exclusion_rationale_relay": (KAPPA_EXCLUSION_RELAY_RATIONALE
+                                      if excluded_relay_single else None),
         "observed_agreement": observed,
     }
 

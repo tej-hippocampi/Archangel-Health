@@ -51,6 +51,7 @@ from asclepius import profiles as asc_profiles
 from asclepius import specialties as asc_specialties
 from asclepius import task_notify as asc_task_notify
 # Pure policy module (stdlib only) — safe at module scope, no cycle.
+from asclepius import route_notify as asc_route_notify
 from asclepius import trajectory as asc_trajectory
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
@@ -2508,11 +2509,28 @@ def _require_trajectory_sequence(store: Any, task: Dict[str, Any], user: Dict[st
     if not asc_trajectory.is_trajectory_point(task):
         return
     idx = asc_trajectory.sequence_index(task)
-    pending = store.unanswered_earlier_points(
-        trajectory_id=task["trajectory_id"], sequence_index=idx if idx is not None else 0,
-        evaluator_id=user["id"],
-    ) if idx is not None else []
-    reason = asc_trajectory.blocks_out_of_order(task, unanswered_earlier=pending)
+    # §8.2 — the two modes ask different questions, and this path must ask the
+    # SAME one the queue's WHERE clause asks or the URL and the draw disagree:
+    # a point the queue offers would 409 when opened, or worse, one the queue
+    # withholds would open by id. Solo asks "which earlier points has THIS
+    # physician not done"; relay asks "how far has the CHART got" plus "is it
+    # this physician's turn", because the previous point was somebody else's by
+    # design.
+    relay = asc_trajectory.is_relay(task)
+    is_assignee = None
+    if idx is None:
+        pending = []
+    elif relay:
+        pending = store.unanswered_earlier_points_any(
+            trajectory_id=task["trajectory_id"], sequence_index=idx)
+        is_assignee = store.holds_label_assignment(
+            task_id=task["task_id"], user_id=user["id"])
+    else:
+        pending = store.unanswered_earlier_points(
+            trajectory_id=task["trajectory_id"], sequence_index=idx,
+            evaluator_id=user["id"])
+    reason = asc_trajectory.blocks_out_of_order(
+        task, unanswered_earlier=pending, is_assignee=is_assignee)
     if reason is None:
         return
     progress = store.evaluator_trajectory_progress(
@@ -2533,6 +2551,49 @@ def _require_trajectory_sequence(store: Any, task: Dict[str, Any], user: Dict[st
     )
 
 
+def _attach_relay_handoff(store: Any, task: Dict[str, Any], out: Dict[str, Any]) -> None:
+    """The predecessor's commitment, above the clinical question (§8.4).
+
+    Doctor k on a relay reads doctor k−1's committed assessment before writing
+    their own, exactly as a care-team handoff works. That is the product: how
+    clinicians build on each other's reasoning.
+
+    WHAT IS NOT IN IT, and why it is built from named columns rather than a row
+    dump: the predecessor's REVEAL OUTCOME and their SELF-SCORE. Those are what
+    this physician is being asked to predict. Handing them over turns the relay
+    into reading comprehension and destroys the verifiable claim for this point —
+    the same unrecoverable loss the sequence gate exists to prevent, arriving
+    through a different door. ``store.relay_handoff`` selects the commit columns
+    by name so a future column cannot ride along, and a test asserts the served
+    payload carries no reveal or self-score key.
+
+    Point 0 has no handoff. Solo walks have none either: the predecessor there is
+    the same physician, who does not need to be handed their own note.
+    """
+    if not asc_trajectory.is_relay(task):
+        return
+    idx = asc_trajectory.sequence_index(task)
+    if idx is None or idx <= 0:
+        return
+    handoff = store.relay_handoff(
+        trajectory_id=task["trajectory_id"], sequence_index=idx)
+    if not handoff:
+        return
+    # The author is named by POSITION, not by identity. Who a physician is is not
+    # this physician's business (the whole platform is blinded between labelers),
+    # and "the physician before you on this chart" is the entire clinically
+    # relevant fact.
+    expected = handoff.get("expected_trajectory") or {}
+    out["relay_handoff"] = {
+        "from_sequence_index": handoff["from_sequence_index"],
+        "from_label": f"the physician at decision {int(handoff['from_sequence_index']) + 1}",
+        "assessment": handoff.get("assessment") or "",
+        "expectations": [e.get("expectation") for e in (expected.get("expectations") or [])
+                         if isinstance(e, dict) and e.get("expectation")],
+        "falsifiers": list(expected.get("falsifiers") or []),
+    }
+
+
 @router.get("/tasks/{task_id}")
 async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     store = _store()
@@ -2547,8 +2608,10 @@ async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_cur
     # version the picker held — and a v4 picker on a synthetic card produced a
     # draft whose own submission is a 400 at ``_derive_portal_version``. The
     # server owns the answer here, exactly as it does at /tasks/next.
-    return {"task": _blind_task(task),
-            "served_portal_version": _derive_portal_version(task, None)}
+    out = {"task": _blind_task(task),
+           "served_portal_version": _derive_portal_version(task, None)}
+    _attach_relay_handoff(store, task, out)
+    return out
 
 
 @router.post("/tasks/{task_id}/reveal")
@@ -3350,6 +3413,14 @@ async def _finalize_submission(
         asc_baselines.record_model_failure(store, task_id, sid)
 
         store.refresh_task_status(task_id)
+        # §8.6 — the relay unlock ping. Fired HERE because this is the moment the
+        # relay gate starts letting the next point through: the message and the
+        # availability are one event, rather than a sweep noticing an hour later
+        # and a physician finding work that has been sitting there. Best-effort by
+        # the same rule as every other ping — ``notify_relay_unlock`` swallows its
+        # own failures, and a community outage must never cost somebody a
+        # submission that has already been accepted and packaged.
+        asc_route_notify.notify_relay_unlock(store, task=store.get_task(task_id))
         return result
     except Exception:
         # BUG-5 review (3b): the pipeline runs as a BACKGROUND job in the async

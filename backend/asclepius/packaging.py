@@ -1120,6 +1120,15 @@ def trajectory_block(
     return {
         "trajectory_id": t.get("trajectory_id"),
         "sequence_index": t.get("sequence_index"),
+        # §8.1 — WHICH PRODUCT produced this record. A solo walk is one physician's
+        # judgment evolving over a patient; a relay is N physicians handing off,
+        # each reading the last one's commitment. The rows look identical, so a
+        # buyer cannot tell them apart without being told — and they are priced and
+        # analysed differently. Also the key to the κ annex: solo points are
+        # excluded for sequential dependence, relay points for the single-label
+        # floor, and only the second is fixable by buying a second walk.
+        "walk_mode": asc_trajectory.walk_mode(t) if t.get("trajectory_id") else None,
+        "kappa_exclusion": asc_trajectory.kappa_exclusion_reason(t),
         "expected_trajectory": expected or None,
         "self_score": self_score or None,
         # The RLVR claim for THIS record, stated rather than inferred: an outcome

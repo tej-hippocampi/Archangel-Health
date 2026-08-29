@@ -189,3 +189,39 @@ def test_every_new_class_has_a_style():
     names = {c for blob in emitted for c in blob.split() if c.startswith("asc-")}
     missing = [c for c in sorted(names) if f".{c}" not in CSS]
     assert not missing, f"classes with no CSS rule: {missing}"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §8.4 — the handoff renders the commitment and cannot reach for the outcome
+# ═══════════════════════════════════════════════════════════════════════════════
+HANDOFF = _fn(JS, "renderRelayHandoff")
+
+
+def test_the_handoff_renders_only_what_the_server_sent():
+    """The predecessor's outcome is what THIS physician is being asked to predict.
+    The server does not send it; this function must never grow a fetch that goes
+    looking for it."""
+    assert "state.task && state.task.relay_handoff" in HANDOFF
+    assert "api(" not in HANDOFF
+    for leak in ("outcome", "self_score", "self-score", "revealed", "trajectory-outcome"):
+        assert leak not in HANDOFF, f"the handoff renderer reaches for {leak}"
+
+
+def test_the_handoff_is_absent_rather_than_empty_when_there_is_none():
+    """Point 0, a solo walk and an ordinary case all render NOTHING — not an empty
+    box captioned "Handoff", which reads as a missing colleague."""
+    assert "if (!ho) return null;" in HANDOFF
+
+
+def test_the_handoff_sits_above_the_clinical_question():
+    """Context read before deciding, exactly as a verbal handoff precedes the
+    round. Below the question it would be read after the physician had already
+    committed to a line."""
+    ws = _fn(JS, "renderTaskWorkspace")
+    assert ws.index("renderRelayHandoff()") < ws.index("'Clinical question'")
+
+
+def test_the_handoff_is_visually_separated_from_the_case():
+    """A physician must never be unsure which words are the chart and which are a
+    colleague's read of it."""
+    assert ".asc-handoff" in CSS and "border-left" in CSS

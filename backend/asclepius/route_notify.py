@@ -223,3 +223,131 @@ async def _post_announcement(body: str) -> bool:
         channel_slug="task-announcements", body=body,
         kind=ANNOUNCEMENT_KIND, announce=True)
     return msg is not None
+
+
+# ═══ §8.6 — relay messages ═══════════════════════════════════════════════════
+def compose_relay_assignment(*, doctor, position, n_points, specialty, is_first):
+    """What each doctor is told at send: their point, their place in line, and
+    whether they are up now or waiting.
+
+    Everyone is told at send rather than only when their turn arrives, because a
+    physician who gets a "you're up" DM about a chart they have never heard of
+    reads it as spam. The difference between "yours now" and "yours later" is
+    stated plainly, so nobody opens the portal looking for work that is correctly
+    still sealed and concludes the queue is broken.
+    """
+    lines = [
+        "You're on a care-team relay" if not is_first else "You're up — care-team relay",
+        "",
+        f"Dr. {_last_name(doctor)} — a {specialty} chart walk is being taken "
+        f"forward by several physicians, one decision point each. "
+        f"You have point {position} of {n_points}.",
+        "",
+    ]
+    if is_first:
+        lines += [
+            "You're first, so it's live in your queue now: finish any case you're "
+            "mid-way through and it comes up right after, or hit Start new case.",
+            "",
+            "You'll see the chart up to your point and commit an assessment, a plan "
+            "and what you expect to happen next. The physician after you reads your "
+            "commitment as their handoff.",
+        ]
+    else:
+        lines += [
+            "It isn't your turn yet — each point unlocks when the one before it is "
+            "submitted, and you'll get a message the moment yours does. Nothing to "
+            "do until then; it will not appear in your queue before that.",
+            "",
+            "When it does, you'll see the chart up to your point plus the previous "
+            "physician's committed assessment as your handoff.",
+        ]
+    lines += ["", "— Archangel"]
+    return "\n".join(lines)
+
+
+def compose_relay_unlock(*, doctor, position, n_points, specialty):
+    """The turn DM, fired when the predecessor submits."""
+    return "\n".join([
+        f"You're up, Dr. {_last_name(doctor)}",
+        "",
+        f"Point {position} of {n_points} on the {specialty} relay case is now "
+        f"yours. The physician before you just committed theirs — you'll see "
+        f"their assessment as your handoff.",
+        "",
+        "It's live in your queue now: finish any case you're mid-way through and "
+        "it comes up right after, or hit Start new case.",
+        "",
+        "— Archangel",
+    ])
+
+
+def notify_relay_send(store, *, mapping, trajectory_id):
+    """One DM per doctor at send. Never raises (same rule as ``notify_routed``)."""
+    report = {"dms": 0, "errors": []}
+    try:
+        from community.store import get_community_store
+        cstore = get_community_store()
+    except Exception as exc:                       # pragma: no cover
+        report["errors"].append(f"community_unavailable:{exc}")
+        return report
+
+    rows = list(mapping or [])
+    n = len(rows)
+    first_by_user = {}
+    for row in rows:
+        first_by_user.setdefault(row["user_id"], row)
+    for user_id, row in first_by_user.items():
+        try:
+            doctor = store.get_user_by_id(user_id) or {"id": user_id}
+            task = store.get_task(row["task_id"]) or {}
+            idx = row.get("sequence_index") or 0
+            body = compose_relay_assignment(
+                doctor=doctor, position=int(idx) + 1, n_points=n,
+                specialty=str(task.get("specialty") or "clinical"),
+                is_first=(int(idx) == 0))
+            if _run_coro(_dm_one(cstore, doctor_id=user_id, body=body)):
+                report["dms"] += 1
+        except Exception as exc:
+            log.info("route_notify: relay DM to %s failed: %s", user_id, exc)
+            report["errors"].append(f"dm:{user_id}:{exc}")
+    return report
+
+
+def notify_relay_unlock(store, *, task) -> bool:
+    """Tell the next physician their point just opened. Never raises.
+
+    Fired on the PREDECESSOR's submit, which is the moment the relay gate starts
+    letting the next point through — so the message and the availability are the
+    same event rather than a sweep noticing later.
+    """
+    try:
+        from asclepius import trajectory as tj
+        if not tj.is_relay(task):
+            return False
+        idx = tj.sequence_index(task)
+        if idx is None:
+            return False
+        points = store.trajectory_points(task.get("trajectory_id"))
+        nxt = next((p for p in points
+                    if p.get("sequence_index") is not None
+                    and int(p["sequence_index"]) > int(idx)), None)
+        if not nxt:
+            return False                        # the last point: nobody is next
+        holders = [a for a in store.assignments_for_task(nxt["task_id"])
+                   if a.get("role") == "label"
+                   and a.get("status") in ("offered", "claimed")]
+        if not holders:
+            return False
+        from community.store import get_community_store
+        cstore = get_community_store()
+        doctor = store.get_user_by_id(holders[0]["user_id"]) or {}
+        body = compose_relay_unlock(
+            doctor=doctor, position=int(nxt["sequence_index"]) + 1,
+            n_points=len(points),
+            specialty=str(nxt.get("specialty") or "clinical"))
+        return bool(_run_coro(_dm_one(cstore, doctor_id=holders[0]["user_id"],
+                                      body=body)))
+    except Exception as exc:
+        log.info("route_notify: relay unlock ping failed: %s", exc)
+        return False

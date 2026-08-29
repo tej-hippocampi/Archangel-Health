@@ -32,6 +32,18 @@ below is **on `main`** — there is no unmerged delta.
 > see the provenance note in `LONGITUDINAL_CASES.md`. Yield is per-partner and
 > unverified until the plan is run against their charts.
 >
+> **Case batches, routing and relay walks** — `CASE_BATCHES_AND_ROUTING.md`.
+> A promoted chart walk is invisible to every doctor until an admin sends it
+> (`tasks.distribution`), which is what makes the longitudinal merge safe: without
+> it, every promoted point lands in every approved physician's queue on deploy.
+> Admin Batches groups the three case classes, previews a case through the
+> doctor's own payload function, and sends to named doctors, a specialty, or the
+> open queue. **Relay mode** walks one chart across N physicians, one decision
+> point each, with the previous physician's commitment — never their outcome — as
+> a handoff; the sequence gate becomes mode-dependent, and relay points leave the
+> κ pool on the single-label floor rather than the sequential-dependence rule.
+> Not built: the private case channel (§8.5) and stall nudges/reassign (§8.7).
+>
 > New: `asclepius/trajectory.py` (pure policy — the sequence rule, the κ
 > exclusion, the falsifier shapes, the outcome-verification metric, the stated
 > limits); `tasks.trajectory_id` / `tasks.sequence_index`;

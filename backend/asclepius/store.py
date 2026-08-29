@@ -348,17 +348,57 @@ _PRD_CB_DISTRIBUTIONS = ("open", "assigned_only")
 # spelled out here so this clause and the direct-open path cannot drift into two
 # different definitions of a hole.
 _PRD_2_RETIRED_SQL = ", ".join(f"'{s}'" for s in _asc_trajectory.RETIRED_STATUSES)
+#
+# §8.2 — THE GATE IS MODE-DEPENDENT, and the two modes ask different questions.
+#
+#   solo (and NULL): every earlier point must carry a submission FROM THIS
+#     EVALUATOR. One physician walks the whole chart, so "have you done the
+#     earlier ones" is literally about them.
+#
+#   relay: every earlier point must carry a submission FROM ANYONE, AND this
+#     point must be assigned to this evaluator. A relay walk is a care-team
+#     handoff — doctor k reads doctor k−1's committed assessment — so the
+#     predecessor condition is about the CHART's progress, not this physician's.
+#     The assignment half is what keeps it ordered: without it, every doctor on
+#     the relay could open every unlocked point.
+#
+# NULL reads as solo, which is the stricter rule. That direction matters: an
+# unstamped row getting the looser rule would serve a legacy walk's later points
+# to whoever happened to hold an assignment.
+#
+# Both halves are required in relay. Dropping the assignment check would leave
+# ordering to the distribution gate, which is true today only because relay points
+# stay 'assigned_only' — one admin flipping a relay walk to 'open' would then
+# unseal it entirely. A seal that depends on another switch's current value is not
+# a seal.
 _PRD_2_SEQUENCE_GATE = f"""(
               t.trajectory_id IS NULL
-              OR (t.sequence_index IS NOT NULL AND NOT EXISTS (
-                SELECT 1 FROM tasks p
-                WHERE p.trajectory_id = t.trajectory_id
-                  AND p.sequence_index < t.sequence_index
-                  AND COALESCE(p.status, '') NOT IN ({_PRD_2_RETIRED_SQL})
-                  AND NOT EXISTS (
-                    SELECT 1 FROM submissions s
-                    WHERE s.task_id = p.task_id AND s.evaluator_id = ?
-                  )
+              OR (t.sequence_index IS NOT NULL AND (
+                (COALESCE(t.walk_mode, 'solo') != 'relay' AND NOT EXISTS (
+                  SELECT 1 FROM tasks p
+                  WHERE p.trajectory_id = t.trajectory_id
+                    AND p.sequence_index < t.sequence_index
+                    AND COALESCE(p.status, '') NOT IN ({_PRD_2_RETIRED_SQL})
+                    AND NOT EXISTS (
+                      SELECT 1 FROM submissions s
+                      WHERE s.task_id = p.task_id AND s.evaluator_id = ?
+                    )
+                ))
+                OR
+                (t.walk_mode = 'relay' AND NOT EXISTS (
+                  SELECT 1 FROM tasks p
+                  WHERE p.trajectory_id = t.trajectory_id
+                    AND p.sequence_index < t.sequence_index
+                    AND COALESCE(p.status, '') NOT IN ({_PRD_2_RETIRED_SQL})
+                    AND NOT EXISTS (
+                      SELECT 1 FROM submissions s WHERE s.task_id = p.task_id
+                    )
+                ) AND EXISTS (
+                  SELECT 1 FROM assignments ra
+                  WHERE ra.task_id = t.task_id AND ra.user_id = ?
+                    AND ra.role = 'label'
+                    AND ra.status IN ('offered','claimed')
+                ))
               ))
             )"""
 # ═══ END PRD-2 ═══════════════════════════════════════════════════════════════
@@ -1760,6 +1800,14 @@ class AsclepiusStore:
             # The servable predicate below filters on it on every draw.
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_distribution "
                          "ON tasks(distribution)")
+            # §8.2 — how a chart walk is distributed. NULL | 'solo' | 'relay'.
+            # NO DEFAULT, and the gate reads NULL as solo: every walk that existed
+            # before relay did was a solo walk, so an unstamped row must get the
+            # STRICTER rule. A DEFAULT of 'solo' would say the same thing about
+            # today's rows and then quietly mis-describe a future one that is
+            # promoted but not yet sent — mode is chosen at SEND, not promotion.
+            if "walk_mode" not in cols("tasks"):
+                conn.execute("ALTER TABLE tasks ADD COLUMN walk_mode TEXT")
             # ═══ END PRD CASE-BATCHES ═══
             # ═══ END PRD-2 ═══
             # The advisor tier is retired: advisors are ordinary users now.
@@ -4494,6 +4542,103 @@ class AsclepiusStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def unanswered_earlier_points_any(
+        self, *, trajectory_id: str, sequence_index: int
+    ) -> List[Dict[str, Any]]:
+        """Earlier points in this walk that NOBODY has submitted — the relay half.
+
+        The solo query above asks "which earlier points has THIS physician not
+        done"; relay asks "how far has the CHART got", because the previous point
+        was somebody else's turn by design. Same shape, same retired-status rule,
+        different subject — kept as a separate method rather than a boolean flag on
+        the first so neither reads as a special case of the other at a call site.
+        """
+        if not trajectory_id:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT p.task_id, p.sequence_index
+                  FROM tasks p
+                 WHERE p.trajectory_id = ?
+                   AND p.sequence_index < ?
+                   AND COALESCE(p.status, '') NOT IN ({_PRD_2_RETIRED_SQL})
+                   AND NOT EXISTS (
+                       SELECT 1 FROM submissions s WHERE s.task_id = p.task_id
+                   )
+                 ORDER BY p.sequence_index ASC
+                """,
+                (trajectory_id, int(sequence_index)),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def holds_label_assignment(self, *, task_id: str, user_id: str) -> bool:
+        """Is this task live-assigned to this user for labeling?
+
+        The relay gate's second half on the by-id path, matching
+        ``_PRD_ASSIGN_MINE``'s definition exactly — one idea of "assigned to me",
+        so the queue and the URL cannot disagree about whose turn it is.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM assignments WHERE task_id = ? AND user_id = ? "
+                "AND role = 'label' AND status IN ('offered','claimed') LIMIT 1",
+                (task_id, user_id)).fetchone()
+        return row is not None
+
+    def relay_handoff(self, *, trajectory_id: str, sequence_index: int) -> Optional[Dict[str, Any]]:
+        """The predecessor's COMMITMENT, for the handoff block (§8.4).
+
+        THE COMMITMENT ONLY. Never their reveal outcome, never their self-score —
+        those are what the next physician is being asked to predict, and handing
+        them over would make the relay a reading-comprehension exercise. The
+        SELECT names its columns for that reason: a ``SELECT *`` here would ship
+        the reveal the day somebody adds a column, and nothing would fail.
+
+        The predecessor is the nearest EARLIER point that carries a submission,
+        not ``index - 1``, so a retired or skipped point does not blank the
+        handoff for the person after it.
+        """
+        if not trajectory_id:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT p.sequence_index      AS from_sequence_index,
+                       s.evaluator_id        AS from_evaluator_id,
+                       ic.payload_json       AS commit_json,
+                       s.expected_trajectory_json,
+                       s.created_at
+                  FROM tasks p
+                  JOIN submissions s ON s.task_id = p.task_id
+                  -- The BLIND pre-reveal commit, which is what "their committed
+                  -- assessment" means: written before they saw any candidate
+                  -- answer, and never overwritten (the first commit wins). Reading
+                  -- the post-reveal submission instead would hand the next
+                  -- physician an assessment that had already been influenced by
+                  -- the answers this platform is grading.
+                  LEFT JOIN independent_commits ic
+                         ON ic.task_id = s.task_id AND ic.evaluator_id = s.evaluator_id
+                 WHERE p.trajectory_id = ?
+                   AND p.sequence_index < ?
+                 ORDER BY p.sequence_index DESC, s.created_at ASC
+                 LIMIT 1
+                """,
+                (trajectory_id, int(sequence_index)),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        commit = json.loads(rec.pop("commit_json", None) or "{}") or {}
+        expected = json.loads(rec.pop("expected_trajectory_json", None) or "null")
+        return {
+            "from_sequence_index": rec["from_sequence_index"],
+            "from_evaluator_id": rec["from_evaluator_id"],
+            "assessment": (commit.get("text") or "").strip(),
+            "expected_trajectory": expected,
+            "committed_at": rec.get("created_at"),
+        }
+
     def evaluator_trajectory_progress(
         self, *, trajectory_id: str, evaluator_id: str
     ) -> Dict[str, Any]:
@@ -4675,6 +4820,41 @@ class AsclepiusStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def set_walk_mode(self, task_ids: Sequence[str], mode: str) -> int:
+        """Stamp the distribution mode on every point of a walk (§8.2).
+
+        Set at SEND, not at promotion: a promoted walk has not been given to
+        anybody yet, and which shape it is sent in is the admin's decision at the
+        moment they choose. Validated against ``trajectory.WALK_MODES`` because an
+        unrecognised value would read as solo (the gate's NULL rule) and silently
+        apply the wrong seal to a relay walk.
+        """
+        m = (mode or "").strip().lower()
+        if m not in _asc_trajectory.WALK_MODES:
+            raise ValueError(
+                f"walk_mode must be one of {_asc_trajectory.WALK_MODES}, got {mode!r}")
+        ids = [t for t in (task_ids or []) if t]
+        if not ids:
+            return 0
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"UPDATE tasks SET walk_mode = ? WHERE task_id IN "
+                f"({','.join('?' for _ in ids)})", tuple([m] + list(ids)))
+            return int(cur.rowcount or 0)
+
+    def trajectory_is_sent(self, trajectory_id: str) -> bool:
+        """Has this walk already been given out? Re-sending it is a 409.
+
+        Keyed on ``walk_mode`` being stamped, which happens exactly once at send.
+        Re-sending would write a second, conflicting rotation over the first —
+        doctors already told "point 4 is yours" would silently lose it.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM tasks WHERE trajectory_id = ? AND walk_mode IS NOT NULL "
+                "LIMIT 1", (trajectory_id,)).fetchone()
+        return row is not None
+
     def set_task_distribution(self, task_ids: Sequence[str], distribution: str) -> int:
         """Flip who a set of tasks may be served to. Returns the rows changed.
 
@@ -4833,13 +5013,14 @@ class AsclepiusStore:
             f"{_PRD_R_LABEL_COUNT} < MAX(COALESCE(t.max_labels, 1), 2)",
         ]
         # One entry per ``?`` above, IN CLAUSE ORDER: the independence NOT EXISTS,
-        # the sequence gate's, then the distribution gate's assigned-to-me EXISTS.
+        # the sequence gate's TWO (solo branch's evaluator, then relay branch's
+        # assignee), then the distribution gate's assigned-to-me EXISTS.
         # SQLite numbers "?" by position across the whole statement, so this list
         # and the clause list above are one data structure in two halves — adding a
         # clause without adding its parameter here binds every later value to the
         # wrong slot, and nothing raises. ``test_asclepius_queue_placeholders``
         # exists to fail when they drift.
-        params: List[Any] = [evaluator_id, evaluator_id, evaluator_id]
+        params: List[Any] = [evaluator_id, evaluator_id, evaluator_id, evaluator_id]
         if specialty:
             # Launch-week fan-out (V4 PRD §4). ``open_to_all_specialties`` widens
             # VISIBILITY and nothing else: the task appears in this labeler's queue
@@ -7591,8 +7772,9 @@ class AsclepiusStore:
             _PRD_CB_DISTRIBUTION,
         ]
         # One entry per ``?`` above, IN CLAUSE ORDER: the independence NOT EXISTS,
-        # the sequence gate's, then the distribution gate's assigned-to-me EXISTS.
-        params: List[Any] = [user_id, user_id, user_id]
+        # the sequence gate's TWO (solo evaluator, relay assignee), then the
+        # distribution gate's assigned-to-me EXISTS.
+        params: List[Any] = [user_id, user_id, user_id, user_id]
         if specialty:
             clauses.append("t.specialty = ?")
             params.append(specialty)

@@ -3805,6 +3805,33 @@
     return _SPECIALTY_CYCLE[acc % _SPECIALTY_CYCLE.length];
   }
 
+  /* The care-team handoff (§8.4): what the physician before you committed.
+   *
+   * Their assessment and what they expected — never what actually happened. The
+   * outcome of their decision is precisely what THIS physician is being asked to
+   * predict, and the server does not send it; this function must never grow a
+   * fetch that goes looking for it. It reads state.task and stops. */
+  function renderRelayHandoff() {
+    const ho = state.task && state.task.relay_handoff;
+    if (!ho) return null;                 // point 0, a solo walk, or an ordinary case
+    const line = (label, value) => (value
+      ? h('div', { class: 'asc-handoff-row' },
+          h('span', { class: 'asc-handoff-k' }, label),
+          h('span', { class: 'asc-handoff-v' }, value))
+      : null);
+    const list = (label, items) => ((items && items.length)
+      ? h('div', { class: 'asc-handoff-row' },
+          h('span', { class: 'asc-handoff-k' }, label),
+          h('span', { class: 'asc-handoff-v' }, items.join('; ')))
+      : null);
+    return h('div', { class: 'asc-handoff' },
+      h('div', { class: 'asc-handoff-h' },
+        'HANDOFF · ' + (ho.from_label || 'the previous physician')),
+      line('Assessment', ho.assessment),
+      list('Expecting', ho.expectations),
+      list('Would change my mind', ho.falsifiers));
+  }
+
   function renderTaskWorkspace() {
     const task = state.task;
     const d = state.draft;
@@ -3829,6 +3856,12 @@
         // needs to orient at all — the same fact the dashboard card used to carry
         // before one-button entry replaced the card list.
         renderTrajectoryBanner(),
+        // §8.4 — the handoff sits ABOVE the question, because it is context the
+        // physician reads before deciding anything, exactly as a verbal handoff
+        // precedes the ward round. Rendered from the served payload only: the
+        // server sends the predecessor's COMMITMENT and never their reveal or
+        // self-score, so there is nothing here to hide and nothing to fetch.
+        renderRelayHandoff(),
         h('div', { class: 'asc-prompt-label' }, caseObj ? 'Clinical question' : 'Clinical prompt'),
         h('div', { class: 'asc-prompt-text' }, promptText),
       ));
