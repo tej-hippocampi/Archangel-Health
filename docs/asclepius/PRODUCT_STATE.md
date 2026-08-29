@@ -27,7 +27,10 @@ below is **on `main`** — there is no unmerged delta.
 > state → action → observed outcome, which is the shape an RL environment
 > consumes. Measured over `patient-1`…`patient-4`: 59 encounters → 25 decision
 > points → **21 verifiable** ones, against 3 single-shot cases from the same four
-> charts.
+> charts — figures inherited from the PRD; those charts are not in this repo. The
+> one real chart that is (`nephrology_pgnmid_bundle.json`) yields zero, correctly:
+> see the provenance note in `LONGITUDINAL_CASES.md`. Yield is per-partner and
+> unverified until the plan is run against their charts.
 >
 > New: `asclepius/trajectory.py` (pure policy — the sequence rule, the κ
 > exclusion, the falsifier shapes, the outcome-verification metric, the stated

@@ -56,6 +56,17 @@ Measured across `patient-1` … `patient-4`: **59 encounters → 25 decision poi
 21 verifiable ones.** Thirty-four fail, and they fail because they are
 single-date, few-event contacts.
 
+> **Where that number comes from, and where it does not.** Those four charts are
+> not in this repository — the figure is inherited from the PRD, not reproduced
+> here. The one real de-identified chart we do have,
+> `tests/fixtures/nephrology_pgnmid_bundle.json`, yields **zero** decision points:
+> it is a cross-sectional diagnostic workup, three of its four encounters are a
+> single lab draw, and the fourth misses the event floor 4-to-8. That measurement
+> is pinned in `test_asclepius_longitudinal_real_bundle.py`, including the
+> counterfactual that lowering the floor to admit it would still produce nothing
+> pairable. **Yield on a partner's charts is unverified until you run the plan
+> (`dry_run: true`) against them.** Quote the gate, not the number.
+
 **Do not lower the gate to raise the count.** A repeat lab draw is not a decision,
 and a task built on one teaches a model that medicine is a series of trivia
 questions. Every point below the gate is a point a specialist is paid $75 to
