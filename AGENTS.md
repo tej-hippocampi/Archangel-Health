@@ -70,3 +70,19 @@ These are **dev-time references only** — they are not wired into the product r
 | `/api/eligibility-batches/{id}/stream` | GET | SSE for batch progress |
 | `/admin/audit/eligibility` | GET | TEAM audit log viewer |
 | `/docs` | GET | Swagger UI |
+
+## Salvaged and archived code
+
+The peri-op product is being retired. Everything deleted in that cleanup is
+recoverable in full from the **`claude/legacy-periop-archive`** branch (a local
+tag `legacy-periop-final` marks the same commit; the tag could not be pushed
+because the remote only accepts `claude/*` refs).
+
+Two things were salvaged forward rather than left in the archive:
+
+- `backend/asclepius/clinical_flags.py` — lab / medication / ICD-10 flag
+  derivation lifted out of `triage/`. Product-agnostic clinical knowledge, plain
+  dicts in, flag set out. Not wired into the case pipeline.
+- The **X12 270/271 eligibility parser** was NOT copied forward. It lives at
+  `backend/eligibility/parse_x12.py` on the archive branch. Future payer-data
+  work should start there rather than re-deriving it.

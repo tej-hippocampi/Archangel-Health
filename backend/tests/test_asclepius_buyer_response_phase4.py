@@ -216,3 +216,121 @@ def test_decisive_action_verifier():
         ["order_urine_micro", "order_pronase_if", "final_answer"], da) is True
     # Guessed: answered without ordering it.
     assert decisive_action_satisfied(["order_urine_micro", "final_answer"], da) is False
+
+
+# ─── §9.2 the verifier actually RUNS (wiring the orphaned supervision module) ──
+#
+# ``decisive_action_satisfied`` was executable and tested, but nothing called it:
+# ``packaging._supervision_type`` promoted a record to ``environment_verifiable``
+# because ``task["decisive_action"]`` merely EXISTED. A named decisive action is a
+# claim; running the verifier is a measurement. These tests hold the line that the
+# packaged record distinguishes the two.
+
+_DECISIVE = {"action": "order pronase-digested paraffin IF",
+             "tool_name": "order_pronase_if",
+             "rationale": "unmasks monotypic deposits"}
+
+
+def _pref(task, submission):
+    return [r for r in package_submission(task, submission) if r["type"] == "preference"][0]
+
+
+def test_satisfied_trajectory_is_verified_true():
+    """The decisive action ordered before the final answer: measured, and it passed."""
+    task = {**_task(), "decisive_action": _DECISIVE}
+    sub = _submission([], _ANNOT)
+    sub["payload"]["tool_calls"] = ["order_urine_micro", "order_pronase_if", "final_answer"]
+
+    rec = _pref(task, sub)
+    assert rec["supervision_type"] == "environment_verifiable"
+    assert rec["decisive_action_satisfied"] is True
+    assert rec["verifiable_outcome"]["verified"] is True
+    assert rec["verifiable_outcome"]["decisive_action_satisfied"] is True
+
+
+def test_action_ordered_after_the_final_answer_is_not_satisfied():
+    """Answer first, decisive test afterwards — the agent guessed. The record still
+    sits on the environment-verifiable rung (it IS checkable) but ships the
+    measurement that says the trajectory failed the check."""
+    task = {**_task(), "decisive_action": _DECISIVE}
+    sub = _submission([], _ANNOT)
+    sub["payload"]["tool_calls"] = ["order_urine_micro", "final_answer", "order_pronase_if"]
+
+    rec = _pref(task, sub)
+    assert rec["supervision_type"] == "environment_verifiable"
+    assert rec["decisive_action_satisfied"] is False
+    assert rec["verifiable_outcome"]["verified"] is True
+    assert rec["verifiable_outcome"]["decisive_action_satisfied"] is False
+
+
+def test_a_decisive_action_with_no_trajectory_is_a_claim_not_a_measurement():
+    """The pre-existing behaviour, now labelled: the ladder position is unchanged
+    and ``verified`` is false, so a buyer can see the claim was never checked."""
+    task = {**_task(), "decisive_action": _DECISIVE}
+    rec = _pref(task, _submission([], _ANNOT))
+
+    assert rec["supervision_type"] == "environment_verifiable"
+    assert rec["verifiable_outcome"]["verified"] is False
+    assert "decisive_action_satisfied" not in rec["verifiable_outcome"]
+    assert "decisive_action_satisfied" not in rec
+
+
+def test_no_decisive_action_leaves_behaviour_unchanged():
+    """The regression guard for every record that has no decisive action at all."""
+    rec = _pref(_task(), _submission([], _ANNOT))
+    assert rec["supervision_type"] == "pairwise_preference"
+    assert "verifiable_outcome" not in rec
+    assert "decisive_action_satisfied" not in rec
+
+
+def test_tool_calls_as_objects_are_verified_the_same_as_bare_names():
+    """Real payloads carry call objects, not only name strings."""
+    task = {**_task(), "decisive_action": _DECISIVE}
+    sub = _submission([], _ANNOT)
+    sub["payload"]["tool_calls"] = [
+        {"tool_name": "order_urine_micro", "args": {}},
+        {"name": "order_pronase_if"},
+        {"tool": "final_answer"},
+    ]
+    rec = _pref(task, sub)
+    assert rec["decisive_action_satisfied"] is True
+
+
+def test_a_malformed_decisive_action_falls_back_to_unverified():
+    """A spec we cannot parse is a claim we cannot check — not a failed check.
+    Asserting the trajectory MISSED an action whose spec was unreadable would be a
+    false negative shipped as a measurement."""
+    task = {**_task(), "decisive_action": {"rationale": "no tool_name, no action"}}
+    sub = _submission([], _ANNOT)
+    sub["payload"]["tool_calls"] = ["order_pronase_if", "final_answer"]
+
+    rec = _pref(task, sub)
+    assert rec["verifiable_outcome"]["verified"] is False
+    assert "decisive_action_satisfied" not in rec
+
+
+def test_tool_calls_alone_still_reach_the_environment_rung():
+    """A trajectory with no decisive action to check is environment-verifiable on
+    the strength of the tool calls, exactly as before, and claims no measurement."""
+    sub = _submission([], _ANNOT)
+    sub["payload"]["tool_calls"] = ["order_urine_micro", "final_answer"]
+    rec = _pref(_task(), sub)
+    assert rec["supervision_type"] == "environment_verifiable"
+    assert "decisive_action_satisfied" not in rec
+
+
+def test_a_malformed_tool_calls_payload_keeps_its_original_label():
+    """Byte-identical-behaviour guard for the wiring change.
+
+    The ladder label tested ``payload["tool_calls"]`` for plain truthiness, so a
+    malformed shape (a dict, a string) reached the environment rung. Adding a
+    verifier must not quietly tighten that: the label is unchanged, and only the
+    measurement — which cannot read names out of a shape it does not recognize —
+    declines to claim a result.
+    """
+    for malformed in ({"first": "order_pronase_if"}, "order_pronase_if", 7):
+        sub = _submission([], _ANNOT)
+        sub["payload"]["tool_calls"] = malformed
+        rec = _pref(_task(), sub)
+        assert rec["supervision_type"] == "environment_verifiable", malformed
+        assert "decisive_action_satisfied" not in rec, malformed

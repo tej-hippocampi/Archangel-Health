@@ -35,6 +35,9 @@ from asclepius.constants import (
     label_for_correction_reason,
 )
 from asclepius.validation import all_anchors, has_valid_anchor, is_valid_anchor
+# The repo's only executable RLVR verifier. ``_supervision_type`` runs it so the
+# environment_verifiable label is a measurement rather than a restated claim.
+from asclepius.supervision import DecisiveAction, decisive_action_satisfied
 
 
 class PackagingError(ValueError):
@@ -372,13 +375,24 @@ def _provenance(task: Dict[str, Any], submission: Dict[str, Any],
     # upsell obvious. Ladder position (§9.3): where this record sits on the
     # preference -> process -> environment ladder.
     prov["signal_ceiling"] = _signal_ceiling(task)
-    prov["supervision_type"] = _supervision_type(task, submission)
+    prov["supervision_type"], _da_satisfied = _supervision_type(task, submission)
     # The physician-named decisive action becomes the record's verifiable outcome
     # (Audit §13) — the boolean, human-free verifier a buyer can turn into an RLVR
     # reward: the decisive test must precede the final answer.
+    #
+    # ``verified`` separates the claim from the measurement. It is true only when
+    # the verifier actually RAN against a trajectory; a record that merely names a
+    # decisive action with nothing to check it against ships verified=false, so a
+    # buyer reading the ladder position can see which rung was measured and which
+    # was asserted.
     if task.get("decisive_action"):
         prov["verifiable_outcome"] = {**task["decisive_action"],
-                                      "verifier": "decisive_action_precedes_final_answer"}
+                                      "verifier": "decisive_action_precedes_final_answer",
+                                      "verified": _da_satisfied is not None}
+        if _da_satisfied is not None:
+            prov["verifiable_outcome"]["decisive_action_satisfied"] = _da_satisfied
+    if _da_satisfied is not None:
+        prov["decisive_action_satisfied"] = _da_satisfied
     prov.update(_ladder_position(task, submission))
     return prov
 
@@ -414,18 +428,86 @@ def _signal_ceiling(task: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _supervision_type(task: Dict[str, Any], submission: Dict[str, Any]) -> str:
+def _trajectory_tool_calls(submission: Dict[str, Any]) -> List[str]:
+    """The submission's tool calls as an ordered list of NAMES.
+
+    Real payloads carry this two ways: a bare list of strings, or a list of call
+    objects with the name under ``tool_name``/``name``/``tool``. Both reduce to
+    the ordered name list ``decisive_action_satisfied`` verifies against; anything
+    unrecognizable is dropped rather than raised on, because a payload we cannot
+    read must fall back to the unverified label, not fail the packaging run.
+    """
+    raw = (submission.get("payload") or {}).get("tool_calls")
+    if not isinstance(raw, list):
+        return []
+    names: List[str] = []
+    for call in raw:
+        if isinstance(call, str):
+            name = call
+        elif isinstance(call, dict):
+            name = (call.get("tool_name") or call.get("name") or call.get("tool") or "")
+        else:
+            name = ""
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip())
+    return names
+
+
+def _decisive_action_verification(
+    task: Dict[str, Any], submission: Dict[str, Any]
+) -> Optional[bool]:
+    """Did the trajectory actually satisfy the physician-named decisive action?
+
+    ``None`` means "not measured" — there is no decisive action, or no trajectory
+    to measure it against. ``True``/``False`` is a real measurement made by
+    ``supervision.decisive_action_satisfied``.
+    """
+    spec = task.get("decisive_action")
+    if not isinstance(spec, dict) or not spec:
+        return None
+    calls = _trajectory_tool_calls(submission)
+    if not calls:
+        return None
+    try:
+        action = DecisiveAction(**spec)
+    except (TypeError, ValueError):
+        # A malformed decisive action is a claim we cannot check, not a failed
+        # check. Fall through to the unverified label rather than asserting the
+        # trajectory missed an action whose spec we could not parse.
+        return None
+    return bool(decisive_action_satisfied(calls, action))
+
+
+def _supervision_type(
+    task: Dict[str, Any], submission: Dict[str, Any]
+) -> tuple[str, Optional[bool]]:
+    """``(ladder_position, decisive_action_satisfied)``.
+
+    The second element is the honest part. A physician-named decisive action is a
+    verifiable outcome (Audit §13) — but naming one is a CLAIM, and this function
+    used to promote a record to ``environment_verifiable`` on the claim's mere
+    existence while never running the verifier that would test it. The repo's only
+    executable RLVR verifier, ``supervision.decisive_action_satisfied``, sat
+    unwired.
+
+    It runs now whenever there is a trajectory to run it against, and its boolean
+    ships beside the label so a buyer can tell claim from measurement. When there
+    is no trajectory the label is unchanged and the boolean is ``None``, which the
+    caller records as ``"verified": false``: still a claim, now a legible one.
+    """
+    verified = _decisive_action_verification(task, submission)
+    # The LABEL's conditions are untouched, down to their truthiness: a payload
+    # whose ``tool_calls`` is malformed (a dict, a string) still reaches the
+    # environment rung exactly as it did before. Only the measurement beside the
+    # label is new, and it is the thing allowed to be stricter — reading names out
+    # of a shape we do not recognize is how a verifier invents a result.
     if task.get("has_environment") or (submission.get("payload") or {}).get("tool_calls"):
-        return "environment_verifiable"
-    # A physician-named decisive action is itself a verifiable outcome (Audit §13):
-    # the reward function can check the trajectory ordered the decisive test before
-    # its final answer, no human in the loop. That lifts the record onto the
-    # environment-verifiable rung even without a live tool environment.
+        return "environment_verifiable", verified
     if task.get("decisive_action") or task.get("has_verifiable_outcome"):
-        return "environment_verifiable"
+        return "environment_verifiable", verified
     if (submission.get("payload") or {}).get("reasoning_steps"):
-        return "process_supervision"
-    return "pairwise_preference"
+        return "process_supervision", verified
+    return "pairwise_preference", verified
 
 
 def _ladder_position(task: Dict[str, Any], submission: Dict[str, Any]) -> Dict[str, Any]:
