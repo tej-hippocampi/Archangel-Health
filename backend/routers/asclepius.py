@@ -5836,7 +5836,12 @@ async def _generate_one_real_case(
                                       ai_failure_mode=failure_mode)
     candidates = cg.get("candidates") or []
     if len(candidates) < 2:
-        result["error"] = "Candidate generation unavailable (no LLM key configured?)."
+        # Report what actually went wrong. "no LLM key configured?" was a guess,
+        # and it was the wrong guess for a truncated or unparsable response — the
+        # two failures a live key produces (asclepius.critic supplies ``reason``).
+        result["error"] = ("Candidate generation produced no usable pair: "
+                           + (cg.get("reason") or "no reason reported "
+                              "(is an LLM key configured?)"))
         return result
 
     # ── the gates that must stay ─────────────────────────────────────────────
