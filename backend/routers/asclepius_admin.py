@@ -29,6 +29,7 @@ from onboarding_emails import build_asclepius_invite_email
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
+from asclepius import route_notify as asc_route_notify
 from asclepius import specialties as asc_specialties
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
@@ -2268,6 +2269,7 @@ async def admin_allocate(
             proposal = _explicit_proposal(cases, targeted, body)
 
     committed = []
+    notified: Dict[str, Any] = {"dms": 0, "channel": False, "errors": []}
     # What SEND does to visibility, which is separate from what it does to
     # priority. Sending to specific people or a specialty makes the cases
     # assigned_only — they are now those doctors' work and nobody else's. Sending
@@ -2292,6 +2294,17 @@ async def admin_allocate(
             committed.append(row["assignment_id"])
         if flip_to:
             store.set_task_distribution([c.task_id for c in cases], flip_to)
+        # ═══ PRD CASE-BATCHES §4 — tell the people it concerns ═══════════════
+        # AFTER the assignment rows and the distribution flip, never before and
+        # never inside them. The assignment is the truth and the ping is a
+        # courtesy: a community outage must not roll back routing the queue is
+        # already honouring, or the doctor ends up with neither the work nor the
+        # message. ``notify_routed`` swallows its own failures and reports what
+        # actually went out, so the audit line below records delivery rather than
+        # an intention to deliver.
+        notified = asc_route_notify.notify_routed(
+            store, assignments=proposal.assignments, to_all=bool(body.to_all),
+            due_at=body.due_at, task_ids=[c.task_id for c in cases])
         store.log_event(
             entity_type="assignment", event_type="assignments_committed",
             actor=admin["email"],
@@ -2301,7 +2314,8 @@ async def admin_allocate(
                      "targeting": ("all" if body.to_all else
                                    "specialty" if body.specialty else
                                    "explicit" if body.user_ids else "allocator"),
-                     "distribution": flip_to},
+                     "distribution": flip_to,
+                     "notified": notified},
         )
 
     return {
@@ -2309,6 +2323,10 @@ async def admin_allocate(
         "targeting": ("all" if body.to_all else "specialty" if body.specialty
                       else "explicit" if body.user_ids else "allocator"),
         "distribution": flip_to,
+        # What actually went out, not what was attempted — so an admin whose
+        # community is down sees "0 DMs" on the screen instead of learning about
+        # it when a physician says nobody told them.
+        "notified": notified,
         "domain": domain,
         "cases": len(cases),
         "physicians_considered": len(physicians),
