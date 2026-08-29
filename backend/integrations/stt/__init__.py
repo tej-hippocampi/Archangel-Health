@@ -1,7 +1,8 @@
 """Speech-to-text provider abstraction for Gold Standard capture.
 
-Swappable behind ``STT_PROVIDER`` (``whisper`` | ``deepgram`` | ``stub``),
-mirroring ``integrations/video``. Keys come from env, server-side only. When the
+Swappable behind ``STT_PROVIDER`` (``whisper`` | ``deepgram`` | ``stub``) — the
+same env-selected-provider shape the retired ``integrations/video`` package used.
+Keys come from env, server-side only. When the
 selected provider has no API key configured, ``transcribe`` returns a clearly
 labelled stub transcript so the capture → review pipeline still runs end-to-end
 in local demos without leaking that a real call was made.

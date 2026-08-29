@@ -62,15 +62,7 @@ from routers.internal import _check_auth as _check_internal_auth, router as inte
 from routers.admin    import router as admin_router
 from routers.onboarding import router as onboarding_router
 from routers.tenant_portal import router as tenant_portal_router
-from routers.eligibility import router as eligibility_router
-from routers.intraop import router as intraop_router
-from routers.postop import router as postop_router
-from routers.initial_tier import router as initial_tier_router
-from routers.preop_retier import router as preop_retier_router
-from routers.teachback import router as teachback_router
-from routers.triage_explain import router as triage_explain_router
 from routers.messaging import router as messaging_router
-from routers.telehealth import router as telehealth_router
 from routers.asclepius import router as asclepius_router
 from community.router import router as community_router
 from community.router import page_router as community_page_router
@@ -6741,15 +6733,7 @@ app.include_router(internal_router)
 app.include_router(admin_router)
 app.include_router(onboarding_router)
 app.include_router(tenant_portal_router)
-app.include_router(eligibility_router)
-app.include_router(intraop_router)
-app.include_router(postop_router)
-app.include_router(initial_tier_router)
-app.include_router(preop_retier_router)
-app.include_router(teachback_router)
-app.include_router(triage_explain_router)
 app.include_router(messaging_router)
-app.include_router(telehealth_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_admin_router)
@@ -6800,17 +6784,6 @@ async def prompt_lab_page():
 @app.get("/admin/", response_class=HTMLResponse, include_in_schema=False)
 async def admin_page():
     with open(os.path.join(os.path.dirname(__file__), "../frontend/admin.html")) as f:
-        return f.read()
-
-
-@app.get("/intraop-form/{patient_id}", response_class=HTMLResponse, include_in_schema=False)
-async def intraop_form_page(patient_id: str):
-    """Serve the surgeon intra-op form shell. Patient id is read by JS at
-    runtime from the URL path; the HTML is the same for every patient."""
-    path = os.path.join(os.path.dirname(__file__), "../frontend/intraop-form.html")
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Intra-op form page not deployed")
-    with open(path) as f:
         return f.read()
 
 
