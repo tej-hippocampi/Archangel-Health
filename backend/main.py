@@ -18,7 +18,7 @@ import html as html_lib
 import secrets
 import string
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlencode
 from typing import Optional, List, Dict, Any
 
@@ -2650,6 +2650,52 @@ async def _run_preop_survey_outreach() -> None:
                     event_type="preop_survey_sent",
                     payload={"window": window, "survey_day": survey_day},
                 )
+
+
+# ─── Build identity ───────────────────────────────────────────
+# Captured once, at import, so it describes THIS process rather than whatever the
+# filesystem looks like when someone asks.
+_BOOT_AT = datetime.now(timezone.utc).isoformat()
+_V4_BOOT_SUMMARY: Dict[str, Any] = {"ran": False}
+
+
+def _running_commit() -> Dict[str, Optional[str]]:
+    """What code is this process actually running?
+
+    Railway injects RAILWAY_GIT_COMMIT_SHA / _BRANCH at build time; a generic
+    host may set GIT_COMMIT or SOURCE_COMMIT. Falling back to `git rev-parse`
+    covers a local run, and is deliberately last: in a container built from a
+    tarball there is no .git, and a stale one would be worse than nothing."""
+    sha = (os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("GIT_COMMIT")
+           or os.getenv("SOURCE_COMMIT") or os.getenv("HEROKU_SLUG_COMMIT"))
+    branch = os.getenv("RAILWAY_GIT_BRANCH") or os.getenv("GIT_BRANCH")
+    if not sha:
+        try:
+            import subprocess
+            sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                timeout=3, cwd=os.path.dirname(os.path.abspath(__file__)),
+            ).stdout.strip() or None
+        except Exception:
+            sha = None
+    return {"commit": sha, "short_commit": (sha or "")[:7] or None, "branch": branch}
+
+
+@app.get("/api/version")
+async def api_version():
+    """Which commit is live, and when did it start?
+
+    This exists because "I pushed a fix and I am not seeing it" had no answer
+    short of reading a dashboard: nothing the running process served said what
+    code it was. A deploy that never happened, a deploy that failed back to the
+    previous image, and a real bug in the new code all present identically — as
+    the old behaviour — and the only way to tell them apart was to guess.
+
+    Deliberately unauthenticated and deliberately thin: a commit SHA and a start
+    time, which is what a health check and an operator both need. Nothing about
+    accounts, data, configuration or the environment goes here."""
+    return {**_running_commit(), "started_at": _BOOT_AT,
+            "deployment_id": os.getenv("RAILWAY_DEPLOYMENT_ID")}
 
 
 # ─── Doctor Portal ────────────────────────────────────────────
@@ -6197,18 +6243,36 @@ async def startup_team_scheduler():
         from asclepius.store import get_store as _get_store
         from asclepius.v4_cases import load_v4_cases
 
-        _v4 = load_v4_cases(_get_store())
+        from asclepius.constants import v4_open_to_all_specialties
+
+        _open_all = v4_open_to_all_specialties()
+        # reconcile_visibility: boot is where an operator's setting is allowed to
+        # change who sees the EXISTING cases. The request-path backstop never is.
+        _v4 = load_v4_cases(_get_store(), open_to_all_specialties=_open_all,
+                            reconcile_visibility=True)
         _auth_logger.info(
-            "[asclepius] V4 real cases: %d loaded, %d already present, %d held",
-            _v4.get("loaded", 0), _v4.get("skipped", 0), _v4.get("held", 0))
+            "[asclepius] V4 real cases: %d loaded, %d already present, %d held, "
+            "%d visibility-corrected (open_to_all_specialties=%s)",
+            _v4.get("loaded", 0), _v4.get("skipped", 0), _v4.get("held", 0),
+            _v4.get("revisited", 0), _open_all)
+        # Kept so an operator can confirm the seeding ran on THIS process rather
+        # than inferring it from a log line they may not be able to reach.
+        _V4_BOOT_SUMMARY.update(
+            ran=True, at=datetime.now(timezone.utc).isoformat(),
+            open_to_all_specialties=_open_all,
+            loaded=_v4.get("loaded", 0), already_present=_v4.get("skipped", 0),
+            held=sorted((_v4.get("holds") or {}).keys()),
+            visibility_corrected=_v4.get("revisited", 0))
         for _cid, _why in (_v4.get("study_gaps") or {}).items():
             _auth_logger.info("[asclepius] V4 real case %s ships with a gap: %s", _cid, _why)
         for _cid, _why in (_v4.get("holds") or {}).items():
             # A held case is a promise not kept. Name it at boot so it is visible
             # in the logs rather than only discoverable by its absence.
             _auth_logger.warning("[asclepius] V4 real case %s is HELD: %s", _cid, _why)
-    except Exception:
+    except Exception as _exc:
         _auth_logger.exception("[asclepius] V4 real-case seeding failed")
+        _V4_BOOT_SUMMARY.update(ran=False, error=str(_exc),
+                                at=datetime.now(timezone.utc).isoformat())
     # PRD-4: warn loudly if PHI email would go through a non-BAA transport.
     try:
         from email_utils import active_email_vendor, email_phi_allowed
@@ -6465,12 +6529,67 @@ async def startup_community():
         from community import morning as _cmorning
         if _cmorning.enabled():
             _cmorning.start_morning_loop()
+        _start_asclepius_task_notify_loop()
     except Exception:
         _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
 
 
+_asclepius_task_notify_task = None
+
+
+def asclepius_task_notify_interval_sec() -> int:
+    try:
+        return max(15, int(os.getenv("ASCLEPIUS_TASK_NOTIFY_INTERVAL_SECONDS", "60")))
+    except (TypeError, ValueError):
+        return 60
+
+
+def _start_asclepius_task_notify_loop() -> None:
+    """Drain the asclepius task-notify outbox on a tick.
+
+    The outbox is durable, but nothing periodic ever drained it: delivery rode
+    a single ``BackgroundTasks.add_task`` fired right after upload, with no
+    retry. A worker that died mid-send (or a promote path that had no
+    request-scoped handle to add a task to) left rows ``pending`` forever, and
+    the only way to move them was an admin hitting the manual re-drain endpoint
+    -- which nothing tells them to do.
+
+    Distinct from ``_task_notification_loop``, which drains the CareGuide/team
+    patient-task queue on the other plane. Same idea, different outbox.
+    """
+    global _asclepius_task_notify_task
+    if _asclepius_task_notify_task is not None and not _asclepius_task_notify_task.done():
+        return
+
+    async def _run() -> None:
+        from asclepius import task_notify as _asc_task_notify
+
+        while True:
+            await asyncio.sleep(asclepius_task_notify_interval_sec())
+            try:
+                store = getattr(app.state, "asclepius_store", None)
+                if store is None:
+                    continue
+                # Sending is blocking (SendGrid over requests), so keep it off
+                # the event loop.
+                await asyncio.to_thread(_asc_task_notify.drain_outbox, store)
+            except Exception:  # pragma: no cover -- the loop must survive
+                _auth_logger.warning(
+                    "[asclepius] task-notify drain failed", exc_info=True
+                )
+
+    _asclepius_task_notify_task = asyncio.create_task(_run())
+
+
 @app.on_event("shutdown")
 async def shutdown_community():
+    global _asclepius_task_notify_task
+    try:
+        if _asclepius_task_notify_task is not None:
+            _asclepius_task_notify_task.cancel()
+            _asclepius_task_notify_task = None
+    except Exception:
+        pass
     try:
         from community import notify as _cnotify
 

@@ -707,6 +707,29 @@ def relax_multimodal_gates() -> bool:
             in ("1", "true", "yes", "on"))
 
 
+def v4_open_to_all_specialties() -> bool:
+    """Should the three seeded V4 real cases be visible to EVERY approved labeler,
+    regardless of their specialty? Default ON.
+
+    There are three real charts — hepatology, nephrology, cardiology. Scoped to
+    specialty, an approved oncologist (or endocrinologist, or anyone else) sees
+    ZERO real cases and cannot tell the difference between "none exist" and "none
+    for you". That is not a queue with nothing in it; that is a corpus of three
+    cases divided by a growing roster of specialties.
+
+    This widens VISIBILITY and nothing else (V4 PRD §4): ``max_labels`` is
+    unchanged, so it does not change what we pay, and the real-data wall still
+    decides who may see a real chart at all. The annotator's own specialty ships
+    on every record, so a cardiology chart graded by a nephrologist is VISIBLE to
+    the buyer as exactly that rather than hidden — which is the honest trade while
+    the corpus is this small.
+
+    Set ASCLEPIUS_V4_OPEN_TO_ALL=0 to restore strict specialty routing once there
+    are enough real cases per specialty to fill a queue."""
+    return (os.getenv("ASCLEPIUS_V4_OPEN_TO_ALL", "1").strip().lower()
+            in ("1", "true", "yes", "on"))
+
+
 def hard_only_generation() -> bool:
     """Whether the generator gates on hardness (drops below the floor + forces
     difficulty=hard). Default ON — the engine's purpose is hard cases — but the

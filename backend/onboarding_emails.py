@@ -953,7 +953,10 @@ def build_enterprise_note_email(
 
 
 def build_community_digest_email(
-    *, activity_items: Iterable[Tuple[str, str]], community_url: str
+    *,
+    activity_items: Iterable[Tuple[str, str]],
+    community_url: str,
+    unsubscribe_url: str = "",
 ) -> str:
     """Batched community activity: mentions, DMs, announcements, broadcasts.
 
@@ -975,6 +978,16 @@ def build_community_digest_email(
             "permitted in the community.",
             muted=True,
             small=True,
+        )
+        + (
+            _p(
+                f'<a href="{html.escape(unsubscribe_url, quote=True)}" '
+                f'style="color:{_GREEN_DEEP};">Stop these emails</a>.',
+                muted=True,
+                small=True,
+            )
+            if unsubscribe_url
+            else ""
         )
     )
     return _shell(subject="New activity in your Asclepius community", body_html=body)

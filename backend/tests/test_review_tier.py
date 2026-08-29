@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -32,6 +33,27 @@ client = TestClient(A.app)
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch):
     A.fresh_store()
+    # Pin the double-label routing sweep OFF for the duration of each test.
+    #
+    # A draw endpoint kicks that sweep off as a background task, throttled by a
+    # MODULE-LEVEL WALL CLOCK (routers/asclepius_review._sweep_due). So whether
+    # it fires inside any given test depends on how long the tests before it
+    # took — which is not a property of this file, or of anything this file is
+    # testing.
+    #
+    # It matters here because the sweep lifts a singly-labelled task to
+    # max_labels=2, and a single-submission review against that task then
+    # correctly 409s `became_a_pair` (Audit R H2). Right product behaviour,
+    # wrong test dependency: it turned main red once, when an unrelated new test
+    # file changed which files share this shard and moved the clock underneath
+    # these tests.
+    #
+    # Claiming the throttle slot is the whole fix. Every test here that actually
+    # WANTS the sweep calls sweep_double_label_routing() directly, which never
+    # consults the throttle — that convention already existed, this just stops
+    # the incidental sweep from arriving uninvited.
+    from routers import asclepius_review as _asc_review_router
+    monkeypatch.setitem(_asc_review_router._SWEEP_STATE, "last", time.monotonic())
     # Stub the two LLM legs of the submit pipeline so tests can walk the REAL
     # POST /submissions route (FIX A §1 rule 2: test the path, not the unit).
     from asclepius import pipeline as asc_pipeline
@@ -535,12 +557,21 @@ def test_cannot_assess_persists_as_its_own_value():
     assert json.loads(raw)["rubric_quality"] == "cannot_assess"
 
 
-def test_review_portal_page_served():
-    r = client.get("/asclepius/review")
-    assert r.status_code == 200
-    assert "/static/asclepius/review.js" in r.text
-    # The shell itself is identity-free (it is served unauthenticated).
-    assert "annotator" not in r.text
+def test_review_portal_page_redirects_into_the_shell():
+    """PRD-1 §2.1: there is no standalone review page any more — review is a view
+    inside the evaluation portal. The old URL is in bookmarks and in email we
+    have already sent, so it redirects rather than 404ing, and what it lands on
+    is the portal shell that mounts the review module.
+
+    The shell is still identity-free (it is served unauthenticated)."""
+    r = client.get("/asclepius/review", follow_redirects=False)
+    assert r.status_code in (307, 308)
+    assert r.headers["location"] == "/asclepius#review"
+
+    followed = client.get("/asclepius/review")
+    assert followed.status_code == 200
+    assert "/static/asclepius/review.js" in followed.text
+    assert "annotator" not in followed.text
 
 
 def test_review_js_builds_dom_with_h_and_no_innerhtml():
@@ -551,7 +582,11 @@ def test_review_js_builds_dom_with_h_and_no_innerhtml():
     assert ".innerHTML" not in src  # property access, not the word in comments
     assert ".outerHTML" not in src
     assert "insertAdjacentHTML" not in src
-    assert "function h(" in src
+    # PRD-1 §2.1: the hyperscript is the SHELL's, handed over through the ctx.
+    # The rule is unchanged — every server string still reaches the page as a
+    # text node — but there is now exactly one h() on the page instead of two.
+    assert "CTX.h.apply" in src
+    assert "window.AsclepiusReview" in src
 
 
 # ─── Phase 4: two statistics, named correctly ─────────────────────────────────

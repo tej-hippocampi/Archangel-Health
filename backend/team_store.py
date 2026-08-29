@@ -162,7 +162,7 @@ class TeamStore:
                 CREATE INDEX IF NOT EXISTS idx_escalations_created ON escalations(created_at);
                 CREATE INDEX IF NOT EXISTS idx_preop_intake_patient ON preop_intake_submissions(patient_id);
 
-                -- Landing lead-capture forms: "Request data" (buyers) and
+                -- Landing lead-capture forms: "Request products" (buyers) and
                 -- "Provide data" (data providers). Public, no PHI.
                 CREATE TABLE IF NOT EXISTS lead_submissions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2491,7 +2491,7 @@ class TeamStore:
         client_ip: Optional[str] = None,
         created_at: Optional[str] = None,
     ) -> int:
-        """Append a landing lead-capture submission ("Request data" / "Provide
+        """Append a landing lead-capture submission ("Request products" / "Provide
         data"). Public form data, no PHI. Returns the new row id."""
         ts = created_at or _utcnow_iso()
         with self._conn() as conn:

@@ -557,7 +557,6 @@
 }
 .asc-dash-hello { font-size: var(--t-h2); }
 .asc-dash-sub { color: var(--ink-soft); font-size: var(--t-sm); margin-top: 2px; text-transform: capitalize; }
-.asc-dash-list { display: flex; flex-direction: column; gap: 10px; }
 .asc-dash-card {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   width: 100%; text-align: left; padding: 14px 18px;
@@ -603,13 +602,6 @@
 /* Shown only when the V4 real queue is exhausted and the physician has been
    continued onto the synthetic multimodal queue. */
 .asc-dash-hero-note { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 6px; max-width: 46ch; line-height: 1.45; }
-.asc-dash-more {
-  display: block; width: 100%; margin: 2px 0 0; padding: 10px;
-  font-family: var(--sans); font-size: var(--t-sm); color: var(--ink-soft); text-align: center;
-  background: transparent; border: 1px dashed var(--asc-line); border-radius: var(--r-md);
-  cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease;
-}
-.asc-dash-more:hover { border-color: var(--hairline-strong); color: var(--ink); }
 
 .asc-dash-side {
   position: sticky; top: 76px;
@@ -2274,24 +2266,6 @@ body.asc-sheet-open { overflow: hidden; }
 .asc-ver-card.asc-ver-soon:hover { border-color: var(--asc-line); transform: none; box-shadow: var(--shadow-card); }
 .asc-ver-card-icon.asc-dot-green { background: var(--green); }
 
-/* ─── §6 semantic case-tag chips ───────────────────────────────────────── */
-.asc-meta-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 3px 10px; border: 1px solid var(--asc-line);
-  border-radius: var(--r-chip); background: var(--card);
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
-  text-transform: uppercase; color: var(--ink-soft);
-}
-.asc-meta-chip-dot {
-  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-  background: var(--ink-faint);
-}
-.asc-meta-chip-dot.asc-dot-green { background: var(--green); }
-.asc-meta-chip-dot.asc-dot-orange { background: var(--orange); }
-.asc-meta-chip-dot.asc-dot-pink { background: var(--pink); }
-.asc-meta-chip-dot.asc-dot-lime { background: var(--lime); }
-.asc-meta-chip-dot.asc-dot-faint { background: rgba(26, 27, 26, 0.18); }
-
 /* ─── §7 single flag control ───────────────────────────────────────────── */
 .asc-flag-invalid { color: var(--pink-deep); }
 .asc-flag-invalid:hover { color: var(--pink); }
@@ -2443,9 +2417,9 @@ body.asc-sheet-open { overflow: hidden; }
   position: relative;
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 11px 12px;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: transparent;
@@ -2453,7 +2427,9 @@ body.asc-sheet-open { overflow: hidden; }
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 400;
-  letter-spacing: 0.06em;
+  /* Mono at 12px does not need 0.06em; the extra tracking is most of what read
+     as a squished pill once the icon and the padding were sized right. */
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   text-align: left;
   cursor: pointer;
@@ -2465,6 +2441,7 @@ body.asc-sheet-open { overflow: hidden; }
   color: var(--ink);
   box-shadow: var(--shadow-card);
   border-color: var(--hairline);
+  border-radius: var(--r-md);
 }
 .asc-rail-item.active::before {
   content: '';
@@ -2491,6 +2468,41 @@ body.asc-sheet-open { overflow: hidden; }
   color: var(--green-deep);
 }
 .asc-rail-item-referral.active::before { background: var(--green); }
+/* ── §1: nothing may carry a fill AT REST in an icon-only rail ──────────────
+   In the expanded rail the label disambiguates a washed item from the selected
+   one. At 68px there is no label to do that work, so the fill IS the active
+   indicator — and two filled pills means the rail is lying about where you are.
+   `:not(.active)` matters: when referral genuinely IS the active section it
+   must still read as selected.
+
+   Scoped to BOTH icon-only rails. `body.asc-rail-compact` is the physician's
+   own choice, but 701–1100px collapses the rail to icons on width alone, with
+   no body class — a fix that only covered the chosen one would leave the bug
+   in place for every laptop in that range. */
+@media (min-width: 701px) {
+  body.asc-rail-compact .asc-rail-item-referral:not(.active) {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ink-soft);
+  }
+  /* Hover must not reintroduce it either: the referral hover rule above pins
+     the wash, and at rest-with-cursor that is the same false "you are here". */
+  body.asc-rail-compact .asc-rail-item-referral:not(.active):hover {
+    background: var(--card-in);
+    color: var(--ink);
+  }
+}
+@media (max-width: 1100px) and (min-width: 701px) {
+  .asc-rail-item-referral:not(.active) {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ink-soft);
+  }
+  .asc-rail-item-referral:not(.active):hover {
+    background: var(--card-in);
+    color: var(--ink);
+  }
+}
 .asc-rail-ico {
   flex: none;
   width: 20px; height: 20px;
@@ -2532,7 +2544,40 @@ body.asc-sheet-open { overflow: hidden; }
   flex-direction: column;
   gap: 8px;
 }
-.asc-rail-user { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* §3: avatar on the left, identity stacked beside it. The row is the reason
+   `.asc-rail-usertext` exists — the name and the specialty still stack, they
+   just do it next to the circle instead of under it. */
+.asc-rail-user { display: flex; flex-direction: row; align-items: center; gap: 9px; min-width: 0; }
+.asc-rail-usertext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* The physician's initials on their specialty's colour — the same two letters
+   and the same hue their colleagues already see in the community.
+
+   The rail foot is hidden in every icon-only rail (compact, 701–1100px, and the
+   mobile tab bar), so the avatar has no compact state to define. If the foot is
+   ever shown at 68px, this is the only element in it that still works: size it
+   and drop the name and the specialty. */
+.asc-rail-avatar {
+  flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--green-wash);
+  color: var(--green-deep);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  user-select: none;
+}
+.asc-rail-avatar.acc-green  { background: var(--green-wash);  color: var(--green-deep); }
+.asc-rail-avatar.acc-orange { background: var(--orange-wash); color: var(--orange-deep); }
+.asc-rail-avatar.acc-pink   { background: var(--pink-wash);   color: var(--pink-deep); }
+.asc-rail-avatar.acc-lime   { background: var(--lime-wash);   color: var(--lime-deep); }
+.asc-rail-avatar.has-img    { background: var(--card-in); }
+/* avatarImgEl() is shared with the profile page, which sizes its initials for a
+   96px circle. Re-scale them here rather than forking a second image path. */
+.asc-rail-avatar .asc-me-avatar-initials { font-size: 10.5px; letter-spacing: 0.02em; }
 .asc-rail-name {
   font-size: 13px;
   font-weight: 500;
@@ -2602,9 +2647,12 @@ body.asc-has-rail .asc-main {
 @media (min-width: 701px) {
   body.asc-rail-compact { --asc-rail-w: 68px; }
   body.asc-rail-compact .asc-rail { padding: var(--sp-4) 10px; align-items: center; }
-  body.asc-rail-compact .asc-rail-item { justify-content: center; gap: 0; padding: 9px 0; }
+  /* A square-ish pill around a 20px icon: 44px total, which is also the
+     minimum comfortable touch target. 38px with 9px of air is what read as
+     cramped. */
+  body.asc-rail-compact .asc-rail-item { justify-content: center; gap: 0; padding: 12px 0; }
   body.asc-rail-compact .asc-rail-label { display: none; }
-  body.asc-rail-compact .asc-rail-item.active::before { top: 18%; bottom: 18%; }
+  body.asc-rail-compact .asc-rail-item.active::before { top: 24%; bottom: 24%; }
   body.asc-rail-compact .asc-rail-foot { display: none; }   /* sign out remains in the header */
   /* Collapsing to icons is only safe if the icons still carry what the labels
      did. A count with no label is noise; a dot still says something happened. */
@@ -2677,9 +2725,9 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 @media (max-width: 1100px) and (min-width: 701px) {
   :root { --asc-rail-w: 68px; }
   .asc-rail { padding: var(--sp-4) 10px; align-items: center; }
-  .asc-rail-item { justify-content: center; gap: 0; padding: 10px; }
+  .asc-rail-item { justify-content: center; gap: 0; padding: 12px 10px; }
   .asc-rail-label { display: none; }
-  .asc-rail-item.active::before { top: 18%; bottom: 18%; }
+  .asc-rail-item.active::before { top: 24%; bottom: 24%; }
   .asc-rail-foot { display: none; }   /* sign out remains in the header */
   /* Collapse the badge to a corner dot (no count) over the icon. */
   .asc-rail-badge { position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; gap: 0; background: none; border: none; }
@@ -2713,7 +2761,12 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
     font-size: 10px;
     letter-spacing: 0.04em;
   }
-  .asc-rail-item.active { background: transparent; box-shadow: none; border-color: transparent; color: var(--ink); }
+  /* border-radius is pinned back to 0 here: §2 put --r-md on
+     `.asc-rail-item.active`, which out-specifies this bar's own
+     `border-radius: 0` on `.asc-rail-item`. Invisible while the tab is
+     transparent, but a rounded hover inside a 60px bar is not this
+     change's business. */
+  .asc-rail-item.active { background: transparent; box-shadow: none; border-color: transparent; color: var(--ink); border-radius: 0; }
   .asc-rail-item.active::before { left: 22%; right: 22%; top: 0; bottom: auto; width: auto; height: 2px; border-radius: 0 0 2px 2px; }
   .asc-rail-label { display: block; flex: none; }
   .asc-rail-foot { display: none; }   /* sign out remains in the header */
@@ -3969,6 +4022,162 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   .asc-me-avatarwrap { width: 80px; height: 80px; flex-basis: 80px; }
   .asc-me-avatar-initials { font-size: 24px; }
 }
+
+/* ═══ PRD-1: review inside the shell ═════════════════════════════════════════
+   Review used to be a standalone page with its own `<style>` block and its own
+   `rv-` namespace, which is precisely why it did not feel like the same product:
+   it structurally wasn't. Those rules live here now, under `asc-`, so the design
+   guard that scans this file scans them too — a styled-but-unemitted rule is a
+   test failure rather than dead weight nobody notices.
+
+   Placed BEFORE the PRD-R block on purpose: three tests split this stylesheet on
+   that heading and assert what does and does not appear after it (no second
+   grid definition, no raw hex, the clock rule's colour). New rules go in front
+   of the split, not through it.
+
+   The one structural rule that carries meaning: the JUDGMENT PANEL IS PINNED.
+   A reviewer must reach the verdict and all four dimensions without scrolling
+   past the case, so it sticks to the bottom of the viewport and the case fold
+   scrolls underneath it.
+   ═════════════════════════════════════════════════════════════════════════════ */
+/* The review surface stacks question, chrome, the pair, the case fold and the
+   pinned judgment. `.asc-wrap`'s 18px gap is tuned for cards a physician reads
+   one at a time; here the pairbar is chrome ABOUT the pair below it, and the
+   default gap reads as five unrelated blocks rather than one comparison. */
+.asc-wrap-review { gap: 12px; }
+.asc-rv-header {
+  display: flex; align-items: baseline; gap: var(--sp-3);
+  flex-wrap: wrap; margin-bottom: var(--sp-3);
+}
+.asc-rv-headstats { flex: 1; display: flex; gap: var(--sp-3); align-items: baseline; flex-wrap: wrap; }
+.asc-rv-chrome {
+  font-family: var(--mono); font-size: var(--t-chrome);
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint);
+}
+.asc-rv-kv { font-size: var(--t-sm); color: var(--ink-soft); }
+.asc-rv-kv b { color: var(--ink); font-weight: 500; }
+.asc-rv-kv-lead { margin: var(--sp-3) 0 var(--sp-2); }
+.asc-rv-main { display: block; }
+.asc-rv-pairbar {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-3); flex-wrap: wrap; margin: var(--sp-4) 0 var(--sp-2);
+}
+.asc-rv-answer-text { white-space: pre-wrap; margin-top: var(--sp-2); }
+.asc-rv-chip-gap { margin-right: 6px; }
+.asc-rv-step {
+  display: flex; gap: var(--sp-2); padding: var(--sp-2) 0;
+  border-top: 1px solid var(--asc-line); font-size: var(--t-sm);
+}
+.asc-rv-step:first-of-type { border-top: 0; }
+.asc-rv-step-num { font-family: var(--mono); color: var(--ink-faint); flex: none; width: 22px; }
+
+/* THE FORK MARK. The single highest-leverage thing on this page: the reviewer's
+   attention belongs where A and B parted company, not at the eight steps where
+   they agree. LIME, because a fork is "needs attention" — not pink, which in
+   this palette means critical and blocking, and not a per-column hue, which
+   would tell the reviewer which physician to distrust before they have read it.
+   The SAME mark appears on both columns for the same reason. */
+.asc-rv-step-fork {
+  background: var(--lime-wash);
+  border-left: 2px solid var(--lime-line);
+  padding-left: var(--sp-2);
+  margin-left: -2px;
+}
+.asc-rv-forks { margin-top: var(--sp-3); }
+.asc-rv-fork-row .asc-rv-dim-label { color: var(--ink); }
+
+.asc-rv-case { margin: var(--sp-3) 0; }
+.asc-rv-case > summary { cursor: pointer; font-weight: 600; font-size: var(--t-sm); }
+.asc-rv-case-body { margin-top: var(--sp-3); }
+.asc-rv-fold > summary { cursor: pointer; }
+.asc-rv-candidates { margin-top: var(--sp-3); }
+.asc-rv-candidate { margin-top: var(--sp-2); }
+.asc-rv-citations { margin-top: var(--sp-2); }
+
+/* The judgment, pinned (§2.3). `position: sticky` with `bottom: 0` keeps the
+   verdict and the four dimensions on screen no matter how far the case is
+   scrolled, which is the layout enforcing what the copy already promised. */
+.asc-rv-judgment {
+  position: sticky; bottom: 0; z-index: 5;
+  margin-top: var(--sp-3);
+  box-shadow: var(--shadow-card);
+  max-height: 62vh; overflow-y: auto;
+}
+.asc-rv-dim {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-2) 0; border-top: 1px solid var(--asc-line);
+}
+.asc-rv-dim:first-of-type { border-top: 0; }
+.asc-rv-dim-label { flex: 1 1 220px; min-width: 200px; }
+.asc-rv-dim-label small { display: block; color: var(--ink-faint); }
+/* The 1-4 key, on the control the key aims at. The reviewer's main loop is
+   keyboard, and a shortcut nobody can see is a shortcut nobody uses. */
+.asc-rv-dim-key {
+  font-family: var(--mono); font-size: var(--t-chrome); color: var(--ink-faint);
+  background: var(--card-in); border-radius: 4px; padding: 1px 6px;
+}
+.asc-rv-dim-aimed { box-shadow: inset 2px 0 0 0 var(--green-line); }
+.asc-rv-seg {
+  display: inline-flex; border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip); overflow: hidden; flex: none;
+}
+.asc-rv-seg button {
+  border: 0; background: transparent; color: var(--ink-soft);
+  font: inherit; font-size: var(--t-sm); padding: 6px 12px; cursor: pointer;
+}
+.asc-rv-seg button + button { border-left: 1px solid var(--asc-line); }
+.asc-rv-seg button.is-on[data-state="agree"] { background: var(--green); color: var(--card); }
+.asc-rv-seg button.is-on[data-state="disagree"] { background: var(--pink); color: var(--card); }
+.asc-rv-seg button.is-on[data-state="cannot_assess"] { background: var(--ink-faint); color: var(--card); }
+/* "Which is stronger?" and the per-fork rows share the segmented control but not
+   its agree/disagree semantics: A, B and Neither are three NEUTRAL choices, so
+   the selected one is filled with ink rather than an accent. Giving A or B a hue
+   here is the exact bias the design forbids — a reviewer who reads colour as
+   "which doctor" starts reading it as "which is better". */
+.asc-rv-seg button.is-on[data-state="A"],
+.asc-rv-seg button.is-on[data-state="B"],
+.asc-rv-seg button.is-on[data-state="equivalent"],
+.asc-rv-seg button.is-on[data-fork="A"],
+.asc-rv-seg button.is-on[data-fork="B"],
+.asc-rv-seg button.is-on[data-fork="neither"] { background: var(--ink); color: var(--card); }
+.asc-rv-verdicts { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.asc-rv-verdicts button {
+  flex: 1 1 160px; border: 1px solid var(--asc-line);
+  background: var(--card-in); color: var(--ink); font: inherit; font-size: var(--t-sm);
+  border-radius: var(--r-sm); padding: var(--sp-3); cursor: pointer; text-align: left;
+}
+.asc-rv-verdicts button.is-on[data-verdict="accept"],
+.asc-rv-verdicts button.is-on[data-verdict="accept:A"],
+.asc-rv-verdicts button.is-on[data-verdict="accept:B"] {
+  border-color: var(--green-line); box-shadow: 0 0 0 2px var(--green);
+}
+/* NOT orange. Orange means MODEL OUTPUT in this product, and this is a
+   physician's judgment control — the same mistake as giving one of the two
+   doctors a different hue. Lime is the honest accent: an accept that needs
+   corrections is exactly "needs attention". Accept stays green
+   (physician-authored) and reject stays pink (blocking). */
+.asc-rv-verdicts button.is-on[data-verdict="accept_with_edits"] {
+  border-color: var(--lime-line); box-shadow: 0 0 0 2px var(--lime);
+}
+.asc-rv-verdicts button.is-on[data-verdict="reject"] {
+  border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink);
+}
+.asc-rv-actions { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); }
+.asc-rv-actions-center { justify-content: center; }
+
+/* §4.1 — the preview banner. LIME: an operator looking around is "needs
+   attention", not an emergency, and the server refuses the submit regardless. */
+.asc-rv-preview {
+  display: flex; align-items: baseline; gap: var(--sp-2);
+  background: var(--lime-wash); border: 1px solid var(--lime-line);
+  border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-3); font-size: var(--t-sm); color: var(--ink);
+}
+
+/* §4 — the Evaluate chooser, on the shared menu primitive so it cannot drift
+   from the help menu it is a sibling of. */
+.asc-eval-chooser { min-width: 240px; }
+.asc-eval-chooser .asc-help-menu-item { display: block; text-align: left; }
 
 /* ═══ PRD-R: the paired review surface ═══════════════════════════════════════
    The TR page mirrors the TL page's structure, because a physician who has

@@ -114,6 +114,12 @@ async def flush_pending(
             # mark handled so the queue can't grow unboundedly.
             cstore.mark_notifications_sent([n["id"] for n in items])
             continue
+        if not cstore.wants_activity_email(user_id):
+            # Opted out. Mark handled rather than leaving the rows pending, or
+            # the queue grows forever and every later flush re-reads them. The
+            # in-app notification is unaffected; only the email stops.
+            cstore.mark_notifications_sent([n["id"] for n in items])
+            continue
         rows: List[tuple] = []
         handled_ids: List[int] = []
         for n in items:
@@ -130,9 +136,14 @@ async def flush_pending(
         if rows:
             from onboarding_emails import build_community_digest_email  # noqa: PLC0415
 
+            from community import links  # noqa: PLC0415 — one URL definition
+
             body = build_community_digest_email(
                 activity_items=rows,
-                community_url=os.getenv("PUBLIC_BASE_URL", "").rstrip("/") + "/community",
+                community_url=links.community_url(),
+                unsubscribe_url=links.unsubscribe_url(
+                    cstore.email_prefs(user_id).get("unsubscribe_token") or ""
+                ),
             )
             ok = await send_html_email(
                 member["email"],

@@ -492,6 +492,13 @@ def _enrich_case_context(store: Any, rows: List[Dict[str, Any]]) -> None:
         row.setdefault("case_id", None)
         row.setdefault("specialty", None)
         row.setdefault("seconds", None)
+        # The internal case-quality number, and WHY it is that number. Read from
+        # the stamp rather than recomputed, so the console shows the figure the
+        # case was actually graded on. None means never graded, which the UI
+        # renders as an em dash for the same reason a zero is never written for
+        # an unknown time.
+        row.setdefault("quality", None)
+        row.setdefault("quality_reasons", None)
         kind = row.get("kind")
         ref = row.get("ref_id")
         if not ref:
@@ -505,6 +512,13 @@ def _enrich_case_context(store: Any, rows: List[Dict[str, Any]]) -> None:
             secs = sub.get("time_spent_sec")
             # 0 means "not recorded", not "instant".
             row["seconds"] = int(secs) if secs else None
+            try:
+                stamped = store.submission_quality(ref)
+            except Exception:  # noqa: BLE001 - never break the money screen
+                stamped = None
+            if stamped:
+                row["quality"] = stamped.get("score")
+                row["quality_reasons"] = (stamped.get("components") or {}).get("reasons")
             if tid:
                 if tid not in task_cache:
                     task_cache[tid] = store.get_task(tid) or {}
@@ -730,6 +744,81 @@ async def admin_case_export(
             "Cache-Control": "private, no-store",
         },
     )
+
+
+class ReleaseHoldBody(BaseModel):
+    # The algorithm proposed a reduction; a person may disagree with it. Both
+    # answers are decisions and both are recorded.
+    pay_full_rate: bool = False
+    note: str = Field("", max_length=500)
+
+
+@router.get("/api/asclepius/admin/earnings/held")
+async def admin_held_earnings(
+    user_id: Optional[str] = Query(None),
+    limit: int = Query(500, ge=1, le=2000),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Rows where the payout algorithm proposed paying less than the posted rate
+    and is waiting on a human.
+
+    This queue exists because a proposal nobody can see is an automated decision
+    with extra steps. If it grows, physicians are waiting on us, and that is
+    visible here rather than only in their inbox.
+    """
+    store = _store()
+    rows = store.held_earnings(user_id=user_id, limit=limit)
+    _enrich_case_context(store, rows)
+    return {"held": rows, "count": len(rows)}
+
+
+@router.post(
+    "/api/asclepius/admin/earnings/{earning_id}/release",
+    dependencies=[Depends(rate_limiter("asclepius_release_earning", 60, 600))],
+)
+async def admin_release_earning_hold(
+    earning_id: str,
+    body: ReleaseHoldBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Decide a proposed pay reduction.
+
+    THE POINT OF THIS ENDPOINT: the algorithm never applies a pay cut on its
+    own. It computes a multiplier, and a row it wants to pay below the posted
+    rate is held until a person acts here. An automated reduction and a proposed
+    reduction a human approves are materially different objects, legally and
+    ethically, and this route is the difference between them.
+
+    ``pay_full_rate`` overrides the proposal and pays the posted rate, because
+    the person deciding is allowed to disagree with the model. Either way the
+    decision is attributed and timestamped: reducing a physician's pay is
+    consequential and an unattributable reduction cannot be appealed.
+
+    Releasing does not itself approve the row. It removes the hold, and the
+    normal ledger rules (a verdict, or the auto-approve window) then apply, so
+    this endpoint decides ONE question and does not quietly decide others.
+    """
+    store = _store()
+    earning = store.get_earning_by_id(earning_id)
+    if earning is None:
+        raise HTTPException(status_code=404, detail="No such ledger row.")
+    updated = store.release_earning_hold(
+        earning_id, by=admin["email"], pay_full_rate=bool(body.pay_full_rate))
+    if updated is None:
+        raise HTTPException(
+            status_code=409,
+            detail="That row is not holding a proposed reduction. It may have "
+                   "been decided already, or never been held.")
+    store.log_event(
+        entity_type="earning", entity_id=earning_id,
+        event_type="earning_quality_hold_released", actor=admin["email"],
+        payload={"pay_full_rate": bool(body.pay_full_rate),
+                 "amount_cents": updated.get("amount_cents"),
+                 "rate_cents": updated.get("rate_cents"),
+                 "multiplier": updated.get("quality_multiplier"),
+                 "note": (body.note or "").strip() or None},
+    )
+    return {"earning": updated}
 
 
 class VoidEarningBody(BaseModel):

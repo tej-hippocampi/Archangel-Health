@@ -257,6 +257,17 @@ class CommunityStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cdigest_kind
                     ON community_digest_runs(kind, id);
+                -- Paid-search spend control. Counts CALLS per provider per UTC
+                -- day, not dollars: per-provider pricing drifts and a number
+                -- this file cannot verify is worse than no number. Durable
+                -- rather than in-process, so a restart cannot reset the day's
+                -- budget and a redeploy loop cannot spend it repeatedly.
+                CREATE TABLE IF NOT EXISTS community_search_budget (
+                    day       TEXT NOT NULL,
+                    provider  TEXT NOT NULL,
+                    calls     INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (day, provider)
+                );
                 -- ─── Community v2.1: events / polls / pins / bookmarks ───────────
                 CREATE TABLE IF NOT EXISTS community_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -376,6 +387,17 @@ class CommunityStore:
             # digest email can render a list from the same row.
             if "cards_json" not in msg_cols:
                 conn.execute("ALTER TABLE community_messages ADD COLUMN cards_json TEXT")
+            # Activity mail (mentions, DMs, broadcasts, announcements) is a
+            # separate switch from the news cadence: a physician who wants less
+            # news still wants to know they were @mentioned. Defaults to on,
+            # because every existing member was already receiving it. The
+            # unsubscribe token turns BOTH off — see unsubscribe_by_token.
+            pref_cols = cols("community_email_prefs")
+            if "activity_emails" not in pref_cols:
+                conn.execute(
+                    "ALTER TABLE community_email_prefs "
+                    "ADD COLUMN activity_emails INTEGER NOT NULL DEFAULT 1"
+                )
 
     # ─── Channels ─────────────────────────────────────────────────────────────
     def ensure_default_channels(
@@ -1132,12 +1154,83 @@ class CommunityStore:
             ).fetchone()
             if not row:
                 return None
+            # One click stops EVERY non-transactional email, not only the news
+            # cadence. The member pressed a button that said "stop these"; if
+            # the 5-minute activity digest kept arriving afterwards the button
+            # was a lie, and the next click is the spam button.
             conn.execute(
-                "UPDATE community_email_prefs SET news_frequency = 'off', updated_at = ? "
+                "UPDATE community_email_prefs "
+                "SET news_frequency = 'off', activity_emails = 0, updated_at = ? "
                 "WHERE unsubscribe_token = ?",
                 (_utcnow_iso(), tok),
             )
             return row["user_id"]
+
+    def set_activity_emails(self, user_id: str, enabled: bool) -> Dict[str, Any]:
+        """Turn mention/DM/broadcast/announcement digests on or off.
+
+        Separate from ``set_news_frequency`` so a member can keep being told
+        they were mentioned while taking no news at all.
+        """
+        self.email_prefs(user_id)  # ensure the row and its token exist
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE community_email_prefs SET activity_emails = ?, updated_at = ? "
+                "WHERE user_id = ?",
+                (1 if enabled else 0, _utcnow_iso(), user_id),
+            )
+        return self.email_prefs(user_id)
+
+    def wants_activity_email(self, user_id: str) -> bool:
+        """Whether this member still takes activity digests. Absence of a row
+        means yes (the prefs row is created lazily on first read, and a member
+        who has never been emailed has not opted out of anything)."""
+        prefs = self.email_prefs(user_id)
+        raw = prefs.get("activity_emails")
+        return True if raw is None else bool(int(raw))
+
+    # ─── Paid-search budget ──────────────────────────────────────────────────
+    def search_calls_today(self, provider: str, *, day: Optional[str] = None) -> int:
+        d = day or _utcnow_iso()[:10]
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT calls FROM community_search_budget WHERE day = ? AND provider = ?",
+                (d, provider),
+            ).fetchone()
+            return int(row["calls"]) if row else 0
+
+    def claim_search_call(
+        self, provider: str, *, cap: int, day: Optional[str] = None
+    ) -> bool:
+        """Reserve one paid search call against today's cap.
+
+        Returns True if the call may proceed. The increment and the check are
+        one statement under the store's own lock, so two concurrent morning
+        scopes cannot both read "one left" and both spend it.
+
+        A cap of 0 or less means unlimited, which is what a deployment that has
+        not opted into paid search wants: the providers are keyless there and
+        never called anyway.
+        """
+        d = day or _utcnow_iso()[:10]
+        if cap is None or int(cap) <= 0:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO community_search_budget (day, provider, calls) "
+                    "VALUES (?, ?, 1) ON CONFLICT(day, provider) DO UPDATE SET "
+                    "calls = calls + 1",
+                    (d, provider),
+                )
+            return True
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO community_search_budget (day, provider, calls) "
+                "VALUES (?, ?, 1) ON CONFLICT(day, provider) DO UPDATE SET "
+                "calls = calls + 1 WHERE community_search_budget.calls < ? "
+                "RETURNING calls",
+                (d, provider, int(cap)),
+            ).fetchone()
+            return cur is not None
 
     def news_email_recipients(self, *, weekly: bool) -> List[Dict[str, Any]]:
         """Members due a news email on this run.

@@ -275,6 +275,152 @@ and every boot would hand access straight back.
 The auto-grant is withdrawn if the physician stops qualifying (tier removed,
 verification withdrawn) — it must not outlive the approval it came from.
 
+### Three cases, divided by a growing roster of specialties
+
+There are three real charts: hepatology, nephrology, cardiology. Under strict
+specialty routing an approved physician in any **other** specialty sees zero —
+and "no real cases exist" and "no real cases for you" render as the same empty
+screen. That is not a queue with nothing in it; it is a corpus too small to
+divide.
+
+So `ASCLEPIUS_V4_OPEN_TO_ALL` defaults to **on**: the seeded V4 cases are visible
+to every approved labeler regardless of specialty. This widens VISIBILITY only —
+`max_labels` is unchanged, so it does not change what we pay, and the real-data
+wall still decides who may see a real chart at all. The annotator's own specialty
+ships on every record, so a cardiology chart graded by a nephrologist is *visible*
+to the buyer as exactly that rather than hidden. Set it to `0` to restore strict
+routing once each specialty has enough real cases to fill a queue.
+
+Two things make the setting actually reach a running deployment:
+
+* **The seed reconciles, it does not only insert.** `load_v4_cases(...,
+  reconcile_visibility=True)` corrects the flag on tasks that already exist and
+  reports how many in `revisited`. Without it the seed is idempotent on task id,
+  so a changed setting would apply to a fresh install and to nothing else —
+  correct in a test, wrong in every deployed database.
+* **Only boot and the admin route reconcile.** The `/tasks/next` backstop creates
+  what is missing and never rewrites visibility, because a physician drawing a
+  case must not change who else can see the corpus as a side effect.
+
+### A physician filed under an operator role is INVISIBLE, not mislabelled
+
+This is the one that cost the most time, because the symptom pointed at the V4
+queue and the cause was in the roster.
+
+`_physician_users` is `role == 'evaluator'`. The verification queue and the boot
+tier backfill filter the same way. So an account whose row says `role = 'admin'`
+appears on **no screen an operator has**: it cannot be approved, cannot be
+tiered, and cannot be moved back, because every control that would do any of
+those things renders on a row that does not exist. It also never gets real-data
+approval — that follows APPROVED + LABELING — so the portal serves it synthetic
+cases forever, which is the part a doctor actually reports.
+
+How rows got into that state: the self-serve director onboarding provisioned
+`role="admin"` until it was changed to `"evaluator"`. The code fix did not repair
+the rows already written, and nothing surfaced them.
+
+Measured, start to finish:
+
+```
+REPORTED STATE   role=admin  tier=None  verified=None   approved=False
+                 on the roster: False   real cases: 0   portal serves: v3
++ approve        role=admin  tier=None  verified=approved approved=False
+                 on the roster: False   real cases: 0   portal serves: v3
++ move to physician
+REPAIRED         role=evaluator tier=labeler verified=approved approved=True
+                 on the roster: True    real cases: 3   portal serves: v4-hep-001
+```
+
+`GET /admin/physicians` now also returns `misfiled_physicians` — accounts with a
+doctor's credentials and an operator's role, with `physician_markers` naming the
+evidence so the call is reviewable rather than a claim the screen makes. They are
+a **separate list**, not folded into `physicians` or `counts`: they are not supply
+until somebody decides they are. The Physicians tab renders them in a card above
+the tab strip (an account in this state is absent from *both* tabs, so a banner
+inside one would be hidden by the bug it reports) with a **Move to physician**
+button.
+
+That button does the whole repair, because the role alone is not enough: the boot
+tier backfill skipped these accounts, so one moved back arrives with a NULL tier,
+which fails the LABEL capability. They would sit on the roster looking correct and
+be unable to draw a single case, with nothing on screen asking for a second step.
+So `POST /admin/users/{id}/role` with `evaluator` also applies the migration's own
+rule (`backfill_tier_on_role_restore` — never overwriting a tier somebody decided,
+never inventing one for a rejected account) and re-runs `sync_real_data_approval`,
+then returns `tier`, `tier_assigned` and `real_data_approved` so the console can
+show what actually happened.
+
+### ASCLEPIUS_ADMIN_EMAIL must never name a physician
+
+`ensure_admin_from_env` runs on **every boot** and forces the named account to
+`role='admin'`. Pointed at a doctor's email that is not a one-time promotion, it
+is a standing override: the console's own "set role" button appears to work and
+the next deploy silently undoes it.
+
+The real-data cost is indirect and was measured, not assumed. The admin role does
+**not** by itself block real cases — admins hold LABEL, so a *verified* admin does
+get the auto-grant. What actually happens is that an env-bootstrapped account is
+created by `create_user(role='admin')` and never enters the verification queue,
+so `verification_status` stays NULL, `sync_real_data_approval` does not grant, and
+the portal falls back to the synthetic queue. On screen: an ADMIN badge, an admin
+console in a doctor's nav, and "N cases available · Synthetic multimodal cases".
+
+Two guards now:
+
+* The bootstrap **refuses** to convert an account whose role is `evaluator`,
+  logging at ERROR with the fix. The one exception is lockout — if it is the only
+  active admin it still promotes, because an operator who cannot get in cannot
+  repair anything. That is a real `count_active_admins` query, not an assumption.
+* `/admin/real-case-access` reports `role` and `pinned_admin_by_env`, and
+  distinguishes a **blocker** (the pin will revert your change) from a **note**
+  (the guard is holding, but repoint the variable anyway).
+
+To repair an account this already happened to, in order — the order matters,
+because step 2 is reverted by the next deploy if step 1 is skipped:
+
+1. Repoint `ASCLEPIUS_ADMIN_EMAIL` at a separate operations account.
+2. Physicians roster → set role to `evaluator`
+   (`POST /api/asclepius/admin/users/{id}/role {"role":"evaluator"}`).
+3. Approve verification and assign the `labeler` tier
+   (`/api/asclepius/verify/queue/{id}/approve`, `/verify/tiering/{id}/decide`).
+   The approve route calls `sync_real_data_approval` itself, so real-data access
+   lands on the spot rather than waiting for the next boot.
+
+### Is the fix actually deployed?
+
+`GET /api/version` — unauthenticated, no login needed:
+
+```json
+{"commit": "b3961e0…", "short_commit": "b3961e0", "branch": "main",
+ "started_at": "2026-08-28T…Z", "deployment_id": "…"}
+```
+
+Compare `short_commit` to the SHA you pushed. A deploy that never ran, a deploy
+that rolled back to the previous image, and a real bug in the new code all
+present identically — as the old behaviour — and before this endpoint the only
+way to tell them apart was to read the Railway dashboard or guess.
+
+The reconcile above runs in the **startup hook**, so it takes effect on the
+process restart a deploy performs. `GET /admin/real-case-access` reports what the
+running process did at boot (`v4_seeding_at_boot`: loaded / already_present /
+visibility_corrected) alongside its `build`, so "did my deploy take, and did it
+widen the cases?" is one request. If the host is not restarting, `POST
+/generation/load-v4-real-cases` performs the same reconcile on demand.
+
+### Why can this doctor not see a real case?
+
+`GET /api/asclepius/admin/real-case-access?email=…` (admin only) answers it.
+Four different gates produce one identical empty screen — deactivated account,
+`verification_status != approved`, no LABEL capability, `real_data_approved` off,
+or no case routed to their specialty — and the report names the ones that are
+shut, alongside what the queue actually returns for them. When the gate list and
+the queue disagree, the queue is authoritative and the response says so.
+
+It reproduces the router's own real-data wall rather than querying the store
+directly: `real_only=True` filters to real tasks, it does not ask whether this
+person may see one, so a report built on the raw query would cheerfully claim an
+unapproved physician has access that `/tasks/next` refuses them.
+
 ### When the real cases run out
 
 There are a finite number of real charts. A physician who finishes them is

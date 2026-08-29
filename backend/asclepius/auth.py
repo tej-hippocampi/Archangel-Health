@@ -181,7 +181,21 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         # it to stop showing a referral-only account a rail full of locked
         # doors it will never open.
         "account_kind": _caps.account_kind(user),
+        # The physician's own picture, or None until they upload one. The rail's
+        # profile avatar needs this from the SESSION payload: it renders on every
+        # screen, and /me/profile is fetched only when the profile page opens.
+        # Same URL shape and same sha cache-buster as the profile page's avatar
+        # block, so both surfaces hit one cached response rather than two.
+        # Display truth only — the endpoint itself is bearer-authenticated.
+        "avatar_url": _avatar_url(user),
     }
+
+
+def _avatar_url(user: Dict[str, Any]) -> Optional[str]:
+    sha = (user.get("avatar_asset_sha") or "").strip()
+    if not sha:
+        return None
+    return f"/api/asclepius/users/{user['id']}/avatar?v={sha[:12]}"
 
 
 def _parse_tutorial(raw: Any) -> Dict[str, Any]:
@@ -383,6 +397,44 @@ def ensure_admin_from_env(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
     admin_pw = os.getenv("ASCLEPIUS_ADMIN_PASSWORD")
     if not admin_email or not admin_pw:
         return None
+    # ═══ Never take a working physician's account away from them ═══
+    #
+    # This runs on EVERY boot and forces role='admin'. Pointed at a doctor's
+    # email it is not a one-time promotion, it is a standing override: the
+    # console's own "set role" button appears to work, and the next deploy
+    # silently undoes it. The physician also loses the real-case queue as a side
+    # effect — real-data approval follows APPROVED + LABELING, and an account
+    # sitting at role='admin' is not being verified as a labeler — so the visible
+    # symptom is an empty V4 queue with nothing on screen connecting it to an
+    # environment variable nobody was looking at.
+    #
+    # So a deliberate physician account wins over the env var, and the refusal is
+    # logged at ERROR naming the fix. The one exception is lockout: if this is the
+    # last way into the console, the bootstrap still runs, because an operator
+    # with no admin cannot repair anything. That check is a real query, not an
+    # assumption.
+    existing = store.get_user_by_email(admin_email)
+    if existing and (existing.get("role") or "") == "evaluator":
+        others = store.count_active_admins(excluding=existing.get("id"))
+        if others > 0:
+            log.error(
+                "Asclepius: ASCLEPIUS_ADMIN_EMAIL names '%s', which is a PHYSICIAN "
+                "account (role=evaluator). Refusing to convert it to an admin — "
+                "doing so on every boot would revert the role set in the console "
+                "and keep this doctor out of the real-case queue. %d other active "
+                "admin(s) exist, so console access is not at risk. Point "
+                "ASCLEPIUS_ADMIN_EMAIL at a separate operations account.",
+                admin_email, others,
+            )
+            return None
+        log.error(
+            "Asclepius: ASCLEPIUS_ADMIN_EMAIL names '%s', which is a PHYSICIAN "
+            "account — but it is the ONLY active admin, so it is being promoted "
+            "to avoid locking the console out entirely. Create a separate "
+            "operations admin, then repoint ASCLEPIUS_ADMIN_EMAIL at it so this "
+            "doctor can go back to labeling.",
+            admin_email,
+        )
     admin = store.ensure_admin(email=admin_email, password=admin_pw)
     log.warning(
         "Asclepius: ensured admin account '%s' from ASCLEPIUS_ADMIN_EMAIL/"

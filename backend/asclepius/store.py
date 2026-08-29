@@ -229,7 +229,24 @@ _PRD_R_SERVABLE = (
 # label) simply loses its place at the head, and the scan falls through to fresh
 # work. The moment this becomes a WHERE clause, a labeler with no eligible
 # second-label work sees an empty queue and stops working (PRD R §7).
-_PRD_R_PRIORITY_ORDER = f"ORDER BY {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
+# An assignment is a PRIORITY, never a PERMISSION.
+#
+# store.py:226-231 already states the law for the second-label term: the moment
+# priority becomes a WHERE clause, a labeler with no eligible work sees an empty
+# queue and stops working, and test_routing_priority pins it. The same argument
+# applies with more force here, because an assignment names ONE person: as a
+# filter it would empty the queue of everyone who has not been allocated
+# anything yet, which on the day this ships is everyone.
+#
+# So an assigned case sorts to the TOP of its assignee's queue and changes
+# nothing else. Everybody else still sees it, ranked exactly where it was.
+_PRD_ASSIGN_MINE = (
+    "EXISTS (SELECT 1 FROM assignments a WHERE a.task_id = t.task_id "
+    "AND a.user_id = ? AND a.role = 'label' AND a.status IN ('offered','claimed'))"
+)
+_PRD_R_PRIORITY_ORDER = (
+    f"ORDER BY {_PRD_ASSIGN_MINE} DESC, {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
+)
 # ═══ END PRD-R ═══════════════════════════════════════════════════════════════
 
 
@@ -1255,6 +1272,25 @@ class AsclepiusStore:
             # unreviewed; 'in_review' = claimed by a reviewer; 'reviewed' = at least
             # one review submitted. Deliberately NO DEFAULT — NULL ("not yet decided")
             # must stay distinguishable from any decided value (START_HERE §4).
+            # ─── Case quality (internal metric) ──────────────────────────
+            # The per-case quality number, STAMPED at grade time next to the
+            # version of the coefficients that produced it. Stamped rather than
+            # recomputed for the same reason ``earnings.rate_cents`` is stamped
+            # at accrual: once this number is attached to money, recomputing it
+            # under new weights silently restates work a physician has already
+            # been paid for and told about.
+            #
+            # Nullable with no DEFAULT, deliberately: NULL means "never graded",
+            # which must stay distinguishable from a graded zero.
+            sub_cols = cols("submissions")
+            if "quality_score" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN quality_score REAL")
+            if "quality_components_json" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN quality_components_json TEXT")
+            if "quality_version" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN quality_version TEXT")
+            if "quality_graded_at" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN quality_graded_at TEXT")
             if "review_status" not in cols("submissions"):
                 conn.execute("ALTER TABLE submissions ADD COLUMN review_status TEXT")
             # Review CLAIM state (FIX A Phases 2/3). Three separate columns, all
@@ -1327,6 +1363,17 @@ class AsclepiusStore:
                 # reviewer answered 'equivalent' — there is no stronger side.
                 ("stronger_submission_id", "TEXT"),
                 ("accepted_submission_id", "TEXT"),
+                # PRD-1 §3 — the reasoning-step forks between A and B, and which
+                # side the reviewer judged correct at each. JSON list of
+                # {index, judged, judged_submission_id}, canonicalized like
+                # ``stronger`` before it is written.
+                #
+                # TRI-STATE and it matters: NULL means "not comparable" — one of
+                # the two labels carried no reasoning steps, so nothing was
+                # measured. '[]' means "compared, and they agreed at every
+                # step", which is a real finding. Collapsing the two would ship a
+                # measurement nobody made.
+                ("step_divergence", "TEXT"),
             ):
                 if _col not in cols("case_reviews"):
                     conn.execute(f"ALTER TABLE case_reviews ADD COLUMN {_col} {_ddl}")
@@ -2047,6 +2094,45 @@ class AsclepiusStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_beat_session ON session_beats(session_id, seq)")
 
+            # ─── Assignment (PRD-ASSIGN) ─────────────────────────────────
+            # There was no assignment concept at any layer: no table, no
+            # column, no endpoint, no UI. A hundred promoted nephrology cases
+            # reached physicians purely by pull from a specialty-filtered,
+            # oldest-first queue announced by one email, so one fast labeler
+            # could take all hundred and nobody could say who was meant to do
+            # what.
+            #
+            # ``role`` distinguishes the two jobs on one case: a physician
+            # assigned to LABEL it and one assigned to REVIEW it are different
+            # assignments, and the same person must never hold both. The
+            # allocator enforces that, and independence is still enforced in SQL
+            # on the draw regardless, because a table is not an access check.
+            #
+            # UNIQUE(task_id, user_id, role) so re-running an allocation is
+            # idempotent rather than duplicating everyone's queue.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS assignments (
+                    assignment_id TEXT PRIMARY KEY,
+                    task_id       TEXT NOT NULL,
+                    user_id       TEXT NOT NULL,
+                    role          TEXT NOT NULL,
+                    status        TEXT NOT NULL,
+                    assigned_by   TEXT,
+                    assigned_at   TEXT NOT NULL,
+                    due_at        TEXT,
+                    exclusive     INTEGER NOT NULL DEFAULT 0,
+                    expires_at    TEXT,
+                    note          TEXT,
+                    UNIQUE (task_id, user_id, role)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_assign_user "
+                         "ON assignments(user_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_assign_task "
+                         "ON assignments(task_id, role)")
+
             # The ledger. ``UNIQUE(kind, ref_id)`` is the double-payment guard —
             # not a nicety. Every double-payment story starts with an application
             # check that raced; this one cannot, because two concurrent finalizers
@@ -2083,6 +2169,32 @@ class AsclepiusStore:
             # rather than being back-stamped with a decision nobody made.
             for _col in ("void_reason", "voided_by", "voided_at"):
                 if _col not in cols("earnings"):
+                    conn.execute(f"ALTER TABLE earnings ADD COLUMN {_col} TEXT")
+            # ─── Quality-adjusted pay ────────────────────────────────────────
+            # The multiplier applied to the rate, WHY it was applied, and which
+            # ruleset produced it. Stamped for the same reason rate_cents is
+            # stamped at accrual: a tuned coefficient must never restate a row
+            # a physician has already been paid for and been given a reason for.
+            #
+            # ``quality_hold`` is the human gate. It is set when the computed
+            # multiplier is below 1.0, and while it is set the row does NOT
+            # auto-approve and a verdict does not approve it either. An admin
+            # decides. An algorithm that applies a pay cut on its own is a
+            # materially different object from one that proposes a cut a person
+            # approves, and this column is the difference.
+            earn_cols = cols("earnings")
+            if "quality_multiplier" not in earn_cols:
+                conn.execute("ALTER TABLE earnings ADD COLUMN quality_multiplier REAL")
+            if "quality_reasons_json" not in earn_cols:
+                conn.execute("ALTER TABLE earnings ADD COLUMN quality_reasons_json TEXT")
+            if "payout_version" not in earn_cols:
+                conn.execute("ALTER TABLE earnings ADD COLUMN payout_version TEXT")
+            # No DEFAULT, same rule as every other decision column here: NULL
+            # reads as "never held", not as a decision nobody made.
+            if "quality_hold" not in earn_cols:
+                conn.execute("ALTER TABLE earnings ADD COLUMN quality_hold INTEGER")
+            for _col in ("quality_released_by", "quality_released_at"):
+                if _col not in earn_cols:
                     conn.execute(f"ALTER TABLE earnings ADD COLUMN {_col} TEXT")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_earnings_user ON earnings(user_id, status)")
@@ -2956,6 +3068,230 @@ class AsclepiusStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    # ─── Assignment (PRD-ASSIGN) ─────────────────────────────────────────────
+    def upsert_assignment(
+        self, *, task_id: str, user_id: str, role: str, assigned_by: str,
+        due_at: Optional[str] = None, exclusive: bool = False,
+        expires_at: Optional[str] = None, note: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create or refresh one assignment. Idempotent on (task, user, role),
+        so re-running an allocation does not duplicate anyone's queue."""
+        assignment_id = f"asg-{uuid.uuid4().hex[:12]}"
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO assignments (assignment_id, task_id, user_id, role, "
+                "status, assigned_by, assigned_at, due_at, exclusive, expires_at, note) "
+                "VALUES (?,?,?,?,'offered',?,?,?,?,?,?) "
+                "ON CONFLICT(task_id, user_id, role) DO UPDATE SET "
+                "  assigned_by = excluded.assigned_by, due_at = excluded.due_at, "
+                "  exclusive = excluded.exclusive, expires_at = excluded.expires_at, "
+                "  note = excluded.note, "
+                # A revoked or expired assignment coming back is a new offer;
+                # one already claimed or done is left alone, because re-offering
+                # work somebody is in the middle of is how two people do it.
+                "  status = CASE WHEN assignments.status IN ('revoked','expired') "
+                "                THEN 'offered' ELSE assignments.status END",
+                (assignment_id, task_id, user_id, role, assigned_by, _utcnow_iso(),
+                 due_at, 1 if exclusive else 0, expires_at, note),
+            )
+            row = conn.execute(
+                "SELECT * FROM assignments WHERE task_id = ? AND user_id = ? AND role = ?",
+                (task_id, user_id, role),
+            ).fetchone()
+        return dict(row)
+
+    def set_assignment_status(self, assignment_id: str, status: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE assignments SET status = ? WHERE assignment_id = ?",
+                (status, assignment_id),
+            )
+            return cur.rowcount > 0
+
+    def assignments_for_task(self, task_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM assignments WHERE task_id = ? ORDER BY assigned_at ASC",
+                (task_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def assignments_for_user(
+        self, user_id: str, *, role: Optional[str] = None, active_only: bool = True
+    ) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM assignments WHERE user_id = ?"
+        params: List[Any] = [user_id]
+        if role:
+            sql += " AND role = ?"
+            params.append(role)
+        if active_only:
+            sql += " AND status IN ('offered','claimed')"
+        sql += " ORDER BY assigned_at ASC"
+        with self._conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def open_assignment_counts(self) -> Dict[str, int]:
+        """How much work each physician is already holding. One query, because
+        the allocator needs it for everyone at once."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT user_id, COUNT(*) AS n FROM assignments "
+                "WHERE status IN ('offered','claimed') GROUP BY user_id"
+            ).fetchall()
+        return {r["user_id"]: int(r["n"]) for r in rows}
+
+    def expire_stale_assignments(self, *, now_iso: Optional[str] = None) -> int:
+        """Return timed-out exclusive assignments to the pool.
+
+        An exclusive assignment with no expiry is a queue that wedges the moment
+        somebody goes on holiday, so exclusivity is only ever offered with one.
+        """
+        now = now_iso or _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE assignments SET status = 'expired' "
+                "WHERE status IN ('offered','claimed') AND expires_at IS NOT NULL "
+                "AND expires_at < ?",
+                (now,),
+            )
+            return cur.rowcount
+
+    # ─── Case quality (internal metric, stamped) ─────────────────────────────
+    def set_earning_quality(
+        self, earning_id: str, *, multiplier: float, reasons: List[str],
+        version: str, hold: bool, amount_cents: Optional[int] = None,
+    ) -> bool:
+        """Record the quality adjustment on one ledger row, and its hold state.
+
+        Refuses to touch a row that is no longer ``accrued``. An approved or
+        paid row has been decided and, in the paid case, the money has left; a
+        recomputed multiplier landing on it would restate something a physician
+        has already been told and possibly banked. Same rule as ``rate_cents``,
+        which is stamped at accrual and never revisited.
+
+        ``hold`` is the human gate: while it is set, neither a verdict nor the
+        auto-approve sweep may approve the row.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT status FROM earnings WHERE earning_id = ?", (earning_id,)
+            ).fetchone()
+            if not row or row["status"] != "accrued":
+                return False
+            if amount_cents is None:
+                conn.execute(
+                    "UPDATE earnings SET quality_multiplier = ?, quality_reasons_json = ?, "
+                    "payout_version = ?, quality_hold = ? WHERE earning_id = ?",
+                    (float(multiplier), json.dumps(list(reasons)), version,
+                     1 if hold else 0, earning_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE earnings SET quality_multiplier = ?, quality_reasons_json = ?, "
+                    "payout_version = ?, quality_hold = ?, amount_cents = ? "
+                    "WHERE earning_id = ?",
+                    (float(multiplier), json.dumps(list(reasons)), version,
+                     1 if hold else 0, int(amount_cents), earning_id),
+                )
+            return True
+
+    def release_earning_hold(
+        self, earning_id: str, *, by: str, pay_full_rate: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """An admin decides a held row. Returns the updated row, or None.
+
+        ``pay_full_rate`` overrides the proposed reduction and pays the posted
+        rate: the algorithm proposed, and a person may disagree with it. Either
+        way the decision is attributed and timestamped, because reducing a
+        physician's pay is consequential and an unattributable reduction cannot
+        be appealed. Same shape as the void columns above it.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM earnings WHERE earning_id = ?", (earning_id,)
+            ).fetchone()
+            if not row or row["status"] != "accrued" or not row["quality_hold"]:
+                return None
+            amount = int(row["rate_cents"]) if pay_full_rate else int(row["amount_cents"])
+            conn.execute(
+                "UPDATE earnings SET quality_hold = 0, amount_cents = ?, "
+                "quality_released_by = ?, quality_released_at = ? WHERE earning_id = ?",
+                (amount, by, _utcnow_iso(), earning_id),
+            )
+            updated = conn.execute(
+                "SELECT * FROM earnings WHERE earning_id = ?", (earning_id,)
+            ).fetchone()
+            return dict(updated) if updated else None
+
+    def held_earnings(
+        self, *, user_id: Optional[str] = None, limit: int = 500
+    ) -> List[Dict[str, Any]]:
+        """Rows waiting on a human to decide a proposed reduction."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM earnings WHERE quality_hold = 1 AND status = 'accrued' "
+                "AND (? IS NULL OR user_id = ?) ORDER BY accrued_at ASC LIMIT ?",
+                (user_id, user_id, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def stamp_submission_quality(
+        self, submission_id: str, *, score: float, components: Dict[str, Any],
+        version: str,
+    ) -> bool:
+        """Record the per-case quality number, unless an older ruleset owns it.
+
+        Writes when nothing is stamped yet, or when the stamped version matches
+        the one being written (a re-grade under the SAME rules is a correction
+        and should land: a second reviewer can legitimately turn an accept into
+        a reject).
+
+        Refuses when a DIFFERENT version is stamped. That row was scored under
+        the coefficients in force at the time, it may already have been paid
+        against, and restating it is the thing this whole mechanism exists to
+        prevent. Same semantics as ``earnings.rate_cents``.
+
+        Returns True when the row was written.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT quality_version FROM submissions WHERE submission_id = ?",
+                (submission_id,),
+            ).fetchone()
+            if row is None:
+                return False
+            stamped = row["quality_version"]
+            if stamped and stamped != version:
+                return False
+            conn.execute(
+                "UPDATE submissions SET quality_score = ?, quality_components_json = ?, "
+                "quality_version = ?, quality_graded_at = ? WHERE submission_id = ?",
+                (float(score), json.dumps(components), version, _utcnow_iso(), submission_id),
+            )
+            return True
+
+    def submission_quality(self, submission_id: str) -> Optional[Dict[str, Any]]:
+        """The stamped quality of one case, or None when it was never graded."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT quality_score, quality_components_json, quality_version, "
+                "quality_graded_at FROM submissions WHERE submission_id = ?",
+                (submission_id,),
+            ).fetchone()
+        if not row or row["quality_score"] is None:
+            return None
+        try:
+            components = json.loads(row["quality_components_json"] or "{}")
+        except ValueError:
+            components = {}
+        return {
+            "score": float(row["quality_score"]),
+            "components": components,
+            "version": row["quality_version"],
+            "graded_at": row["quality_graded_at"],
+        }
+
     def get_user_by_id_hashed(self, id_hashed: str) -> Optional[Dict[str, Any]]:
         """Resolve the user (incl. onboarding-collected credential fields) from the
         hashed annotator id that stamps every record."""
@@ -2973,6 +3309,52 @@ class AsclepiusStore:
     def count_users(self) -> int:
         with self._conn() as conn:
             return int(conn.execute("SELECT COUNT(*) FROM users").fetchone()[0])
+
+    def backfill_tier_on_role_restore(self, user_id: str, *, by: str) -> Optional[str]:
+        """Give a newly-restored physician the default tier, if they have none.
+
+        The boot migration assigns ``labeler`` to any tier-less account whose role
+        is evaluator/qa_reviewer and whose verification is approved or unset. An
+        account that was filed under an operator role was excluded from it — so
+        moving the role back leaves them tier-less, and a NULL tier fails the LABEL
+        capability: they are on the roster, look correct, and still cannot draw a
+        single case. Applying the same rule at the moment they become an evaluator
+        is what makes the repair one action instead of two, the second of which
+        nothing on screen asks for.
+
+        Returns the tier assigned, or None when nothing needed doing."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT role, tier, verification_status FROM users WHERE id = ?",
+                (user_id,)).fetchone()
+            if row is None or row["tier"]:
+                return None
+            if (row["role"] or "") not in ("evaluator", "qa_reviewer"):
+                return None
+            # Same exclusion as the migration: pending/rejected cannot label
+            # anyway, so a tier would grant nothing and would report a decision
+            # nobody made.
+            if (row["verification_status"] or None) not in (None, "approved"):
+                return None
+            conn.execute(
+                "UPDATE users SET tier = 'labeler', tier_assigned_at = ?, "
+                "tier_assigned_by = ? WHERE id = ?",
+                (_utcnow_iso(), by, user_id))
+        return "labeler"
+
+    def count_active_admins(self, *, excluding: Optional[str] = None) -> int:
+        """How many active admins are there besides ``excluding``?
+
+        Used by the env-admin bootstrap to decide whether refusing to re-promote
+        an account would lock the console's LAST operator out. "Is there another
+        way in?" has to be a real query, not an assumption."""
+        sql = "SELECT COUNT(*) FROM users WHERE role = 'admin' AND active = 1"
+        params: List[Any] = []
+        if excluding:
+            sql += " AND id != ?"
+            params.append(excluding)
+        with self._conn() as conn:
+            return int(conn.execute(sql, params).fetchone()[0])
 
     def list_evaluators_by_specialty(
         self, specialty: str, *, include_provisional: bool = False
@@ -2995,14 +3377,42 @@ class AsclepiusStore:
             if include_provisional
             else "AND (verification_status IS NULL OR verification_status = 'approved') "
         )
+        # Vocabulary drift, not whitespace: a physician who typed "Renal
+        # Medicine" or "Nephrology - Transplant" matched NOBODY under the bare
+        # equality this used to be, and the caller swallowed the empty result.
+        # ``equivalent_specialty_terms`` returns the canonical name plus every
+        # alias for it; the per-row match below is what actually normalizes
+        # "Nephrology - Transplant", because SQL cannot.
+        from asclepius import specialties as _sp  # noqa: PLC0415 — config only
+
+        canon = _sp.match_specialty(specialty)
+        terms = _sp.equivalent_specialty_terms(specialty)
+        placeholders = ",".join("?" for _ in terms) or "?"
+        params = tuple(terms) if terms else ((specialty or "").strip().lower(),)
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM users WHERE role = 'evaluator' AND active = 1 "
                 f"{clause}"
-                "AND lower(trim(specialty)) = lower(trim(?))",
-                (specialty,),
+                f"AND lower(trim(specialty)) IN ({placeholders})",
+                params,
             ).fetchall()
-            return [dict(r) for r in rows]
+            matched = {r["id"]: dict(r) for r in rows}
+            # Second pass for the spellings SQL cannot normalize (separators,
+            # subspecialty suffixes, the practitioner noun). Scoped to active
+            # evaluators, so this is a small scan, and only when we know which
+            # specialty we are matching against.
+            if canon:
+                others = conn.execute(
+                    "SELECT * FROM users WHERE role = 'evaluator' AND active = 1 "
+                    f"{clause}"
+                    "AND specialty IS NOT NULL AND trim(specialty) != ''"
+                ).fetchall()
+                for r in others:
+                    if r["id"] in matched:
+                        continue
+                    if _sp.match_specialty(r["specialty"]) == canon:
+                        matched[r["id"]] = dict(r)
+            return list(matched.values())
 
     # ─── Task-notify outbox (specialty-tagged task notifications) ───────────
     def enqueue_task_notification(
@@ -3537,10 +3947,21 @@ class AsclepiusStore:
         with self._conn() as conn:
             rows = [dict(r) for r in conn.execute(
                 "SELECT id, tier, verification_status, real_data_approved, "
-                "       real_data_approval_source FROM users"
+                "       is_mock, real_data_approval_source FROM users"
             ).fetchall()]
         eligible = 0
         for u in rows:
+            # The sandbox is governed by a DIFFERENT policy, on purpose:
+            # ``auth.ensure_mock_contributor`` decides its real-data access from
+            # whether its password is the published default in production, and
+            # re-asserts that on every boot. It never enters the verification
+            # queue, so measuring it against APPROVED + LABELING revokes it every
+            # time — which is exactly what happened when its approval source was
+            # changed from a human stamp to an auto one: the one account that WAS
+            # showing real cases lost them on the next deploy. Skipping it here
+            # states the boundary instead of leaning on a source string.
+            if u.get("is_mock"):
+                continue
             qualifies = (u.get("verification_status") == "approved"
                          and asc_caps.can(u, asc_caps.LABEL))
             eligible += 1 if qualifies else 0
@@ -3626,7 +4047,12 @@ class AsclepiusStore:
                 # would leave the demo login unable to draw a case.
                 tier="labeler",
             )
-            self.set_real_data_approved(u["id"], bool(real_data_approved))
+            # Explicit source: the default is "admin", which ``sync_real_data_approval``
+            # treats as a HUMAN decision and never touches again. Letting the mock
+            # account default into that would permanently pin it outside the policy
+            # that manages every other account.
+            self.set_real_data_approved(u["id"], bool(real_data_approved),
+                                        source="auto:mock_contributor")
             return self.get_user_by_id(u["id"])  # type: ignore[return-value]
         with self._conn() as conn:
             conn.execute(
@@ -3642,6 +4068,30 @@ class AsclepiusStore:
                  years_experience, organization, email),
             )
         return self.get_user_by_email(email)  # type: ignore[return-value]
+
+    def set_task_open_to_all_specialties(self, task_id: str, open_to_all: bool) -> bool:
+        """Widen (or narrow) one task's VISIBILITY across specialties. Returns True
+        if the row's flag actually changed.
+
+        Exists because the seed path is idempotent on task id: a task that already
+        exists is skipped, so a change to the configured fan-out would never reach
+        the three ``v4real-*`` tasks already sitting in a deployed database. The
+        flag would be right for a fresh install and wrong for every real one —
+        which is the shape of bug that had a physician staring at an empty queue.
+
+        VISIBILITY only, exactly as at insert: ``max_labels``, capacity, the
+        independence rules and the ``real_deid`` wall are untouched, so this never
+        changes who may see real patient data or what we pay for a label."""
+        want = 1 if open_to_all else 0
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT open_to_all_specialties FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+            if row is None or int(row["open_to_all_specialties"] or 0) == want:
+                return False
+            conn.execute("UPDATE tasks SET open_to_all_specialties = ? WHERE task_id = ?",
+                         (want, task_id))
+        return True
 
     def annotator_block(self, user: Dict[str, Any]) -> Dict[str, Any]:
         """The credential block copied onto every emitted record (PRD §6.2).
@@ -4159,6 +4609,10 @@ class AsclepiusStore:
             {_PRD_R_PRIORITY_ORDER}
             LIMIT ?
             """
+        # The ORDER BY's assignment term binds AFTER every WHERE parameter,
+        # because SQLite numbers "?" by position in the statement and the
+        # ordering clause comes last.
+        params.append(evaluator_id)
         params.append(int(window))
         return sql, tuple(params)
 
@@ -6398,6 +6852,13 @@ class AsclepiusStore:
         # None (never scanned) stays distinct from [] (scanned clean).
         rec["identifier_flags"] = json.loads(raw_flags) if raw_flags else (
             [] if raw_flags == "[]" else None)
+        # PRD-1 §3. Same tri-state discipline as the flags above: NULL means the
+        # two labels were not comparable (one carried no reasoning steps, so
+        # nothing was measured); '[]' means they were compared and agreed at
+        # every step. Parsed here so every reader gets a list or a None, never a
+        # JSON string one caller remembers to decode and the next does not.
+        raw_div = rec.get("step_divergence")
+        rec["step_divergence"] = json.loads(raw_div) if raw_div else None
         return rec
 
     def insert_case_review(
@@ -7057,6 +7518,7 @@ class AsclepiusStore:
         time_spent_sec: Optional[int] = None,
         blinded: Optional[bool] = None,
         identifier_flags: Optional[List[str]] = None,
+        step_divergence: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """One senior-reviewer adjudication of a PAIR (PRD R §2.3).
 
@@ -7106,8 +7568,8 @@ class AsclepiusStore:
                    verdict, dimension_json, corrections_json, reviewer_notes,
                    time_spent_sec, blinded, identifier_flags, created_at,
                    pair_sub_a, pair_sub_b, stronger, stronger_submission_id,
-                   accepted_submission_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   accepted_submission_id, step_divergence)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     review_id, task_id, anchor, reviewer_user_id, reviewer_id_hashed,
@@ -7121,6 +7583,8 @@ class AsclepiusStore:
                     now,
                     pair_sub_a, pair_sub_b, stronger, stronger_submission_id,
                     accepted_submission_id,
+                    # NULL vs '[]' is load-bearing here — see the column comment.
+                    None if step_divergence is None else json.dumps(step_divergence),
                 ),
             )
             conn.execute(
@@ -7877,6 +8341,19 @@ class AsclepiusStore:
         return self.get_user_by_id(user_id)
 
     # ─── Contributor scores (PRD-SCORE) ──────────────────────────────────────
+    def contributor_scores_by_user(self) -> Dict[str, float]:
+        """Every stored contributor score, keyed by user.
+
+        One query for the whole roster. The per-user ``compute`` walks that
+        physician's submissions and is a query per row, which is fine on a
+        dossier and is not fine on a list of everyone.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT user_id, score FROM contributor_scores"
+            ).fetchall()
+        return {r["user_id"]: r["score"] for r in rows if r["score"] is not None}
+
     def get_contributor_score(self, user_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
@@ -9847,8 +10324,10 @@ class AsclepiusStore:
             rows = conn.execute(
                 """
                 SELECT e.ref_id AS submission_id,
+                       e.earning_id,
                        e.user_id,
                        e.status,
+                       e.rate_cents,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = e.ref_id
                             OR cr.pair_sub_a   = e.ref_id
@@ -9897,7 +10376,14 @@ class AsclepiusStore:
         own Earnings read is entitled to touch. The unscoped form is the admin
         sweep, and it has to keep existing: the fourteen-day promise cannot depend
         on the physician remembering to open the page."""
-        sql = "SELECT * FROM earnings WHERE status = 'accrued' AND accrued_at < ?"
+        # A row HELD for a human decision is excluded. The fourteen-day promise
+        # is "a labeler is never held hostage by a review backlog"; it is not
+        # "an unreviewed pay reduction applies itself after a fortnight". A held
+        # row is waiting on a person, and letting the sweep approve it would turn
+        # the proposal this whole mechanism is built around into an automated
+        # pay cut with a two-week fuse.
+        sql = ("SELECT * FROM earnings WHERE status = 'accrued' AND accrued_at < ? "
+               "AND (quality_hold IS NULL OR quality_hold = 0)")
         params: List[Any] = [cutoff_iso]
         if user_id:
             sql += " AND user_id = ?"

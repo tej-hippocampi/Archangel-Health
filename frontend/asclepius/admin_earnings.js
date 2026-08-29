@@ -230,6 +230,7 @@
       var table = h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {},
           h('th', {}, 'Case'), h('th', {}, 'Specialty'), h('th', {}, 'Time'),
+          h('th', {}, 'Quality'),
           h('th', {}, 'Pay'), h('th', {}, 'Status'), h('th', {}, 'Export'),
           h('th', {}, 'Void'))),
         h('tbody', {}, rows.map(function (r) { return caseRow(body, ctx, r); })));
@@ -241,6 +242,35 @@
         'This physician’s ledger could not be loaded: ' + errText(e)
         + '. Reload the page.'));
     });
+  }
+
+  /* The internal case-quality number.
+
+     Internal on purpose: it is not in any package and no buyer sees it. It is
+     here because an operator deciding whether to pay for a case should be able
+     to see how it was graded on the same row, rather than opening a second
+     screen.
+
+     `null` renders an em dash, like Time, and for the same reason: a case that
+     was never graded has no number, and printing 0 for it reads as a physician
+     who did bad work rather than as a case nobody has reviewed yet.
+
+     The reasons ride along as a title, because this number will be contested
+     the moment it touches pay, and "71" is not an answer to "why". */
+  function qualityCell(ctx, r) {
+    var h = ctx.h;
+    if (r.quality === null || r.quality === undefined) {
+      return h('td', {
+        class: 'asc-dim',
+        title: 'Not graded yet. A case gets its quality number when a reviewer '
+             + 'or QA decides it.',
+      }, '—');
+    }
+    var reasons = (r.quality_reasons || []).join('\n');
+    return h('td', {
+      class: 'asc-mono',
+      title: reasons || 'No itemization was stored for this case.',
+    }, String(Math.round(Number(r.quality))));
   }
 
   function caseRow(body, ctx, r) {
@@ -294,6 +324,7 @@
       h('td', { class: 'asc-mono' }, shortId(r.case_id || r.ref_id)),
       h('td', {}, r.specialty || '—'),
       h('td', { class: 'asc-mono' }, duration(r.seconds)),
+      qualityCell(ctx, r),
       // NEVER a hardcoded rate. amount_cents is what the ledger says this row
       // is worth, and a reviewer's session is not a labeler's case.
       h('td', { class: 'asc-mono' }, pay),

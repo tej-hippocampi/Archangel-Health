@@ -20,9 +20,9 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from onboarding_emails import build_asclepius_invite_email
 
@@ -610,6 +610,54 @@ def _physician_users(store: Any) -> List[Dict[str, Any]]:
             if u.get("role") == "evaluator" and not u.get("is_mock")]
 
 
+#: Row fields that only a physician account ever carries. Used to tell a real
+#: doctor filed under an operator role apart from an actual operator.
+_PHYSICIAN_MARKERS = ("specialty", "npi", "board_cert", "verification_status",
+                      "tier", "clinical_role", "years_experience")
+
+
+def _misfiled_physicians(store: Any) -> List[Dict[str, Any]]:
+    """Accounts that carry physician credentials but are NOT filed as physicians.
+
+    The roster above is ``role == 'evaluator'``, so an account whose row says
+    ``role = 'admin'`` is not merely mislabelled — it is INVISIBLE. It cannot be
+    approved, tiered or role-changed from the console, because the roster is how
+    an operator reaches an account at all. The verification queue and the tier
+    backfill filter the same way, so nothing else surfaces it either.
+
+    That is not hypothetical: the self-serve director onboarding provisioned
+    ``role="admin"`` until it was changed to ``"evaluator"``, and every account
+    created before that fix still carries it. The code change did not repair the
+    rows, and there was no screen on which the damage was visible — a doctor
+    reports an empty queue, the roster does not list them, and the only remaining
+    move is to read the database.
+
+    Deliberately a SEPARATE list rather than a widened roster: these accounts are
+    not supply until somebody decides they are, so they must not silently join
+    the counts. They are shown so the decision can be made."""
+    out: List[Dict[str, Any]] = []
+    for u in store.list_users():
+        if u.get("is_mock") or (u.get("role") or "") == "evaluator":
+            continue
+        if not any(u.get(k) for k in _PHYSICIAN_MARKERS):
+            continue
+        out.append({
+            "id": u["id"],
+            "name": _display_name(u),
+            "email": u.get("email"),
+            "role": u.get("role"),
+            "specialty": u.get("specialty"),
+            "tier": u.get("tier"),
+            "verification_status": u.get("verification_status"),
+            "real_data_approved": bool(u.get("real_data_approved")),
+            "created_at": u.get("created_at"),
+            # Why we think this is a doctor and not an operator — named, so the
+            # decision is reviewable rather than a claim the screen makes.
+            "physician_markers": [k for k in _PHYSICIAN_MARKERS if u.get(k)],
+        })
+    return out
+
+
 def _hs_name_map(store: Any) -> Dict[str, str]:
     return {hs["hs_id"]: hs["name"] for hs in store.list_health_systems()}
 
@@ -629,6 +677,7 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     out: List[Dict[str, Any]] = []
     counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0,
               "unassigned": 0}
+    score_by_user = store.contributor_scores_by_user()
     for u in _physician_users(store):
         tier = u.get("tier")
         verification = u.get("verification_status")
@@ -670,8 +719,20 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "health_system_id": hs_id,
             "health_system_name": hs_names.get(hs_id) if hs_id else None,
             "active": bool(u.get("active", 1)),
+            # The running contributor score. Read from the stored row, not
+            # recomputed: this is a roster of everyone and ``compute`` is a
+            # query per submission. None means nobody has graded them yet, and
+            # the roster renders an em dash rather than a zero, because a zero
+            # here reads as a physician who does bad work rather than one whose
+            # first case is still in the queue.
+            "contributor_score": score_by_user.get(u["id"]),
         })
-    return {"physicians": out, "counts": counts}
+    # Accounts with a doctor's credentials and an operator's role. Not part of
+    # ``physicians`` or ``counts`` — they are not supply until someone decides
+    # they are — but never again invisible.
+    misfiled = _misfiled_physicians(store)
+    return {"physicians": out, "counts": counts,
+            "misfiled_physicians": misfiled, "misfiled_count": len(misfiled)}
 
 
 @router.get("/physicians/{user_id}")
@@ -1000,11 +1061,144 @@ async def set_user_role(
             status_code=422,
             detail="Only physician or admin accounts can move between those roles.")
     updated = store.set_user_role(user_id, role)
+    # Restoring a physician is not finished at the role. The boot tier backfill
+    # skips operator-role accounts, so one moved back arrives with a NULL tier —
+    # which fails the LABEL capability. They would sit on the roster looking
+    # correct and be unable to draw a single case, with nothing on screen asking
+    # for the second step. Same rule the migration uses, applied here.
+    tier_assigned = (store.backfill_tier_on_role_restore(
+        user_id, by=f"role_restore:{admin.get('email') or admin['id']}")
+        if role == "evaluator" else None)
+    # Real-data access follows APPROVED + LABELING, and both may have just become
+    # true. Running the sync here means the repair lands now instead of at the
+    # next deploy.
+    if role == "evaluator":
+        try:
+            store.sync_real_data_approval()
+        except Exception:  # never fail a role change on the follow-on policy
+            log.exception("asclepius: real-data sync after role restore failed")
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="role_changed",
         actor=admin.get("email"),
-        payload={"from": target.get("role"), "to": role})
-    return {"ok": True, "user_id": user_id, "role": (updated or {}).get("role")}
+        payload={"from": target.get("role"), "to": role,
+                 "tier_assigned": tier_assigned})
+    fresh = store.get_user_by_id(user_id) or {}
+    return {"ok": True, "user_id": user_id, "role": (updated or {}).get("role"),
+            "tier": fresh.get("tier"), "tier_assigned": tier_assigned,
+            "real_data_approved": bool(fresh.get("real_data_approved"))}
+
+
+class RestorePhysicianBody(BaseModel):
+    """Deliberate, itemised repair. Nothing here defaults to on: each field is a
+    decision an operator is making on the record, with their identity stamped."""
+    model_config = ConfigDict(extra="forbid")
+    approve_verification: bool = False
+    tier: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.post("/physicians/restore")
+async def restore_physician(
+    body: RestorePhysicianBody,
+    email: str = Query(..., description="The account to restore, by email."),
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Put one account back together as a labeling physician, in a single call.
+
+    The repair is four writes across three screens — role, tier, verification,
+    real-data approval — and an account filed under an operator role is on NONE
+    of those screens, so the sequence could not be started from the console at
+    all. Every step here is reachable through its own route; what this adds is
+    that they can be done in one action on an account the UI cannot reach, and
+    that the response says what each one did.
+
+    Nothing is implicit. ``approve_verification`` is a credentialing decision and
+    is off by default; when set, it is recorded as a human decision by the calling
+    admin (``verified_by``), exactly as the queue would. Real-data approval is
+    never set directly — it is left to the same APPROVED + LABELING policy that
+    governs everyone else, so this endpoint cannot become a side door around it."""
+    store = _store()
+    target = store.get_user_by_email((email or "").strip().lower())
+    if not target:
+        raise HTTPException(status_code=404, detail=f"No account for {email!r}.")
+    if target["id"] == admin["id"]:
+        raise HTTPException(
+            status_code=422,
+            detail="You cannot convert your own account to a physician; you would "
+                   "lose the admin access you are using. Ask the other admin.")
+    if (target.get("role") or "") not in ("admin", "evaluator", "qa_reviewer"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Role {target.get('role')!r} is provisioned by its own flow and "
+                   "is not a physician account.")
+    tier = (body.tier or "").strip().lower() or None
+    if tier and tier not in asc_caps.TIERS:
+        raise HTTPException(status_code=422,
+                            detail=f"Tier must be one of {sorted(asc_caps.TIERS)}.")
+
+    approving = bool(body.approve_verification
+                     and target.get("verification_status") != "approved")
+    # The tier is written ONLY by the approval decision — record_verification_decision
+    # touches the tier columns on its approved branch and nowhere else. Naming a
+    # tier without an approval to carry it therefore writes nothing, and routing it
+    # through a re-stamp of the CURRENT status would also stamp verified_by on an
+    # account nobody verified. Both were measured. Refuse instead: a tier on a
+    # pending or rejected account grants no access anyway (the verification gate
+    # denies them), so it would only report a decision that had not been made.
+    if tier and not approving and target.get("verification_status") != "approved":
+        raise HTTPException(
+            status_code=422,
+            detail=("A tier is part of the approval decision and cannot be set on an "
+                    f"account whose verification is {target.get('verification_status')!r}. "
+                    "Send approve_verification: true to decide both together."))
+
+    before = {k: target.get(k) for k in
+              ("role", "tier", "verification_status", "real_data_approved")}
+    did: List[str] = []
+    if (target.get("role") or "") != "evaluator":
+        store.set_user_role(target["id"], "evaluator")
+        did.append("role -> evaluator")
+    if approving:
+        # ``tier`` is written unconditionally on this branch, so passing None would
+        # NULL OUT a tier somebody already decided — measured: an existing reviewer
+        # came back a labeler, demoted by an operator doing the obvious thing.
+        # Carry the current tier forward when the caller did not name one.
+        keep = tier or target.get("tier")
+        store.record_verification_decision(
+            user_id=target["id"], status="approved",
+            decided_by=admin.get("email") or admin["id"],
+            tier=keep, note=body.note)
+        did.append("verification -> approved")
+        if keep and keep != target.get("tier"):
+            did.append(f"tier -> {keep}")
+    elif tier and target.get("tier") != tier:
+        store.record_verification_decision(
+            user_id=target["id"], status="approved",
+            decided_by=admin.get("email") or admin["id"], tier=tier, note=body.note)
+        did.append(f"tier -> {tier}")
+    # The same default the boot migration would have applied had this account
+    # been filed as a physician all along. Never overwrites a decided tier.
+    if store.backfill_tier_on_role_restore(
+            target["id"], by=f"restore:{admin.get('email') or admin['id']}"):
+        did.append("tier -> labeler (default backfill)")
+    # Derived, never set: APPROVED + LABELING is the policy, and this endpoint
+    # must not be a way around it.
+    store.sync_real_data_approval()
+
+    after_row = store.get_user_by_id(target["id"]) or {}
+    after = {k: after_row.get(k) for k in
+             ("role", "tier", "verification_status", "real_data_approved")}
+    after["real_data_approved"] = bool(after["real_data_approved"])
+    store.log_event(
+        entity_type="user", entity_id=target["id"], event_type="physician_restored",
+        actor=admin.get("email"), payload={"before": before, "after": after,
+                                           "changes": did, "note": body.note})
+    return {"ok": True, "user_id": target["id"], "email": target.get("email"),
+            "changes": did, "before": before, "after": after,
+            # The outcome that was actually being chased. If this is false the
+            # response above says which gate is still shut.
+            "can_label_real_cases": bool(after_row.get("real_data_approved"))
+            and asc_caps.can(after_row, asc_caps.LABEL)}
 
 
 @router.get("/signups")
@@ -1701,3 +1895,178 @@ async def invite_to_community(
             "email": user["email"], "sent": True, "expires_at": expires_at,
             "invited_at": (store.latest_community_invite_for_user(user["id"]) or {})
             .get("created_at")}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Assignment (PRD-ASSIGN) — proposing who does which case
+# ═══════════════════════════════════════════════════════════════════════════════
+class AllocateBody(BaseModel):
+    """Which cases to allocate, and to whom.
+
+    ``dry_run`` defaults to TRUE. Same shape as ingest promotion, and for the
+    same reason: an admin should be able to iterate on an allocation before a
+    physician is told to do anything.
+    """
+
+    task_ids: List[str] = Field(default_factory=list)
+    labels_per_case: int = Field(2, ge=1, le=5)
+    reviewers_per_case: int = Field(1, ge=0, le=3)
+    max_share: float = Field(0.35, gt=0.0, le=1.0)
+    dry_run: bool = True
+    due_at: Optional[str] = None
+    # Exclusivity is offered ONLY with an expiry. An exclusive assignment with
+    # no timeout is a queue that wedges the moment somebody goes on holiday.
+    exclusive_hours: Optional[int] = Field(None, ge=1, le=720)
+
+
+def _allocation_inputs(store: Any, task_ids: List[str]):
+    """Build the allocator's pure inputs from the store.
+
+    Every eligibility answer is READ from the module that owns that question:
+    the capability layer for labeling, ``review.can_review`` for reviewing,
+    ``tiering.domain_match`` for domain fit. A hard gate implemented twice is a
+    hard gate that will disagree with itself.
+    """
+    from asclepius import allocation as asc_allocation
+    from asclepius import capabilities as _caps
+    from asclepius import review as _review
+    from asclepius import tiering as _tiering
+
+    cases = []
+    for tid in task_ids:
+        t = store.get_task(tid)
+        if not t:
+            continue
+        cases.append(asc_allocation.Case(
+            task_id=t["task_id"],
+            specialty=(t.get("specialty") or ""),
+            real_deid=(t.get("case_source") == "real_deid"),
+            difficulty=(
+                float(t["empirical_difficulty"])
+                if t.get("difficulty_measured") and t.get("empirical_difficulty") is not None
+                else {"easy": 0.2, "medium": 0.5, "hard": 0.8}.get(
+                    (t.get("difficulty") or "").strip().lower())
+            ),
+        ))
+
+    domains = {c.specialty for c in cases if c.specialty}
+    domain = next(iter(domains)) if len(domains) == 1 else None
+    scores = store.contributor_scores_by_user()
+    loads = store.open_assignment_counts()
+
+    physicians = []
+    for u in store.list_users():
+        if (u.get("role") or "") != "evaluator" or not u.get("active", 1):
+            continue
+        if u.get("is_mock"):
+            continue
+        if (u.get("verification_status") or "approved") not in ("approved",):
+            continue
+        match, _why = _tiering.domain_match(u, domain) if domain else (0.0, "mixed batch")
+        physicians.append(asc_allocation.Physician(
+            user_id=u["id"],
+            can_label=_caps.can(u, _caps.LABEL),
+            can_review=_review.can_review(u),
+            domain_match=match,
+            contributor_score=scores.get(u["id"]),
+            real_data_approved=bool(u.get("real_data_approved")),
+            open_assignments=loads.get(u["id"], 0),
+        ))
+    return cases, physicians, domain
+
+
+@router.post("/assignments/allocate")
+async def admin_allocate(
+    body: AllocateBody, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Propose an allocation, and commit it only when asked.
+
+    THE POINT: the allocator proposes and an admin commits. The response is a
+    table an operator reads and adjusts, and a case nothing could be proposed
+    for comes back in ``unassigned`` WITH A REASON rather than quietly vanishing
+    from the list.
+
+    Committing writes ``assignments`` rows, which are a PRIORITY and not a
+    permission: an assigned case sorts to the top of its assignee's queue and
+    every other physician still sees it exactly where it was. Nothing about who
+    MAY draw a case changes here.
+    """
+    from asclepius import allocation as asc_allocation
+
+    if not body.task_ids:
+        raise HTTPException(status_code=400, detail="task_ids is required.")
+    store = _store()
+    cases, physicians, domain = _allocation_inputs(store, body.task_ids)
+    if not cases:
+        raise HTTPException(status_code=404, detail="None of those task ids exist.")
+
+    proposal = asc_allocation.allocate(
+        cases, physicians,
+        labels_per_case=body.labels_per_case,
+        reviewers_per_case=body.reviewers_per_case,
+        max_share=body.max_share,
+    )
+
+    committed = []
+    if not body.dry_run:
+        expires_at = None
+        if body.exclusive_hours:
+            expires_at = (
+                datetime.now(timezone.utc) + timedelta(hours=int(body.exclusive_hours))
+            ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        for a in proposal.assignments:
+            row = store.upsert_assignment(
+                task_id=a["task_id"], user_id=a["user_id"], role=a["role"],
+                assigned_by=admin["email"], due_at=body.due_at,
+                exclusive=bool(body.exclusive_hours), expires_at=expires_at,
+            )
+            committed.append(row["assignment_id"])
+        store.log_event(
+            entity_type="assignment", event_type="assignments_committed",
+            actor=admin["email"],
+            payload={"n": len(committed), "cases": len(cases), "domain": domain,
+                     "labels_per_case": body.labels_per_case,
+                     "reviewers_per_case": body.reviewers_per_case},
+        )
+
+    return {
+        "dry_run": bool(body.dry_run),
+        "domain": domain,
+        "cases": len(cases),
+        "physicians_considered": len(physicians),
+        "assignments": proposal.assignments,
+        "unassigned": proposal.unassigned,
+        "per_physician": proposal.per_physician,
+        "notes": proposal.notes,
+        "committed": committed,
+    }
+
+
+@router.get("/assignments")
+async def admin_list_assignments(
+    task_id: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    if task_id:
+        return {"assignments": store.assignments_for_task(task_id)}
+    if user_id:
+        return {"assignments": store.assignments_for_user(user_id)}
+    raise HTTPException(status_code=400, detail="task_id or user_id is required.")
+
+
+@router.post("/assignments/{assignment_id}/revoke")
+async def admin_revoke_assignment(
+    assignment_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Take an assignment back. The case returns to the ordinary queue, where it
+    always was: revoking removes a priority, not an access grant."""
+    store = _store()
+    if not store.set_assignment_status(assignment_id, "revoked"):
+        raise HTTPException(status_code=404, detail="No such assignment.")
+    store.log_event(
+        entity_type="assignment", entity_id=assignment_id,
+        event_type="assignment_revoked", actor=admin["email"],
+    )
+    return {"assignment_id": assignment_id, "status": "revoked"}

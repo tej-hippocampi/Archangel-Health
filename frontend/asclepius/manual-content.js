@@ -500,8 +500,22 @@
         ],
       },
       {
-        id: 'pay',
+        id: 'keyboard',
         num: '09',
+        chromeLabel: 'DOING IT WITHOUT THE MOUSE',
+        title: 'Doing it without the mouse',
+        what: 'The whole adjudication is on the keyboard: A, four arrows, Enter.',
+        why: 'A clean accept should take under a minute, and reaching for a mouse is most of it.',
+        how: 'A / B / N picks the stronger. 1\u20134 aims a dimension, \u2190 \u2192 answer it, Enter submits.',
+        detail: [
+          'A, B and N set which answer is stronger \u2014 N is \u201cneither\u201d. 1 to 4 aim at a dimension; \u2190 is agree, \u2192 is disagree, and C is \u201ccannot assess\u201d, which is a real answer and not a way of skipping. Each of those advances to the next dimension, so four presses answer all four.',
+          'Enter submits once the verdict and all four dimensions are set. On the clean path \u2014 every dimension agree and a stronger side named \u2014 Enter fills in the accept for that side and submits, so a good pair is A, four arrows, Enter. It never fires on a half-answered review: a keystroke that could produce an unexamined accept is a keystroke that grades a colleague by accident.',
+          'The shortcuts are off while you are typing a correction, so writing \u201cAnticoagulate\u201d does not change your comparison.',
+        ],
+      },
+      {
+        id: 'pay',
+        num: '10',
         chromeLabel: 'WHAT YOU ARE PAID',
         title: 'What you are paid',
         what: 'One hundred dollars per qualifying review session, however many cases it contains.',

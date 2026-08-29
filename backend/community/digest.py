@@ -29,7 +29,7 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from community import feeds
+from community import feeds, links
 from community.store import get_community_store
 from community.system_posts import post_system_message
 
@@ -233,7 +233,6 @@ async def _email_digest(kind: str, body: str) -> int:
         log.info("[digest] morning routine owns the daily email; skipping the digest send")
         return 0
     cstore = get_community_store()
-    base = (os.getenv("PUBLIC_BASE_URL", "") or "").rstrip("/")
     weekly = kind == "papers"
     headline = _headline_from(body)
 
@@ -246,7 +245,7 @@ async def _email_digest(kind: str, body: str) -> int:
         want = "weekly" if weekly else "daily"
         if prefs.get("news_frequency") != want:
             continue
-        unsub = f"{base}/community/unsubscribe?token={prefs['unsubscribe_token']}"
+        unsub = links.unsubscribe_url(prefs.get("unsubscribe_token") or "")
         try:
             ok = await send_html_email(
                 email,
@@ -255,7 +254,7 @@ async def _email_digest(kind: str, body: str) -> int:
                     first_name=((member.get("display_name") or "").split() or ["there"])[0],
                     headline=headline,
                     body_markdown=body,
-                    community_url=f"{base}/community",
+                    community_url=links.community_url(),
                     unsubscribe_url=unsub,
                 ),
             )

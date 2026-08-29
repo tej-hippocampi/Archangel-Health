@@ -111,6 +111,7 @@ from asclepius.critic import (
 from asclepius.constants import (
     company_name as _company_name,
     hard_only_generation,
+    v4_open_to_all_specialties,
     v3_multimodal_only,
     relax_multimodal_gates,
     ab_source,
@@ -1107,24 +1108,50 @@ def _insert_tasks_from_dicts(
 
 
 async def _notify_new_tasks(
-    store: Any, background_tasks: BackgroundTasks, created: List[Dict[str, Any]], *, admin_id: str,
+    store: Any, background_tasks: Optional[BackgroundTasks], created: List[Dict[str, Any]],
+    *, admin_id: str,
 ) -> None:
     """Enqueue the outbox rows synchronously (fast), then drain in the
     background so the admin's request never blocks on ~1000 emails. Also
-    posts a one-line announcement to #task-announcements (in-app, plus the
-    channel's existing digest-email fan-out) — cheap enough to do inline.
+    posts the in-app announcements (general room plus each affected specialty
+    room) — cheap enough to do inline.
 
     Awaited rather than bridged through a worker-thread loop: the announcement
     ends in a WebSocket broadcast, and the hub's sockets belong to this loop.
+
+    ``background_tasks`` is optional. The outbox is durable and a periodic loop
+    drains it (``main._asclepius_task_notify_loop``), so a caller with no
+    request-scoped handle still gets its mail sent; passing one only makes the
+    send prompt instead of waiting for the next tick.
     """
     if not created:
         return
     batch_id = uuid.uuid4().hex
     asc_task_notify.enqueue_for_batch(store, batch_id=batch_id, created_tasks=created)
-    background_tasks.add_task(asc_task_notify.drain_outbox, store)
+    if background_tasks is not None:
+        background_tasks.add_task(asc_task_notify.drain_outbox, store)
     await asc_task_notify.post_community_announcement(
         store, admin_user_id=admin_id, created_tasks=created
     )
+
+
+def _notifiable(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Reduce inserted task rows to what notification needs.
+
+    Accepts the full task dicts the insert paths return and keeps only
+    ``task_id`` and ``specialty``, dropping anything without both. Written so
+    the five previously-silent insert paths can each hand over whatever shape
+    they already have.
+    """
+    out: List[Dict[str, Any]] = []
+    for t in tasks or []:
+        if not isinstance(t, dict):
+            continue
+        task_id = t.get("task_id")
+        specialty = (t.get("specialty") or "").strip()
+        if task_id and specialty:
+            out.append({"task_id": task_id, "specialty": specialty})
+    return out
 
 
 @router.post("/tasks")
@@ -1223,7 +1250,8 @@ def _parse_csv_tasks(raw: str) -> List[Dict[str, Any]]:
 
 @router.post("/tasks/generate")
 async def generate_task(
-    body: CandidateGenRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+    body: CandidateGenRequest, background_tasks: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Generate two candidate answers via the LLM and store them as a task."""
     if not (body.prompt or "").strip():
@@ -1249,6 +1277,9 @@ async def generate_task(
     store.log_event(
         entity_type="task", entity_id=task["task_id"], event_type="task_generated", actor=admin["id"]
     )
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable([task]), admin_id=admin["id"]
+    )
     return {"task_id": task["task_id"]}
 
 
@@ -1265,10 +1296,14 @@ async def load_v4_real_cases(
         description="Independent labels per case. Default 3 (one labeller + two "
                     "for Cohen's kappa). This is what we PAY for — it is not how "
                     "many physicians can SEE the case."),
-    open_to_all_specialties: bool = Query(
-        False, description="Show these cases to every approved physician, "
-                           "bypassing specialty routing. VISIBILITY only — it "
-                           "does not change max_labels or what we pay."),
+    open_to_all_specialties: Optional[bool] = Query(
+        None, description="Show these cases to every approved physician, "
+                          "bypassing specialty routing. VISIBILITY only — it "
+                          "does not change max_labels or what we pay. Omit to "
+                          "follow ASCLEPIUS_V4_OPEN_TO_ALL (default on), which is "
+                          "what the boot seeder uses; pass it explicitly to "
+                          "override for this call."),
+    background_tasks: BackgroundTasks = None,  # noqa: RUF013 — FastAPI injects it
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Load the three V4 REAL de-identified cases as ``partner_ehr`` tasks
@@ -1290,21 +1325,40 @@ async def load_v4_real_cases(
             status_code=400,
             detail=f"Specialty {sel!r} is not enabled in this release "
                    f"({sorted(s for s in asc_specialties.SPECIALTY_REGISTRY if asc_specialties.is_enabled(s))}).")
+    # Omitted => follow the deployment's configured fan-out, so this route and the
+    # boot seeder never disagree about who can see the real cases.
+    open_all = (v4_open_to_all_specialties() if open_to_all_specialties is None
+                else bool(open_to_all_specialties))
     try:
+        # An explicit admin action, so it reconciles the cases already in the queue
+        # rather than only affecting ones it creates — otherwise re-running this
+        # with the checkbox flipped would appear to do nothing.
         res = load_v4_cases(store, specialty=sel, max_labels=max_labels,
-                            open_to_all_specialties=open_to_all_specialties)
+                            open_to_all_specialties=open_all,
+                            reconcile_visibility=True)
     except Exception as exc:  # a broken entry must return a clear error, not a bare 500
         raise HTTPException(status_code=500, detail=f"Could not load V4 real cases: {exc}")
     res["max_labels"] = max_labels
-    res["open_to_all_specialties"] = bool(open_to_all_specialties)
+    res["open_to_all_specialties"] = open_all
     store.log_event(
         entity_type="generation_job", entity_id="v4_real_seed:" + (sel or "all"),
         event_type="v4_real_load", actor=admin["id"],
         payload={"loaded": res.get("loaded", 0), "skipped": res.get("skipped", 0),
                  "held": sorted((res.get("holds") or {}).keys()),
                  "max_labels": max_labels,
-                 "open_to_all_specialties": bool(open_to_all_specialties)},
+                 "revisited": res.get("revisited", 0),
+                 "open_to_all_specialties": open_all},
     )
+    # ``task_ids`` accumulates only cases created on THIS call (the loader
+    # appends alongside its ``loaded`` counter), so a re-run that loads nothing
+    # announces nothing. The boot seeder calls load_v4_cases directly rather
+    # than through this route, so starting the process never mails anyone.
+    if res.get("task_ids"):
+        rows = [store.get_task(tid) for tid in res["task_ids"]]
+        await _notify_new_tasks(
+            store, background_tasks, _notifiable([r for r in rows if r]),
+            admin_id=admin["id"],
+        )
     return res
 
 
@@ -1998,8 +2052,13 @@ def _ensure_v4_real_cases(store: Any, user: Dict[str, Any],
     if ensured:
         return 0
     try:
+        from asclepius.constants import v4_open_to_all_specialties
         from asclepius.v4_cases import load_v4_cases
-        res = load_v4_cases(store)
+        # Creates what is missing; never rewrites the visibility of what is already
+        # there. This runs on a physician's queue request, and a draw must not
+        # change who else can see the corpus (reconcile_visibility stays off).
+        res = load_v4_cases(
+            store, open_to_all_specialties=v4_open_to_all_specialties())
         for cid, reason in (res.get("holds") or {}).items():
             # Named, not swallowed: a case silently absent from the queue is the
             # exact failure this PRD exists to remove.
@@ -2237,6 +2296,161 @@ async def available_tasks(
     return {"tasks": tasks, "count": len(tasks),
             "served_portal_version": served if tasks else None,
             "continued_from": continued_from if tasks else None}
+
+
+@router.get("/admin/real-case-access")
+async def real_case_access_report(
+    email: Optional[str] = Query(None, description="Check one physician by email; omit for a summary."),
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Why can (or cannot) this physician see the V4 real cases?
+
+    Every gate between an approved doctor and a real chart, evaluated for a named
+    account, with the reason spelled out. This exists because the question kept
+    being answered by reading source: a physician reports an empty queue, and
+    ``real_data_approved`` is one flag, LABEL is another, specialty routing is a
+    third, and per-case capacity is a fourth — four different reasons for one
+    identical empty screen. An operator should be able to ask the product."""
+    from asclepius.capabilities import LABEL, can as _can
+    from asclepius.constants import v4_open_to_all_specialties as _open_all_cfg
+    from asclepius.v4_cases import V4_REAL_CASES, v4_task_id
+
+    store = _store()
+    seeded = []
+    for entry in V4_REAL_CASES:
+        t = store.get_task(v4_task_id(entry["case_id"]))
+        if t:
+            seeded.append({"case_id": entry["case_id"], "specialty": t.get("specialty"),
+                           "open_to_all_specialties": bool(t.get("open_to_all_specialties")),
+                           "max_labels": t.get("max_labels")})
+    # What the RUNNING process did at boot, not what the code would do now: an
+    # operator asking "did my deploy take?" needs the answer from this container.
+    try:
+        import main as _main_mod
+        boot = dict(getattr(_main_mod, "_V4_BOOT_SUMMARY", {}) or {})
+        build = _main_mod._running_commit()
+        build["started_at"] = getattr(_main_mod, "_BOOT_AT", None)
+    except Exception:  # a test app, or main imported under another name
+        boot, build = {}, {}
+    report: Dict[str, Any] = {
+        "build": build,
+        "v4_seeding_at_boot": boot,
+        "cases_in_queue": seeded,
+        "open_to_all_specialties_setting": _open_all_cfg(),
+        "specialties_with_a_real_case": sorted({c["specialty"] for c in seeded}),
+    }
+    if not email:
+        return report
+
+    u = store.get_user_by_email(email.strip().lower())
+    if not u:
+        raise HTTPException(status_code=404, detail=f"No account for {email!r}.")
+
+    blockers: List[str] = []
+    if not u.get("active"):
+        blockers.append("The account is deactivated.")
+    notes: List[str] = []
+    is_admin = (u.get("role") or "") == "admin"
+    if is_admin:
+        # NOT a real-data blocker, and saying so would be wrong: admins hold LABEL,
+        # so an admin who is also verified DOES get the auto-grant and can draw real
+        # cases. What the role actually costs them is the portal itself — the nav
+        # shows the admin console, and the roster files them outside "Approved &
+        # Labeling" — so a physician working from this account looks and is filed
+        # like an operator. Reported as context, not as the cause.
+        notes.append(
+            "The role is 'admin', not 'evaluator'. That does not block real cases "
+            "on its own, but it puts the admin console in their nav and keeps them "
+            "off the Approved & Labeling roster. Set it to 'evaluator' from the "
+            "Physicians roster.")
+    env_admin = (os.getenv("ASCLEPIUS_ADMIN_EMAIL") or "").strip().lower()
+    pinned = bool(env_admin and env_admin == (u.get("email") or "").strip().lower())
+    if pinned:
+        # The trap this endpoint exists to make visible: the console's own role
+        # button appears to work and the next deploy silently reverts it. Whether
+        # that is still true depends on the guard in ensure_admin_from_env, so
+        # answer for the state this deployment is ACTUALLY in rather than warning
+        # about something that can no longer happen.
+        protected = (not is_admin) and store.count_active_admins(excluding=u["id"]) > 0
+        if protected:
+            notes.append(
+                "ASCLEPIUS_ADMIN_EMAIL names this account. The boot-time admin "
+                "bootstrap now refuses to convert a physician account while another "
+                "admin exists, so the role will survive the next deploy — but "
+                "repoint that variable at a separate operations account so it stops "
+                "depending on that guard.")
+        else:
+            blockers.append(
+                "ASCLEPIUS_ADMIN_EMAIL names this account, so every boot forces it "
+                "back to role='admin'"
+                + ("" if is_admin else " (it is the only active admin, so the "
+                                       "bootstrap cannot stand down without locking "
+                                       "the console out)")
+                + ". Changing the role in the console will be undone by the next "
+                  "deploy. Point that variable at a separate operations account "
+                  "first.")
+    if u.get("verification_status") != "approved":
+        blockers.append(
+            f"Verification status is {u.get('verification_status')!r}, not 'approved'. "
+            "Real-data approval follows labeling approval, so nothing is granted until "
+            "this clears.")
+    if not _can(u, LABEL):
+        blockers.append(
+            f"Tier is {u.get('tier')!r}, which does not carry the LABEL capability. "
+            "Drawing any case requires it.")
+    if not u.get("real_data_approved"):
+        blockers.append(
+            "real_data_approved is off. It is granted automatically to approved "
+            "labelers at boot and on the approval route, UNLESS an admin set it "
+            f"explicitly (source={u.get('real_data_approval_source')!r}) — a human "
+            "decision is never overridden by the sync.")
+    spec = (u.get("specialty") or "").strip().lower()
+    visible = [c for c in seeded
+               if c["open_to_all_specialties"] or c["specialty"] == spec]
+    if not visible:
+        blockers.append(
+            f"No real case is routed to {spec or 'their (unset) specialty'}. Real "
+            f"cases exist for {sorted({c['specialty'] for c in seeded})}. Set "
+            "ASCLEPIUS_V4_OPEN_TO_ALL=1 (the default) so every approved physician "
+            "sees all of them, or promote a chart in their specialty.")
+
+    # What the queue ACTUALLY returns for them — the gates above are the reasons,
+    # this is the outcome, and if they ever disagree the outcome is the truth.
+    #
+    # The real-data wall lives in the ROUTER, not in the store query: passing
+    # real_only=True filters to real tasks, it does not ask whether this person may
+    # see one. Reproducing the router's own check here is the difference between a
+    # report and a lie — without it this endpoint would cheerfully tell an operator
+    # that an unapproved physician can see real cases that /tasks/next refuses them.
+    if u.get("real_data_approved") and u.get("active") and _can(u, LABEL):
+        eligible = store.eligible_tasks_for_evaluator(
+            evaluator_id=u["id"], specialty=spec or None, real_only=True, limit=50)
+    else:
+        eligible = []
+    report["physician"] = {
+        "email": u.get("email"), "specialty": u.get("specialty"),
+        "role": u.get("role"),
+        "pinned_admin_by_env": pinned,
+        "tier": u.get("tier"), "verification_status": u.get("verification_status"),
+        "active": bool(u.get("active")),
+        "real_data_approved": bool(u.get("real_data_approved")),
+        "real_data_approval_source": u.get("real_data_approval_source"),
+    }
+    report["notes"] = notes
+    report["real_cases_they_can_draw"] = [t.get("task_id") for t in eligible]
+    report["can_see_real_cases"] = bool(eligible)
+    report["blockers"] = blockers
+    if eligible and blockers:
+        # Belt and braces: a gate list that says "blocked" over a non-empty queue
+        # is a bug in this endpoint, and saying so beats quietly contradicting
+        # ourselves on the screen an operator is trusting.
+        report["note"] = ("The queue is not empty despite the blockers listed — "
+                          "treat the queue as authoritative and report this.")
+    elif not eligible and not blockers:
+        report["note"] = ("No gate is blocking them and the queue is still empty: "
+                          "every real case they can see is already at capacity or "
+                          "already labeled by them.")
+    return report
 
 
 @router.get("/me/stats")
@@ -3613,6 +3827,12 @@ async def qa_decision(
     new_status = asc_pipeline.apply_qa_decision(
         store, sub, decision=body.decision, reviewer_id=reviewer["id"], notes=body.notes
     )
+    # contributor_score's docstring has always claimed "the recompute hooks ride
+    # on QA decisions and review submissions". Only the review router ever
+    # called it, so a QA-only-graded submission never moved the stored score,
+    # and nothing tested it. Best-effort by contract: the module swallows its
+    # own failures, and a scoring problem must not undo a recorded decision.
+    asc_contributor_score.recompute_for_submission(store, submission_id)
     return {"submission_id": submission_id, "status": new_status}
 
 
@@ -4297,7 +4517,8 @@ async def set_buyer_request_status(
 
 @router.post("/buyer-requests/{request_id}/batch")
 async def batch_from_request(
-    request_id: str, body: BatchFromRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
+    request_id: str, body: BatchFromRequest, background_tasks: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Spin up a task batch from a buyer request in one step (opt §2.5).
 
@@ -4322,6 +4543,7 @@ async def batch_from_request(
     # Prompts: those uploaded on the request + any passed at batch time.
     uploaded = list(req.get("uploaded") or []) + [t.model_dump() for t in body.prompts]
     created: List[str] = []
+    created_rows: List[Dict[str, Any]] = []
 
     for t in uploaded:
         prompt = (t.get("prompt") or "").strip()
@@ -4341,6 +4563,7 @@ async def batch_from_request(
             created_by=admin["id"],
         )
         created.append(task["task_id"])
+        created_rows.append(task)
 
     # Constraints-only: invoke the Seedmaker engine to generate ``count`` validated
     # tasks (prompt + 2 candidates) grounded in the seed corpus, stamped to this
@@ -4359,7 +4582,11 @@ async def batch_from_request(
                 buyer_request_id=request_id,
                 created_by=admin["id"],
             )
-            created.extend(gen_summary.get("created") or [])
+            gen_ids = gen_summary.get("created") or []
+            created.extend(gen_ids)
+            # generate_tasks was invoked with one specialty, so every id it
+            # returns carries it; no per-row lookup needed.
+            created_rows.extend({"task_id": tid, "specialty": specialty} for tid in gen_ids)
         except asc_specialties.SpecialtyNotEnabled as exc:
             raise HTTPException(status_code=400, detail={"error": "specialty_not_enabled", "message": str(exc)})
         except asc_generation.GenerationDisabled as exc:
@@ -4369,6 +4596,9 @@ async def batch_from_request(
     store.log_event(
         entity_type="buyer_request", entity_id=request_id, event_type="batch_created",
         actor=admin["id"], payload={"count": len(created)},
+    )
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable(created_rows), admin_id=admin["id"]
     )
     out = {"request_id": request_id, "created": created, "count": len(created)}
     if gen_summary is not None:
@@ -5421,6 +5651,7 @@ def _commit_promoted_task(
 @router.post("/ingestion/cases/{ingest_case_id}/promote")
 async def promote_ingest_case(
     ingest_case_id: str, body: PromoteCaseRequest,
+    background_tasks: BackgroundTasks,
     dry_run: bool = False,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
@@ -5536,6 +5767,11 @@ async def promote_ingest_case(
         store, ic, conv, admin, max_labels=body.max_labels,
         grounding_mode=body.grounding_mode, independent_mode=body.independent_mode,
         open_to_all_specialties=body.open_to_all_specialties)
+    # A real de-identified chart is the highest-value case we produce, and until
+    # now promoting one told nobody: no email, no room post, no broadcast.
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable([task]), admin_id=admin["id"]
+    )
     return {"task_id": task["task_id"], "case_source": task.get("case_source"),
             "modality": task.get("modality"),
             "open_to_all_specialties": bool(task.get("open_to_all_specialties"))}
@@ -5617,6 +5853,7 @@ async def prepare_upload_promotion(
 @router.post("/ingestion/uploads/{upload_id}/promote-all")
 async def promote_upload_all(
     upload_id: str, body: UploadPromoteRequest,
+    background_tasks: BackgroundTasks,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Step 2 of the upload-scoped promote: after the admin approved the sample,
@@ -5653,6 +5890,7 @@ async def promote_upload_all(
                   "brokering link and cannot be promoted.")
         raise HTTPException(status_code=409, detail=detail)
     promoted: List[Dict[str, Any]] = []
+    promoted_tasks: List[Dict[str, Any]] = []
     gated: List[Dict[str, Any]] = []
     failed: List[Dict[str, Any]] = []
     for ic in ingested:
@@ -5685,11 +5923,18 @@ async def promote_upload_all(
             open_to_all_specialties=body.open_to_all_specialties,
             grounding_mode=body.grounding_mode, independent_mode=body.independent_mode)
         promoted.append({"ingest_case_id": ic.get("ingest_case_id"), "task_id": task["task_id"]})
+        promoted_tasks.append(task)
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="promote_all", actor=admin["id"],
                     payload={"promoted": len(promoted), "gated": len(gated),
                              "failed": len(failed),
                              "skipped_brokering": len(skipped_brokering)})
+    # One notification for the whole batch, counted per specialty, rather than
+    # one per case: promoting a 100-case partner file must not send a physician
+    # 100 emails.
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable(promoted_tasks), admin_id=admin["id"]
+    )
     return {"upload_id": upload_id, "promoted": len(promoted), "gated": len(gated),
             "failed": len(failed), "skipped_brokering": len(skipped_brokering),
             "task_ids": [p["task_id"] for p in promoted],
@@ -5941,6 +6186,7 @@ async def _generate_one_real_case(
                              "measured": difficulty["measured"],
                              "taxonomy_bucket": p.get("taxonomy_bucket")})
     result["task_id"] = task["task_id"]
+    result["specialty"] = task.get("specialty")
     result["difficulty"] = difficulty
     result["judges"] = {"case_judge": case_judge, "hardness": hardness}
     return result
@@ -5949,6 +6195,7 @@ async def _generate_one_real_case(
 @router.post("/ingestion/cases/{ingest_case_id}/generate")
 async def generate_real_cases(
     ingest_case_id: str, body: GenerateRealCasesRequest,
+    background_tasks: BackgroundTasks,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """One ingested real chart → many tagged V4 tasks (Real-Case Generation PRD §5).
@@ -6110,6 +6357,10 @@ async def generate_real_cases(
                     event_type="real_cases_generated", actor=admin["id"],
                     payload={"generated": len(generated), "gated": len(gated),
                              "failed": len(failed)})
+    # One chart can produce many tasks; they announce as one batch.
+    await _notify_new_tasks(
+        store, background_tasks, _notifiable(generated), admin_id=admin["id"]
+    )
     response.update({
         "generated": len(generated), "gated": len(gated), "failed": len(failed),
         "task_ids": [g["task_id"] for g in generated],
