@@ -1,88 +1,132 @@
 # AGENTS.md
 
+A map of this repo for coding agents. Read the landmines before deleting anything.
+
+## What this company sells
+
+Archangel Health sells **clinician-verified medical AI data** to frontier labs:
+evaluation sets, preference and process-supervision records, and RL environments,
+each annotated by a credentialed physician and shipped with provenance. The
+product surface is the **Asclepius** portal, where physicians do that work.
+
+A peri-op patient product (surgical risk tiering, discharge education, intake
+interviews) was built first and is **being retired**. Most of what looks like
+"the app" is that. See *The retirement* below before you touch it.
+
 ## Repo identity & git workflow
 
-This repo is **`tej-hippocampi/Archangel-Health`** on GitHub (the codebase covers
-CareGuide, the Asclepius evaluation portal, and the Community platform — the
-product/company naming has shifted over time, but this is the one repo).
-Ship work as a **pull request targeting `main`**, not a direct push to `main`.
+`tej-hippocampi/Archangel-Health`. Ship work as a **pull request targeting
+`main`**, never a direct push. Backend is a single FastAPI service
+(`backend/main.py`) serving static HTML/JS from `frontend/`; `landing/` is a
+separate React/Vite app that uses the same backend for auth.
 
-## Cursor Cloud specific instructions
-
-### Architecture
-CareGuide is a single-service Python FastAPI app (backend) serving a static HTML/CSS/JS frontend. No database, no build step. The **landing page** (`landing/`) is a separate React (Vite) app for Elysium Health marketing/sign-in; it uses the same backend for auth (JWT). See `README.md` and `landing/README.md`.
-
-### Running the dev server
-**Backend (required for patient dashboard and landing auth):**
 ```
-cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+cd backend && python3 -m uvicorn main:app --reload --port 8000   # backend
+cd landing && npm install && npm run dev                          # landing :5173
+cd backend && python3 -m pytest tests/ -q                          # ~4,100 tests, ~13 min
+cd backend && python3 scripts/ci_shard.py 1 4                      # what CI shard 1 runs
 ```
-**Landing (optional):** from repo root, run the backend first, then:
-```
-cd landing && npm install && npm run dev
-```
-Landing runs at `http://localhost:5173` and proxies `/api` to the backend. Sign in / Sign up use `/api/auth/login` and `/api/auth/register`. Set `AUTH_SECRET` in backend `.env` for JWT signing.
 
-The demo patient dashboard is available at `http://localhost:8000/patient/maria_001` (seeded in-memory at startup).
+## The three planes
 
-### Environment variables
-Copy `.env.example` to `.env`. Set `BASE_URL=http://localhost:8000` for local dev. Set `AUTH_SECRET` to a long random string for landing auth (JWT). External API keys (Anthropic, ElevenLabs, Tavus, Twilio) are optional for basic UI testing — the app gracefully degrades without them. Chat requires `ANTHROPIC_API_KEY` for real AI responses.
-
-Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`** and a **verified** `SENDGRID_FROM_EMAIL` in the same SendGrid account (or working `SMTP_*`). Without this, `/api/onboarding/request-otp` returns 503; check the backend terminal for `[email_utils] SendGrid HTTP …` diagnostics.
-
-**TEAM eligibility (Track A)** lives in `backend/eligibility/` (parsers, extractor, evaluator, pipeline) and `backend/routers/eligibility.py`. Requires `ANTHROPIC_API_KEY` for live extraction, and `tesseract` + `poppler` (`brew install tesseract poppler`) for OCR fallback on image-only PDFs. Uploaded documents land under `$UPLOAD_DIR/eligibility/<patientId>/` (default `/tmp/elysium-eligibility`). All check / override / finalize / batch endpoints write to the in-memory audit log; view via `GET /admin/audit/eligibility`.
-
-### Gotchas
-- **Static file paths**: `frontend/index.html` uses `/static/` prefixed paths. FastAPI mounts the `frontend/` directory at `/static`. If the HTML is served at `/patient/{id}`, relative paths won't resolve — always use `/static/styles.css` and `/static/app.js`.
-- **Test suite is `backend/tests/` (pytest)** — covers the eligibility evaluator, parsers, and a 50-case validation fixture set. Run with `cd backend && python3 -m pytest tests/ -q`.
-- **CI runs that suite in 4 shards**, one per runner, because a single job outgrew its timeout (see `.github/workflows/tests.yml`). To reproduce one shard exactly as CI ran it: `cd backend && python3 -m pytest -q $(python3 scripts/ci_shard.py <n> 4)`. Sharding is deterministic and total — `tests/test_ci_sharding.py` asserts every test file lands in exactly one shard, so a new test file cannot silently drop out of CI. Adding a test file needs no config change; if the shards drift out of balance, refresh the weights with `python3 -m pytest tests/ -q --durations=0 | python3 scripts/ci_shard.py --measure`.
-- **No `python` binary**: Use `python3` (not `python`) to run commands.
-- **pip installs to user dir**: `pip install` installs to `~/.local/bin`. Ensure `$HOME/.local/bin` is on `PATH`, or use `python3 -m uvicorn` instead of `uvicorn` directly.
-- **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
-- **CORS for the deployed landing**: the backend allowlists origins from `ALLOWED_ORIGINS` (or `BASE_URL`+`LANDING_URL`), plus a baked-in regex for `https://archangelhealth.ai` and its subdomains (`ALLOWED_ORIGIN_REGEX` to override — see `backend/http_security.py`). If sign-in from a new landing domain fails with a "Cannot reach the backend API" error, add that origin to `ALLOWED_ORIGINS` on the backend host (Railway).
-
-### Claude Code healthcare plugins
-`.claude/settings.json` enables two Agent Skills from Anthropic's [`anthropics/healthcare`](https://github.com/anthropics/healthcare) marketplace for everyone working on this repo in Claude Code (you'll be prompted to trust/install them on first launch):
-- **`fhir-developer@healthcare`** — FHIR R4 reference (resource structures, LOINC/SNOMED/RxNorm coding, SMART-on-FHIR auth) for EHR interop work.
-- **`prior-auth-review@healthcare`** — Anthropic's demo payer-review skill; use its waypoint/rubric architecture as the reference pattern for TEAM eligibility review and clinical-necessity workflows.
-
-These are **dev-time references only** — they are not wired into the product runtime and must not be put in any PHI path (the server-side Skills API is not HIPAA-eligible). The marketplace also offers ICD-10, CMS Coverage, NPI Registry, and PubMed MCP connectors that can be enabled by adding entries to `enabledPlugins`.
-
-### Key endpoints
-| Endpoint | Method | Description |
+| Plane | Where | What it is |
 |---|---|---|
-| `/patient/{id}` | GET | Patient dashboard (HTML) |
-| `/api/patient/{id}/config` | GET | Dashboard config JSON |
-| `/api/patient/{id}/battlecard` | GET | Battlecard HTML |
-| `/api/patient/{id}/audio` | GET | Voice audio URL |
-| `/api/digital-care-companion/chat` | POST | AI chat (requires `ANTHROPIC_API_KEY`) |
-| `/api/process-patient` | POST | Full EHR pipeline |
-| `/api/auth/register` | POST | Landing: create account (email, password, optional name) |
-| `/api/auth/login` | POST | Landing: sign in (email, password) |
-| `/api/auth/me` | GET | Landing: current user (Bearer token) |
-| `/api/eligibility-draft-patient` | POST | Allocate a draft patient before file upload (TEAM) |
-| `/api/eligibility-documents` | POST/DELETE | Upload / remove eligibility documents |
-| `/api/eligibility-checks` | POST | Start a parse → extract → evaluate pipeline |
-| `/api/eligibility-checks/{id}/stream` | GET | SSE progress (status / result / error) |
-| `/api/eligibility-checks/{id}/override` | POST | Audited verdict override |
-| `/api/eligibility-checks/{id}/finalize` | POST | `SAVE_AS_TEAM` / `SAVE_AS_STANDARD` |
-| `/api/eligibility-batches` | POST | Group upload with identity fan-out |
-| `/api/eligibility-batches/{id}/stream` | GET | SSE for batch progress |
-| `/admin/audit/eligibility` | GET | TEAM audit log viewer |
-| `/docs` | GET | Swagger UI |
+| **Product** | `backend/asclepius/` (~52k lines), `routers/asclepius*.py`, `frontend/asclepius/` | The eval portal. Own SQLite DB, own auth, never touches the clinical RBAC. Case generation, rubrics, paired review, packaging, export, payments, credentialing. |
+| **Doctors** | `backend/community/`, `frontend/` community pages | The physician community that supplies annotators — feed, digests, events, newsletter. |
+| **Next products** | `backend/gold/`, `backend/asclepius/environments/` | Gold Standard conversation capture, and V5 clinical RL environments. |
 
-## Salvaged and archived code
+Supporting and live: `ai/` (LLM client), `audit/` (ePHI access log), `compliance/`,
+`integrations/stt/`, `field_crypto.py`, `auth.py`, `http_security.py`,
+`ratelimit.py`, `email_utils.py`, `onboarding_emails.py`, `token_revocation.py`.
 
-The peri-op product is being retired. Everything deleted in that cleanup is
-recoverable in full from the **`claude/legacy-periop-archive`** branch (a local
-tag `legacy-periop-final` marks the same commit; the tag could not be pushed
-because the remote only accepts `claude/*` refs).
+## Landmines — verified by tracing, not guessed
 
-Two things were salvaged forward rather than left in the archive:
+1. **`/api/auth/*` in `main.py` is LIVE.** `landing/src/lib/auth-api.ts` calls
+   `/api/auth/login` and `/api/auth/register`. Those handlers consult
+   **`team_store.py` (4,783 lines)** for the tenant-SSO redirect and email
+   verification. It looks legacy; it is load-bearing for every signup.
+   **`team_store.py` and `tenant_utils.py` stay** — candidates for a 3-function
+   shim, not deletion.
+2. **`routers/tenant_portal.py` is LIVE.** It serves
+   `POST /api/tenant/{slug}/auth/login`, which the landing app calls from three
+   places, and `main.py`'s login *redirects users to the page that calls it*.
+   Deleting it breaks every health-system sign-in.
+3. **`scripts/ci_shard.py` is wired into CI** (`.github/workflows/tests.yml`) and
+   `tests/test_ci_sharding.py` asserts its TOTAL property. Deleting it kills CI.
+   When you delete a test file, remove its `WEIGHTS` entry — fix the map, never
+   the test.
+4. **`frontend/doctor-sign-in.html` redirects to `/doctor/app`** on all four of
+   its success paths, and that route opens `frontend/doctor.html` with **no
+   existence guard**. Deleting `doctor.html` 500s the live asclepius handoff.
 
-- `backend/asclepius/clinical_flags.py` — lab / medication / ICD-10 flag
-  derivation lifted out of `triage/`. Product-agnostic clinical knowledge, plain
-  dicts in, flag set out. Not wired into the case pipeline.
-- The **X12 270/271 eligibility parser** was NOT copied forward. It lives at
-  `backend/eligibility/parse_x12.py` on the archive branch. Future payer-data
-  work should start there rather than re-deriving it.
+## Protected scripts — all five are wired in
+
+| Script | Why it lives |
+|---|---|
+| `ci_shard.py` | CI depends on it (landmine 3). |
+| `email_preview.py` | Renders the LIVE `onboarding_emails`. |
+| `purge_community.py` | Enforces "production community starts EMPTY"; twin of `community/store.py::purge_generated_content`. |
+| `smoke_multimodal.py` | The only live-LLM test of case generation. |
+| `asclepius_contributor_admin.py` | Merges duplicate SSO accounts on the live DB. |
+
+## The retirement
+
+The peri-op product is being removed in phases. Its remaining surface —
+intake interviews, process-discharge/pre-op, escalations, pre-op surveys, the
+patient dashboard, avatar chat, plus the triage-config and prompt endpoints in
+`routers/admin.py` and all of `routers/internal.py` — is registered **only while
+`ARCHANGEL_LEGACY_PERIOP=1`** (the default). See `backend/legacy_flag.py`.
+
+- Flag **on**: the route table is byte-identical, in the same order. Shipping is
+  a no-op.
+- Flag **off**: 72 routes are withheld and requests 404 exactly as they will once
+  the code is deleted.
+
+**Nothing further gets deleted until the flag has been off in production for a
+week with clean access logs.** A 404 on a gated path is a live consumer that
+tracing missed — tracing finds every caller that is written down, not the cron
+job on someone's laptop or the partner integration. Still awaiting deletion
+behind that week: `triage/`, `pipeline/`, `eligibility/`, most of `prompts/`, the
+gated route bodies in `main.py`, `frontend/{doctor,index}.html`, `app.js`,
+`postop.js`.
+
+**`prompts/` does not come out in one piece.** `prompts/registry.py` is a hub:
+`ai/llm_client.py:238` imports it for LLM audit telemetry, and it in turn imports
+`pipeline.*` and `triage.intraop.extractor_llm` at module level — so deleting
+those two packages breaks `ai/`, which is live. `gold/` needs `prompts/gold.py`.
+Trim `registry.py` down to `.gold` + `asclepius.prompts` FIRST, then delete
+`prompts/{diagnosis,treatment,preop,postop,avatar,system}.py`; keep `gold.py` and
+the trimmed registry. `prompts/eligibility.py` goes with `eligibility/`.
+
+**Everything already deleted is recoverable in full from the
+`claude/legacy-periop-archive` branch.** Notably the X12 270/271 eligibility
+parser (`backend/eligibility/parse_x12.py`) — start there for future payer work
+rather than re-deriving it.
+
+Clinical knowledge worth keeping was salvaged forward into
+`backend/asclepius/clinical_flags.py`: lab / medication / ICD-10 flag derivation,
+plain dicts in, flag set out. Not wired into the case pipeline.
+
+## Before you delete anything
+
+```bash
+cd backend
+python3 -c "from main import app"                     # boots
+python3 -m pytest tests/ -q                            # full suite — not a subset
+python3 scripts/ci_shard.py 1 4                        # sharding still total
+```
+
+Then check for **dangling imports of what you removed** — a module that imports
+a deleted one from inside a *function body* fails only when that line runs, and
+neither an import-time check nor a route diff will see it:
+
+```bash
+python3 scripts/check_dangling_imports.py triage pipeline    # exits non-zero on hits
+```
+
+That script exists because exactly this escaped once: `eligibility/pipeline.py`
+imported `UPLOAD_DIR` from a router being deleted, at two function-local call
+sites, and only the full suite caught it.
+
+**A subset of the suite cannot see reverse dependencies or repo-wide invariant
+tests. Run the whole thing.**
