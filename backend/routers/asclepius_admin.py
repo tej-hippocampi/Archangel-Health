@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from onboarding_emails import build_asclepius_invite_email
 
@@ -1918,6 +1918,37 @@ class AllocateBody(BaseModel):
     # no timeout is a queue that wedges the moment somebody goes on holiday.
     exclusive_hours: Optional[int] = Field(None, ge=1, le=720)
 
+    # ═══ PRD CASE-BATCHES §2.4 — explicit targeting ═══════════════════════════
+    # The allocator picks physicians algorithmically, which is right when the
+    # question is "spread this fairly". It has no answer for "send these three to
+    # Dr. Faheem", which is the question the Batches screen asks. These three
+    # fields are that answer, and they are mutually exclusive by validation rather
+    # than by convention.
+    #
+    # ``user_ids``  — the admin's list IS the allocation; ``allocate()`` is bypassed.
+    # ``specialty`` — resolved to approved doctors of that specialty AT SEND TIME,
+    #                 so a doctor approved this morning is included tonight.
+    # ``to_all``    — no assignments at all: the cases are flipped to
+    #                 distribution='open' and enter the ordinary queue. For a
+    #                 longitudinal walk this is a deliberate un-sealing, and the UI
+    #                 says so before the admin commits.
+    user_ids: Optional[List[str]] = None
+    specialty: Optional[str] = None
+    to_all: bool = False
+
+    @model_validator(mode="after")
+    def _one_targeting_mode(self):
+        chosen = [n for n, v in (("user_ids", self.user_ids),
+                                 ("specialty", self.specialty),
+                                 ("to_all", self.to_all)) if v]
+        if len(chosen) > 1:
+            raise ValueError(
+                f"choose ONE targeting mode, got {chosen}. They mean different "
+                f"things — a specialty send resolves its roster at send time, an "
+                f"explicit list does not, and to_all writes no assignments at all — "
+                f"so combining them would silently pick one.")
+        return self
+
 
 def _allocation_inputs(store: Any, task_ids: List[str]):
     """Build the allocator's pure inputs from the store.
@@ -1975,6 +2006,155 @@ def _allocation_inputs(store: Any, task_ids: List[str]):
     return cases, physicians, domain
 
 
+# ═══ PRD CASE-BATCHES §2 — the Batches surface ═══════════════════════════════
+@router.get("/batches")
+async def admin_batches(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """The three case classes, counted. Level 1 of the Batches screen.
+
+    The classes are not a new taxonomy — they are a grouping over discriminators
+    every task row already carries (``trajectory_id``, ``case_source``), so nothing
+    here can disagree with what the queue thinks a case is.
+    """
+    return _store().batch_overview()
+
+
+@router.get("/batches/{batch}")
+async def admin_batch_cases(
+    batch: str, trajectory_id: Optional[str] = Query(None),
+    limit: int = Query(500, ge=1, le=2000),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The case rows inside one batch, with routing status resolved per row."""
+    try:
+        rows = _store().batch_cases(batch=batch, trajectory_id=trajectory_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"batch": batch, "cases": rows, "count": len(rows)}
+
+
+@router.get("/batches/preview/{task_id}")
+async def admin_batch_preview(
+    task_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """What the doctor will see — built by the doctor's own payload function.
+
+    §2.3. The load-bearing decision is that this calls ``_blind_task``, the exact
+    function the serve path calls, rather than assembling its own view of the case.
+    A preview that reimplemented the payload would be a SECOND definition of "what
+    a physician may see", and the first time the two drifted the admin screen would
+    show a future the portal correctly hides — which is not a cosmetic difference.
+    A screenshot of encounter 6 pasted into a Slack thread leaks the answer to
+    decision 5 exactly as thoroughly as serving it would, and just as permanently.
+
+    For a longitudinal point the truncation is already baked into the stored case
+    (``build_encounter_case`` writes the visible window, not the whole chart), so
+    reusing the serve payload inherits it for free. A test asserts the preview
+    carries no offset past the decision point, because "inherits it for free" is
+    the kind of claim that stops being true after an innocent refactor.
+    """
+    from routers.asclepius import _blind_task
+
+    store = _store()
+    task = store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    out = {
+        "task": _blind_task(task),
+        "prompt": task.get("prompt"),
+        "eyebrow": "PREVIEW — read-only · exactly what the physician sees at labeling",
+        "trajectory_id": task.get("trajectory_id"),
+        "sequence_index": task.get("sequence_index"),
+        "distribution": task.get("distribution") or "open",
+    }
+    if task.get("trajectory_id"):
+        pts = store.trajectory_points(task["trajectory_id"])
+        out["trajectory"] = {
+            "n_points": len(pts),
+            "position": (task.get("sequence_index") or 0) + 1,
+        }
+    return out
+
+
+# ═══ PRD CASE-BATCHES §2.4 — resolving "who" ═════════════════════════════════
+def _resolve_send_targets(store: Any, body: "AllocateBody") -> Optional[List[Dict[str, Any]]]:
+    """The doctors an explicit send names, or ``None`` to let the allocator decide.
+
+    ``to_all`` never reaches here — see the caller. Sending to everyone writes no
+    assignment rows at all: it flips the cases to the open queue, where "everyone
+    eligible" is already what the queue means. Manufacturing an assignment per
+    doctor would be a second, worse spelling of the same fact, and would put
+    hundreds of rows in a table whose purpose is to record who was singled out.
+    """
+    if not (body.user_ids or body.specialty):
+        return None
+
+    if body.user_ids:
+        found = {u["id"]: u for u in (store.get_user_by_id(uid) for uid in body.user_ids) if u}
+        missing = [uid for uid in body.user_ids if uid not in found]
+        if missing:
+            raise HTTPException(status_code=404, detail={
+                "error": "unknown_user_ids", "user_ids": missing})
+        people = [found[uid] for uid in body.user_ids]
+    else:
+        want = (body.specialty or "").strip().lower()
+        people = [u for u in _physician_users(store)
+                  if (u.get("specialty") or "").strip().lower() == want]
+        if not people:
+            raise HTTPException(status_code=400, detail={
+                "error": "no_doctors_in_specialty",
+                "message": f"No physician accounts are filed under {want!r}.",
+                "specialty": want})
+
+    # The V4 wall is not negotiable from here. An admin naming a doctor explicitly
+    # is still not permission to show them real patient data — ``real_data_approved``
+    # is the gate, and it is checked at the draw too, so an assignment written past
+    # it would be an unservable row that looks like a routing bug. Refuse at send.
+    blocked = [u for u in people if not u.get("real_data_approved")]
+    if blocked:
+        raise HTTPException(status_code=400, detail={
+            "error": "not_approved_for_real_data",
+            "message": ("These accounts are not approved for real de-identified "
+                        "cases, so an assignment to them could never be served."),
+            "user_ids": [u["id"] for u in blocked],
+            "emails": [u.get("email") for u in blocked]})
+    return people
+
+
+def _explicit_proposal(cases: List[Dict[str, Any]], people: List[Dict[str, Any]],
+                       body: "AllocateBody") -> Any:
+    """The admin's list, in the shape ``allocate()`` returns, so one commit path
+    and one response shape serve both modes.
+
+    ``labels_per_case`` still applies and is NOT silently ignored: three doctors at
+    ``labels_per_case=2`` means the first two of them to open it get it, which the
+    confirm dialog states in those words. Modelling it as an assignment to all
+    three is correct — an assignment is a priority, and capacity is enforced at the
+    draw by ``routing`` — so nobody is promised work that has already been taken.
+    """
+    from asclepius import allocation as asc_allocation
+
+    assignments = [{"task_id": c.task_id, "user_id": u["id"], "role": "label",
+                    "reason": "named by admin"}
+                   for c in cases for u in people]
+    # Same nested shape ``allocate()`` produces ({label, review, total} per user),
+    # because the admin screen and the response contract read one of these without
+    # knowing which mode produced it.
+    per_physician: Dict[str, Dict[str, int]] = {}
+    for a in assignments:
+        c = per_physician.setdefault(a["user_id"], {"label": 0, "review": 0, "total": 0})
+        c["label"] += 1
+        c["total"] += 1
+    notes = []
+    if len(people) > body.labels_per_case:
+        notes.append(
+            f"{len(people)} doctors named for {body.labels_per_case} label(s) per "
+            f"case: whoever opens a case first takes it, and the rest see it drop "
+            f"out of their queue.")
+    return asc_allocation.Proposal(
+        assignments=assignments, unassigned=[], per_physician=per_physician,
+        notes=notes)
+
+
 @router.post("/assignments/allocate")
 async def admin_allocate(
     body: AllocateBody, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
@@ -1996,18 +2176,72 @@ async def admin_allocate(
     if not body.task_ids:
         raise HTTPException(status_code=400, detail="task_ids is required.")
     store = _store()
+
+    # ═══ PRD CASE-BATCHES §2.2 — the implied-predecessor rule ════════════════
+    # Sending point 5 of a chart walk without points 0–4 STRANDS it. The sequence
+    # gate refuses to serve 5 to a physician who has not completed the earlier
+    # points, so the assignment lands in their queue permanently unservable — and
+    # it reads to everyone as the product being broken rather than as a mis-click
+    # in admin.
+    #
+    # The server re-derives the required set rather than trusting the payload's.
+    # That is this branch's standing rule about ordering (the client contains no
+    # sequence logic, and a test asserts it), and the reason it applies here too is
+    # that the Batches screen is a client like any other: a stale tab, a replayed
+    # request or a hand-rolled curl would otherwise write assignments that can
+    # never be served. Refused BEFORE anything is written, naming the points, so an
+    # admin can fix the selection rather than guess.
+    gaps = store.missing_trajectory_predecessors(body.task_ids)
+    if gaps:
+        raise HTTPException(status_code=400, detail={
+            "error": "missing_trajectory_predecessors",
+            "message": ("A chart walk must be sent from its first unanswered point "
+                        "onward. These selections are missing earlier points, which "
+                        "the sequence gate would refuse to serve."),
+            "missing": {tid: [e["sequence_index"] for e in gap]
+                        for tid, gap in gaps.items()},
+            "add_task_ids": sorted({e["task_id"] for gap in gaps.values() for e in gap}),
+        })
+
     cases, physicians, domain = _allocation_inputs(store, body.task_ids)
     if not cases:
         raise HTTPException(status_code=404, detail="None of those task ids exist.")
 
-    proposal = asc_allocation.allocate(
-        cases, physicians,
-        labels_per_case=body.labels_per_case,
-        reviewers_per_case=body.reviewers_per_case,
-        max_share=body.max_share,
-    )
+    # ═══ PRD CASE-BATCHES §2.4 — three ways to choose who ════════════════════
+    # Three modes, and the third is not a variant of the other two. "No targeting"
+    # and "target everyone" are opposite instructions that would otherwise share a
+    # branch: the first means "allocator, you pick", the second means "nobody is
+    # picked, open the queue". Collapsing them ran the allocator on a send-to-all
+    # and wrote the assignment rows it exists to avoid.
+    targeted = None
+    if body.to_all:
+        proposal = asc_allocation.Proposal(
+            assignments=[], unassigned=[], per_physician={},
+            notes=["Sent to all: these cases enter the open queue and any eligible "
+                   "physician may draw them. No assignments are written."])
+    else:
+        targeted = _resolve_send_targets(store, body)
+        if targeted is None:
+            # No explicit targeting: the allocator proposes, exactly as before.
+            proposal = asc_allocation.allocate(
+                cases, physicians,
+                labels_per_case=body.labels_per_case,
+                reviewers_per_case=body.reviewers_per_case,
+                max_share=body.max_share,
+            )
+        else:
+            proposal = _explicit_proposal(cases, targeted, body)
 
     committed = []
+    # What SEND does to visibility, which is separate from what it does to
+    # priority. Sending to specific people or a specialty makes the cases
+    # assigned_only — they are now those doctors' work and nobody else's. Sending
+    # to All does the opposite and deliberately: the cases become 'open' and enter
+    # the ordinary queue, which for a longitudinal walk is an un-sealing the UI
+    # warns about before the admin commits. Computed here, applied below only on a
+    # real commit, so ``dry_run`` can report it without doing it.
+    flip_to = ("open" if body.to_all else
+               ("assigned_only" if targeted is not None else None))
     if not body.dry_run:
         expires_at = None
         if body.exclusive_hours:
@@ -2021,16 +2255,25 @@ async def admin_allocate(
                 exclusive=bool(body.exclusive_hours), expires_at=expires_at,
             )
             committed.append(row["assignment_id"])
+        if flip_to:
+            store.set_task_distribution([c.task_id for c in cases], flip_to)
         store.log_event(
             entity_type="assignment", event_type="assignments_committed",
             actor=admin["email"],
             payload={"n": len(committed), "cases": len(cases), "domain": domain,
                      "labels_per_case": body.labels_per_case,
-                     "reviewers_per_case": body.reviewers_per_case},
+                     "reviewers_per_case": body.reviewers_per_case,
+                     "targeting": ("all" if body.to_all else
+                                   "specialty" if body.specialty else
+                                   "explicit" if body.user_ids else "allocator"),
+                     "distribution": flip_to},
         )
 
     return {
         "dry_run": bool(body.dry_run),
+        "targeting": ("all" if body.to_all else "specialty" if body.specialty
+                      else "explicit" if body.user_ids else "allocator"),
+        "distribution": flip_to,
         "domain": domain,
         "cases": len(cases),
         "physicians_considered": len(physicians),

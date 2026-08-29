@@ -32,7 +32,7 @@ from datetime import datetime, timedelta, timezone
 # Pure policy module (imports no store, no FastAPI) — safe at module scope, and
 # needed here because the sequence gate's SQL is built from its vocabulary.
 from asclepius import trajectory as _asc_trajectory
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from passlib.context import CryptContext
 
@@ -4563,6 +4563,187 @@ class AsclepiusStore:
                 "WHERE submission_id = ?",
                 (json.dumps(score) if score else None, _utcnow_iso(), submission_id),
             )
+
+    # ═══ PRD CASE-BATCHES §2 — the three classes, and routing them ═══════════
+    def batch_overview(self) -> Dict[str, Any]:
+        """Per-class counts for the admin Batches cards. THREE queries, not N+1.
+
+        The three classes are discriminated by columns that already exist on every
+        task row, so this is a grouping rather than a new taxonomy:
+
+          longitudinal  — ``trajectory_id IS NOT NULL``, grouped by walk
+          real_static   — ``case_source='real_deid'`` with no trajectory
+          synthetic     — everything else
+
+        "Routed" means at least one live assignment. It is computed in SQL beside
+        the counts rather than by looping the walks in Python, because an admin
+        with forty promoted charts would otherwise pay forty round trips to render
+        one screen.
+        """
+        live = "a.status IN ('offered','claimed')"
+        with self._conn() as conn:
+            walks = [dict(r) for r in conn.execute(f"""
+                SELECT t.trajectory_id,
+                       COUNT(*)                                   AS n_points,
+                       MIN(t.specialty)                           AS specialty,
+                       SUM(CASE WHEN EXISTS (
+                             SELECT 1 FROM assignments a
+                              WHERE a.task_id = t.task_id AND a.role = 'label'
+                                AND {live}) THEN 1 ELSE 0 END)    AS n_routed,
+                       SUM(CASE WHEN COALESCE(t.distribution,'open') = 'open'
+                                THEN 1 ELSE 0 END)                AS n_open,
+                       SUM(CASE WHEN EXISTS (
+                             SELECT 1 FROM submissions s
+                              WHERE s.task_id = t.task_id) THEN 1 ELSE 0 END)
+                                                                  AS n_labeled
+                  FROM tasks t
+                 WHERE t.trajectory_id IS NOT NULL
+              GROUP BY t.trajectory_id
+              ORDER BY MIN(t.created_at) ASC
+            """).fetchall()]
+            static = dict(conn.execute("""
+                SELECT COUNT(*) AS n,
+                       SUM(CASE WHEN COALESCE(distribution,'open') = 'open'
+                                THEN 1 ELSE 0 END) AS n_open
+                  FROM tasks
+                 WHERE case_source = 'real_deid' AND trajectory_id IS NULL
+                   AND status = 'open'
+            """).fetchone())
+            synth = dict(conn.execute("""
+                SELECT COUNT(*) AS n,
+                       SUM(CASE WHEN COALESCE(distribution,'open') = 'open'
+                                THEN 1 ELSE 0 END) AS n_open
+                  FROM tasks
+                 WHERE (case_source IS NULL OR case_source != 'real_deid')
+                   AND trajectory_id IS NULL AND status = 'open'
+            """).fetchone())
+        for w in walks:
+            w["n_unrouted"] = int(w["n_points"] or 0) - int(w["n_routed"] or 0)
+        return {
+            "longitudinal": {
+                "trajectories": walks,
+                "n_trajectories": len(walks),
+                "n_points": sum(int(w["n_points"] or 0) for w in walks),
+                "n_unrouted": sum(int(w["n_unrouted"] or 0) for w in walks),
+            },
+            "real_static": {"n_cases": int(static.get("n") or 0),
+                            "n_open": int(static.get("n_open") or 0)},
+            "synthetic": {"n_cases": int(synth.get("n") or 0),
+                          "n_open": int(synth.get("n_open") or 0)},
+        }
+
+    def batch_cases(self, *, batch: str, trajectory_id: Optional[str] = None,
+                    limit: int = 500) -> List[Dict[str, Any]]:
+        """The case rows inside one batch, with routing status resolved in SQL.
+
+        One query. The per-row facts an admin needs — is it routed, to whom, how
+        many labels does it carry — are correlated subqueries in the SELECT rather
+        than a loop over ``assignments_for_task``, which on a 13-point walk is
+        thirteen extra round trips to draw one table.
+        """
+        live = "a.status IN ('offered','claimed')"
+        cols = f"""
+            t.task_id, t.specialty, t.difficulty, t.status, t.max_labels,
+            t.trajectory_id, t.sequence_index, COALESCE(t.distribution,'open') AS distribution,
+            t.case_source, t.created_at,
+            (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS label_count,
+            (SELECT GROUP_CONCAT(u.email, ', ') FROM assignments a
+               JOIN users u ON u.id = a.user_id
+              WHERE a.task_id = t.task_id AND a.role = 'label' AND {live}) AS assigned_to
+        """
+        if batch == "longitudinal":
+            where = "t.trajectory_id IS NOT NULL"
+            params: List[Any] = []
+            if trajectory_id:
+                where += " AND t.trajectory_id = ?"
+                params.append(trajectory_id)
+            order = "t.trajectory_id ASC, t.sequence_index ASC"
+        elif batch == "real_static":
+            where, params = ("t.case_source = 'real_deid' AND t.trajectory_id IS NULL "
+                             "AND t.status = 'open'"), []
+            order = "t.created_at ASC"
+        elif batch == "synthetic":
+            where, params = ("(t.case_source IS NULL OR t.case_source != 'real_deid') "
+                             "AND t.trajectory_id IS NULL AND t.status = 'open'"), []
+            order = "t.created_at ASC"
+        else:
+            raise ValueError(f"unknown batch {batch!r}")
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT {cols} FROM tasks t WHERE {where} ORDER BY {order} LIMIT ?",
+                tuple(params + [int(limit)]),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_task_distribution(self, task_ids: Sequence[str], distribution: str) -> int:
+        """Flip who a set of tasks may be served to. Returns the rows changed.
+
+        Validated against the same vocabulary ``insert_task`` uses, for the same
+        reason: an unrecognised value fails closed and silently, hiding the task
+        from every queue rather than raising.
+        """
+        dist = (distribution or "").strip().lower()
+        if dist not in _PRD_CB_DISTRIBUTIONS:
+            raise ValueError(
+                f"distribution must be one of {_PRD_CB_DISTRIBUTIONS}, got {distribution!r}")
+        ids = [t for t in (task_ids or []) if t]
+        if not ids:
+            return 0
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"UPDATE tasks SET distribution = ? WHERE task_id IN "
+                f"({','.join('?' for _ in ids)})", tuple([dist] + list(ids)))
+            return int(cur.rowcount or 0)
+
+    def missing_trajectory_predecessors(
+        self, task_ids: Sequence[str]
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """``{selected_task_id: [earlier points not in the selection]}``.
+
+        The server half of §2.2's implied-predecessor rule. Sending point 5 of a
+        walk without points 0–4 strands it: the sequence gate refuses to serve 5 to
+        a physician who has not completed the earlier points, so the assignment
+        would sit in their queue permanently unservable and look like a bug in the
+        product rather than a mis-click in admin.
+
+        This RE-DERIVES the set rather than trusting the client's, which is the
+        branch's own standing rule about ordering — the client contains no sequence
+        logic and a test asserts it. Retired points are excluded, matching the gate:
+        a point nobody can answer is not a predecessor anybody must be sent.
+        """
+        ids = [t for t in (task_ids or []) if t]
+        if not ids:
+            return {}
+        marks = ",".join("?" for _ in ids)
+        retired = ",".join(f"'{r}'" for r in _asc_trajectory.RETIRED_STATUSES)
+        with self._conn() as conn:
+            selected = [dict(r) for r in conn.execute(
+                f"SELECT task_id, trajectory_id, sequence_index FROM tasks "
+                f"WHERE task_id IN ({marks}) AND trajectory_id IS NOT NULL",
+                tuple(ids)).fetchall()]
+            if not selected:
+                return {}
+            walks = sorted({r["trajectory_id"] for r in selected})
+            wmarks = ",".join("?" for _ in walks)
+            everything = [dict(r) for r in conn.execute(
+                f"SELECT task_id, trajectory_id, sequence_index FROM tasks "
+                f"WHERE trajectory_id IN ({wmarks}) "
+                f"  AND COALESCE(status,'') NOT IN ({retired})",
+                tuple(walks)).fetchall()]
+        chosen = set(ids)
+        out: Dict[str, List[Dict[str, Any]]] = {}
+        for row in selected:
+            idx = row.get("sequence_index")
+            if idx is None:
+                continue
+            gap = [e for e in everything
+                   if e["trajectory_id"] == row["trajectory_id"]
+                   and e["sequence_index"] is not None
+                   and e["sequence_index"] < idx
+                   and e["task_id"] not in chosen]
+            if gap:
+                out[row["task_id"]] = sorted(gap, key=lambda e: e["sequence_index"])
+        return out
 
     def trajectory_verification_points(
         self, *, trajectory_id: Optional[str] = None
