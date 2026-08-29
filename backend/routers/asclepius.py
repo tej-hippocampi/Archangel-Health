@@ -6005,6 +6005,10 @@ async def _generate_one_real_case(
     # byte-for-byte as before.
     trajectory_id: Optional[str] = None,
     sequence_index: Optional[int] = None,
+    # PRD CASE-BATCHES §1 — passed straight through to ``insert_task``. None means
+    # "inherit the column default", which is 'open' and is what every ordinary V4
+    # batch wants; the trajectory batch passes 'assigned_only'.
+    distribution: Optional[str] = None,
 ) -> Dict[str, Any]:
     """One proposed case → a gated, fully-tagged V4 task. Returns a result dict;
     never raises for a per-case failure, so one bad encounter cannot fail a batch.
@@ -6177,6 +6181,7 @@ async def _generate_one_real_case(
         # Launch-week fan-out (V4 PRD §4): VISIBILITY only, never max_labels.
         open_to_all_specialties=bool(open_to_all_specialties),
         trajectory_id=trajectory_id, sequence_index=sequence_index,
+        distribution=distribution,
     )
     store.log_event(entity_type="ingest_case", entity_id=ic["ingest_case_id"],
                     event_type="real_case_generated", actor=admin["id"],
@@ -6333,7 +6338,19 @@ async def generate_real_cases(
                 independent_mode=body.independent_mode,
                 open_to_all_specialties=body.open_to_all_specialties,
                 trajectory_id=trajectory_id if trajectory_mode else None,
-                sequence_index=seq if trajectory_mode else None)
+                sequence_index=seq if trajectory_mode else None,
+                # PRD CASE-BATCHES §1 — a promoted trajectory point is NOT released
+                # to the open queue. Without this, promoting a walk puts all 13
+                # points into every approved doctor's queue the moment the rows
+                # land, and the first physician to hit "Start new case" is handed
+                # decision point 0 of a chart nobody chose to send them.
+                #
+                # 'assigned_only' with zero assignments is INVISIBLE to doctors, and
+                # that is the correct resting state for a promoted walk, not a bug:
+                # admin sees it in Batches with an "unrouted" chip and decides who
+                # walks it. Exactly one path makes a longitudinal case visible to a
+                # physician, and it is an admin pressing Send.
+                distribution=("assigned_only" if trajectory_mode else None))
         except Exception as exc:  # pragma: no cover - per-case isolation
             log.warning("real-case generation failed for %s encounter %s: %s",
                         ingest_case_id, p.get("encounter_index"), exc)

@@ -359,11 +359,28 @@ def test_a_physician_walks_the_generated_chart_in_order_and_cannot_read_ahead():
     doc = _approved_physician(store)
     dh = A.headers_for(doc)
 
-    # The dashboard offers exactly one point: the first.
-    cards = [t for t in client.get("/api/asclepius/tasks/available?portal_version=v4",
-                                   headers=dh).json()["tasks"]
-             if t.get("trajectory_id") == gen["trajectory_id"]]
-    assert [c["sequence_index"] for c in cards] == [0]
+    def _cards():
+        return [t for t in client.get("/api/asclepius/tasks/available?portal_version=v4",
+                                      headers=dh).json()["tasks"]
+                if t.get("trajectory_id") == gen["trajectory_id"]]
+
+    # PRD CASE-BATCHES §1 — a promoted walk is NOT in anybody's queue yet. It was
+    # written 'assigned_only', so before an admin routes it the physician sees
+    # nothing at all, which is the whole point of the column: promoting a chart and
+    # releasing it to doctors are two decisions, and only the second is an admin
+    # pressing Send.
+    assert _cards() == [], "a promoted-but-unrouted walk must be invisible"
+    assert all((store.get_task(pt["task_id"]) or {}).get("distribution") == "assigned_only"
+               for pt in points)
+
+    # Route it. From here the walk behaves exactly as it did before the column
+    # existed — the gate, the 409 and the reveal are all unchanged.
+    for pt in points:
+        store.upsert_assignment(task_id=pt["task_id"], user_id=doc["id"],
+                                role="label", assigned_by="u-admin")
+
+    # NOW the dashboard offers exactly one point: the first.
+    assert [c["sequence_index"] for c in _cards()] == [0]
 
     # The last point is refused by id, and the payload of the first carries no future.
     assert client.get(f"/api/asclepius/tasks/{points[-1]['task_id']}",

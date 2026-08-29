@@ -251,6 +251,36 @@ _PRD_ASSIGN_MINE = (
 _PRD_R_PRIORITY_ORDER = (
     f"ORDER BY {_PRD_ASSIGN_MINE} DESC, {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
 )
+
+# ═══ PRD CASE-BATCHES §1 — the distribution gate ═════════════════════════════
+# An 'assigned_only' task is servable ONLY to someone it was actually routed to.
+#
+# Note what this is NOT: it is not a second copy of the assignment concept. The
+# ORDER BY above uses the SAME ``_PRD_ASSIGN_MINE`` clause to decide RANK; this
+# uses it to decide VISIBILITY. One definition of "assigned to me", asked two
+# different questions, so a change to what an assignment means cannot leave the
+# sort and the filter disagreeing.
+#
+# And note the interaction with that sort, because it is the whole design: an
+# 'open' task assigned to you sorts first and is still visible to everyone else —
+# an assignment is a priority, not a permission (the store's own words). Flipping
+# a task to 'assigned_only' is what turns the same assignment into a permission.
+# Two orthogonal switches, which is why longitudinal work can be routed to one
+# physician without being hidden from the others, or hidden from everyone until
+# routed, depending on what the admin actually chose.
+#
+# COALESCE, not a bare comparison: the column is NOT NULL with a backfill today,
+# but a row inserted by an older binary mid-deploy would read NULL, and a NULL
+# here must mean "open" (the pre-column behaviour) rather than silently vanishing
+# from every queue.
+_PRD_CB_DISTRIBUTION = (
+    f"(COALESCE(t.distribution, 'open') = 'open' OR {_PRD_ASSIGN_MINE})"
+)
+#: The only two legal values. ``insert_task`` refuses anything else, because an
+#: unrecognised value fails CLOSED here — the predicate above compares against the
+#: exact string 'open', so a typo would hide the task from every queue in silence.
+_PRD_CB_DISTRIBUTIONS = ("open", "assigned_only")
+# ═══ END PRD CASE-BATCHES ═════════════════════════════════════════════════════
 # ═══ END PRD-R ═══════════════════════════════════════════════════════════════
 
 
@@ -1703,6 +1733,34 @@ class AsclepiusStore:
             # task is later deleted still says why it was excluded.
             if "kappa_excluded_reason" not in cols("agreement"):
                 conn.execute("ALTER TABLE agreement ADD COLUMN kappa_excluded_reason TEXT")
+            # ═══ PRD CASE-BATCHES §1 — who a task may be served to ═══
+            # 'open'          — today's behaviour: any eligible doctor's queue.
+            # 'assigned_only' — served ONLY through an assignment row. Absent from
+            #                   an unassigned doctor's queue, list and count alike.
+            #
+            # This one takes a DEFAULT where the trajectory columns above refuse
+            # one, and the difference is not a style inconsistency. There, a
+            # default would have INVENTED a fact (back-stamping forty thousand
+            # ordinary tasks as "step 1 of something"). Here the backfill IS the
+            # decision, and it is the true one: every task that exists today is
+            # served from the open queue, so 'open' restates what is already the
+            # case rather than asserting anything new about those rows. NOT NULL
+            # because a third state ("nobody decided") has no meaning — a task is
+            # either drawable by anyone eligible or it is not.
+            #
+            # WHY THIS COLUMN EXISTS AT ALL: without it, merging the longitudinal
+            # branch puts every promoted trajectory point into every approved
+            # doctor's open queue on deploy. Not a hypothetical — the points are
+            # ordinary rows with an extra id, and the queue has no notion of "not
+            # yet released". The resting state for a promoted-but-unrouted walk is
+            # INVISIBLE, and that is this column.
+            if "distribution" not in cols("tasks"):
+                conn.execute("ALTER TABLE tasks ADD COLUMN distribution TEXT "
+                             "NOT NULL DEFAULT 'open'")
+            # The servable predicate below filters on it on every draw.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_distribution "
+                         "ON tasks(distribution)")
+            # ═══ END PRD CASE-BATCHES ═══
             # ═══ END PRD-2 ═══
             # The advisor tier is retired: advisors are ordinary users now.
             # Remaining rows migrate to reviewer (advisor was a strict superset
@@ -4161,6 +4219,14 @@ class AsclepiusStore:
         # neither and gets NULLs, which is what an ordinary V1–V4 task is.
         trajectory_id: Optional[str] = None,
         sequence_index: Optional[int] = None,
+        # PRD CASE-BATCHES §1 — who this task may be served to. Defaults to the
+        # column's own default ('open'), so every existing V1–V4 creation path is
+        # untouched and inherits today's behaviour by passing nothing. A caller
+        # that wants a task withheld from the open queue until an admin routes it
+        # says so explicitly; it is never derived from trajectory_id, because
+        # "is part of a walk" and "is not released yet" are different facts and a
+        # future single-point send would need to set one without the other.
+        distribution: Optional[str] = None,
     ) -> Dict[str, Any]:
         from asclepius.constants import normalize_independent_mode
 
@@ -4170,6 +4236,15 @@ class AsclepiusStore:
         # walk. The sequence gate reads both, so an inconsistent pair would either
         # block a task forever or wave an out-of-order one through. Fail loudly at
         # the write rather than silently at the draw.
+        # An unknown distribution is a caller bug that would otherwise fail OPEN:
+        # COALESCE in the servable predicate treats anything that is not the exact
+        # string 'open' as... not open, so a typo would silently hide the task from
+        # every queue instead of raising. Refuse it at the write.
+        dist = (distribution or "open").strip().lower()
+        if dist not in _PRD_CB_DISTRIBUTIONS:
+            raise ValueError(
+                f"distribution must be one of {_PRD_CB_DISTRIBUTIONS}, got {distribution!r}"
+            )
         if (trajectory_id is None) != (sequence_index is None):
             raise ValueError(
                 "trajectory_id and sequence_index must be set together: a "
@@ -4235,8 +4310,8 @@ class AsclepiusStore:
                    buyer_request_id, generation_json, value_tier, modality, case_json,
                    case_source, empirical_difficulty, difficulty_measured,
                    open_to_all_specialties, trajectory_id, sequence_index,
-                   status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   distribution, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -4260,6 +4335,7 @@ class AsclepiusStore:
                     1 if open_to_all_specialties else 0,
                     trajectory_id,
                     sequence_index,
+                    dist,
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -4562,6 +4638,12 @@ class AsclepiusStore:
             # sort above otherwise serves a physician the outcomes of decisions
             # they have not made yet.
             _PRD_2_SEQUENCE_GATE,
+            # PRD CASE-BATCHES §1 — an 'assigned_only' task reaches only the people
+            # it was routed to. Placed in the WHERE, so it removes the task from the
+            # dashboard COUNT and the list as well as the draw; a doctor told "3
+            # cases available" who can draw two of them is the product knowing
+            # something and not saying it.
+            _PRD_CB_DISTRIBUTION,
             # An exact NECESSARY condition for remaining capacity: no policy can
             # raise a task's effective capacity above max(max_labels, 2). The
             # exact test still runs in Python, against ``routing`` — one policy,
@@ -4569,9 +4651,14 @@ class AsclepiusStore:
             # window entirely.
             f"{_PRD_R_LABEL_COUNT} < MAX(COALESCE(t.max_labels, 1), 2)",
         ]
-        # One entry per ``?`` above, in clause order: the independence NOT EXISTS,
-        # then the sequence gate's.
-        params: List[Any] = [evaluator_id, evaluator_id]
+        # One entry per ``?`` above, IN CLAUSE ORDER: the independence NOT EXISTS,
+        # the sequence gate's, then the distribution gate's assigned-to-me EXISTS.
+        # SQLite numbers "?" by position across the whole statement, so this list
+        # and the clause list above are one data structure in two halves — adding a
+        # clause without adding its parameter here binds every later value to the
+        # wrong slot, and nothing raises. ``test_asclepius_queue_placeholders``
+        # exists to fail when they drift.
+        params: List[Any] = [evaluator_id, evaluator_id, evaluator_id]
         if specialty:
             # Launch-week fan-out (V4 PRD §4). ``open_to_all_specialties`` widens
             # VISIBILITY and nothing else: the task appears in this labeler's queue
@@ -7316,10 +7403,15 @@ class AsclepiusStore:
             # forward, and out-of-order serving breaks the seal for them
             # identically.
             _PRD_2_SEQUENCE_GATE,
+            # PRD CASE-BATCHES §1 — the distribution gate applies to the second
+            # draw too. A second label is still a doctor being served a case, so an
+            # 'assigned_only' task must not arrive here by a side door; the whole
+            # point of the column is that there is exactly one way in.
+            _PRD_CB_DISTRIBUTION,
         ]
-        # One entry per ``?`` above, in clause order: the independence NOT EXISTS,
-        # then the sequence gate's.
-        params: List[Any] = [user_id, user_id]
+        # One entry per ``?`` above, IN CLAUSE ORDER: the independence NOT EXISTS,
+        # the sequence gate's, then the distribution gate's assigned-to-me EXISTS.
+        params: List[Any] = [user_id, user_id, user_id]
         if specialty:
             clauses.append("t.specialty = ?")
             params.append(specialty)
