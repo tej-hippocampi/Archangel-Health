@@ -16,6 +16,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from ratelimit import rate_limiter
+from legacy_flag import legacy_route
 from demo_credentials import list_demo_credentials
 from tenant_constants import DEMO_HEALTH_SYSTEM_ID
 from email_utils import is_email_transport_configured, send_html_email
@@ -270,7 +271,7 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2))
 
 
-@router.get("/preop-prompts")
+@legacy_route(router.get("/preop-prompts"))
 async def admin_get_preop_prompts(authorization: Optional[str] = Header(None)):
     _verify_token(authorization)
     from prompts.registry import PROMPT_REGISTRY
@@ -288,7 +289,7 @@ async def admin_get_preop_prompts(authorization: Optional[str] = Header(None)):
     return out
 
 
-@router.patch("/preop-prompts/{prompt_id}")
+@legacy_route(router.patch("/preop-prompts/{prompt_id}"))
 async def admin_update_preop_prompt(
     prompt_id: str,
     body: PromptUpdateRequest,
@@ -476,7 +477,7 @@ async def admin_list_health_systems(
 
 # ─── Triage Logic ────────────────────────────────────────────────────────────
 
-@router.get("/triage/initial-tier/config")
+@legacy_route(router.get("/triage/initial-tier/config"))
 async def admin_get_initial_tier_config(authorization: Optional[str] = Header(None)):
     """Return the read-only tuning snapshot for the Pre-Op Initial Tier algorithm.
 
@@ -488,7 +489,7 @@ async def admin_get_initial_tier_config(authorization: Optional[str] = Header(No
     return get_config()
 
 
-@router.get("/triage/preop-retier/config")
+@legacy_route(router.get("/triage/preop-retier/config"))
 async def admin_get_preop_retier_config(authorization: Optional[str] = Header(None)):
     """Return the read-only tuning snapshot for the Pre-Op Re-Tier algorithm.
 
@@ -501,7 +502,7 @@ async def admin_get_preop_retier_config(authorization: Optional[str] = Header(No
     return get_config()
 
 
-@router.get("/triage/intraop/config")
+@legacy_route(router.get("/triage/intraop/config"))
 async def admin_get_intraop_config(authorization: Optional[str] = Header(None)):
     """Return the read-only tuning snapshot for the Intra-Op Reassessment.
 
@@ -514,7 +515,7 @@ async def admin_get_intraop_config(authorization: Optional[str] = Header(None)):
     return get_config()
 
 
-@router.get("/triage/postop/config")
+@legacy_route(router.get("/triage/postop/config"))
 async def admin_get_postop_config(authorization: Optional[str] = Header(None)):
     """Return the read-only tuning snapshot for the Post-Op Scoring &
     Re-Tiering algorithm.
@@ -657,7 +658,7 @@ async def ai_calls_admin(
     return {"calls": calls}
 
 
-@router.get("/ai-calls/prompts")
+@legacy_route(router.get("/ai-calls/prompts"))
 async def ai_call_prompts_admin(authorization: Optional[str] = Header(None)):
     _verify_token(authorization)
     from prompts.registry import PROMPT_REGISTRY, prompt_meta

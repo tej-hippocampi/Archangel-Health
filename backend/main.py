@@ -166,6 +166,15 @@ app = FastAPI(
     version="0.2.0",
 )
 
+
+# ─── Legacy peri-op surface (PRD §5) ─────────────────────────────────────────
+# The peri-op product — intake interviews, process-discharge/pre-op, escalations,
+# pre-op surveys, the patient dashboard and its audio/battlecard/chat endpoints —
+# is being retired. Its routes are registered ONLY while ARCHANGEL_LEGACY_PERIOP
+# is on (the default), so shipping this is a no-op and flipping it off is a full
+# rehearsal of the deletion. See legacy_flag.py for the rollout this serves.
+from legacy_flag import LEGACY_PERIOP, legacy_route as _legacy  # noqa: E402,F401
+
 # Audit middleware added FIRST so it is the innermost layer: it runs with the
 # patient-session ContextVar set and records ePHI access after the route (PRD-5).
 from audit.middleware import AuditMiddleware  # noqa: E402
@@ -2564,7 +2573,7 @@ async def patient_logout(request: Request, response: Response):
 
 
 @app.get("/recovery", response_class=HTMLResponse)
-@app.get("/care-plan", response_class=HTMLResponse)
+@_legacy(app.get("/care-plan", response_class=HTMLResponse))
 async def patient_code_entry(hs: Optional[str] = None):
     """Self-contained patient code-entry page. Used as the entry point when the
     landing app isn't configured (LANDING_URL unset) so patient SMS/email links
@@ -2805,7 +2814,7 @@ async def doctor_portal_legacy_path(request: Request):
     return RedirectResponse(url="/doctor/sign-in", status_code=307)
 
 
-@app.get("/dev", response_class=HTMLResponse)
+@_legacy(app.get("/dev", response_class=HTMLResponse))
 async def dev_login_shortcut():
     """Local-dev one-click sign-in. Gated on EMAIL_DEV_MODE so it never ships
     to prod. Auto-creates the dev doctor on first hit, issues a JWT, drops it
@@ -2877,7 +2886,7 @@ def _first_failing_rule_label(verdicts: Optional[Dict[str, Any]]) -> Optional[st
     return None
 
 
-@app.get("/api/patients")
+@_legacy(app.get("/api/patients"))
 async def list_patients(
     request: Request,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -2996,7 +3005,7 @@ async def list_patients(
     return {"patients": patients}
 
 
-@app.get("/api/patient/{patient_id}/discharge-materials")
+@_legacy(app.get("/api/patient/{patient_id}/discharge-materials"))
 async def get_discharge_materials(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -3012,7 +3021,7 @@ async def get_discharge_materials(
     }
 
 
-@app.post("/api/patient/{patient_id}/events")
+@_legacy(app.post("/api/patient/{patient_id}/events"))
 async def track_patient_event(
     patient_id: str,
     body: EventTrackRequest,
@@ -3044,7 +3053,7 @@ async def track_patient_event(
     return {"ok": True}
 
 
-@app.patch("/api/patient/{patient_id}/pcp-referral")
+@_legacy(app.patch("/api/patient/{patient_id}/pcp-referral"))
 async def update_pcp_referral(
     patient_id: str,
     body: PCPReferralUpdateRequest,
@@ -3075,7 +3084,7 @@ async def demo_sign_in_routes():
     return demo_credentials.sign_in_routes(cedar_email=DEMO_DOCTOR_EMAIL)
 
 
-@app.patch("/api/patient/{patient_id}")
+@_legacy(app.patch("/api/patient/{patient_id}"))
 async def update_patient_details(
     patient_id: str,
     body: PatientUpdateRequest,
@@ -3183,7 +3192,7 @@ async def update_patient_details(
     }
 
 
-@app.get("/api/patient/{patient_id}/timeline")
+@_legacy(app.get("/api/patient/{patient_id}/timeline"))
 async def get_patient_timeline(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -3268,7 +3277,7 @@ async def get_patient_timeline(
     }
 
 
-@app.get("/api/escalations")
+@_legacy(app.get("/api/escalations"))
 async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_context_optional)):
     staff = _require_clinical_staff(staff)
     rows = _team_store.list_escalations()
@@ -3321,7 +3330,7 @@ async def list_escalations(staff: Optional[StaffContext] = Depends(get_staff_con
     return body
 
 
-@app.patch("/api/escalations/{escalation_id}/resolved")
+@_legacy(app.patch("/api/escalations/{escalation_id}/resolved"))
 async def set_escalation_resolved(
     escalation_id: int,
     body: EscalationResolveRequest,
@@ -3335,7 +3344,7 @@ async def set_escalation_resolved(
     return {"ok": True, "resolved": body.resolved}
 
 
-@app.get("/api/escalations/{escalation_id}/triage-timeline")
+@_legacy(app.get("/api/escalations/{escalation_id}/triage-timeline"))
 async def get_triage_timeline(
     escalation_id: int,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -3538,7 +3547,7 @@ async def get_triage_timeline(
     }
 
 
-@app.post("/api/escalations/{escalation_id}/intervention")
+@_legacy(app.post("/api/escalations/{escalation_id}/intervention"))
 async def send_intervention(
     escalation_id: int,
     body: EscalationInterventionRequest,
@@ -3570,7 +3579,7 @@ async def send_intervention(
     return result
 
 
-@app.post("/api/escalations/consent")
+@_legacy(app.post("/api/escalations/consent"))
 async def submit_escalation_consent(body: EscalationConsentRequest):
     esc = _team_store.get_escalation(body.escalation_id)
     if not esc:
@@ -3582,7 +3591,7 @@ async def submit_escalation_consent(body: EscalationConsentRequest):
     return {"ok": True}
 
 
-@app.get("/survey", response_class=HTMLResponse)
+@_legacy(app.get("/survey", response_class=HTMLResponse))
 async def survey_page(clinic_code: str, resource_code: str, day: int):
     if day not in (7, 14, 30):
         raise HTTPException(status_code=400, detail="Day must be 7, 14, or 30")
@@ -3655,7 +3664,7 @@ async def survey_page(clinic_code: str, resource_code: str, day: int):
     return HTMLResponse(content=html)
 
 
-@app.post("/api/survey/submit", dependencies=[Depends(rate_limiter("survey_submit", 30, 60))])
+@_legacy(app.post("/api/survey/submit", dependencies=[Depends(rate_limiter("survey_submit", 30, 60))]))
 async def submit_survey(body: SurveySubmitRequest):
     day = int(body.day)
     if day not in (7, 14, 30):
@@ -3750,7 +3759,7 @@ def _build_preop_window_detail(patient_id: str, window: str) -> Dict[str, Any]:
     }
 
 
-@app.get("/api/preop-survey/questions")
+@_legacy(app.get("/api/preop-survey/questions"))
 async def get_preop_survey_questions(window: str, patient_id: Optional[str] = None):
     w = (window or "").lower()
     sd: Dict[str, Any] = {}
@@ -3769,7 +3778,7 @@ async def get_preop_survey_questions(window: str, patient_id: Optional[str] = No
     }
 
 
-@app.post("/api/preop-survey/submit", dependencies=[Depends(rate_limiter("preop_survey_submit", 30, 60))])
+@_legacy(app.post("/api/preop-survey/submit", dependencies=[Depends(rate_limiter("preop_survey_submit", 30, 60))]))
 async def submit_preop_survey(body: PreOpSurveySubmitBody):
     w = (body.window or "").lower()
     if w not in WINDOW_SURVEY_DAY:
@@ -3841,7 +3850,7 @@ async def submit_preop_survey(body: PreOpSurveySubmitBody):
     }
 
 
-@app.get("/api/patients/{patient_id}/preop-window/{window}")
+@_legacy(app.get("/api/patients/{patient_id}/preop-window/{window}"))
 async def get_preop_window_detail(
     patient_id: str,
     window: str,
@@ -3856,7 +3865,7 @@ async def get_preop_window_detail(
     return _build_preop_window_detail(patient_id, window)
 
 
-@app.post("/api/patients/{patient_id}/preop-window/{window}/action")
+@_legacy(app.post("/api/patients/{patient_id}/preop-window/{window}/action"))
 async def preop_window_action(
     patient_id: str,
     window: str,
@@ -3906,7 +3915,7 @@ async def preop_window_action(
     raise HTTPException(status_code=400, detail="Unknown action")
 
 
-@app.get("/api/doctor/patient/{patient_id}/survey/{day}")
+@_legacy(app.get("/api/doctor/patient/{patient_id}/survey/{day}"))
 async def get_doctor_survey(
     patient_id: str,
     day: int,
@@ -3953,7 +3962,7 @@ async def get_doctor_survey(
     }
 
 
-@app.get("/doctor/patient/{patient_id}", response_class=HTMLResponse)
+@_legacy(app.get("/doctor/patient/{patient_id}", response_class=HTMLResponse))
 async def doctor_patient_view(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -4020,7 +4029,7 @@ async def doctor_patient_view(
 # ─── PDF Upload ───────────────────────────────────────────────
 from fastapi import File, UploadFile, Form
 
-@app.post("/api/upload-pdf")
+@_legacy(app.post("/api/upload-pdf"))
 async def upload_pdf(file: UploadFile = File(...)):
     """Extract text from an uploaded PDF discharge document."""
     try:
@@ -4044,7 +4053,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 
 # ─── Send to Patient ──────────────────────────────────────────
-@app.post("/api/send-to-patient/{patient_id}")
+@_legacy(app.post("/api/send-to-patient/{patient_id}"))
 async def send_to_patient(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -4135,7 +4144,7 @@ async def send_to_patient(
     return {"patient_id": patient_id, "dashboard_url": dashboard_url, **results}
 
 
-@app.get("/internal/email-template-preview", response_class=HTMLResponse, include_in_schema=False)
+@_legacy(app.get("/internal/email-template-preview", response_class=HTMLResponse, include_in_schema=False))
 async def email_template_preview(
     first_name: str = "Tej",
     clinic_code: str = "TG85PQXR",
@@ -4183,7 +4192,7 @@ async def _sse(gen):
         yield f"data: {json.dumps(err)}\n\n"
 
 
-@app.post("/api/process-discharge")
+@_legacy(app.post("/api/process-discharge"))
 async def process_discharge(
     input_data: DischargeInput,
     user: Optional[UserOut] = Depends(get_current_user_optional),
@@ -4248,7 +4257,7 @@ async def process_discharge(
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(exc)}")
 
 
-@app.post("/api/process-preop")
+@_legacy(app.post("/api/process-preop"))
 async def process_preop(
     input_data: PreOpInput,
     user: Optional[UserOut] = Depends(get_current_user_optional),
@@ -4309,7 +4318,7 @@ async def process_preop(
         raise HTTPException(status_code=500, detail=f"Pre-op pipeline failed: {exc}")
 
 
-@app.post("/api/process-discharge/stream")
+@_legacy(app.post("/api/process-discharge/stream"))
 async def process_discharge_stream(
     input_data: DischargeInput,
     user: Optional[UserOut] = Depends(get_current_user_optional),
@@ -4368,7 +4377,7 @@ async def process_discharge_stream(
     )
 
 
-@app.post("/api/process-preop/stream")
+@_legacy(app.post("/api/process-preop/stream"))
 async def process_preop_stream(
     input_data: PreOpInput,
     user: Optional[UserOut] = Depends(get_current_user_optional),
@@ -4429,7 +4438,7 @@ async def process_preop_stream(
 
 
 # ─── Legacy Process Patient ───────────────────────────────────
-@app.post("/api/process-patient", response_model=ProcessResponse)
+@_legacy(app.post("/api/process-patient", response_model=ProcessResponse))
 async def process_patient(
     bundle: EHRBundle,
     background_tasks: BackgroundTasks,
@@ -4570,7 +4579,7 @@ async def process_patient(
 
 
 # ─── Resource Endpoints ───────────────────────────────────────
-@app.get("/api/patient/{patient_id}/resources")
+@_legacy(app.get("/api/patient/{patient_id}/resources"))
 async def get_patient_resources(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -4660,7 +4669,7 @@ async def _ensure_preop_voice_audio(
     return audio_url
 
 
-@app.get("/api/patient/{patient_id}/preop-audio")
+@_legacy(app.get("/api/patient/{patient_id}/preop-audio"))
 async def get_preop_audio(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -4682,7 +4691,7 @@ async def get_preop_audio(
     return {"audio_url": audio_url}
 
 
-@app.get("/api/patient/{patient_id}/audio")
+@_legacy(app.get("/api/patient/{patient_id}/audio"))
 async def get_patient_audio(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -4720,7 +4729,7 @@ async def get_patient_audio(
     return {"audio_url": audio_url}
 
 
-@app.get("/api/patient/{patient_id}/battlecard")
+@_legacy(app.get("/api/patient/{patient_id}/battlecard"))
 async def get_battlecard(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -4731,7 +4740,7 @@ async def get_battlecard(
     return {"html": _patient_store[patient_id]["battlecard_html"]}
 
 
-@app.get("/api/patient/{patient_id}/config")
+@_legacy(app.get("/api/patient/{patient_id}/config"))
 async def get_dashboard_config(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -4754,7 +4763,7 @@ async def get_dashboard_config(
     }
 
 
-@app.get("/api/patient/{patient_id}/discharge")
+@_legacy(app.get("/api/patient/{patient_id}/discharge"))
 async def get_discharge_instructions(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -4769,8 +4778,8 @@ async def get_discharge_instructions(
     }
 
 
-@app.get("/patient/{patient_id}/digital-care-companion", response_class=HTMLResponse)
-@app.get("/patient/{patient_id}/voice", response_class=HTMLResponse)
+@_legacy(app.get("/patient/{patient_id}/digital-care-companion", response_class=HTMLResponse))
+@_legacy(app.get("/patient/{patient_id}/voice", response_class=HTMLResponse))
 async def digital_care_companion_page(
     patient_id: str,
     request: Request,
@@ -4799,7 +4808,7 @@ async def digital_care_companion_page(
     return HTMLResponse(content=html)
 
 
-@app.get("/patient/{patient_id}/pre-op", response_class=HTMLResponse)
+@_legacy(app.get("/patient/{patient_id}/pre-op", response_class=HTMLResponse))
 async def pre_op_page(
     patient_id: str,
     request: Request,
@@ -4829,7 +4838,7 @@ async def pre_op_page(
     return HTMLResponse(content=html)
 
 
-@app.get("/patient/{patient_id}", response_class=HTMLResponse)
+@_legacy(app.get("/patient/{patient_id}", response_class=HTMLResponse))
 async def patient_dashboard(
     patient_id: str,
     request: Request,
@@ -4897,8 +4906,8 @@ async def patient_dashboard(
     return HTMLResponse(content=html)
 
 
-@app.post("/api/digital-care-companion/chat", response_model=ChatResponse)
-@app.post("/api/avatar/chat", response_model=ChatResponse)
+@_legacy(app.post("/api/digital-care-companion/chat", response_model=ChatResponse))
+@_legacy(app.post("/api/avatar/chat", response_model=ChatResponse))
 async def digital_care_companion_chat(
     req: ChatRequest,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5009,7 +5018,7 @@ def _resolve_notif_doctor_id(
     return doctor_id
 
 
-@app.post("/api/intake-forms/start-interview")
+@_legacy(app.post("/api/intake-forms/start-interview"))
 async def intake_forms_start_interview(
     body: IntakeFormsStartInterviewBody,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5102,7 +5111,7 @@ def _all_interview_messages_for_flags(interview_state: Dict[str, Any]) -> List[D
     return out
 
 
-@app.post("/api/intake-forms/{intake_form_id}/interview/section-message")
+@_legacy(app.post("/api/intake-forms/{intake_form_id}/interview/section-message"))
 async def intake_forms_interview_section_message(
     intake_form_id: str,
     body: IntakeSectionMessageBody,
@@ -5208,7 +5217,7 @@ async def intake_forms_interview_section_message(
     }
 
 
-@app.post("/api/intake-forms/{intake_form_id}/interview/complete-section")
+@_legacy(app.post("/api/intake-forms/{intake_form_id}/interview/complete-section"))
 async def intake_forms_interview_complete_section(
     intake_form_id: str,
     body: IntakeCompleteSectionBody,
@@ -5347,7 +5356,7 @@ async def intake_forms_interview_complete_section(
     return {"ok": True, "interviewState": istate, "formData": form_data}
 
 
-@app.post("/api/intake-forms/{intake_form_id}/interview/reset-section")
+@_legacy(app.post("/api/intake-forms/{intake_form_id}/interview/reset-section"))
 async def intake_forms_interview_reset_section(
     intake_form_id: str,
     body: IntakeResetSectionBody,
@@ -5397,7 +5406,7 @@ async def intake_forms_interview_reset_section(
     return {"ok": True, "interviewState": istate, "formData": form_data}
 
 
-@app.post("/api/intake-forms/{intake_form_id}/complete-interview")
+@_legacy(app.post("/api/intake-forms/{intake_form_id}/complete-interview"))
 async def intake_forms_complete_interview(
     intake_form_id: str,
     body: IntakeFormsCompleteInterviewBody,
@@ -5482,7 +5491,7 @@ async def intake_forms_complete_interview(
     }
 
 
-@app.get("/api/intake-forms/{intake_form_id}")
+@_legacy(app.get("/api/intake-forms/{intake_form_id}"))
 async def intake_forms_get(
     intake_form_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5502,7 +5511,7 @@ async def intake_forms_get(
     }
 
 
-@app.get("/api/intake-forms/latest/{patient_id}")
+@_legacy(app.get("/api/intake-forms/latest/{patient_id}"))
 async def intake_forms_latest_for_patient(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5514,7 +5523,7 @@ async def intake_forms_latest_for_patient(
     return {"patient_id": patient_id, "intake_form": _coalesce_intake_form_response(latest)}
 
 
-@app.patch("/api/intake-forms/{intake_form_id}")
+@_legacy(app.patch("/api/intake-forms/{intake_form_id}"))
 async def intake_forms_patch(
     intake_form_id: str,
     body: IntakeFormsPatchBody,
@@ -5583,7 +5592,7 @@ async def intake_forms_patch(
     return {"ok": True, "intakeFormId": intake_form_id, "status": status}
 
 
-@app.post("/api/intake-forms/{intake_form_id}/submit")
+@_legacy(app.post("/api/intake-forms/{intake_form_id}/submit"))
 async def intake_forms_submit(
     intake_form_id: str,
     body: IntakeFormsSubmitBody,
@@ -5611,7 +5620,7 @@ async def intake_forms_submit(
     return {"ok": True, "intakeFormId": intake_form_id, "status": "SUBMITTED"}
 
 
-@app.get("/api/intake-forms/{intake_form_id}/edit-history")
+@_legacy(app.get("/api/intake-forms/{intake_form_id}/edit-history"))
 async def intake_forms_edit_history(
     intake_form_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5626,7 +5635,7 @@ async def intake_forms_edit_history(
     return {"intakeFormId": intake_form_id, "edits": rows}
 
 
-@app.get("/api/doctors/{doctor_id}/notifications")
+@_legacy(app.get("/api/doctors/{doctor_id}/notifications"))
 async def intake_notifications_list(
     doctor_id: str,
     notif_type: Optional[str] = None,
@@ -5664,7 +5673,7 @@ async def intake_notifications_list(
     return {"doctorId": resolved_doctor_id, "notifications": rows}
 
 
-@app.patch("/api/doctors/{doctor_id}/notifications/{notif_id}/read")
+@_legacy(app.patch("/api/doctors/{doctor_id}/notifications/{notif_id}/read"))
 async def intake_notifications_mark_read(
     doctor_id: str,
     notif_id: str,
@@ -5683,7 +5692,7 @@ async def intake_notifications_mark_read(
     return {"ok": True}
 
 
-@app.post("/api/pre-op/intake/start")
+@_legacy(app.post("/api/pre-op/intake/start"))
 async def preop_intake_start(
     body: IntakeStartRequest,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5709,7 +5718,7 @@ async def preop_intake_start(
     }
 
 
-@app.post("/api/pre-op/intake/answer")
+@_legacy(app.post("/api/pre-op/intake/answer"))
 async def preop_intake_answer(
     body: IntakeAnswerRequest,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5753,7 +5762,7 @@ async def preop_intake_answer(
     }
 
 
-@app.post("/api/pre-op/intake/submit")
+@_legacy(app.post("/api/pre-op/intake/submit"))
 async def preop_intake_submit(
     body: IntakeSubmitRequest,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5912,7 +5921,7 @@ async def _wire_intake_to_pam_and_retier(
         pass
 
 
-@app.get("/api/doctor/patient/{patient_id}/latest-intake")
+@_legacy(app.get("/api/doctor/patient/{patient_id}/latest-intake"))
 async def doctor_latest_intake(
     patient_id: str,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -5928,7 +5937,7 @@ async def doctor_latest_intake(
     return {"patient_id": patient_id, "submission": submission, "intake_form": intake_form}
 
 
-@app.post("/api/pre-op/notify-care-team")
+@_legacy(app.post("/api/pre-op/notify-care-team"))
 async def preop_notify_care_team(
     body: CareTeamNotificationRequest,
     staff: Optional[StaffContext] = Depends(get_staff_context_optional),
@@ -6729,7 +6738,11 @@ async def _send_sms(
 
 
 # ─── Internal & Admin Tools ───────────────────────────────────
-app.include_router(internal_router)
+# The internal prompt lab. Every one of its six routes reaches into prompts/,
+# pipeline/ or integrations/elevenlabs — the packages Phase 5 deletes — so the
+# whole router is gated at its mount rather than endpoint by endpoint.
+if LEGACY_PERIOP:
+    app.include_router(internal_router)
 app.include_router(admin_router)
 app.include_router(onboarding_router)
 app.include_router(tenant_portal_router)
@@ -6775,7 +6788,7 @@ except Exception:  # pragma: no cover - defensive
     )
 
 
-@app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False)
+@_legacy(app.get("/internal/prompt-lab", response_class=HTMLResponse, include_in_schema=False))
 async def prompt_lab_page():
     with open(os.path.join(os.path.dirname(__file__), "../frontend/prompt-lab.html")) as f:
         return f.read()
