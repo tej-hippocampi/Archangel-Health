@@ -783,12 +783,34 @@
   var dimSegs = [];      // the four dimension segment wrappers, in order
   var strongerSeg = null;
 
-  function segmented(values, labels, onPick, datasetKey) {
-    var wrap = h('div', { class: 'asc-rv-seg' });
+  /* One of N, and the platform is told so.
+
+     These are RADIOGROUPS, not three loose buttons. That is not decoration: it
+     is what makes `aria-checked` meaningful, what makes the group one tab stop
+     instead of three, and what lets a screen reader say "Reasoning holds,
+     Agree, selected, 1 of 3" when the aim lands here. Built with buttons rather
+     than <input type=radio> because the visual control is a segmented bar and
+     the native widget cannot be styled into one — so every state the native
+     element would have carried has to be carried explicitly. */
+  function segmented(values, labels, onPick, datasetKey, opts) {
+    opts = opts || {};
+    var wrap = h('div', {
+      class: 'asc-rv-seg',
+      role: 'radiogroup',
+      // Absent when the caller has no label element; h() drops null attrs.
+      'aria-labelledby': opts.labelledBy || null,
+      'aria-label': opts.label || null,
+    });
     values.forEach(function (v, i) {
       var d = {}; d[datasetKey] = v;
       wrap.appendChild(h('button', {
         type: 'button', dataset: d,
+        role: 'radio',
+        'aria-checked': 'false',
+        // ROVING TABINDEX. Tab reaches the group once and lands on whatever is
+        // selected; the arrows move within it. Three tab stops per dimension
+        // would be twelve on this screen before the verdict.
+        tabindex: i === 0 ? '0' : '-1',
         onClick: function (ev) { pick(wrap, ev.currentTarget, v, onPick); },
       }, labels[i]));
     });
@@ -800,14 +822,42 @@
       if (hit) pick(wrap, hit, value, onPick);
       return !!hit;
     };
+    /* Put real DOM focus on this group — on its selected option, or its first.
+       This is the whole reason the aim is perceivable to anyone who cannot see
+       the highlight: focus is the one signal every assistive technology already
+       follows, so nothing has to be announced by hand. */
+    wrap._focus = function () {
+      var target = null;
+      Array.prototype.forEach.call(wrap.children, function (b) {
+        if (!target && b.getAttribute('aria-checked') === 'true') target = b;
+      });
+      if (!target) target = wrap.children[0];
+      if (target && typeof target.focus === 'function') {
+        try { target.focus(); } catch (e) { /* never block the reviewer */ }
+      }
+      return !!target;
+    };
     return wrap;
   }
   function pick(wrap, btn, value, onPick) {
-    Array.prototype.forEach.call(wrap.children, function (b) { b.classList.remove('is-on'); });
+    Array.prototype.forEach.call(wrap.children, function (b) {
+      b.classList.remove('is-on');
+      // The class is the paint; aria-checked is the fact. Both, always, or a
+      // screen reader reads a control that looks answered as unanswered.
+      b.setAttribute('aria-checked', 'false');
+      b.setAttribute('tabindex', '-1');
+    });
     btn.classList.add('is-on');
+    btn.setAttribute('aria-checked', 'true');
+    btn.setAttribute('tabindex', '0');
     onPick(value);
     refreshSubmit();
   }
+
+  // Ids for the label→group wiring. A counter rather than the dimension key so
+  // two mounts on one document can never collide.
+  var uidSeq = 0;
+  function nextId(prefix) { uidSeq += 1; return 'ascrv-' + prefix + '-' + uidSeq; }
 
   function strongerRow() {
     var choices = (ME && ME.strength_choices) || ['A', 'B', 'equivalent'];
@@ -817,6 +867,7 @@
     var labels = choices.map(function (c) {
       return c === 'equivalent' ? 'Neither (N)' : c;
     });
+    var labelId = nextId('stronger');
     strongerSeg = segmented(choices, labels, function (v) {
       R.stronger = v;
       // An edited accept follows the comparison. Changing the answer above
@@ -826,9 +877,9 @@
         R.acceptedSide = (v === 'A' || v === 'B') ? v : null;
       }
       saveJudgment();
-    }, 'state');
+    }, 'state', { labelledBy: labelId });
     return h('div', { class: 'asc-rv-dim' },
-      h('div', { class: 'asc-rv-dim-label' }, 'Which is stronger?',
+      h('div', { class: 'asc-rv-dim-label', id: labelId }, 'Which is stronger?',
         h('small', {}, 'the comparison a single-label review could not ask')),
       strongerSeg);
   }
@@ -841,17 +892,22 @@
       var labels = states.map(function (s) {
         return s === 'agree' ? 'Agree' : s === 'disagree' ? 'Disagree' : "Can't assess";
       });
+      var labelId = nextId('dim');
       var seg = segmented(states, labels, function (v) {
         R.dimensions[key] = v;
         saveJudgment();
-      }, 'state');
+      }, 'state', { labelledBy: labelId });
       dimSegs.push(seg);
       var row = h('div', {
         class: 'asc-rv-dim',
         dataset: { dimIdx: String(i) },
       },
-        h('div', { class: 'asc-rv-dim-label' },
-          h('span', { class: 'asc-rv-dim-key' }, String(i + 1)), ' ', label,
+        h('div', { class: 'asc-rv-dim-label', id: labelId },
+          // The digit is a sighted affordance for the 1-4 shortcut. Hidden from
+          // assistive tech on purpose: prefixing every announcement with "1"
+          // is noise, and the shortcut itself is documented in the Guide, which
+          // is where every other shortcut on this product lives.
+          h('span', { class: 'asc-rv-dim-key', 'aria-hidden': 'true' }, String(i + 1)), ' ', label,
           h('small', {}, hint)),
         seg);
       seg._row = row;
@@ -866,11 +922,12 @@
   function divergenceRows() {
     if (!DIVERGENCE || !DIVERGENCE.length) return null;
     var rows = DIVERGENCE.map(function (d) {
+      var labelId = nextId('fork');
       var seg = segmented(['A', 'B', 'neither'], ['A', 'B', 'Neither'], function (v) {
         d.judged = v;
-      }, 'fork');
+      }, 'fork', { labelledBy: labelId });
       return h('div', { class: 'asc-rv-dim asc-rv-fork-row', dataset: { forkIdx: String(d.index) } },
-        h('div', { class: 'asc-rv-dim-label' },
+        h('div', { class: 'asc-rv-dim-label', id: labelId },
           'Step ' + (d.index + 1) + ' — they diverge',
           h('small', {}, d.a === null ? 'only B took this step'
             : d.b === null ? 'only A took this step'
@@ -905,13 +962,21 @@
 
   var verdictWrap = null;
   function overallButtons(prefill) {
-    verdictWrap = h('div', { class: 'asc-rv-verdicts' }, OVERALL.map(function (d) {
+    // Four controls, exactly one of which can hold. Same radiogroup treatment as
+    // the rows above, for the same reason: `.is-on` is paint, and paint is not
+    // a state any assistive technology can read.
+    verdictWrap = h('div', {
+      class: 'asc-rv-verdicts', role: 'radiogroup', 'aria-label': 'Overall verdict',
+    }, OVERALL.map(function (d, i) {
       return h('button', {
         // The button's identity is the verdict plus the side it FIXES. A side of
         // 'stronger' is deferred to the control above, so it names no column
         // here and the key stays the bare verdict.
         type: 'button',
         dataset: { verdict: d[0] + ((d[1] === 'A' || d[1] === 'B') ? ':' + d[1] : '') },
+        role: 'radio',
+        'aria-checked': 'false',
+        tabindex: i === 0 ? '0' : '-1',
         onClick: function (ev) { chooseVerdict(ev.currentTarget, d, prefill); },
       },
         h('div', {}, h('b', {}, d[2])), h('small', { class: 'asc-rv-kv' }, d[3]));
@@ -956,8 +1021,14 @@
     R.acceptedSide = d[1] === 'stronger'
       ? ((R.stronger === 'A' || R.stronger === 'B') ? R.stronger : null)
       : d[1];
-    Array.prototype.forEach.call(verdictWrap.children, function (b) { b.classList.remove('is-on'); });
+    Array.prototype.forEach.call(verdictWrap.children, function (b) {
+      b.classList.remove('is-on');
+      b.setAttribute('aria-checked', 'false');
+      b.setAttribute('tabindex', '-1');
+    });
     btn.classList.add('is-on');
+    btn.setAttribute('aria-checked', 'true');
+    btn.setAttribute('tabindex', '0');
     var needs = R.verdict === 'accept_with_edits' || R.verdict === 'reject';
     correctionsBox.style.display = needs ? '' : 'none';
     if (R.verdict === 'accept_with_edits' && !editedArea.value && prefill) {
@@ -1105,6 +1176,16 @@
   // that eats the scroll key costs more than it saves.
   function ownsItsOwnEnter(el) {
     if (!el || !el.tagName) return false;
+    // A radio activates on SPACE, not Enter (that is the ARIA pattern, and it is
+    // what a native radio does). So Enter with the aim sitting on a judgment
+    // control means what Enter means everywhere else on this screen: submit.
+    //
+    // This matters BECAUSE the aim now moves focus. Without it the six-keystroke
+    // accept — A, four arrows, Enter — would end by re-selecting the radio the
+    // last arrow had already selected, and never submit.
+    if (typeof el.getAttribute === 'function' && el.getAttribute('role') === 'radio') {
+      return false;
+    }
     var tag = String(el.tagName).toUpperCase();
     return tag === 'BUTTON' || tag === 'SUMMARY' || tag === 'A' || tag === 'DETAILS';
   }
@@ -1114,13 +1195,32 @@
     return tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT'
       || el.isContentEditable === true;
   }
-  function aimDimension(i) {
+  /* Aim the 1-4 / arrow keys at a dimension.
+
+     ``moveFocus`` is the accessibility of this whole control. The aim used to be
+     a left-edge highlight and NOTHING else — perceivable if you can see it, and
+     completely silent otherwise. A reviewer on a screen reader pressed 3, heard
+     nothing, pressed the left arrow, and had no way to know which dimension they
+     had just answered.
+
+     Moving real DOM focus fixes that without inventing anything: focus is the
+     signal every assistive technology already follows, so the platform announces
+     the group's name, the selected option and its position for free. No live
+     region, no bespoke announcement to keep in sync with the visible state.
+
+     It is FALSE on the initial render — stealing focus on arrival is its own
+     accessibility problem, and would yank the viewport into the judgment panel
+     before the reviewer has read the pair. Only a deliberate keystroke moves it. */
+  function aimDimension(i, moveFocus) {
     var dims = (ME && ME.dimensions) || [];
     if (i < 0 || i >= dims.length) return;
     focusedDim = i;
     dimSegs.forEach(function (seg, j) {
       if (seg._row) seg._row.classList.toggle('asc-rv-dim-aimed', j === i);
     });
+    if (moveFocus && dimSegs[i] && typeof dimSegs[i]._focus === 'function') {
+      dimSegs[i]._focus();
+    }
   }
   function setAimedDimension(stateValue) {
     var seg = dimSegs[focusedDim];
@@ -1129,7 +1229,13 @@
     // Advance, so four arrow presses answer four dimensions. Stops at the last
     // one rather than wrapping: wrapping would silently overwrite dimension 1
     // on a fifth press.
-    if (focusedDim < dimSegs.length - 1) aimDimension(focusedDim + 1);
+    if (focusedDim < dimSegs.length - 1) {
+      aimDimension(focusedDim + 1, true);
+    } else if (seg._focus) {
+      // The last one still takes focus, so the answer just recorded is
+      // announced rather than swallowed.
+      seg._focus();
+    }
   }
   function onKeyDown(e) {
     if (!PAIR || !R) return;
@@ -1140,7 +1246,7 @@
     if (key === 'a' || key === 'A') { if (strongerSeg) strongerSeg._pick('A'); }
     else if (key === 'b' || key === 'B') { if (strongerSeg) strongerSeg._pick('B'); }
     else if (key === 'n' || key === 'N') { if (strongerSeg) strongerSeg._pick('equivalent'); }
-    else if (key >= '1' && key <= '4') { aimDimension(parseInt(key, 10) - 1); }
+    else if (key >= '1' && key <= '4') { aimDimension(parseInt(key, 10) - 1, true); }
     else if (key === 'ArrowLeft') { setAimedDimension('agree'); }
     else if (key === 'ArrowRight') { setAimedDimension('disagree'); }
     else if (key === 'c' || key === 'C') { setAimedDimension('cannot_assess'); }
