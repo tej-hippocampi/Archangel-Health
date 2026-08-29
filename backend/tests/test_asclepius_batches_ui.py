@@ -1,0 +1,191 @@
+"""The Batches admin surface — structural assertions on the shipped client.
+
+The rules worth pinning here are all rules about what this client must NOT do,
+which is exactly the class a DOM-free check can carry: you cannot observe "the
+future never reached the browser" without a browser, but you can observe that the
+code which would have put it there does not exist.
+
+Three of them matter.
+
+  1. **The client owns no sequence authority.** It computes the implied
+     predecessor set for DISPLAY — so an admin sees the real size of what they are
+     about to send — and the server re-derives it and refuses a payload that omits
+     any of it. That division is the whole design: a bug in this file costs an
+     error message, never a stranded assignment. So the client's arithmetic must
+     stay advisory, and the send must go through the endpoint that re-checks it.
+
+  2. **The preview must not reach past the served payload.** The endpoint returns
+     what ``_blind_task`` returns; the renderer must draw that and nothing else. A
+     renderer that fetched the parent chart to show admin "more context" would put
+     a physician's sealed future on an admin screen, and a screenshot in a Slack
+     thread leaks it exactly as permanently as serving it would.
+
+  3. **Send-to-all on a longitudinal batch says what it does.** It un-seals the
+     walk. That is a legitimate choice and it must be stated before the click,
+     not discovered after it.
+
+Every CSS class the new surface emits is also asserted to have a rule behind it,
+because a class with no style is invisible in review and invisible on screen.
+"""
+from __future__ import annotations
+
+import pathlib
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+_FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
+JS = (_FRONTEND / "asclepius.js").read_text()
+PHYS_JS = (_FRONTEND / "admin_physicians.js").read_text()
+CSS = "\n".join((_FRONTEND / f).read_text()
+                for f in ("asclepius.css", "admin.css", "_base.css", "_tokens.css"))
+
+
+def _fn(src: str, name: str) -> str:
+    """The body of one top-level function, by brace matching."""
+    start = src.index(f"function {name}(")
+    depth, i = 0, src.index("{", start)
+    for j in range(i, len(src)):
+        if src[j] == "{":
+            depth += 1
+        elif src[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return src[start:j + 1]
+    raise AssertionError(f"unterminated {name}")
+
+
+BATCHES = _fn(JS, "renderAdminBatches")
+PREVIEW_PANEL = _fn(JS, "renderCasePanelReadOnly")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# The surface exists and replaced the old one
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_subnav_says_batches_and_routes_to_the_batch_flow():
+    assert "['assign', 'Batches']" in JS
+    assert "renderAdminBatches(inner)" in JS
+
+
+def test_the_three_classes_are_the_ones_the_backend_groups_by():
+    for key in ("longitudinal", "real_static", "synthetic"):
+        assert f"{key}:" in JS.split("const BATCH_META")[1][:400], key
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 1. The client holds no sequence authority
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_send_goes_through_the_endpoint_that_re_derives_predecessors():
+    """If the client posted assignments directly, its own arithmetic would become
+    the authority and a bug here would write unservable rows."""
+    assert "'/admin/assignments/allocate'" in BATCHES
+    assert "upsert_assignment" not in BATCHES
+
+
+def test_the_implied_set_is_resolved_by_the_server_not_computed_here():
+    """The admin screen needs to say "+5 earlier points included" before the
+    commit, and the obvious implementation is a loop over sequence_index in this
+    file. It is not done that way, and the reason outlives this screen: a client
+    that knows how to order a walk is one somebody later trusts to enforce the
+    order, and the seal is then one hand-typed task id from being defeated.
+
+    ``test_the_client_never_enforces_the_sequence_itself`` scans the WHOLE shipped
+    file, so the doctor-facing invariant and this admin surface are held to one
+    standard — which is how it should be, and how it caught the first draft of
+    this screen."""
+    assert "resolveSelection" in BATCHES
+    assert "'/admin/batches/resolve-selection'" in BATCHES
+    assert "view.resolved.n_added" in BATCHES, "the count shown is the server's"
+    assert "required earlier point(s) included" in BATCHES
+
+
+def test_the_count_shown_and_the_set_sent_are_the_same_derivation():
+    """A screen that previewed "+5" and then posted a different set would be
+    lying at the only moment the operator can still object."""
+    assert "view.resolved && view.resolved.task_ids" in BATCHES
+
+
+def test_the_client_never_decides_whether_a_point_may_be_OPENED():
+    """The doctor-facing seal is untouched by this screen. A comparison that
+    gated opening would be a second, weaker copy of the server's gate."""
+    for forbidden in ("canOpen", "isServable", "unlocked", "mayOpen"):
+        assert forbidden not in BATCHES, forbidden
+
+
+def test_the_missing_predecessor_refusal_is_shown_with_its_points():
+    """The server names which points are missing. Rendering a bare 400 would make
+    the admin diff two lists by hand."""
+    assert "missing_trajectory_predecessors" in BATCHES
+    assert "d.missing" in BATCHES
+
+
+def test_the_v4_wall_refusal_is_surfaced_by_name():
+    assert "not_approved_for_real_data" in BATCHES
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 2. The preview draws the served payload and nothing else
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_preview_reads_only_the_task_it_was_given():
+    """The renderer's only source is ``task.case`` — the payload the endpoint
+    built with the doctor's own function. Any second fetch here would be a route
+    around the truncation."""
+    assert "task && task.case" in PREVIEW_PANEL
+    assert "api(" not in PREVIEW_PANEL, (
+        "the preview renderer must not fetch anything of its own — the payload "
+        "it is handed is the whole permitted view")
+    for leak in ("trajectory_points", "outcome", "held_out", "ground_truth",
+                 "reveal", "self_score"):
+        assert leak not in PREVIEW_PANEL, f"preview renderer reaches for {leak}"
+
+
+def test_the_preview_endpoint_is_the_admin_batch_one():
+    assert "'/admin/batches/preview/'" in BATCHES
+
+
+def test_the_preview_labels_itself_read_only_and_names_the_truncation():
+    assert "res.eyebrow" in BATCHES
+    assert "truncated here exactly as the physician sees it" in BATCHES
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 3. Send-to-all states what it does before the click
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_sending_a_walk_to_all_warns_that_it_un_seals_it():
+    assert "enter the open queue" in BATCHES
+    # Gated on BOTH conditions — the warning is false on a synthetic batch.
+    assert "view.mode === 'all' && view.batch === 'longitudinal'" in BATCHES
+
+
+def test_the_send_bar_only_exists_when_something_is_selected():
+    assert "if (!chosen.length) return;" in BATCHES
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §2.5 — one flow, entered from either end
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_physician_row_deep_links_into_batches_rather_than_sending():
+    """Routing from a physician's row must not become a second send path. It
+    pre-selects them in Batches and stops there."""
+    assert "openBatchesFor" in JS and "openBatchesFor" in PHYS_JS
+    assert "'Route cases'" in PHYS_JS
+    row = PHYS_JS[PHYS_JS.index("Route cases") - 600:PHYS_JS.index("Route cases") + 400]
+    assert "assignments/allocate" not in row, "the row must not send anything itself"
+    assert "approved && ctx.openBatchesFor" in PHYS_JS, (
+        "offered only for approved accounts — the V4 wall refuses the rest at "
+        "send, and a button that always fails is worse than no button")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Every class emitted has a rule behind it
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_every_new_class_has_a_style():
+    """A class with no rule is invisible in review and invisible on screen. The
+    repo has shipped two paint-only defects through a green suite; this is the
+    cheap half of preventing a third."""
+    emitted = set(re.findall(r"class: '([^']+)'", BATCHES + PREVIEW_PANEL))
+    names = {c for blob in emitted for c in blob.split() if c.startswith("asc-")}
+    missing = [c for c in sorted(names) if f".{c}" not in CSS]
+    assert not missing, f"classes with no CSS rule: {missing}"

@@ -2032,6 +2032,41 @@ async def admin_batch_cases(
     return {"batch": batch, "cases": rows, "count": len(rows)}
 
 
+class ResolveSelectionBody(BaseModel):
+    task_ids: List[str] = Field(default_factory=list)
+
+
+@router.post("/batches/resolve-selection")
+async def admin_resolve_selection(
+    body: ResolveSelectionBody, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Complete a selection with the earlier chart-walk points it implies.
+
+    This exists so the CLIENT NEVER COMPARES SEQUENCE INDICES. The admin screen
+    wants to tell an operator "3 selected, +5 earlier points included" before they
+    commit, and the obvious way to get that number is a loop over sequence_index
+    in JavaScript — which is precisely what this product does not allow anywhere,
+    for a reason that outlives this screen: a client that knows how to order a walk
+    is a client someone will later trust to enforce the order, and a test asserts
+    the shipped client contains no such comparison.
+
+    So the arithmetic stays server-side and the screen asks for the answer. One
+    cheap call on selection change, no ordering logic in the browser, and the same
+    function (``missing_trajectory_predecessors``) that ``allocate`` refuses with —
+    so the preview count and the commit can never disagree about what is required.
+    """
+    store = _store()
+    chosen = [t for t in (body.task_ids or []) if t]
+    gaps = store.missing_trajectory_predecessors(chosen)
+    implied = sorted({e["task_id"] for gap in gaps.values() for e in gap})
+    return {
+        "selected": chosen,
+        "implied": implied,
+        "task_ids": chosen + [t for t in implied if t not in set(chosen)],
+        "n_added": len(implied),
+    }
+
+
 @router.get("/batches/preview/{task_id}")
 async def admin_batch_preview(
     task_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),

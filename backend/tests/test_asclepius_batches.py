@@ -342,3 +342,39 @@ def test_a_longitudinal_preview_carries_no_data_past_the_decision_point():
         f"admin preview leaked data past the decision point: {sorted(offsets)}. "
         f"A screenshot of a future in a Slack thread is the same leak as serving it.")
     assert body["trajectory"] == {"n_points": 1, "position": 1}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Selection resolution — so the client never orders a walk
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_resolve_selection_completes_a_walk_from_the_server_side():
+    """The admin screen shows "+N earlier points included" without ever comparing
+    sequence indices in JavaScript. It asks for the answer instead, from the same
+    derivation ``allocate`` refuses with — so the number previewed and the set
+    committed cannot disagree."""
+    store = _store()
+    ah = _admin(store)
+    pts = _walk(store, 5)
+
+    r = client.post("/api/asclepius/admin/batches/resolve-selection", headers=ah,
+                    json={"task_ids": [pts[3]["task_id"]]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["n_added"] == 3
+    assert set(body["implied"]) == {p["task_id"] for p in pts[:3]}
+    # …and the completed set is exactly what allocate then accepts.
+    ok = client.post("/api/asclepius/admin/assignments/allocate", headers=ah, json={
+        "task_ids": body["task_ids"], "user_ids": [_doc(store)["id"]], "dry_run": False})
+    assert ok.status_code == 200, ok.text
+
+
+def test_resolve_selection_adds_nothing_to_a_complete_or_ordinary_selection():
+    store = _store()
+    ah = _admin(store)
+    pts = _walk(store, 3)
+    t = store.insert_task(prompt="ordinary", specialty="cardiology")
+
+    for ids in ([p["task_id"] for p in pts], [t["task_id"]], [pts[0]["task_id"]]):
+        body = client.post("/api/asclepius/admin/batches/resolve-selection",
+                           headers=ah, json={"task_ids": ids}).json()
+        assert body["n_added"] == 0 and body["task_ids"] == ids

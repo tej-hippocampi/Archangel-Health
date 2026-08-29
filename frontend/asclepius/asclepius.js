@@ -8487,6 +8487,19 @@
         state.pipelineFocus = (entry && (entry.upload_id || entry.uploadId)) || null;
         renderAdminView();
       },
+      // PRD CASE-BATCHES §2.5 — route cases to one physician, entered from their
+      // row. The same flow as picking them in the send bar, not a second one:
+      // this only pre-selects them in Batches, so there is one place where
+      // "who gets what" is decided and one place it can be got wrong.
+      openBatchesFor: (physician) => {
+        state.adminTab = 'work'; state.adminSub.work = 'assign';
+        state.batches = {
+          overview: null, batch: null, rows: null, selected: {}, busy: false,
+          err: null, mode: 'explicit', userIds: [physician && physician.id].filter(Boolean),
+          specialty: '', doctors: physician ? [physician] : null, proposal: null,
+        };
+        renderAdminView();
+      },
       // Move the Physicians sub-tab strip from inside a section (the roster's
       // "N mid-onboarding" notice links to Signups). The section owns its views;
       // the shell owns which tab looks selected, so the jump has to come back
@@ -8574,14 +8587,352 @@
     // §1.3 — QA is NOT deleted. Removing it orphans POST /qa/approve-all and the
     // submission queue, both live. It lands here, beside the work it grades.
     body.appendChild(adminSubnav('work', [
-      ['tasks', 'Tasks'], ['assign', 'Assign'], ['qa', 'QA'], ['metrics', 'Metrics'],
+      ['tasks', 'Tasks'], ['assign', 'Batches'], ['qa', 'QA'], ['metrics', 'Metrics'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
     if (state.adminSub.work === 'qa') renderAdminQA(inner);
-    else if (state.adminSub.work === 'assign') renderAdminAssign(inner);
+    else if (state.adminSub.work === 'assign') renderAdminBatches(inner);
     else if (state.adminSub.work === 'metrics') renderAdminMetrics(inner);
     else renderAdminTasks(inner);
+  }
+
+  /* Batches: the three case classes, previewed and sent.
+   *
+   * Before this, routing meant pasting task ids into a textarea — which works
+   * only if you already know the ids, and there is nowhere in the product that
+   * tells you them for a chart walk. So the surface starts from what an admin
+   * actually has: three classes of case, counted.
+   *
+   * The longitudinal class is the one with a rule attached. A chart walk is
+   * ordered, and the server refuses a selection that skips earlier points (it
+   * re-derives the required set — the client is not trusted with sequence, and a
+   * test asserts this file contains no sequence comparison). So the UI's job is
+   * to make the implied set VISIBLE before sending, not to compute authority
+   * over it: selecting point 5 shows "+5 earlier points included" and sends them,
+   * and if this file ever gets that arithmetic wrong the server still refuses.
+   */
+  const BATCH_META = {
+    longitudinal: { title: 'LONGITUDINAL V4', accent: 'purple' },
+    real_static: { title: 'REAL · STATIC V4', accent: 'green' },
+    synthetic: { title: 'SYNTHETIC V3', accent: 'orange' },
+  };
+
+  function renderAdminBatches(body) {
+    clear(body);
+    const view = state.batches || (state.batches = {
+      overview: null, batch: null, rows: null, selected: {}, busy: false,
+      err: null, mode: 'all', userIds: [], specialty: '', doctors: null, proposal: null,
+      resolved: null,
+    });
+    const host = h('div', {});
+    body.appendChild(host);
+
+    function selectedIds() { return Object.keys(view.selected).filter((k) => view.selected[k]); }
+
+    /* The implied set comes from the SERVER, and this file contains no
+     * comparison of sequence indices at all.
+     *
+     * The screen still needs to say "3 selected, +5 earlier points included"
+     * before an operator commits, and the obvious way to get that number is a
+     * loop over sequence_index right here. That is exactly what this product
+     * does not allow anywhere, for a reason that outlives this screen: a client
+     * that knows how to order a walk is a client somebody will later trust to
+     * enforce the order, and the seal would then be one hand-typed task id away
+     * from being defeated. A test asserts this file contains no such comparison,
+     * and it should keep passing for the admin surface as firmly as for the
+     * doctor's.
+     *
+     * So: one cheap call on selection change, answered by the same function
+     * ``allocate`` refuses with — the count shown and the set committed cannot
+     * disagree, because they are the same derivation. */
+    function resolveSelection() {
+      const chosen = selectedIds();
+      if (!chosen.length) { view.resolved = null; return Promise.resolve(null); }
+      return api('/admin/batches/resolve-selection',
+                 { method: 'POST', body: { task_ids: chosen } })
+        .then((res) => { view.resolved = res; return res; })
+        .catch(() => { view.resolved = null; return null; });
+    }
+
+    function load() {
+      view.busy = true; paint();
+      api('/admin/batches').then((res) => {
+        view.overview = res; view.busy = false; paint();
+      }).catch((e) => { view.err = e.message; view.busy = false; paint(); });
+    }
+
+    function openBatch(key) {
+      view.batch = key; view.rows = null; view.selected = {}; view.proposal = null;
+      view.busy = true; paint();
+      api('/admin/batches/' + encodeURIComponent(key)).then((res) => {
+        view.rows = res.cases || []; view.busy = false; paint();
+      }).catch((e) => { view.err = e.message; view.busy = false; paint(); });
+    }
+
+    function loadDoctors() {
+      if (view.doctors) return Promise.resolve(view.doctors);
+      return api('/admin/physicians').then((res) => {
+        view.doctors = (res.physicians || res.rows || []).filter((d) => d.real_data_approved);
+        return view.doctors;
+      }).catch(() => { view.doctors = []; return view.doctors; });
+    }
+
+    function send(dryRun) {
+      /* The resolved set when we have one, the raw selection otherwise. Falling
+       * back is safe: the server re-derives and refuses a payload missing a
+       * predecessor, naming what to add, so the worst case is a message rather
+       * than a stranded assignment. */
+      const ids = (view.resolved && view.resolved.task_ids) || selectedIds();
+      if (!ids.length) return;
+      const payload = { task_ids: ids, dry_run: dryRun, labels_per_case: 1 };
+      if (view.mode === 'all') payload.to_all = true;
+      else if (view.mode === 'specialty') payload.specialty = view.specialty;
+      else payload.user_ids = view.userIds;
+
+      view.busy = true; view.err = null; paint();
+      api('/admin/assignments/allocate', { method: 'POST', body: payload })
+        .then((res) => {
+          view.proposal = res; view.busy = false;
+          if (!dryRun) {
+            toast(res.targeting === 'all'
+              ? `${ids.length} case(s) released to the open queue.`
+              : `Sent ${ids.length} case(s) to ${Object.keys(res.per_physician || {}).length} doctor(s).`);
+            view.selected = {};
+            openBatch(view.batch);
+            return;
+          }
+          paint();
+        })
+        .catch((e) => {
+          view.busy = false;
+          /* The server names the points a selection is missing. Saying "400" here
+           * and making the admin diff two lists by hand would be the product
+           * knowing something and not saying it. */
+          const d = e && e.detail;
+          if (d && d.error === 'missing_trajectory_predecessors') {
+            view.err = 'That selection skips earlier points in a chart walk: '
+              + Object.keys(d.missing).map((k) => '#' + d.missing[k].join(', #')).join(' · ')
+              + '. A walk must be sent from its first unanswered point onward.';
+          } else if (d && d.error === 'not_approved_for_real_data') {
+            view.err = 'Not approved for real de-identified cases: '
+              + (d.emails || []).join(', ') + '. Approve them first, or the '
+              + 'assignment could never be served.';
+          } else {
+            view.err = (e && e.message) || 'Send failed.';
+          }
+          paint();
+        });
+    }
+
+    /* Rendered INLINE rather than in a modal, deliberately. An admin deciding
+     * who walks a chart opens point 0, then point 3, then point 0 again; a
+     * dialog that has to be dismissed between each turns comparison into
+     * clicking. It also keeps the table's selection state on screen. */
+    function preview(taskId) {
+      view.previewFor = taskId;
+      api('/admin/batches/preview/' + encodeURIComponent(taskId)).then((res) => {
+        if (view.previewFor !== taskId) return;   // a later click won
+        view.preview = res; paint();
+      }).catch((e) => toast('Could not load preview: ' + e.message, 'error'));
+    }
+
+    function paintPreview() {
+      const res = view.preview;
+      if (!res) return;
+      const close = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, 'Close preview');
+      close.addEventListener('click', () => { view.preview = null; view.previewFor = null; paint(); });
+      host.appendChild(h('div', { class: 'asc-card asc-preview-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-eyebrow' }, res.eyebrow),
+          res.trajectory
+            ? h('div', { class: 'asc-dim' },
+                `Decision point ${res.trajectory.position} of ${res.trajectory.n_points} · `
+                + 'the chart is truncated here exactly as the physician sees it')
+            : null,
+          h('div', { class: 'asc-prompt-label' }, 'Clinical question'),
+          h('div', { class: 'asc-prompt-text' }, res.prompt || ''),
+          renderCasePanelReadOnly(res.task),
+          close)));
+    }
+
+    function paint() {
+      clear(host);
+      if (view.err) host.appendChild(h('div', { class: 'asc-inline-error' }, view.err));
+      if (view.busy && !view.rows) { host.appendChild(loadingCard('Loading batches…')); return; }
+
+      if (!view.batch) { paintLevel1(); return; }
+      paintLevel2();
+    }
+
+    function paintLevel1() {
+      const ov = view.overview;
+      if (!ov) return;
+      const cards = h('div', { class: 'asc-batch-cards' });
+      const lg = ov.longitudinal || {};
+      cards.appendChild(batchCard('longitudinal',
+        `${lg.n_trajectories || 0} trajector${(lg.n_trajectories === 1) ? 'y' : 'ies'} · ${lg.n_points || 0} pts`,
+        `${lg.n_unrouted || 0} unrouted`));
+      cards.appendChild(batchCard('real_static',
+        `${(ov.real_static || {}).n_cases || 0} cases`, 'open queue'));
+      cards.appendChild(batchCard('synthetic',
+        `${(ov.synthetic || {}).n_cases || 0} cases`, 'open queue'));
+      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Case batches'),
+        h('div', { class: 'asc-dim' },
+          'Longitudinal cases are held back from every doctor’s queue until you '
+          + 'send them. That is the resting state, not a fault: an unrouted walk '
+          + 'shows here and nowhere else.'),
+        cards)));
+    }
+
+    function batchCard(key, line1, line2) {
+      const meta = BATCH_META[key];
+      const b = h('button', { class: 'asc-batch-card', type: 'button' },
+        h('div', { class: 'asc-batch-title' }, meta.title),
+        h('div', { class: 'asc-batch-count' }, line1),
+        h('div', { class: 'asc-dim' }, line2));
+      b.addEventListener('click', () => openBatch(key));
+      return b;
+    }
+
+    function paintLevel2() {
+      const back = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, '← All batches');
+      back.addEventListener('click', () => { view.batch = null; view.rows = null; paint(); });
+      host.appendChild(back);
+
+      const rows = view.rows || [];
+      const table = h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {},
+          h('th', {}, ''), h('th', {}, 'Case'), h('th', {}, 'Specialty'),
+          h('th', {}, 'Difficulty'), h('th', {}, 'Status'), h('th', {}, ''))),
+        h('tbody', {}, rows.map(rowFor)));
+      host.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('h3', {}, BATCH_META[view.batch].title),
+          h('div', { class: 'asc-table-wrap' }, table))));
+      paintPreview();
+      paintSendBar();
+    }
+
+    function statusLabel(r) {
+      if (r.assigned_to) return 'routed → ' + r.assigned_to;
+      if (r.distribution === 'assigned_only') return 'unrouted';
+      if (r.label_count > 0) return `labeled ${r.label_count}/${r.max_labels || 1}`;
+      return 'in open queue';
+    }
+
+    function rowFor(r) {
+      const cb = h('input', { type: 'checkbox' });
+      cb.checked = !!view.selected[r.task_id];
+      cb.addEventListener('change', () => {
+        view.selected[r.task_id] = cb.checked;
+        if (!cb.checked) delete view.selected[r.task_id];
+        paintSendBar();                          // immediate, with the old count
+        resolveSelection().then(paintSendBar);   // then the authoritative one
+      });
+      const prev = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, 'Preview');
+      prev.addEventListener('click', () => preview(r.task_id));
+      const label = (r.trajectory_id && r.sequence_index != null)
+        ? h('span', {}, h('span', { class: 'asc-mono' }, '#' + r.sequence_index), ' ',
+            h('span', { class: 'asc-dim asc-mono' }, r.task_id))
+        : h('span', { class: 'asc-mono' }, r.task_id);
+      return h('tr', {},
+        h('td', {}, cb), h('td', {}, label), h('td', {}, r.specialty || '—'),
+        h('td', {}, r.difficulty || '—'), h('td', {}, statusLabel(r)), h('td', {}, prev));
+    }
+
+    function paintSendBar() {
+      const old = host.querySelector('.asc-send-bar');
+      if (old) old.remove();
+      const chosen = selectedIds();
+      if (!chosen.length) return;
+      const extra = (view.resolved && view.resolved.n_added) || 0;
+
+      const modeSel = h('select', { class: 'asc-input' },
+        h('option', { value: 'all' }, 'All approved doctors'),
+        h('option', { value: 'specialty' }, 'Specialty'),
+        h('option', { value: 'explicit' }, 'Specific doctors'));
+      modeSel.value = view.mode;
+      modeSel.addEventListener('change', () => {
+        view.mode = modeSel.value;
+        if (view.mode === 'explicit') loadDoctors().then(paintSendBar);
+        else paintSendBar();
+      });
+
+      const extras = [];
+      if (view.mode === 'specialty') {
+        const inp = h('input', { class: 'asc-input', placeholder: 'e.g. hepatology' });
+        inp.value = view.specialty;
+        inp.addEventListener('input', () => { view.specialty = inp.value.trim().toLowerCase(); });
+        extras.push(inp);
+      } else if (view.mode === 'explicit') {
+        const sel = h('select', { class: 'asc-input', multiple: 'multiple', size: '5' },
+          (view.doctors || []).map((d) => h('option', { value: d.id },
+            `${d.name || d.email} · ${d.specialty || '—'} · ${d.tier || '—'}`)));
+        sel.addEventListener('change', () => {
+          view.userIds = Array.prototype.slice.call(sel.selectedOptions).map((o) => o.value);
+        });
+        extras.push(sel);
+      }
+
+      /* Send to All on a longitudinal batch UN-SEALS it — the cases leave
+       * assigned_only and any eligible doctor may draw them. That is a real,
+       * deliberate choice and it is stated before the click, not discovered
+       * after it. */
+      const warn = (view.mode === 'all' && view.batch === 'longitudinal')
+        ? h('div', { class: 'asc-inline-warn' },
+            'Longitudinal cases sent to All enter the open queue — any eligible '
+            + 'doctor may draw them, in sequence order.')
+        : null;
+
+      const dry = h('button', { class: 'asc-btn', type: 'button' }, 'Preview send');
+      dry.addEventListener('click', () => send(true));
+      const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Send');
+      go.addEventListener('click', () => send(false));
+
+      const bar = h('div', { class: 'asc-send-bar' },
+        h('span', {}, `${chosen.length} case(s) selected`
+          + (extra > 0 ? ` (+${extra} required earlier point(s) included)` : '')),
+        h('span', {}, 'Send to: '), modeSel, ...extras, warn, dry, go);
+      host.appendChild(bar);
+
+      if (view.proposal && view.proposal.dry_run) {
+        const per = view.proposal.per_physician || {};
+        host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+          h('h3', {}, 'Proposed send'),
+          h('div', { class: 'asc-dim' },
+            `${view.proposal.cases} case(s) · ${Object.keys(per).length} doctor(s)`),
+          (view.proposal.notes || []).map((n) => h('div', { class: 'asc-dim' }, n)))));
+      }
+    }
+
+    load();
+  }
+
+  /* A read-only case body for the admin preview.
+   *
+   * It renders the SERVED payload (the endpoint hands back exactly what the
+   * doctor's own /tasks/{id} returns), so there is nothing to truncate here —
+   * a longitudinal point's stored case IS its visible window. This function must
+   * never reach past `task` for "more context": the whole point of previewing
+   * through the serve payload is that admin cannot see what the portal hides. */
+  function renderCasePanelReadOnly(task) {
+    const c = (task && task.case) || null;
+    if (!c) return h('div', { class: 'asc-dim' }, 'No structured case on this task.');
+    const section = (title, items, fmt) => (items && items.length)
+      ? h('div', { class: 'asc-case-section' },
+          h('div', { class: 'asc-case-h' }, title),
+          h('ul', {}, items.map((it) => h('li', {}, fmt(it)))))
+      : null;
+    return h('div', { class: 'asc-case-panel' },
+      section('Problems', c.problem_list, (p) => p.condition || String(p)),
+      section('Medications', c.medications, (m) => [m.drug, m.dose].filter(Boolean).join(' ')),
+      section('Labs', c.lab_panels, (p) =>
+        `${p.panel || 'panel'} · day ${p.collected_offset_days}`),
+      section('Notes', c.notes, (n) =>
+        `day ${n.collected_offset_days}: ${(n.text || '').slice(0, 400)}`),
+      section('Studies', c.studies, (st) => st.modality || st.study || String(st)));
   }
 
   /* Assign: who does which case.

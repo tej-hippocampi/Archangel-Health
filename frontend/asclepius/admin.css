@@ -12,3 +12,72 @@
 .asc-misfiled-meta { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 2px; }
 .asc-misfiled-act { display: flex; align-items: center; gap: 10px; flex: none; }
 .asc-misfiled-status { font-size: var(--t-sm); color: var(--ink-soft); }
+
+/* ═══ PRD CASE-BATCHES §2 — the batch surface ═══════════════════════════════
+   Three cards, a table, and a send bar that appears only when something is
+   selected. The send bar is sticky rather than fixed: an admin scrolling a
+   13-point walk must keep the controls in reach, but a fixed bar over a table
+   this narrow covers the last row on a laptop, which is the row they just
+   checked. */
+.asc-batch-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.asc-batch-card {
+  text-align: left;
+  padding: 16px;
+  border: 1px solid var(--asc-line);
+  border-radius: 12px;
+  background: var(--asc-surface);
+  color: var(--asc-text);
+  cursor: pointer;
+  font: inherit;
+}
+.asc-batch-card:hover { border-color: var(--asc-line-strong); background: var(--asc-surface-2); }
+.asc-batch-card:focus-visible { outline: 2px solid var(--asc-primary); outline-offset: 2px; }
+.asc-batch-title {
+  font-size: var(--t-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.asc-batch-count { font-size: var(--t-h3); margin: 6px 0 2px; }
+
+.asc-send-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-top: 12px;
+  border: 1px solid var(--asc-line-strong);
+  border-radius: 12px;
+  background: var(--asc-surface);
+  /* Lifted off the table it overlaps when the list is long. */
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.10);
+}
+.asc-send-bar .asc-input { max-width: 260px; }
+.asc-send-bar .asc-inline-warn { flex-basis: 100%; }
+
+.asc-preview-card { border-color: var(--asc-primary); }
+.asc-eyebrow {
+  font-size: var(--t-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+.asc-case-panel { margin-top: 12px; }
+.asc-case-section { margin-bottom: 12px; }
+.asc-case-h {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.asc-case-panel ul { margin: 0; padding-left: 18px; }
+.asc-case-panel li { font-size: var(--t-sm); line-height: 1.5; }
