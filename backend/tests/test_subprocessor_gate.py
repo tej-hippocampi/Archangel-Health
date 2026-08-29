@@ -14,6 +14,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("ADMIN_USERNAME", "testadmin")
 os.environ.setdefault("ADMIN_PASSWORD", "testadminpass")
 
+# PHASE-5: this gate asserts the ElevenLabs subprocessor is disclosed before any
+# audio call. When integrations/elevenlabs.py is deleted, drop the ElevenLabs case
+# here — but KEEP the file: compliance/subprocessors.py is live and the rest of
+# this suite covers it.
 import integrations.elevenlabs as el  # noqa: E402
 from compliance import subprocessors as sp  # noqa: E402
 from main import app  # noqa: E402

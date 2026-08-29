@@ -1,0 +1,94 @@
+# Dark-week watch list — routes that disappear when ARCHANGEL_LEGACY_PERIOP=0
+#
+# Watch your HTTP access logs for 404s on these paths for seven days after
+# flipping the flag off in production. A 404 here is a live consumer that static
+# tracing missed: set the flag back to 1 (instant restore), identify the caller
+# from the log line, then decide. Check day 1 and day 2, not just day 7 — real
+# consumers surface immediately.
+#
+# 456 routes with the flag ON, 384 with it OFF, 72 withheld.
+#
+# Plus one route that is NOT gated but must be watched anyway:
+#
+#   GET  /doctor/app   — the entry point to the legacy peri-op dashboard
+#                        (frontend/doctor.html). It stays served, because
+#                        doctor-sign-in.html redirects to it on all four of its
+#                        success paths and the handler has no existence guard.
+#                        Hits here during the dark week are the evidence Phase 5
+#                        needs to decide whether anyone still uses the dashboard.
+#                        No hits for a week = safe to delete the page and route.
+
+GET                  /doctor/app
+
+GET                  /admin/ai-calls/prompts
+GET                  /admin/preop-prompts
+PATCH                /admin/preop-prompts/{prompt_id}
+GET                  /admin/triage/initial-tier/config
+GET                  /admin/triage/intraop/config
+GET                  /admin/triage/postop/config
+GET                  /admin/triage/preop-retier/config
+POST                 /api/avatar/chat
+POST                 /api/digital-care-companion/chat
+GET                  /api/doctor/patient/{patient_id}/latest-intake
+GET                  /api/doctor/patient/{patient_id}/survey/{day}
+GET                  /api/doctors/{doctor_id}/notifications
+PATCH                /api/doctors/{doctor_id}/notifications/{notif_id}/read
+GET                  /api/escalations
+POST                 /api/escalations/consent
+POST                 /api/escalations/{escalation_id}/intervention
+PATCH                /api/escalations/{escalation_id}/resolved
+GET                  /api/escalations/{escalation_id}/triage-timeline
+GET                  /api/intake-forms/latest/{patient_id}
+POST                 /api/intake-forms/start-interview
+GET                  /api/intake-forms/{intake_form_id}
+PATCH                /api/intake-forms/{intake_form_id}
+POST                 /api/intake-forms/{intake_form_id}/complete-interview
+GET                  /api/intake-forms/{intake_form_id}/edit-history
+POST                 /api/intake-forms/{intake_form_id}/interview/complete-section
+POST                 /api/intake-forms/{intake_form_id}/interview/reset-section
+POST                 /api/intake-forms/{intake_form_id}/interview/section-message
+POST                 /api/intake-forms/{intake_form_id}/submit
+PATCH                /api/patient/{patient_id}
+GET                  /api/patient/{patient_id}/audio
+GET                  /api/patient/{patient_id}/battlecard
+GET                  /api/patient/{patient_id}/config
+GET                  /api/patient/{patient_id}/discharge
+GET                  /api/patient/{patient_id}/discharge-materials
+POST                 /api/patient/{patient_id}/events
+PATCH                /api/patient/{patient_id}/pcp-referral
+GET                  /api/patient/{patient_id}/preop-audio
+GET                  /api/patient/{patient_id}/resources
+GET                  /api/patient/{patient_id}/timeline
+GET                  /api/patients
+GET                  /api/patients/{patient_id}/preop-window/{window}
+POST                 /api/patients/{patient_id}/preop-window/{window}/action
+POST                 /api/pre-op/intake/answer
+POST                 /api/pre-op/intake/start
+POST                 /api/pre-op/intake/submit
+POST                 /api/pre-op/notify-care-team
+GET                  /api/preop-survey/questions
+POST                 /api/preop-survey/submit
+POST                 /api/process-discharge
+POST                 /api/process-discharge/stream
+POST                 /api/process-patient
+POST                 /api/process-preop
+POST                 /api/process-preop/stream
+POST                 /api/send-to-patient/{patient_id}
+POST                 /api/survey/submit
+POST                 /api/upload-pdf
+GET                  /care-plan
+GET                  /dev
+GET                  /doctor/patient/{patient_id}
+GET                  /internal/email-template-preview
+POST                 /internal/git/push
+GET                  /internal/prompt-lab
+GET                  /internal/prompts
+PATCH                /internal/prompts/{prompt_id}
+POST                 /internal/run
+GET                  /internal/samples
+GET                  /internal/voices
+GET                  /patient/{patient_id}
+GET                  /patient/{patient_id}/digital-care-companion
+GET                  /patient/{patient_id}/pre-op
+GET                  /patient/{patient_id}/voice
+GET                  /survey

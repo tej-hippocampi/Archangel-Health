@@ -1505,6 +1505,19 @@
       .analytics-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .analytics-grid { grid-template-columns: 1fr; }
     }
+
+    /* A retired peri-operative feature. Deliberately plain and permanent: this is
+       not an error the user can clear by retrying, so it must not look like one. */
+    .retired-notice {
+      margin: 12px 0; padding: 14px 16px; border-radius: 8px;
+      background: #f8fafc; border: 1px solid #e2e8f0; color: #475569;
+      font-size: 14px; line-height: 1.5;
+    }
+    .retired-notice strong { display: block; color: #334155; margin-bottom: 2px; }
+    .retired-banner {
+      position: fixed; left: 50%; transform: translateX(-50%); top: 16px;
+      z-index: 9999; max-width: 560px; box-shadow: 0 4px 16px rgba(15,23,42,.12);
+    }
   </style>
 </head>
 <body>
@@ -2546,6 +2559,101 @@
     }
     let authToken = localStorage.getItem(AUTH_TOKEN_KEY) || "";
 
+    /* ── Retired peri-operative features ──────────────────────────────────────
+       This dashboard outlived parts of its backend. The peri-op product is being
+       retired: some endpoints are already deleted, and the rest are registered
+       only while ARCHANGEL_LEGACY_PERIOP is on, so they disappear when the flag
+       is flipped for the dark week.
+
+       Rather than carry a hardcoded list of dead paths — which goes stale, and
+       would keep a feature dark after someone turns the flag back on — this
+       reacts to what the server actually says. A 404 on one of these paths means
+       the feature is gone, and the page says so once, in plain words, where the
+       user was looking. No toast (it would vanish), no retry button (there is
+       nothing to retry), no console noise (it is expected, not a fault). */
+    const retirement = (() => {
+      const FEATURES = [
+        [/^\/api\/eligibility-/,                      "TEAM eligibility"],
+        [/^\/api\/episodes\/[^/]+\/(postop-retier|switch-to-postop|triage-explain)/,
+                                                       "Surgical risk tiering"],
+        [/^\/api\/patient\/[^/]+\/(postop|preop)-notes/, "Peri-operative notes"],
+        [/^\/api\/telehealth\//,                      "Telehealth visits"],
+        [/^\/api\/(process-discharge|process-preop|process-patient)/, "Patient education generation"],
+        [/^\/api\/intake-forms\//,                    "Intake interview"],
+        [/^\/api\/escalations/,                       "Escalations"],
+        [/^\/api\/send-to-patient\//,                 "Send to patient"],
+        [/^\/api\/patients?\//,                       "Patient records"],
+      ];
+      const MARKER = "\u0000retired\u0000";
+      const seen = new Set();
+
+      function labelFor(path) {
+        const clean = String(path || "").split("?")[0];
+        for (const [re, label] of FEATURES) if (re.test(clean)) return label;
+        return "This peri-operative feature";
+      }
+
+      /* Where the notice goes: an explicit slot if the view offered one, else the
+         open modal or visible error element the user is already looking at, else
+         a banner. Never silently nowhere. */
+      function slot() {
+        return document.querySelector("[data-retirement-slot]")
+            || document.querySelector(".modal.active .modal-body, .modal.active")
+            || null;
+      }
+
+      function render(label) {
+        const el = build(label);
+        const target = slot();
+        if (target) {
+          target.innerHTML = "";
+          target.appendChild(el);
+        } else {
+          el.classList.add("retired-banner");
+          document.body.appendChild(el);
+          setTimeout(() => el.remove(), 8000);
+        }
+      }
+
+      function build(label) {
+        const el = document.createElement("div");
+        el.className = "retired-notice";
+        el.innerHTML = `<strong>${esc(label)} has been retired.</strong>` +
+          `This part of the peri-operative product is no longer available. ` +
+          `Nothing was lost — ask an administrator if you need the historical data.`;
+        return el;
+      }
+
+      return {
+        MARKER,
+        /* The notice as a detached element, for a caller that owns its own
+           container and wants to place it itself. */
+        notice: build,
+        /* True once this feature has already been reported, so a page that fires
+           several calls for one panel says it once rather than N times. */
+        known: (path) => seen.has(labelFor(path)),
+        mark(path) {
+          const label = labelFor(path);
+          if (seen.has(label)) return label;
+          seen.add(label);
+          render(label);
+          return label;
+        },
+        /* An Error that existing catch blocks can throw around unchanged: the
+           marker in the message tells showToast to stay quiet, because the notice
+           is already on screen. */
+        error(path) {
+          const e = new Error(retirementMessage(this.mark(path)));
+          e.retired = true;
+          return e;
+        },
+      };
+
+      function retirementMessage(label) {
+        return `${label} has been retired.${MARKER}`;
+      }
+    })();
+
     async function apiJson(path, options = {}) {
       const headers = new Headers(options.headers || {});
       if (authToken && !headers.has("Authorization")) {
@@ -2553,6 +2661,10 @@
       }
       const res = await fetch(`${API}${path}`, { ...options, headers });
       const data = await res.json().catch(() => ({}));
+      // A 404 here is the retirement, not a bug. FastAPI answers an unregistered
+      // path with 404; a live route answering "not found" for a missing RECORD
+      // sends a detail string, which is why the shape is checked too.
+      if (res.status === 404 && !data.detail) throw retirement.error(path);
       if (!res.ok) throw new Error(data.detail || `Request failed: ${res.status}`);
       return data;
     }
@@ -2568,6 +2680,7 @@
       });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
+        if (res.status === 404 && !data.detail) throw retirement.error(path);
         throw new Error(data.detail || `Request failed: ${res.status}`);
       }
       const reader = res.body.getReader();
@@ -5381,10 +5494,17 @@
         let msg = "Eligibility check failed.";
         try { msg = JSON.parse(e.data).message || msg; } catch (_e) {}
         markStageError();
+        try { es.close(); } catch (_e) {}
         const errEl = byId("determineError");
         errEl.style.display = "block";
+        // If the whole feature is retired, a Retry button is a lie: the endpoint
+        // it would call no longer exists, so every press fails the same way.
+        if (retirement.known("/api/eligibility-checks")) {
+          errEl.innerHTML = "";
+          errEl.appendChild(retirement.notice("TEAM eligibility"));
+          return;
+        }
         errEl.innerHTML = `${esc(msg)} <button class="btn" id="retryDetermineBtn" style="margin-left:8px;">Retry</button>`;
-        try { es.close(); } catch (_e) {}
         const retry = byId("retryDetermineBtn");
         if (retry) retry.addEventListener("click", async () => {
           try {
@@ -6179,6 +6299,10 @@
     }
 
     function showToast(msg, type = "success") {
+      // A retired feature already rendered a permanent notice where the user was
+      // looking. A toast on top of it would say the same thing worse: it implies
+      // something transient, and it disappears before it can be read.
+      if (typeof msg === "string" && msg.includes(retirement.MARKER)) return;
       let toast = byId("toast");
       if (!toast) {
         toast = document.createElement("div");

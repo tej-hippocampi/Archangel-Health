@@ -533,6 +533,8 @@ class _StubElevenLabsUnconfigured:
 
 def _patch_generation(monkeypatch, *, elevenlabs_cls=_StubElevenLabs):
     import pipeline.generate as _gen_mod  # noqa: PLC0415
+    # PHASE-5: stubs integrations.elevenlabs, deleted in Phase 5. This helper goes
+    # with it — the eligibility pipeline it patches is a Phase 5 deletion too.
     import integrations.elevenlabs as _el_mod  # noqa: PLC0415
     monkeypatch.setattr(_gen_mod, "GenerationLayer", _StubGen)
     monkeypatch.setattr(_el_mod, "ElevenLabsClient", elevenlabs_cls)

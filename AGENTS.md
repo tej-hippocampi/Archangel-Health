@@ -83,7 +83,9 @@ patient dashboard, avatar chat, plus the triage-config and prompt endpoints in
   the code is deleted.
 
 **Nothing further gets deleted until the flag has been off in production for a
-week with clean access logs.** A 404 on a gated path is a live consumer that
+week with clean access logs** — the watch list is `docs/dark-week-watch-list.txt`
+(the 72 gated routes, plus `/doctor/app`, which is not gated but is the only way
+into the legacy dashboard, so hits there decide whether it can be deleted). A 404 on a gated path is a live consumer that
 tracing missed — tracing finds every caller that is written down, not the cron
 job on someone's laptop or the partner integration. Still awaiting deletion
 behind that week: `triage/`, `pipeline/`, `eligibility/`, most of `prompts/`, the
@@ -97,6 +99,32 @@ those two packages breaks `ai/`, which is live. `gold/` needs `prompts/gold.py`.
 Trim `registry.py` down to `.gold` + `asclepius.prompts` FIRST, then delete
 `prompts/{diagnosis,treatment,preop,postop,avatar,system}.py`; keep `gold.py` and
 the trimmed registry. `prompts/eligibility.py` goes with `eligibility/`.
+
+### The Phase 5 index — every last consumer, in one grep
+
+```bash
+grep -rn "# PHASE-5:" backend/          # the marked sites
+```
+
+| What | Last consumer | Notes |
+|---|---|---|
+| `integrations/tavus.py` | `main.py:59` only | delete with its `TAVUS_*` vars |
+| `integrations/twilio_client.py` | `main.py:60` only | delete with `TWILIO_*`, `CARE_TEAM_PHONE` |
+| `integrations/elevenlabs.py` | `main.py:58`, `pipeline/gated_synthesis.py:5`, `routers/internal.py:21`, and two tests | **not** a single consumer — the two non-test extras are themselves Phase 5 deletions, so they resolve, but check in that order |
+| `frontend/telehealth-{join,room,setup}.html` | nothing | already orphaned: their routes died with `routers/telehealth.py` |
+| `.claude/skills/surgical-risk-triage/` | — | documents `triage/`, a Phase 5 deletion. Retire the skill in the same PR. |
+| `.claude/skills/team-eligibility-review/` | — | documents `eligibility/`, a Phase 5 deletion. Same. |
+
+Both skills were edited by the cleanup to drop references to already-deleted
+routers, which keeps `tests/test_skills_sync.py` green — but they still describe
+workflows whose code is gated for deletion. **Do not follow either skill into
+peri-op code expecting it to survive.**
+
+Env vars: `DAILY_API_KEY`, `VIDEO_PROVIDER` and `DAILY_DOMAIN` have **no reader**
+and are deletable now. `TAVUS_*`, `ELEVENLABS_*`, `TWILIO_*` and `CARE_TEAM_PHONE`
+are each read by exactly one gated module — delete them in the same change that
+deletes the code, not before. Never delete `TEAM_DB_PATH`: `team_store` backs the
+live `/api/auth/*` path and survives Phase 5 by design.
 
 **Everything already deleted is recoverable in full from the
 `claude/legacy-periop-archive` branch.** Notably the X12 270/271 eligibility

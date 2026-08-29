@@ -55,6 +55,10 @@ from pipeline.generate import GenerationLayer
 from pipeline.grounding_gate import apply_grounding_to_patient
 from pipeline.streaming import StreamingPipelineContext, run_postop_stream, run_preop_stream
 from pipeline.gated_synthesis import synthesize_script
+# PHASE-5: last consumers of the three legacy integrations. Every route that uses
+# them is gated by ARCHANGEL_LEGACY_PERIOP, so these imports and the modules go in
+# the Phase 5 deletion. Their env vars (ELEVENLABS_*, TAVUS_*, TWILIO_*,
+# CARE_TEAM_PHONE) are deletable in the SAME change, not before — see AGENTS.md.
 from integrations.elevenlabs   import ElevenLabsClient
 from integrations.tavus        import TavusClient
 from integrations.twilio_client import TwilioClient

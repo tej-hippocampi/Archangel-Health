@@ -63,18 +63,20 @@ SECURITY_HEADERS = {
 
 
 def build_permissions_policy() -> str:
-    """Camera/mic are needed by the voice companion (same-origin) and by the
-    embedded Daily telehealth iframe (cross-origin). Permissions-Policy on the
-    parent page must explicitly delegate to the Daily origin or the browser
-    denies getUserMedia inside the video call. Computed per-request so env
-    changes (and test monkeypatching) take effect without a reload."""
-    allow = ["self"]
-    daily = (os.getenv("DAILY_DOMAIN") or "").strip().rstrip("/")
-    if daily:
-        daily = daily.removeprefix("https://").removeprefix("http://")
-        allow.append(f'"https://{daily}"')
-    allow_str = " ".join(allow)
-    return f"geolocation=(), camera=({allow_str}), microphone=({allow_str})"
+    """Camera/mic are needed by the voice companion, which is same-origin.
+
+    This used to also delegate to a cross-origin Daily domain, read from
+    ``DAILY_DOMAIN``, so ``getUserMedia`` would work inside an embedded telehealth
+    iframe. That iframe is gone: ``integrations/video/`` and the telehealth router
+    were deleted with the peri-op product, and the three ``frontend/telehealth-*``
+    pages are no longer served by any route. Naming an origin the app can no
+    longer embed is a permission granted to nobody — so the delegation is dropped
+    and the policy is the narrower ``self``.
+
+    ``DAILY_DOMAIN`` now has no reader anywhere in the codebase and can be deleted
+    from the deployment environment.
+    """
+    return "geolocation=(), camera=(self), microphone=(self)"
 
 
 def build_csp() -> str:

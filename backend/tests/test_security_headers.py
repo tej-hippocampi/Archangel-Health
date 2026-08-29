@@ -35,16 +35,19 @@ def test_core_security_headers_present(client, path):
     assert "camera=(self" in pp
 
 
-def test_permissions_policy_delegates_to_daily_domain(client, monkeypatch):
-    """Telehealth regression: camera=() denied getUserMedia inside the embedded
-    Daily iframe. With DAILY_DOMAIN set, camera/mic must delegate to that origin."""
+def test_permissions_policy_delegates_to_nobody(client, monkeypatch):
+    """The Daily delegation is gone, and setting DAILY_DOMAIN must not bring it back.
+
+    Camera/mic used to be delegated to a cross-origin Daily domain so getUserMedia
+    would work inside the telehealth iframe. That iframe no longer exists — the
+    video integration and the telehealth router were deleted with the peri-op
+    product. A Permissions-Policy that still named the origin would be granting a
+    capability to something that cannot load, and it would come back the moment
+    someone re-set the variable, so the env var is asserted inert rather than
+    merely unset."""
     monkeypatch.setenv("DAILY_DOMAIN", "yourteam.daily.co")
     pp = client.get("/").headers.get("permissions-policy", "")
-    assert 'camera=(self "https://yourteam.daily.co")' in pp
-    assert 'microphone=(self "https://yourteam.daily.co")' in pp
-
-    monkeypatch.delenv("DAILY_DOMAIN", raising=False)
-    pp = client.get("/").headers.get("permissions-policy", "")
+    assert "daily.co" not in pp
     assert "camera=(self)" in pp
     assert "microphone=(self)" in pp
 
