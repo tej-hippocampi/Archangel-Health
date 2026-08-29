@@ -28,6 +28,10 @@ import secrets
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
+
+# Pure policy module (imports no store, no FastAPI) — safe at module scope, and
+# needed here because the sequence gate's SQL is built from its vocabulary.
+from asclepius import trajectory as _asc_trajectory
 from typing import Any, Dict, List, Optional
 
 from passlib.context import CryptContext
@@ -305,12 +309,22 @@ _PRD_R_PRIORITY_ORDER = (
 # ``trajectory.blocks_out_of_order`` refuses that same row on the direct-open path.
 # Two enforcements of one rule that disagree is worse than either alone, so the row
 # is unservable here too. ``insert_task`` already refuses to create one.
-_PRD_2_SEQUENCE_GATE = """(
+#
+# §9.2 — ``p.status NOT IN (...)``: a point an admin removed from the walk can
+# never be submitted, so without this clause it blocks every later point FOREVER,
+# for everyone, silently (the queue just stops offering them). The vocabulary is
+# ``trajectory.RETIRED_STATUSES`` — read that constant for why the list is two
+# words and not "anything unservable". Interpolated from the tuple rather than
+# spelled out here so this clause and the direct-open path cannot drift into two
+# different definitions of a hole.
+_PRD_2_RETIRED_SQL = ", ".join(f"'{s}'" for s in _asc_trajectory.RETIRED_STATUSES)
+_PRD_2_SEQUENCE_GATE = f"""(
               t.trajectory_id IS NULL
               OR (t.sequence_index IS NOT NULL AND NOT EXISTS (
                 SELECT 1 FROM tasks p
                 WHERE p.trajectory_id = t.trajectory_id
                   AND p.sequence_index < t.sequence_index
+                  AND COALESCE(p.status, '') NOT IN ({_PRD_2_RETIRED_SQL})
                   AND NOT EXISTS (
                     SELECT 1 FROM submissions s
                     WHERE s.task_id = p.task_id AND s.evaluator_id = ?
@@ -4384,11 +4398,16 @@ class AsclepiusStore:
             return []
         with self._conn() as conn:
             rows = conn.execute(
-                """
+                f"""
                 SELECT p.task_id, p.sequence_index
                   FROM tasks p
                  WHERE p.trajectory_id = ?
                    AND p.sequence_index < ?
+                   -- §9.2: a retired predecessor can never be answered, so it is
+                   -- not "outstanding" — it is gone. Same clause as the queue's
+                   -- gate, same constant, or the URL and the draw would disagree
+                   -- about whether this walk is blocked.
+                   AND COALESCE(p.status, '') NOT IN ({_PRD_2_RETIRED_SQL})
                    AND NOT EXISTS (
                        SELECT 1 FROM submissions s
                         WHERE s.task_id = p.task_id AND s.evaluator_id = ?

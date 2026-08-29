@@ -99,6 +99,46 @@ def sequence_index(task: Optional[Dict[str, Any]]) -> Optional[int]:
         return None
 
 
+# ─── PRD-2 §9.2 — a predecessor that can never be answered must not block ────
+# The sequence gate asks "is there an earlier point this evaluator has not
+# submitted?" and refuses the later point if so. That is right while the earlier
+# point is still answerable. It is a DEADLOCK once the earlier point has been
+# taken out of the walk: nobody can ever submit it, so every point after it
+# becomes permanently unservable — to everyone, including the physician who is
+# mid-walk — and the queue simply stops offering them with no error anywhere.
+#
+# ``routers/asclepius.py``'s ``_outcome_point`` already anticipates exactly this
+# ("an admin can retire a point later") and handles holes for the REVEAL. The gate
+# did not, so the two halves disagreed about what a hole means.
+#
+# WHY THIS LIST IS TINY, AND WHY IT IS NOT "anything not servable".
+# The two failure modes are not symmetric:
+#
+#   * Too NARROW → a walk deadlocks. Annoying, fully recoverable, and visible to
+#     an admin as a chain that stopped advancing.
+#   * Too WIDE → a physician is served a point whose predecessor they never
+#     answered, and its visible window contains the outcomes of the decisions they
+#     were about to be asked to predict. Unrecoverable: nobody can un-read a
+#     future, and the RLVR claim for that whole trajectory is gone.
+#
+# So this releases ONLY points an admin deliberately removed. In particular a
+# predecessor that is merely FULL — 'done' at max_labels=1 because another
+# physician took it — still blocks, which is PRD §9.3's orphaned-walk case working
+# as designed. The remedy for that is releasing or reassigning the point, not
+# quietly serving its successors to someone who never saw it.
+#
+# Nothing writes either status to a task today; ``mark_task_status`` exists with no
+# callers and 'void' is an EARNINGS status. This is the vocabulary the retire path
+# must use when it lands, declared here so the gate is already correct on the day
+# it does rather than deadlocking a live walk.
+RETIRED_STATUSES: Tuple[str, ...] = ("void", "retired")
+
+
+def is_retired(task: Optional[Dict[str, Any]]) -> bool:
+    """Has this point been taken out of its walk? (See ``RETIRED_STATUSES``.)"""
+    return str(((task or {}).get("status") or "")).strip().lower() in RETIRED_STATUSES
+
+
 def blocks_out_of_order(
     task: Optional[Dict[str, Any]], *, unanswered_earlier: Sequence[Any],
 ) -> Optional[str]:

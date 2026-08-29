@@ -67,6 +67,13 @@ def _submit(store, task_id, evaluator_id):
     )
 
 
+def _queue_ids(store, evaluator_id, *, specialty="cardiology"):
+    """Task ids the labeler queue would offer, in priority order."""
+    sql, params = store.labeler_queue_sql(evaluator_id=evaluator_id, specialty=specialty)
+    with store._conn() as conn:  # noqa: SLF001
+        return [r["task_id"] for r in conn.execute(sql, params).fetchall()]
+
+
 def _measured(store, task_id, value=0.9):
     """Stamp a live-measured difficulty so the empirical floor can bind against it."""
     with store._conn() as conn:  # noqa: SLF001
@@ -219,3 +226,84 @@ def test_an_assignment_never_defeats_the_sequence_gate():
         "assigning a later point must not unseal it — the gate is a WHERE clause "
         "and the assignment only reorders what already passed it")
     assert rows == [pts[0]["task_id"]]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRD-2 §9.2 — a retired predecessor must not deadlock the walk
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_a_retired_predecessor_stops_blocking_its_successors():
+    """Retire point 1 of a 4-point walk mid-chart; point 2 becomes servable.
+
+    Before the fix the gate's inner query had no status filter, so a point taken
+    out of the walk still counted as "an earlier point you have not submitted" —
+    and every point after it was unservable forever, to everyone, with nothing
+    logged and no error raised. The queue simply stopped offering them."""
+    store = _store()
+    doc = A.make_user(store, specialty="cardiology")
+    pts = [_task(store, prompt=f"p{i}", trajectory_id="traj-r", sequence_index=i)
+           for i in range(4)]
+
+    _submit(store, pts[0]["task_id"], doc["id"])
+    assert _queue_ids(store, doc["id"]) == [pts[1]["task_id"]]
+
+    store.mark_task_status(pts[1]["task_id"], "void")
+    assert _queue_ids(store, doc["id"]) == [pts[2]["task_id"]], (
+        "with point 1 retired the walk must continue at point 2, not stop dead")
+
+
+def test_a_retired_predecessor_is_not_outstanding_on_the_direct_open_path():
+    """The URL half of the same rule. If the two disagreed, the queue would offer
+    a point that opening it by id would then refuse with a 409."""
+    store = _store()
+    doc = A.make_user(store, specialty="cardiology")
+    pts = [_task(store, prompt=f"p{i}", trajectory_id="traj-r2", sequence_index=i)
+           for i in range(3)]
+    _submit(store, pts[0]["task_id"], doc["id"])
+    store.mark_task_status(pts[1]["task_id"], "void")
+
+    outstanding = store.unanswered_earlier_points(
+        trajectory_id="traj-r2", sequence_index=2, evaluator_id=doc["id"])
+    assert outstanding == [], "a retired point is gone, not outstanding"
+
+
+def test_a_merely_full_predecessor_still_blocks():
+    """The half of §9.2 that must NOT change, stated as its own test.
+
+    A point that is 'done' because another physician took it at max_labels=1 is
+    unservable — but it is not retired, and releasing its successors would serve
+    this physician the outcome of a decision they never made. That is PRD §9.3's
+    orphaned walk, whose remedy is releasing or reassigning the point, never
+    loosening the seal. A fix for the deadlock that also swallowed this case would
+    trade a visible annoyance for an unrecoverable leak."""
+    store = _store()
+    a, b = A.make_user(store, specialty="cardiology"), A.make_user(store, specialty="cardiology")
+    pts = [_task(store, prompt=f"p{i}", trajectory_id="traj-f", sequence_index=i)
+           for i in range(3)]
+
+    _submit(store, pts[0]["task_id"], a["id"])          # A takes point 0 …
+    store.refresh_task_status(pts[0]["task_id"])        # … which closes it at max_labels=1
+    assert (store.get_task(pts[0]["task_id"]) or {}).get("status") == "done"
+
+    # What B IS offered is point 0 itself — 'done' carrying one label is still
+    # servable (``_PRD_R_SERVABLE``'s second branch), which is B starting their own
+    # walk of the same chart. That is the intended escape from §9.3, and it is why
+    # this test asserts the exact queue rather than an empty one: the seal is not
+    # "B sees nothing", it is "B sees nothing they have not earned".
+    assert _queue_ids(store, b["id"]) == [pts[0]["task_id"]]
+    assert pts[1]["task_id"] not in _queue_ids(store, b["id"]), (
+        "B never answered point 0; point 1 must stay sealed to them even though "
+        "point 0 is unservable-as-new — a full predecessor is not a retired one")
+    still = store.unanswered_earlier_points(
+        trajectory_id="traj-f", sequence_index=1, evaluator_id=b["id"])
+    assert [r["sequence_index"] for r in still] == [0]
+
+
+def test_the_two_enforcement_sites_share_one_vocabulary():
+    """Neither site spells the status list out; both interpolate the constant, so
+    a future edit cannot leave the queue and the URL disagreeing about a hole."""
+    from asclepius import store as st, trajectory as tj
+    for status in tj.RETIRED_STATUSES:
+        assert f"'{status}'" in st._PRD_2_SEQUENCE_GATE
+    assert tj.is_retired({"status": "VOID"}) is True      # case-insensitive
+    assert tj.is_retired({"status": "done"}) is False
+    assert tj.is_retired({}) is False
