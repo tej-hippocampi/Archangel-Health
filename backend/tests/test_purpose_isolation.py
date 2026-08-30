@@ -129,7 +129,8 @@ def test_the_provider_serializers_are_explicit_allowlists():
 
     prov = _strip_comments_and_docstrings(
         (BACKEND / "routers" / "asclepius_provider.py").read_text(encoding="utf-8"))
-    for fn in ("_hs_upload_view", "_provider_file_view"):
+    for fn in ("_hs_upload_view", "_provider_file_view",
+               "_hs_intake_view", "_hs_payout_view"):
         seg = prov[prov.index(f"def {fn}"):]
         seg = seg[:seg.index("\ndef ", 1)] if "\ndef " in seg[1:] else seg
         assert "**up" not in seg and ".items()" not in seg, (

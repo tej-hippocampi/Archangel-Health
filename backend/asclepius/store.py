@@ -8046,9 +8046,19 @@ class AsclepiusStore:
         now = datetime.now(timezone.utc)
         expires = (now + timedelta(minutes=ttl_minutes)).replace(microsecond=0).isoformat()
         with self._conn() as conn:
-            # One live challenge per address: re-requesting replaces rather than
-            # accumulating, so "5 attempts" cannot be farmed by re-signing-up.
-            conn.execute("DELETE FROM hs_signups WHERE email = ? AND consumed_at IS NULL", (addr,))
+            # One live challenge per address: re-requesting supersedes rather
+            # than accumulating, so the 5-attempt cap cannot be farmed by simply
+            # signing up again.
+            #
+            # RETIRED, not deleted. Deleting them also deleted the history that
+            # count_recent_hs_signups_for_email reads, so the per-address cap
+            # counted at most one row and never fired: an address could stage
+            # unlimited signups and every one of them mailed a code. Consumed
+            # rows are invisible to get_live_hs_signup and still countable.
+            conn.execute(
+                "UPDATE hs_signups SET consumed_at = ? WHERE email = ? AND consumed_at IS NULL",
+                (_utcnow_iso(), addr),
+            )
             conn.execute(
                 "INSERT INTO hs_signups (signup_id, email, full_name, organization, "
                 "password_hash, code_hash, attempts, expires_at, consumed_at, client_ip, created_at) "
@@ -8090,6 +8100,34 @@ class AsclepiusStore:
 
     def consume_hs_signup(self, signup_id: str) -> None:
         self.burn_hs_signup(signup_id)
+
+    def set_hs_signup_password_hash(self, signup_id: str, password_hash: str) -> None:
+        """Move an ALREADY-HASHED password onto a re-issued challenge.
+
+        Resending a code has to mint a fresh row, because the old code is stored
+        hashed and cannot be recovered to send again. But we never held the
+        password in the clear either, so the new row would otherwise carry a
+        random one and the account would be created with a password its owner
+        never chose. This carries the original hash across. It takes a hash, not
+        a password, so there is no path here that re-hashes or logs a plaintext.
+        """
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_signups SET password_hash = ? WHERE signup_id = ?",
+                         (password_hash, signup_id))
+
+    def set_hs_portal_password_hash(self, username: str, password_hash: str) -> None:
+        """Install an already-hashed password on a portal account.
+
+        Only the self-signup path uses this, for the same reason: the password
+        was hashed when it was staged and the plaintext is gone by the time the
+        account exists. Deliberately NOT set_hs_portal_password, which hashes a
+        plaintext and bumps session_epoch. Bumping the epoch here would
+        invalidate the cookie we are about to set and sign the new partner
+        straight back out.
+        """
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_portal_users SET password_hash = ? WHERE username = ?",
+                         (password_hash, (username or "").lower()))
 
     def count_recent_hs_signups_for_email(self, email: str, hours: int = 24) -> int:
         """Per-address volume, the analogue of onboarding's

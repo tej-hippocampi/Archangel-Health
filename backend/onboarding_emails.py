@@ -1285,3 +1285,176 @@ def build_community_morning_email(
         )
     )
     return _shell(subject="Your morning in Archangel", body_html=body)
+
+
+# ─── Health-system portal: self-signup, intake, approval ─────────────────────
+# The portal's second door. Everything here is addressed either to a hospital
+# contact who just signed themselves up, or to us about one who did.
+
+
+def build_hs_signup_code_email(*, code: str, organization: str,
+                               expires_minutes: int = 15) -> str:
+    """The six digits that turn a staged signup into an account."""
+    body = (
+        _eyebrow("Confirm your email")
+        + _h1("Here is your code.")
+        + _p(
+            f"Enter this to finish setting up the upload portal for "
+            f"{_strong(organization)}."
+        )
+        + _code_block(code, size=34)
+        + _p(
+            f"It expires in {expires_minutes} minutes. If you did not ask for "
+            "this, you can ignore this message and nothing is created.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Your Archangel Health confirmation code", body_html=body)
+
+
+def build_hs_signup_welcome_email(*, organization: str, username: str,
+                                  portal_url: str) -> str:
+    """Sent once the code clears.
+
+    This is where the username is delivered, and that matters more than it
+    looks: a self-signup never chose one, we derived it from the organization
+    name, and the sign-in form asks for it rather than for their email. If this
+    mail is the only place it appears and it gets buried, they cannot get back
+    in. It is also on screen at the end of signup and prefilled in the browser.
+    """
+    body = (
+        _eyebrow("Upload portal")
+        + _h1("Your portal is ready.")
+        + _p(f"Welcome. This is the secure upload portal for {_strong(organization)}.")
+        + _inset_card(
+            _detail_rows([
+                ("Sign in with", username, True),
+                ("Password", "The one you just chose", False),
+            ])
+        )
+        + _p(
+            "Write the username down somewhere. You sign in with it rather than "
+            "with your email address."
+        )
+        + _cta(portal_url, "Open the portal →")
+        + _p(
+            "You can look around now. Uploading opens once we have reviewed the "
+            "account, which is usually the same day, and we will email you when "
+            "it does.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Your Archangel Health upload portal", body_html=body)
+
+
+def build_hs_approved_email(*, organization: str, portal_url: str) -> str:
+    body = (
+        _eyebrow("Upload portal")
+        + _h1("Uploading is open.")
+        + _p(
+            f"We have reviewed the portal account for {_strong(organization)} and "
+            "the upload screen is now live."
+        )
+        + _cta(portal_url, "Upload data →")
+        + _p(
+            "Send a .zip, or individual .json, .csv, .hl7 or .txt files and we "
+            "package them for you. Large files are sent in pieces and resume if "
+            "the connection drops. Please make sure data is de-identified and "
+            "date-shifted before it reaches us."
+        )
+    )
+    return _shell(subject=f"Uploading is open for {organization}", body_html=body)
+
+
+def build_hs_intake_alert(*, full_name: str, email: str, organization: str,
+                          answers: "dict", hs_id: str) -> str:
+    """To us, when a health system tells us who they are.
+
+    Answers only, verbatim, in the order they were asked. No PHI reaches this
+    by construction: the intake form asks a partner to DESCRIBE what they hold,
+    and the portal never sends patient data through it.
+    """
+    rows = [
+        ("Contact", full_name or "(not given)", False),
+        ("Email", email or "(not given)", False),
+        ("Organization", organization or "(not given)", False),
+        ("Health system id", hs_id, True),
+    ]
+    labelled = [
+        ("organization", "Who they are"),
+        ("size_type", "Size"),
+        ("data_held", "Data they hold"),
+        ("licensable", "Open to licensing"),
+        ("timeline", "Timeline"),
+    ]
+    parts = []
+    for key, label in labelled:
+        value = (answers or {}).get(key) or ""
+        if not str(value).strip():
+            continue
+        parts.append(
+            _p(f"{_strong(label)}<br>{html.escape(str(value)).replace(chr(10), '<br>')}")
+        )
+    body = (
+        _eyebrow("Health system intake")
+        + _h1(organization or "A health system told us about itself")
+        + _inset_card(_detail_rows(rows))
+        + ("".join(parts) or _p("They submitted the form without filling anything in.",
+                                muted=True))
+    )
+    return _shell(subject=f"[Health system] Intake: {organization}", body_html=body)
+
+
+def build_hs_signup_alert(*, full_name: str, email: str, organization: str,
+                          hs_id: str, username: str,
+                          name_collisions: "list" = None) -> str:
+    """To us, when a health system signs itself up and is waiting on a decision."""
+    rows = [
+        ("Contact", full_name or "(not given)", False),
+        ("Email", email or "(not given)", False),
+        ("Organization", organization or "(not given)", False),
+        ("Username", username, True),
+        ("Health system id", hs_id, True),
+    ]
+    collision_note = ""
+    if name_collisions:
+        # The one thing an operator must not miss. create_health_system_unclaimed
+        # deliberately refuses to merge by name, so a duplicate here is either a
+        # second contact at a partner we already have or somebody typing a
+        # hospital's name who does not work there. Both need a human.
+        ids = ", ".join(name_collisions)
+        collision_note = _inset_card(
+            _p(
+                f"{_strong('Another health system already uses this name.')}<br>"
+                f"Existing: {html.escape(ids)}<br>"
+                "This signup was given its own id and cannot see their uploads. "
+                "Check who this is before approving."
+            )
+        )
+    body = (
+        _eyebrow("New health system")
+        + _h1(organization or "A health system signed up")
+        + _p("They signed themselves up through the portal and are waiting on a "
+             "decision. Uploading is locked until someone approves it.")
+        + _inset_card(_detail_rows(rows))
+        + collision_note
+    )
+    return _shell(subject=f"[Health system] New signup: {organization}", body_html=body)
+
+
+def build_founder_event_alert(*, eyebrow: str, headline: str, lede: str,
+                              rows: "list" = None, note: str = "") -> str:
+    """The generic internal alert for product events that need no special layout.
+
+    Used by the notification hooks (a case submitted, a review finished, a
+    referral made, a health system uploading). Deliberately plain: these arrive
+    often, and every one of them is a glance rather than a read.
+    """
+    body = _eyebrow(eyebrow) + _h1(html.escape(headline)) + _p(html.escape(lede))
+    if rows:
+        body += _inset_card(_detail_rows(rows))
+    if note:
+        body += _p(html.escape(note), muted=True, small=True)
+    return _shell(subject=headline, body_html=body)

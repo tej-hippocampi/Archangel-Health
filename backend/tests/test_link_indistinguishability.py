@@ -219,6 +219,13 @@ def test_every_provider_route_is_observationally_identical(variants):
             "sha256": hashlib.sha256(data).hexdigest()}}),
         ("post", f"{API}/hs/uploads/sessions/{{sid}}/complete", {}),
         ("delete", f"{API}/hs/uploads/sessions/{{sid}}", {}),
+        # Added with the portal's second door. This list is hand-maintained
+        # despite what the docstring says, so a new /hs/ route is not covered
+        # until somebody adds it here. Both variants are created with no intake
+        # and no payouts, so these are identical by construction; asserting it
+        # is what stops a later field from quietly making them differ.
+        ("get", f"{API}/hs/intake", {}),
+        ("get", f"{API}/hs/payouts", {}),
     ]
     for method, path, kw in cases:
         _assert_observationally_identical(call(a, method, path, **kw),
