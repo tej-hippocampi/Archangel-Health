@@ -484,3 +484,44 @@ def test_the_export_annex_says_which_product_produced_the_record():
     ordinary = PK.trajectory_block({"task_id": "t1"},
                                    {"expected_trajectory": None}) or {}
     assert ordinary.get("walk_mode") is None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# The reviewer sees the falsifier (caught by test_label_view at merge time)
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_reviewer_is_shown_the_sealed_prediction():
+    """Found by the merge, not by inspection.
+
+    The longitudinal work added ``expected_trajectory`` to submissions; main added
+    ``label_view``'s completeness assertion. Neither touched the other's lines and
+    both were green alone — together they caught that a reviewer would silently
+    never have seen the field.
+
+    It is SHOWN. "Bilirubin falls within 14 days; if GGT climbs the stent has
+    occluded" is a clinical claim authored by the physician under review, and it
+    is the most reviewable sentence in a longitudinal submission — withholding it
+    leaves a reviewer grading a decision with its stated reasoning removed."""
+    from asclepius import label_view as lv
+
+    field = next((f for f in lv.FIELDS if f.path == "expected_trajectory"), None)
+    assert field is not None, "the completeness test would have caught this"
+    assert field.visible is True
+    assert field.render == "trajectory", (
+        "not 'pairs' — that renders the expectations list as [object Object], "
+        "which is visible and unread")
+    assert "expected_trajectory" in lv.submission_view_keys()
+
+
+def test_the_client_actually_renders_it():
+    """Declaring the field only gets it into the payload. The reviewer's client
+    renders by hand, so a declaration with no renderer is a field that reaches the
+    browser and is still never seen — the same defect one step later."""
+    import pathlib
+    js = (pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
+          / "review.js").read_text()
+    css = (pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
+           / "asclepius.css").read_text()
+    assert "function trajectory(" in js
+    assert "a.expected_trajectory" in js
+    assert "Would change their mind" in js, "the falsifier gets its own line"
+    assert ".asc-rv-eyebrow" in css, "a class with no rule is invisible on screen"

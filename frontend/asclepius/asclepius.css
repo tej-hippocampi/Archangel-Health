@@ -4055,6 +4055,16 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint);
 }
 .asc-rv-kv { font-size: var(--t-sm); color: var(--ink-soft); }
+/* The falsifier's label inside the sealed prediction. Set apart from the
+   expectations above it because it is the part a reviewer is really grading:
+   anyone can predict improvement; naming what would refute you is the skill. */
+.asc-rv-eyebrow {
+  font-size: var(--t-sm);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 6px;
+}
 .asc-rv-kv b { color: var(--ink); font-weight: 500; }
 .asc-rv-kv-lead { margin: var(--sp-3) 0 var(--sp-2); }
 .asc-rv-main { display: block; }
