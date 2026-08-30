@@ -7,6 +7,7 @@
 
 import { Fragment } from "react";
 import type { ShellActions } from "../ArchShell";
+import { healthSystemPortalUrl } from "@/lib/auth-api";
 
 const FLOW = [
   { chrome: "Stage 1", title: "Your record", sub: "" },
@@ -44,7 +45,10 @@ const TRUST_ROWS: { tag: string; line: string; onRequest?: boolean }[] = [
   },
 ];
 
-export function HealthSystemsPage({ actions }: { actions: ShellActions }) {
+/* `actions` is still in the prop type because every route receives the same
+   shape from the shell, but this page no longer opens a modal: both of its
+   doors are real URLs a hospital can bookmark or forward. */
+export function HealthSystemsPage(_props: { actions: ShellActions }) {
   return (
     <div className="route">
       <section className="section">
@@ -91,11 +95,32 @@ export function HealthSystemsPage({ actions }: { actions: ShellActions }) {
           ))}
         </div>
 
+        {/* Two doors, and the order is the point. A hospital that has decided
+            goes straight to its own portal; one that wants a conversation first
+            books one. Neither is the two-field lead modal this button used to
+            open, which took a CIO's email and left them waiting on us. */}
         <div className="route-cta reveal">
-          <button type="button" className="btn btn-primary" onClick={() => actions.openLead("provide_data")}>
-            Become a data partner
-          </button>
+          <a className="btn btn-primary" href={healthSystemPortalUrl()}>
+            Set up your data portal
+          </a>
+          <a
+            className="cta-secondary"
+            href="/partner"
+            onClick={(e) => {
+              // A real link, so it opens in a new tab and is copyable, but a
+              // normal click stays in the SPA rather than reloading the shell.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              window.location.assign("/partner");
+            }}
+          >
+            Or talk to us first
+          </a>
         </div>
+        <p className="cta-note reveal">
+          The portal is where you upload data and see what we have paid you.
+          Signing up does not commit you to anything.
+        </p>
       </section>
     </div>
   );

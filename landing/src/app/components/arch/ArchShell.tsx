@@ -16,6 +16,7 @@ import {
   type LeadKind,
 } from "@/app/components/LandingContactModals";
 import { useLandingAuth } from "@/app/hooks/useLandingAuth";
+import { healthSystemPortalUrl } from "@/lib/auth-api";
 import { baseStyles } from "./baseStyles";
 import { routeStyles } from "./routeStyles";
 import { MenuPanel } from "./MenuPanel";
@@ -38,7 +39,7 @@ export const ARCH_PATHS: ArchPath[] = ["/", "/research", "/data", "/health-syste
 const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   "/": {
     title: "Archangel Health · Infrastructure to Power Medical AI",
-    desc: "A network of hundreds of board-certified physicians behind 20+ clinical data products, plus fully bespoke collection. Training data for clinical and medical AI.",
+    desc: "A network of hundreds of credentialed physicians behind 20+ clinical data products, plus fully bespoke collection. Training data for clinical and medical AI.",
   },
   "/research": {
     title: "Research · Archangel Health",
@@ -54,7 +55,7 @@ const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   },
   "/physicians": {
     title: "Physicians & experts · Archangel Health",
-    desc: "Work through real de-identified cases, judge AI reasoning, and earn $150–$300+/hour for your expertise.",
+    desc: "Work through real de-identified cases and judge AI reasoning. Typically $150–$300+/hour, set per case. Open to physicians worldwide, including retired doctors and those in training.",
   },
   "/mission": {
     title: "Mission · Archangel Health",
@@ -379,6 +380,19 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
           </a>
           <a href={`mailto:${MAIL}`} onClick={handleMailto}>{MAIL}</a>
         </div>
+        {/* The three doors, named. "Sign in" alone assumed you were a doctor,
+            so a hospital arriving here had to guess, and mostly guessed the
+            contact form. One row, on every route, saying which is which. */}
+        <div className="foot-doors">
+          <span className="chrome foot-doors-label">Sign in or sign up</span>
+          <a href="/join" onClick={(e) => { e.preventDefault(); goToJoin(); }}>
+            Physicians
+          </a>
+          <a href={healthSystemPortalUrl()}>Health systems</a>
+          <button type="button" onClick={() => setLeadModal("request_data")}>
+            Data buyers
+          </button>
+        </div>
         <p className="foot-line chrome">Real · De-identified · IP-cleared · Never resold beyond license</p>
       </footer>
 
@@ -410,7 +424,11 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
         }}
         onDataContributor={() => {
           setContributorOpen(false);
-          setLeadModal("provide_data");
+          // Was the two-field "provide data" modal, which took an email and
+          // left a hospital waiting on us to write back. They get their own
+          // portal instead, which is the thing they were going to be sent
+          // after that exchange anyway.
+          window.location.assign(healthSystemPortalUrl());
         }}
       />
 

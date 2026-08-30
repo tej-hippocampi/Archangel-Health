@@ -81,9 +81,13 @@
             </button>
           </form>
           <p class="asc-login-hint">
-            This portal is for authorized data-sharing partners only. Access is
-            logged. Lost your credentials? Reply to your welcome email and we
-            will send new ones.
+            New here?
+            <button type="button" class="prv-linkbtn" id="prvToSignup">Set up a portal
+              for your health system</button>
+          </p>
+          <p class="asc-login-hint">
+            Access is logged. Lost your credentials? Reply to your welcome email
+            and we will send new ones.
           </p>
         </div>
       </div>
@@ -239,6 +243,223 @@
       </section>
     </div>
   </template>
+
+  <!-- 4) SIGN UP — the second door. An admin-provisioned partner never sees
+       this; a health system that found us on its own has nowhere else to go. -->
+  <template id="tplSignup">
+    <div class="prv-auth-wrap">
+      <div class="asc-login-card prv-auth-card">
+        <div class="asc-login-head">
+          <div class="asc-login-mark" aria-hidden="true"></div>
+          <h1>Set up your portal</h1>
+          <p>For health systems sharing clinical data with Archangel Health</p>
+        </div>
+        <div class="asc-login-body">
+          <p class="prv-lead">
+            Tell us who you are and choose a password. We will confirm your email,
+            then ask a few questions about your data.
+          </p>
+          <div class="asc-login-error" id="prvSignupError" role="alert" hidden></div>
+          <form id="prvSignupForm" novalidate>
+            <div class="asc-field">
+              <label class="asc-label" for="prvSuName">Your name</label>
+              <input class="asc-input" id="prvSuName" name="full_name" type="text"
+                     autocomplete="name" required />
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="prvSuEmail">Work email</label>
+              <input class="asc-input" id="prvSuEmail" name="email" type="email"
+                     autocomplete="email" autocapitalize="none" spellcheck="false" required />
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="prvSuOrg">Health system</label>
+              <input class="asc-input" id="prvSuOrg" name="organization" type="text"
+                     autocomplete="organization" required />
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="prvSuPw">Choose a password
+                <span class="asc-label-hint">— at least 12 characters</span></label>
+              <input class="asc-input" id="prvSuPw" name="password" type="password"
+                     autocomplete="new-password" minlength="12" required />
+              <div class="prv-strength" id="prvSuStrength" aria-live="polite"></div>
+            </div>
+            <!-- Honeypot. Never shown to a person; always filled by a naive bot. -->
+            <input type="text" id="prvSuHp" name="company_website" tabindex="-1"
+                   autocomplete="off" aria-hidden="true" class="prv-visually-hidden" />
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg asc-btn-block"
+                    id="prvSignupBtn">Continue</button>
+          </form>
+          <p class="asc-login-hint">
+            Already have an account?
+            <button type="button" class="prv-linkbtn" id="prvToLogin">Sign in</button>
+          </p>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 5) CONFIRM EMAIL — six digits, not a link. Enterprise mail security
+       pre-fetches links, which would auto-confirm an address nobody opened. -->
+  <template id="tplVerify">
+    <div class="prv-auth-wrap">
+      <div class="asc-login-card prv-auth-card">
+        <div class="asc-login-head">
+          <div class="asc-login-mark" aria-hidden="true"></div>
+          <h1>Confirm your email</h1>
+          <p id="prvVerifySub">We sent you a six-digit code</p>
+        </div>
+        <div class="asc-login-body">
+          <div class="asc-login-error" id="prvVerifyError" role="alert" hidden></div>
+          <form id="prvVerifyForm" novalidate>
+            <div class="asc-field">
+              <label class="asc-label" for="prvVerifyCode">Confirmation code</label>
+              <input class="asc-input prv-code-input" id="prvVerifyCode" name="code"
+                     type="text" inputmode="numeric" autocomplete="one-time-code"
+                     maxlength="6" required />
+            </div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg asc-btn-block"
+                    id="prvVerifyBtn">Confirm</button>
+          </form>
+          <p class="asc-login-hint">
+            It expires in 15 minutes.
+            <button type="button" class="prv-linkbtn" id="prvResendBtn">Send it again</button>
+          </p>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 6) ABOUT YOU — the first-run intake. Prompt copy comes from the server so
+       it lives in one auditable place. -->
+  <template id="tplIntake">
+    <div class="asc-wrap asc-wrap-narrow prv-panel">
+      <section class="asc-card">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">About your health system</div>
+            <div class="asc-card-sub" id="prvIntakeSub">
+              So we come to the first conversation knowing something real.
+            </div>
+          </div>
+        </div>
+        <div class="asc-card-pad">
+          <div class="asc-inline-ok" id="prvIntakeOk" hidden></div>
+          <div class="asc-login-error" id="prvIntakeError" role="alert" hidden></div>
+          <form id="prvIntakeForm" novalidate>
+            <div id="prvIntakeFields"></div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg"
+                    id="prvIntakeBtn">Save</button>
+          </form>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- 7) PAYOUTS -->
+  <template id="tplPayouts">
+    <div class="asc-wrap asc-wrap-narrow prv-panel">
+      <section class="asc-card">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">Payouts</div>
+            <div class="asc-card-sub">What we have paid your organization.</div>
+          </div>
+          <button type="button" class="asc-btn asc-btn-ghost asc-btn-sm"
+                  id="prvPayoutsRefresh">↻ Refresh</button>
+        </div>
+        <div class="asc-card-pad">
+          <div class="prv-payout-summary" id="prvPayoutSummary"></div>
+        </div>
+        <div class="asc-table-wrap" id="prvPayoutTableWrap">
+          <table class="asc-table">
+            <thead>
+              <tr>
+                <th scope="col">Recorded</th>
+                <th scope="col">For</th>
+                <th scope="col">Period</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="prv-num">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="prvPayoutBody"></tbody>
+          </table>
+        </div>
+        <div class="prv-history-empty" id="prvPayoutEmpty" hidden>
+          <div class="asc-empty-icon" aria-hidden="true">—</div>
+          <p id="prvPayoutEmptyText"></p>
+        </div>
+      </section>
+      <section class="asc-card">
+        <div class="asc-card-head"><div class="asc-card-title">How we pay</div></div>
+        <div class="asc-card-pad">
+          <p class="prv-note-text" id="prvHowWePay"></p>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- 8) ACCOUNT — the password change, promoted out of the forced-reset screen. -->
+  <template id="tplAccount">
+    <div class="asc-wrap asc-wrap-narrow prv-panel">
+      <section class="asc-card">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">Account</div>
+            <div class="asc-card-sub" id="prvAccountSub"></div>
+          </div>
+        </div>
+        <div class="asc-card-pad">
+          <div class="asc-login-error" id="prvAccountError" role="alert" hidden></div>
+          <div class="asc-inline-ok" id="prvAccountOk" hidden></div>
+          <form id="prvAccountForm" novalidate>
+            <div class="asc-field">
+              <label class="asc-label" for="prvAcCurrent">Current password</label>
+              <input class="asc-input" id="prvAcCurrent" type="password"
+                     autocomplete="current-password" required />
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="prvAcNew">New password
+                <span class="asc-label-hint">— at least 12 characters</span></label>
+              <input class="asc-input" id="prvAcNew" type="password"
+                     autocomplete="new-password" minlength="12" required />
+              <div class="prv-strength" id="prvAcStrength" aria-live="polite"></div>
+            </div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg"
+                    id="prvAccountBtn">Change password</button>
+          </form>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- 9) IN REVIEW — what a locked Upload tab opens onto. A locked surface
+       opens the explanation, never a bare refusal. -->
+  <template id="tplPending">
+    <div class="asc-wrap asc-wrap-narrow prv-panel">
+      <section class="asc-card">
+        <div class="asc-card-pad prv-pending">
+          <div class="asc-empty-icon" aria-hidden="true">·</div>
+          <h1 class="prv-intro-title">We are reviewing your account</h1>
+          <p class="prv-intro-sub">
+            Uploading opens once someone here has looked at what you told us,
+            usually the same day. We will email you when it does.
+          </p>
+          <p class="prv-intro-sub prv-pending-note">
+            In the meantime you can add to what you have told us, and your
+            payouts page is already live.
+          </p>
+          <button type="button" class="asc-btn asc-btn-primary" id="prvPendingIntake">
+            Tell us more about your data
+          </button>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- Left rail. A BODY child, not a child of #prvRoot: every panel render
+       replaces the root, and navigation that gets wiped by its own destination
+       is the oldest bug in this pattern. -->
+  <aside class="asc-rail prv-rail" id="prvRail" aria-label="Portal sections" hidden></aside>
 
   <!-- Toast region for lightweight confirmations / errors -->
   <div class="asc-toast-region" id="prvToasts" aria-live="assertive" aria-atomic="true"></div>

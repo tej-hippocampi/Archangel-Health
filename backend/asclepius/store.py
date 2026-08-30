@@ -1419,6 +1419,130 @@ class AsclepiusStore:
             )
             self._backfill_health_systems(conn)
             # ═══ END PRD-C ═══
+            # ═══ HS SELF-SERVE + PAYOUTS — owned by the portal, do not edit from other PRDs ═══
+            # PRD-C provisions a health system by hand: an operator types an org
+            # and an email, and the contact gets a passphrase. That is the right
+            # door for a partner we already met and the only door there was, so a
+            # hospital that found us on its own had nowhere to go. These columns
+            # add the second door and the ledger the portal shows once money
+            # starts moving.
+            _hspu_cols = cols("hs_portal_users")
+            # pending | approved | rejected. NO DEFAULT, deliberately: every row
+            # that predates this reads NULL, meaning "nobody ever made this
+            # decision", and hs_access collapses NULL to full access exactly as
+            # capabilities.py collapses a NULL verification_status. That is what
+            # makes this migration zero-backfill -- an existing admin-provisioned
+            # hospital keeps working without anyone touching its row.
+            if "approval_status" not in _hspu_cols:
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN approval_status TEXT")
+            # Three columns, not one, for the same reason `earnings` carries
+            # void_reason/voided_by/voided_at: a consequential decision that
+            # cannot be attributed cannot be appealed.
+            for _col in ("approved_by", "approved_at", "decision_reason"):
+                if _col not in _hspu_cols:
+                    conn.execute(f"ALTER TABLE hs_portal_users ADD COLUMN {_col} TEXT")
+            # The person's own name. Self-signup is deliberately low-friction and
+            # this is the only human identifier it collects.
+            if "full_name" not in _hspu_cols:
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN full_name TEXT")
+            # 'self_serve' or NULL (admin-provisioned). Lets the admin list
+            # separate the two populations without inferring it from
+            # approval_status, which will not stay a reliable proxy.
+            if "signup_source" not in _hspu_cols:
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN signup_source TEXT")
+
+            # NULL is the whole "we have nothing on this organization yet" gate,
+            # so it gets no DEFAULT either. Read off a row require_hs_portal
+            # already loads, so the gate costs no extra query.
+            if "intake_at" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN intake_at TEXT")
+
+            # Staging for a signup that has not proved its mailbox yet. Nothing
+            # touches health_systems or hs_portal_users until a code is verified:
+            # without this table a bot spraying the signup route fills the admin
+            # partner list, which is the operator's primary work surface.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_signups (
+                    signup_id     TEXT PRIMARY KEY,
+                    email         TEXT NOT NULL,          -- lowercased
+                    full_name     TEXT NOT NULL,
+                    organization  TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,          -- what they chose, never plaintext
+                    code_hash     TEXT NOT NULL,          -- the 6 digits, hashed like a password
+                    attempts      INTEGER NOT NULL DEFAULT 0,
+                    expires_at    TEXT NOT NULL,
+                    consumed_at   TEXT,
+                    client_ip     TEXT,
+                    created_at    TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_signups_email "
+                         "ON hs_signups(email, created_at)")
+
+            # Append-only, never UPDATE. Not health_systems.notes: that column is
+            # already written by ensure_health_system(notes=...), has no timestamp
+            # and no author, and overwriting free text a partner wrote destroys
+            # evidence. Not lead_submissions either -- that table lives in
+            # team.db, and reaching a second database from a provider-facing
+            # request is not worth it.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_intake (
+                    intake_id    TEXT PRIMARY KEY,
+                    hs_id        TEXT NOT NULL,
+                    username     TEXT,                    -- which account answered
+                    answers_json TEXT NOT NULL,           -- fixed keys, never a splat
+                    submitted_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_intake_hs "
+                         "ON hs_intake(hs_id, submitted_at)")
+
+            # Admin-entry only, by construction: there is no accrual path from a
+            # health system's uploads to money, no schedule, and no Stripe. The
+            # portal's empty state says so rather than implying a ledger that
+            # fills itself.
+            #
+            # UNIQUE(hs_id, external_ref) is the double-payment guard, the
+            # analogue of UNIQUE(kind, ref_id) on `earnings`: two concurrent
+            # admin submits of the same invoice cannot both win the INSERT.
+            #
+            # There is deliberately no bank_account, routing_number, iban,
+            # tax_id, ssn or ein column here, per the disbursement seam in
+            # routers/asclepius_payments.py. A change that wants one is the
+            # signal it belongs behind a payment processor instead, and
+            # test_hs_payouts.py asserts their absence so the rule survives.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_payouts (
+                    payout_id       TEXT PRIMARY KEY,
+                    hs_id           TEXT NOT NULL,
+                    amount_cents    INTEGER NOT NULL,
+                    currency        TEXT NOT NULL DEFAULT 'usd',
+                    status          TEXT NOT NULL,   -- accrued | approved | paid | void
+                    description     TEXT,            -- partner-readable words, not a code
+                    period_start    TEXT,
+                    period_end      TEXT,
+                    external_ref    TEXT NOT NULL,   -- admin-supplied idempotency key
+                    recorded_by     TEXT NOT NULL,
+                    recorded_at     TEXT NOT NULL,
+                    paid_at         TEXT,
+                    payout_batch_id TEXT,
+                    void_reason     TEXT,
+                    voided_by       TEXT,
+                    voided_at       TEXT,
+                    UNIQUE(hs_id, external_ref)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_payouts_hs "
+                         "ON hs_payouts(hs_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_payouts_batch "
+                         "ON hs_payouts(payout_batch_id)")
+            # ═══ END HS SELF-SERVE + PAYOUTS ═══
             # ═══ PROFILE PICTURE — owned by the own-profile surface ═══════════
             # Its own fenced block rather than an edit to PRD-B or PRD-D above,
             # per the convention those fences establish.
@@ -4792,6 +4916,22 @@ class AsclepiusStore:
                     json.dumps(payload or {}),
                 ),
             )
+        # Founder notifications hang off this one call rather than off ~10 route
+        # handlers, because every notable thing that happens already logs an
+        # event here and a second list of call sites is a second list to keep in
+        # step. An event type nobody asked to hear about returns immediately.
+        #
+        # Outside the connection block on purpose: the hook writes to the
+        # notify outbox through this same store, and re-entering an open
+        # connection is the C-5.5 bug. It never sends mail either -- it queues a
+        # row and the existing 60s drainer sends -- so no request pays for a
+        # network round trip here.
+        try:
+            import notifications
+            notifications.on_event(self, entity_type=entity_type, event_type=event_type,
+                                   entity_id=entity_id, actor=actor, payload=payload or {})
+        except Exception:  # pragma: no cover - a notification must never break a write
+            pass
 
     def list_events(
         self,
@@ -7397,15 +7537,33 @@ class AsclepiusStore:
         return d
 
     def create_hs_portal_user(self, *, username: str, hs_id: str, password: str,
-                              email: Optional[str] = None) -> Dict[str, Any]:
+                              email: Optional[str] = None,
+                              must_reset: bool = True,
+                              full_name: Optional[str] = None,
+                              signup_source: Optional[str] = None,
+                              approval_status: Optional[str] = None) -> Dict[str, Any]:
+        """Create a portal login.
+
+        ``must_reset`` defaults True because the admin-provisioned path mails a
+        passphrase we generated, and a credential that travelled through email
+        has to be replaced before it guards anything. A self-signup chose its own
+        password thirty seconds ago and has nothing to replace, so it passes
+        False — otherwise the account lands on the forced-reset screen and is
+        asked to change a password it just picked.
+
+        Every argument after ``email`` is defaulted to the pre-existing behaviour
+        so the admin call sites are unchanged by this.
+        """
         uname = (username or "").strip().lower()
         if not uname:
             raise ValueError("username is required")
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO hs_portal_users (username, hs_id, password_hash, must_reset, "
-                "email, active, created_at) VALUES (?, ?, ?, 1, ?, 1, ?)",
-                (uname, hs_id, hash_password(password), email, _utcnow_iso()),
+                "email, active, created_at, full_name, signup_source, approval_status) "
+                "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+                (uname, hs_id, hash_password(password), 1 if must_reset else 0, email,
+                 _utcnow_iso(), full_name, signup_source, approval_status),
             )
         return self.get_hs_portal_user_public(uname)  # type: ignore[return-value]
 
@@ -7836,6 +7994,340 @@ class AsclepiusStore:
             out.append(d)
         return out
     # ═══ END PRD-C STORE METHODS ═══
+    # ═══ HS SELF-SERVE + PAYOUTS STORE METHODS ═══════════════════════════════
+
+    # ─── The second door: a health system that signed itself up ──────────────
+    def create_health_system_unclaimed(self, name: str, *,
+                                       contact_email: Optional[str] = None) -> Dict[str, Any]:
+        """Always mint a FRESH health_systems row. Never reuse, never merge.
+
+        ``ensure_health_system`` is create-or-reuse by case-insensitive name, and
+        that is correct for an operator who types "Mercy Health" meaning the
+        Mercy Health we already work with. It is catastrophic on a public route:
+        list_uploads_for_health_system scopes on hs_id alone and reads are not
+        gated on upload approval, so a stranger typing an incumbent partner's
+        name would be handed that partner's entire upload history the moment they
+        verified an email address.
+
+        So self-signup calls this instead. A signup from an organization we
+        already know therefore produces a duplicate row that an operator
+        reconciles by hand, which is the correct failure: un-merging a
+        cross-tenant read is not a thing you can do afterwards. The admin
+        approval card surfaces the name collision and a human decides.
+        """
+        clean = " ".join((name or "").split())
+        if not clean:
+            raise ValueError("health system name is required")
+        base = self.hs_id_for_name(clean)
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            hs_id = base
+            # hs_id_for_name is deterministic from the name, so two signups for
+            # the same organization collide on the primary key by design. Suffix
+            # until free rather than falling back to the existing row.
+            while conn.execute("SELECT 1 FROM health_systems WHERE hs_id = ?",
+                               (hs_id,)).fetchone() is not None:
+                hs_id = f"{base}-{secrets.token_hex(2)}"
+            conn.execute(
+                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at) "
+                "VALUES (?, ?, ?, NULL, 1, ?)",
+                (hs_id, clean, contact_email, now),
+            )
+        return {"hs_id": hs_id, "name": clean, "contact_email": contact_email,
+                "notes": None, "active": 1, "created_at": now, "intake_at": None}
+
+    def health_systems_named_like(self, name: str, *,
+                                  exclude_hs_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Other rows carrying the same organization name, for the admin's
+        collision warning. Merging two hospitals by hand is cheap; discovering
+        later that two unrelated parties shared an hs_id is not."""
+        clean = " ".join((name or "").split())
+        if not clean:
+            return []
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM health_systems WHERE LOWER(name) = LOWER(?) AND hs_id != ?",
+                (clean, exclude_hs_id or ""),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ─── Signup staging (unverified mailboxes never reach the partner list) ──
+    def create_hs_signup(self, *, email: str, full_name: str, organization: str,
+                         password: str, code: str, ttl_minutes: int = 15,
+                         client_ip: Optional[str] = None) -> Dict[str, Any]:
+        """Stage a signup and its emailed code. Both secrets are hashed at rest:
+        the code guards account creation, so it is a credential."""
+        addr = (email or "").strip().lower()
+        signup_id = uuid.uuid4().hex
+        now = datetime.now(timezone.utc)
+        expires = (now + timedelta(minutes=ttl_minutes)).replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            # One live challenge per address: re-requesting supersedes rather
+            # than accumulating, so the 5-attempt cap cannot be farmed by simply
+            # signing up again.
+            #
+            # RETIRED, not deleted. Deleting them also deleted the history that
+            # count_recent_hs_signups_for_email reads, so the per-address cap
+            # counted at most one row and never fired: an address could stage
+            # unlimited signups and every one of them mailed a code. Consumed
+            # rows are invisible to get_live_hs_signup and still countable.
+            conn.execute(
+                "UPDATE hs_signups SET consumed_at = ? WHERE email = ? AND consumed_at IS NULL",
+                (_utcnow_iso(), addr),
+            )
+            conn.execute(
+                "INSERT INTO hs_signups (signup_id, email, full_name, organization, "
+                "password_hash, code_hash, attempts, expires_at, consumed_at, client_ip, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, ?)",
+                (signup_id, addr, (full_name or "").strip(), " ".join((organization or "").split()),
+                 hash_password(password), hash_password(code), expires, client_ip, _utcnow_iso()),
+            )
+        return {"signup_id": signup_id, "email": addr, "expires_at": expires}
+
+    def get_live_hs_signup(self, email: str) -> Optional[Dict[str, Any]]:
+        """The unconsumed, unexpired challenge for this address, if any."""
+        addr = (email or "").strip().lower()
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_signups WHERE email = ? AND consumed_at IS NULL "
+                "AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
+                (addr, now),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def bump_hs_signup_attempts(self, signup_id: str) -> int:
+        """Count a wrong code. Returns the new total so the caller can burn the
+        challenge at the cap rather than leaving it open to be ground down."""
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_signups SET attempts = attempts + 1 WHERE signup_id = ?",
+                         (signup_id,))
+            row = conn.execute("SELECT attempts FROM hs_signups WHERE signup_id = ?",
+                               (signup_id,)).fetchone()
+        return int(row["attempts"]) if row else 0
+
+    def burn_hs_signup(self, signup_id: str) -> None:
+        """End a challenge without creating anything (attempt cap, or expiry
+        cleanup). Marked consumed rather than deleted so the abuse counters in
+        count_recent_hs_signups still see that the attempt happened."""
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_signups SET consumed_at = ? WHERE signup_id = ?",
+                         (_utcnow_iso(), signup_id))
+
+    def consume_hs_signup(self, signup_id: str) -> None:
+        self.burn_hs_signup(signup_id)
+
+    def set_hs_signup_password_hash(self, signup_id: str, password_hash: str) -> None:
+        """Move an ALREADY-HASHED password onto a re-issued challenge.
+
+        Resending a code has to mint a fresh row, because the old code is stored
+        hashed and cannot be recovered to send again. But we never held the
+        password in the clear either, so the new row would otherwise carry a
+        random one and the account would be created with a password its owner
+        never chose. This carries the original hash across. It takes a hash, not
+        a password, so there is no path here that re-hashes or logs a plaintext.
+        """
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_signups SET password_hash = ? WHERE signup_id = ?",
+                         (password_hash, signup_id))
+
+    def set_hs_portal_password_hash(self, username: str, password_hash: str) -> None:
+        """Install an already-hashed password on a portal account.
+
+        Only the self-signup path uses this, for the same reason: the password
+        was hashed when it was staged and the plaintext is gone by the time the
+        account exists. Deliberately NOT set_hs_portal_password, which hashes a
+        plaintext and bumps session_epoch. Bumping the epoch here would
+        invalidate the cookie we are about to set and sign the new partner
+        straight back out.
+        """
+        with self._conn() as conn:
+            conn.execute("UPDATE hs_portal_users SET password_hash = ? WHERE username = ?",
+                         (password_hash, (username or "").lower()))
+
+    def count_recent_hs_signups_for_email(self, email: str, hours: int = 24) -> int:
+        """Per-address volume, the analogue of onboarding's
+        count_recent_pending_invites_for_email. Counts consumed rows too: the
+        question is how often this address has been used, not how many are open."""
+        addr = (email or "").strip().lower()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).replace(
+            microsecond=0).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM hs_signups WHERE email = ? AND created_at > ?",
+                (addr, cutoff),
+            ).fetchone()
+        return int(row[0] or 0)
+
+    def count_events_since(self, *, event_type: str, actor: Optional[str],
+                           since_iso: str) -> int:
+        """How many of these one actor has logged since a moment.
+
+        Used only by the founder-alert rollup, so a burst can be reported as the
+        burst it was rather than as its first event. list_events cannot answer
+        this: it filters on entity, not on event type or time.
+        """
+        with self._conn() as conn:
+            if actor:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE event_type = ? AND actor = ? "
+                    "AND occurred_at >= ?", (event_type, actor, since_iso)).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE event_type = ? AND actor IS NULL "
+                    "AND occurred_at >= ?", (event_type, since_iso)).fetchone()
+        return int(row[0] or 0)
+
+    # ─── Approval ────────────────────────────────────────────────────────────
+    def set_hs_approval(self, username: str, status: str, *, by: str,
+                        reason: Optional[str] = None) -> None:
+        if status not in ("pending", "approved", "rejected"):
+            raise ValueError(f"unknown approval status: {status!r}")
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET approval_status = ?, approved_by = ?, "
+                "approved_at = ?, decision_reason = ? WHERE username = ?",
+                (status, by, _utcnow_iso(), reason, (username or "").lower()),
+            )
+
+    def list_hs_pending_signups(self) -> List[Dict[str, Any]]:
+        """Self-signups waiting on a human, newest last so the oldest is worked
+        first. Each row carries its health system so the admin card needs one
+        call, not one plus N."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT u.*, h.name AS hs_name, h.contact_email AS hs_contact_email, "
+                "       h.intake_at AS hs_intake_at "
+                "FROM hs_portal_users u JOIN health_systems h ON h.hs_id = u.hs_id "
+                "WHERE u.approval_status = 'pending' ORDER BY u.created_at ASC"
+            ).fetchall()
+        return [self._hs_user_public(r) for r in rows]
+
+    # ─── Intake ──────────────────────────────────────────────────────────────
+    def record_hs_intake(self, *, hs_id: str, username: Optional[str],
+                         answers: Dict[str, Any]) -> Dict[str, Any]:
+        """Append the answers and stamp the gate in ONE connection block.
+
+        Both writes together, per the C-5.5 lesson on ensure_health_system: a
+        second connection opened from inside a still-uncommitted block reads the
+        pre-update row, so splitting these would let a caller see intake_at still
+        NULL and route the partner back into the form they just filled in.
+        """
+        intake_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO hs_intake (intake_id, hs_id, username, answers_json, submitted_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (intake_id, hs_id, (username or None), json.dumps(answers, sort_keys=True), now),
+            )
+            conn.execute("UPDATE health_systems SET intake_at = ? WHERE hs_id = ?", (now, hs_id))
+        return {"intake_id": intake_id, "hs_id": hs_id, "username": username,
+                "answers": answers, "submitted_at": now}
+
+    def list_hs_intake(self, hs_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_intake WHERE hs_id = ? ORDER BY submitted_at DESC", (hs_id,)
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["answers"] = json.loads(d.pop("answers_json") or "{}")
+            except (TypeError, ValueError):
+                d.pop("answers_json", None)
+                d["answers"] = {}
+            out.append(d)
+        return out
+
+    # ─── Payouts ─────────────────────────────────────────────────────────────
+    def record_hs_payout(self, *, hs_id: str, amount_cents: int, external_ref: str,
+                         recorded_by: str, description: Optional[str] = None,
+                         period_start: Optional[str] = None, period_end: Optional[str] = None,
+                         currency: str = "usd", status: str = "accrued") -> Optional[Dict[str, Any]]:
+        """Record one payment against a health system.
+
+        Returns None when ``(hs_id, external_ref)`` is already on the ledger. The
+        UNIQUE constraint, not this check, is what makes that safe under two
+        concurrent admin submits of the same invoice number — an operator
+        double-clicking "record" must not pay a hospital twice.
+        """
+        if int(amount_cents) <= 0:
+            raise ValueError("amount_cents must be positive")
+        if status not in ("accrued", "approved", "paid", "void"):
+            raise ValueError(f"unknown payout status: {status!r}")
+        ref = (external_ref or "").strip()
+        if not ref:
+            raise ValueError("external_ref is required")
+        payout_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO hs_payouts (payout_id, hs_id, amount_cents, currency, "
+                "status, description, period_start, period_end, external_ref, recorded_by, "
+                "recorded_at, paid_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+                (payout_id, hs_id, int(amount_cents), currency, status, description,
+                 period_start, period_end, ref, recorded_by, now),
+            )
+            if not cur.rowcount:
+                return None
+        return self.get_hs_payout(payout_id)
+
+    def get_hs_payout(self, payout_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM hs_payouts WHERE payout_id = ?",
+                               (payout_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_hs_payouts(self, hs_id: str, *, limit: int = 200) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_payouts WHERE hs_id = ? ORDER BY recorded_at DESC LIMIT ?",
+                (hs_id, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def hs_payout_summary(self, hs_id: str) -> Dict[str, Any]:
+        """Totals for one health system. Void rows are excluded from every total
+        rather than netted out: a cancelled entry is not a negative payment, and
+        a partner reading "total" must not see a number that already had a
+        mistake subtracted from it invisibly."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT "
+                "  COALESCE(SUM(CASE WHEN status != 'void' THEN amount_cents END), 0) AS total, "
+                "  COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_cents END), 0) AS paid, "
+                "  COALESCE(SUM(CASE WHEN status IN ('accrued','approved') THEN amount_cents END), 0) AS pending, "
+                "  COUNT(CASE WHEN status != 'void' THEN 1 END) AS n "
+                "FROM hs_payouts WHERE hs_id = ?",
+                (hs_id,),
+            ).fetchone()
+        return {"total_cents": int(row["total"] or 0), "paid_cents": int(row["paid"] or 0),
+                "pending_cents": int(row["pending"] or 0), "count": int(row["n"] or 0)}
+
+    def mark_hs_payout_paid(self, payout_id: str, *, batch_id: Optional[str],
+                            by: str) -> Optional[Dict[str, Any]]:
+        """Stamp paid_at. It is paid_at, not status alone, that records money
+        actually left — the same split earnings makes."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_payouts SET status = 'paid', paid_at = ?, payout_batch_id = ?, "
+                "recorded_by = COALESCE(recorded_by, ?) WHERE payout_id = ? AND status != 'void'",
+                (_utcnow_iso(), batch_id, by, payout_id),
+            )
+        return self.get_hs_payout(payout_id)
+
+    def void_hs_payout(self, payout_id: str, *, reason: str,
+                       by: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_payouts SET status = 'void', void_reason = ?, voided_by = ?, "
+                "voided_at = ? WHERE payout_id = ?",
+                (reason, by, _utcnow_iso(), payout_id),
+            )
+        return self.get_hs_payout(payout_id)
+    # ═══ END HS SELF-SERVE + PAYOUTS STORE METHODS ═══
     # ═══ REFERRAL STORE METHODS (PRD-REF) ═══
     # The referral spine. Shipped with the retired advisor tier and kept:
     # every verified physician refers now.

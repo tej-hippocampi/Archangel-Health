@@ -15,7 +15,6 @@ from __future__ import annotations
 import html
 import logging
 import os
-import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -42,58 +41,16 @@ def _store():
     return get_store()
 
 
-# ─── Username derivation ─────────────────────────────────────────────────────
-# Generic org-name words that carry no identity. "Mass General Hospital" should
-# become "massgeneral", not "massgeneralhospital".
-_USERNAME_STOPWORDS = {
-    "hospital", "hospitals", "health", "healthcare", "system", "systems",
-    "medical", "medicine", "center", "centers", "centre", "centres", "clinic",
-    "clinics", "the", "of", "and", "for", "group", "network", "regional",
-    "university", "institute", "foundation", "associates", "partners", "care",
-}
-
-
-def derive_hs_username(org_name: str) -> str:
-    """A username the recipient can recognise ("Mass General Hospital" ->
-    "massgeneral"). Falls back to the full word list when stopwords would strip
-    everything (e.g. "University Health System" -> "universityhealthsystem")."""
-    words = re.findall(r"[a-z0-9]+", (org_name or "").lower())
-    kept = [w for w in words if w not in _USERNAME_STOPWORDS]
-    base = "".join(kept or words)[:20]
-    return base or "partner"
-
-
-def unique_hs_username(store: Any, base: str) -> str:
-    """Collision-suffix: base, base2 … base9, then a short random suffix."""
-    if not store.hs_username_exists(base):
-        return base
-    for n in range(2, 10):
-        cand = f"{base}{n}"
-        if not store.hs_username_exists(cand):
-            return cand
-    while True:
-        cand = f"{base}-{secrets.token_hex(2)}"
-        if not store.hs_username_exists(cand):
-            return cand
-
-
-# ─── Passphrase generation ───────────────────────────────────────────────────
-# Word-based so hospital IT can retype it from an email without transcription
-# errors; the trailing hex keeps the space large. Shown once, stored hashed,
-# and must_reset=1 forces replacement at first login.
-_PASSPHRASE_WORDS = [
-    "amber", "aspen", "basil", "birch", "canyon", "cedar", "clover", "coral",
-    "delta", "dune", "ember", "fjord", "garnet", "grove", "harbor", "hazel",
-    "indigo", "juniper", "kestrel", "lagoon", "linden", "lumen", "maple",
-    "meadow", "north", "opal", "orchid", "prairie", "quartz", "raven", "river",
-    "saffron", "sierra", "summit", "thistle", "tundra", "umber", "violet",
-    "willow", "zephyr",
-]
-
-
-def generate_portal_passphrase() -> str:
-    words = [secrets.choice(_PASSPHRASE_WORDS) for _ in range(3)]
-    return "-".join(words) + "-" + secrets.token_hex(3)
+# ─── Portal account naming ───────────────────────────────────────────────────
+# Username derivation and passphrase generation moved to
+# asclepius/portal_accounts.py when self-signup needed the same naming: the
+# provider router cannot import this module to reach them. Re-exported here so
+# every call site and test that reaches them through this router is unchanged.
+from asclepius.portal_accounts import (  # noqa: E402,F401
+    derive_hs_username,
+    generate_portal_passphrase,
+    unique_hs_username,
+)
 
 
 # ─── Request/response models ─────────────────────────────────────────────────
@@ -1551,6 +1508,13 @@ async def health_system_detail(
         "portal_users": [{"username": u["username"], "email": u.get("email"),
                           "last_login": u.get("last_login"),
                           "active": bool(u.get("active", 1)),
+                          # Raw here, unlike the portal's own responses. The
+                          # queue needs the four states distinguishable; only
+                          # the hospital-facing side gets partner words.
+                          "approval_status": u.get("approval_status"),
+                          "signup_source": u.get("signup_source"),
+                          "full_name": u.get("full_name"),
+                          "decision_reason": u.get("decision_reason"),
                           **_purpose_view(u.get("purpose"))}
                          for u in store.list_hs_portal_users(hs_id)],
         "physicians_linked": len(physicians),
@@ -1558,6 +1522,12 @@ async def health_system_detail(
         "last_activity": uploads[0]["created_at"] if uploads else None,
         "buckets": _bucket_uploads(store, hs_id),
         "link_purpose_note": _link_purpose_note(),
+        # What they told us about themselves, newest first, and what we have
+        # paid them. Both empty for an organization we provisioned by hand.
+        "intake": [{"submitted_at": r["submitted_at"], "answers": r["answers"]}
+                   for r in store.list_hs_intake(hs_id)],
+        "payouts": store.list_hs_payouts(hs_id),
+        "payouts_summary": store.hs_payout_summary(hs_id),
     }
 
 
@@ -2070,3 +2040,236 @@ async def admin_revoke_assignment(
         event_type="assignment_revoked", actor=admin["email"],
     )
     return {"assignment_id": assignment_id, "status": "revoked"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SELF-SIGNUP REVIEW + HEALTH-SYSTEM PAYOUTS
+#
+#  The operator half of the portal's second door. Unlike the provider-facing
+#  routes, these take hs_id and username in the path: that split is the design.
+#  An admin acts ON a named health system; a health system only ever acts as
+#  itself, which is why nothing under /hs/ takes an identifier at all.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class HsApproveRequest(BaseModel):
+    purpose: str
+
+
+class HsRejectRequest(BaseModel):
+    reason: str = ""
+
+
+class HsPayoutRequest(BaseModel):
+    amount_cents: int
+    external_ref: str
+    description: Optional[str] = None
+    period_start: Optional[str] = None
+    period_end: Optional[str] = None
+
+
+class HsPayoutPaidRequest(BaseModel):
+    payout_batch_id: Optional[str] = None
+
+
+class HsPayoutVoidRequest(BaseModel):
+    reason: str
+
+
+def _hs_account_for(store: Any, hs_id: str, username: str) -> Dict[str, Any]:
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    matching = [u for u in store.list_hs_portal_users(hs_id)
+                if u["username"].lower() == (username or "").lower()]
+    if not matching:
+        raise HTTPException(status_code=404,
+                            detail="That portal account does not belong to this health system.")
+    return matching[0]
+
+
+# NOT "/health-systems/pending". GET /health-systems/{hs_id} is registered
+# earlier in this file, and FastAPI matches in registration order, so that path
+# resolves "pending" as an hs_id and 404s. A sibling noun avoids depending on
+# where in the file somebody adds the next route.
+@router.get("/health-system-signups", include_in_schema=False)
+async def list_pending_health_systems(
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Self-signups waiting on a decision, oldest first.
+
+    Each row carries what they told us and, when it applies, the name collision.
+    That last field is the one an operator must not miss: signup deliberately
+    refuses to merge by organization name, so a collision is either a second
+    contact at a partner we already have, or somebody who does not work at the
+    hospital whose name they typed. Only a person can tell those apart.
+    """
+    store = _store()
+    out = []
+    for account in store.list_hs_pending_signups():
+        hs_id = account["hs_id"]
+        collisions = store.health_systems_named_like(
+            account.get("hs_name") or "", exclude_hs_id=hs_id)
+        out.append({
+            "hs_id": hs_id,
+            "organization": account.get("hs_name"),
+            "username": account["username"],
+            "full_name": account.get("full_name"),
+            "email": account.get("email"),
+            "created_at": account.get("created_at"),
+            "signup_source": account.get("signup_source"),
+            "intake": [
+                {"submitted_at": r["submitted_at"], "answers": r["answers"]}
+                for r in store.list_hs_intake(hs_id)
+            ],
+            "name_collisions": [
+                {"hs_id": c["hs_id"], "name": c["name"],
+                 "uploads": len(store.list_uploads_for_health_system(c["hs_id"]))}
+                for c in collisions
+            ],
+        })
+    return {"pending": out}
+
+
+@router.post("/health-systems/{hs_id}/accounts/{username}/approve",
+             include_in_schema=False)
+async def approve_health_system_account(
+    hs_id: str, username: str, body: HsApproveRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Open the upload door for a self-signed-up health system.
+
+    Takes a required destination for the same reason ``provision`` does: a
+    self-signup arrives with it unset, which the admin view already renders as
+    needing attention, and approval is the only moment anyone is looking. Doing
+    it here means there is never a live account whose uploads have nowhere
+    decided to go.
+    """
+    store = _store()
+    purpose = (body.purpose or "").strip().lower()
+    if purpose not in asc_ingestion.PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
+    account = _hs_account_for(store, hs_id, username)
+    store.set_hs_approval(account["username"], "approved", by=admin["email"])
+    store.set_hs_portal_purpose(account["username"], purpose)
+    hs = store.get_health_system(hs_id)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="portal_account_approved", actor=admin["email"],
+                    payload={"username": account["username"], "purpose": purpose})
+
+    to = (account.get("email") or "").strip()
+    if to and is_email_transport_configured():
+        from onboarding_emails import build_hs_approved_email
+        await send_html_email(
+            to, f"Uploading is open for {hs['name']}",
+            build_hs_approved_email(organization=hs["name"], portal_url=_portal_url()))
+    return {"ok": True, "username": account["username"], "approval_status": "approved"}
+
+
+@router.post("/health-systems/{hs_id}/accounts/{username}/reject",
+             include_in_schema=False)
+async def reject_health_system_account(
+    hs_id: str, username: str, body: HsRejectRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Turn a self-signup down and deactivate it.
+
+    Sends NO email, deliberately. At this deal size a refusal is a conversation
+    somebody has, and an automated "you were rejected" to a hospital CIO is a
+    relationship we do not get back. The reason is recorded on the row and in
+    the event log so whoever picks up the phone knows what was decided.
+    """
+    store = _store()
+    account = _hs_account_for(store, hs_id, username)
+    reason = (body.reason or "").strip() or None
+    store.set_hs_approval(account["username"], "rejected", by=admin["email"], reason=reason)
+    store.set_hs_portal_active(account["username"], False)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="portal_account_rejected", actor=admin["email"],
+                    payload={"username": account["username"], "reason": reason})
+    return {"ok": True, "username": account["username"], "approval_status": "rejected"}
+
+
+@router.get("/health-systems/{hs_id}/payouts", include_in_schema=False)
+async def list_health_system_payouts(
+    hs_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    return {"summary": store.hs_payout_summary(hs_id),
+            "payouts": store.list_hs_payouts(hs_id)}
+
+
+@router.post("/health-systems/{hs_id}/payouts", include_in_schema=False)
+async def record_health_system_payout(
+    hs_id: str, body: HsPayoutRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Record a payment against a health system.
+
+    ``external_ref`` is yours: an invoice number, a transfer reference, anything
+    stable. It is the idempotency key, so a double-clicked Record button records
+    once. Nothing here moves money, and nothing here stores a bank detail.
+    """
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    try:
+        row = store.record_hs_payout(
+            hs_id=hs_id, amount_cents=int(body.amount_cents),
+            external_ref=body.external_ref, recorded_by=admin["email"],
+            description=body.description, period_start=body.period_start,
+            period_end=body.period_end)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if row is None:
+        raise HTTPException(
+            status_code=409,
+            detail="A payout with that reference is already recorded for this health system.")
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="payout_recorded", actor=admin["email"],
+                    payload={"payout_id": row["payout_id"],
+                             "amount_cents": row["amount_cents"]})
+    return row
+
+
+@router.post("/health-systems/{hs_id}/payouts/{payout_id}/mark-paid",
+             include_in_schema=False)
+async def mark_health_system_payout_paid(
+    hs_id: str, payout_id: str, body: HsPayoutPaidRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    existing = store.get_hs_payout(payout_id)
+    if not existing or existing["hs_id"] != hs_id:
+        raise HTTPException(status_code=404, detail="No such payout.")
+    if existing["status"] == "void":
+        raise HTTPException(status_code=409, detail="That payout was cancelled.")
+    row = store.mark_hs_payout_paid(payout_id, batch_id=body.payout_batch_id,
+                                    by=admin["email"])
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="payout_marked_paid", actor=admin["email"],
+                    payload={"payout_id": payout_id})
+    return row
+
+
+@router.post("/health-systems/{hs_id}/payouts/{payout_id}/void",
+             include_in_schema=False)
+async def void_health_system_payout(
+    hs_id: str, payout_id: str, body: HsPayoutVoidRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    existing = store.get_hs_payout(payout_id)
+    if not existing or existing["hs_id"] != hs_id:
+        raise HTTPException(status_code=404, detail="No such payout.")
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="Give a reason for cancelling this payout.")
+    row = store.void_hs_payout(payout_id, reason=reason, by=admin["email"])
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="payout_voided", actor=admin["email"],
+                    payload={"payout_id": payout_id, "reason": reason})
+    return row

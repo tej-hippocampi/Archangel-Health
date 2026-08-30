@@ -48,6 +48,24 @@
   // Rendering state local to this section.
   let selectedHsId = null;
 
+  // The two destinations, in the same order and wording the provision form
+  // uses, so an operator meets one vocabulary rather than two.
+  const PURPOSES = [
+    { key: 'task_creation', label: 'Task creation' },
+    { key: 'brokering', label: 'Brokering' },
+  ];
+
+  // Operator-facing labels for the intake answers. The questions themselves are
+  // server-owned (the portal renders them from /hs/intake); these are just the
+  // short headings we read the replies under.
+  const INTAKE_LABELS = [
+    ['organization', 'Who they are'],
+    ['size_type', 'Size'],
+    ['data_held', 'Data they hold'],
+    ['licensable', 'Open to licensing'],
+    ['timeline', 'Timeline'],
+  ];
+
   function render(body, ctx) {
     const { h, clear } = ctx;
     clear(body);
@@ -62,6 +80,11 @@
     const { h, api, clear, toast, loadingCard, fmtDate } = ctx;
     clear(container);
     container.appendChild(loadingCard('Loading health systems…'));
+    // Self-signups waiting on a person. Rendered above everything, same rule
+    // this file applies to needs-attention buckets: only when it exists, but
+    // always first when it does. A hospital sitting in review cannot upload,
+    // so a queue nobody sees is a partner nobody answers.
+    const pendingSlot = h('div', {});
     let rows;
     try {
       const res = await api('/admin/health-systems');
@@ -121,8 +144,118 @@
         return tr;
       })));
     card.appendChild(h('div', { class: 'asc-table-wrap' }, table));
+    container.appendChild(pendingSlot);
     container.appendChild(card);
+    renderPendingSignups(pendingSlot, ctx, container);
     renderStoragePanel(container, ctx);
+  }
+
+  // ─── Self-signups awaiting a decision ─────────────────────
+  async function renderPendingSignups(slot, ctx, listContainer) {
+    const { h, api, clear, toast, fmtDate } = ctx;
+    let rows;
+    try {
+      const res = await api('/admin/health-system-signups');
+      rows = res.pending || [];
+    } catch (e) {
+      clear(slot);
+      slot.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' },
+          e.message || 'Could not load pending signups.'))));
+      return;
+    }
+    clear(slot);
+    if (!rows.length) return;
+
+    // Plain bucket, not the pink attention one. Pink in this palette means a
+      // safety incident to resolve before anything else; a hospital waiting on
+      // a decision is neither, and colouring it that way teaches the operator
+      // to discount the colour when it does mean that. Position and the count
+      // badge carry the urgency instead.
+      const card = h('div', { class: 'asc-card asc-hs-bucket' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Waiting on you',
+          h('span', { class: 'asc-badge asc-badge-count', style: 'margin-left: var(--sp-2)' },
+            String(rows.length))),
+        h('div', { class: 'asc-card-sub' },
+          'Health systems that signed themselves up. They can see the portal ' +
+          'and tell us about their data; they cannot upload until you approve.'))));
+
+    rows.forEach((r) => {
+      const body = h('div', { class: 'asc-card-pad asc-hs-signup' });
+
+      body.appendChild(h('div', { class: 'asc-hs-signup-head' },
+        h('strong', {}, r.organization || '(no name given)'),
+        h('code', { class: 'asc-mono asc-dim', style: 'margin-left: var(--sp-2)' }, r.hs_id)));
+      body.appendChild(h('div', { class: 'asc-dim' },
+        (r.full_name || 'Someone') + ' · ' + (r.email || 'no email') +
+        ' · signed up ' + (r.created_at ? fmtDate(r.created_at) : 'recently') +
+        ' · signs in as ' + r.username));
+
+      // The one thing an operator must not miss. Signup deliberately refuses to
+      // merge by organization name, so a collision is either a second contact
+      // at a partner we already have, or somebody who does not work at the
+      // hospital whose name they typed. Only a person can tell those apart.
+      (r.name_collisions || []).forEach((c) => {
+        body.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top: var(--sp-2)' },
+          'Another health system already uses this name: ' + c.name + ' (' + c.hs_id +
+          ', ' + c.uploads + ' uploads). This signup has its own id and cannot see ' +
+          'their data. Check who this is before approving.'));
+      });
+
+      (r.intake || []).slice(0, 1).forEach((entry) => {
+        const dl = h('div', { class: 'asc-hs-intake' });
+        INTAKE_LABELS.forEach((pair) => {
+          const value = (entry.answers || {})[pair[0]];
+          if (!value) return;
+          dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
+            h('div', { class: 'asc-hs-intake-label' }, pair[1]),
+            h('div', { class: 'asc-hs-intake-value' }, value)));
+        });
+        if (dl.childNodes.length) body.appendChild(dl);
+      });
+      if (!(r.intake || []).length) {
+        body.appendChild(h('div', { class: 'asc-dim', style: 'margin-top: var(--sp-2)' },
+          'They have not filled in the questions yet.'));
+      }
+
+      const actions = h('div', { class: 'asc-hs-signup-actions' });
+      // Two approve buttons, one per destination, matching the shape of the
+      // provision form so the operator's muscle memory transfers. Approval is
+      // the only moment anyone is looking at a self-signup, which is why it
+      // cannot be deferred.
+      PURPOSES.forEach((p) => {
+        actions.appendChild(btn(h, 'Approve · ' + p.label, 'asc-btn-primary', async () => {
+          try {
+            await api('/admin/health-systems/' + encodeURIComponent(r.hs_id) +
+                      '/accounts/' + encodeURIComponent(r.username) + '/approve',
+                      { method: 'POST', body: { purpose: p.key } });
+            toast(r.organization + ' can upload now.', 'success');
+            render(listContainer.parentNode, ctx);
+          } catch (e) {
+            toast(e.message || 'Could not approve that.', 'error');
+          }
+        }));
+      });
+      actions.appendChild(btn(h, 'Not a fit', 'asc-btn-ghost', async () => {
+        const reason = window.prompt(
+          'Why? Recorded on the account, not sent to them: a refusal at this ' +
+          'size is a conversation somebody has.');
+        if (reason === null) return;
+        try {
+          await api('/admin/health-systems/' + encodeURIComponent(r.hs_id) +
+                    '/accounts/' + encodeURIComponent(r.username) + '/reject',
+                    { method: 'POST', body: { reason: reason } });
+          toast('Recorded. No email was sent.', 'info');
+          render(listContainer.parentNode, ctx);
+        } catch (e) {
+          toast(e.message || 'Could not record that.', 'error');
+        }
+      }));
+      body.appendChild(actions);
+      card.appendChild(body);
+    });
+    slot.appendChild(card);
   }
 
   // ─── Storage reconciliation (PRD I-0 §F4) ─────────────────
@@ -269,6 +402,9 @@
         h('div', { class: 'asc-card-pad' },
           h('div', { class: 'asc-dim' }, data.link_purpose_note))));
     }
+
+    renderIntakeCard(container, ctx, data);
+    renderPayoutsCard(container, ctx, hsId, data);
 
     // The buckets, in workflow order. Needs attention renders only when
     // non-empty — but ALWAYS above the rest when it exists.
@@ -451,6 +587,149 @@
     const b = h('button', { class: 'asc-btn asc-btn-sm ' + cls, style: 'margin-right: var(--sp-1)' }, label);
     b.addEventListener('click', onClick);
     return b;
+  }
+
+  // ─── What they told us ────────────────────────────────────
+  function renderIntakeCard(container, ctx, data) {
+    const { h, fmtDate } = ctx;
+    const entries = data.intake || [];
+    // Absent for every organization we provisioned by hand, and a card reading
+    // "nothing" for all of them would be noise on most of this page.
+    if (!entries.length) return;
+    const card = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'What they told us'),
+        h('div', { class: 'asc-card-sub' },
+          'Their own words, newest first. Appended, never overwritten.'))));
+    entries.forEach((entry, i) => {
+      const body = h('div', { class: 'asc-card-pad' });
+      body.appendChild(h('div', { class: 'asc-dim' },
+        (i === 0 ? 'Latest · ' : '') +
+        (entry.submitted_at ? fmtDate(entry.submitted_at) : '')));
+      const dl = h('div', { class: 'asc-hs-intake' });
+      INTAKE_LABELS.forEach((pair) => {
+        const value = (entry.answers || {})[pair[0]];
+        if (!value) return;
+        dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
+          h('div', { class: 'asc-hs-intake-label' }, pair[1]),
+          h('div', { class: 'asc-hs-intake-value' }, value)));
+      });
+      body.appendChild(dl);
+      card.appendChild(body);
+    });
+    container.appendChild(card);
+  }
+
+  // ─── Payouts ──────────────────────────────────────────────
+  function money(cents) {
+    const n = (Number(cents) || 0) / 100;
+    return '$' + n.toLocaleString(undefined,
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function renderPayoutsCard(container, ctx, hsId, data) {
+    const { h, api, toast, fmtDate } = ctx;
+    const rows = data.payouts || [];
+    const sum = data.payouts_summary || {};
+
+    const card = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Payouts'),
+        h('div', { class: 'asc-card-sub' },
+          'What we have paid this organization. Recording here does not move ' +
+          'money; it records that we consider it settled, and the partner sees it.'))),
+      h('div', { class: 'asc-card-pad asc-hs-meta' },
+        metaCell(h, 'Total recorded', money(sum.total_cents)),
+        metaCell(h, 'Paid', money(sum.paid_cents)),
+        metaCell(h, 'Awaiting payment', money(sum.pending_cents))));
+
+    if (rows.length) {
+      card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {},
+          h('th', {}, 'Recorded'), h('th', {}, 'For'), h('th', {}, 'Reference'),
+          h('th', {}, 'Status'), h('th', {}, 'Amount'), h('th', {}, ''))),
+        h('tbody', {}, rows.map((p) => {
+          const actions = h('td', {});
+          if (p.status !== 'void') {
+            if (!p.paid_at) {
+              actions.appendChild(btn(h, 'Mark paid', 'asc-btn-subtle', async () => {
+                const ref = window.prompt('Transfer reference (optional):') || '';
+                try {
+                  await api('/admin/health-systems/' + encodeURIComponent(hsId) +
+                            '/payouts/' + encodeURIComponent(p.payout_id) + '/mark-paid',
+                            { method: 'POST', body: { payout_batch_id: ref } });
+                  toast('Marked paid.', 'success');
+                  render(container.parentNode, ctx);
+                } catch (e) { toast(e.message || 'Could not update that.', 'error'); }
+              }));
+            }
+            actions.appendChild(btn(h, 'Cancel', 'asc-btn-ghost', async () => {
+              const reason = window.prompt('Why is this being cancelled?');
+              if (!reason) return;
+              try {
+                await api('/admin/health-systems/' + encodeURIComponent(hsId) +
+                          '/payouts/' + encodeURIComponent(p.payout_id) + '/void',
+                          { method: 'POST', body: { reason: reason } });
+                toast('Cancelled.', 'info');
+                render(container.parentNode, ctx);
+              } catch (e) { toast(e.message || 'Could not cancel that.', 'error'); }
+            }));
+          }
+          const badgeCls = p.status === 'paid' ? 'asc-badge-green'
+            : p.status === 'void' ? 'asc-badge-gray' : 'asc-badge-amber';
+          return h('tr', {},
+            h('td', {}, p.recorded_at ? fmtDate(p.recorded_at) : '—'),
+            h('td', {}, p.description || '—'),
+            h('td', {}, h('code', { class: 'asc-mono asc-dim' }, p.external_ref || '—')),
+            h('td', {}, h('span', { class: 'asc-badge ' + badgeCls }, p.status),
+              p.void_reason ? h('div', { class: 'asc-dim' }, p.void_reason) : ''),
+            h('td', {}, h('span', { class: 'asc-mono' }, money(p.amount_cents))),
+            actions);
+        })))));
+    } else {
+      card.appendChild(h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-empty' }, 'Nothing recorded yet.')));
+    }
+
+    // Record form. external_ref is the idempotency key, so a double-clicked
+    // button records once rather than paying a hospital twice.
+    const amountEl = h('input', { class: 'asc-input', type: 'text',
+                                  placeholder: 'Amount, e.g. 25000.00' });
+    const descEl = h('input', { class: 'asc-input', type: 'text',
+                                placeholder: 'What it is for, in words they will read' });
+    const refEl = h('input', { class: 'asc-input', type: 'text',
+                               placeholder: 'Invoice or transfer reference' });
+    const startEl = h('input', { class: 'asc-input', type: 'text', placeholder: 'Period start' });
+    const endEl = h('input', { class: 'asc-input', type: 'text', placeholder: 'Period end' });
+    const recordBtn = btn(h, 'Record payout', 'asc-btn-primary', async () => {
+      const dollars = parseFloat((amountEl.value || '').replace(/[$,\s]/g, ''));
+      if (!isFinite(dollars) || dollars <= 0) {
+        toast('Enter an amount greater than zero.', 'error');
+        return;
+      }
+      if (!(refEl.value || '').trim()) {
+        toast('Give it a reference, so recording it twice cannot pay twice.', 'error');
+        return;
+      }
+      try {
+        await api('/admin/health-systems/' + encodeURIComponent(hsId) + '/payouts',
+                  { method: 'POST', body: {
+                    amount_cents: Math.round(dollars * 100),
+                    external_ref: refEl.value.trim(),
+                    description: (descEl.value || '').trim() || null,
+                    period_start: (startEl.value || '').trim() || null,
+                    period_end: (endEl.value || '').trim() || null } });
+        toast('Recorded. They can see it now.', 'success');
+        render(container.parentNode, ctx);
+      } catch (e) { toast(e.message || 'Could not record that.', 'error'); }
+    });
+    card.appendChild(h('div', { class: 'asc-card-pad asc-hs-payout-form' },
+      h('div', { class: 'asc-card-title' }, 'Record a payment'),
+      h('div', { class: 'asc-hs-payout-grid' },
+        amountEl, refEl, descEl, startEl, endEl),
+      recordBtn));
+
+    container.appendChild(card);
   }
 
   window.AdminHealthSection = {
