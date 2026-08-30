@@ -15,7 +15,6 @@ from __future__ import annotations
 import html
 import logging
 import os
-import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -51,8 +50,6 @@ from asclepius.portal_accounts import (  # noqa: E402,F401
     derive_hs_username,
     generate_portal_passphrase,
     unique_hs_username,
-    _PASSPHRASE_WORDS,
-    _USERNAME_STOPWORDS,
 )
 
 
@@ -1511,6 +1508,13 @@ async def health_system_detail(
         "portal_users": [{"username": u["username"], "email": u.get("email"),
                           "last_login": u.get("last_login"),
                           "active": bool(u.get("active", 1)),
+                          # Raw here, unlike the portal's own responses. The
+                          # queue needs the four states distinguishable; only
+                          # the hospital-facing side gets partner words.
+                          "approval_status": u.get("approval_status"),
+                          "signup_source": u.get("signup_source"),
+                          "full_name": u.get("full_name"),
+                          "decision_reason": u.get("decision_reason"),
                           **_purpose_view(u.get("purpose"))}
                          for u in store.list_hs_portal_users(hs_id)],
         "physicians_linked": len(physicians),
@@ -1518,6 +1522,12 @@ async def health_system_detail(
         "last_activity": uploads[0]["created_at"] if uploads else None,
         "buckets": _bucket_uploads(store, hs_id),
         "link_purpose_note": _link_purpose_note(),
+        # What they told us about themselves, newest first, and what we have
+        # paid them. Both empty for an organization we provisioned by hand.
+        "intake": [{"submitted_at": r["submitted_at"], "answers": r["answers"]}
+                   for r in store.list_hs_intake(hs_id)],
+        "payouts": store.list_hs_payouts(hs_id),
+        "payouts_summary": store.hs_payout_summary(hs_id),
     }
 
 

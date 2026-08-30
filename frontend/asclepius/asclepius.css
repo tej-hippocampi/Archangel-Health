@@ -4463,3 +4463,41 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .vq-npi-inconclusive, .vq-npi-document_only, .vq-npi-queued, .vq-npi-pending {
   color: var(--asc-muted);
 }
+
+/* ─── Health-system self-signups, intake and payouts ───────────────────── */
+/* The review queue card. One block per organization waiting on a person.
+   Deliberately not styled as an incident: see the note in admin_health.js. */
+.asc-hs-signup { border-top: 1px solid var(--hairline); }
+.asc-hs-signup:first-of-type { border-top: 0; }
+.asc-hs-signup-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--sp-1); }
+.asc-hs-signup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+}
+
+/* Their answers, read as a label/value list rather than a table: the values
+   are prose of wildly varying length and a table column would ruin them. */
+.asc-hs-intake { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-2); }
+.asc-hs-intake-row { display: grid; grid-template-columns: 11rem 1fr; gap: var(--sp-3); align-items: baseline; }
+.asc-hs-intake-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.asc-hs-intake-value { color: var(--ink-soft); line-height: 1.55; white-space: pre-wrap; }
+
+.asc-hs-payout-form { border-top: 1px solid var(--hairline); }
+.asc-hs-payout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 var(--sp-3);
+}
+
+@media (max-width: 760px) {
+  .asc-hs-intake-row { grid-template-columns: 1fr; gap: 2px; }
+}
