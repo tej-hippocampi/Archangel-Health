@@ -984,6 +984,14 @@ export type PrimaryButtonProps = {
   variant?: ButtonVariant;
   icon?: ReactNode;
   type?: "button" | "submit";
+  /* Render an <a> instead of a <button>, styled identically.
+     A control that navigates IS a link, and wrapping this component in an <a>
+     to get there produces a button nested inside an anchor: invalid HTML, and
+     Safari simply refuses to activate the anchor, so the control does nothing
+     at all. Passing the destination here is the way to make it navigate. */
+  href?: string;
+  target?: string;
+  rel?: string;
 };
 
 export function PrimaryButton({
@@ -998,6 +1006,9 @@ export function PrimaryButton({
   variant = "primary",
   icon,
   type = "button",
+  href,
+  target,
+  rel,
 }: PrimaryButtonProps) {
   const [state, setState] = useState<ButtonState>("idle");
   const timeoutRef = useRef<number[]>([]);
@@ -1043,32 +1054,8 @@ export function PrimaryButton({
 
   const s = BUTTON_STYLES[variant][state];
 
-  return (
-    <button
-      type={type}
-      onClick={handleClick}
-      disabled={disabled || state !== "idle"}
-      style={{
-        width: fullWidth ? "100%" : "auto",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 10,
-        padding: "14px 28px",
-        borderRadius: 9999,
-        background: s.bg,
-        color: s.fg,
-        border: "1px solid " + s.border,
-        fontSize: 15,
-        fontWeight: 500,
-        letterSpacing: "-0.005em",
-        fontFamily: "inherit",
-        opacity: disabled ? 0.45 : 1,
-        cursor:
-          disabled || state !== "idle" ? (state === "loading" ? "progress" : "default") : "pointer",
-        transition: "background 160ms cubic-bezier(.4,0,.2,1), border-color 160ms cubic-bezier(.4,0,.2,1), color 160ms cubic-bezier(.4,0,.2,1)",
-      }}
-    >
+  const label = (
+    <>
       {state === "idle" && (
         <>
           {icon}
@@ -1087,6 +1074,63 @@ export function PrimaryButton({
           <span>{successLabel ?? "Done"}</span>
         </>
       )}
+    </>
+  );
+
+  const visual = {
+    width: fullWidth ? "100%" : "auto",
+    display: "inline-flex" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 10,
+    padding: "14px 28px",
+    borderRadius: 9999,
+    background: s.bg,
+    color: s.fg,
+    border: "1px solid " + s.border,
+    fontSize: 15,
+    fontWeight: 500,
+    letterSpacing: "-0.005em",
+    fontFamily: "inherit",
+    textDecoration: "none",
+    opacity: disabled ? 0.45 : 1,
+    transition:
+      "background 160ms cubic-bezier(.4,0,.2,1), border-color 160ms cubic-bezier(.4,0,.2,1), color 160ms cubic-bezier(.4,0,.2,1)",
+  };
+
+  /* The link form. A real anchor, so it works with the keyboard, with
+     cmd-click, with "copy link address", and in browsers that will not
+     activate an anchor wrapped around a button. No loading/success states:
+     the page is leaving. */
+  if (href) {
+    return (
+      <a
+        href={href}
+        target={target}
+        rel={rel ?? (target === "_blank" ? "noopener noreferrer" : undefined)}
+        onClick={onClick as unknown as (e: React.MouseEvent<HTMLAnchorElement>) => void}
+        style={{ ...visual, cursor: disabled ? "default" : "pointer",
+                 boxSizing: "border-box", textAlign: "center" }}
+        aria-disabled={disabled || undefined}
+      >
+        {icon}
+        <span>{children}</span>
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type={type}
+      onClick={handleClick}
+      disabled={disabled || state !== "idle"}
+      style={{
+        ...visual,
+        cursor:
+          disabled || state !== "idle" ? (state === "loading" ? "progress" : "default") : "pointer",
+      }}
+    >
+      {label}
     </button>
   );
 }

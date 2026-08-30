@@ -26,12 +26,12 @@ import * as authApi from "@/lib/auth-api";
  * the onboarding primitives that /join already uses.
  */
 
-/* The connected Calendly account, verified live: "Quick Meeting", 20 minutes,
-   Google Meet. No `month` param — pinning one shows an empty calendar the
-   moment that month passes, which is exactly what the link we were handed did
-   (it carried ?month=2026-03). Calendly opens on the first month with real
-   availability when you leave it alone. */
-const CALENDLY_BASE = "https://calendly.com/aryaabhatia-berkeley/new-meeting";
+/* The connected Calendly account: "Quick Meeting", 20 minutes, Google Meet.
+   The `month` param is carried through as given. Calendly treats it as the
+   month to OPEN on rather than the only month it will show, and pages forward
+   on its own, so a month in the past does not strand anyone. */
+const CALENDLY_BASE =
+  "https://calendly.com/aryaabhatia-berkeley/new-meeting?month=2026-03";
 
 function calendlyUrl(name: string, email: string): string {
   const q = new URLSearchParams();
@@ -42,7 +42,10 @@ function calendlyUrl(name: string, email: string): string {
   if (n) q.set("name", n);
   if (e) q.set("email", e);
   const qs = q.toString();
-  return qs ? `${CALENDLY_BASE}?${qs}` : CALENDLY_BASE;
+  /* Joined with & because the base already carries a query. Building it with ?
+     would produce a second question mark and Calendly would read the tail as
+     one malformed parameter. */
+  return qs ? `${CALENDLY_BASE}&${qs}` : CALENDLY_BASE;
 }
 
 type Answers = {
@@ -139,14 +142,13 @@ export default function PartnerInterest() {
             title="Got it. Now pick a time."
             lede="We read every one of these before the call, so we will come with specifics about your data rather than a pitch."
           >
-            <a
-              href={calendlyUrl(name, email)}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textDecoration: "none", display: "block" }}
-            >
-              <PrimaryButton fullWidth>Book an intro call</PrimaryButton>
-            </a>
+            {/* A real anchor, via PrimaryButton's link form. This was a
+                <PrimaryButton> wrapped in an <a>, which is a button nested
+                inside an anchor: invalid HTML, and Safari will not activate an
+                anchor from a nested button, so the control did nothing. */}
+            <PrimaryButton fullWidth href={calendlyUrl(name, email)}>
+              Book an intro call
+            </PrimaryButton>
             <p
               style={{
                 margin: "18px 0 0",
