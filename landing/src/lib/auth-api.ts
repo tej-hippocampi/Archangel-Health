@@ -85,6 +85,16 @@ export function asclepiusPortalUrl(): string {
   return base ? `${base}/asclepius` : "/asclepius";
 }
 
+/**
+ * Health-system upload portal. Sign-in and sign-up both live on this one page:
+ * it is a JS state machine, not separate routes, so there is one URL to hand a
+ * hospital and no way to send them to the wrong half of it.
+ */
+export function healthSystemPortalUrl(): string {
+  const base = dashboardBaseUrl();
+  return base ? `${base}/provider` : "/provider";
+}
+
 /*
  * `storeAsclepiusSession` was here. It wrote localStorage["asclepius_token"]
  * and its docstring claimed "the wizard shares the same origin as /asclepius

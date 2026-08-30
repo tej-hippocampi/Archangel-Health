@@ -16,6 +16,7 @@ import {
   type LeadKind,
 } from "@/app/components/LandingContactModals";
 import { useLandingAuth } from "@/app/hooks/useLandingAuth";
+import { healthSystemPortalUrl } from "@/lib/auth-api";
 import { baseStyles } from "./baseStyles";
 import { routeStyles } from "./routeStyles";
 import { MenuPanel } from "./MenuPanel";
@@ -379,6 +380,19 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
           </a>
           <a href={`mailto:${MAIL}`} onClick={handleMailto}>{MAIL}</a>
         </div>
+        {/* The three doors, named. "Sign in" alone assumed you were a doctor,
+            so a hospital arriving here had to guess, and mostly guessed the
+            contact form. One row, on every route, saying which is which. */}
+        <div className="foot-doors">
+          <span className="chrome foot-doors-label">Sign in or sign up</span>
+          <a href="/join" onClick={(e) => { e.preventDefault(); goToJoin(); }}>
+            Physicians
+          </a>
+          <a href={healthSystemPortalUrl()}>Health systems</a>
+          <button type="button" onClick={() => setLeadModal("request_data")}>
+            Data buyers
+          </button>
+        </div>
         <p className="foot-line chrome">Real · De-identified · IP-cleared · Never resold beyond license</p>
       </footer>
 
@@ -410,7 +424,11 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
         }}
         onDataContributor={() => {
           setContributorOpen(false);
-          setLeadModal("provide_data");
+          // Was the two-field "provide data" modal, which took an email and
+          // left a hospital waiting on us to write back. They get their own
+          // portal instead, which is the thing they were going to be sent
+          // after that exchange anyway.
+          window.location.assign(healthSystemPortalUrl());
         }}
       />
 

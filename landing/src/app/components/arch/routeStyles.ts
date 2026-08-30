@@ -291,6 +291,20 @@ export const routeStyles = `
 .arch-landing .chip-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.4rem; }
 .arch-landing .sub-crumb { margin-top: clamp(3.5rem, 8vh, 5.5rem); scroll-margin-top: 90px; }
 .arch-landing .route-cta { margin-top: clamp(2rem, 5vh, 3rem); display: flex; flex-direction: column; align-items: flex-start; gap: 0.8rem; }
+/* Two doors side by side: the primary is the decision, the secondary is the
+   way out for someone not ready to make it. Row, so the second reads as an
+   alternative to the button rather than as the next section's heading. */
+.arch-landing .route-cta:has(.cta-secondary) { flex-direction: row; align-items: center; gap: 1.4rem; flex-wrap: wrap; }
+.arch-landing .cta-secondary {
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--hairline-strong);
+  transition: color 160ms ease;
+}
+.arch-landing .cta-secondary:hover { color: var(--ink); }
 .arch-landing .cta-note { font-size: 0.8rem; color: var(--ink-faint); }
 
 /* ============ /research ============ */
@@ -783,6 +797,36 @@ export const routeStyles = `
 /* footer nav additions */
 .arch-landing .foot-nav { display: flex; gap: 1.1rem; align-items: baseline; }
 .arch-landing .foot-nav a { font-size: 0.85rem; }
+
+/* The three doors. A full-width row under the footer's two columns, so it reads
+   as a directory rather than as more navigation competing with the sections. */
+.arch-landing .foot-doors {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1.1rem;
+  margin-top: 1.4rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--hairline);
+}
+.arch-landing .foot-doors-label { color: var(--ink-faint); margin-right: 0.3rem; }
+.arch-landing .foot-doors a,
+.arch-landing .foot-doors button {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--hairline-strong);
+  transition: color 160ms ease;
+}
+.arch-landing .foot-doors a:hover,
+.arch-landing .foot-doors button:hover { color: var(--ink); }
 
 /* ============ responsive ============ */
 
