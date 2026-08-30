@@ -170,6 +170,58 @@ def _cases() -> list[tuple[str, str, str, str]]:
                      "committee and there is appetite for a de-identified data "
                      "partnership. Happy to make an introduction to our CMIO."),
         ),
+        # ─── The health-system portal's second door ───────────────────
+        (
+            "20-hs-signup-code", "Health system: confirmation code",
+            "A hospital signs itself up; nothing is created until this comes back.",
+            oe.build_hs_signup_code_email(
+                code="418302", organization="St Mary's Health", expires_minutes=15),
+        ),
+        (
+            "21-hs-signup-welcome", "Health system: portal ready",
+            "Where the derived username is delivered. They never chose it.",
+            oe.build_hs_signup_welcome_email(
+                organization="St Mary's Health", username="stmarys",
+                portal_url="https://app.archangelhealth.ai/provider"),
+        ),
+        (
+            "22-hs-approved", "Health system: uploading is open",
+            "Sent when an admin approves the account.",
+            oe.build_hs_approved_email(
+                organization="St Mary's Health",
+                portal_url="https://app.archangelhealth.ai/provider"),
+        ),
+        (
+            "23-hs-signup-alert", "Internal: a health system signed up",
+            "To us. Includes the name-collision warning when one applies.",
+            oe.build_hs_signup_alert(
+                full_name="Dana Reyes", email="d.reyes@stmarys.org",
+                organization="St Mary's Health", hs_id="hs-st-marys-ab12",
+                username="stmarys", name_collisions=["hs-st-marys-0000"]),
+        ),
+        (
+            "24-hs-intake-alert", "Internal: a health system described its data",
+            "To us, when they fill in the questions.",
+            oe.build_hs_intake_alert(
+                full_name="Dana Reyes", email="d.reyes@stmarys.org",
+                organization="St Mary's Health", hs_id="hs-st-marys-ab12",
+                answers={
+                    "organization": "St Mary's Health, I run the data platform team.",
+                    "size_type": "900 beds across 4 sites",
+                    "data_held": "Epic, 12 years of nephrology and cardiology.",
+                    "licensable": "Probably the nephrology cohort first.",
+                    "timeline": "Budgeted for next year.",
+                }),
+        ),
+        (
+            "25-founder-event", "Internal: a rolled-up work alert",
+            "The generic product-event alert, in its batched form.",
+            oe.build_founder_event_alert(
+                eyebrow="Labelling", headline="5 cases were submitted",
+                lede="dr-chen has completed 5 in the last few minutes.",
+                rows=[("Event", "submission_completed", True), ("How many", "5", True)],
+                note="Queued automatically when this happened on the product."),
+        ),
     ]
 
 

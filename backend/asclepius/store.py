@@ -4916,6 +4916,22 @@ class AsclepiusStore:
                     json.dumps(payload or {}),
                 ),
             )
+        # Founder notifications hang off this one call rather than off ~10 route
+        # handlers, because every notable thing that happens already logs an
+        # event here and a second list of call sites is a second list to keep in
+        # step. An event type nobody asked to hear about returns immediately.
+        #
+        # Outside the connection block on purpose: the hook writes to the
+        # notify outbox through this same store, and re-entering an open
+        # connection is the C-5.5 bug. It never sends mail either -- it queues a
+        # row and the existing 60s drainer sends -- so no request pays for a
+        # network round trip here.
+        try:
+            import notifications
+            notifications.on_event(self, entity_type=entity_type, event_type=event_type,
+                                   entity_id=entity_id, actor=actor, payload=payload or {})
+        except Exception:  # pragma: no cover - a notification must never break a write
+            pass
 
     def list_events(
         self,
@@ -8141,6 +8157,25 @@ class AsclepiusStore:
                 "SELECT COUNT(*) FROM hs_signups WHERE email = ? AND created_at > ?",
                 (addr, cutoff),
             ).fetchone()
+        return int(row[0] or 0)
+
+    def count_events_since(self, *, event_type: str, actor: Optional[str],
+                           since_iso: str) -> int:
+        """How many of these one actor has logged since a moment.
+
+        Used only by the founder-alert rollup, so a burst can be reported as the
+        burst it was rather than as its first event. list_events cannot answer
+        this: it filters on entity, not on event type or time.
+        """
+        with self._conn() as conn:
+            if actor:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE event_type = ? AND actor = ? "
+                    "AND occurred_at >= ?", (event_type, actor, since_iso)).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE event_type = ? AND actor IS NULL "
+                    "AND occurred_at >= ?", (event_type, since_iso)).fetchone()
         return int(row[0] or 0)
 
     # ─── Approval ────────────────────────────────────────────────────────────

@@ -2988,6 +2988,20 @@ async def _finalize_submission(
         asc_baselines.record_model_failure(store, task_id, sid)
 
         store.refresh_task_status(task_id)
+        # A completed case was the one notable thing on this product that logged
+        # nothing at all: the flagged paths above each record why they were
+        # flagged, and an ordinary good submission passed through silently. This
+        # is the moment the pipeline has settled and the status is real, which is
+        # also what makes it the right hook for the founder alert.
+        try:
+            store.log_event(
+                entity_type="submission", entity_id=sid,
+                event_type="submission_completed", actor=actor_id,
+                payload={"task_id": task_id, "status": result.get("status"),
+                         "record_count": result.get("record_count")},
+            )
+        except Exception:
+            log.exception("asclepius: could not log submission completion for %s", sid)
         return result
     except Exception:
         # BUG-5 review (3b): the pipeline runs as a BACKGROUND job in the async
