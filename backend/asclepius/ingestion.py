@@ -165,10 +165,17 @@ PURPOSE_TASK_CREATION = "task_creation"
 PURPOSE_BROKERING = "brokering"
 PURPOSES = (PURPOSE_TASK_CREATION, PURPOSE_BROKERING)
 
-# A row from before this column existed. Rendered to the admin as a WORK ITEM,
-# never quietly filled in — a legacy link silently becoming task_creation on a
+# A row nobody has made this decision about. Rendered to the admin as a WORK
+# ITEM, never quietly filled in — a row silently becoming task_creation on a
 # screen is how brokering data would end up in a training bundle.
-PURPOSE_UNSET_LABEL = "Purpose not set — legacy link"
+#
+# It used to read "Purpose not set — legacy link", because when it was written
+# the only way to reach this state was a row predating the column. That is no
+# longer true: a health system that signs itself up is minted with this UNSET
+# on purpose, so each of its uploads is resolved deliberately on the per-upload
+# control. Calling that a legacy link tells the operator the wrong thing about
+# the newest partner on the page.
+PURPOSE_UNSET_LABEL = "Purpose not set"
 
 
 def effective_purpose(value: Optional[str]) -> str:

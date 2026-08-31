@@ -1552,9 +1552,19 @@ async def health_system_detail(
 # form carries no purpose" would send an operator looking for a missing field that
 # is now mandatory — and, worse, teach them that "Purpose not set" is normal.
 def _link_purpose_note() -> Optional[str]:
-    return ("Uploads from links minted before purpose became mandatory arrive as "
-            "“Purpose not set”. Resolve them on the upload row before promoting. "
-            "Newly minted links always carry one.")
+    """The one sentence explaining an unresolved destination on this page.
+
+    Rewritten when self-signup started minting accounts with it unset ON
+    PURPOSE. The old text said these were links from before the field became
+    mandatory and that newly minted ones always carry a destination — which is
+    now false for every health system that lets itself in, and told an operator
+    the newest partner on the page was a leftover.
+    """
+    return ("A destination is mandatory when you mint an upload link, so a link "
+            "always carries one. An ACCOUNT can still arrive without: a row from "
+            "before the field existed, or a health system that signed itself up, "
+            "where the choice is made per upload instead of once. Resolve those "
+            "on the upload row before promoting.")
 
 
 class UploadSpecialtyRequest(BaseModel):
