@@ -139,16 +139,50 @@ def _file_chunks(path: str, start: int, length: int) -> Iterator[bytes]:
             yield chunk
 
 
+def _viewer(authorization: Optional[str], ticket: Optional[str]) -> Dict[str, Any]:
+    """Authenticate a media request by Authorization header OR by media ticket.
+
+    A ``<video src>`` cannot send a header, so the element authenticates with a
+    ticket instead — a short-lived token that can fetch this one slot and
+    nothing else (``asc_auth.create_media_ticket``). Putting the SESSION token in
+    the query string was the alternative, and it writes a credential good for
+    every endpoint into access logs, referrers and browser history.
+
+    The header path is still first and still the norm: it is what every
+    programmatic caller uses, and the ticket exists for exactly one element.
+    """
+    user = asc_auth.get_current_user_optional(authorization)
+    if user is not None:
+        return asc_auth.get_current_account(user)
+    uid = asc_auth.decode_media_ticket((ticket or "").strip(), slot=DEMO_SLOT)
+    holder = get_store().get_user_by_id(uid) if uid else None
+    if not holder or not holder.get("active"):
+        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+    # A ticket is not a bypass: the same account gate the header path runs.
+    return asc_auth.get_current_account(holder)
+
+
+@router.post("/api/asclepius/assets/onboarding-demo/ticket")
+async def onboarding_demo_ticket(
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+):
+    """Mint a 30-minute, demo-only ticket for the player element."""
+    return {"ticket": asc_auth.create_media_ticket(user, slot=DEMO_SLOT),
+            "url": "/api/asclepius/assets/onboarding-demo"}
+
+
 @router.get("/api/asclepius/assets/onboarding-demo")
 async def onboarding_demo(
     range_header: Optional[str] = Header(None, alias="Range"),
-    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+    authorization: Optional[str] = Header(None),
+    t: Optional[str] = None,
 ):
     """Stream the demo, honoring HTTP Range.
 
     Starlette answers HEAD from this same route, which is what a player issues
     first to learn the length before it will draw a timeline.
     """
+    _viewer(authorization, t)
     row, path = _resolve_demo()
     size = os.path.getsize(path)
     mime = row.get("mime") or "video/mp4"

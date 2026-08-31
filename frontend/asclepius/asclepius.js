@@ -1603,6 +1603,24 @@
     // in the practice case; in_progress resumes it. completed/skipped NEVER
     // re-trigger (server-authoritative via PATCH /me/tutorial). Admin/QA skip it.
     if (isReferralOnly()) { setPanel('referral'); return; }
+    // ── Onboarding v2 §0.1 decision 1 ────────────────────────────────────────
+    // This account is signed in on the TEMPORARY password from the welcome
+    // email. Before anything else, they choose their own. One screen, and it is
+    // the first thing after sign-in rather than a banner they can walk past:
+    // the credential in their inbox stops working the moment they do this, and
+    // that is the whole reason it is temporary.
+    if (state.user.must_change_password) { renderRotateTempPassword(); return; }
+    // §6: the first-login walkthrough. A newly approved physician lands in the
+    // welcome letter, not on a dashboard they have to reverse-engineer.
+    // Admins, QA reviewers and advisors are excluded here rather than inside the
+    // module: the role is the shell's knowledge, and the checklist question is
+    // the module's.
+    if (state.user.role === 'evaluator' && !isAdvisor()
+        && window.FirstRunWalkthrough
+        && window.FirstRunWalkthrough.shouldRun(state.user)) {
+      startFirstRun();
+      return;
+    }
     // `/asclepius/review` redirects here with `#review` (PRD-1 §2.1). The old
     // standalone URL is in bookmarks and in email we have already sent, so it
     // has to land a reviewer on their work rather than on a generic dashboard.
@@ -1662,6 +1680,165 @@
     teardownSidePanel();
     renderHeader();
     renderLogin();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Onboarding v2 §0.1 — rotate the temporary password.
+  //
+  //  The welcome email (§4.4) carries a credential the physician did not choose.
+  //  That is the one place this build departs from the ask, and it departs in
+  //  their favour: their experience is identical — credentials in the email,
+  //  sign in from the website, works first time — but a permanent plaintext
+  //  password sits in an inbox forever and survives an inbox breach.
+  //
+  //  This screen is the price of that, and it is one screen. It is also not
+  //  skippable, which is the point: `must_change_password` is retired
+  //  server-side by set_user_password and by nothing else, so a client that
+  //  routed past this would land on a portal still flagged for rotation.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const ROTATE_MIN = 12;
+
+  function renderRotateTempPassword() {
+    const tempInput = h('input', { class: 'asc-input', type: 'password',
+      placeholder: 'The password from your welcome email',
+      autocomplete: 'current-password' });
+    const nextInput = h('input', { class: 'asc-input', type: 'password',
+      placeholder: 'Choose a password', autocomplete: 'new-password' });
+    const confirmInput = h('input', { class: 'asc-input', type: 'password',
+      placeholder: 'Type it again', autocomplete: 'new-password' });
+    const errBox = h('div', { class: 'asc-login-error', hidden: true });
+    const submitBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-block asc-btn-lg',
+      type: 'submit' }, 'Set my password');
+
+    // A live checklist rather than a regex error after the fact, and no
+    // composition rules: "one symbol and one digit" reliably produces
+    // Password1! and nothing safer. Length is the requirement that helps.
+    const rules = [
+      { id: 'len', label: 'At least ' + ROTATE_MIN + ' characters',
+        ok: (v) => v.length >= ROTATE_MIN },
+      { id: 'diff', label: 'Different from the emailed one',
+        ok: (v) => v.length > 0 && v !== tempInput.value },
+      { id: 'match', label: 'Both entries match',
+        ok: (v) => v.length > 0 && v === confirmInput.value },
+    ];
+    const ruleEls = rules.map((r) => h('li', { class: 'asc-fr-rotate-rule' },
+      h('span', { class: 'asc-fr-rotate-dot', 'aria-hidden': 'true' }),
+      h('span', {}, r.label)));
+
+    function refresh() {
+      const v = nextInput.value;
+      let allOk = true;
+      rules.forEach((r, i) => {
+        const met = r.ok(v);
+        allOk = allOk && met;
+        ruleEls[i].classList.toggle('is-met', met);
+      });
+      if (allOk) submitBtn.removeAttribute('disabled');
+      else submitBtn.setAttribute('disabled', '');
+    }
+    [tempInput, nextInput, confirmInput].forEach((el) =>
+      el.addEventListener('input', refresh));
+
+    const form = h('form', {
+      onSubmit: async (e) => {
+        e.preventDefault();
+        errBox.setAttribute('hidden', '');
+        submitBtn.setAttribute('disabled', '');
+        submitBtn.textContent = 'Saving…';
+        try {
+          const res = await api('/auth/password/change', {
+            method: 'POST',
+            body: { current_password: tempInput.value, new_password: nextInput.value },
+          });
+          // The write invalidated the token this session is holding (every token
+          // is checked against password_changed_at), so take the fresh one the
+          // endpoint hands back or the next call 401s straight to the login form.
+          if (res && res.token) {
+            state.token = res.token;
+            try { localStorage.setItem(TOKEN_KEY, res.token); } catch (_) { /* ignore */ }
+          }
+          state.user = await api('/auth/me');
+          toast('Password set. Welcome aboard.', 'success');
+          enterApp();
+        } catch (err) {
+          errBox.textContent = err.message || 'Could not set that password.';
+          errBox.removeAttribute('hidden');
+          submitBtn.textContent = 'Set my password';
+          refresh();
+        }
+      },
+    },
+      errBox,
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Password from your welcome email'), tempInput),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Your new password'), nextInput),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Confirm it'), confirmInput),
+      h('ul', { class: 'asc-fr-rotate-rules' }, ruleEls),
+      submitBtn);
+
+    refresh();
+    const card = h('div', { class: 'asc-login-card' },
+      h('div', { class: 'asc-login-head' },
+        h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
+        h('h1', {}, 'Choose your password'),
+        h('p', {}, 'One screen, then you are in')),
+      h('div', { class: 'asc-login-body' },
+        h('p', { class: 'asc-fr-rotate-lede' },
+          'The password we emailed you is temporary — it stops working as soon '
+          + 'as you pick your own. Nothing else about your account changes.'),
+        form));
+    setRoot(h('div', { class: 'asc-login-wrap' }, card));
+    setTimeout(() => tempInput.focus(), 30);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  Onboarding v2 §6 — mounting the first-login walkthrough.
+  //
+  //  The module (first_run.js) owns the screens; the shell owns the session, the
+  //  rail and the routes it hands off to. This is the whole seam between them.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function firstRunCtx() {
+    return {
+      h, api, toast, setRoot,
+      user: state.user,
+      // Every stop transition returns the refreshed user, so the session's copy
+      // of the checklist stays current without a second fetch — which is what
+      // makes the dashboard chip below show the right count the moment the
+      // walkthrough is left.
+      onUser: (user) => { if (user) state.user = user; },
+      startTutorial: () => startTutorial({ resume: false }),
+      openCommunity,
+      setPanel,
+      // Leaving the walkthrough is a normal navigation, not a dismissal: the
+      // open stops stay open and the dashboard chip brings them back.
+      exit: () => { state.view = 'home'; state.panel = 'tasks'; renderDashboardView(); },
+    };
+  }
+
+  function startFirstRun() {
+    if (!window.FirstRunWalkthrough) { renderDashboardView(); return; }
+    window.FirstRunWalkthrough.start(firstRunCtx());
+  }
+
+  /** Re-open the walkthrough at its first unfinished stop.
+   *
+   *  Called when the practice case hands control back, and from the dashboard
+   *  chip. Deliberately re-reads state.user rather than any local memory: the
+   *  practice-case stop is checked off by the SERVER (from the tutorial's own
+   *  transition), so the client's idea of the checklist is stale by definition
+   *  at exactly this moment. */
+  function resumeFirstRun() {
+    if (!window.FirstRunWalkthrough) { renderDashboardView(); return; }
+    window.FirstRunWalkthrough.resume(firstRunCtx());
+  }
+
+  /** True when this session still has walkthrough stops open. */
+  function firstRunPending() {
+    return !!(window.FirstRunWalkthrough && state.user
+      && state.user.role === 'evaluator' && !isAdvisor()
+      && window.FirstRunWalkthrough.shouldRun(state.user));
   }
 
   // ─── Login screen ────────────────────────────────────────────────────────--
@@ -2138,6 +2315,11 @@
     const wrap = h('div', { class: 'asc-wrap' });
     const banner = provisionalBannerEl();
     if (banner) wrap.appendChild(banner);
+    // §6 re-entry: a quiet chip, never a modal ambush. It reports and it waits;
+    // ignoring it costs nothing, and it disappears the moment the last stop
+    // closes or the physician dismisses the checklist on the finish card.
+    const frChip = firstRunChipEl();
+    if (frChip) wrap.appendChild(frChip);
     wrap.appendChild(h('div', { class: 'asc-dash-head' },
       h('div', {},
         h('h2', { class: 'asc-dash-hello' }, 'Your dashboard'),
@@ -2243,6 +2425,18 @@
     cols.appendChild(side);
     wrap.appendChild(cols);
     setRoot(wrap);
+  }
+
+  /** "Finish setup · 3 of 6", or null when there is nothing left to finish. */
+  function firstRunChipEl() {
+    if (!firstRunPending()) return null;
+    const p = window.FirstRunWalkthrough.progress(state.user);
+    return h('button', {
+      class: 'asc-fr-chip', type: 'button',
+      onClick: () => resumeFirstRun(),
+    },
+      h('span', {}, 'Finish setup'),
+      h('span', { class: 'asc-fr-chip-count' }, p.done + ' of ' + p.total));
   }
 
   // ─── The contributor-score widget (PRD-SCORE) ───────────────────────────────
@@ -11881,7 +12075,19 @@
     state.task = null;
     state.portalChosen = false;
     state.specialtyChosen = false;
-    renderDashboardView();
+    // §6: a skipped practice case is a CLOSED stop, not an abandoned
+    // walkthrough. The server closes it from this same PATCH /me/tutorial
+    // 'skip', so the checklist shows it skipped and never asks again — but the
+    // remaining stops still have things to say, so resume rather than exit.
+    // state.user is refreshed by the PATCH above; re-read it there.
+    if (!wasReplay && window.FirstRunWalkthrough) {
+      api('/auth/me').then((u) => {
+        if (u) state.user = u;
+        if (firstRunPending()) resumeFirstRun(); else renderDashboardView();
+      }).catch(() => renderDashboardView());
+    } else {
+      renderDashboardView();
+    }
     // First skip: pulse the corner ? tab once so they know where the written
     // instructions live: never auto-open a panel over their screen.
     let seen = null;
@@ -11947,8 +12153,19 @@
             : 'Nothing from this case is recorded or sold. Your real cases start now.'),
       h('div', { style: 'display:flex;gap:10px;margin-top:18px;align-items:center' },
         h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
-          onClick: () => { state.portalChosen = false; state.specialtyChosen = false; renderDashboardView(); } },
-          isAdvisor() ? 'Back to the dashboard' : 'Start real cases →'),
+          onClick: () => {
+            state.portalChosen = false; state.specialtyChosen = false;
+            // Onboarding v2 §6 stop 3: the practice case is a STOP, so finishing
+            // it hands control back to the walkthrough rather than dropping the
+            // physician on a dashboard halfway through being introduced to the
+            // product. The server already ticked the box (from PATCH
+            // /me/tutorial, which submit refreshed state.user from), so resume
+            // lands on stop 4 and not back on this one.
+            if (firstRunPending()) { resumeFirstRun(); return; }
+            renderDashboardView();
+          } },
+          isAdvisor() ? 'Back to the dashboard'
+            : firstRunPending() ? 'Keep going →' : 'Start real cases →'),
         h('button', { class: 'asc-btn asc-btn-ghost', type: 'button', onClick: openInstructionDrawer },
           'Open the instructions')));
     setRoot(h('div', { class: 'asc-wrap asc-tour-reveal' }, card));

@@ -83,6 +83,53 @@ def create_token(user: Dict[str, Any]) -> str:
     return jwt.encode(payload, get_asclepius_secret(), algorithm=ALGORITHM)
 
 
+#: How long a media ticket is good for. Long enough to start a 73 MB video on a
+#: slow connection and to scrub around inside it; short enough that one leaking
+#: into a log or a referrer is worth nothing an hour later.
+MEDIA_TICKET_TTL_MINUTES = 30
+
+
+def create_media_ticket(user: Dict[str, Any], *, slot: str) -> str:
+    """A short-lived, single-purpose token for a <video> element.
+
+    A ``<video src>`` cannot carry an Authorization header, and the alternatives
+    are both bad: fetch the whole file with a header and play it as a blob (which
+    throws away the Range support that makes the timeline scrub, and puts 73 MB
+    in the tab), or put the SESSION token in the query string (which writes a
+    credential good for every endpoint into access logs, referrers and browser
+    history).
+
+    So: a token that can do exactly one thing. Different ``typ``, so
+    ``decode_token`` refuses it and it cannot authenticate an API call; a
+    ``slot`` claim, so a ticket for the onboarding demo cannot fetch anything
+    else; and thirty minutes, so a leaked one expires before it is interesting.
+    """
+    now = datetime.utcnow()
+    payload = {
+        "typ": "asclepius_media",
+        "sub": user["id"],
+        "slot": slot,
+        "iat": _epoch_utc(now),
+        "exp": now + timedelta(minutes=MEDIA_TICKET_TTL_MINUTES),
+    }
+    return jwt.encode(payload, get_asclepius_secret(), algorithm=ALGORITHM)
+
+
+def decode_media_ticket(ticket: str, *, slot: str) -> Optional[str]:
+    """The user id a media ticket names, or None. Never raises."""
+    if not ticket:
+        return None
+    try:
+        payload = jwt.decode(ticket, get_asclepius_secret(), algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        return None
+    # Both checks matter: ``typ`` stops a session token being used as a ticket
+    # (and vice versa), and ``slot`` stops a ticket for one asset opening another.
+    if payload.get("typ") != "asclepius_media" or payload.get("slot") != slot:
+        return None
+    return payload.get("sub") or None
+
+
 def _epoch_utc(dt: datetime) -> int:
     """Epoch seconds for a NAIVE datetime that is already UTC.
 
