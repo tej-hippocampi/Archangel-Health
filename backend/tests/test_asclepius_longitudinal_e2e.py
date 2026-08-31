@@ -72,8 +72,8 @@ def build_chart():
                                                 "CBD 14 mm. Distal CBD obscured by bowel gas; "
                                                 "gallbladder distended, no stones seen.")),
         (-1242, 1361, 17.77, 690,
-         "Admitted for ERCP. Bilirubin has climbed further to 17.77 despite the cholestatic "
-         "enzymes having plateaued, and the patient reports worsening pruritus. No fever and no "
+         "Admitted for ERCP. Bilirubin has climbed further to 17.77 and the cholestatic "
+         "enzymes continue to rise, with worsening pruritus. No fever and no "
          "features of cholangitis. Coagulation is normal. ERCP performed: a tight distal common "
          "bile duct stricture was crossed and a 10 French plastic stent placed with good flow of "
          "bile; brushings were taken from the stricture for cytology. The stricture appearance is "
@@ -96,7 +96,7 @@ def build_chart():
          ("ct", "CT abdomen", "Stent in situ across the distal CBD with decompressed intrahepatic "
                               "ducts. Peripancreatic fat stranding consistent with resolving "
                               "post-ERCP pancreatitis. No discrete mass identified.")),
-        (-980, 983, 6.40, 520,
+        (-980, 983, 11.80, 520,
          "Re-presents with recurrent jaundice, rigors and a temperature of 38.4. Right upper "
          "quadrant tenderness is present. The cholestatic enzymes have climbed again, with GGT "
          "back up to 983 and alkaline phosphatase to 520, while bilirubin has risen from its "
@@ -124,9 +124,26 @@ def build_chart():
                                                   "bile flow. Repeat brushings taken.")),
     ]
     panels, notes, studies = [], [], []
+    # Intra-encounter drift moves in the direction THIS encounter's story goes,
+    # derived from the previous encounter's bilirubin rather than hardcoded.
+    #
+    # It used to be a flat 3%/day decay on every analyte in every encounter, and
+    # the live case judge caught what that produced: at the admission encounter
+    # the note says "bilirubin has climbed further to 17.77" while the panels
+    # underneath it run 17.77 → 17.24 → 16.70 → 16.17. Falling. A chart whose
+    # narrative contradicts its own numbers is exactly what the coherence floor
+    # exists to reject, so the fixture was failing the gate on its own merits and
+    # every conclusion drawn from that was about the fixture, not the product.
+    prev_bili = None
     for start, ggt, bili, alp, text, (mod, label, findings) in ENCOUNTERS:
+        # ALT tracks the cholestatic picture rather than sitting still. Derived
+        # from this encounter's ALP so it moves WITH the story instead of needing
+        # its own column that could drift out of step with it.
+        alt = max(30, round(alp * 0.14))
+        worsening = prev_bili is not None and bili > prev_bili
+        prev_bili = bili
         for i, day in enumerate((start, start + 1, start + 2, start + 3)):
-            drift = i * 0.03
+            drift = (i * 0.03) * (-1 if worsening else 1)
             panels.append({
                 "panel": "Liver function tests", "collected_offset_days": day,
                 "results": [
@@ -136,12 +153,34 @@ def build_chart():
                      "unit": "mg/dL", "ref_low": 0.2, "ref_high": 1.2, "flag": "H"},
                     {"analyte": "Alkaline phosphatase", "value": round(alp * (1 - drift)),
                      "unit": "U/L", "ref_low": 40, "ref_high": 130, "flag": "H"},
-                    {"analyte": "ALT", "value": 88, "unit": "U/L",
+                    {"analyte": "ALT", "value": round(alt * (1 - drift)), "unit": "U/L",
                      "ref_low": 7, "ref_high": 56, "flag": "H"},
                 ],
             })
-            notes.append({"note_type": "Progress", "author_role": "hepatology",
-                          "collected_offset_days": day, "text": text})
+            # The narrative note goes on the day whose values it QUOTES. Repeating
+            # it verbatim across four days made its "current value" claim wrong on
+            # three of them — the same incoherence in a second form.
+            #
+            # The later days still carry a note, because an encounter is four days
+            # of contact and the density gate rightly wants ≥8 recorded events;
+            # dropping to one note per encounter took every encounter below the
+            # floor and the chart stopped producing decision points at all. So the
+            # interval notes are SHORT and carry NO NUMBERS: a note that asserts no
+            # value cannot contradict the panel beside it, which is exactly how a
+            # real interval note reads when nothing has changed.
+            if i == 0:
+                notes.append({"note_type": "Progress", "author_role": "hepatology",
+                              "collected_offset_days": day, "text": text})
+            else:
+                notes.append({
+                    "note_type": "Progress", "author_role": "hepatology",
+                    "collected_offset_days": day,
+                    "text": (f"Interval day {i}. Reviewed on the ward round; "
+                             f"clinically stable, observations within their usual "
+                             f"range for this admission. Repeat liver function "
+                             f"tests sent this morning. Plan unchanged pending the "
+                             f"results and the outcome discussed above."),
+                })
         studies.append({"modality": mod, "label": label, "collected_offset_days": start + 1,
                         "findings": findings})
     return {
