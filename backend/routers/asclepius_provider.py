@@ -17,6 +17,7 @@ The ingestion inbox + quarantine + promote endpoints already live in
 from __future__ import annotations
 
 import asyncio
+import hashlib as _hashlib
 import io
 import json
 import logging
@@ -36,7 +37,10 @@ from starlette.responses import Response as StarletteResponse
 from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
 from asclepius import auth as asc_auth
+from asclepius import dla as asc_dla
 from asclepius import hs_access
+from asclepius import hs_provisioning as asc_hs_provisioning
+from asclepius import hs_states
 from asclepius import ingestion as asc_ingestion
 from asclepius import passwords as asc_passwords
 from asclepius import portal_accounts as asc_portal_accounts
@@ -839,6 +843,16 @@ async def hs_me(portal_user: Dict[str, Any] = Depends(require_hs_portal)):
             hs.get("intake_at") is None
             and (portal_user.get("approval_status") or "").strip().lower() == "pending"
         ),
+        # How far through onboarding the ORGANIZATION is, and what happens next.
+        # A second axis from `surfaces`, which is about this account: see
+        # asclepius/hs_states.py. Both are sent because the portal renders by
+        # state and gates its rail by surface, and conflating them would make a
+        # member of a signed organization look unsigned.
+        **hs_states.public_view(hs),
+        # Who signed, and when. Named in §0.1.2: a member who opens the portal
+        # after somebody else signed must see that rather than a second
+        # signature request.
+        "agreement": _hs_agreement_summary(_store(), hs),
     }
 
 
@@ -1102,6 +1116,17 @@ def _hs_upload_preconditions(store: Any, portal_user: Dict[str, Any]) -> None:
     refactoring the dependency away."""
     if not hs_access.can_surface(portal_user, hs_access.UPLOAD):
         raise HTTPException(status_code=403, detail=_HS_REVIEW_MSG)
+    # The organization-level gate (PRD §6). SERVER-SIDE and here rather than in
+    # the route dependency, so it is applied by all four doors from one
+    # statement: a fifth door that forgets the dependency still cannot get past
+    # this, because there is no upload path that does not call this function.
+    #
+    # The health system row comes off the SESSION, refetched by
+    # require_hs_portal on every request, so a state change takes effect on the
+    # partner's next call rather than at the end of a 12-hour cookie.
+    if not hs_states.can_upload(portal_user.get("health_system")):
+        raise HTTPException(status_code=403, detail=_hs_locked_message(
+            portal_user.get("health_system")))
     if portal_user.get("must_reset"):
         raise HTTPException(status_code=403, detail="Reset your password before uploading.")
     if _is_production():
@@ -1356,7 +1381,17 @@ class HsSignupRequest(BaseModel):
     full_name: str
     email: str
     organization: str
-    password: str
+    #: OPTIONAL, and the default is the one the landing dialog uses. Three
+    #: fields and a Continue button is the whole of screen one (PRD §2); an
+    #: organization that gives us no password is mailed a temporary one and made
+    #: to replace it at first sign-in, which is §0.1.1 and the same compromise
+    #: the physician onboarding makes for the same SOC 2 reason.
+    #:
+    #: The portal's own signup screen still sends one, so both doors stay open
+    #: and neither is a fork: identical guards, identical staging, identical
+    #: account, and one flag deciding which credential the welcome email
+    #: carries.
+    password: str = ""
     # Same field name as the landing forms', so bots already filling it in keep
     # filling it in.
     company_website: str = ""
@@ -1409,12 +1444,15 @@ async def hs_signup(body: HsSignupRequest, request: Request):
     if not email or "@" not in email or not full_name or not organization:
         raise HTTPException(status_code=400,
                             detail="Please fill in your name, work email and organization.")
-    try:
-        asc_passwords.validate(body.password or "", email=email)
-    except asc_passwords.PasswordRejected as exc:
-        # The one place a real 400 is right: it is about what THEY typed, so it
-        # tells an attacker nothing they did not already supply.
-        raise HTTPException(status_code=400, detail=str(exc))
+    chosen_password = body.password or ""
+    wants_temp = not chosen_password.strip()
+    if not wants_temp:
+        try:
+            asc_passwords.validate(chosen_password, email=email)
+        except asc_passwords.PasswordRejected as exc:
+            # The one place a real 400 is right: it is about what THEY typed, so
+            # it tells an attacker nothing they did not already supply.
+            raise HTTPException(status_code=400, detail=str(exc))
 
     if store.count_recent_hs_signups_for_email(email, hours=24) >= _HS_SIGNUP_EMAIL_CAP:
         log.info("hs signup: per-email cap reached, dropping silently")
@@ -1424,8 +1462,12 @@ async def hs_signup(body: HsSignupRequest, request: Request):
     try:
         staged = store.create_hs_signup(
             email=email, full_name=full_name, organization=organization,
-            password=body.password, code=code, ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN,
-            client_ip=client_ip(request))
+            # An unusable random string when they chose nothing. The row must
+            # never hold a hash anybody could produce a preimage for, because a
+            # staged row that is later verified becomes an account.
+            password=chosen_password or secrets.token_urlsafe(32),
+            code=code, ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN,
+            client_ip=client_ip(request), needs_temp_password=wants_temp)
     except Exception:
         log.exception("hs signup: could not stage")
         raise HTTPException(status_code=503, detail="We could not start that just now. Please try again.")
@@ -1468,7 +1510,10 @@ async def hs_signup_resend(body: HsSignupResendRequest):
     store.create_hs_signup(
         email=email, full_name=staged["full_name"], organization=staged["organization"],
         password=secrets.token_urlsafe(32), code=code,
-        ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN, client_ip=staged.get("client_ip"))
+        ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN, client_ip=staged.get("client_ip"),
+        # Carried across, or a resend would silently turn a
+        # three-field signup into one that verifies with a password nobody has.
+        needs_temp_password=bool(staged.get("needs_temp_password")))
     # ...but the password on the new row is garbage, because we never held the
     # real one in the clear. Carry the ORIGINAL hash across so verifying the new
     # code still creates the account with the password they actually chose.
@@ -1516,17 +1561,27 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
     # method is create-or-reuse by name, and on a public route it would hand a
     # stranger an incumbent partner's upload history.
     hs = store.create_health_system_unclaimed(organization, contact_email=email)
-    username = asc_portal_accounts.unique_hs_username(
-        store, asc_portal_accounts.derive_hs_username(organization))
-    store.create_hs_portal_user(
-        username=username, hs_id=hs["hs_id"], password=secrets.token_urlsafe(32),
-        email=email,
-        # They chose this password a minute ago; there is nothing to force them
-        # to replace.
-        must_reset=False, full_name=staged["full_name"], signup_source="self_serve",
-        approval_status="pending")
-    # Carry the password they actually chose, which we only ever held hashed.
-    store.set_hs_portal_password_hash(username, staged["password_hash"])
+    wants_temp = bool(staged.get("needs_temp_password"))
+    # ONE minting path for both doors, shared with the operator's own
+    # (asclepius/hs_provisioning.py). must_reset follows what they gave us:
+    # a credential that travelled through email has to be replaced before it
+    # guards anything, and a password they chose ninety seconds ago has nothing
+    # to replace -- landing them on the forced-reset screen for it would be
+    # asking them to change something they just typed.
+    minted = asc_hs_provisioning.provision_account(
+        store, hs_id=hs["hs_id"], org_name=organization, email=email,
+        full_name=staged["full_name"], signup_source="self_serve",
+        approval_status="pending", must_reset=wants_temp)
+    username = minted["username"]
+    if not wants_temp:
+        # Carry the password they actually chose, which we only ever held
+        # hashed, over the one provision_account generated.
+        store.set_hs_portal_password_hash(username, staged["password_hash"])
+    # The organization starts at the beginning of the state machine, not at the
+    # end of it. This is the one write that makes the upload door closed by
+    # default for everything that arrives through this route; a health system
+    # provisioned by an operator keeps its NULL and keeps its door.
+    store.set_hs_onboarding_state(hs["hs_id"], hs_states.INTAKE)
     store.consume_hs_signup(staged["signup_id"])
     store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                     event_type="self_signup_verified", actor=username,
@@ -1535,23 +1590,39 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
     collisions = [h["hs_id"] for h in
                   store.health_systems_named_like(organization, exclude_hs_id=hs["hs_id"])]
     background.add_task(_notify_hs_signup, store, staged["full_name"], email,
-                        organization, hs["hs_id"], username, collisions)
+                        organization, hs["hs_id"], username, collisions,
+                        minted["passphrase"] if wants_temp else "")
 
     fresh = store.get_hs_portal_user(username) or {}
     _set_hs_cookie(response, _hs_token(username, hs["hs_id"],
                                        session_epoch=fresh.get("session_epoch")))
     # Same shape hs_login returns, plus the username they now have to remember.
     return {"ok": True, "username": username, "organization": organization,
-            "must_reset": False}
+            "must_reset": wants_temp}
 
 
 def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
-                      hs_id: str, username: str, collisions: List[str]) -> None:
+                      hs_id: str, username: str, collisions: List[str],
+                      temp_password: str = "") -> None:
     """Background because this route is behind the portal time budget on the way
-    out, and a SendGrid round trip is several times it."""
+    out, and a SendGrid round trip is several times it.
+
+    Two welcome letters, one per door. A signup that chose its own password gets
+    the letter that delivers the USERNAME, because that is the only thing they
+    do not already have. A three-field signup gets the §2.3 access letter, which
+    carries the mission, the temporary credential, and the line telling them to
+    bookmark it -- and it has to go out immediately, because for that door this
+    email is the only record of how to get back in.
+
+    ``temp_password`` is a live credential. It exists in this process, in this
+    email, and nowhere else: never log it, and never put it in an event payload.
+    """
     try:
         import notifications
-        from onboarding_emails import build_hs_signup_alert, build_hs_signup_welcome_email
+        from onboarding_emails import (
+            build_hs_access_email, build_hs_signup_alert,
+            build_hs_signup_welcome_email,
+        )
         notifications.notify_founders(
             store, kind="hs_signup",
             subject=f"[Health system] New signup: {organization}",
@@ -1560,15 +1631,22 @@ def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
                 hs_id=hs_id, username=username, name_collisions=collisions),
             dedupe_key=hs_id, coalesce=False)
         if is_email_transport_configured():
+            if temp_password:
+                subject = "Welcome to Archangel Health — your portal access"
+                body = build_hs_access_email(
+                    organization=organization, full_name=full_name,
+                    username=username, temp_password=temp_password,
+                    portal_url=_hs_portal_url())
+            else:
+                subject = "Your Archangel Health upload portal"
+                body = build_hs_signup_welcome_email(
+                    organization=organization, username=username,
+                    portal_url=_hs_portal_url())
             # The house bridge, which copes whether or not a loop is running.
             # A sync BackgroundTask has none, but that is a property of how
             # FastAPI happens to schedule this today, not one to depend on.
             from asclepius.ingest_notify import _run_coro
-            _run_coro(send_html_email(
-                email, "Your Archangel Health upload portal",
-                build_hs_signup_welcome_email(organization=organization,
-                                              username=username,
-                                              portal_url=_hs_portal_url())))
+            _run_coro(send_html_email(email, subject, body))
     except Exception:
         log.exception("hs signup: notification failed")
 
@@ -1747,6 +1825,681 @@ async def hs_payouts(
         "payouts": [_hs_payout_view(r) for r in rows],
         "how_we_pay": _HS_PAYOUT_NOTE,
     }
+
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  ONBOARDING — the application, the team, and the agreement
+#
+#  Three surfaces that together take an organization from "we just signed up"
+#  to "we can upload", with no phone call in the middle. They are ordered by the
+#  state machine in asclepius/hs_states.py rather than by a wizard step counter,
+#  because a member who joins halfway through has to land somewhere sensible and
+#  a step counter has no answer for that.
+#
+#  Every one of them renders from a SERVER-OWNED question list, for the reason
+#  the intake prompts give: the copy a partner reads is auditable in one place,
+#  and the static check that scans this file covers every word of it.
+# ════════════════════════════════════════════════════════════════════════════
+
+#: The four questions, in the order §3 asks for them. Each carries its own
+#: options, and every one of them has an honest "not sure" -- an organization
+#: that does not know whether it may license data is telling us something true
+#: and useful, and a form that refuses to accept it just teaches people to
+#: guess. Nothing here blocks submission.
+_HS_APPLICATION_QUESTIONS: List[Dict[str, Any]] = [
+    {
+        "key": "authority",
+        "label": "Does your organization have the authority to license "
+                 "de-identified clinical data to a commercial party?",
+        "help": "If you are not sure, say so. It is a common answer and it "
+                "routes to a conversation rather than to a dead end.",
+        "options": [
+            {"value": "yes", "label": "Yes"},
+            {"value": "no", "label": "No"},
+            {"value": "not_sure", "label": "Not sure"},
+        ],
+    },
+    {
+        "key": "deid_capability",
+        "label": "Can you de-identify and date-shift records before the data "
+                 "leaves your environment, or would we need to receive "
+                 "identified data under a BAA?",
+        "help": "De-identifying on your side is simpler for both of us. If it "
+                "is not possible today, a BAA is the path and we will say so.",
+        "options": [
+            {"value": "in_our_environment",
+             "label": "De-identified in our environment"},
+            {"value": "needs_baa", "label": "We would need a BAA"},
+            {"value": "not_sure", "label": "Not sure"},
+        ],
+    },
+    {
+        "key": "export_scope",
+        "label": "Do your exports include free-text notes, or only structured "
+                 "fields?",
+        "help": "Notes are where clinical reasoning lives, so this changes what "
+                "we can do with an extract more than anything else here.",
+        "options": [
+            {"value": "notes_and_structured", "label": "Notes and structured"},
+            {"value": "structured_only", "label": "Structured only"},
+            {"value": "varies", "label": "Depends by system"},
+        ],
+    },
+    {
+        "key": "scale",
+        "label": "Roughly how many patients, over how many years, in which "
+                 "specialties?",
+        "help": "Estimates are fine. Nobody is held to these numbers.",
+        # The one composite question, because "scale" is one thought and three
+        # separate screens for it reads like an interrogation.
+        "fields": [
+            {"key": "scale_patients", "label": "Patients", "kind": "select",
+             "options": [
+                 {"value": "under_10k", "label": "Under 10,000"},
+                 {"value": "10k_50k", "label": "10,000 to 50,000"},
+                 {"value": "50k_250k", "label": "50,000 to 250,000"},
+                 {"value": "250k_1m", "label": "250,000 to 1 million"},
+                 {"value": "over_1m", "label": "Over 1 million"},
+                 {"value": "not_sure", "label": "Not sure"},
+             ]},
+            {"key": "scale_years", "label": "Years of history", "kind": "select",
+             "options": [
+                 {"value": "under_2", "label": "Under 2 years"},
+                 {"value": "2_5", "label": "2 to 5 years"},
+                 {"value": "5_10", "label": "5 to 10 years"},
+                 {"value": "10_20", "label": "10 to 20 years"},
+                 {"value": "over_20", "label": "Over 20 years"},
+                 {"value": "not_sure", "label": "Not sure"},
+             ]},
+            {"key": "scale_specialties", "label": "Specialties",
+             "kind": "multiselect", "options": None},   # filled from _HS_SPECIALTIES
+        ],
+    },
+]
+
+#: What a hospital can pick from when telling us what it holds. Deliberately
+#: WIDER than asclepius/specialties.py's registry: that list is what we can
+#: currently build tasks for, and a health system describing its own data should
+#: not be asked to guess our roadmap. "Other" carries the rest.
+_HS_SPECIALTIES: List[str] = [
+    "Cardiology", "Dermatology", "Emergency medicine", "Endocrinology",
+    "Gastroenterology", "General surgery", "Hematology", "Hepatology",
+    "Infectious disease", "Internal medicine", "Nephrology", "Neurology",
+    "Obstetrics and gynecology", "Oncology", "Ophthalmology", "Orthopedics",
+    "Otolaryngology", "Pathology", "Pediatrics", "Psychiatry", "Pulmonology",
+    "Radiology", "Rheumatology", "Urology", "Other",
+]
+
+#: Answer value -> the words an operator reads on the admin card and in the
+#: alert email. Kept beside the questions so a new option cannot be added
+#: without deciding what it is called in the place a decision gets made.
+_HS_ANSWER_LABELS: Dict[str, str] = {}
+for _q in _HS_APPLICATION_QUESTIONS:
+    for _opt in (_q.get("options") or []):
+        _HS_ANSWER_LABELS[f"{_q['key']}:{_opt['value']}"] = _opt["label"]
+    for _f in (_q.get("fields") or []):
+        for _opt in (_f.get("options") or []):
+            _HS_ANSWER_LABELS[f"{_f['key']}:{_opt['value']}"] = _opt["label"]
+
+#: Cap on how many teammates one organization may add through the portal. Not a
+#: licence limit -- it is the blast radius of a compromised portal session, which
+#: could otherwise mail our credentials to an arbitrary number of addresses.
+_HS_MAX_MEMBERS = 25
+
+
+def _hs_application_prompts() -> List[Dict[str, Any]]:
+    """The question list as the client receives it, with the specialty options
+    resolved. Built per call rather than mutated at import, so nothing can hand
+    back a list a previous request edited."""
+    out: List[Dict[str, Any]] = []
+    for q in _HS_APPLICATION_QUESTIONS:
+        item = {k: v for k, v in q.items() if k not in ("fields",)}
+        if q.get("fields"):
+            fields = []
+            for f in q["fields"]:
+                fld = dict(f)
+                if fld.get("kind") == "multiselect" and fld.get("options") is None:
+                    fld["options"] = [{"value": s, "label": s} for s in _HS_SPECIALTIES]
+                fields.append(fld)
+            item["fields"] = fields
+        out.append(item)
+    return out
+
+
+def _hs_answer_label(key: str, value: str) -> str:
+    return _HS_ANSWER_LABELS.get(f"{key}:{value}", value or "")
+
+
+def _hs_application_view(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Named fields only, never a splat of the stored row."""
+    if not row:
+        return None
+    return {
+        "submitted_at": row.get("submitted_at"),
+        "authority": row.get("authority") or "",
+        "deid_capability": row.get("deid_capability") or "",
+        "export_scope": row.get("export_scope") or "",
+        "scale_patients": row.get("scale_patients") or "",
+        "scale_years": row.get("scale_years") or "",
+        "scale_specialties": list(row.get("scale_specialties") or []),
+    }
+
+
+def _hs_locked_message(hs: Optional[Dict[str, Any]]) -> str:
+    """What a partner is told when the upload door is shut.
+
+    Names what has to happen next rather than saying no. A 403 that reads
+    "not allowed" produces a phone call; one that reads "sign the agreement and
+    this opens" produces a signature.
+    """
+    view = hs_states.public_view(hs)
+    return view["next_step"]
+
+
+def _hs_agreement_summary(store: Any, hs: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Who signed for this organization, if anyone. Shown to EVERY member.
+
+    §0.1.2: the agreement binds the organization on one authorized signature, so
+    the fifth person to open the portal has to see "signed by Dana Reyes on 14
+    March" rather than a second signature request. Returns None when nothing has
+    been signed, which is also the honest answer for an organization
+    provisioned before this existed.
+
+    Deliberately omits the network address and the client string. Those are on
+    the row because a court may want them; a colleague reading the portal has no
+    business knowing which IP the CIO signed from.
+    """
+    if not hs:
+        return None
+    row = store.latest_signed_agreement(hs.get("hs_id") or "")
+    if not row:
+        return None
+    return {
+        "doc_version": row.get("doc_version"),
+        "signed_at": row.get("signed_at"),
+        "signed_by": row.get("typed_name") or "",
+        "signed_by_title": row.get("typed_title") or "",
+        "doc_sha256": row.get("doc_sha256") or "",
+    }
+
+
+# ─── The application ─────────────────────────────────────────────────────────
+class HsApplicationRequest(BaseModel):
+    """An EXPLICIT field list, per the rule the upload declare model states: a
+    field the client invents is dropped by the model rather than reaching
+    anything downstream."""
+
+    authority: str
+    deid_capability: str
+    export_scope: str
+    scale_patients: str
+    scale_years: str
+    scale_specialties: List[str] = []
+
+
+@portal_router.get("/hs/application")
+async def hs_application_get(
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    """The questions, and what this organization last answered."""
+    store = _store()
+    hs = portal_user["health_system"]
+    return {
+        "prompts": _hs_application_prompts(),
+        "organization": hs["name"],
+        "submitted": _hs_application_view(store.latest_hs_application(hs["hs_id"])),
+        **hs_states.public_view(hs),
+    }
+
+
+@portal_router.post("/hs/application",
+                    dependencies=[Depends(rate_limiter("hs_application", 10, 600))])
+async def hs_application_post(
+    body: HsApplicationRequest,
+    background: BackgroundTasks,
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    """Record the four answers and move the organization to `submitted`.
+
+    Every value is checked against the server's own option list. Not because a
+    bad value would be dangerous -- these are strings in a form -- but because
+    an unvalidated one lands in the column an operator reads to decide whether a
+    BAA is required, and a column that can hold anything is a column nobody can
+    filter on.
+    """
+    store = _store()
+    hs = portal_user["health_system"]
+    answers: Dict[str, str] = {}
+    for key in ("authority", "deid_capability", "export_scope",
+                "scale_patients", "scale_years"):
+        value = (getattr(body, key, "") or "").strip()
+        if f"{key}:{value}" not in _HS_ANSWER_LABELS:
+            raise HTTPException(
+                status_code=400,
+                detail="Please answer every question before submitting.")
+        answers[key] = value
+    allowed = set(_HS_SPECIALTIES)
+    specialties = []
+    for raw in (body.scale_specialties or [])[:len(_HS_SPECIALTIES)]:
+        value = str(raw).strip()
+        if value in allowed and value not in specialties:
+            specialties.append(value)
+
+    row = store.record_hs_application(
+        hs_id=hs["hs_id"], username=portal_user["username"],
+        authority=answers["authority"], deid_capability=answers["deid_capability"],
+        export_scope=answers["export_scope"], scale_patients=answers["scale_patients"],
+        scale_years=answers["scale_years"], scale_specialties=specialties)
+    store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
+                    event_type="application_submitted", actor=portal_user["username"])
+    # Background, not awaited: this route sits behind the portal time budget and
+    # a mail round trip is several times it, so awaiting would make response
+    # time a function of whether email is configured.
+    background.add_task(_notify_hs_application, store, portal_user, row)
+    fresh = store.get_health_system(hs["hs_id"])
+    return {"ok": True, "submitted_at": row["submitted_at"],
+            **hs_states.public_view(fresh)}
+
+
+def _notify_hs_application(store: Any, portal_user: Dict[str, Any],
+                           row: Dict[str, Any]) -> None:
+    try:
+        import notifications
+        from onboarding_emails import build_hs_application_alert
+        org = portal_user["health_system"]["name"]
+        specialties = ", ".join(row.get("scale_specialties") or []) or "not specified"
+        answers = [
+            ("Authority to license",
+             _hs_answer_label("authority", row.get("authority") or "")),
+            ("De-identification",
+             _hs_answer_label("deid_capability", row.get("deid_capability") or "")),
+            ("Export contents",
+             _hs_answer_label("export_scope", row.get("export_scope") or "")),
+            ("Scale",
+             f"{_hs_answer_label('scale_patients', row.get('scale_patients') or '')} "
+             f"patients, {_hs_answer_label('scale_years', row.get('scale_years') or '')}"
+             f", {specialties}"),
+        ]
+        members = [u.get("email") or u.get("username")
+                   for u in store.list_hs_portal_users(portal_user["hs_id"])]
+        notifications.notify_founders(
+            store, kind="hs_application",
+            subject=f"[Health system] Application: {org}",
+            body_html=build_hs_application_alert(
+                organization=org, hs_id=portal_user["hs_id"],
+                full_name=portal_user.get("full_name") or "",
+                email=portal_user.get("email") or "",
+                answers=answers, members=members),
+            dedupe_key=f"{portal_user['hs_id']}|{row.get('submitted_at')}",
+            coalesce=False)
+    except Exception:
+        log.exception("hs application: notification failed")
+
+
+# ─── The team ────────────────────────────────────────────────────────────────
+class HsMemberRequest(BaseModel):
+    emails: List[str] = []
+
+
+def _hs_member_view(row: Dict[str, Any], *, me: str) -> Dict[str, Any]:
+    """Named fields only. No approval status, no invited_by chain, and above all
+    no password state: a colleague's account is not this caller's business
+    beyond knowing they have one."""
+    return {
+        "username": row.get("username"),
+        "email": row.get("email") or "",
+        "full_name": row.get("full_name") or "",
+        "added_at": row.get("created_at"),
+        "is_you": (row.get("username") or "") == me,
+    }
+
+
+@portal_router.get("/hs/members")
+async def hs_members_get(
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    store = _store()
+    rows = [u for u in store.list_hs_portal_users(portal_user["hs_id"]) if u.get("active")]
+    return {"members": [_hs_member_view(r, me=portal_user["username"]) for r in rows],
+            "max_members": _HS_MAX_MEMBERS}
+
+
+@portal_router.post("/hs/members",
+                    dependencies=[Depends(rate_limiter("hs_members", 10, 600))])
+async def hs_members_post(
+    body: HsMemberRequest,
+    background: BackgroundTasks,
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    """Add teammates. Each gets their own account and their own credentials.
+
+    THE ORGANIZATION IS FIXED BY THE SESSION. This route takes addresses and
+    nothing else -- no hs_id, no organization name -- so there is no version of
+    it that adds somebody to a health system the caller is not already in. That
+    is the same property /hs/payouts holds and for the same reason.
+
+    Adding an address that already has an active account on this organization
+    ROTATES nothing and sends nothing: re-adding a colleague by accident must
+    not invalidate the password they are already using.
+    """
+    store = _store()
+    hs = portal_user["health_system"]
+    existing = [u for u in store.list_hs_portal_users(hs["hs_id"]) if u.get("active")]
+    have = {(u.get("email") or "").strip().lower() for u in existing}
+
+    wanted: List[str] = []
+    for raw in (body.emails or [])[:_HS_MAX_MEMBERS]:
+        addr = str(raw or "").strip().lower()
+        if not addr or "@" not in addr or addr in have or addr in wanted:
+            continue
+        wanted.append(addr)
+    if not wanted:
+        return {"ok": True, "added": [],
+                "members": [_hs_member_view(u, me=portal_user["username"])
+                            for u in existing]}
+    if len(existing) + len(wanted) > _HS_MAX_MEMBERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"An organization can hold {_HS_MAX_MEMBERS} portal accounts. "
+                   "Reply to any email from us and we will raise it.")
+
+    added: List[Dict[str, Any]] = []
+    for addr in wanted:
+        minted = asc_hs_provisioning.provision_account(
+            store, hs_id=hs["hs_id"], org_name=hs["name"], email=addr,
+            signup_source="member_invite", invited_by=portal_user["username"],
+            # The same decision their colleague's account got. A member is not a
+            # lesser account: they can answer the questions and they can sign.
+            approval_status=(portal_user.get("approval_status") or None))
+        store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
+                        event_type="member_added", actor=portal_user["username"],
+                        payload={"username": minted["username"], "email": addr})
+        added.append({"email": addr, "username": minted["username"],
+                      "passphrase": minted["passphrase"]})
+
+    inviter = (portal_user.get("full_name") or "").strip() or "A colleague"
+    background.add_task(_notify_hs_members_added, hs["name"], inviter, added)
+    fresh = [u for u in store.list_hs_portal_users(hs["hs_id"]) if u.get("active")]
+    return {
+        # The passphrases are NOT echoed. They go to the address they belong to
+        # and nowhere else -- a colleague who can read another colleague's
+        # credential out of a JSON response is a credential that is not theirs.
+        "ok": True,
+        "added": [a["email"] for a in added],
+        "members": [_hs_member_view(u, me=portal_user["username"]) for u in fresh],
+    }
+
+
+def _notify_hs_members_added(organization: str, inviter: str,
+                             added: List[Dict[str, Any]]) -> None:
+    """One letter per new member, each carrying only its own credential."""
+    if not is_email_transport_configured():
+        return
+    try:
+        from asclepius.ingest_notify import _run_coro
+        from onboarding_emails import build_hs_member_added_email
+        for member in added:
+            _run_coro(send_html_email(
+                member["email"],
+                f"{inviter} added you to {organization}'s Archangel Health workspace",
+                build_hs_member_added_email(
+                    organization=organization, added_by=inviter,
+                    username=member["username"], temp_password=member["passphrase"],
+                    portal_url=_hs_portal_url())))
+    except Exception:
+        log.exception("hs members: invite email failed")
+
+
+# ─── The agreement ───────────────────────────────────────────────────────────
+class HsAgreementSignRequest(BaseModel):
+    """The four things a clickwrap has to capture, named separately.
+
+    One "I agree" boolean would be cheaper and would collapse two legally
+    distinct affirmations into one: authority to bind the organization, and
+    consent to transact electronically. Courts test them separately, so the
+    record keeps them separate.
+    """
+
+    typed_name: str
+    typed_title: str
+    authority_affirmed: bool = False
+    consent_esign: bool = False
+    #: The hash the client was shown. Echoed back so a signature can only be
+    #: taken against a document the signer actually saw -- see the mismatch
+    #: branch below.
+    doc_sha256: str = ""
+
+
+@portal_router.get("/hs/agreement")
+async def hs_agreement_get(
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    """The agreement, in full, as text.
+
+    FULL TEXT, not a link to a PDF. §5.1: a clickwrap that requires downloading
+    something to read it is a clickwrap whose "I have read this" is provably
+    false, and the reasonable-notice line in the case law is exactly there.
+
+    Served to every state, not only to the one that can sign. An organization
+    still filling in the application is entitled to read what it would be
+    signing before it answers anything, and a member who arrives after the
+    signature is entitled to read what their organization agreed to.
+    """
+    store = _store()
+    hs = portal_user["health_system"]
+    try:
+        text, sha = asc_dla.signable(organization=hs["name"])
+    except asc_dla.AgreementError:
+        log.exception("agreement source is unreadable")
+        raise HTTPException(status_code=503,
+                            detail="The agreement could not be loaded just now. "
+                                   "Please try again in a moment.")
+    signed = _hs_agreement_summary(store, hs)
+    return {
+        "doc_version": asc_dla.CURRENT_VERSION,
+        "doc_sha256": sha,
+        "text": text,
+        "organization": hs["name"],
+        # Whether THIS session may sign right now. False once somebody has, and
+        # false before approval, and the reason is in `next_step` either way.
+        "can_sign": bool(hs_states.can_sign(hs) and not signed),
+        "signed": signed,
+        "signer_name_prefill": portal_user.get("full_name") or "",
+        **hs_states.public_view(hs),
+    }
+
+
+@portal_router.post("/hs/agreement/sign",
+                    dependencies=[Depends(rate_limiter("hs_agreement_sign", 5, 600))])
+async def hs_agreement_sign(
+    request: Request,
+    background: BackgroundTasks,
+    body: HsAgreementSignRequest,
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    """Take one signature, render the record, and open the upload door.
+
+    The order of operations is the whole of it, and it is deliberate:
+
+      1. verify the state, the affirmations, and that the text has not changed
+         underneath the signer;
+      2. render the PDF and store it, so a row can never point at a document
+         that does not exist;
+      3. INSERT the signature row -- append-only, enforced by trigger;
+      4. move the organization to `active`;
+      5. mail the copies, in the background.
+
+    A failure at step 2 leaves nothing signed. A failure at step 5 leaves an
+    agreement that is signed and an email that did not arrive, which is the
+    right way round: the signature is the fact, the email is a copy of it.
+    """
+    store = _store()
+    hs = portal_user["health_system"]
+
+    # ALREADY-SIGNED IS CHECKED FIRST, and the order is the point. Signing moves
+    # the organization to `active`, so a second signer fails the state check too
+    # -- and would be told "uploading is open", which is true and answers a
+    # question they did not ask. The colleague who just clicked Sign needs to
+    # know that somebody beat them to it.
+    if store.latest_signed_agreement(hs["hs_id"]):
+        # §0.1.2 binds the organization on one signature, and two rows for one
+        # agreement is a question somebody has to answer later.
+        raise HTTPException(
+            status_code=409,
+            detail="Your organization's agreement is already signed. "
+                   "Reload the page to see who signed it and when.")
+    if not hs_states.can_sign(hs):
+        raise HTTPException(status_code=409, detail=_hs_locked_message(hs))
+    if not body.authority_affirmed or not body.consent_esign:
+        raise HTTPException(
+            status_code=400,
+            detail="Both confirmations are required before you can sign.")
+    typed_name = " ".join((body.typed_name or "").split())[:120]
+    typed_title = " ".join((body.typed_title or "").split())[:120]
+    if not typed_name or not typed_title:
+        raise HTTPException(status_code=400,
+                            detail="Type your full name and your title to sign.")
+
+    try:
+        text, sha = asc_dla.signable(organization=hs["name"])
+    except asc_dla.AgreementError:
+        log.exception("agreement source is unreadable at signature")
+        raise HTTPException(status_code=503,
+                            detail="The agreement could not be loaded just now. "
+                                   "Please try again in a moment.")
+    if (body.doc_sha256 or "").strip() and body.doc_sha256.strip() != sha:
+        # The document on their screen is not the document we would record. That
+        # is either a deploy landing mid-read or a tampered client, and both
+        # produce the same wrong outcome: a signature against text nobody agreed
+        # to. Refuse and make them re-read.
+        raise HTTPException(
+            status_code=409,
+            detail="The agreement was updated while this page was open. "
+                   "Please reload and read it again before signing.")
+
+    signed_at = asc_dla.utcnow_iso()
+    signature = {
+        "typed_name": typed_name, "typed_title": typed_title,
+        "signed_at": signed_at, "signer_user_id": portal_user["username"],
+        "signer_email": portal_user.get("email") or "",
+        "ip": client_ip(request),
+        "user_agent": (request.headers.get("user-agent") or "")[:400],
+        "doc_version": asc_dla.CURRENT_VERSION, "doc_sha256": sha,
+    }
+    try:
+        pdf = asc_dla.render_pdf(organization=hs["name"],
+                                 version=asc_dla.CURRENT_VERSION,
+                                 signature=signature)
+        pdf_sha = _hashlib.sha256(pdf).hexdigest()
+        from asclepius import assets as asc_assets
+        asc_assets._write_blob(pdf_sha, pdf)
+    except Exception:
+        log.exception("agreement pdf could not be produced or stored")
+        raise HTTPException(
+            status_code=503,
+            detail="We could not file your signed copy just now, so nothing was "
+                   "signed. Please try again in a moment.")
+
+    row = store.record_signed_agreement(
+        hs_id=hs["hs_id"], doc_version=asc_dla.CURRENT_VERSION, doc_sha256=sha,
+        pdf_sha256=pdf_sha, signer_user_id=portal_user["username"],
+        signer_email=portal_user.get("email") or "", typed_name=typed_name,
+        typed_title=typed_title, consent_esign=True, authority_affirmed=True,
+        ip=signature["ip"], user_agent=signature["user_agent"])
+    store.set_hs_onboarding_state(hs["hs_id"], hs_states.ACTIVE)
+    store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
+                    event_type="agreement_signed", actor=portal_user["username"],
+                    payload={"agreement_id": row["agreement_id"],
+                             "doc_version": asc_dla.CURRENT_VERSION,
+                             "doc_sha256": sha, "pdf_sha256": pdf_sha})
+
+    background.add_task(_notify_agreement_signed, store, hs["hs_id"], hs["name"],
+                        dict(row), pdf)
+    fresh = store.get_health_system(hs["hs_id"])
+    return {"ok": True, "signed": _hs_agreement_summary(store, fresh),
+            **hs_states.public_view(fresh)}
+
+
+def _notify_agreement_signed(store: Any, hs_id: str, organization: str,
+                             row: Dict[str, Any], pdf: bytes) -> None:
+    """Three letters: the countersigned copy to the signer and to us, and the
+    door-is-open note to everyone on the account."""
+    try:
+        from asclepius.ingest_notify import _run_coro
+        from onboarding_emails import (
+            build_hs_agreement_receipt_email, build_hs_uploads_open_email,
+        )
+        import notifications
+        filename = asc_dla.pdf_filename(organization=organization,
+                                        version=str(row.get("doc_version") or ""))
+        receipt = build_hs_agreement_receipt_email(
+            organization=organization, doc_version=str(row.get("doc_version") or ""),
+            signer_name=str(row.get("typed_name") or ""),
+            signer_title=str(row.get("typed_title") or ""),
+            signed_at=str(row.get("signed_at") or ""),
+            doc_sha256=str(row.get("doc_sha256") or ""))
+        attachment = [(filename, "application/pdf", pdf)]
+        if is_email_transport_configured():
+            signer_to = (row.get("signer_email") or "").strip()
+            if signer_to:
+                _run_coro(send_html_email(
+                    signer_to, f"Signed — data licensing agreement, {organization}",
+                    receipt, attachments=attachment))
+            opened = build_hs_uploads_open_email(
+                organization=organization, portal_url=_hs_portal_url(),
+                signer_name=str(row.get("typed_name") or ""),
+                signed_at=str(row.get("signed_at") or ""))
+            for member in store.list_hs_portal_users(hs_id):
+                addr = (member.get("email") or "").strip()
+                if addr and member.get("active"):
+                    _run_coro(send_html_email(
+                        addr, f"Uploads are open for {organization}", opened))
+        # Our own copy goes through the founder alerts, which carry their own
+        # addressing and their own dedupe. No attachment: it is one click away
+        # in the admin card and mailing a contract to a distribution list is a
+        # habit worth not starting.
+        notifications.notify_founders(
+            store, kind="hs_agreement_signed",
+            subject=f"[Health system] Agreement signed: {organization}",
+            body_html=receipt, dedupe_key=str(row.get("agreement_id") or hs_id),
+            coalesce=False)
+    except Exception:
+        log.exception("agreement: notification failed")
+
+
+@portal_router.get("/hs/agreement/document")
+async def hs_agreement_document(
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    """The signed PDF, for the organization that signed it.
+
+    Scoped to the SESSION's organization and takes no identifier, so there is no
+    version of this route that serves one partner's contract to another. The
+    E-SIGN retention requirement is what this exists for: the copy was emailed,
+    inboxes lose things, and a contract you cannot get back is a contract you
+    cannot rely on.
+    """
+    from fastapi.responses import Response as _RawResponse
+
+    store = _store()
+    hs = portal_user["health_system"]
+    row = store.latest_signed_agreement(hs["hs_id"])
+    if not row or not row.get("pdf_sha256"):
+        raise HTTPException(status_code=404, detail="Nothing has been signed yet.")
+    try:
+        from asclepius import assets as asc_assets
+        data, _mime = asc_assets.load_asset(str(row["pdf_sha256"]), verify=True)
+    except Exception:
+        log.exception("agreement pdf missing from the asset store")
+        raise HTTPException(status_code=503,
+                            detail="Your signed copy could not be fetched just "
+                                   "now. Please try again in a moment.")
+    filename = asc_dla.pdf_filename(organization=hs["name"],
+                                    version=str(row.get("doc_version") or ""))
+    return _RawResponse(
+        content=data, media_type="application/pdf",
+        headers={"content-disposition": f'attachment; filename="{filename}"'})
 
 
 # Mount the provider-facing surface. Everything above this line that a health

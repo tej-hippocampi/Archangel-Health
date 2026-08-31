@@ -1480,6 +1480,19 @@ class AsclepiusStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_signups_email "
                          "ON hs_signups(email, created_at)")
+            # Whether this signup CHOSE a password or is to be mailed one.
+            # The landing dialog asks for three fields and no password (PRD §2),
+            # the portal's own signup screen still asks for four, and the two
+            # must not diverge anywhere except here: same guards, same code,
+            # same account, one flag deciding whether the credential in the
+            # welcome email is real or whether they already have their own.
+            #
+            # 0 is the pre-existing behaviour, so every staged row written by
+            # the previous release verifies exactly as it did.
+            if "needs_temp_password" not in cols("hs_signups"):
+                conn.execute("ALTER TABLE hs_signups ADD COLUMN "
+                             "needs_temp_password INTEGER NOT NULL DEFAULT 0")
+
 
             # Append-only, never UPDATE. Not health_systems.notes: that column is
             # already written by ensure_health_system(notes=...), has no timestamp
@@ -1543,6 +1556,150 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_payouts_batch "
                          "ON hs_payouts(payout_batch_id)")
             # ═══ END HS SELF-SERVE + PAYOUTS ═══
+            # ═══ HS ONBOARDING (PRD: sign-in split, intake, e-signed DLA) ═══
+            # The organization-level half of the portal. Everything above this
+            # fence is about an ACCOUNT: which login may touch which surface.
+            # These four tables are about the ORGANIZATION: how far through
+            # onboarding it is, what it told us, what it signed, and what we
+            # have billed it. See asclepius/hs_states.py for why that is a
+            # second axis rather than more columns on hs_portal_users.
+            #
+            # NO DEFAULT on onboarding_state, and no backfill, for exactly the
+            # reason approval_status has none: a NULL means "this organization
+            # predates the state machine", hs_states collapses it to active, and
+            # every partner already uploading keeps uploading across the deploy.
+            if "onboarding_state" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN onboarding_state TEXT")
+            if "state_changed_at" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN state_changed_at TEXT")
+
+            # The four questions, as COLUMNS. Not answers_json like hs_intake
+            # beside it: these are read by an operator deciding whether to open
+            # a data pipeline, and two of them (authority, deid_capability)
+            # decide whether a BAA has to exist before a single byte moves. A
+            # value that has to be dug out of a JSON blob is a value nobody
+            # filters on. Free text lives in hs_intake, which is a different
+            # surface and stays what it is.
+            #
+            # Append-only, like hs_intake: a resubmission is a new row, so what
+            # they told us in March is still there in June.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_applications (
+                    application_id    TEXT PRIMARY KEY,
+                    hs_id             TEXT NOT NULL,
+                    username          TEXT,             -- which account answered
+                    authority         TEXT NOT NULL,    -- yes | no | not_sure
+                    deid_capability   TEXT NOT NULL,    -- in_our_environment | needs_baa | not_sure
+                    export_scope      TEXT NOT NULL,    -- notes_and_structured | structured_only | varies
+                    scale_patients    TEXT NOT NULL,    -- banded, never a free-text number
+                    scale_years       TEXT NOT NULL,
+                    scale_specialties TEXT NOT NULL,    -- JSON array of specialty labels
+                    submitted_at      TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_applications_hs "
+                         "ON hs_applications(hs_id, submitted_at)")
+
+            # ─── The signed agreement ────────────────────────────────────────
+            # This is evidence. Under the E-SIGN Act (15 U.S.C. §7001) and UETA
+            # what makes a clickwrap enforceable is not the checkbox, it is
+            # being able to show, later, WHAT was agreed and by WHOM. So the row
+            # carries the hash of the exact rendered text (doc_sha256), not just
+            # a version label: "v1" is a claim about a file that can be edited,
+            # a sha256 is a claim about the bytes that were on the signer's
+            # screen. pdf_sha256 addresses the rendered counterpart in the asset
+            # store, which is what actually gets emailed to both parties.
+            #
+            # ip and user_agent are the attribution leg. They are weak evidence
+            # alone and strong beside an authenticated session, which is exactly
+            # how the case law treats them.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS signed_agreements (
+                    agreement_id       TEXT PRIMARY KEY,
+                    hs_id              TEXT NOT NULL,
+                    doc_version        TEXT NOT NULL,
+                    doc_sha256         TEXT NOT NULL,   -- of the exact rendered text
+                    pdf_sha256         TEXT,            -- the counterpart in the asset store
+                    signer_user_id     TEXT NOT NULL,   -- portal username
+                    signer_email       TEXT,
+                    typed_name         TEXT NOT NULL,
+                    typed_title        TEXT NOT NULL,
+                    ip                 TEXT,
+                    user_agent         TEXT,
+                    signed_at          TEXT NOT NULL,   -- UTC
+                    consent_esign      INTEGER NOT NULL,
+                    authority_affirmed INTEGER NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_signed_agreements_hs "
+                         "ON signed_agreements(hs_id, signed_at)")
+            # Immutability, enforced by the DATABASE rather than by everyone
+            # remembering. "Rows are never updated or deleted" is a sentence in
+            # a PRD until something makes it true; a trigger makes it true for
+            # every writer, including a future migration script and a console
+            # session at 2am. A newer version of the agreement is a new row --
+            # which the triggers permit, because INSERT is untouched.
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS signed_agreements_no_update
+                BEFORE UPDATE ON signed_agreements
+                BEGIN
+                    SELECT RAISE(ABORT, 'signed_agreements is append-only');
+                END
+                """
+            )
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS signed_agreements_no_delete
+                BEFORE DELETE ON signed_agreements
+                BEGIN
+                    SELECT RAISE(ABORT, 'signed_agreements is append-only');
+                END
+                """
+            )
+
+            # ─── Invoices (architecture now, Stripe later) ───────────────────
+            # stripe_invoice_id is a column and NOT a call. The disbursement
+            # seam that routers/asclepius_payments.py documents applies verbatim
+            # here: the shape money will move in is worth fixing now, moving it
+            # is not this change's job, and a half-wired processor is worse than
+            # none. Nothing in this repository writes stripe_invoice_id yet.
+            #
+            # There is deliberately no bank_account, routing_number, iban or
+            # tax_id column, for the same reason hs_payouts has none.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_invoices (
+                    invoice_id        TEXT PRIMARY KEY,
+                    hs_id             TEXT NOT NULL,
+                    period            TEXT NOT NULL,   -- '2026-Q1', '2026-03', whatever the schedule says
+                    amount_cents      INTEGER NOT NULL,
+                    currency          TEXT NOT NULL DEFAULT 'usd',
+                    status            TEXT NOT NULL,   -- draft | sent | paid
+                    description       TEXT,            -- partner-readable words
+                    stripe_invoice_id TEXT,            -- always NULL in this release
+                    created_by        TEXT NOT NULL,
+                    created_at        TEXT NOT NULL,
+                    sent_at           TEXT,
+                    paid_at           TEXT,
+                    UNIQUE(hs_id, period)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_invoices_hs "
+                         "ON hs_invoices(hs_id, status)")
+
+            # Who added whom. A member account is provisioned by a colleague
+            # rather than by us, and when a hospital asks six months later why
+            # this address has access, "an operator did it" and "the CIO did it"
+            # are different answers.
+            if "invited_by" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN invited_by TEXT")
+            # ═══ END HS ONBOARDING ═══
             # ═══ PROFILE PICTURE — owned by the own-profile surface ═══════════
             # Its own fenced block rather than an edit to PRD-B or PRD-D above,
             # per the convention those fences establish.
@@ -8054,9 +8211,16 @@ class AsclepiusStore:
     # ─── Signup staging (unverified mailboxes never reach the partner list) ──
     def create_hs_signup(self, *, email: str, full_name: str, organization: str,
                          password: str, code: str, ttl_minutes: int = 15,
-                         client_ip: Optional[str] = None) -> Dict[str, Any]:
+                         client_ip: Optional[str] = None,
+                         needs_temp_password: bool = False) -> Dict[str, Any]:
         """Stage a signup and its emailed code. Both secrets are hashed at rest:
-        the code guards account creation, so it is a credential."""
+        the code guards account creation, so it is a credential.
+
+        ``needs_temp_password`` records that this signup gave us no password of
+        its own, so verification mints one and mails it. ``password`` is still
+        required and still hashed in that case -- it is an unusable random
+        string, so a row staged this way cannot be turned into a login by
+        anything short of the verify path that replaces it."""
         addr = (email or "").strip().lower()
         signup_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc)
@@ -8077,10 +8241,12 @@ class AsclepiusStore:
             )
             conn.execute(
                 "INSERT INTO hs_signups (signup_id, email, full_name, organization, "
-                "password_hash, code_hash, attempts, expires_at, consumed_at, client_ip, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, ?)",
+                "password_hash, code_hash, attempts, expires_at, consumed_at, client_ip, "
+                "created_at, needs_temp_password) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, ?, ?)",
                 (signup_id, addr, (full_name or "").strip(), " ".join((organization or "").split()),
-                 hash_password(password), hash_password(code), expires, client_ip, _utcnow_iso()),
+                 hash_password(password), hash_password(code), expires, client_ip, _utcnow_iso(),
+                 1 if needs_temp_password else 0),
             )
         return {"signup_id": signup_id, "email": addr, "expires_at": expires}
 
@@ -8328,6 +8494,207 @@ class AsclepiusStore:
             )
         return self.get_hs_payout(payout_id)
     # ═══ END HS SELF-SERVE + PAYOUTS STORE METHODS ═══
+    # ═══ HS ONBOARDING STORE METHODS ═══
+    # ─── State ───────────────────────────────────────────────────────────────
+    def set_hs_onboarding_state(self, hs_id: str, state: str) -> Optional[Dict[str, Any]]:
+        """Write the organization's state and stamp when it changed.
+
+        Validation of the EDGE (may this state follow that one) lives in
+        hs_states.check_transition and is the caller's to run: the store's job
+        is to refuse a value that is not a state at all, which is the failure a
+        typo produces and the one no caller can catch for itself.
+        """
+        from asclepius import hs_states
+        target = (state or "").strip().lower()
+        if target not in hs_states.STATES:
+            raise ValueError(f"unknown onboarding state: {state!r}")
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE health_systems SET onboarding_state = ?, state_changed_at = ? "
+                "WHERE hs_id = ?",
+                (target, _utcnow_iso(), hs_id),
+            )
+        return self.get_health_system(hs_id)
+
+    def set_hs_portal_invited_by(self, username: str, invited_by: str) -> None:
+        """Stamp who added this account. Written once at provisioning time and
+        never rewritten -- a colleague who later leaves is still who did it."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET invited_by = ? WHERE username = ? "
+                "AND invited_by IS NULL",
+                (invited_by, (username or "").lower()),
+            )
+
+    # ─── The application (four structured answers) ───────────────────────────
+    def record_hs_application(self, *, hs_id: str, username: Optional[str],
+                              authority: str, deid_capability: str, export_scope: str,
+                              scale_patients: str, scale_years: str,
+                              scale_specialties: List[str]) -> Dict[str, Any]:
+        """Append one submission and move the organization to `submitted`, in ONE
+        connection block.
+
+        Both writes together, for the C-5.5 reason record_hs_intake gives: a
+        second connection opened from inside a still-uncommitted block reads the
+        pre-update row, so splitting these would show a partner the form they
+        just submitted, still empty.
+        """
+        from asclepius import hs_states
+        application_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        specialties = [str(s) for s in (scale_specialties or [])]
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO hs_applications (application_id, hs_id, username, authority, "
+                "deid_capability, export_scope, scale_patients, scale_years, "
+                "scale_specialties, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (application_id, hs_id, (username or None), authority, deid_capability,
+                 export_scope, scale_patients, scale_years,
+                 json.dumps(specialties), now),
+            )
+            # Only forward, and only from the two states a submission can arrive
+            # in. An organization that is already approved or active re-answering
+            # the questions records the answers and keeps its state -- otherwise
+            # editing a form would revoke an upload door.
+            current = conn.execute(
+                "SELECT onboarding_state FROM health_systems WHERE hs_id = ?", (hs_id,)
+            ).fetchone()
+            cur_state = (current["onboarding_state"] if current else None) or ""
+            if cur_state.strip().lower() in (hs_states.INTAKE, hs_states.DECLINED):
+                conn.execute(
+                    "UPDATE health_systems SET onboarding_state = ?, state_changed_at = ? "
+                    "WHERE hs_id = ?", (hs_states.SUBMITTED, now, hs_id))
+        return {"application_id": application_id, "hs_id": hs_id, "username": username,
+                "authority": authority, "deid_capability": deid_capability,
+                "export_scope": export_scope, "scale_patients": scale_patients,
+                "scale_years": scale_years, "scale_specialties": specialties,
+                "submitted_at": now}
+
+    @staticmethod
+    def _hs_application_row(row: Any) -> Dict[str, Any]:
+        d = dict(row)
+        try:
+            d["scale_specialties"] = json.loads(d.get("scale_specialties") or "[]")
+        except (TypeError, ValueError):
+            d["scale_specialties"] = []
+        return d
+
+    def list_hs_applications(self, hs_id: str, *, limit: int = 50) -> List[Dict[str, Any]]:
+        """Newest first. Every submission, never just the last one."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_applications WHERE hs_id = ? "
+                "ORDER BY submitted_at DESC, rowid DESC LIMIT ?", (hs_id, int(limit)),
+            ).fetchall()
+        return [self._hs_application_row(r) for r in rows]
+
+    def latest_hs_application(self, hs_id: str) -> Optional[Dict[str, Any]]:
+        rows = self.list_hs_applications(hs_id, limit=1)
+        return rows[0] if rows else None
+
+    # ─── Signed agreements (append-only; the DB enforces it) ─────────────────
+    def record_signed_agreement(self, *, hs_id: str, doc_version: str, doc_sha256: str,
+                                signer_user_id: str, typed_name: str, typed_title: str,
+                                consent_esign: bool, authority_affirmed: bool,
+                                signer_email: Optional[str] = None,
+                                pdf_sha256: Optional[str] = None,
+                                ip: Optional[str] = None,
+                                user_agent: Optional[str] = None) -> Dict[str, Any]:
+        """Insert one signature. There is no update counterpart, by design and by
+        trigger: a corrected agreement is a new document version and a new row."""
+        agreement_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO signed_agreements (agreement_id, hs_id, doc_version, "
+                "doc_sha256, pdf_sha256, signer_user_id, signer_email, typed_name, "
+                "typed_title, ip, user_agent, signed_at, consent_esign, "
+                "authority_affirmed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (agreement_id, hs_id, doc_version, doc_sha256, pdf_sha256,
+                 (signer_user_id or "").lower(), signer_email, typed_name, typed_title,
+                 ip, (user_agent or "")[:400], now,
+                 1 if consent_esign else 0, 1 if authority_affirmed else 0),
+            )
+        return self.get_signed_agreement(agreement_id)  # type: ignore[return-value]
+
+    def get_signed_agreement(self, agreement_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM signed_agreements WHERE agreement_id = ?", (agreement_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_signed_agreements(self, hs_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM signed_agreements WHERE hs_id = ? "
+                "ORDER BY signed_at DESC, rowid DESC", (hs_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def latest_signed_agreement(self, hs_id: str) -> Optional[Dict[str, Any]]:
+        rows = self.list_signed_agreements(hs_id)
+        return rows[0] if rows else None
+
+    # ─── Invoices ────────────────────────────────────────────────────────────
+    def create_hs_invoice(self, *, hs_id: str, period: str, amount_cents: int,
+                          created_by: str, description: Optional[str] = None,
+                          currency: str = "usd",
+                          status: str = "draft") -> Optional[Dict[str, Any]]:
+        """One invoice per (health system, period). Returns None if that pair is
+        already taken -- the UNIQUE constraint is the double-billing guard, the
+        same shape record_hs_payout uses for external_ref, and a caller that
+        wanted an update is a caller that should have said so."""
+        if status not in ("draft", "sent", "paid"):
+            raise ValueError(f"unknown invoice status: {status!r}")
+        invoice_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO hs_invoices (invoice_id, hs_id, period, amount_cents, "
+                    "currency, status, description, stripe_invoice_id, created_by, "
+                    "created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)",
+                    (invoice_id, hs_id, period, int(amount_cents), currency, status,
+                     description, created_by, now),
+                )
+        except sqlite3.IntegrityError:
+            return None
+        return self.get_hs_invoice(invoice_id)
+
+    def get_hs_invoice(self, invoice_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_invoices WHERE invoice_id = ?", (invoice_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_hs_invoices(self, hs_id: str, *, limit: int = 200) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_invoices WHERE hs_id = ? ORDER BY created_at DESC LIMIT ?",
+                (hs_id, int(limit)),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_hs_invoice_status(self, invoice_id: str, status: str) -> Optional[Dict[str, Any]]:
+        """draft -> sent -> paid. The timestamps are set by the status that earns
+        them, so nothing has to remember to pass them."""
+        if status not in ("draft", "sent", "paid"):
+            raise ValueError(f"unknown invoice status: {status!r}")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if status == "sent":
+                conn.execute("UPDATE hs_invoices SET status = ?, sent_at = COALESCE(sent_at, ?) "
+                             "WHERE invoice_id = ?", (status, now, invoice_id))
+            elif status == "paid":
+                conn.execute("UPDATE hs_invoices SET status = ?, paid_at = COALESCE(paid_at, ?) "
+                             "WHERE invoice_id = ?", (status, now, invoice_id))
+            else:
+                conn.execute("UPDATE hs_invoices SET status = ? WHERE invoice_id = ?",
+                             (status, invoice_id))
+        return self.get_hs_invoice(invoice_id)
+    # ═══ END HS ONBOARDING STORE METHODS ═══
     # ═══ REFERRAL STORE METHODS (PRD-REF) ═══
     # The referral spine. Shipped with the retired advisor tier and kept:
     # every verified physician refers now.
