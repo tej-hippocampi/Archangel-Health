@@ -811,6 +811,36 @@ class MemberAttestationsBody(OnboardTokenBody):
     attestations: Dict[str, Any]
 
 
+def _ensure_director_person(ts: Any, row: Dict[str, Any]) -> Optional[str]:
+    """Make sure the director's ``asclepius_people`` row exists. Returns their email.
+
+    Every screen that saves onto that row (the CV upload, the credentials POST)
+    used to depend on the INSTITUTION screen having run first, because that is
+    where the row was seeded. Onboarding v2 §2 drops the institution screen from
+    the physician flow, which would leave the CV upload and the Review screen
+    both 400-ing with "Complete your institution details first" — an instruction
+    pointing at a screen that no longer exists.
+
+    So the seed moves to where it is actually needed. Idempotent (the same upsert
+    the institution screen calls), and it writes nothing but identity: the org
+    name and specialty still arrive from the form.
+    """
+    email = (row.get("director_email") or "").strip()
+    if not email:
+        return None
+    if ts.get_asclepius_person(row["id"], email):
+        return email
+    name = " ".join(p for p in [
+        (row.get("director_first_name") or "").strip(),
+        (row.get("director_last_name") or "").strip(),
+    ] if p).strip()
+    ts.upsert_asclepius_person(
+        row["id"], email=email, full_name=name,
+        clinical_role="director", is_director=True,
+    )
+    return email
+
+
 def _require_asclepius(row: Dict[str, Any]) -> None:
     if (row.get("product") or "archangel").strip().lower() != "asclepius":
         raise HTTPException(status_code=409, detail="This workspace is not an Asclepius workspace.")
@@ -1207,12 +1237,38 @@ async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
     row = ts.get_health_system_by_id(row["id"]) or row
     _require_asclepius(row)
-    director_email = (row.get("director_email") or "").strip()
-    if not director_email or not ts.get_asclepius_person(row["id"], director_email):
-        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+    # v2 §2: the Review screen is the first thing that writes here, and the
+    # institution screen it used to depend on is gone from this path.
+    director_email = _ensure_director_person(ts, row)
+    if not director_email:
+        raise HTTPException(status_code=400, detail="Start your application first.")
     ts.save_asclepius_credentials(
         row["id"], director_email,
         _preserve_server_cv_fields(ts, row["id"], director_email, body.credentials))
+    # The physician's specialty lives on the health_systems row too — the tier
+    # scorer and the task router both read it from there — and v2 has no
+    # institution screen to put it there. Mirror it from the one field the Review
+    # screen requires, so the account that gets provisioned is routable.
+    creds_in = body.credentials or {}
+    specialty = str(creds_in.get("primarySpecialty") or "").strip()
+    if specialty and not (row.get("specialty") or "").strip():
+        # A physician signing up for themselves has no institution to name, so
+        # the workspace is named after them — same fallback the institution
+        # screen used when its org field was left blank.
+        org_name = ((row.get("name") or "").strip()
+                    or str(creds_in.get("fullLegalName") or "").strip()
+                    or " ".join(p for p in [
+                        (row.get("director_first_name") or "").strip(),
+                        (row.get("director_last_name") or "").strip()] if p).strip()
+                    or "My workspace")
+        try:
+            ts.update_asclepius_institution(
+                row["id"], name=org_name, specialty=specialty,
+                phone=str(creds_in.get("phone") or row.get("phone") or "").strip(),
+            )
+            ts.maybe_update_slug_from_name(row["id"], org_name)
+        except Exception:
+            log.exception("[onboarding] could not mirror specialty onto the invite row")
     return {"ok": True}
 
 
@@ -1225,9 +1281,9 @@ async def asclepius_attestations(body: AsclepiusAttestationsBody, request: Reque
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
     row = ts.get_health_system_by_id(row["id"]) or row
     _require_asclepius(row)
-    director_email = (row.get("director_email") or "").strip()
-    if not director_email or not ts.get_asclepius_person(row["id"], director_email):
-        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+    director_email = _ensure_director_person(ts, row)
+    if not director_email:
+        raise HTTPException(status_code=400, detail="Start your application first.")
     ts.save_asclepius_attestations(row["id"], director_email, body.attestations)
     return {"ok": True}
 
@@ -1341,12 +1397,13 @@ async def asclepius_cv_upload(
     try:
         row = _load_hs(request, token)
         row = ts.get_health_system_by_id(row["id"]) or row
-        hs_id, person_email = row["id"], (row.get("director_email") or "").strip()
+        # v2 §2: the CV screen comes BEFORE anything that used to seed this row.
+        hs_id, person_email = row["id"], _ensure_director_person(ts, row)
     except HTTPException:
         _ts_m, person, hs = _load_asclepius_member(request, token)  # 404s if invalid
         hs_id, person_email = hs["id"], person["email"]
     if not hs_id or not person_email:
-        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+        raise HTTPException(status_code=400, detail="Start your application first.")
 
     data = await _read_capped(file, credentialing.CV_MAX_BYTES, request)
     try:

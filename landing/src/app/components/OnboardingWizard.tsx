@@ -13,9 +13,14 @@
  *
  *   "asclepius" (data-training product, self-serve physician-contributor
  *   invites — user-facing copy calls this "Archangel", never "Asclepius")
- *   — Steps 3–6:
- *     identity → verify → institution → credentials → attestations → success
- *     (backend: /asclepius/{institution,credentials,attestations,add-member,finish})
+ *   — Onboarding v2 §2, six screens and NO password step:
+ *     identity → verify → CV → review → attestations → submitted
+ *     (backend: /asclepius/{cv,cv/status,credentials,attestations,finish})
+ *     The CV screen parses the document server-side and the Review screen
+ *     arrives pre-filled from it; the account is created `pending` with no
+ *     credential, and a temporary password is minted and emailed only when an
+ *     admin approves the application. Nothing except name, email and specialty
+ *     is required to submit, so Submit is always live.
  *     Compliance/HIPAA gates do not apply to this plane — no PHI is collected.
  *
  * Invited clinicians (mode="member") open /onboard/m/<token> and run a short
@@ -39,7 +44,9 @@ import {
   ASCLEPIUS_ROLE_LABELS,
   Step1NameEmail,
   Step2Verify,
+  StepApplicationSubmitted,
   StepChoosePassword,
+  StepCv,
   Step3Org,
   Step4Institution,
   Step4YourTeam,
@@ -54,6 +61,9 @@ import {
   emptyCredentials,
   type AsclepiusMember,
   type AsclepiusRole,
+  type Credentials,
+  type CvParsed,
+  type CvStage,
   type Member,
   type OnboardingData,
   type Product,
@@ -68,6 +78,9 @@ type StepKey =
   | "identity"
   | "verify"
   | "password"
+  | "cv"
+  | "review"
+  | "submitted"
   | "org"
   | "team"
   | "signin"
@@ -85,6 +98,8 @@ const STEP_LABELS: Partial<Record<StepKey, string>> = {
   identity: "You",
   verify: "Verify",
   password: "Password",
+  cv: "Your CV",
+  review: "Review",
   org: "Health system",
   team: "Your TEAM",
   signin: "Sign in",
@@ -142,9 +157,19 @@ function orderFor(mode: Mode, product: Product | "", kind: SignupKind = "physici
   // does apply to an advisor (confidentiality) is asked on the identity screen.
   if (kind !== "physician") return [...head, "ascSuccess"];
   if (product === "asclepius") {
-    // Team invites moved to the dashboard, so sign-up ends at attestations.
-    return [...head, "institution", "credentials", "credTraining", "credRare",
-            "attestations", "ascSuccess"];
+    // ── Onboarding v2 §2 ───────────────────────────────────────────────────
+    // Six screens: identity → verify → CV → review → attestations → submitted.
+    //
+    // NO PASSWORD STEP on this path, and that is the load-bearing change. The
+    // account row is created `pending` with no hash; credentials are minted and
+    // mailed when a human approves the application (§5). Asking a physician to
+    // invent a password for an account that may never open — and that they will
+    // not touch for a day or two even if it does — was a screen that cost
+    // completions and bought nothing.
+    //
+    // The member and advisor/referrer paths above are UNTOUCHED: they still
+    // choose a password, because their accounts open immediately.
+    return ["identity", "verify", "cv", "review", "attestations", "submitted"];
   }
   return [...head, "org", "team", "signin", "success"];
 }
@@ -224,7 +249,69 @@ function initialData(): OnboardingData {
     roleLabel: "",
     workspaceUrl: "",
     asclepiusToken: "",
+    cvParsed: null,
+    cvAutofilled: [],
+    awaitingReview: false,
   };
+}
+
+/** Onboarding v2 §2 screen 3→4: fold a CV parse into the credential fields.
+ *
+ *  Only fills fields that are EMPTY. A physician who typed something before the
+ *  parse landed — or who is resuming a session where they already corrected a
+ *  suggestion — must never have their own answer overwritten by ours, and the
+ *  race is real: the parse is a background job and the Review screen is one
+ *  click away.
+ *
+ *  Returns the patch AND the list of keys it filled, because the "from your CV"
+ *  chips are drawn from exactly what this function decided, not from what the
+ *  parse happened to contain. A chip on a field the parse could not fill would
+ *  be attributing the physician's own typing to their CV.
+ */
+function applyCvParse(
+  parsed: CvParsed | null,
+  current: Credentials,
+): { patch: Partial<Credentials>; filled: string[] } {
+  const patch: Partial<Credentials> = {};
+  const filled: string[] = [];
+  if (!parsed || !parsed.ok) return { patch, filled };
+
+  const fill = (key: keyof Credentials, value: string | undefined | null) => {
+    const v = (value ?? "").toString().trim();
+    if (!v) return;
+    if ((current[key] ?? "").toString().trim()) return;   // never overwrite them
+    (patch as Record<string, unknown>)[key] = v;
+    filled.push(key as string);
+  };
+
+  fill("fullLegalName", parsed.full_name);
+  fill("primarySpecialty", parsed.specialty);
+  fill("linkedinUrl", parsed.linkedin_url);
+  // The NPI is only carried across when the parse found a LABELLED,
+  // checksum-valid one (the server does that check). Prefilling a ten-digit run
+  // that happened to sit near the word NPI would put a wrong number behind a
+  // chip that says we read it off their CV.
+  fill("npi", parsed.npi);
+  // Degrees are a list; the primary is the first medical one we recognized.
+  const degree = (parsed.degrees || []).find((d) => ["MD", "DO", "MBBS", "MBChB", "DPM"].includes(d));
+  if (degree) fill("degree", degree);
+  if (parsed.years_in_practice != null) fill("yearsInActivePractice", String(parsed.years_in_practice));
+
+  // Board certifications: only when the physician has not started their own, and
+  // only as a NAMED board with the rest left blank — the parse knows the board's
+  // name, not the subspecialty or whether it is still active, and inventing
+  // "active: true" would be putting words in their mouth on a compliance field.
+  const certs = (parsed.board_certifications || []).filter(Boolean);
+  const currentCerts = current.boardCertifications || [];
+  const certsUntouched = currentCerts.every(
+    (bc) => !bc.board.trim() && !bc.specialty.trim() && !bc.subspecialty.trim());
+  if (certs.length && certsUntouched) {
+    patch.boardCertifications = certs.slice(0, 4).map((name) => ({
+      board: name, specialty: "", subspecialty: "", active: true,
+    }));
+    filled.push("boardCertifications");
+  }
+  return { patch, filled };
 }
 
 export default function OnboardingWizard({ token, mode = "director" }: Props) {
@@ -244,6 +331,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     useState<"complete" | "account_exists">("complete");
   const signupKind = useMemo(() => signupKindFor(signupFlavor), [signupFlavor]);
   const [authToken, setAuthToken] = useState("");
+  // §2 screen 3. `cvStage` null means nothing has been uploaded on this visit,
+  // which is what puts the drop zone on screen rather than the scan animation.
+  const [cvStage, setCvStage] = useState<CvStage | null>(null);
+  const [cvFilename, setCvFilename] = useState("");
+  const [cvUploading, setCvUploading] = useState(false);
   const [stepError, setStepError] = useState("");
   const [bootError, setBootError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -288,6 +380,14 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     const lastName = (d.director_last_name ?? "").trim();
     const fullLegal = `${firstName} ${lastName}`.trim();
     const savedCreds = d.director_credentials && Object.keys(d.director_credentials).length > 0;
+    const cvBlock = (d.director_cv ?? {}) as {
+      uploaded?: boolean; filename?: string | null; stage?: CvStage | null;
+      parsed?: CvParsed | null;
+    };
+    if (cvBlock.uploaded) {
+      setCvFilename(cvBlock.filename || "");
+      setCvStage((cvBlock.stage as CvStage | null) ?? null);
+    }
     setDataState((prev) => ({
       ...prev,
       firstName,
@@ -307,6 +407,12 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         d.director_attestations && Object.keys(d.director_attestations).length > 0
           ? { ...emptyAttestations(), ...d.director_attestations }
           : emptyAttestations(),
+      cvParsed: (cvBlock.parsed ?? null) as CvParsed | null,
+      // Chips are NOT restored across a resume. A chip says "we filled this in
+      // for you, just now"; three days later the physician has no reason to
+      // remember which fields were ours, and labelling values they have since
+      // reviewed as unverified CV output would be the wrong claim to make.
+      cvAutofilled: [],
     }));
 
     // A finished link, or an address that already has an account. Both are
@@ -339,12 +445,19 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     // after it do not exist for this account. Setting a password again is an
     // idempotent upsert, so landing here twice costs nothing.
     else if (kind !== "physician") setStep("password");
-    else if (stepNum < 3) setStep(product === "asclepius" ? "institution" : "org");
     else if (product === "asclepius") {
-      if (!savedCreds) setStep("credentials");
-      else if (!savedAtts) setStep("attestations");
-      else setStep("ascTeam");
-    } else setStep("team");
+      // v2 §3: resume to the exact screen they left. The CV and Review screens
+      // do not bump the server's step counter (nothing about them is a gate),
+      // so the resume point is derived from what has actually been SAVED —
+      // which is also why a physician who uploaded a CV and closed the tab
+      // comes back to their filled-in Review page and not to the drop zone.
+      const cv = (d.director_cv || {}) as Record<string, unknown>;
+      if (savedAtts) setStep("attestations");
+      else if (savedCreds || cv.uploaded) setStep("review");
+      else setStep("cv");
+    }
+    else if (stepNum < 3) setStep("org");
+    else setStep("team");
   }, [token]);
 
   const loadMemberSession = useCallback(async () => {
@@ -476,10 +589,15 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       // to "institution". Skipping it stranded the physician on the final step,
       // where /asclepius/finish rejects with "Choose a password before
       // finishing" and the wizard offers no route back to set one.
-      setStep(data.product === "asclepius" ? "password" : "org");
+      // v2 §2: the physician path has no password step — the account carries no
+      // credential until a human approves the application — so the OTP hands
+      // straight off to the CV screen. The advisor/referrer short signup and
+      // member mode still choose a password here, and still land on it.
+      if (data.product !== "asclepius") { setStep("org"); return true; }
+      setStep(signupKind === "physician" ? "cv" : "password");
       return true;
     },
-    [token, data.product],
+    [token, data.product, signupKind],
   );
 
   // ─────────────────────────────────────────
@@ -629,6 +747,114 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     [token, data.credentials],
   );
 
+  // ─────────────────────────────────────────
+  // Onboarding v2 §2 screens 3–4: CV → Review.
+  // ─────────────────────────────────────────
+
+  /** Fold whatever the parse found into the empty credential fields, then move
+   *  on. Called from BOTH terminal outcomes: a parse that worked and one that
+   *  did not. §2 is explicit that a failed parse lands on the Review page as an
+   *  empty state and not as an error — the manual path and the failed-parse path
+   *  are the same screen, which is what makes "no CV" a real option rather than
+   *  a consolation prize. */
+  const applyParseAndReview = useCallback((parsed: CvParsed | null) => {
+    setDataState((d) => {
+      const { patch, filled } = applyCvParse(parsed, d.credentials);
+      return {
+        ...d,
+        credentials: { ...d.credentials, ...patch },
+        cvParsed: parsed,
+        cvAutofilled: filled,
+      };
+    });
+    setStep("review");
+  }, []);
+
+  /** Poll the parse until it reaches a terminal stage, then advance.
+   *
+   *  Polling rather than SSE deliberately: this runs for a handful of seconds on
+   *  a page the physician is watching, and a streaming endpoint would be a
+   *  second transport to keep alive through a proxy for no gain at this
+   *  duration. The interval is short because the captions are supposed to feel
+   *  like progress, and the cap exists so a background worker that died can
+   *  never strand someone on an animation — after it, we go to Review with
+   *  whatever we have, which is the same place a failure goes. */
+  const pollCvParse = useCallback(async () => {
+    const DEADLINE_MS = 90_000;
+    const INTERVAL_MS = 900;
+    const started = Date.now();
+    for (;;) {
+      await new Promise((r) => setTimeout(r, INTERVAL_MS));
+      let body: Record<string, any> = {};
+      try {
+        const r = await api(`/api/onboarding/asclepius/cv/status?token=${encodeURIComponent(token)}`);
+        body = (await readResponseJson(r)) as Record<string, any>;
+        if (!r.ok) throw new Error("status");
+      } catch {
+        // A dropped poll is not a failed parse. Keep trying until the deadline;
+        // the physician's CV is being read on the server either way.
+        if (Date.now() - started > DEADLINE_MS) { applyParseAndReview(null); return; }
+        continue;
+      }
+      const stage = (body.stage as CvStage | null) ?? "reading";
+      setCvStage(stage);
+      if (body.finished) { applyParseAndReview((body.parsed as CvParsed) ?? null); return; }
+      if (Date.now() - started > DEADLINE_MS) { applyParseAndReview(null); return; }
+    }
+  }, [token, applyParseAndReview]);
+
+  const uploadCv = useCallback(
+    async (file: File) => {
+      setStepError("");
+      setCvUploading(true);
+      setCvFilename(file.name);
+      try {
+        const form = new FormData();
+        form.append("token", token);
+        form.append("file", file);
+        const r = await fetch(`${API_BASE}/api/onboarding/asclepius/cv`, {
+          method: "POST", body: form,
+        });
+        if (!r.ok) {
+          const body = await readResponseJson(r);
+          // Never a dead end. The CV is an accelerant, not a requirement, so an
+          // upload that fails offers the manual path in the same breath.
+          setStepError(
+            (formatApiError(body) || "We couldn't read that file.")
+            + " You can enter your details by hand instead.");
+          setCvStage(null);
+          setCvUploading(false);
+          return false;
+        }
+        setCvStage("reading");
+        setCvUploading(false);
+        // The Review screen renders the same CV field the three-screen flow
+        // does, so tell it what is already attached — otherwise a physician who
+        // just uploaded a CV meets an empty "Attach a file" control on the very
+        // next screen and reasonably concludes it did not work.
+        setDataState((d) => ({
+          ...d, credentials: { ...d.credentials, cvFilename: file.name },
+        }));
+        void pollCvParse();
+        return true;
+      } catch {
+        setStepError("We couldn't attach that file. You can enter your details by hand instead.");
+        setCvStage(null);
+        setCvUploading(false);
+        return false;
+      }
+    },
+    [token, pollCvParse],
+  );
+
+  /** "No CV? Enter manually →" — the same Review screen, empty. */
+  const skipCv = useCallback(() => {
+    setStepError("");
+    setCvStage(null);
+    setDataState((d) => ({ ...d, cvParsed: null, cvAutofilled: [] }));
+    setStep("review");
+  }, []);
+
   const submitCredentials = useCallback(async () => {
     // Saves the whole credentials blob every time (the endpoint is an
     // idempotent upsert), so stopping after any of the three screens keeps
@@ -652,7 +878,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStepError(formatApiError(fbody) || `HTTP ${fr.status}`);
       return false;
     }
-    const d = fbody as { workspace_url?: string; token?: string };
+    const d = fbody as { workspace_url?: string; token?: string; awaiting_review?: boolean };
     // The session token is held in React state, not written to localStorage.
     // The portal is a DIFFERENT ORIGIN in production, so a token written here
     // is invisible there -- see the note where storeAsclepiusSession used to
@@ -660,10 +886,26 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     setData({
       workspaceUrl: d.workspace_url || authApi.asclepiusPortalUrl(),
       asclepiusToken: d.token || "",
+      awaitingReview: !!d.awaiting_review,
     });
-    setStep("ascSuccess");
+    // v2 §2 screen 6: a physician whose application is awaiting review has no
+    // workspace and no session — the server deliberately mints neither. Sending
+    // them to the "your workspace is ready" screen would hand them a door that
+    // 403s. The advisor/referrer short signup still lands there, because their
+    // accounts really are open.
+    setStep(d.awaiting_review ? "submitted" : "ascSuccess");
     return true;
   }, [token, setData]);
+
+  /** The Review screen's Submit. Saves the whole credentials blob, then moves
+   *  to attestations. The endpoint is an idempotent upsert of the whole blob and
+   *  also mirrors the specialty onto the invite row, so this is one call and not
+   *  the institution+credentials pair the old three-screen flow needed. */
+  const submitReview = useCallback(async () => {
+    const ok = await saveCredentials("/api/onboarding/asclepius/credentials");
+    if (ok) setStep("attestations");
+    return ok;
+  }, [saveCredentials]);
 
   const submitAttestations = useCallback(async () => {
     setStepError("");
@@ -910,7 +1152,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   // already-registered link lands instead of one. Showing it in the stepper
   // would draw a progress bar for a journey the person is not on.
   const stepperKeys: StepKey[] = order.filter(
-    (k) => k !== "success" && k !== "ascSuccess" && k !== "ascSignIn");
+    (k) => k !== "success" && k !== "ascSuccess" && k !== "ascSignIn" && k !== "submitted");
   const stepperLabels = stepperKeys.map((k) => STEP_LABELS[k] ?? k);
   const stepperIndex = stepperKeys.indexOf(step);
   const showStepper = stepperIndex >= 0;
@@ -1037,6 +1279,36 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
           />
         );
       }
+      // ── Onboarding v2 §2 ──
+      case "cv":
+        return (
+          <StepCv
+            data={data}
+            stage={cvStage}
+            filename={cvFilename}
+            uploading={cvUploading}
+            onUpload={uploadCv}
+            onSkip={skipCv}
+            onBack={goBack}
+            error={stepError}
+            eyebrow="Step 3 of 5"
+          />
+        );
+      case "review":
+        return (
+          <Step5Credentials
+            data={data}
+            setData={setData}
+            onNext={submitReview}
+            onBack={goBack}
+            error={stepError}
+            eyebrow="Step 4 of 5"
+            reviewMode
+            submitLabel="Submit my application"
+          />
+        );
+      case "submitted":
+        return <StepApplicationSubmitted data={data} />;
       case "attestations":
         return (
           <Step6Attestations
@@ -1045,8 +1317,16 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             onNext={mode === "member" ? submitMemberAttestations : submitAttestations}
             onBack={goBack}
             error={stepError}
-            eyebrow={mode === "member" ? "Step 2 of 4" : "Step 8 of 8"}
-            finishLabel={mode === "member" ? "Sign & continue" : "Sign & open my workspace"}
+            eyebrow={mode === "member" ? "Step 2 of 4"
+              : signupKind === "physician" && data.product === "asclepius" ? "Step 5 of 5"
+                : "Step 8 of 8"}
+            // v2 §2: nothing opens on submit — a human reads the application
+            // first — so promising a workspace here would be the last thing we
+            // said before two days of silence.
+            finishLabel={mode === "member" ? "Sign & continue"
+              : signupKind === "physician" && data.product === "asclepius"
+                ? "Sign & send my application"
+                : "Sign & open my workspace"}
           />
         );
       case "ascTeam":
@@ -1115,6 +1395,12 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     submitPassword,
     signInToAsclepius,
     signInReason,
+    cvStage,
+    cvFilename,
+    cvUploading,
+    uploadCv,
+    skipCv,
+    submitReview,
   ]);
 
   return (

@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { API_BASE } from "@/lib/auth-api";
+import { npiWarning } from "@/lib/npi";
 
 import {
   Avatar,
@@ -303,7 +304,39 @@ export type OnboardingData = {
      written from here is invisible there. The success screen's CTA trades it
      for a single-use handoff code instead. */
   asclepiusToken: string;
+  /* ── Onboarding v2 §2 ────────────────────────────────────────────────────
+     What the CV parse suggested, and which credential keys were filled FROM
+     it. The second list is what the Review screen's "from your CV" chips are
+     drawn from, and it shrinks as the physician edits: a chip on a field they
+     have since rewritten would be claiming the CV said something it did not. */
+  cvParsed: CvParsed | null;
+  cvAutofilled: string[];
+  /* True once /asclepius/finish reported that this application is awaiting
+     review — i.e. no credentials were issued and there is no workspace to open
+     yet. The success screen branches on it rather than offering a door that is
+     locked. */
+  awaitingReview: boolean;
 };
+
+/** The server's CV parse, as `GET /asclepius/cv/status` returns it. Every field
+ *  is a SUGGESTION: the Review screen prefills from it and the physician edits
+ *  anything wrong, so nothing here is authoritative and nothing here blocks. */
+export type CvParsed = {
+  ok?: boolean;
+  full_name?: string | null;
+  degrees?: string[] | null;
+  institutions?: string[] | null;
+  training?: { kind: string; institution: string; start_year: string | null;
+               end_year: string | null }[] | null;
+  board_certifications?: string[] | null;
+  specialty?: string | null;
+  npi?: string | null;
+  linkedin_url?: string | null;
+  years_in_practice?: number | null;
+};
+
+/** The parse stages the CV screen narrates. Mirrors `credentialing.CV_STAGES`. */
+export type CvStage = "reading" | "matching" | "preparing" | "done" | "failed";
 
 const TWO_COL: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
 const CARD_FOOTER_BACK: CSSProperties = { marginTop: 18, textAlign: "center" };
@@ -1241,7 +1274,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 const THREE_COL: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 };
 
-function SectionHeading({ title, sub }: { title: string; sub?: ReactNode }) {
+function SectionHeading({ title, sub }: { title: ReactNode; sub?: ReactNode }) {
   return (
     <div style={{ margin: "26px 0 14px" }}>
       <div
@@ -1636,6 +1669,259 @@ function CvUploadField({
   );
 }
 
+/* ═════════════════════════════════════════════════════════════
+   Onboarding v2 §2 screen 3 — the CV.
+
+   "Upload your CV and we'll fill this out for you." One drop zone and one way
+   past it. The processing state is the ONE place in this flow with sustained
+   animation (§7), and it is driven by REAL parse stages polled from the server,
+   not by a timer: a caption that says "Matching credentials…" while the server
+   is still running OCR is a small lie that gets found out the first time a
+   scanned PDF takes thirty seconds.
+   ═════════════════════════════════════════════════════════════ */
+
+const CV_STAGE_CAPTION: Record<CvStage, string> = {
+  reading: "Reading your CV…",
+  matching: "Matching credentials…",
+  preparing: "Preparing your review…",
+  done: "Ready.",
+  failed: "Ready.",
+};
+
+/** How far through the three working stages we are, for the scan bar. */
+const CV_STAGE_INDEX: Record<CvStage, number> = {
+  reading: 0, matching: 1, preparing: 2, done: 3, failed: 3,
+};
+
+/** A document glyph with a scan line travelling down it.
+ *  `prefers-reduced-motion` kills the sweep in OnboardingStyles; the stage
+ *  captions and the progress rule still tell the whole story without it. */
+function CvScanGlyph({ stage }: { stage: CvStage }) {
+  const done = stage === "done" || stage === "failed";
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: 88,
+        height: 108,
+        margin: "0 auto 22px",
+        borderRadius: 8,
+        border: "1px solid var(--hairline-strong)",
+        background: "var(--card-in)",
+        overflow: "hidden",
+      }}
+      aria-hidden="true"
+    >
+      {/* Text ruling, so the glyph reads as a document rather than a box. */}
+      {[22, 36, 50, 64, 78].map((top, i) => (
+        <span
+          key={top}
+          style={{
+            position: "absolute", left: 14, top,
+            width: i === 4 ? 32 : i % 2 ? 48 : 60,
+            height: 4, borderRadius: 2, background: "var(--hairline-strong)",
+          }}
+        />
+      ))}
+      {!done && <span className="ah-onb-cv-scan" />}
+    </div>
+  );
+}
+
+/** The quiet lime "from your CV" chip (§2 screen 4, §7).
+ *
+ *  Lime and not green: green is the physician-verified accent in this system and
+ *  means a credential we have CHECKED. Nothing on this chip has been checked —
+ *  it is a note about where a value came from, and borrowing the verified colour
+ *  for it would be the design telling a small lie. */
+export function FromCvChip() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        marginLeft: 8,
+        padding: "2px 8px",
+        borderRadius: 999,
+        background: "var(--ah-lime-wash)",
+        border: "1px solid var(--ah-lime-line)",
+        color: "var(--ink)",
+        fontSize: 10,
+        fontWeight: 500,
+        letterSpacing: "0.06em",
+        textTransform: "none",
+        whiteSpace: "nowrap",
+      }}
+    >
+      from your CV
+    </span>
+  );
+}
+
+/** §3 — the promise on the /join card, restated where it is being kept. */
+export function SavedProgressNote() {
+  return (
+    <p
+      style={{
+        marginTop: 18,
+        textAlign: "center",
+        fontSize: 13,
+        lineHeight: 1.5,
+        color: "var(--ink-faint)",
+      }}
+    >
+      Your progress is saved — you can come back any time from the link in your email.
+    </p>
+  );
+}
+
+export function StepCv({
+  data,
+  stage,
+  filename,
+  error,
+  uploading,
+  onUpload,
+  onSkip,
+  onBack,
+  eyebrow,
+}: {
+  data: OnboardingData;
+  /** null = nothing uploaded yet (the drop zone). */
+  stage: CvStage | null;
+  filename: string;
+  error?: string;
+  uploading: boolean;
+  onUpload: (file: File) => Promise<boolean>;
+  onSkip: () => void;
+  onBack: () => void;
+  eyebrow: string;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [tooBig, setTooBig] = useState("");
+
+  const take = (file: File | undefined | null) => {
+    if (!file) return;
+    setTooBig("");
+    if (file.size > CV_MAX_BYTES) {
+      setTooBig("That file is over 10 MB. Try a smaller PDF, or enter your details by hand.");
+      return;
+    }
+    void onUpload(file);
+  };
+
+  const working = uploading || (stage !== null && stage !== "done" && stage !== "failed");
+
+  return (
+    <OnboardingCard
+      maxWidth={620}
+      eyebrow={eyebrow}
+      title="Upload your CV and we&rsquo;ll fill this out for you."
+      lede="One file, and the next screen arrives mostly written. Everything on it stays yours to edit."
+    >
+      <InlineError>{error}</InlineError>
+
+      {working ? (
+        <div style={{ padding: "18px 0 6px", textAlign: "center" }} aria-live="polite">
+          <CvScanGlyph stage={(stage ?? "reading") as CvStage} />
+          <div style={{ fontSize: 15, color: "var(--ink)", marginBottom: 14 }}>
+            {uploading ? "Uploading…" : CV_STAGE_CAPTION[(stage ?? "reading") as CvStage]}
+          </div>
+          {/* A three-segment rule rather than a percentage bar: there are three
+              stages and we know which one we are in, so showing a made-up
+              percentage would be inventing precision we do not have. */}
+          <div style={{ display: "flex", gap: 6, justifyContent: "center", marginBottom: 16 }}>
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                style={{
+                  width: 44, height: 3, borderRadius: 2,
+                  background: i <= CV_STAGE_INDEX[(stage ?? "reading") as CvStage]
+                    ? "var(--green)" : "var(--hairline-strong)",
+                  transition: "background 200ms cubic-bezier(.4,0,.2,1)",
+                }}
+              />
+            ))}
+          </div>
+          <p style={{ fontSize: 13, color: "var(--ink-faint)", margin: 0 }}>
+            {filename || "Your CV"} &middot; this takes a few seconds.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* The drop zone. A button as well as a drop target, because a
+              drop-only zone is unreachable from a keyboard and unusable on a
+              phone, where a good share of these arrive. */}
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              take(e.dataTransfer?.files?.[0]);
+            }}
+            style={{
+              width: "100%",
+              display: "block",
+              textAlign: "center",
+              padding: "38px 24px",
+              borderRadius: 14,
+              border: "1px dashed " + (dragging ? "var(--ah-green-line)" : "var(--hairline-strong)"),
+              background: dragging ? "var(--ah-green-wash)" : "var(--card-in)",
+              color: "var(--ink)",
+              transition: "background 180ms cubic-bezier(.4,0,.2,1), border-color 180ms cubic-bezier(.4,0,.2,1)",
+            }}
+          >
+            <div style={{ fontSize: 15, marginBottom: 6 }}>
+              {stage === "failed" && filename
+                ? "We couldn’t read that one. Try another file?"
+                : "Drop your CV here, or choose a file"}
+            </div>
+            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>PDF or text, up to 10 MB.</div>
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={CV_ACCEPT}
+            style={{ display: "none" }}
+            onChange={(e) => {
+              take(e.target.files?.[0]);
+              if (inputRef.current) inputRef.current.value = "";
+            }}
+          />
+          {tooBig && (
+            <div style={{ marginTop: 10, fontSize: 13, color: "var(--ah-pink-deep)" }}>{tooBig}</div>
+          )}
+
+          {/* One primary action, one quiet alternative (§7). "No CV?" is not a
+              failure state and is not styled like one — the manual path lands on
+              exactly the same Review screen, empty. */}
+          <div style={{ marginTop: 22, textAlign: "center" }}>
+            <button
+              type="button"
+              onClick={onSkip}
+              style={{
+                background: "none", border: "none", padding: "6px 0", font: "inherit",
+                fontSize: 14, color: "var(--ink-soft)", textDecoration: "underline",
+                textUnderlineOffset: 3, cursor: "pointer",
+              }}
+            >
+              No CV? Enter manually &rarr;
+            </button>
+          </div>
+        </>
+      )}
+
+      <div style={CARD_FOOTER_BACK}>
+        <BackLink onClick={onBack} />
+      </div>
+    </OnboardingCard>
+  );
+}
+
 export function Step5Credentials({
   data,
   setData,
@@ -1646,6 +1932,8 @@ export function Step5Credentials({
   memberMode = false,
   phase,
   relaxed = false,
+  reviewMode = false,
+  submitLabel,
 }: {
   data: OnboardingData;
   setData: (patch: Partial<OnboardingData>) => void;
@@ -1662,10 +1950,43 @@ export function Step5Credentials({
    *  on these screens blocks. Fields stay visible for an MD who wants their
    *  credentials on file; a non-MD continues past them untouched. */
   relaxed?: boolean;
+  /** Onboarding v2 §2 screen 4 — "Review the fields".
+   *
+   *  The same fields as the three credential screens, on ONE page, pre-filled
+   *  from the CV. Reusing this component rather than writing a fourth copy of
+   *  the form is the point: the fields, their validation and their copy already
+   *  live here, and a parallel Review form would drift from them within a
+   *  release. What review mode changes is only what it must:
+   *
+   *    * nothing except name and specialty is required to submit, so the button
+   *      is always live and a missing NPI becomes a review flag rather than a
+   *      wall (the server enforces the same rule);
+   *    * autofilled fields carry a quiet lime "from your CV" chip that clears
+   *      the moment they are edited;
+   *    * the NPI check digit is validated live, as a NOTE and never an error.
+   *
+   *  Nothing on this page is an error state. Empty fields get normal empty
+   *  states — never red — because a physician who has not typed their fellowship
+   *  yet has done nothing wrong. */
+  reviewMode?: boolean;
+  submitLabel?: string;
 }) {
   const c = data.credentials;
-  const set = (patch: Partial<Credentials>) => setData({ credentials: { ...c, ...patch } });
-  const show = (n: 1 | 2 | 3) => phase === undefined || phase === n;
+  const autofilled = new Set(data.cvAutofilled || []);
+  const set = (patch: Partial<Credentials>) => {
+    setData({ credentials: { ...c, ...patch } });
+    // A chip claims "this is what your CV said". The moment the physician
+    // rewrites the field, that claim is false, so the chip goes — per key, so
+    // correcting the NPI does not silently un-label the specialty.
+    const touched = Object.keys(patch).filter((k) => autofilled.has(k));
+    if (touched.length) {
+      setData({ cvAutofilled: (data.cvAutofilled || []).filter((k) => !touched.includes(k)) });
+    }
+  };
+  const show = (n: 1 | 2 | 3) => reviewMode || phase === undefined || phase === n;
+  /** A field label, with the "from your CV" chip when this key was prefilled. */
+  const lbl = (key: string, text: ReactNode): ReactNode =>
+    autofilled.has(key) ? (<>{text} <FromCvChip /></>) : text;
 
   // Each screen gates ONLY on what it asks for. Gating screen 1 on a licence
   // number it never showed is how a Continue button goes dead with no
@@ -1721,7 +2042,16 @@ export function Step5Credentials({
   // (phase undefined) renders every field at once and so gates on both. A
   // relaxed (general-flavor) signup never blocks at all: the signer may not
   // be a practicing MD, and verification decides access either way.
-  const valid = relaxed ? true
+  // §2 screen 4: name, email and specialty are the whole requirement. Email was
+  // proved by OTP two screens ago, so what is left to check here is the two
+  // fields this page actually owns. Everything else — NPI, CV, certifications —
+  // is evidence we would like and can ask for later; withholding the Submit
+  // button until a physician produces it is how a two-minute application
+  // becomes an abandoned one.
+  const reviewValid =
+    c.fullLegalName.trim().length > 0 && c.primarySpecialty.trim().length > 0;
+  const valid = reviewMode ? reviewValid
+    : relaxed ? true
     : phase === 1 ? identityValid
     : phase === 2 ? trainingValid
     : phase === 3 ? true
@@ -1732,13 +2062,19 @@ export function Step5Credentials({
       maxWidth={720}
       eyebrow={eyebrow}
       title={
-        phase === 1 ? "Who you are."
+        reviewMode ? "Review the fields."
+        : phase === 1 ? "Who you are."
         : phase === 2 ? "Your training."
         : phase === 3 ? "What makes you rare."
         : memberMode ? "Confirm your credentials." : "Your credentials."
       }
       lede={
-        phase === 1 ? "About a minute. We use your NPI to fill in as much of the next screen as we can."
+        reviewMode ? (
+          data.cvParsed?.ok
+            ? "We filled in what your CV told us. Correct anything that is off, add anything it missed, and leave the rest — only your name and specialty are needed to send this in."
+            : "Only your name and specialty are needed to send this in. Everything else helps us verify you faster, and you can add it later."
+        )
+        : phase === 1 ? "About a minute. We use your NPI to fill in as much of the next screen as we can."
         : phase === 2 ? "Confirm what we found, and add anything we missed."
         : phase === 3 ? (
             <>
@@ -1766,7 +2102,7 @@ export function Step5Credentials({
 
       {show(1) && (<>
       <TextField
-        label="Full legal name"
+        label={lbl("fullLegalName", "Full legal name")}
         placeholder="Dr. Tej Patel"
         value={c.fullLegalName}
         onChange={(v) => set({ fullLegalName: v })}
@@ -1802,12 +2138,22 @@ export function Step5Credentials({
       <div style={TWO_COL}>
         {isUS ? (
           <TextField
-            label="NPI number"
+            label={lbl("npi", "NPI number")}
             placeholder="10-digit NPI"
             value={c.npi}
             onChange={(v) => set({ npi: v.replace(/\D/g, "").slice(0, 10) })}
-            hint="National Provider Identifier (10 digits)."
-            error={c.npi.length > 0 && !/^\d{10}$/.test(c.npi) ? "NPI must be 10 digits." : undefined}
+            // The check digit is checked live (§2 screen 4). It is a HINT and
+            // never an `error`, in review mode and out of it: `error` paints the
+            // field pink and reads as "you have broken something", and the
+            // commonest cause of a failing checksum is a typo the physician
+            // fixes in two seconds. The registry lookup decides; this saves a
+            // round trip and nothing more.
+            hint={npiWarning(c.npi) || "National Provider Identifier (10 digits)."}
+            // Outside review mode the three-screen flow still gates Continue on
+            // ten digits, so the length error stays there. Review mode has no
+            // gate to protect, so it says the same thing in the hint instead.
+            error={!reviewMode && c.npi.length > 0 && !/^\d{10}$/.test(c.npi)
+              ? "NPI must be 10 digits." : undefined}
           />
         ) : (
           <TextField
@@ -1828,7 +2174,7 @@ export function Step5Credentials({
           />
         )}
         <SelectField
-          label={isUS ? "Degree" : "Primary medical qualification"}
+          label={lbl("degree", isUS ? "Degree" : "Primary medical qualification")}
           placeholder="Select qualification"
           value={isUS ? c.degree : c.qualification}
           onChange={(v) => set(isUS ? { degree: v } : { qualification: v, degree: v })}
@@ -1874,7 +2220,7 @@ export function Step5Credentials({
       )}
 
       <TextField
-        label="Primary specialty"
+        label={lbl("primarySpecialty", "Primary specialty")}
         placeholder="Nephrology"
         value={c.primarySpecialty}
         onChange={(v) => set({ primarySpecialty: v })}
@@ -1911,7 +2257,7 @@ export function Step5Credentials({
       {show(2) && (<>
       {/* Board certifications */}
       <SectionHeading
-        title="Board certifications"
+        title={<>Board certifications {autofilled.has("boardCertifications") && <FromCvChip />}</>}
         sub="Board + specialty + subspecialty + active status."
       />
       {c.boardCertifications.map((bc, i) => (
@@ -2154,7 +2500,7 @@ export function Step5Credentials({
       </div>
 
       <TextField
-        label="LinkedIn profile"
+        label={lbl("linkedinUrl", "LinkedIn profile")}
         optional
         placeholder="linkedin.com/in/yourname"
         value={c.linkedinUrl}
@@ -2230,9 +2576,9 @@ export function Step5Credentials({
 
       <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
-        {phase === 3 ? "Finish and continue" : "Continue"}
+        {submitLabel || (phase === 3 ? "Finish and continue" : "Continue")}
       </PrimaryButton>
-      {phase === 3 && (
+      {phase === 3 && !reviewMode && (
         <button type="button" style={SKIP_LINK} onClick={onNext}>
           Skip for now, add these from my profile later
         </button>
@@ -2240,6 +2586,7 @@ export function Step5Credentials({
       <div style={CARD_FOOTER_BACK}>
         <BackLink onClick={onBack} />
       </div>
+      {reviewMode && <SavedProgressNote />}
     </OnboardingCard>
   );
 }
@@ -2970,6 +3317,91 @@ export function Step8AsclepiusSuccess({
       <PrimaryButton fullWidth onClick={onOpenWorkspace} loadingLabel="Opening…" successLabel="Opening ✓">
         {CTA[kind]}
       </PrimaryButton>
+    </OnboardingCard>
+  );
+}
+
+/* ═════════════════════════════════════════════════════════════
+   Onboarding v2 §2 screen 6 — submitted.
+
+   Its own screen rather than a branch of Step8AsclepiusSuccess, because the two
+   are not variants of one message: that screen says "your workspace is ready,
+   here is the door", and this one says "a person is going to read this". Wearing
+   the same layout with the workspace button removed would leave a success screen
+   with a hole in it, which reads as something having gone wrong.
+
+   It mirrors §4.3 word for word on the point that matters — review is human, on
+   purpose — and offers exactly one link, to the mission page, because the honest
+   answer to "what do I do now" is "nothing, read about us if you like".
+   ═════════════════════════════════════════════════════════════ */
+export function StepApplicationSubmitted({ data }: { data: OnboardingData }) {
+  const last = (data.lastName || "").trim();
+  return (
+    <OnboardingCard
+      maxWidth={620}
+      eyebrow="Application received"
+      title={last ? `Thank you, Dr. ${last}.` : "Thank you."}
+    >
+      <div
+        style={{
+          width: 76,
+          height: 76,
+          borderRadius: "50%",
+          margin: "0 auto 28px",
+          background: "radial-gradient(circle, var(--ah-green-glow) 0%, transparent 70%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+        aria-hidden="true"
+      >
+        <div
+          style={{
+            width: 56, height: 56, borderRadius: "50%", background: "var(--green)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--card)"
+               strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+      </div>
+
+      <p style={{ fontSize: 15.5, lineHeight: 1.65, color: "var(--ink-soft)",
+                  textAlign: "center", margin: "0 0 18px" }}>
+        Your application is with us now, and one of us will personally review it{" "}
+        <strong style={{ color: "var(--ink)" }}>within 24&ndash;48 hours</strong>. We keep
+        review human on purpose: the whole premise of Archangel is that medicine needs
+        qualified people at every decision point, and that starts with how we welcome
+        physicians.
+      </p>
+      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-soft)",
+                  textAlign: "center", margin: "0 0 8px" }}>
+        We&rsquo;ll email <strong style={{ color: "var(--ink)" }}>{data.email}</strong>{" "}
+        either way. If we say yes, that email carries your sign-in details.
+      </p>
+      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-faint)",
+                  textAlign: "center", margin: "0 0 30px" }}>
+        &mdash; Tej Patel &amp; Aryaa Bhatia
+      </p>
+
+      {/* One quiet action. Not a primary button: there is nothing for them to do,
+          and a big lime CTA would manufacture a next step that does not exist. */}
+      <div style={{ textAlign: "center" }}>
+        <a
+          href="/mission"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "11px 20px", borderRadius: 999,
+            border: "1px solid var(--hairline-strong)",
+            color: "var(--ink)", fontSize: 14, textDecoration: "none",
+          }}
+        >
+          While you wait &mdash; our mission
+          <span aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
     </OnboardingCard>
   );
 }
