@@ -2512,7 +2512,7 @@ async def _mail_dla_request(store: Any, hs: Dict[str, Any],
         if not to:
             continue
         ok = await send_html_email(
-            to, "One signature away — your data licensing agreement", body,
+            to, "One signature away: your data licensing agreement", body,
             importance_headers=True)
         sent += 1 if ok else 0
     return sent

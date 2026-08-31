@@ -326,8 +326,25 @@ body.prv-has-rail .prv-main { padding-left: calc(var(--asc-rail-w, 220px) + 8px)
   padding: 0;
   margin: 0 0 26px;
 }
+/* A QUESTION IS PROSE, not a field label. `.asc-label` is mono, 11px and
+   uppercase, which is right for "USERNAME" and unreadable for "Does your
+   organization have the authority to license de-identified clinical data to a
+   commercial party?" — a full sentence in caps reads as a system message and
+   costs a hospital contact real effort to parse. The short sub-labels under the
+   scale question keep the mono treatment, because those ARE field labels. */
 .prv-qgroup legend,
-.prv-qgroup-composite > .asc-label { padding: 0; margin-bottom: 6px; }
+.prv-qgroup-composite > .asc-label {
+  padding: 0;
+  margin-bottom: 6px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  text-transform: none;
+  line-height: 1.45;
+  color: var(--ink);
+  max-width: 60ch;
+}
 .prv-qgroup .asc-help { margin: 0 0 12px; max-width: 56ch; }
 .prv-choice {
   display: flex;

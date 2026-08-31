@@ -109,15 +109,14 @@ def _load_source(version: str) -> str:
     return text
 
 
-def render(*, organization: str, version: str = CURRENT_VERSION,
-           signer_name: str = "", signer_title: str = "",
-           signed_at: str = "") -> str:
-    """The agreement text for one organization.
+def render_markdown(*, organization: str, version: str = CURRENT_VERSION,
+                    signer_name: str = "", signer_title: str = "",
+                    signed_at: str = "") -> str:
+    """The source with its placeholders filled in, still carrying its markers.
 
-    With the signer arguments left empty this is the SIGNABLE text: what the
-    portal displays and what gets hashed. Passing them produces the EXECUTED
-    text, which is only ever used to build the PDF -- never hashed, never
-    displayed as if it were the thing being agreed to.
+    INTERNAL. Only the PDF layout consumes this, because it needs the heading
+    markers to decide type sizes. Nothing displays it and nothing hashes it --
+    see ``render`` for why.
     """
     org = " ".join((organization or "").split()) or "Licensor"
     text = _load_source(version)
@@ -131,6 +130,60 @@ def render(*, organization: str, version: str = CURRENT_VERSION,
     for key, value in substitutions.items():
         text = text.replace("{{" + key + "}}", value)
     return text
+
+
+#: Emphasis, possibly spanning a line break -- ``**Expert\nDetermination**`` is
+#: one run in the source and two lines on screen. Bounded to 400 characters so a
+#: stray unbalanced marker eats a phrase rather than the rest of the contract.
+_EMPHASIS_RE = re.compile(r"\*{1,3}(?=\S)(.{1,400}?)(?<=\S)\*{1,3}", re.S)
+_RULE_RE = re.compile(r"^(-{3,}|\*{3,}|_{3,})$")
+
+
+def to_plain(markdown: str) -> str:
+    """Markdown source -> the document a person actually reads.
+
+    THE FILE IS MARKDOWN SO A LAWYER CAN EDIT IT. That is the only reason, and
+    it is a good one -- but a contract shown to a hospital's CIO with visible
+    ``##`` and ``**`` reads as an unfinished draft, and the reasonable-notice
+    question a court asks about a clickwrap is about the document as PRESENTED.
+    So there is exactly one canonical rendering, produced here, and it is what
+    the portal displays, what gets hashed, and what the PDF prints. Not three
+    nearly-identical strings that could drift.
+
+    Deliberately narrow: headings lose their hashes, emphasis loses its
+    asterisks, a horizontal rule becomes a rule. Nothing is reflowed, reordered
+    or reworded, because every one of those would change the document.
+    """
+    # Emphasis FIRST, over the whole text: a run like ``**Expert\nDetermination**``
+    # is one span in the source and two lines on screen, so a line-by-line pass
+    # would leave half of every wrapped one behind.
+    text = _EMPHASIS_RE.sub(r"\1", markdown or "")
+    out = []
+    for raw in text.split("\n"):
+        line = raw.rstrip()
+        stripped = line.strip()
+        if _RULE_RE.match(stripped):
+            out.append("-" * 60)
+            continue
+        if stripped.startswith("#"):
+            line = line.lstrip("#").strip()
+        out.append(line)
+    return "\n".join(out)
+
+
+def render(*, organization: str, version: str = CURRENT_VERSION,
+           signer_name: str = "", signer_title: str = "",
+           signed_at: str = "") -> str:
+    """The agreement as a person reads it.
+
+    With the signer arguments left empty this is the SIGNABLE text: what the
+    portal displays and what gets hashed. Passing them produces the EXECUTED
+    text, which is only ever used to build the PDF -- never hashed, never
+    displayed as if it were the thing being agreed to.
+    """
+    return to_plain(render_markdown(
+        organization=organization, version=version, signer_name=signer_name,
+        signer_title=signer_title, signed_at=signed_at))
 
 
 def sha256_of(text: str) -> str:
@@ -238,7 +291,11 @@ def render_pdf(*, organization: str, version: str, signature: Dict[str, Any]) ->
     hash of the SIGNABLE text -- what they agreed to -- and never of this
     rendering, which is why both appear in the same document.
     """
-    body = render(
+    # The MARKDOWN, not the plain text: the heading markers are what tell the
+    # layout which lines are headings. The WORDS are identical either way --
+    # `to_plain` only removes markers -- so the PDF prints the same document
+    # that was displayed and hashed.
+    body = render_markdown(
         organization=organization, version=version,
         signer_name=str(signature.get("typed_name") or ""),
         signer_title=str(signature.get("typed_title") or ""),

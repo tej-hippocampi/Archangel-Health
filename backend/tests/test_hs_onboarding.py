@@ -630,7 +630,7 @@ def test_the_signed_copy_is_emailed_to_the_signer_and_the_team(approved, mail):
     client, _store_, org = approved
     _sign(client, sha=client.get(f"{API}/hs/agreement").json()["doc_sha256"])
 
-    receipts = [m for m in mail if m["subject"].startswith("Signed —")]
+    receipts = [m for m in mail if m["subject"].startswith("Signed:")]
     assert [m["to"] for m in receipts] == [org["email"]]
     # E-SIGN retention: the copy is ATTACHED, not linked.
     name, mime, blob = receipts[0]["attachments"][0]
@@ -940,3 +940,39 @@ def test_a_draft_invoice_is_never_shown_to_the_partner():
     # Ours stays ours: no internal id, no author, no processor reference.
     for ours in ("invoice_id", "created_by", "stripe_invoice_id", "hs_id"):
         assert ours not in shown[0]
+
+
+def test_the_agreement_reads_as_a_document_not_as_markdown():
+    """The file is markdown so a lawyer can edit it. What a hospital's CIO sees
+    must not be. A contract on screen with visible ``##`` and ``**`` reads as an
+    unfinished draft, and the reasonable-notice question a court asks about a
+    clickwrap is about the document AS PRESENTED.
+
+    One canonical rendering, used for display, for the hash, and for the PDF's
+    words — not three nearly-identical strings that could drift.
+    """
+    from asclepius import dla as asc_dla
+
+    text, sha = asc_dla.signable(organization="St Mary's Health")
+    assert "*" not in text, "emphasis markers reached the signer"
+    for line in text.splitlines():
+        assert not line.lstrip().startswith("#"), f"a heading marker reached the signer: {line!r}"
+    # The words survive the normalization — only the markers go.
+    assert "Both purposes are granted" in text
+    assert "at Archangel's sole discretion" in text
+    assert sha == asc_dla.sha256_of(text)
+
+    # And the PDF prints the same document, headings and all.
+    from PyPDF2 import PdfReader
+
+    pdf = asc_dla.render_pdf(
+        organization="St Mary's Health", version=asc_dla.CURRENT_VERSION,
+        signature={"typed_name": "Dana Reyes", "typed_title": "CIO",
+                   "signed_at": "2026-03-14T16:20:05", "signer_user_id": "stmarys",
+                   "signer_email": "d@x.org", "ip": "1.2.3.4", "user_agent": "ua",
+                   "doc_version": asc_dla.CURRENT_VERSION, "doc_sha256": sha})
+    rendered = "\n".join(p.extract_text() for p in PdfReader(io.BytesIO(pdf)).pages)
+    assert "**" not in rendered and "##" not in rendered
+    assert "Both purposes are granted" in rendered
+    # The hash of what was signed is printed in it, in two halves.
+    assert sha[:32] in rendered and sha[32:] in rendered

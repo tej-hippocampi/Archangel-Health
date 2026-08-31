@@ -1417,8 +1417,19 @@ class HsSignupResendRequest(BaseModel):
 
 
 def _hs_portal_url() -> str:
-    base = (os.getenv("PUBLIC_BASE_URL") or os.getenv("BASE_URL") or "").strip().rstrip("/")
-    return f"{base}/provider" if base else "/provider"
+    """Where the portal lives, as something a person can click in an email.
+
+    ALWAYS ABSOLUTE. This used to fall back to the bare path "/provider", which
+    is fine in a page and useless in a mail client: the welcome letter's whole
+    job is to be the thing they can come back to, and "your portal lives at
+    /provider" is a sentence that leads nowhere. The localhost fallback mirrors
+    the admin router's ``_portal_url`` -- wrong in production only if BASE_URL
+    is unset, which is a deployment fault that a broken link makes visible
+    rather than hides.
+    """
+    base = (os.getenv("PUBLIC_BASE_URL") or os.getenv("ASCLEPIUS_PORTAL_URL")
+            or os.getenv("BASE_URL") or "http://localhost:8000").strip().rstrip("/")
+    return f"{base}/provider"
 
 
 @portal_router.post("/hs/signup",
@@ -1642,7 +1653,7 @@ def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
             dedupe_key=hs_id, coalesce=False)
         if is_email_transport_configured():
             if temp_password:
-                subject = "Welcome to Archangel Health — your portal access"
+                subject = "Welcome to Archangel Health: your portal access"
                 body = build_hs_access_email(
                     organization=organization, full_name=full_name,
                     username=username, temp_password=temp_password,
@@ -2500,7 +2511,7 @@ def _notify_agreement_signed(store: Any, hs_id: str, organization: str,
             signer_to = (row.get("signer_email") or "").strip()
             if signer_to:
                 _run_coro(send_html_email(
-                    signer_to, f"Signed — data licensing agreement, {organization}",
+                    signer_to, f"Signed: your data licensing agreement, {organization}",
                     receipt, attachments=attachment))
             opened = build_hs_uploads_open_email(
                 organization=organization, portal_url=_hs_portal_url(),

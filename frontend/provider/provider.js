@@ -383,10 +383,18 @@
         // The temporary password was consumed at login; on the forced reset the
         // session itself is proof of identity, so no current password is sent.
         await apiPost("/hs/password", { new_password: pw });
-        okBox.textContent = "Password updated. Taking you to your uploads…";
+        okBox.textContent = "Password updated. One moment…";
         okBox.hidden = false;
         if (currentUser) currentUser.must_reset = false;
-        setTimeout(() => renderUpload(), 700);
+        // Route through the profile, never straight to a panel. This used to
+        // call renderUpload() directly, which was right when the only account
+        // that ever reached this screen was one an operator had already
+        // approved. A self-serve organization arrives here on its FIRST sign-in
+        // — before it has told us anything and before anyone has approved it —
+        // and hard-routing it landed it on a locked upload screen with no rail
+        // and no way out of it. loadProfileAndRoute is the one function that
+        // knows where somebody belongs; there is no second copy of that answer.
+        setTimeout(() => { loadProfileAndRoute(); }, 700);
       } catch (e) {
         if (e instanceof AuthError) { bounceToLogin(e.message); return; }
         showError(errBox, e.message || "Could not update your password.");

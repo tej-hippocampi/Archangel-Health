@@ -1534,7 +1534,7 @@ def build_hs_access_email(*, organization: str, full_name: str, username: str,
         + _bookmark_line(portal_url)
         + _SIGNED_OFF
     )
-    return _shell(subject="Welcome to Archangel Health — your portal access",
+    return _shell(subject="Welcome to Archangel Health: your portal access",
                   body_html=body)
 
 
@@ -1587,7 +1587,7 @@ def build_hs_dla_request_email(*, organization: str, portal_url: str) -> str:
              muted=True, small=True)
         + _SIGNED_OFF
     )
-    return _shell(subject="One signature away — your data licensing agreement",
+    return _shell(subject="One signature away: your data licensing agreement",
                   body_html=body)
 
 
@@ -1622,7 +1622,7 @@ def build_hs_agreement_receipt_email(*, organization: str, doc_version: str,
              "prove, later, which words were agreed.", muted=True, small=True)
         + _SIGNED_OFF
     )
-    return _shell(subject=f"Signed — data licensing agreement, {organization}",
+    return _shell(subject=f"Signed: your data licensing agreement, {organization}",
                   body_html=body)
 
 
