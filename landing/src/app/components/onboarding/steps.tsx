@@ -1918,6 +1918,7 @@ export function StepCv({
       <div style={CARD_FOOTER_BACK}>
         <BackLink onClick={onBack} />
       </div>
+      <SavedProgressNote />
     </OnboardingCard>
   );
 }
@@ -2237,9 +2238,17 @@ export function Step5Credentials({
           type="tel"
           value={c.phone}
           onChange={(v) => set({ phone: v })}
-          hint="Direct line for you — not your practice's main number."
+          // §2 screen 4: NOTHING on the Review page is an error. A half-typed
+          // phone number is not a mistake a physician has made — it is a field
+          // they are in the middle of — and painting it pink there would be the
+          // page contradicting its own promise that only name and specialty
+          // matter. The three-screen flow still gates on it, so the error stays
+          // where a Continue button depends on it.
+          hint={(reviewMode && c.phone.trim().length > 0 && c.phone.trim().length < 7)
+            ? "That looks short for a phone number — worth a check."
+            : "Direct line for you — not your practice's main number."}
           error={
-            c.phone.trim().length > 0 && c.phone.trim().length < 7
+            !reviewMode && c.phone.trim().length > 0 && c.phone.trim().length < 7
               ? "Enter a reachable phone number."
               : undefined
           }

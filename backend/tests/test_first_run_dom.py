@@ -10,6 +10,7 @@ demo expanding IN PLACE rather than navigating.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -420,6 +421,17 @@ def test_the_walkthrough_is_offered_to_physicians_only():
     js = _PORTAL_JS.read_text(encoding="utf-8")
     assert ("if (state.user.role === 'evaluator' && !isAdvisor()\n"
             "        && window.FirstRunWalkthrough") in js
+
+
+def test_the_walkthrough_builds_its_dom_with_h_and_never_innerHTML():
+    """House rule, and it earns its keep here specifically: this module renders
+    founder copy and a video frame into a portaled overlay, which is exactly the
+    shape of thing someone reaches for an HTML string to build."""
+    src = _FIRST_RUN_JS.read_text(encoding="utf-8")
+    # Comment-stripped so the rule polices code, not the prose explaining it.
+    code = re.sub(r"//[^\n]*", "", re.sub(r"/\*[\s\S]*?\*/", "", src))
+    assert "innerHTML" not in code
+    assert "insertAdjacentHTML" not in code
 
 
 def test_every_walkthrough_class_is_styled_and_emitted():

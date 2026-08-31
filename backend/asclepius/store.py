@@ -1171,6 +1171,36 @@ class AsclepiusStore:
             ):
                 if _col not in cols("users"):
                     conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+                    if _col == "first_run_json":
+                        # ── One-time backfill, and it runs exactly once ──────
+                        # An empty first_run means "show them the walkthrough",
+                        # which is right for a physician who has just been
+                        # accepted and wrong for one who has been labeling for
+                        # months: without this, the deploy that ships §6 drops
+                        # every existing contributor into "Welcome to Archangel
+                        # Health" on their next sign-in and asks them to skim a
+                        # manual they wrote half the feedback on.
+                        #
+                        # Scoped to accounts that have ALREADY BEEN INSIDE the
+                        # portal — approved, or carrying tutorial state. A
+                        # pending applicant has neither, so someone who applied
+                        # the day before this shipped still gets the welcome
+                        # they were always going to get.
+                        #
+                        # Inside the ALTER branch on purpose: that runs on the
+                        # boot that adds the column and never again, so this
+                        # cannot later re-dismiss a checklist a physician is
+                        # halfway through.
+                        conn.execute(
+                            "UPDATE users SET first_run_json = ? "
+                            "WHERE verification_status = 'approved' "
+                            "   OR tutorial_json IS NOT NULL",
+                            (json.dumps({
+                                "version": self.FIRST_RUN_VERSION, "stops": {},
+                                "completed_at": None,
+                                "dismissed_at": _utcnow_iso(),
+                            }),),
+                        )
 
             # ── Tier backfill for pre-tiering accounts ───────────────────────
             # ``capabilities.LABEL`` is now ENFORCED at /tasks/next and

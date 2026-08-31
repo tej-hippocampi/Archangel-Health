@@ -685,6 +685,74 @@ def test_bank_link_interest_is_recorded_once(client: TestClient):
     assert store.get_user_by_id(u["id"])["bank_link_status"] == "coming_soon"
 
 
+def test_existing_contributors_are_not_dropped_into_the_walkthrough_on_deploy(client: TestClient):
+    """The backfill. A physician who has been labeling for months must not meet
+    "Welcome to Archangel Health" on the deploy that ships §6.
+
+    Scoped to accounts that have already been INSIDE the portal, so someone who
+    applied the day before still gets the welcome they were always going to get.
+    """
+    import sqlite3 as _sqlite3
+
+    store = fresh_store()
+    veteran = make_user(store)
+    store.set_verification_status(veteran["id"], "approved")
+    applicant = make_user(store, tier=None)
+    store.set_verification_status(applicant["id"], "pending")
+
+    # Rewind to the moment before the column existed, then re-run the migration.
+    with _sqlite3.connect(store.db_path) as conn:
+        conn.execute("ALTER TABLE users RENAME COLUMN first_run_json TO _gone")
+        conn.execute("ALTER TABLE users DROP COLUMN _gone")
+    store._init_schema()
+
+    assert store.get_first_run(veteran["id"])["dismissed_at"], \
+        "an existing contributor was going to be shown the first-login walkthrough"
+    assert store.get_first_run(applicant["id"])["dismissed_at"] is None, \
+        "an application still waiting on us must still get its welcome"
+
+    # And it is a ONE-TIME backfill: a later boot cannot re-dismiss a checklist
+    # somebody is halfway through.
+    store.set_first_run(veteran["id"], {"version": store.FIRST_RUN_VERSION,
+                                        "stops": {"welcome": "done"},
+                                        "completed_at": None, "dismissed_at": None})
+    store._init_schema()
+    assert store.get_first_run(veteran["id"])["dismissed_at"] is None
+
+
+def test_the_full_v2_wizard_order_completes_over_http(client: TestClient):
+    """Walk the six screens in the order the wizard actually visits them.
+
+    The suite's other signups POST the endpoints in whatever order the test
+    author wrote. This one follows `orderFor`, because v2 dropped the
+    institution screen that used to seed the director's row — so the CV upload
+    and the Review save are now the FIRST things to touch it, and an ordering
+    bug there is invisible to a test that calls /institution first.
+    """
+    token, hs_id, email = _seed_verified(client)
+
+    # 3. CV — before anything has created the person row.
+    cv = "Amara N. Okafor, MD\n\nBoard-certified in Nephrology\n12 years of clinical practice\n"
+    assert client.post("/api/onboarding/asclepius/cv", data={"token": token},
+                       files={"file": ("cv.txt", cv.encode("utf-8"), "text/plain")}
+                       ).status_code == 200
+    # 4. Review.
+    assert client.post("/api/onboarding/asclepius/credentials",
+                       json={"token": token, "credentials": CREDS_MINIMAL}).status_code == 200
+    # 5. Attestations.
+    assert client.post("/api/onboarding/asclepius/attestations",
+                       json={"token": token, "attestations": ATTS}).status_code == 200
+    # 6. Submitted.
+    r = client.post("/api/onboarding/asclepius/finish", json={"token": token})
+    assert r.status_code == 200, f"the v2 order cannot be completed: {r.text}"
+    assert r.json()["awaiting_review"] is True
+
+    asc = client.app.state.asclepius_store
+    u = asc.get_user_by_email(email)
+    assert u and u["active"] and u["cv_asset_sha"], "the CV never reached the account"
+    assert u["verification_status"] == "pending"
+
+
 # ─── The demo video endpoint ─────────────────────────────────────────────────
 
 def _install_demo(store, payload: bytes = b"z" * 4000 + b"TAIL"):
