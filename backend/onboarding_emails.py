@@ -1029,6 +1029,18 @@ def build_application_submitted_email(*, full_name: str) -> str:
     return _shell(subject="We&rsquo;ve got your application", body_html=body)
 
 
+def application_welcome_subject(full_name: str) -> str:
+    """The §4.4 subject line.
+
+    Its own function because the mail transport needs the subject as an argument
+    and the builder needs it for the document ``<title>``. Two spellings of one
+    string is how a subject line and the page it opens drift apart.
+    """
+    last = _last_name(full_name)
+    return f"Welcome to Archangel Health, Dr. {last}" if last \
+        else "Welcome to Archangel Health"
+
+
 def build_application_welcome_email(
     *,
     full_name: str,
@@ -1046,9 +1058,7 @@ def build_application_welcome_email(
     credential that lives in an inbox forever does not survive an inbox breach,
     and neither does the answer we give a hospital partner who asks.
     """
-    last = _last_name(full_name)
-    subject = f"Welcome to Archangel Health, Dr. {last}" if last \
-        else "Welcome to Archangel Health"
+    subject = application_welcome_subject(full_name)
     creds = _detail_rows([
         ("Email", email, True),
         ("Temporary password", temp_password, True),

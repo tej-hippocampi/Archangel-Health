@@ -146,7 +146,7 @@ from auth import (
 )
 import auth as auth_module
 from onboarding_emails import build_doctor_verification_email, build_task_notification_email
-from team_store import TeamStore
+from team_store import TeamStore, set_team_store
 from preop_survey import (
     WINDOW_SURVEY_DAY,
     compute_window_tier,
@@ -236,6 +236,10 @@ _patient_store: dict = {}
 app.state.patient_store = _patient_store
 _team_store = TeamStore()
 app.state.team_store = _team_store
+# Background work (the Onboarding v2 nudge sweep) has no request to reach
+# app.state through. Bind THIS instance rather than letting it build a second
+# one, so both see the same database — including the temp one the suite swaps in.
+set_team_store(_team_store)
 
 # ─── Asclepius — Expert Evaluation Portal (standalone, isolated) ──────────────
 # Own SQLite DB + own auth; never touches team.db or the clinical RBAC.
