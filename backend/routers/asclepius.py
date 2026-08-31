@@ -49,6 +49,7 @@ from asclepius import generation as asc_generation
 from asclepius import pipeline as asc_pipeline
 from asclepius import profiles as asc_profiles
 from asclepius import specialties as asc_specialties
+from asclepius import store as asc_store
 from asclepius import task_notify as asc_task_notify
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
@@ -127,6 +128,8 @@ from asclepius.schemas import (
     BuyerRequestStatusUpdate,
     CandidateGenRequest,
     CiteRequest,
+    FirstRunUpdate,
+    FIRST_RUN_STOPS as _FIRST_RUN_STOPS,
     ForgotPasswordRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
@@ -290,6 +293,29 @@ async def login(body: LoginRequest):
     store = _store()
     user = asc_auth.authenticate(store, body.email, body.password)
     if not user:
+        # Onboarding v2 §2: a physician who submitted an application has an
+        # account row with NO password — the v2 wizard has no password step, and
+        # credentials are minted and mailed on approval (§4.4, §5). Telling them
+        # "invalid email or password" would be false in both halves and would
+        # send them to the reset flow, which cannot help: there is nothing to
+        # reset. Answer with the state they are actually in.
+        #
+        # This is not an enumeration oracle worth worrying about, and the reason
+        # is structural rather than a judgment call: the only accounts it can
+        # distinguish are ones that HAVE NO CREDENTIAL. There is nothing to
+        # guess, nothing to brute-force, and nothing an attacker can do with the
+        # answer that they could not do by submitting an application to the same
+        # address. Every account that has a password still gets the same generic
+        # 401 it always did.
+        pending = store.get_user_by_email((body.email or "").strip().lower())
+        if pending and asc_store.password_is_unset(pending) \
+                and (pending.get("verification_status") or "pending") == "pending":
+            raise HTTPException(
+                status_code=403,
+                detail=("Your application is in review — we'll email you within "
+                        "24–48 hours."),
+                headers={asc_auth.AUTH_GATE_HEADER: "pending"},
+            )
         raise HTTPException(status_code=401, detail="Invalid email or password")
     store.log_event(entity_type="user", entity_id=user["id"], event_type="login", actor=user["id"])
     return {"token": asc_auth.create_token(user), "user": asc_auth.public_user(user)}
@@ -904,7 +930,101 @@ async def update_my_tutorial(
         event_type="tutorial_" + action, actor=user["id"],
         payload={"step": body.step} if body.step else None,
     )
+    # Onboarding v2 §6 stop 3: the practice case IS a walkthrough stop, and it is
+    # checked off HERE — from the tutorial's own transition — rather than by a
+    # second tracker the client would have to remember to call. The PRD is
+    # explicit about this ("hook the existing tutorial-complete server event; do
+    # not add a parallel tracker"), and the reason is that two writers of one
+    # fact drift: a doctor who finishes the practice case from the help menu, or
+    # on another device, or after a reload, must still find the box ticked.
+    #
+    # A skip closes the stop too. §6 says a skip never nags again, and leaving
+    # the box open after a deliberate skip is exactly nagging.
+    if action in ("complete", "skip"):
+        _close_first_run_stop(store, user["id"], "practice",
+                              "done" if action == "complete" else "skipped")
     return asc_auth.public_user(store.get_user_by_id(user["id"]))
+
+
+# ─── First-login walkthrough (Onboarding v2 §6) ──────────────────────────────
+def _close_first_run_stop(store: Any, user_id: str, stop: str, outcome: str) -> None:
+    """Mark one stop closed, and the whole checklist complete once all six are.
+
+    Idempotent and monotonic: a stop that is already closed keeps its FIRST
+    outcome, so replaying the practice case after skipping it does not rewrite
+    history, and a stop can never reopen. That is what makes "skip for now never
+    nags again" true rather than aspirational.
+    """
+    state = store.get_first_run(user_id)
+    stops = dict(state.get("stops") or {})
+    if stops.get(stop):
+        return
+    stops[stop] = outcome
+    state["stops"] = stops
+    if not state.get("completed_at") and all(stops.get(s) for s in _FIRST_RUN_STOPS):
+        state["completed_at"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    store.set_first_run(user_id, state)
+
+
+@router.patch("/me/first-run")
+async def update_my_first_run(
+    body: FirstRunUpdate,
+    # get_current_account, not require_full_access: the walkthrough is the FIRST
+    # thing a newly approved physician sees, and on some deployments they reach
+    # it while still provisional. A checklist that 403s is a checklist nobody
+    # can finish.
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+):
+    """One transition on the caller's own first-login walkthrough.
+
+    Server-authoritative and server-STORED (§6): doctors switch devices, and a
+    checklist in localStorage restarts on the phone. The rules that make a stop
+    permanent live here, not in client flags.
+    """
+    store = _store()
+    if body.action in ("done", "skip"):
+        if not body.stop:
+            raise HTTPException(status_code=400, detail="Which stop?")
+        _close_first_run_stop(store, user["id"], body.stop,
+                              "done" if body.action == "done" else "skipped")
+    elif body.action == "dismiss":
+        state = store.get_first_run(user["id"])
+        if not state.get("dismissed_at"):
+            state["dismissed_at"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+            store.set_first_run(user["id"], state)
+    elif body.action == "reset":
+        # Self-service, for the same reason the tutorial's reset is: the
+        # walkthrough writes no real data, so replaying it costs nothing and
+        # refusing would just mean asking an admin for something harmless.
+        store.set_first_run(user["id"], {
+            "version": store.FIRST_RUN_VERSION, "stops": {},
+            "completed_at": None, "dismissed_at": None,
+        })
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="first_run_" + body.action, actor=user["id"],
+        payload={"stop": body.stop} if body.stop else None,
+    )
+    return asc_auth.public_user(store.get_user_by_id(user["id"]))
+
+
+@router.post("/me/bank-link/interest")
+async def register_bank_link_interest(
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+):
+    """§6 stop 5 — "we'll DM you the moment banking goes live".
+
+    The card in the walkthrough is disabled and clearly labelled; this is the
+    only thing behind it, and it stores a status rather than pretending to link
+    anything. The Stripe work lands on the payments track and reads this column
+    to find who has been waiting.
+    """
+    store = _store()
+    if not (user.get("bank_link_status") or "").strip():
+        store.set_bank_link_status(user["id"], "coming_soon")
+        store.log_event(entity_type="user", entity_id=user["id"],
+                        event_type="bank_link_interest", actor=user["id"])
+    return {"ok": True, "bank_link_status": "coming_soon"}
 
 
 # ─── Tutorial — Calibration Case 1 ───────────────────────────────────────────

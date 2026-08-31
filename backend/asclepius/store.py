@@ -2762,14 +2762,23 @@ class AsclepiusStore:
         """
         now = datetime.utcnow().replace(microsecond=0).isoformat()
         with self._conn() as conn:
+            # ``must_change_password`` is cleared in the SAME statement that
+            # writes the hash, and only here. Onboarding v2 §0.1: the flag means
+            # "this credential was chosen by us, not by you", so the one event
+            # that can retire it is the user choosing one — which is exactly what
+            # every caller of this method represents (reset, change, admin set).
+            # A separate clear() would be a way to drop the flag without a
+            # password having been chosen, so there isn't one.
             if stamp_changed:
                 conn.execute(
-                    "UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?",
+                    "UPDATE users SET password_hash = ?, password_changed_at = ?, "
+                    "must_change_password = 0 WHERE id = ?",
                     (hash_password(new_password), now, user_id),
                 )
             else:
                 conn.execute(
-                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                    "UPDATE users SET password_hash = ?, must_change_password = 0 "
+                    "WHERE id = ?",
                     (hash_password(new_password), user_id),
                 )
 
@@ -4190,14 +4199,6 @@ class AsclepiusStore:
                  datetime.utcnow().replace(microsecond=0).isoformat(), user_id),
             )
 
-    def clear_must_change_password(self, user_id: str) -> None:
-        """Called only from the set-your-own-password path, after the new hash
-        is written. Separate from writing the hash so a rotation can never clear
-        the flag without a password actually having been chosen."""
-        with self._conn() as conn:
-            conn.execute(
-                "UPDATE users SET must_change_password = 0 WHERE id = ?", (user_id,)
-            )
 
     def mock_annotator_id_hashes(self) -> set:
         """The ``id_hashed`` of every mock/sandbox contributor. Records carry the

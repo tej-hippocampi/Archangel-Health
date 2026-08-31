@@ -181,6 +181,19 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         # it to stop showing a referral-only account a rail full of locked
         # doors it will never open.
         "account_kind": _caps.account_kind(user),
+        # Onboarding v2 §0.1: this account is signed in on a TEMPORARY password
+        # from the welcome email, and the next thing it may do is choose its own.
+        # Display truth for the portal's rotation screen; the flag itself is
+        # retired server-side by ``set_user_password`` and by nothing else, so a
+        # client that ignores this cannot skip the rotation — it can only skip
+        # being asked politely.
+        "must_change_password": bool(user.get("must_change_password")),
+        # §6: the first-login walkthrough checklist, so the portal knows on the
+        # first paint whether to open it. Server-side and not localStorage,
+        # because doctors switch devices.
+        "first_run": _first_run_public(user),
+        # §6 stop 5: the payout rail. NULL until banking goes live.
+        "bank_link_status": user.get("bank_link_status"),
         # The physician's own picture, or None until they upload one. The rail's
         # profile avatar needs this from the SESSION payload: it renders on every
         # screen, and /me/profile is fetched only when the profile page opens.
@@ -196,6 +209,37 @@ def _avatar_url(user: Dict[str, Any]) -> Optional[str]:
     if not sha:
         return None
     return f"/api/asclepius/users/{user['id']}/avatar?v={sha[:12]}"
+
+
+def _first_run_public(user: Dict[str, Any]) -> Dict[str, Any]:
+    """The walkthrough state as the portal reads it.
+
+    A corrupt or stale-version blob degrades to the empty shape rather than
+    raising, for the same reason ``_parse_tutorial`` does: the worst cost of a
+    bad read is one extra walkthrough, and the worst cost of a raise is a
+    physician who cannot open the portal.
+    """
+    from asclepius.store import AsclepiusStore  # noqa: PLC0415
+
+    empty = {"version": AsclepiusStore.FIRST_RUN_VERSION, "stops": {},
+             "completed_at": None, "dismissed_at": None}
+    raw = user.get("first_run_json")
+    if not raw:
+        return empty
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+    except (ValueError, TypeError):
+        return empty
+    if not isinstance(parsed, dict) or \
+            int(parsed.get("version") or 0) != AsclepiusStore.FIRST_RUN_VERSION:
+        return empty
+    stops = parsed.get("stops")
+    return {
+        "version": AsclepiusStore.FIRST_RUN_VERSION,
+        "stops": stops if isinstance(stops, dict) else {},
+        "completed_at": parsed.get("completed_at"),
+        "dismissed_at": parsed.get("dismissed_at"),
+    }
 
 
 def _parse_tutorial(raw: Any) -> Dict[str, Any]:
