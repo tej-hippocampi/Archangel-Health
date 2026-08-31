@@ -233,3 +233,112 @@ def surfaces(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
 
 def can_surface(user: Optional[Dict[str, Any]], surface: str) -> bool:
     return surface in surfaces(user)
+
+
+# ─── The practice-case gate (third axis) ──────────────────────────────────────
+# Tier says what KIND of work; access level says whether real patient data is
+# reachable at all; this says whether this physician has been shown the standard
+# before their first real case. Three questions, three predicates, none implying
+# the others, for the same reason ACCESS_LEVELS was split out of TIERS.
+#
+# It is deliberately NOT folded into surfaces(). Dropping REAL_WORK would render
+# the "this is where the work happens" card instead of "finish the practice
+# case", and would gate every require_surface(REAL_WORK) endpoint with a message
+# about credential verification, which is unintelligible to someone whose
+# credentials are fine.
+#
+# Mirrors the verification_status / access_level split above: tutorial_json
+# ["status"] stays REPORTING truth (what the physician did) and
+# tutorial_json["gate"] is the ACCESS answer. Overloading one field with both is
+# exactly how "skipped" would come to mean "allowed".
+GATE_LOCKED = "locked"
+GATE_PASSED = "passed"
+GATE_GRANDFATHERED = "grandfathered"
+GATE_STATES = (GATE_LOCKED, GATE_PASSED, GATE_GRANDFATHERED)
+
+#: Gate states that open real work. Deny by default: anything else, including
+#: an absent gate and an unrecognised string, is locked.
+_GATE_OPEN = frozenset({GATE_PASSED, GATE_GRANDFATHERED})
+
+
+def _tutorial_blob(user: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """The parsed tutorial_json off a user row, however it arrived.
+
+    Store getters hand back a dict; a raw sqlite row hands back TEXT. Accepting
+    both keeps this readable from either, and a blob we cannot parse reads as
+    absent, which denies.
+    """
+    raw = (user or {}).get("tutorial_json")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        import json  # noqa: PLC0415 - keeps this module import-light at boot
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+        except (ValueError, TypeError):
+            return {}
+    return {}
+
+
+def practice_gate(user: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """This physician's practice-case gate sub-object, or {} when never decided."""
+    gate = _tutorial_blob(user).get("gate")
+    return gate if isinstance(gate, dict) else {}
+
+
+def practice_gate_state(user: Optional[Dict[str, Any]]) -> str:
+    state = str(practice_gate(user).get("state") or "").strip().lower()
+    return state if state in GATE_STATES else GATE_LOCKED
+
+
+def practice_gate_reason(user: Optional[Dict[str, Any]], *,
+                         required_version: int) -> Optional[str]:
+    """None when real work is open. Otherwise WHY it is not, as a short token.
+
+    ``required_version`` is passed in rather than imported so this module keeps
+    its zero-dependency posture: importing tutorial_case would pull the whole
+    case-rendering stack into the policy table.
+
+    Exemptions, both narrow. An admin is not a contributor and does not draw
+    from the queue. The mock contributor is the demo account, provisioned on
+    every boot, and gating it would break the walkthrough the sales motion runs
+    on. is_mock is written only by the mock provisioning path, never by a user.
+    """
+    u = user or {}
+    if u.get("role") == "admin" or u.get("is_mock"):
+        return None
+
+    gate = practice_gate(u)
+    state = practice_gate_state(u)
+
+    if state == GATE_GRANDFATHERED:
+        # Never version-checked. These physicians were never asked to take the
+        # practice case, so re-gating them on a version bump would silently
+        # undo the migration that let them keep working.
+        return None
+
+    if state == GATE_PASSED:
+        try:
+            passed_version = int(gate.get("passed_version") or 0)
+        except (TypeError, ValueError):
+            passed_version = 0
+        if passed_version < int(required_version):
+            return "stale_version"
+        return None
+
+    # Locked. Say which flavour, so the client can pick a screen: "you have not
+    # started" and "you tried and it did not pass" are different conversations.
+    try:
+        attempts = int(gate.get("attempts") or 0)
+    except (TypeError, ValueError):
+        attempts = 0
+    if attempts:
+        return "failed"
+    status = str(_tutorial_blob(u).get("status") or "").strip().lower()
+    return "in_progress" if status == "in_progress" else "not_started"
+
+
+def practice_gate_open(user: Optional[Dict[str, Any]], *,
+                       required_version: int) -> bool:
+    return practice_gate_reason(user, required_version=required_version) is None

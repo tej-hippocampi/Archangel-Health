@@ -108,6 +108,13 @@ FIELDS: Tuple[Field, ...] = (
         "reviewer should weigh when judging the medicine.",
     ),
     _withheld(
+        "assisted",
+        "Practice-case bookkeeping: which tour steps the physician advanced "
+        "with 'Skip this step'. It is read only by the practice case's own "
+        "grader, is always empty on a real submission, and would be noise to a "
+        "reviewer judging the medicine.",
+    ),
+    _withheld(
         "time_spent_sec",
         "How long the labeler took. Told to a reviewer it becomes a competence "
         "prior applied before they have read the answer, and in a pair it is a "

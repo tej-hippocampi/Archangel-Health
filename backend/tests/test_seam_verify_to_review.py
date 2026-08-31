@@ -72,6 +72,11 @@ def _labeled_submission(admin_h, labeler):
     # through B's REAL approval route, per this file's rule: nothing is
     # hand-stitched, no direct ``UPDATE users SET tier``.
     assert _approve_via_b(admin_h, labeler["id"], "labeler").status_code == 200
+    # Approval is one axis; the practice case is another. A real physician
+    # clears both before their first case, and this file's rule is that nothing
+    # is hand-stitched -- so open the gate through the shared helper rather than
+    # writing tutorial_json here.
+    A.pass_practice_case(asc_store.get_store(), labeler["id"])
     body = {
         "specialty": "nephrology", "difficulty": "hard", "max_labels": 1,
         "prompt": f"Hyperkalemia case {A.uniq(8)}?",

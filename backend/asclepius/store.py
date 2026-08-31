@@ -1174,6 +1174,7 @@ class AsclepiusStore:
                 "AND (verification_status IS NULL OR verification_status = 'approved')",
                 (_utcnow_iso(),),
             )
+            self._backfill_practice_gate(conn)
             # ═══ END PRD-B ═══
             # ═══ PRD-A REVIEW SCHEMA — owned by Agent 1, do not edit from other PRDs ═══
             # Two-tier review product (PRD A §1): senior reviewers grade a labeler's
@@ -4007,6 +4008,70 @@ class AsclepiusStore:
                 "UPDATE users SET tutorial_json = ? WHERE id = ?",
                 (json.dumps(state), user_id),
             )
+
+    def _backfill_practice_gate(self, conn) -> int:
+        """Grandfather every physician who is already doing real work.
+
+        The practice-case gate is new and mandatory. Switching it on without
+        this would lock out every approved, tiered, actively-labeling physician
+        overnight: a data-supply outage dressed as a quality fix, which is the
+        exact failure the tier backfill above was written to avoid.
+
+        The rule is ONE predicate, ``has at least one real submission``, and it
+        is deliberately not any of the obvious alternatives. The gate exists to
+        guarantee a physician saw the standard BEFORE their first real case.
+        Someone already submitting has had that case; the gate cannot un-happen
+        it, and their calibration is now measured by contributor_score and the
+        review pipeline, which are better instruments than a four-minute
+        practice case. Grandfathering on ``verification_status='approved'``
+        would exempt people who have never labeled, which defeats the change.
+        Grandfathering on ``tutorial.status='completed'`` would certify the
+        0-of-4 completions this change exists to stop.
+
+        ``gate IS ABSENT`` is the load-bearing clause, because THIS RUNS ON
+        EVERY BOOT. Every real write to ``gate`` stamps it (a pass, an admin
+        revoke), so an absent gate means nobody has ever decided about this
+        account. Without the clause, a gate an admin deliberately relocked
+        would be handed back on the next redeploy, and a migration that
+        silently re-grants a revoked capability is worse than the gap it
+        closes.
+
+        ``status`` is left ALONE. A 'skipped' row stays 'skipped': that is what
+        the physician did, and reporting must keep saying so. The gate is a
+        different question and gets a different field.
+        """
+        rows = conn.execute(
+            "SELECT u.id, u.tutorial_json, COUNT(s.submission_id) AS n "
+            "FROM users u JOIN submissions s ON s.evaluator_id = u.id "
+            "WHERE u.role IN ('evaluator', 'qa_reviewer') "
+            "GROUP BY u.id HAVING n >= 1"
+        ).fetchall()
+
+        stamped = 0
+        for row in rows:
+            # Per-user isolation: one unparseable blob must not abort the boot
+            # migration and take the whole app down with it.
+            try:
+                raw = row["tutorial_json"]
+                blob = json.loads(raw) if raw else {}
+                if not isinstance(blob, dict):
+                    blob = {}
+                if isinstance(blob.get("gate"), dict):
+                    continue  # already decided, by anybody, ever
+                blob.setdefault("status", "not_started")
+                blob["gate"] = {
+                    "state": "grandfathered",
+                    "source": "migration:practice_gate_backfill",
+                    "at": _utcnow_iso(),
+                    "prior_submissions": int(row["n"]),
+                }
+                conn.execute("UPDATE users SET tutorial_json = ? WHERE id = ?",
+                             (json.dumps(blob), row["id"]))
+                stamped += 1
+            except Exception:  # pragma: no cover - defensive, per-row
+                _logging.getLogger("asclepius.store").exception(
+                    "[practice-gate] backfill skipped user %s", row["id"])
+        return stamped
 
     def mock_annotator_id_hashes(self) -> set:
         """The ``id_hashed`` of every mock/sandbox contributor. Records carry the
