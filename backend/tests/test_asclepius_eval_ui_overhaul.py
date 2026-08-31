@@ -1597,7 +1597,9 @@ def test_no_doctor_facing_specialty_switch():
     assert "renderSpecialtyPicker({ dismissable: false })" in _body_of("renderEvalView")
     # Every remaining `specialtyChosen = false` site lives in tutorial exit
     # paths, not a doctor-facing switch control.
-    tutorial_fns = ("startTutorial", "skipTutorial", "renderTutorialReveal")
+    # skipTutorial became leaveTutorial: skipping is retired now that the
+    # practice case gates real work, but the exit path itself remains.
+    tutorial_fns = ("startTutorial", "leaveTutorial", "renderTutorialReveal")
     for fn_name in tutorial_fns:
         assert "state.specialtyChosen = false" in _body_of(fn_name), (
             f"{fn_name} no longer resets specialtyChosen on exit"

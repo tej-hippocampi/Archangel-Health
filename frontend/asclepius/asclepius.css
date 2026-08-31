@@ -2327,6 +2327,42 @@ body.asc-sheet-open { overflow: hidden; }
   border-radius: var(--r-sm); background: var(--orange-wash);
 }
 .asc-tour-planted-title { font-weight: 600; font-size: 14px; color: var(--orange-deep); }
+/* What the physician actually wrote where the answer key looked. Quoted back
+   in their own words, in the mono face the rest of the product uses for
+   captured input, so it reads as evidence rather than as more of our prose. */
+.asc-tour-finding-yours {
+  font-family: var(--mono); font-size: 12px; color: var(--ink);
+  margin-top: 8px; padding: 8px 10px; border-radius: var(--r-sm);
+  background: var(--card); border: 1px solid var(--hairline);
+  line-height: 1.5;
+}
+/* A miss folded shut. The primary button waits on it being opened, so it has
+   to look like something with more behind it. */
+.asc-tour-finding-ack { display: block; cursor: pointer; }
+.asc-tour-finding-ack > summary {
+  display: flex; gap: 12px; align-items: center; list-style: none;
+}
+.asc-tour-finding-ack > summary::-webkit-details-marker { display: none; }
+.asc-tour-finding-ack > summary::after {
+  content: 'read it'; margin-left: auto; font-family: var(--mono);
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.asc-tour-finding-ack[open] > summary::after { content: ''; }
+.asc-tour-finding-ack[open] { border-color: var(--hairline-strong); }
+/* Why the trap works. Blinded until the answer is committed, so it opens on
+   the reveal and nowhere earlier. */
+.asc-tour-teaching {
+  margin-top: 14px; padding: 12px 14px; border: 1px solid var(--hairline);
+  border-radius: var(--r-sm); background: var(--card-in);
+}
+.asc-tour-teaching > summary {
+  cursor: pointer; font-weight: 600; font-size: 14px;
+}
+.asc-tour-keydata {
+  margin: 10px 0 6px; padding-left: 18px; font-size: 13px;
+  color: var(--ink-soft); line-height: 1.6;
+}
 
 /* Help menu + instruction drawer */
 .asc-help-menu {

@@ -693,6 +693,10 @@ function renderTaskWorkspace() { calls.push('renderTaskWorkspace'); }
 function renderDashboardView() { calls.push('renderDashboardView'); }
 async function loadWithheldAnswersIfNeeded() {}
 function getPortalVersion() { return 'v3'; }
+// The practice-case gate. isPracticeGate is the REAL predicate (extracted
+// below) so this exercises the actual routing rule; only the destination is
+// stubbed, since startTutorial pulls in the whole tour engine.
+function goToPracticeCase() { calls.push('goToPracticeCase'); }
 function emptyAnchorX() {}
 async function api() { if (RESPONSE) return RESPONSE; throw THROWN; }
 %(payload)s
@@ -704,7 +708,7 @@ def _open_harness(body: str) -> dict:
         _const("DRAFT_PREFIX"),
         _fn("h"), _fn("appendChildren"), _fn("draftKey"), _fn("randomId"),
         _fn("emptyAnchor"), _fn("newDraft"), _fn("initDraftForTask"),
-        _fn("clearDraft"), _fn("openTaskById"),
+        _fn("clearDraft"), _fn("isPracticeGate"), _fn("openTaskById"),
     ])
     return _run_node(_OPEN_PRELUDE % {"payload": payload} + "\n" + body)
 
