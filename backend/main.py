@@ -81,6 +81,7 @@ from routers.asclepius_verify import router as asclepius_verify_router
 from routers.asclepius_review import router as asclepius_review_router
 from routers.asclepius_payments import router as asclepius_payments_router
 from routers.asclepius_score import router as asclepius_score_router
+from routers.asclepius_media import router as asclepius_media_router
 from routers.leads import router as leads_router
 from eligibility import store as elig_store
 import demo_credentials
@@ -6750,6 +6751,12 @@ app.include_router(teachback_router)
 app.include_router(triage_explain_router)
 app.include_router(messaging_router)
 app.include_router(telehealth_router)
+# BEFORE asclepius_router, and it has to stay there. That router owns
+# `/api/asclepius/assets/{asset_id}`, and FastAPI matches routes in
+# registration order — so registering this one second would let the path
+# parameter swallow the literal `/assets/onboarding-demo` and answer the demo
+# with `asset_not_found`. A test pins the literal winning.
+app.include_router(asclepius_media_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_admin_router)
