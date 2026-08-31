@@ -2140,6 +2140,84 @@ async def admin_send_relay(
             "mapping": mapping, "committed": committed, "notified": notified}
 
 
+@router.get("/batches/relay/{trajectory_id}")
+async def admin_trajectory_chain(
+    trajectory_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The walk as a chain: who has each point, who the chart is waiting on (§8.7).
+
+    Served for SOLO walks too, deliberately. At max_labels=1 a solo walk that its
+    physician abandons is unrecoverable by anyone else — nobody can satisfy the
+    sequence gate for the remaining points — so it is dead stock, and before this
+    it was dead stock invisible as a problem anywhere in admin.
+    """
+    chain = _store().trajectory_chain(trajectory_id)
+    if not chain.get("points"):
+        raise HTTPException(status_code=404, detail="No such trajectory.")
+    return chain
+
+
+class ReassignPointBody(BaseModel):
+    task_id: str
+    user_id: str
+
+
+@router.post("/batches/relay/{trajectory_id}/reassign")
+async def admin_reassign_point(
+    trajectory_id: str, body: ReassignPointBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Hand one stuck point to somebody else (§8.7).
+
+    Revokes the current holder's assignment, writes the new one, and tells the new
+    doctor. The nudge clock resets by construction: ``nudged_at`` lives on the
+    assignment, so the new row starts unnudged and the replacement gets their own
+    one reminder rather than inheriting a spent one.
+
+    Recorded in the audit log as a reassignment because the export's provenance
+    reads it: a relay walk with a substitution in the middle is a handoff chain a
+    buyer should be able to see, not a detail that quietly disappears once the
+    chart is complete.
+    """
+    store = _store()
+    task = store.get_task(body.task_id)
+    if not task or task.get("trajectory_id") != trajectory_id:
+        raise HTTPException(status_code=404, detail="That point is not in this walk.")
+    if store.submissions_for_task(body.task_id):
+        raise HTTPException(status_code=409, detail={
+            "error": "already_answered",
+            "message": ("That point has already been answered. Reassigning it would "
+                        "take finished work away from the physician who did it.")})
+
+    people = _resolve_send_targets(
+        store, AllocateBody(task_ids=[body.task_id], user_ids=[body.user_id]))
+    new_doctor = (people or [None])[0]
+    if not new_doctor:
+        raise HTTPException(status_code=404, detail="Unknown user_id.")
+
+    revoked = []
+    for a in store.assignments_for_task(body.task_id):
+        if a.get("role") == "label" and a.get("status") in ("offered", "claimed"):
+            if a.get("user_id") == body.user_id:
+                continue                     # already theirs; nothing to revoke
+            store.set_assignment_status(a["assignment_id"], "revoked")
+            revoked.append(a["assignment_id"])
+    row = store.upsert_assignment(
+        task_id=body.task_id, user_id=body.user_id, role="label",
+        assigned_by=admin["email"])
+    store.log_event(
+        entity_type="assignment", event_type="relay_point_reassigned",
+        actor=admin["email"],
+        payload={"trajectory_id": trajectory_id, "task_id": body.task_id,
+                 "sequence_index": task.get("sequence_index"),
+                 "to_user_id": body.user_id, "revoked": revoked})
+    notified = asc_route_notify.notify_reassigned(
+        store, task=task, doctor=new_doctor)
+    return {"trajectory_id": trajectory_id, "task_id": body.task_id,
+            "assignment_id": row["assignment_id"], "revoked": revoked,
+            "notified": notified, "chain": store.trajectory_chain(trajectory_id)}
+
+
 class ResolveSelectionBody(BaseModel):
     task_ids: List[str] = Field(default_factory=list)
 

@@ -8656,7 +8656,8 @@
     const view = state.batches || (state.batches = {
       overview: null, batch: null, rows: null, selected: {}, busy: false,
       err: null, mode: 'all', userIds: [], specialty: '', doctors: null, proposal: null,
-      resolved: null,
+      resolved: null, relay: false, relayWalk: null, relaySeed: null,
+      relayPreview: null, chain: null,
     });
     const host = h('div', {});
     body.appendChild(host);
@@ -8695,12 +8696,24 @@
       }).catch((e) => { view.err = e.message; view.busy = false; paint(); });
     }
 
-    function openBatch(key) {
+    function openBatch(key, trajectoryId) {
       view.batch = key; view.rows = null; view.selected = {}; view.proposal = null;
       view.busy = true; paint();
       api('/admin/batches/' + encodeURIComponent(key)).then((res) => {
-        view.rows = res.cases || []; view.busy = false; paint();
+        view.rows = res.cases || []; view.busy = false;
+        view.chain = null;
+        // A walk that has already been sent gets its chain loaded, so a stalled
+        // one is visible on the screen an admin is already looking at rather
+        // than only to somebody who thinks to go looking for it.
+        if (key === 'longitudinal' && trajectoryId) loadChain(trajectoryId);
+        else paint();
       }).catch((e) => { view.err = e.message; view.busy = false; paint(); });
+    }
+
+    function loadChain(trajectoryId) {
+      api('/admin/batches/relay/' + encodeURIComponent(trajectoryId))
+        .then((c) => { view.chain = c; paint(); })
+        .catch(() => paint());               // an unsent walk has no chain yet
     }
 
     function loadDoctors() {
@@ -8718,6 +8731,7 @@
        * than a stranded assignment. */
       const ids = (view.resolved && view.resolved.task_ids) || selectedIds();
       if (!ids.length) return;
+      if (view.relay && view.relayWalk) { sendRelay(dryRun); return; }
       const payload = { task_ids: ids, dry_run: dryRun, labels_per_case: 1 };
       if (view.mode === 'all') payload.to_all = true;
       else if (view.mode === 'specialty') payload.specialty = view.specialty;
@@ -8789,6 +8803,104 @@
           close)));
     }
 
+    /* The relay send. A separate endpoint, not a flag on allocate, because it
+     * commits a different thing: a rotation (which doctor takes which point),
+     * plus walk_mode on every point. The seed is fixed from the preview so the
+     * mapping the admin was SHOWN is the one that commits — otherwise preview and
+     * commit are two draws from the same distribution and the screen is a lie
+     * they cannot detect. */
+    function sendRelay(dryRun) {
+      if (!view.userIds.length) {
+        view.err = 'Pick the doctors for the relay first.'; paint(); return;
+      }
+      if (view.relaySeed == null) view.relaySeed = Math.floor(Math.random() * 1e9);
+      view.busy = true; view.err = null; paint();
+      api('/admin/batches/relay', { method: 'POST', body: {
+        trajectory_id: view.relayWalk, user_ids: view.userIds,
+        dry_run: dryRun, seed: view.relaySeed,
+      } }).then((res) => {
+        view.busy = false;
+        if (dryRun) { view.relayPreview = res; paint(); return; }
+        toast(`Relay sent — ${res.n_points} point(s) across ${res.n_doctors} doctors.`);
+        view.relayPreview = null; view.relaySeed = null; view.selected = {};
+        openBatch(view.batch);
+      }).catch((e) => {
+        view.busy = false;
+        const d = e && e.detail;
+        view.err = (d && d.message) || (e && e.message) || 'Relay send failed.';
+        paint();
+      });
+    }
+
+    /* The chain, for a walk that is already out (§8.7). The point the chart is
+     * WAITING on is the only one marked as such — a 13-point walk sitting at
+     * point 2 has one problem, not eleven, and a view that flagged the rest
+     * would be unreadable exactly when it matters. */
+    /* The rotation, before it commits: #0 → Dr A · #1 → Dr B · … */
+    function paintRelayPreview() {
+      const r = view.relayPreview;
+      if (!r) return;
+      const reshuffle = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' },
+        'Reshuffle');
+      reshuffle.addEventListener('click', () => {
+        view.relaySeed = Math.floor(Math.random() * 1e9); sendRelay(true);
+      });
+      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Proposed relay'),
+        h('div', { class: 'asc-dim' },
+          r.n_points + ' point(s) across ' + r.n_doctors + ' doctor(s). '
+          + 'Only the first is serveable on send; each later point unlocks when '
+          + 'the one before it is submitted.'),
+        h('div', { class: 'asc-chain' }, (r.mapping || []).map((m) =>
+          h('span', { class: 'asc-chain-cell' },
+            h('span', {}, '#' + m.sequence_index + ' → '),
+            h('span', { class: 'asc-dim' }, m.email || m.user_id)))),
+        reshuffle)));
+    }
+
+    function paintChain() {
+      const c = view.chain;
+      if (!c) return;
+      const dot = { done: '✓', waiting: '●', later: '–', retired: '×' };
+      const cells = (c.points || []).map((p) => {
+        const late = p.state === 'waiting' && (p.waiting_hours || 0) >= 24;
+        const kids = [h('span', { class: 'asc-chain-mark' }, dot[p.state] || '–'),
+          h('span', {}, '#' + p.sequence_index)];
+        if (p.state === 'waiting') {
+          kids.push(h('span', { class: 'asc-dim' },
+            ' waiting ' + (p.waiting_hours == null ? '?' : Math.round(p.waiting_hours)) + 'h'));
+          const re = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+            'Reassign');
+          re.addEventListener('click', () => reassign(c.trajectory_id, p));
+          kids.push(re);
+        }
+        return h('span', { class: 'asc-chain-cell' + (late ? ' is-late' : '') }, ...kids);
+      });
+      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Chain · ' + (c.walk_mode || 'solo')),
+        h('div', { class: 'asc-dim' }, c.n_done + ' of ' + c.n_points + ' done'),
+        h('div', { class: 'asc-chain' }, ...cells))));
+    }
+
+    function reassign(trajectoryId, point) {
+      loadDoctors().then((docs) => {
+        const pick = (docs || []).filter((d) => d.id !== point.user_id);
+        if (!pick.length) { toast('No other approved doctor to hand it to.', 'error'); return; }
+        const sel = h('select', { class: 'asc-input' },
+          pick.map((d) => h('option', { value: d.id }, d.name || d.email)));
+        const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Reassign');
+        const box = h('div', { class: 'asc-card asc-card-pad' },
+          h('div', {}, 'Hand point #' + point.sequence_index + ' to:'), sel, go);
+        go.addEventListener('click', () => {
+          api('/admin/batches/relay/' + encodeURIComponent(trajectoryId) + '/reassign',
+              { method: 'POST', body: { task_id: point.task_id, user_id: sel.value } })
+            .then((res) => { view.chain = res.chain; toast('Reassigned.'); paint(); })
+            .catch((e) => toast('Could not reassign: ' + e.message, 'error'));
+        });
+        host.appendChild(box);
+      });
+    }
+
     function paint() {
       clear(host);
       if (view.err) host.appendChild(h('div', { class: 'asc-inline-error' }, view.err));
@@ -8845,6 +8957,8 @@
           h('h3', {}, BATCH_META[view.batch].title),
           h('div', { class: 'asc-table-wrap' }, table))));
       paintPreview();
+      paintChain();
+      paintRelayPreview();
       paintSendBar();
     }
 
@@ -8924,10 +9038,41 @@
       const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Send');
       go.addEventListener('click', () => send(false));
 
+      /* §8.3 — Send as: solo or relay, offered only when the selection is exactly
+       * one whole trajectory. Not offered otherwise because a relay is defined
+       * over a walk: half a chart split between five doctors is neither a solo
+       * walk nor a handoff chain, and the server would refuse it anyway. */
+      const walkIds = {};
+      (view.rows || []).forEach(function (r) {
+        if (r.trajectory_id) walkIds[r.trajectory_id] = (walkIds[r.trajectory_id] || 0) + 1;
+      });
+      const chosenWalks = {};
+      chosen.forEach(function (id) {
+        const row = (view.rows || []).find(function (r) { return r.task_id === id; });
+        if (row && row.trajectory_id) {
+          chosenWalks[row.trajectory_id] = (chosenWalks[row.trajectory_id] || 0) + 1;
+        }
+      });
+      const walkKeys = Object.keys(chosenWalks);
+      view.relayWalk = null;
+      const wholeWalk = (walkKeys.length === 1
+        && chosenWalks[walkKeys[0]] === walkIds[walkKeys[0]]
+        && chosen.length === chosenWalks[walkKeys[0]]) ? walkKeys[0] : null;
+      view.relayWalk = wholeWalk;
+
+      const relayToggle = wholeWalk ? h('label', { class: 'asc-send-mode' },
+        (function () {
+          const cb = h('input', { type: 'checkbox' });
+          cb.checked = !!view.relay;
+          cb.addEventListener('change', () => { view.relay = cb.checked; paintSendBar(); });
+          return cb;
+        })(),
+        ' Send as relay — one doctor per point, in sequence') : null;
+
       const bar = h('div', { class: 'asc-send-bar' },
         h('span', {}, `${chosen.length} case(s) selected`
           + (extra > 0 ? ` (+${extra} required earlier point(s) included)` : '')),
-        h('span', {}, 'Send to: '), modeSel, ...extras, warn, dry, go);
+        h('span', {}, 'Send to: '), modeSel, ...extras, relayToggle, warn, dry, go);
       host.appendChild(bar);
 
       if (view.proposal && view.proposal.dry_run) {

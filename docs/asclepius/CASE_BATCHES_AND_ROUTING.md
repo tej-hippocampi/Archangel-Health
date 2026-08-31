@@ -228,15 +228,79 @@ sites.
 
 ---
 
+### §8.7 Stalls — the sweep, the chain, reassignment
+
+A relay is a queue of people waiting on each other, so one physician who gets busy
+stops four. A **solo** walk is worse: at `max_labels=1`, once somebody submits
+point 0 nobody else can ever satisfy the sequence gate for the rest of the chart,
+so an abandoned solo walk is unrecoverable by anyone — and it used to be
+unrecoverable *and* invisible. The chain view is therefore built for both modes.
+
+```
+#0 ✓ · #1 ✓ · #2 ● waiting 31h · #3 –
+```
+
+**Only the point the chart is actually waiting on is marked.** A 13-point walk
+sitting at point 2 has one problem, not eleven; flagging the rest would make the
+view unreadable exactly when it matters.
+
+**The clock runs from availability, not assignment.** Every relay point is assigned
+at send, so a clock started there would report a 13-point relay as thirteen
+simultaneous stalls the day after it went out — and nudge twelve physicians about
+work they cannot do. A point's clock starts when its predecessor was submitted.
+
+**The nudge ships OFF** (`ASCLEPIUS_RELAY_NUDGE_ENABLED`, default `0`). This is the
+only place the product messages a physician on a timer with no human deciding to,
+and volunteers with clinics to run deserve an observation window first. The sweep
+still runs and logs what it *would* send — and marks nothing, so enabling it later
+does not fire a backlog of chases at everyone who was stalled meanwhile. One nudge
+per (point, doctor), never recurring; `nudged_at` lives on the assignment, so a
+reassignment resets the clock and the replacement gets their own.
+
+Reassignment revokes the old holder, writes the new one, DMs them, and is recorded
+in the export as `trajectory.reassigned` — a relay walk with a substitution in the
+middle is a handoff chain a buyer should be able to see. An already-answered point
+cannot be reassigned; that would take finished work from the physician who did it.
+
+**`expire_stale_assignments` had no caller.** It was written with a clear rationale
+and nothing ever ran it, so exclusive assignments have never actually expired in
+production. It now runs hourly in the same maintenance loop.
+
+---
+
+## §8.5 The private case channel — decided against, not deferred
+
+The PRD specifies a private, member-scoped channel per relay. **We are not
+building it**, and the reasoning belongs on the record rather than in a backlog.
+
+Everything the channel would deliver — kickoff context, who is up, chain progress
+— is *broadcast*, and relay already DMs every doctor at send and pings the next on
+unlock. Its one unique affordance is doctors seeing each other, and the PRD itself
+rules out the obvious use for that: *"the case itself stays in the portal"*. So it
+would be a group space for coordinating about a case that may not be discussed in
+it.
+
+Against that: a new channel type is permanent surface area across ~20 call sites —
+`list_channels`, `unread_counts`, `search_messages`, the newsletter, the morning
+brief — every one of which currently assumes channels are public. The failure mode
+is a private case channel surfacing in somebody's morning digest.
+
+**If this is revisited**, the cheaper shape is a group DM (extending the DM model
+past two participants) rather than member-scoped channels: it buys the shared space
+without touching channel listing, search, unread, or the digests.
+
+Consequence: §8.7's "post a channel update" on reassignment is a **DM to the new
+doctor** instead.
+
+---
+
 ## What is NOT built
 
-Named here so nobody assumes otherwise:
-
-* **§8.5 the private case channel** — a new community primitive (member-scoped
-  channels with a membership check in the store query). Relay ships without it:
-  the assignment DMs and the unlock pings carry the coordination.
-* **§8.7 stall nudges and admin reassign** — the 24-hour nudge and the one-click
-  reassign on a stuck chain. `POST /assignments/{id}/revoke` already exists, so
-  reassignment is possible by hand today; the surfaced chain view is not built.
-* **§2.5's relay entry point** — `Route cases` on a physician row deep-links into
-  Batches for ordinary sends; the relay send is API-only (`POST /admin/batches/relay`).
+* **§8.5 the private case channel** — decided against; see above.
+* **Relay reassignment does not re-notify the rest of the chain.** The replacement
+  is DM'd; the other doctors are not told the roster changed. With no channel there
+  is no natural place for that, and N DMs saying "somebody else has point 2 now" is
+  noise for people whose own turn has not moved.
+* **The chain view is not linked from anywhere but the Batches longitudinal
+  drill-in.** An admin who wants it goes to the batch; there is no "walks that are
+  stuck" landing view across all trajectories.

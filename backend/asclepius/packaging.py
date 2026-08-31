@@ -1129,6 +1129,13 @@ def trajectory_block(
         # floor, and only the second is fixable by buying a second walk.
         "walk_mode": asc_trajectory.walk_mode(t) if t.get("trajectory_id") else None,
         "kappa_exclusion": asc_trajectory.kappa_exclusion_reason(t),
+        # §8.7 — this point changed hands before it was answered. Shipped because
+        # the handoff chain a buyer is paying for now contains a substitution: the
+        # physician at point 5 read point 4's commitment, and point 4 was written
+        # by whoever took it over rather than by the doctor originally rostered.
+        # Absent (rather than False) when the caller could not resolve it, so a
+        # missing lookup never reads as a positive claim that nothing changed.
+        **({"reassigned": True} if t.get("_reassigned") else {}),
         "expected_trajectory": expected or None,
         "self_score": self_score or None,
         # The RLVR claim for THIS record, stated rather than inferred: an outcome

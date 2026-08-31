@@ -6045,6 +6045,40 @@ async def _team_scheduler_loop() -> None:
         await asyncio.sleep(int(os.getenv("TEAM_SCHEDULER_INTERVAL_SECONDS", "3600")))
 
 
+async def _assignment_maintenance_loop() -> None:
+    """Two janitorial passes on assigned work, hourly (PRD CASE-BATCHES §8.7).
+
+    **expire_stale_assignments had no caller.** It was written with a clear
+    rationale — "an exclusive assignment with no timeout is a queue that wedges
+    the moment somebody goes on holiday" — and then nothing ever ran it, so
+    exclusive assignments have never actually expired in production. That is
+    fixed here rather than in its own change because it is the same pass: both
+    are "assigned work that stopped moving".
+
+    **The stall sweep ships LOG-ONLY.** It finds relay and solo points whose
+    assignee could act and has not, and by default it records what it would send
+    without sending it (``ASCLEPIUS_RELAY_NUDGE_ENABLED``). This is the only place
+    the product messages a physician on a timer with no human deciding to, and
+    volunteers with clinics to run deserve an observation window before an
+    automated chase — turning it on is then a config change, not a deploy.
+
+    Never raises out: a janitorial pass must not be able to take the app down.
+    """
+    from asclepius.store import get_store
+    from asclepius import route_notify as asc_route_notify
+
+    while True:
+        try:
+            store = get_store()
+            expired = store.expire_stale_assignments()
+            if expired:
+                print(f"[assignment-maintenance] expired {expired} stale assignment(s)")
+            asc_route_notify.sweep_stalled_points(store)
+        except Exception as e:
+            print(f"[assignment-maintenance] error: {e}")
+        await asyncio.sleep(int(os.getenv("ASCLEPIUS_ASSIGNMENT_SWEEP_SECONDS", "3600")))
+
+
 async def _preop_outreach_loop() -> None:
     while True:
         try:
@@ -6454,6 +6488,7 @@ async def startup_team_scheduler():
     app.state.postop_lost_contact_task = asyncio.create_task(_postop_lost_contact_watcher_loop())
     app.state.postop_nightly_task = asyncio.create_task(_postop_nightly_retier_loop())
     app.state.task_notification_task = asyncio.create_task(_task_notification_loop())
+    app.state.assignment_maintenance_task = asyncio.create_task(_assignment_maintenance_loop())
     # The verification agent drains its own durable queue. Same in-process
     # pattern as the notification loop above: this repo has no scheduler, and
     # this is not the change that introduces one. Guarded so a failure here can

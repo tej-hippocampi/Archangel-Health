@@ -225,3 +225,39 @@ def test_the_handoff_is_visually_separated_from_the_case():
     """A physician must never be unsure which words are the chart and which are a
     colleague's read of it."""
     assert ".asc-handoff" in CSS and "border-left" in CSS
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# §8.3 / §8.7 — relay send and the chain, in the admin client
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_relay_is_offered_only_for_one_whole_trajectory():
+    """A relay is defined over a walk. Half a chart split between five doctors is
+    neither a solo walk nor a handoff chain, and the server refuses it anyway."""
+    assert "wholeWalk" in BATCHES
+    assert "chosen.length === chosenWalks[walkKeys[0]]" in BATCHES
+    assert "Send as relay" in BATCHES
+
+
+def test_the_relay_seed_is_held_so_preview_equals_commit():
+    """Reshuffling picks a NEW seed deliberately; committing must reuse the one
+    that produced the mapping on screen."""
+    assert "view.relaySeed" in BATCHES
+    assert "seed: view.relaySeed" in BATCHES
+    assert "view.relaySeed = Math.floor" in BATCHES
+
+
+def test_the_chain_marks_only_the_waiting_point_and_flags_a_late_one():
+    assert "'waiting'" in BATCHES and "is-late" in BATCHES
+    assert "waiting_hours || 0) >= 24" in BATCHES
+
+
+def test_the_late_marker_is_not_colour_alone():
+    """The one cell on the screen that has to be found without reading."""
+    late = CSS[CSS.index(".asc-chain-cell.is-late"):][:260]
+    assert "border-width" in late and "font-weight" in late
+
+
+def test_the_chain_loads_for_a_walk_that_is_already_out():
+    """A stalled walk should be visible on the screen an admin is already looking
+    at, not only to somebody who thinks to go looking for it."""
+    assert "loadChain" in BATCHES and "'/admin/batches/relay/'" in BATCHES

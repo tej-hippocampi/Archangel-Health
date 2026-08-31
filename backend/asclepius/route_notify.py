@@ -351,3 +351,156 @@ def notify_relay_unlock(store, *, task) -> bool:
     except Exception as exc:
         log.info("route_notify: relay unlock ping failed: %s", exc)
         return False
+
+
+# ═══ §8.7 — the stall sweep ══════════════════════════════════════════════════
+#: Whether the 24-hour nudge actually SENDS. Ships OFF.
+#:
+#: This is the only thing in the product that messages a physician on a timer
+#: with nobody deciding to. Contributors are volunteers with clinics to run, and
+#: the first automated chase somebody receives should not also be the first time
+#: anyone saw how many the sweep would send. So it computes the list, records it,
+#: and logs what it WOULD deliver until an operator has watched it for a while;
+#: turning it on is a config change, not a deploy.
+#:
+#: The sweep still runs when this is off, and still marks nothing as nudged —
+#: so flipping it on does not fire a backlog of chases at everybody who was
+#: stalled during the observation window.
+def nudges_enabled() -> bool:
+    import os
+    return (os.getenv("ASCLEPIUS_RELAY_NUDGE_ENABLED", "0").strip().lower()
+            in ("1", "true", "yes", "on"))
+
+
+def stall_nudge_hours() -> int:
+    import os
+    try:
+        return max(1, int(os.getenv("ASCLEPIUS_RELAY_NUDGE_HOURS", "24")))
+    except (TypeError, ValueError):
+        return 24
+
+
+def compose_stall_nudge(*, doctor, position, n_points, specialty, waiting_hours, mode):
+    """One nudge, and it reads as a colleague checking in rather than a system
+    chasing a ticket — because that is what it is, and because a volunteer who
+    feels chased stops being a volunteer.
+
+    It says what is waiting and offers the way out. It does NOT say "urgent", does
+    not count down, and never fires twice: recurring nudges to unpaid specialists
+    are how a channel gets muted, and a muted physician is unreachable for the
+    thing that actually matters next time.
+    """
+    waited = (f"about {int(round(waiting_hours))} hours"
+              if isinstance(waiting_hours, (int, float)) else "a little while")
+    lines = [f"Still with you, Dr. {_last_name(doctor)}",
+             ""]
+    if mode == "relay":
+        lines += [
+            f"The {specialty} relay is waiting on point {position} of {n_points}, "
+            f"which has been yours for {waited}. The physicians after you can't "
+            f"start until it's in.",
+        ]
+    else:
+        lines += [
+            f"Decision point {position} of {n_points} on your {specialty} chart "
+            f"walk has been open for {waited}.",
+        ]
+    lines += [
+        "",
+        "No rush if you're mid-clinic — this is the only reminder you'll get. If "
+        "you'd rather hand it back, reply here and we'll pass it on.",
+        "",
+        "— Archangel",
+    ]
+    return "\n".join(lines)
+
+
+def sweep_stalled_points(store, *, now_iso=None) -> Dict[str, Any]:
+    """Find stalled points and nudge their assignees. Never raises.
+
+    Returns what it found and what it did, distinguishing the two: ``would_notify``
+    is the list it built, ``sent`` is what actually went out. While the flag is off
+    those numbers differ by design, and the log line says so — a sweep that
+    reported "notified 4" while sending nothing would be the exact dishonesty this
+    staged rollout exists to avoid.
+    """
+    report: Dict[str, Any] = {"stalled": 0, "would_notify": [], "sent": 0,
+                              "enabled": nudges_enabled(), "errors": []}
+    try:
+        rows = store.stalled_trajectory_points(
+            older_than_hours=stall_nudge_hours(), now_iso=now_iso)
+    except Exception as exc:
+        log.info("route_notify: stall sweep query failed: %s", exc)
+        report["errors"].append(f"query:{exc}")
+        return report
+
+    report["stalled"] = len(rows)
+    if not rows:
+        return report
+
+    cstore = None
+    if report["enabled"]:
+        try:
+            from community.store import get_community_store
+            cstore = get_community_store()
+        except Exception as exc:               # pragma: no cover
+            report["errors"].append(f"community_unavailable:{exc}")
+            report["enabled"] = False
+
+    for row in rows:
+        try:
+            points = store.trajectory_points(row.get("trajectory_id"))
+            doctor = store.get_user_by_id(row.get("user_id")) or {}
+            body = compose_stall_nudge(
+                doctor=doctor, position=int(row.get("sequence_index") or 0) + 1,
+                n_points=len(points) or 1,
+                specialty=str(row.get("specialty") or "clinical"),
+                waiting_hours=row.get("waiting_hours"),
+                mode=str(row.get("walk_mode") or "solo"))
+            report["would_notify"].append({
+                "task_id": row.get("task_id"), "user_id": row.get("user_id"),
+                "trajectory_id": row.get("trajectory_id"),
+                "sequence_index": row.get("sequence_index"),
+                "waiting_hours": row.get("waiting_hours"),
+            })
+            if not report["enabled"]:
+                continue
+            if _run_coro(_dm_one(cstore, doctor_id=row["user_id"], body=body)):
+                # Marked ONLY on a real send, so the observation window does not
+                # silently consume everybody's one nudge.
+                store.mark_assignment_nudged(row["assignment_id"], now_iso=now_iso)
+                report["sent"] += 1
+        except Exception as exc:
+            log.info("route_notify: nudge for %s failed: %s", row.get("task_id"), exc)
+            report["errors"].append(f"nudge:{row.get('task_id')}:{exc}")
+
+    if report["would_notify"]:
+        log.info("relay stall sweep: %d stalled, %d would be nudged, %d sent "
+                 "(nudges %s) — %s", report["stalled"], len(report["would_notify"]),
+                 report["sent"], "ON" if report["enabled"] else "OFF (log only)",
+                 [w["task_id"] for w in report["would_notify"]])
+    return report
+
+
+def notify_reassigned(store, *, task, doctor) -> Dict[str, Any]:
+    """Tell the replacement the point is theirs now. Never raises.
+
+    Deliberately does NOT say it was taken from somebody. The previous holder had
+    a clinic, or a bad week, and the new physician does not need a colleague's
+    lapse framed for them before they read a chart.
+    """
+    report = {"dms": 0, "errors": []}
+    try:
+        from community.store import get_community_store
+        cstore = get_community_store()
+        points = store.trajectory_points(task.get("trajectory_id"))
+        idx = int(task.get("sequence_index") or 0)
+        body = compose_relay_unlock(
+            doctor=doctor, position=idx + 1, n_points=len(points) or 1,
+            specialty=str(task.get("specialty") or "clinical"))
+        if _run_coro(_dm_one(cstore, doctor_id=doctor["id"], body=body)):
+            report["dms"] = 1
+    except Exception as exc:
+        log.info("route_notify: reassign DM failed: %s", exc)
+        report["errors"].append(str(exc))
+    return report

@@ -81,3 +81,39 @@
 }
 .asc-case-panel ul { margin: 0; padding-left: 18px; }
 .asc-case-panel li { font-size: var(--t-sm); line-height: 1.5; }
+
+/* ═══ Case Batches §8.7 — the chain ═════════════════════════════════════════
+   #0 ✓ · #1 ✓ · #2 ● waiting 31h · #3 –
+   Wraps rather than scrolls: a 13-point walk on a laptop should be readable in
+   one glance, and a horizontal scrollbar hides the very point that is stuck. */
+.asc-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 10px;
+  align-items: center;
+}
+.asc-chain-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--asc-line);
+  border-radius: 999px;
+  font-size: var(--t-sm);
+}
+/* Past 24h the stuck point stops being one chip among thirteen. Border and
+   weight, not colour alone — the operator may be colour-blind and this is the
+   one cell on the screen that needs to be found without reading. */
+.asc-chain-cell.is-late {
+  border-color: var(--asc-warn);
+  border-width: 2px;
+  font-weight: 600;
+}
+.asc-chain-mark { font-weight: 600; }
+.asc-send-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-sm);
+}

@@ -252,6 +252,40 @@ _PRD_R_PRIORITY_ORDER = (
     f"ORDER BY {_PRD_ASSIGN_MINE} DESC, {_PRD_R_LABEL_COUNT} DESC, t.created_at ASC"
 )
 
+def _naive_utc(value: Any) -> Optional[datetime]:
+    """Parse a stored timestamp to a NAIVE UTC datetime, or None.
+
+    ``_utcnow_iso`` writes naive UTC with no suffix ("2026-08-31T19:31:21"), and
+    every stored timestamp in this database follows it. A caller that hands in a
+    "…Z" form is still doing the right thing semantically, so it is accepted and
+    flattened rather than rejected — but the two must never meet unflattened.
+
+    They did, briefly, and the failure was instructive: mixing an aware value with
+    a naive one raises on subtraction (loud, caught immediately), but comparing
+    them AS STRINGS does not — "…:21Z" sorts after "…:21", so a cutoff carrying a
+    Z would have quietly excluded every genuinely stalled row and the sweep would
+    have reported nothing forever, in production, with no error anywhere.
+    """
+    try:
+        dt = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt
+
+
+def _hours_between(a_iso: str, b_iso: str) -> Optional[float]:
+    """Whole-ish hours from ``a`` to ``b``, or None if either is unreadable.
+
+    None rather than 0 on a bad timestamp: a stall view that silently reports
+    "waiting 0h" for a row whose clock could not be read is worse than one that
+    says it does not know, because 0h reads as "just started" and hides it.
+    """
+    a, b = _naive_utc(a_iso), _naive_utc(b_iso)
+    if a is None or b is None:
+        return None
+    return round((b - a).total_seconds() / 3600.0, 1)
+
+
 # ═══ PRD CASE-BATCHES §1 — the distribution gate ═════════════════════════════
 # An 'assigned_only' task is servable ONLY to someone it was actually routed to.
 #
@@ -2248,6 +2282,15 @@ class AsclepiusStore:
                 )
                 """
             )
+            # §8.7 — when this assignee was nudged about this point. NULL = never.
+            #
+            # On the ASSIGNMENT, not the task: "one nudge, not recurring" is a fact
+            # about a person and a point together. Put it on the task and a
+            # reassigned point could never nudge its new owner, because the task
+            # would remember being nudged about somebody else.
+            _acols = {r[1] for r in conn.execute("PRAGMA table_info(assignments)").fetchall()}
+            if "nudged_at" not in _acols:
+                conn.execute("ALTER TABLE assignments ADD COLUMN nudged_at TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_assign_user "
                          "ON assignments(user_id, status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_assign_task "
@@ -4819,6 +4862,194 @@ class AsclepiusStore:
                 tuple(params + [int(limit)]),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def point_was_reassigned(self, task_id: str) -> bool:
+        """Did this point change hands before it was answered? (§8.7 provenance.)
+
+        Read from the audit log rather than kept as a column, because the log is
+        already the record of what an admin did and a second copy could disagree
+        with it. A relay walk with a substitution in the middle is a handoff chain
+        a buyer should be able to see — the physician at point 5 read point 4's
+        commitment, but point 4 was written by the person who took over, not the
+        one originally rostered.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM events WHERE event_type = 'relay_point_reassigned' "
+                "AND payload_json LIKE ? LIMIT 1",
+                (f'%"task_id": "{task_id}"%',)).fetchone()
+        return row is not None
+
+    def trajectory_chain(self, trajectory_id: str, *, now_iso: Optional[str] = None
+                         ) -> Dict[str, Any]:
+        """The walk as a chain an operator can read: who has it, who is waiting.
+
+        ``#0 ✓ · #1 ✓ · #2 ● waiting 31h · #3 –`` — one row per point with its
+        state, its holder and how long it has been sitting.
+
+        Built for SOLO walks as much as relay (PRD §9.3). At ``max_labels=1``, once
+        a physician submits point 0 nobody else can ever satisfy the sequence gate
+        for the rest of the walk — so if that physician stops, the remaining points
+        are dead stock, and until this view existed they were dead stock that was
+        invisible as a problem anywhere in admin. That is the same operational
+        failure as a stalled relay and it earns the same surface.
+        """
+        now = now_iso or _utcnow_iso()
+        points = self.trajectory_points(trajectory_id)
+        if not points:
+            return {"trajectory_id": trajectory_id, "points": [], "n_points": 0}
+        ids = [p["task_id"] for p in points]
+        marks = ",".join("?" for _ in ids)
+        with self._conn() as conn:
+            subs = {}
+            for r in conn.execute(
+                    f"SELECT task_id, evaluator_id, MIN(created_at) AS at "
+                    f"FROM submissions WHERE task_id IN ({marks}) GROUP BY task_id",
+                    tuple(ids)):
+                subs[r["task_id"]] = dict(r)
+            holders: Dict[str, List[Dict[str, Any]]] = {}
+            for r in conn.execute(
+                    f"SELECT a.task_id, a.assignment_id, a.user_id, a.assigned_at, "
+                    f"a.nudged_at, u.email "
+                    f"FROM assignments a LEFT JOIN users u ON u.id = a.user_id "
+                    f"WHERE a.task_id IN ({marks}) AND a.role = 'label' "
+                    f"AND a.status IN ('offered','claimed')", tuple(ids)):
+                holders.setdefault(r["task_id"], []).append(dict(r))
+
+        rows, reached_open = [], False
+        for pt in points:
+            tid = pt["task_id"]
+            sub, held = subs.get(tid), (holders.get(tid) or [])
+            retired = _asc_trajectory.is_retired(pt)
+            if retired:
+                state = "retired"
+            elif sub:
+                state = "done"
+            elif not reached_open:
+                # The first unanswered, non-retired point is the one the chain is
+                # actually waiting on. Everything after it is simply "later" —
+                # calling those "waiting" too would report a 13-point walk as
+                # eleven simultaneous problems.
+                state, reached_open = "waiting", True
+            else:
+                state = "later"
+            since = None
+            if state == "waiting" and held:
+                prior = [subs[p["task_id"]]["at"] for p in points
+                         if p["task_id"] in subs
+                         and (p.get("sequence_index") or 0) < (pt.get("sequence_index") or 0)]
+                since = max([held[0]["assigned_at"]] + prior) if prior else held[0]["assigned_at"]
+            rows.append({
+                "task_id": tid,
+                "sequence_index": pt.get("sequence_index"),
+                "state": state,
+                "walk_mode": _asc_trajectory.walk_mode(pt),
+                "assigned_to": [h.get("email") for h in held],
+                "assignment_id": held[0]["assignment_id"] if held else None,
+                "user_id": held[0]["user_id"] if held else None,
+                "nudged_at": held[0].get("nudged_at") if held else None,
+                "answered_by": (sub or {}).get("evaluator_id"),
+                "waiting_hours": _hours_between(since, now) if since else None,
+            })
+        waiting = next((r for r in rows if r["state"] == "waiting"), None)
+        return {
+            "trajectory_id": trajectory_id,
+            "n_points": len(rows),
+            "n_done": sum(1 for r in rows if r["state"] == "done"),
+            "walk_mode": rows[0]["walk_mode"] if rows else None,
+            "waiting_on": waiting,
+            "stalled": bool(waiting and (waiting.get("waiting_hours") or 0) >= 24),
+            "points": rows,
+        }
+
+    def stalled_trajectory_points(
+        self, *, older_than_hours: int = 24, now_iso: Optional[str] = None,
+        include_nudged: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Points that are SERVEABLE by their assignee and still unanswered (§8.7).
+
+        "Serveable" is the load-bearing word, and it is why this is not simply
+        "assigned and old". A relay doctor holding point 7 of 13 is not stalled
+        while the chart is at point 3 — nothing is being asked of them yet, and
+        nudging them would be nagging somebody for work they cannot do. So a point
+        counts only when every earlier point in its walk is already answered, which
+        is the same condition the gate uses to unlock it.
+
+        The clock therefore runs from the moment the point became AVAILABLE, not
+        from when it was assigned. On a relay that is the predecessor's submission;
+        on the first point (and on a solo walk) it is the assignment itself. A
+        clock started at assignment would report a 13-point relay as thirteen
+        simultaneous stalls the day after it was sent.
+
+        Solo walks are included deliberately (PRD §9.3): at max_labels=1, once a
+        physician takes point 0 nobody else can ever satisfy the gate for the rest
+        of the walk, so an abandoned solo walk is dead stock that is invisible as a
+        problem anywhere in admin. It is the same operational failure as a stalled
+        relay and it gets the same surface.
+        """
+        now = now_iso or _utcnow_iso()
+        # Built in the SAME shape the column stores, because the comparison below
+        # is a string comparison and a mismatched suffix fails silently rather
+        # than loudly. See ``_naive_utc``.
+        now_dt = _naive_utc(now) or datetime.utcnow()
+        cutoff_iso = (now_dt - timedelta(hours=max(0, int(older_than_hours)))
+                      ).replace(microsecond=0).isoformat()
+        retired = ",".join(f"'{r}'" for r in _asc_trajectory.RETIRED_STATUSES)
+        nudge_clause = "" if include_nudged else " AND a.nudged_at IS NULL"
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT t.task_id, t.trajectory_id, t.sequence_index, t.specialty,
+                       COALESCE(t.walk_mode, 'solo') AS walk_mode,
+                       a.assignment_id, a.user_id, a.assigned_at, a.nudged_at,
+                       -- When this point became this person's to do: the later of
+                       -- their assignment and the predecessor's submission.
+                       MAX(a.assigned_at, COALESCE((
+                           SELECT MAX(s2.created_at) FROM submissions s2
+                             JOIN tasks p2 ON p2.task_id = s2.task_id
+                            WHERE p2.trajectory_id = t.trajectory_id
+                              AND p2.sequence_index < t.sequence_index
+                       ), a.assigned_at)) AS available_since
+                  FROM tasks t
+                  JOIN assignments a
+                    ON a.task_id = t.task_id AND a.role = 'label'
+                   AND a.status IN ('offered','claimed')
+                 WHERE t.trajectory_id IS NOT NULL
+                   AND t.sequence_index IS NOT NULL
+                   AND COALESCE(t.status, '') NOT IN ({retired})
+                   -- nobody has answered THIS point
+                   AND NOT EXISTS (
+                       SELECT 1 FROM submissions s WHERE s.task_id = t.task_id)
+                   -- and every earlier point in the walk IS answered, so the
+                   -- assignee can actually act
+                   AND NOT EXISTS (
+                       SELECT 1 FROM tasks p
+                        WHERE p.trajectory_id = t.trajectory_id
+                          AND p.sequence_index < t.sequence_index
+                          AND COALESCE(p.status, '') NOT IN ({retired})
+                          AND NOT EXISTS (
+                              SELECT 1 FROM submissions s3 WHERE s3.task_id = p.task_id)
+                   )
+                   {nudge_clause}
+                 ORDER BY t.trajectory_id ASC, t.sequence_index ASC
+                """,
+            ).fetchall()
+        out = []
+        for r in rows:
+            rec = dict(r)
+            since_dt = _naive_utc(rec.get("available_since"))
+            since = rec.get("available_since")
+            if since_dt is None or since_dt.replace(microsecond=0).isoformat() > cutoff_iso:
+                continue                      # unreadable, or not waiting long enough
+            rec["waiting_hours"] = _hours_between(since, now) if since else None
+            out.append(rec)
+        return out
+
+    def mark_assignment_nudged(self, assignment_id: str, *, now_iso: Optional[str] = None) -> None:
+        """Record that this assignee has been nudged about this point. Once."""
+        with self._conn() as conn:
+            conn.execute("UPDATE assignments SET nudged_at = ? WHERE assignment_id = ?",
+                         (now_iso or _utcnow_iso(), assignment_id))
 
     def set_walk_mode(self, task_ids: Sequence[str], mode: str) -> int:
         """Stamp the distribution mode on every point of a walk (§8.2).

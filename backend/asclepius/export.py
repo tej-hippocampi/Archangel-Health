@@ -1595,7 +1595,14 @@ def build_export(
         # sold at a trajectory price. Same seam as ``review``/``supervision``:
         # after schema validation, before the leak gate, so the gate scans it.
         if tid not in _tasks_by_tid:
-            _tasks_by_tid[tid] = store.get_task(tid) if tid else None
+            _t = store.get_task(tid) if tid else None
+            # §8.7 provenance, resolved once per task rather than per record: a
+            # point that changed hands mid-walk puts a substitution in the handoff
+            # chain, which is a fact about the data a buyer is entitled to.
+            if _t and _t.get("trajectory_id"):
+                _t = dict(_t)
+                _t["_reassigned"] = store.point_was_reassigned(tid)
+            _tasks_by_tid[tid] = _t
         if sid not in _subs_by_sid:
             _subs_by_sid[sid] = store.get_submission(sid) if sid else None
         _traj = asc_packaging.trajectory_block(_tasks_by_tid[tid], _subs_by_sid[sid])
