@@ -21,6 +21,13 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 # trees are required at runtime even though only backend/ is the entrypoint.
 COPY backend/ backend/
 COPY frontend/ frontend/
+# The data licensing agreement is SOURCE, not documentation: asclepius/dla.py
+# reads it at request time and renders it into the portal for signature. Left
+# out of the image, every health system's agreement page 503s and no upload
+# door ever opens. `.dockerignore` excludes *.md wholesale, so it also carries
+# an exception for this directory — both are needed, and test_hs_onboarding.py
+# asserts they stay.
+COPY docs/legal/ docs/legal/
 
 WORKDIR /app/backend
 EXPOSE 8000

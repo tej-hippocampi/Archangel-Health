@@ -8244,7 +8244,12 @@ class AsclepiusStore:
                 "password_hash, code_hash, attempts, expires_at, consumed_at, client_ip, "
                 "created_at, needs_temp_password) "
                 "VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, ?, ?)",
-                (signup_id, addr, (full_name or "").strip(), " ".join((organization or "").split()),
+                # BOTH collapsed, not just stripped. A newline inside a name
+                # reaches an email SUBJECT line ("{name} added you to..."), and
+                # a header that contains one is a header-injection question
+                # nobody should have to think about at the send site.
+                (signup_id, addr, " ".join((full_name or "").split()),
+                 " ".join((organization or "").split()),
                  hash_password(password), hash_password(code), expires, client_ip, _utcnow_iso(),
                  1 if needs_temp_password else 0),
             )

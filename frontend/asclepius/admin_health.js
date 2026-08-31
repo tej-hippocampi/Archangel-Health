@@ -75,14 +75,19 @@
   }
 
   // `DLA ✓ v1 · signed by {name} · {date}` (PRD §5.3), or the honest absence.
+  // The signer and the date are RENDERED, not hidden in a tooltip: who signed
+  // is the thing an operator scanning this column actually wants, and a
+  // title attribute is invisible to anyone who is not holding a mouse.
   function dlaChip(h, fmtDate, agreement) {
     if (!agreement) {
       return h('span', { class: 'asc-dim asc-mono', style: 'font-size:11px' }, 'no DLA');
     }
-    return h('span', { class: 'asc-badge asc-badge-green', title:
-      'Signed by ' + (agreement.signed_by || '') + ' on ' +
-      (agreement.signed_at ? fmtDate(agreement.signed_at) : '') },
-      'DLA ' + (agreement.doc_version || ''));
+    return h('div', {},
+      h('span', { class: 'asc-badge asc-badge-green' },
+        'DLA \u2713 ' + (agreement.doc_version || '')),
+      h('div', { class: 'asc-dim', style: 'font-size:11px; margin-top:2px' },
+        (agreement.signed_by || 'signed') +
+        (agreement.signed_at ? ' \u00b7 ' + fmtDate(agreement.signed_at) : '')));
   }
 
   // Operator-facing labels for the intake answers. The questions themselves are

@@ -864,3 +864,79 @@ def test_the_two_copies_of_the_answer_wording_stay_in_step():
         if key == "scale_specialties":
             continue          # free list, rendered as-is on both sides
         assert _HS_ANSWER_WORDS.get(key, {}).get(value) == label, compound
+
+
+def test_the_agreement_ships_with_the_application():
+    """The document is SOURCE, read at request time, not documentation about the
+    feature. Two files decide whether it reaches a container, and both of them
+    are easy to change without thinking about this: the Dockerfile copies
+    `backend/` and `frontend/` and would otherwise leave it behind, and
+    `.dockerignore` excludes `*.md` wholesale. Get either wrong and every health
+    system's agreement page 503s, no signature is ever taken, and no upload door
+    opens — on a deploy, with nothing failing in CI to say so.
+    """
+    root = Path(__file__).resolve().parents[2]
+    dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
+    assert "COPY docs/legal/" in dockerfile
+
+    ignore = (root / ".dockerignore").read_text(encoding="utf-8")
+    lines = [ln.strip() for ln in ignore.splitlines()
+             if ln.strip() and not ln.strip().startswith("#")]
+    assert "!docs/legal/*.md" in lines
+    # Last match wins, so the exception has to come AFTER the blanket rule.
+    assert lines.index("!docs/legal/*.md") > lines.index("*.md")
+
+
+def test_the_current_agreement_version_exists_and_renders():
+    """A CURRENT_VERSION pointing at a file nobody added is a 503 on the one
+    page this whole feature exists to show."""
+    from asclepius import dla as asc_dla
+
+    assert asc_dla.CURRENT_VERSION in asc_dla.available_versions()
+    text, sha = asc_dla.signable(organization="Any Health")
+    assert len(sha) == 64
+    assert "{{" not in text, "an unsubstituted placeholder reached the signer"
+    assert "<!--" not in text, "an editorial comment reached the signer"
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  §7 — what the partner sees of money
+# ════════════════════════════════════════════════════════════════════════════
+def test_the_payouts_tab_says_what_it_is_before_anything_is_in_it():
+    """The empty state has to promise the right thing. A ledger that fills
+    itself is exactly what it must not imply — nothing accrues automatically."""
+    client = _client()
+    org = _signup(client)
+    _rotate(client)
+    body = client.get(f"{API}/hs/payouts").json()
+    assert body["payouts"] == [] and body["invoices"] == []
+    assert body["empty_note"] == (
+        "Compensation for licensed data appears here. Invoicing goes live "
+        "shortly; your agreement's Schedule A governs amounts.")
+
+
+def test_a_draft_invoice_is_never_shown_to_the_partner():
+    """A draft is a number an operator is still deciding about. Showing a
+    hospital's finance contact an amount we have not committed to is a
+    conversation nobody wants to have twice."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    headers = _admin_headers(store)
+    r = client.post(f"{API}/admin/health-systems/{org['hs_id']}/invoices",
+                    json={"period": "2026-Q1", "amount_cents": 125000,
+                          "description": "Nephrology extract"}, headers=headers)
+    invoice_id = r.json()["invoice"]["invoice_id"]
+    assert client.get(f"{API}/hs/payouts").json()["invoices"] == []
+
+    client.post(f"{API}/admin/health-systems/{org['hs_id']}/invoices/{invoice_id}/status",
+                json={"status": "sent"}, headers=headers)
+    shown = client.get(f"{API}/hs/payouts").json()["invoices"]
+    assert len(shown) == 1
+    assert shown[0]["period"] == "2026-Q1"
+    assert shown[0]["status"] == "issued"      # partner words, not ours
+    assert shown[0]["amount_cents"] == 125000
+    # Ours stays ours: no internal id, no author, no processor reference.
+    for ours in ("invoice_id", "created_by", "stripe_invoice_id", "hs_id"):
+        assert ours not in shown[0]

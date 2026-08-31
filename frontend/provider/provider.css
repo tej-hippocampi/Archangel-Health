@@ -426,6 +426,24 @@ body.prv-has-rail .prv-main { padding-left: calc(var(--asc-rail-w, 220px) + 8px)
 .prv-signed-line { margin: 0 0 6px; font-size: 15px; color: var(--ink); }
 .prv-signed .asc-btn { margin-top: 14px; }
 
+/* ─── Invoices ────────────────────────────────────────────── */
+.prv-invoice {
+  display: grid;
+  grid-template-columns: 6rem 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 14px;
+  color: var(--ink);
+}
+.prv-invoice:last-child { border-bottom: 0; }
+.prv-invoice-what { color: var(--asc-muted); }
+.prv-invoice-amount { font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .prv-invoice { grid-template-columns: 1fr auto; row-gap: 4px; }
+}
+
 /* ─── Per-upload integrity (PRD §6) ───────────────────────── */
 .prv-hist-integrity { margin-top: 5px; font-size: 11.5px; color: var(--ink-faint); }
 .prv-mono { font-family: var(--mono); font-size: 11.5px; }

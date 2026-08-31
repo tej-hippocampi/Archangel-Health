@@ -1791,6 +1791,21 @@ _HS_PAYOUT_STATUS = {
     "void": "cancelled",
 }
 
+#: The empty state, verbatim from §7. It says two true things and no more: that
+#: this is where money appears, and that the amounts come from the agreement
+#: they signed rather than from anything on this page. A ledger that fills
+#: itself is exactly what this must not imply, because nothing accrues
+#: automatically and pretending otherwise is a conversation about a number that
+#: does not exist.
+_HS_PAYOUT_EMPTY = (
+    "Compensation for licensed data appears here. Invoicing goes live shortly; "
+    "your agreement's Schedule A governs amounts."
+)
+
+#: Internal invoice status -> the word a partner reads. A draft is OURS and they
+#: should not see it at all, which is why it is filtered rather than renamed.
+_HS_INVOICE_STATUS = {"sent": "issued", "paid": "paid"}
+
 _HS_PAYOUT_NOTE = (
     "Every payment we make to your organization appears here, with what it was "
     "for and when it was sent. Payments are arranged with your contract "
@@ -1814,6 +1829,19 @@ def _hs_payout_view(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _hs_invoice_view(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Named fields only. No created_by, no stripe id, no internal identifier:
+    those are ours, and a partner reading our bookkeeping keys learns nothing."""
+    return {
+        "period": row.get("period") or "",
+        "description": row.get("description") or "",
+        "amount_cents": int(row.get("amount_cents") or 0),
+        "status": _HS_INVOICE_STATUS.get(row.get("status") or "", "issued"),
+        "issued_at": row.get("sent_at"),
+        "paid_at": row.get("paid_at"),
+    }
+
+
 @portal_router.get("/hs/payouts")
 async def hs_payouts(
     portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.PAYOUTS)),
@@ -1829,11 +1857,18 @@ async def hs_payouts(
     store = _store()
     hs_id = portal_user["hs_id"]
     rows = store.list_hs_payouts(hs_id)
+    # DRAFTS ARE FILTERED OUT, not renamed. A draft is a number an operator is
+    # still deciding about, and showing a hospital's finance contact an amount
+    # we have not committed to is a conversation nobody wants to have twice.
+    invoices = [_hs_invoice_view(r) for r in store.list_hs_invoices(hs_id)
+                if (r.get("status") or "") in _HS_INVOICE_STATUS]
     return {
         "currency": "usd",
         "summary": store.hs_payout_summary(hs_id),
         "payouts": [_hs_payout_view(r) for r in rows],
+        "invoices": invoices,
         "how_we_pay": _HS_PAYOUT_NOTE,
+        "empty_note": _HS_PAYOUT_EMPTY,
     }
 
 
@@ -2165,7 +2200,13 @@ def _hs_member_view(row: Dict[str, Any], *, me: str) -> Dict[str, Any]:
         "username": row.get("username"),
         "email": row.get("email") or "",
         "full_name": row.get("full_name") or "",
-        "added_at": row.get("created_at"),
+        # Named for the column it comes from rather than for what the page calls
+        # it. The indistinguishability sweep allowlists the fields that may
+        # legitimately differ between two partners by NAME, and a synonym for a
+        # clock reading is a field that looks like it carries a signal when it
+        # does not -- which would make that test flaky rather than make this
+        # response safer.
+        "created_at": row.get("created_at"),
         "is_you": (row.get("username") or "") == me,
     }
 

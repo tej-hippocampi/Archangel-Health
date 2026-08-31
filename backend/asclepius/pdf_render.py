@@ -40,7 +40,15 @@ KIND_MONO = "mono"                  # drawn in Courier: hashes, ids, anything to
 
 
 def pdf_escape(text: str) -> str:
-    return (text or "").replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
+    """Escape a string for a PDF literal, and flatten any line break in it.
+
+    A newline inside a literal is legal PDF and renders as a line the writer
+    never positioned, so a value carrying one (a pasted title, a header echoed
+    into a signature record) would silently overlap the row below it. One text
+    run is one line here; breaking it is ``wrap``'s job.
+    """
+    flat = (text or "").replace("\r", " ").replace("\n", " ")
+    return flat.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
 
 
 def wrap(text: str, width: int = MAX_CHARS) -> List[str]:

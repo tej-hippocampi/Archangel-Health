@@ -1486,11 +1486,16 @@
     summaryEl.appendChild(summaryStat("Paid", formatMoney(s.paid_cents)));
     summaryEl.appendChild(summaryStat("Awaiting payment", formatMoney(s.pending_cents)));
 
+    renderInvoices(data.invoices || []);
+
     const rows = data.payouts || [];
     if (!rows.length) {
       tableWrap.hidden = true;
       emptyEl.hidden = false;
-      emptyText.textContent =
+      // The server's own sentence. It says two true things and no more: this is
+      // where money appears, and the amounts come from the agreement they
+      // signed rather than from anything on this page.
+      emptyText.textContent = data.empty_note ||
         "Nothing recorded yet. Every payment we make to your organization will " +
         "appear here.";
       return;
@@ -1518,6 +1523,39 @@
       amount.textContent = formatMoney(p.amount_cents);
       [when, what, period, status, amount].forEach((td) => tr.appendChild(td));
       bodyEl.appendChild(tr);
+    });
+  }
+
+  // What we have BILLED, as distinct from what we have PAID above. Drafts never
+  // reach here — the server filters them — so every row is a number we have
+  // committed to.
+  function renderInvoices(invoices) {
+    const host = document.getElementById("prvInvoices");
+    if (!host) return;
+    clear(host);
+    if (!invoices.length) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    invoices.forEach((inv) => {
+      const row = document.createElement("div");
+      row.className = "prv-invoice";
+      const period = document.createElement("span");
+      period.className = "prv-mono";
+      period.textContent = inv.period;
+      const what = document.createElement("span");
+      what.className = "prv-invoice-what";
+      what.textContent = inv.description || "Data licence";
+      const badge = document.createElement("span");
+      badge.className = "asc-badge " +
+        (inv.status === "paid" ? "asc-badge-green" : "asc-badge-amber");
+      badge.textContent = inv.status;
+      const amount = document.createElement("span");
+      amount.className = "prv-num prv-invoice-amount";
+      amount.textContent = formatMoney(inv.amount_cents);
+      [period, what, badge, amount].forEach((el) => row.appendChild(el));
+      host.appendChild(row);
     });
   }
 
