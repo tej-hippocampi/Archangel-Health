@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import re
 import sys
 import uuid
 import zipfile
@@ -168,9 +169,25 @@ def test_a_password_free_signup_is_mailed_a_temporary_one_and_must_replace_it(ma
     assert "temporary" in body.lower()
     assert "Bookmark this email" in body
 
-    # The temporary password in that email actually signs in, once.
-    _rotate(client)
-    assert client.get(f"{API}/hs/me").json()["must_reset"] is False
+    # The temporary password in that email actually signs in. Read it back out
+    # of the letter rather than out of the database: what matters is that the
+    # credential the recipient can see is the credential that works.
+    temp = re.search(r">([a-z]+-[a-z]+-[a-z]+-[0-9a-f]{6})<", body)
+    assert temp, "the access email does not show a password"
+    fresh = _client()
+    r = fresh.post(f"{API}/hs/login",
+                   json={"username": org["username"], "password": temp.group(1)})
+    assert r.status_code == 200, r.text
+    assert r.json()["must_reset"] is True
+
+    # And it stops working the moment they choose their own — the forced
+    # rotation, which is the whole reason a mailed credential is acceptable.
+    _rotate(fresh)
+    assert fresh.get(f"{API}/hs/me").json()["must_reset"] is False
+    stale = _client()
+    r = stale.post(f"{API}/hs/login",
+                   json={"username": org["username"], "password": temp.group(1)})
+    assert r.status_code == 401
 
 
 def test_a_signup_that_chooses_a_password_is_not_forced_to_rotate(mail):
@@ -781,3 +798,69 @@ def test_the_invoice_table_holds_no_bank_details():
     for forbidden in ("bank_account", "routing_number", "iban", "tax_id",
                       "ssn", "ein"):
         assert forbidden not in cols
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  Two properties the flow rests on, asserted directly
+# ════════════════════════════════════════════════════════════════════════════
+def test_a_lost_pdf_blob_does_not_lose_the_contract(approved):
+    """The ROW is the record. Everything the document prints lives on it, so an
+    asset store that loses a blob is an incident rather than the loss of a
+    contract — and the rebuild has to be byte-identical, or it is a different
+    document wearing the same name."""
+    from asclepius import assets as asc_assets
+    from asclepius import dla as asc_dla
+
+    client, store, org = approved
+    _sign(client, sha=client.get(f"{API}/hs/agreement").json()["doc_sha256"])
+    row = store.latest_signed_agreement(org["hs_id"])
+    original, _mime = asc_assets.load_asset(row["pdf_sha256"])
+
+    rebuilt = asc_dla.pdf_from_row(organization=org["organization"], row=row)
+    assert hashlib.sha256(rebuilt).hexdigest() == row["pdf_sha256"]
+    assert rebuilt == original
+
+    # And the download survives the blob going away.
+    Path(asc_assets._blob_path(row["pdf_sha256"])).unlink()
+    r = client.get(f"{API}/hs/agreement/document")
+    assert r.status_code == 200
+    assert r.content.startswith(b"%PDF-")
+    r = client.get(f"{API}/admin/agreements/{row['agreement_id']}/document",
+                   headers=_admin_headers(store))
+    assert r.status_code == 200
+    # And it says so, rather than passing a rebuild off as the stored artifact.
+    assert r.headers.get("x-agreement-source") == "rebuilt-from-row"
+
+
+def test_an_operator_may_approve_an_organization_that_never_filled_the_form_in():
+    """A partner we already met on a call signs up; the person who had that call
+    approves them without making them answer four questions they answered out
+    loud. The PORTAL cannot take this edge — it only ever submits."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    assert store.get_health_system(org["hs_id"])["onboarding_state"] == "intake"
+    r = _approve(client, store, org["hs_id"])
+    assert r.status_code == 200, r.text
+    assert store.get_health_system(org["hs_id"])["onboarding_state"] == "approved_awaiting_dla"
+
+
+def test_the_two_copies_of_the_answer_wording_stay_in_step():
+    """The partner-facing question list lives in the provider router and the
+    operator-facing labels live in the admin router, duplicated deliberately:
+    one module is provider-reachable and one is not, and importing across that
+    boundary to save eight lines would be the first crack in the separation the
+    isolation suite rests on. This is the cost of that decision, paid here."""
+    from routers.asclepius_admin import _HS_ANSWER_WORDS
+    from routers.asclepius_provider import _HS_ANSWER_LABELS
+
+    for key, options in _HS_ANSWER_WORDS.items():
+        for value, words in options.items():
+            assert _HS_ANSWER_LABELS.get(f"{key}:{value}") == words, (key, value)
+    # And nothing the partner can choose is missing from the operator's copy.
+    for compound, label in _HS_ANSWER_LABELS.items():
+        key, _, value = compound.partition(":")
+        if key == "scale_specialties":
+            continue          # free list, rendered as-is on both sides
+        assert _HS_ANSWER_WORDS.get(key, {}).get(value) == label, compound

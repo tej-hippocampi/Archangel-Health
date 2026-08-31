@@ -86,7 +86,13 @@ NEXT_STEP: Dict[str, str] = {
 #: organization that has signed cannot be walked back into `intake` by a stray
 #: call, and re-approving an active partner is not a transition, it is a bug.
 _TRANSITIONS: Dict[str, FrozenSet[str]] = {
-    INTAKE: frozenset({SUBMITTED, DECLINED}),
+    # AWAITING_DLA from INTAKE is deliberate and is an OPERATOR-only edge: a
+    # partner we already met on a call signs up, and the person who had that
+    # call approves them without making them answer four questions they have
+    # already answered out loud. The portal cannot take this edge -- it only
+    # ever submits -- so the shortcut cannot be taken by the organization
+    # itself.
+    INTAKE: frozenset({SUBMITTED, AWAITING_DLA, DECLINED}),
     SUBMITTED: frozenset({AWAITING_DLA, DECLINED}),
     AWAITING_DLA: frozenset({ACTIVE, DECLINED}),
     ACTIVE: frozenset({DECLINED}),

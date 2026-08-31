@@ -1038,6 +1038,16 @@ def _hs_upload_view(up: Dict[str, Any]) -> Dict[str, Any]:
         "total_bytes": up.get("size_bytes") or 0,
         "status": status,
         "detail": detail,
+        # ─ Integrity, shown to the partner (PRD §6) ─
+        # The digest WE computed over the bytes WE stored, not the one the
+        # client declared. Handing back their own number would prove nothing;
+        # this is the receipt that says the file crossed the wire intact, and it
+        # is the same value the chunked handshake verified before the row was
+        # created. Empty for an upload that never got far enough to have one.
+        "sha256": up.get("sha256") or "",
+        # When it stopped being in flight. The same timestamp the status came
+        # from, named for what a partner actually wants to know.
+        "verified_at": up.get("updated_at") if up.get("sha256") else None,
     }
 
 
@@ -1934,13 +1944,18 @@ _HS_SPECIALTIES: List[str] = [
 #: Answer value -> the words an operator reads on the admin card and in the
 #: alert email. Kept beside the questions so a new option cannot be added
 #: without deciding what it is called in the place a decision gets made.
-_HS_ANSWER_LABELS: Dict[str, str] = {}
-for _q in _HS_APPLICATION_QUESTIONS:
-    for _opt in (_q.get("options") or []):
-        _HS_ANSWER_LABELS[f"{_q['key']}:{_opt['value']}"] = _opt["label"]
-    for _f in (_q.get("fields") or []):
-        for _opt in (_f.get("options") or []):
-            _HS_ANSWER_LABELS[f"{_f['key']}:{_opt['value']}"] = _opt["label"]
+def _build_answer_labels() -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for question in _HS_APPLICATION_QUESTIONS:
+        for option in (question.get("options") or []):
+            out[f"{question['key']}:{option['value']}"] = option["label"]
+        for field in (question.get("fields") or []):
+            for option in (field.get("options") or []):
+                out[f"{field['key']}:{option['value']}"] = option["label"]
+    return out
+
+
+_HS_ANSWER_LABELS: Dict[str, str] = _build_answer_labels()
 
 #: Cap on how many teammates one organization may add through the portal. Not a
 #: licence limit -- it is the blast radius of a compromised portal session, which
@@ -2491,10 +2506,18 @@ async def hs_agreement_document(
         from asclepius import assets as asc_assets
         data, _mime = asc_assets.load_asset(str(row["pdf_sha256"]), verify=True)
     except Exception:
-        log.exception("agreement pdf missing from the asset store")
-        raise HTTPException(status_code=503,
-                            detail="Your signed copy could not be fetched just "
-                                   "now. Please try again in a moment.")
+        # The blob is gone or corrupt. The ROW is the record and the document is
+        # reproducible from it, so rebuild rather than telling a partner their
+        # own contract is unavailable. Logged loudly because a missing blob is
+        # an asset-store incident even when the reader never notices.
+        log.exception("agreement pdf missing from the asset store; rebuilding")
+        try:
+            data = asc_dla.pdf_from_row(organization=hs["name"], row=row)
+        except Exception:
+            log.exception("agreement pdf could not be rebuilt either")
+            raise HTTPException(status_code=503,
+                                detail="Your signed copy could not be fetched "
+                                       "just now. Please try again in a moment.")
     filename = asc_dla.pdf_filename(organization=hs["name"],
                                     version=str(row.get("doc_version") or ""))
     return _RawResponse(

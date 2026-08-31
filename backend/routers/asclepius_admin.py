@@ -2128,6 +2128,7 @@ async def list_pending_health_systems(
         hs_id = account["hs_id"]
         collisions = store.health_systems_named_like(
             account.get("hs_name") or "", exclude_hs_id=hs_id)
+        hs = store.get_health_system(hs_id) or {}
         out.append({
             "hs_id": hs_id,
             "organization": account.get("hs_name"),
@@ -2136,6 +2137,20 @@ async def list_pending_health_systems(
             "email": account.get("email"),
             "created_at": account.get("created_at"),
             "signup_source": account.get("signup_source"),
+            # Which decision this row actually needs. An organization carrying
+            # an onboarding state is decided at the ORGANIZATION level -- one
+            # Approve for everyone on it, then a signature -- while a row whose
+            # state is NULL predates the state machine and still takes the
+            # per-account decision it was built for. The queue renders whichever
+            # applies rather than offering both and letting the operator guess.
+            "onboarding_state": hs_states.state_of(hs),
+            "org_level": hs.get("onboarding_state") is not None,
+            "applications": [_hs_application_admin_view(r)
+                             for r in store.list_hs_applications(hs_id)],
+            "members": [{"username": u["username"], "email": u.get("email"),
+                         "full_name": u.get("full_name")}
+                        for u in store.list_hs_portal_users(hs_id)
+                        if u.get("active")],
             "intake": [
                 {"submitted_at": r["submitted_at"], "answers": r["answers"]}
                 for r in store.list_hs_intake(hs_id)
@@ -2560,20 +2575,33 @@ async def download_signed_agreement(
     if not row or not row.get("pdf_sha256"):
         raise HTTPException(status_code=404, detail="No such signed agreement.")
     hs = store.get_health_system(row["hs_id"]) or {"name": "licensor"}
+    rebuilt = False
     try:
         from asclepius import assets as asc_assets
         data, _mime = asc_assets.load_asset(str(row["pdf_sha256"]), verify=True)
-    except Exception as exc:
-        log.exception("signed agreement pdf could not be read")
-        raise HTTPException(
-            status_code=503,
-            detail=f"The stored PDF for this agreement could not be read ({exc}). "
-                   "The signature row is intact; the blob is not.")
+    except Exception:
+        # Same fallback the partner's own download takes, and for the same
+        # reason: the row is the record and the document is reproducible from
+        # it. The header below says which one this is, because handing counsel a
+        # rebuild while letting them believe it is the stored artifact is the
+        # one thing worse than the 503 this used to raise.
+        log.exception("signed agreement blob is unreadable; rebuilding from the row")
+        try:
+            data = asc_dla.pdf_from_row(organization=hs.get("name") or "licensor",
+                                        row=row)
+            rebuilt = True
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"The stored PDF could not be read and could not be "
+                       f"rebuilt ({exc}). The signature row is intact; the "
+                       "blob is not.")
     filename = asc_dla.pdf_filename(organization=hs.get("name") or "licensor",
                                     version=str(row.get("doc_version") or ""))
-    return _RawResponse(content=data, media_type="application/pdf",
-                        headers={"content-disposition":
-                                 f'attachment; filename="{filename}"'})
+    headers = {"content-disposition": f'attachment; filename="{filename}"'}
+    if rebuilt:
+        headers["x-agreement-source"] = "rebuilt-from-row"
+    return _RawResponse(content=data, media_type="application/pdf", headers=headers)
 
 
 # ─── Invoices (architecture now, Stripe later) ───────────────────────────────

@@ -250,6 +250,26 @@ def render_pdf(*, organization: str, version: str, signature: Dict[str, Any]) ->
     return pdf_render.render_text_pdf(rows, banner=banner)
 
 
+def pdf_from_row(*, organization: str, row: Dict[str, Any]) -> bytes:
+    """Rebuild the executed PDF from a ``signed_agreements`` row.
+
+    THE ROW IS THE RECORD, not the blob. Everything the PDF prints -- the
+    signer, the title, the timestamp, the address, the client, the hash of what
+    was signed -- lives in the row, so the document is reproducible from it
+    exactly. That makes an asset store that loses a blob an inconvenience rather
+    than the loss of a contract, which is worth having given the store is a
+    volume somebody has to remember to make persistent.
+
+    It does NOT make the blob redundant: the blob is the artifact that was
+    hashed, emailed and downloaded, and a rebuild that differed from it byte for
+    byte would be a different document. So callers verify the rebuild against
+    ``pdf_sha256`` and say plainly when it does not match.
+    """
+    return render_pdf(organization=organization,
+                      version=str(row.get("doc_version") or CURRENT_VERSION),
+                      signature=dict(row))
+
+
 def pdf_filename(*, organization: str, version: str) -> str:
     """A filename a person can find in a downloads folder six months later."""
     slug = re.sub(r"[^A-Za-z0-9]+", "-", (organization or "licensor")).strip("-")[:48]

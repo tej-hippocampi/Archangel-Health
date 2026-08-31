@@ -564,3 +564,82 @@ export async function asclepiusResetPassword(
   }
   return { token: (body && body.token) || "" };
 }
+
+/* ─── Health-system self-serve signup (PRD §2) ──────────────────────────────
+ *
+ * Three fields and a code. No password field, deliberately: the backend mints a
+ * temporary one, mails it, and forces its replacement at first sign-in. The
+ * portal's own signup screen still offers a password field and posts to the
+ * SAME endpoint — one door, one guard stack, one account — which is why there
+ * is nothing here that the portal's version has to be kept in step with.
+ *
+ * `credentials: "include"` on the verify call is load-bearing. Verification
+ * hands back a session as an HttpOnly cookie set on the API origin, and without
+ * this the browser discards it and the organization lands on a login screen
+ * holding a username it has never seen.
+ */
+
+export type HealthSystemSignupResult = {
+  username: string;
+  organization: string;
+  mustReset: boolean;
+};
+
+async function readDetail(res: Response, fallback: string): Promise<string> {
+  const body = await res.json().catch(() => null);
+  const detail = body && typeof body.detail === "string" ? body.detail : "";
+  return detail || fallback;
+}
+
+export async function healthSystemSignup(input: {
+  fullName: string;
+  email: string;
+  organization: string;
+  /** Honeypot. Never shown to a person; a bot fills it and the server drops the request. */
+  companyWebsite?: string;
+}): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/asclepius/hs/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      full_name: input.fullName,
+      email: input.email,
+      organization: input.organization,
+      company_website: input.companyWebsite || "",
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(await readDetail(res, "We could not start that just now. Please try again."));
+  }
+}
+
+export async function healthSystemResendCode(email: string): Promise<void> {
+  await fetch(`${API_BASE}/api/asclepius/hs/signup/resend`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  }).catch(() => undefined);
+}
+
+export async function healthSystemVerify(
+  email: string,
+  code: string,
+): Promise<HealthSystemSignupResult> {
+  const res = await fetch(`${API_BASE}/api/asclepius/hs/signup/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, code }),
+  });
+  if (!res.ok) {
+    throw new Error(await readDetail(res, "That code is not right, or it has expired."));
+  }
+  const body = await res.json().catch(() => ({}));
+  return {
+    username: String(body.username || ""),
+    organization: String(body.organization || ""),
+    mustReset: Boolean(body.must_reset),
+  };
+}
