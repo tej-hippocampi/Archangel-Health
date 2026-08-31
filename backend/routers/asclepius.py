@@ -2577,7 +2577,8 @@ def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> Non
 
 
 @router.get("/tasks/{task_id}")
-async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_task(task_id: str,
+                   user: Dict[str, Any] = Depends(require_practice_case)):
     task = _store().get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -2594,7 +2595,8 @@ async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_cur
 
 @router.post("/tasks/{task_id}/reveal")
 async def reveal_task_answers(
-    task_id: str, body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    task_id: str, body: IndependentAnswer,
+    user: Dict[str, Any] = Depends(require_practice_case),
 ):
     """Commit the evaluator's blind independent answer and reveal the candidate
     answers in one step (Eval Flow Upgrade §1, v2 anti-peeking). This is the ONLY
@@ -3350,7 +3352,7 @@ async def reasoning_pregrade(
 # ─── Rubric capture (FEAT-2) ──────────────────────────────────────────────────
 @router.post("/rubric/suggest")
 async def rubric_suggest(
-    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: SubmissionIn, user: Dict[str, Any] = Depends(require_practice_case)
 ):
     """Auto-seed proposed rubric criteria from the doctor's already-captured tags
     (FEAT-2). The client sends the in-progress draft (error tags + reasons,
@@ -3373,7 +3375,7 @@ async def rubric_suggest(
 # ─── Model-assisted pre-labeling (Speed Optimization §2) ─────────────────────
 @router.post("/assist/prelabel")
 async def assist_prelabel(
-    body: PrelabelRequest, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: PrelabelRequest, user: Dict[str, Any] = Depends(require_practice_case)
 ):
     """Suggest the weaker answer + error tags + a draft rationale for a task the
     evaluator is grading — VERIFY, don't author. Guardrails:
