@@ -6,6 +6,7 @@ import TeamWhitepaperPage from "@/app/components/TeamWhitepaperPage";
 import PodcastAndBlogsPage from "@/app/components/PodcastAndBlogsPage";
 import { SiteHeader, parseLandingView } from "@/app/components/SiteHeader";
 import JoinEntry from "@/app/components/JoinEntry";
+import PartnerInterest from "@/app/components/PartnerInterest";
 import OnboardingWizard from "@/app/components/OnboardingWizard";
 import TenantSignIn from "@/app/components/TenantSignIn";
 import VerifyEmailPage from "@/app/components/VerifyEmailPage";
@@ -48,6 +49,17 @@ export default function App() {
     return (
       <AuthProvider>
         <JoinEntry />
+      </AuthProvider>
+    );
+  }
+  // The health-system one-pager link: interest form, then straight to Calendly.
+  // Top-level rather than an ArchShell route because useLandingAuth bounces a
+  // signed-in user off the marketing shell, and normalizePath refuses to
+  // navigate anywhere outside ARCH_PATHS.
+  if (/^\/partner$/.test(path)) {
+    return (
+      <AuthProvider>
+        <PartnerInterest />
       </AuthProvider>
     );
   }

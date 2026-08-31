@@ -1772,7 +1772,12 @@
     const body = h('div', { class: 'asc-login-body' },
       form,
       h('div', { class: 'asc-login-forgot' }, forgot),
-      h('p', { class: 'asc-login-hint' }, 'Board-certified clinician access only. Contact your program administrator for credentials.'),
+      // Was "Board-certified clinician access only", which is narrower than
+      // the policy and is the last thing a retired physician, a fellow, or a
+      // doctor licensed outside the US reads before deciding they were not
+      // invited. The registry covers 15 countries and falls back to document
+      // review; the sign-in screen should not disagree with the wizard.
+      h('p', { class: 'asc-login-hint' }, 'For credentialed physicians working with Archangel Health. Contact your program administrator if you need access.'),
     );
     // Escape hatch for clinicians who reach the portal from the doctor portal:
     // only shown when a doctor session exists, so signing out (which suppresses

@@ -111,6 +111,14 @@
     {
       "source": "/join/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/partner",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/partner/",
+      "destination": "/index.html"
     }
   ]
 }

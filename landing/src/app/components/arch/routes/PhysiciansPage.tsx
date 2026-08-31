@@ -13,12 +13,33 @@ const STEPS = [
   { n: "3", tag: "Judgment", title: "Annotate, correct, refine, rate.", line: "Mark where the reasoning breaks. Write what's right." },
 ];
 
+/* "Who qualifies" said "Board-certified or board-eligible", which is both
+   narrower than the policy and American-only phrasing: it reads as a refusal to
+   a retired cardiologist, a resident, and every physician licensed outside the
+   US. The wizard has supported all three for a while (registry/config.py covers
+   15 countries and falls back to document review for the rest, and
+   currently_practicing is a 0-5 scale rather than a binary). The page was the
+   last thing still saying no.
+   The "Time" row lost "10-15 minutes per case": multiplied against the hourly
+   figure above it, it turned a range into a per-case promise. */
 const FRICTION = [
-  { tag: "Time", line: "10–15 minutes per case. Async, no minimums, no shifts." },
+  { tag: "Time", line: "Async, no minimums, no shifts. Take one case or twenty, on your own hours." },
   { tag: "Not patient care", line: "Annotation of de-identified cases. No patient contact, no clinical liability." },
-  { tag: "Who qualifies", line: "Board-certified or board-eligible. Credentials verified before your first case." },
+  { tag: "Who qualifies", line: "Any physician with a medical degree. Retired, in training, and internationally licensed all qualify. Credentials verified before your first case." },
+  { tag: "Where you are", line: "Anywhere in the world. Registry checks run automatically for the US, India and Pakistan; every other country is verified by document review." },
   { tag: "Specialties", line: "Nephrology, cardiology, primary care medicine, oncology, radiology. More opening." },
   { tag: "Attribution", line: "Your credentials travel with every record you ratify." },
+];
+
+/* What actually moves a rate. Named on the page so the figure above reads as a
+   range and not as a quote: pay is set per case, and payout.py can settle a
+   graded case below its posted rate (floor 0.60x, ceiling 1.25x). The
+   multipliers themselves belong in the signup attestation, not in marketing. */
+const RATE_FACTORS = [
+  "Your specialty, and how hard the case is",
+  "Your experience level",
+  "Where you practice",
+  "How the finished case is graded",
 ];
 
 /** Doto numeral counts 150 → 300 once on entry, then rests (PRD §7 motion). */
@@ -89,7 +110,11 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
               <div className="earn-way">
                 <span className="chrome chrome-box"><span className="dot dot-green" />Annotate</span>
                 <PayFigure />
-                <span className="label">Per case: varies by difficulty, specialty, depth.</span>
+                <span className="chrome pay-qualifier">Typical range, not a guarantee</span>
+                <span className="label">Every case is priced on its own. What you earn depends on:</span>
+                <ul className="rate-factors">
+                  {RATE_FACTORS.map((f) => <li key={f}>{f}</li>)}
+                </ul>
               </div>
               <div className="earn-way">
                 <span className="chrome chrome-box"><span className="dot dot-green" />Refer</span>
@@ -101,6 +126,14 @@ export function PhysiciansPage({ actions }: { actions: ShellActions }) {
                 <span className="label">
                   For every physician you refer whose first case is accepted, and $25 to them.
                   No limit on how many.
+                </span>
+                {/* The bounty is flat and the eligibility is wide, but neither was
+                    stated, so referrers self-censored against the "board-certified"
+                    line further down the page and never sent the retired colleague
+                    or the friend doing a fellowship in Karachi. */}
+                <span className="label refer-eligible">
+                  Refer any physician, anywhere in the world. Retired doctors, residents
+                  and fellows, and physicians licensed outside the US all count.
                 </span>
               </div>
             </div>

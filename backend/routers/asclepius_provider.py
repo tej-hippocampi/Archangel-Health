@@ -33,10 +33,13 @@ from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response as StarletteResponse
 
-from ratelimit import client_ip, rate_limiter
+from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
 from asclepius import auth as asc_auth
+from asclepius import hs_access
 from asclepius import ingestion as asc_ingestion
+from asclepius import passwords as asc_passwords
+from asclepius import portal_accounts as asc_portal_accounts
 from asclepius.schemas import (
     DataProviderInviteRequest,
     ProviderPasswordRequest,
@@ -546,6 +549,7 @@ async def provider_uploads(provider_user: Dict[str, Any] = Depends(asc_auth.requ
 # ════════════════════════════════════════════════════════════════════════════
 import asyncio
 import re as _re
+import secrets
 import tempfile as _tempfile
 import uuid as _uuid
 
@@ -556,6 +560,12 @@ from pydantic import BaseModel
 from asclepius.store import hash_password as _hash_password
 
 _HS_COOKIE = "hs_portal_session"
+#: What a portal account waiting on a decision is told when it reaches the one
+#: surface it does not have. A module constant so the copy cannot drift between
+#: the route dependency and the precondition helper, which guard the same thing
+#: from two directions.
+_HS_REVIEW_MSG = ("Uploading opens once we have reviewed your account. "
+                  "We will email you when it does.")
 _HS_LINK_ID = "hs-portal"     # link_id sentinel (shared ingest_uploads row needs one)
 _HS_LOCK_THRESHOLD = 5
 _HS_LOCK_MINUTES = 15
@@ -694,6 +704,22 @@ def require_hs_portal(request: Request) -> Dict[str, Any]:
     return user
 
 
+def require_hs_surface(surface: str):
+    """Gate a portal route on a surface rather than on a remembered check.
+
+    Mirrors ``asc_auth.require_surface`` on the physician plane, minus its
+    ``AUTH_GATE_HEADER``: the header set on provider-facing responses is frozen
+    by ``test_link_indistinguishability``, and one more header here would be one
+    more differential to reason about. The portal learns its own state from
+    ``/hs/me``, which it has always called first, so the header bought nothing.
+    """
+    def _dep(portal_user: Dict[str, Any] = Depends(require_hs_portal)) -> Dict[str, Any]:
+        if not hs_access.can_surface(portal_user, surface):
+            raise HTTPException(status_code=403, detail=_HS_REVIEW_MSG)
+        return portal_user
+    return _dep
+
+
 @portal_router.post("/hs/login", dependencies=[Depends(rate_limiter("hs_login", 10, 60))])
 async def hs_login(body: HsLoginRequest, request: Request, response: Response):
     """Sign in with the emailed username + password.
@@ -789,11 +815,30 @@ async def hs_logout(request: Request, response: Response):
 
 @portal_router.get("/hs/me")
 async def hs_me(portal_user: Dict[str, Any] = Depends(require_hs_portal)):
+    hs = portal_user["health_system"]
     return {
         "username": portal_user["username"],
-        "organization": portal_user["health_system"]["name"],
+        "organization": hs["name"],
         "email": portal_user.get("email"),
+        "full_name": portal_user.get("full_name"),
         "must_reset": bool(portal_user.get("must_reset")),
+        # What the rail may show. The client denies on absence, so an older
+        # cached payload is not permission.
+        "surfaces": sorted(hs_access.surfaces(portal_user)),
+        # Partner words, never the raw approval_status. Same rule the upload
+        # status map follows: our queue vocabulary is ours.
+        "account_state": hs_access.account_state(portal_user),
+        # Whether to route them into the intake form on arrival.
+        #
+        # The second clause is the one that matters. Without it every hospital
+        # provisioned before intake existed gets ambushed by a form on its next
+        # login, having already told us all of this on a call months ago. They
+        # still SEE the tab and can fill it in whenever they like; they are just
+        # never made to.
+        "intake_needed": bool(
+            hs.get("intake_at") is None
+            and (portal_user.get("approval_status") or "").strip().lower() == "pending"
+        ),
     }
 
 
@@ -831,7 +876,7 @@ async def hs_upload(
     request: Request,
     background: BackgroundTasks,
     files: List[UploadFile] = File(...),
-    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
 ):
     """Accept the health system's file(s) — a .zip or bare .json/.csv/.hl7/.txt —
     bundle via the SHARED ``wrap_loose_files`` packer, and hand off to the shared
@@ -840,25 +885,10 @@ async def hs_upload(
     is a property of the data, determined at ingest."""
     store = _store()
     hs_id = portal_user["hs_id"]
-    if portal_user.get("must_reset"):
-        raise HTTPException(status_code=403, detail="Reset your password before uploading.")
-
-    # Fail CLOSED in production (mirrors the other two doors): refuse the most
-    # sensitive artifact if it cannot be encrypted and durably stored at rest.
-    if _is_production():
-        import field_crypto
-        if not field_crypto.is_configured():
-            raise HTTPException(status_code=503,
-                                detail="Uploads are temporarily disabled. Please try again later.")
-        ok, _why = asc_ingestion.ingest_storage_durable()
-        if not ok:
-            raise HTTPException(status_code=503,
-                                detail="Uploads are temporarily disabled. Please try again later.")
-        from asclepius import assets as asc_assets
-        ok, _why = asc_assets.asset_storage_durable()
-        if not ok:
-            raise HTTPException(status_code=503,
-                                detail="Uploads are temporarily disabled. Please try again later.")
+    # Approval, forced reset, and the production fail-closed checks, in one
+    # place shared with the chunked door. This block used to be duplicated here
+    # verbatim, which held right up until a gate was added to only one copy.
+    _hs_upload_preconditions(store, portal_user)
 
     # Cumulative quota per health system (FIX-C C-2.6). The per-request cap and
     # the per-IP limiter together still allow unbounded total volume from one
@@ -1055,11 +1085,23 @@ def _upload_session_or_404(store: Any, session_id: str,
 
 
 def _hs_upload_preconditions(store: Any, portal_user: Dict[str, Any]) -> None:
-    """The gates the multipart door already applies, applied identically here.
+    """The gates BOTH upload doors apply.
 
     Same checks, same order, same messages — a partner who is blocked must be
     blocked the same way whichever door they used, or the two doors become a way
-    to tell them apart."""
+    to tell them apart. That was the intent from the start, but the multipart
+    door duplicated these inline instead of calling this, so the promise held
+    only as long as nobody added a gate. Adding the approval gate is exactly
+    that event, so the multipart door now calls this too and the duplicate is
+    gone.
+
+    The approval check is ALSO a route dependency on both doors
+    (``require_hs_surface(UPLOAD)``). Belt and braces, deliberately: the dependency
+    is the structural version, so a third upload door added later has to name a
+    surface before it compiles, and this is the version that survives someone
+    refactoring the dependency away."""
+    if not hs_access.can_surface(portal_user, hs_access.UPLOAD):
+        raise HTTPException(status_code=403, detail=_HS_REVIEW_MSG)
     if portal_user.get("must_reset"):
         raise HTTPException(status_code=403, detail="Reset your password before uploading.")
     if _is_production():
@@ -1095,7 +1137,7 @@ def _hs_quota_remaining(store: Any, hs_id: str) -> int:
                     dependencies=[Depends(rate_limiter("hs_upload", 30, 60))])
 async def hs_upload_declare(
     body: HsUploadDeclareRequest,
-    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
 ):
     """Declare a bundle and receive its chunk plan.
 
@@ -1163,7 +1205,7 @@ async def hs_upload_session_state(
                    dependencies=[Depends(rate_limiter("hs_upload_part", 240, 60))])
 async def hs_upload_part(
     session_id: str, part: int, request: Request,
-    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
 ):
     """One chunk, verified against its own sha256.
 
@@ -1214,7 +1256,7 @@ async def hs_upload_part(
 @portal_router.post("/hs/uploads/sessions/{session_id}/complete")
 async def hs_upload_complete(
     session_id: str, request: Request, background: BackgroundTasks,
-    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
 ):
     """Assemble, verify the whole-file digest, and only then create the upload.
 
@@ -1285,6 +1327,426 @@ async def hs_upload_abort(
         raise HTTPException(status_code=409, detail="This upload has already completed.")
     asc_uploads.abort(store, session)
     return {"ok": True}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  SELF-SIGNUP
+#
+#  The second door. PRD-C's door is an operator typing an organization and an
+#  email, which is right for a partner we already met and was the only one
+#  there was, so a hospital that found us on its own had nowhere to go.
+#
+#  Nothing durable is created until a code sent to the address comes back. A
+#  verified signup lands as ``approval_status='pending'``: signed in, able to
+#  tell us about itself and read its ledger, unable to upload until a person
+#  has looked at it.
+# ════════════════════════════════════════════════════════════════════════════
+
+_HS_SIGNUP_EMAIL_CAP = 3          # per address per 24h
+_HS_SIGNUP_CODE_TTL_MIN = 15
+_HS_SIGNUP_MAX_ATTEMPTS = 5
+#: One body for every outcome of POST /hs/signup. A form that answers
+#: differently for a known address is the cheapest account-enumeration oracle
+#: there is, and a signup form is the one place people paste addresses to see
+#: what happens.
+_HS_SIGNUP_OK = {"ok": True, "next": "verify"}
+
+
+class HsSignupRequest(BaseModel):
+    full_name: str
+    email: str
+    organization: str
+    password: str
+    # Same field name as the landing forms', so bots already filling it in keep
+    # filling it in.
+    company_website: str = ""
+
+
+class HsSignupVerifyRequest(BaseModel):
+    email: str
+    code: str
+
+
+class HsSignupResendRequest(BaseModel):
+    email: str
+
+
+def _hs_portal_url() -> str:
+    base = (os.getenv("PUBLIC_BASE_URL") or os.getenv("BASE_URL") or "").strip().rstrip("/")
+    return f"{base}/provider" if base else "/provider"
+
+
+@portal_router.post("/hs/signup",
+                    dependencies=[Depends(rate_limiter("hs_signup", 5, 600)),
+                                  Depends(global_rate_limiter("hs_signup_all", 60, 3600))])
+async def hs_signup(body: HsSignupRequest, request: Request):
+    """Stage a signup and mail a code. Creates no account.
+
+    The guard stack is the one ``/api/onboarding/self-serve`` already runs, in
+    the same order: IP limit, global cap, honeypot, per-address cap, then proof
+    of the mailbox. It diverges in one place, deliberately. Onboarding answers
+    an over-cap address with a 429 whose text confirms we have seen it before;
+    here every outcome returns the same body, because this file's standing rule
+    is one code path with one observable, and ``hs_login`` two hundred lines up
+    goes to considerable trouble for exactly that property. Losing it on the
+    signup route would be an odd place to stop caring.
+
+    The send is awaited, which the authenticated routes below must not do. It is
+    correct here: no session exists yet, so response time correlates with
+    nothing about an existing partner, and the person genuinely needs to be told
+    if the code could not be sent.
+    """
+    store = _store()
+    email = (body.email or "").strip().lower()
+    full_name = (body.full_name or "").strip()
+    organization = " ".join((body.organization or "").split())
+
+    # Honeypot. Write nothing, send nothing, and return the same shape; the
+    # 4 KB pad makes the decoy and the real answer the same size for free.
+    if (body.company_website or "").strip():
+        return _HS_SIGNUP_OK
+
+    if not email or "@" not in email or not full_name or not organization:
+        raise HTTPException(status_code=400,
+                            detail="Please fill in your name, work email and organization.")
+    try:
+        asc_passwords.validate(body.password or "", email=email)
+    except asc_passwords.PasswordRejected as exc:
+        # The one place a real 400 is right: it is about what THEY typed, so it
+        # tells an attacker nothing they did not already supply.
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if store.count_recent_hs_signups_for_email(email, hours=24) >= _HS_SIGNUP_EMAIL_CAP:
+        log.info("hs signup: per-email cap reached, dropping silently")
+        return _HS_SIGNUP_OK
+
+    code = f"{secrets.randbelow(1000000):06d}"
+    try:
+        staged = store.create_hs_signup(
+            email=email, full_name=full_name, organization=organization,
+            password=body.password, code=code, ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN,
+            client_ip=client_ip(request))
+    except Exception:
+        log.exception("hs signup: could not stage")
+        raise HTTPException(status_code=503, detail="We could not start that just now. Please try again.")
+
+    if not is_email_transport_configured():
+        if _is_production():
+            store.burn_hs_signup(staged["signup_id"])
+            raise HTTPException(status_code=503,
+                                detail="We could not send your code just now. Please try again.")
+        # Local development has no transport; without this the whole flow is
+        # untestable. Mirrors the onboarding OTP's dev bypass.
+        log.warning("hs signup: no email transport, code for %s is %s", email, code)
+        return _HS_SIGNUP_OK
+
+    from onboarding_emails import build_hs_signup_code_email
+    ok = await send_html_email(
+        email, "Your Archangel Health confirmation code",
+        build_hs_signup_code_email(code=code, organization=organization,
+                                   expires_minutes=_HS_SIGNUP_CODE_TTL_MIN))
+    if not ok:
+        store.burn_hs_signup(staged["signup_id"])
+        raise HTTPException(status_code=503,
+                            detail="We could not send your code just now. Please try again.")
+    return _HS_SIGNUP_OK
+
+
+@portal_router.post("/hs/signup/resend",
+                    dependencies=[Depends(rate_limiter("hs_signup_resend", 3, 600))])
+async def hs_signup_resend(body: HsSignupResendRequest):
+    """Mail the code again. Always the same body, whether or not anything was
+    staged for that address."""
+    store = _store()
+    email = (body.email or "").strip().lower()
+    staged = store.get_live_hs_signup(email) if email else None
+    if not staged:
+        return _HS_SIGNUP_OK
+    # The stored code is hashed, so it cannot be re-sent; issue a new challenge
+    # for the same details instead.
+    code = f"{secrets.randbelow(1000000):06d}"
+    store.create_hs_signup(
+        email=email, full_name=staged["full_name"], organization=staged["organization"],
+        password=secrets.token_urlsafe(32), code=code,
+        ttl_minutes=_HS_SIGNUP_CODE_TTL_MIN, client_ip=staged.get("client_ip"))
+    # ...but the password on the new row is garbage, because we never held the
+    # real one in the clear. Carry the ORIGINAL hash across so verifying the new
+    # code still creates the account with the password they actually chose.
+    fresh = store.get_live_hs_signup(email)
+    if fresh:
+        store.set_hs_signup_password_hash(fresh["signup_id"], staged["password_hash"])
+    if not is_email_transport_configured():
+        log.warning("hs signup resend: no transport, code for %s is %s", email, code)
+        return _HS_SIGNUP_OK
+    from onboarding_emails import build_hs_signup_code_email
+    await send_html_email(
+        email, "Your Archangel Health confirmation code",
+        build_hs_signup_code_email(code=code, organization=staged["organization"],
+                                   expires_minutes=_HS_SIGNUP_CODE_TTL_MIN))
+    return _HS_SIGNUP_OK
+
+
+@portal_router.post("/hs/signup/verify",
+                    dependencies=[Depends(rate_limiter("hs_signup_verify", 10, 600))])
+async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTasks,
+                           response: Response):
+    """Trade a correct code for an account and a session.
+
+    Signs them straight in rather than bouncing to the login form: the username
+    was derived from their organization name and they have never seen it, so a
+    redirect to "enter your username" would strand every single signup.
+    """
+    store = _store()
+    email = (body.email or "").strip().lower()
+    code = (body.code or "").strip()
+    generic = HTTPException(status_code=400, detail="That code is not right, or it has expired.")
+
+    staged = store.get_live_hs_signup(email) if email else None
+    if not staged:
+        raise generic
+    if not verify_password(code, staged["code_hash"]):
+        attempts = store.bump_hs_signup_attempts(staged["signup_id"])
+        if attempts >= _HS_SIGNUP_MAX_ATTEMPTS:
+            # Burn it rather than leaving a six-digit secret to be ground down.
+            store.burn_hs_signup(staged["signup_id"])
+        raise generic
+
+    organization = staged["organization"]
+    # NEVER ensure_health_system here. See create_health_system_unclaimed: that
+    # method is create-or-reuse by name, and on a public route it would hand a
+    # stranger an incumbent partner's upload history.
+    hs = store.create_health_system_unclaimed(organization, contact_email=email)
+    username = asc_portal_accounts.unique_hs_username(
+        store, asc_portal_accounts.derive_hs_username(organization))
+    store.create_hs_portal_user(
+        username=username, hs_id=hs["hs_id"], password=secrets.token_urlsafe(32),
+        email=email,
+        # They chose this password a minute ago; there is nothing to force them
+        # to replace.
+        must_reset=False, full_name=staged["full_name"], signup_source="self_serve",
+        approval_status="pending")
+    # Carry the password they actually chose, which we only ever held hashed.
+    store.set_hs_portal_password_hash(username, staged["password_hash"])
+    store.consume_hs_signup(staged["signup_id"])
+    store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
+                    event_type="self_signup_verified", actor=username,
+                    payload={"organization": organization})
+
+    collisions = [h["hs_id"] for h in
+                  store.health_systems_named_like(organization, exclude_hs_id=hs["hs_id"])]
+    background.add_task(_notify_hs_signup, store, staged["full_name"], email,
+                        organization, hs["hs_id"], username, collisions)
+
+    fresh = store.get_hs_portal_user(username) or {}
+    _set_hs_cookie(response, _hs_token(username, hs["hs_id"],
+                                       session_epoch=fresh.get("session_epoch")))
+    # Same shape hs_login returns, plus the username they now have to remember.
+    return {"ok": True, "username": username, "organization": organization,
+            "must_reset": False}
+
+
+def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
+                      hs_id: str, username: str, collisions: List[str]) -> None:
+    """Background because this route is behind the portal time budget on the way
+    out, and a SendGrid round trip is several times it."""
+    try:
+        import notifications
+        from onboarding_emails import build_hs_signup_alert, build_hs_signup_welcome_email
+        notifications.notify_founders(
+            store, kind="hs_signup",
+            subject=f"[Health system] New signup: {organization}",
+            body_html=build_hs_signup_alert(
+                full_name=full_name, email=email, organization=organization,
+                hs_id=hs_id, username=username, name_collisions=collisions),
+            dedupe_key=hs_id, coalesce=False)
+        if is_email_transport_configured():
+            # The house bridge, which copes whether or not a loop is running.
+            # A sync BackgroundTask has none, but that is a property of how
+            # FastAPI happens to schedule this today, not one to depend on.
+            from asclepius.ingest_notify import _run_coro
+            _run_coro(send_html_email(
+                email, "Your Archangel Health upload portal",
+                build_hs_signup_welcome_email(organization=organization,
+                                              username=username,
+                                              portal_url=_hs_portal_url())))
+    except Exception:
+        log.exception("hs signup: notification failed")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  INTAKE — what a health system tells us about itself
+# ════════════════════════════════════════════════════════════════════════════
+
+#: Server-owned so the copy is auditable in one place, and so the static grep
+#: that scans this file covers every word a partner is shown. Check anything
+#: added here against that word list before shipping it.
+_HS_INTAKE_PROMPTS = [
+    {"key": "organization",
+     "label": "Which health system are you with, and what is your role there?",
+     "placeholder": "St Mary's Health, and I run the data platform team.",
+     "required": True},
+    {"key": "size_type",
+     "label": "Roughly how big is it?",
+     "placeholder": "Beds, sites, or annual encounters. A guess is fine.",
+     "required": False},
+    {"key": "data_held",
+     "label": "What clinical data do you hold, and in what systems?",
+     "placeholder": "Epic, about 12 years of nephrology and cardiology encounters "
+                    "with labs, notes and outcomes.",
+     "required": True},
+    {"key": "licensable",
+     "label": "What would you be open to licensing to us?",
+     "placeholder": "Whatever you already have a sense of. If the answer is "
+                    "'not sure yet', that is a useful answer.",
+     "required": False},
+    {"key": "timeline",
+     "label": "What timeline are you working on?",
+     "placeholder": "Exploring, this quarter, budgeted for next year.",
+     "required": False},
+]
+
+_HS_INTAKE_MAX_CHARS = 4000
+
+
+class HsIntakeRequest(BaseModel):
+    """An EXPLICIT field list, per the rule the upload declare model states: a
+    field the client invents is dropped by the model rather than reaching
+    anything downstream."""
+    organization: str
+    size_type: Optional[str] = None
+    data_held: str
+    licensable: Optional[str] = None
+    timeline: Optional[str] = None
+
+
+def _hs_intake_view(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Named fields only, never a splat of the stored row."""
+    answers = row.get("answers") or {}
+    return {
+        "submitted_at": row.get("submitted_at"),
+        "answers": {p["key"]: (answers.get(p["key"]) or "") for p in _HS_INTAKE_PROMPTS},
+    }
+
+
+@portal_router.get("/hs/intake")
+async def hs_intake_get(
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    store = _store()
+    history = store.list_hs_intake(portal_user["hs_id"])
+    return {
+        "prompts": _HS_INTAKE_PROMPTS,
+        "submitted": [_hs_intake_view(r) for r in history[:5]],
+        "organization": portal_user["health_system"]["name"],
+    }
+
+
+@portal_router.post("/hs/intake",
+                    dependencies=[Depends(rate_limiter("hs_intake", 5, 600))])
+async def hs_intake_post(
+    body: HsIntakeRequest,
+    background: BackgroundTasks,
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
+):
+    store = _store()
+    answers: Dict[str, Any] = {}
+    for prompt in _HS_INTAKE_PROMPTS:
+        raw = getattr(body, prompt["key"], None) or ""
+        value = str(raw).strip()[:_HS_INTAKE_MAX_CHARS]
+        if prompt["required"] and not value:
+            raise HTTPException(status_code=400,
+                                detail="Please answer the two required questions.")
+        answers[prompt["key"]] = value
+    row = store.record_hs_intake(hs_id=portal_user["hs_id"],
+                                 username=portal_user["username"], answers=answers)
+    store.log_event(entity_type="health_system", entity_id=portal_user["hs_id"],
+                    event_type="intake_submitted", actor=portal_user["username"])
+    # Background, not awaited: this route sits behind the portal time budget and
+    # a mail round trip is several times it, so awaiting would make response
+    # time a function of whether email is configured.
+    background.add_task(_notify_hs_intake, store, portal_user, answers)
+    return {"ok": True, "submitted_at": row["submitted_at"]}
+
+
+def _notify_hs_intake(store: Any, portal_user: Dict[str, Any],
+                      answers: Dict[str, Any]) -> None:
+    try:
+        import notifications
+        from onboarding_emails import build_hs_intake_alert
+        org = portal_user["health_system"]["name"]
+        notifications.notify_founders(
+            store, kind="hs_intake", subject=f"[Health system] Intake: {org}",
+            body_html=build_hs_intake_alert(
+                full_name=portal_user.get("full_name") or "",
+                email=portal_user.get("email") or "", organization=org,
+                answers=answers, hs_id=portal_user["hs_id"]),
+            dedupe_key=f"{portal_user['hs_id']}|{answers.get('data_held', '')[:40]}",
+            coalesce=False)
+    except Exception:
+        log.exception("hs intake: notification failed")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  PAYOUTS — what we have paid this organization
+#
+#  Admin-entry only. Nothing accrues from a health system's uploads to money:
+#  there is no schedule, no rail, and no Stripe. The empty state says so rather
+#  than implying a ledger that fills itself.
+# ════════════════════════════════════════════════════════════════════════════
+
+#: Internal status -> the word a partner reads. The same discipline the upload
+#: status map applies: 'accrued' is our bookkeeping and means nothing to a CFO.
+_HS_PAYOUT_STATUS = {
+    "accrued": "recorded",
+    "approved": "recorded",
+    "paid": "paid",
+    "void": "cancelled",
+}
+
+_HS_PAYOUT_NOTE = (
+    "Every payment we make to your organization appears here, with what it was "
+    "for and when it was sent. Payments are arranged with your contract "
+    "contact. We do not hold your bank details or tax identifiers, and we are "
+    "not going to start."
+)
+
+
+def _hs_payout_view(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Named fields only. No recorded_by, no external_ref, no batch id: those
+    are ours, and a partner reading an internal invoice key learns nothing."""
+    return {
+        "payout_id": row.get("payout_id"),
+        "recorded_at": row.get("recorded_at"),
+        "description": row.get("description") or "",
+        "period_start": row.get("period_start"),
+        "period_end": row.get("period_end"),
+        "amount_cents": int(row.get("amount_cents") or 0),
+        "status": _HS_PAYOUT_STATUS.get(row.get("status") or "", "recorded"),
+        "paid_at": row.get("paid_at"),
+    }
+
+
+@portal_router.get("/hs/payouts")
+async def hs_payouts(
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.PAYOUTS)),
+):
+    """The signed-in organization's ledger, and nobody else's.
+
+    This route takes NO identifier, in the path, the query or a body. The
+    ``hs_id`` comes from the session and from nowhere else, which is the same
+    property the physician earnings route holds: it is a fact about the route
+    rather than about a check somebody remembered to write. There is
+    deliberately no ``/hs/payouts/{hs_id}``.
+    """
+    store = _store()
+    hs_id = portal_user["hs_id"]
+    rows = store.list_hs_payouts(hs_id)
+    return {
+        "currency": "usd",
+        "summary": store.hs_payout_summary(hs_id),
+        "payouts": [_hs_payout_view(r) for r in rows],
+        "how_we_pay": _HS_PAYOUT_NOTE,
+    }
 
 
 # Mount the provider-facing surface. Everything above this line that a health

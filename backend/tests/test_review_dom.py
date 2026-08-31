@@ -242,8 +242,36 @@ globalThis.__click = function (key, value) {
   hits[0].dispatch('click', { currentTarget: hits[0], target: hits[0] });
   return hits[0];
 };
+// A browser dispatches keydown at the FOCUSED element. Defaulting to
+// document.body would have made every keyboard test blind to what focus is
+// doing — and focus is now how the aim reaches assistive technology, so a
+// harness that ignores it cannot see the thing under test.
 globalThis.__key = function (key, target) {
-  return document.dispatch('keydown', { key: key, target: target || document.body });
+  return document.dispatch('keydown', {
+    key: key, target: target || document.activeElement || document.body });
+};
+globalThis.__focused = function () {
+  var el = document.activeElement;
+  if (!el) return null;
+  return { tag: el.tagName, role: el.getAttribute('role'),
+           state: el.dataset ? (el.dataset.state || el.dataset.fork || null) : null,
+           text: el.textContent, checked: el.getAttribute('aria-checked'),
+           group: (el.parentNode && el.parentNode.getAttribute)
+             ? el.parentNode.getAttribute('aria-labelledby') : null };
+};
+// What a screen reader would be told: the group's accessible name, resolved
+// through aria-labelledby exactly as the accessibility tree resolves it.
+globalThis.__focusedGroupName = function () {
+  var el = document.activeElement;
+  if (!el || !el.parentNode || !el.parentNode.getAttribute) return null;
+  var id = el.parentNode.getAttribute('aria-labelledby');
+  if (!id) return el.parentNode.getAttribute('aria-label');
+  var found = null;
+  (function walk(n) {
+    if (n.getAttribute && n.getAttribute('id') === id) found = n;
+    (n.children || []).forEach(walk);
+  })(host);
+  return found ? found.textContent : null;
 };
 globalThis.__type = function (index, text) {
   const areas = findByTag(host, 'TEXTAREA');
@@ -1731,3 +1759,172 @@ def test_the_restored_clock_does_not_bill_the_gap():
     src = _REVIEW_JS.read_text(encoding="utf-8")
     assert "startedAt is NOT restored" in src
     assert "R.startedAt = saved" not in _code(src)
+
+
+# ═══ the aim has to be perceivable to someone who cannot see it ══════════════
+#
+# The keyboard flow used to signal the aimed dimension with a left-edge
+# box-shadow and nothing else. A reviewer on a screen reader pressed 3, heard
+# nothing, pressed the left arrow, and had no way to know which dimension they
+# had just answered. Focus is the fix: it is the one signal every assistive
+# technology already follows, so the platform announces the group and the answer
+# without anything bespoke to keep in sync.
+def test_the_judgment_controls_are_radiogroups_with_names():
+    """`.is-on` is paint. A screen reader reads roles and state, so a control
+    that looks answered reads as unanswered without them."""
+    probe = """
+globalThis.__groups = function () {
+  var out = [];
+  (function walk(el){
+    if (el.getAttribute && el.getAttribute('role') === 'radiogroup') {
+      var kids = (el.children || []).filter(function (c) {
+        return c.getAttribute && c.getAttribute('role') === 'radio'; });
+      out.push({ named: !!(el.getAttribute('aria-labelledby') || el.getAttribute('aria-label')),
+                 radios: kids.length });
+    }
+    (el.children||[]).forEach(walk);
+  })(globalThis.__host);
+  return out;
+};
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.groups = globalThis.__groups(); return r; }; })(globalThis.__report);
+"""
+    out = _render(_routes(), probe)
+    groups = out["groups"]
+    # stronger + four dimensions + one fork + the verdict row.
+    assert len(groups) == 7, groups
+    assert all(g["named"] for g in groups), "a judgment group has no accessible name"
+    assert all(g["radios"] >= 2 for g in groups), groups
+
+
+def test_selecting_an_option_sets_aria_checked_not_just_a_class():
+    drive = """
+globalThis.__click('state', 'A');
+globalThis.__click('verdict', 'reject');
+globalThis.__checked = [];
+(function walk(el){
+  if (el.getAttribute && el.getAttribute('aria-checked') === 'true') {
+    globalThis.__checked.push(el.dataset.state || el.dataset.verdict || el.dataset.fork);
+  }
+  (el.children||[]).forEach(walk);
+})(globalThis.__host);
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.checked = globalThis.__checked; return r; }; })(globalThis.__report);
+"""
+    out = _render(_routes(), drive)
+    assert "A" in out["checked"], "the stronger choice is not exposed as checked"
+    assert "reject" in out["checked"], "the verdict is not exposed as checked"
+
+
+def test_aiming_a_dimension_moves_real_focus_to_it():
+    """Pressing 3 must put focus on the third dimension's group, so it is
+    announced. Asserted through the group's accessible NAME, which is what a
+    screen reader would actually say."""
+    drive = """
+globalThis.__key('3');
+globalThis.__afterThree = globalThis.__focusedGroupName();
+globalThis.__key('1');
+globalThis.__afterOne = globalThis.__focusedGroupName();
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.afterThree = globalThis.__afterThree; r.afterOne = globalThis.__afterOne;
+  return r; }; })(globalThis.__report);
+"""
+    out = _render(_routes(), drive)
+    assert out["afterThree"] and "Nothing decisive missing" in out["afterThree"], out["afterThree"]
+    assert out["afterOne"] and "Clinically correct" in out["afterOne"], out["afterOne"]
+
+
+def test_answering_carries_the_focus_to_the_next_dimension():
+    """The aim advances so four presses answer four dimensions. Focus has to
+    advance with it, or the announcement describes the wrong row."""
+    drive = """
+globalThis.__key('1');
+globalThis.__key('ArrowLeft');
+globalThis.__afterAnswer = globalThis.__focusedGroupName();
+globalThis.__focusState = globalThis.__focused();
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.afterAnswer = globalThis.__afterAnswer; r.focusState = globalThis.__focusState;
+  return r; }; })(globalThis.__report);
+"""
+    out = _render(_routes(), drive)
+    assert "Reasoning holds" in (out["afterAnswer"] or ""), out["afterAnswer"]
+    # ...and what it landed on is a radio, not some container.
+    assert out["focusState"]["role"] == "radio"
+
+
+def test_the_last_dimension_still_announces_its_own_answer():
+    """There is nothing to advance to, so focus stays put rather than being
+    dropped — otherwise the fourth answer is the one nobody hears."""
+    drive = """
+globalThis.__key('4');
+globalThis.__key('ArrowRight');
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.name = globalThis.__focusedGroupName(); r.f = globalThis.__focused();
+  return r; }; })(globalThis.__report);
+"""
+    out = _render(_routes(), drive)
+    assert "Grader is usable" in (out["name"] or ""), out["name"]
+    assert out["f"]["state"] == "disagree" and out["f"]["checked"] == "true"
+
+
+def test_arriving_on_the_surface_never_steals_focus():
+    """Stealing focus on render is its own accessibility problem, and would yank
+    the viewport into the judgment panel before the reviewer has read the pair.
+    Only a deliberate keystroke moves it."""
+    out = _render(_routes(), """
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.f = globalThis.__focused(); return r; }; })(globalThis.__report);
+""")
+    assert out["f"] is None or out["f"]["role"] != "radio", out["f"]
+
+
+def test_each_group_is_one_tab_stop_not_three():
+    """Roving tabindex. Three tab stops per dimension would be twelve on this
+    screen before the verdict row is reached."""
+    probe = """
+globalThis.__report = (function (o) { return function () {
+  var r = o(); r.tabbable = [];
+  (function walk(el){
+    if (el.getAttribute && el.getAttribute('role') === 'radiogroup') {
+      var kids = (el.children||[]).filter(function (c) {
+        return c.getAttribute && c.getAttribute('tabindex') === '0'; });
+      r.tabbable.push(kids.length);
+    }
+    (el.children||[]).forEach(walk);
+  })(globalThis.__host);
+  return r; }; })(globalThis.__report);
+"""
+    out = _render(_routes(), probe)
+    assert out["tabbable"] == [1] * len(out["tabbable"]), out["tabbable"]
+    assert len(out["tabbable"]) == 7
+
+
+def test_the_tab_stop_follows_the_selection():
+    """The other half of the roving contract. If the tab stop stays on the first
+    option after a different one is chosen, a reviewer who tabs back into the
+    group lands on an option they did not pick — and Space there would silently
+    change their answer."""
+    drive = """
+globalThis.__click('state', 'equivalent');
+globalThis.__report = (function (o) { return function () {
+  var r = o();
+  var segs = [];
+  (function walk(el){ if (el.className === 'asc-rv-seg') segs.push(el);
+                      (el.children||[]).forEach(walk); })(globalThis.__host);
+  var stop = segs[0].children.filter(function (b) { return b.getAttribute('tabindex') === '0'; });
+  r.stopState = stop.length === 1 ? stop[0].dataset.state : ('n=' + stop.length);
+  return r; }; })(globalThis.__report);
+"""
+    out = _render(_routes(), drive)
+    assert out["stopState"] == "equivalent", out["stopState"]
+
+
+def test_the_focus_ring_is_not_clipped_by_the_pill():
+    """`.asc-rv-seg` clips to its pill shape, which would cut the base
+    `:focus-visible` outline in half on the two end segments — so a keyboard
+    reviewer could not see which option the aim was on."""
+    css = _CSS.read_text(encoding="utf-8")
+    block = css.split(_PRD_1_CSS_HEADING)[1].split(_PRD_R_CSS_HEADING)[0]
+    assert "overflow: hidden" in block.split(".asc-rv-seg {")[1].split("}")[0]
+    rule = block.split(".asc-rv-seg button:focus-visible")[1].split("}")[0]
+    assert "outline" in rule and "-2px" in rule, rule

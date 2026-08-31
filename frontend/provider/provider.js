@@ -286,6 +286,15 @@
     const btn = document.getElementById("prvLoginBtn");
     const usernameEl = document.getElementById("prvUsername");
     const pwEl = document.getElementById("prvPassword");
+    // A self-signup never chose its username; we derived it from the
+    // organization name and said it once. Prefill so coming back to this form
+    // is not a dead end.
+    try {
+      const remembered = localStorage.getItem("prv_last_username");
+      if (remembered) usernameEl.value = remembered;
+    } catch (_) {}
+    const toSignup = document.getElementById("prvToSignup");
+    if (toSignup) toSignup.addEventListener("click", renderSignup);
     usernameEl.focus();
 
     form.addEventListener("submit", async (ev) => {
@@ -301,13 +310,11 @@
       btn.textContent = "Signing in…";
       try {
         const data = await apiPost("/hs/login", { username, password });
-        currentUser = {
-          username: data.username,
-          organization: data.organization,
-          must_reset: data.must_reset === true
-        };
-        if (currentUser.must_reset) renderReset();
-        else renderUpload();
+        try { localStorage.setItem("prv_last_username", data.username); } catch (_) {}
+        // Through the router rather than straight to upload: the login response
+        // does not carry surfaces, and a pending account must not open onto a
+        // door it cannot use.
+        await loadProfileAndRoute();
       } catch (e) {
         // Login failures (incl. 401/429) surface inline rather than bouncing.
         showError(errBox, e.message || "Sign-in failed. Check your details.");
@@ -709,19 +716,453 @@
   }
 
   // ══════════════════════════════════════════════════════════
+  //  SCREEN 4 — SIGN UP
+  // ══════════════════════════════════════════════════════════
+  // The address a signup is waiting on, held only between the two screens.
+  let pendingSignupEmail = "";
+
+  function renderSignup() {
+    header.hidden = true;
+    hideRail();
+    mountTemplate("tplSignup");
+    const form = document.getElementById("prvSignupForm");
+    const errBox = document.getElementById("prvSignupError");
+    const btn = document.getElementById("prvSignupBtn");
+    const nameEl = document.getElementById("prvSuName");
+    const emailEl = document.getElementById("prvSuEmail");
+    const orgEl = document.getElementById("prvSuOrg");
+    const pwEl = document.getElementById("prvSuPw");
+    const strength = document.getElementById("prvSuStrength");
+    const hpEl = document.getElementById("prvSuHp");
+    nameEl.focus();
+
+    pwEl.addEventListener("input", () => {
+      const s = scorePassword(pwEl.value || "");
+      strength.className = "prv-strength " + s.cls;
+      strength.textContent = pwEl.value ? s.label : "";
+    });
+    document.getElementById("prvToLogin").addEventListener("click", renderLogin);
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      showError(errBox, "");
+      const payload = {
+        full_name: (nameEl.value || "").trim(),
+        email: (emailEl.value || "").trim(),
+        organization: (orgEl.value || "").trim(),
+        password: pwEl.value || "",
+        company_website: hpEl.value || ""
+      };
+      if (!payload.full_name || !payload.email || !payload.organization) {
+        showError(errBox, "Fill in your name, work email and health system.");
+        return;
+      }
+      if ((payload.password || "").length < MIN_PW_LEN) {
+        showError(errBox, "Choose a password of at least " + MIN_PW_LEN + " characters.");
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Sending your code…";
+      try {
+        await apiPost("/hs/signup", payload);
+        pendingSignupEmail = payload.email;
+        renderVerify();
+      } catch (e) {
+        showError(errBox, e.message || "We could not start that. Please try again.");
+        btn.disabled = false;
+        btn.textContent = "Continue";
+      }
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SCREEN 5 — CONFIRM EMAIL
+  // ══════════════════════════════════════════════════════════
+  function renderVerify() {
+    header.hidden = true;
+    hideRail();
+    mountTemplate("tplVerify");
+    const form = document.getElementById("prvVerifyForm");
+    const errBox = document.getElementById("prvVerifyError");
+    const btn = document.getElementById("prvVerifyBtn");
+    const codeEl = document.getElementById("prvVerifyCode");
+    document.getElementById("prvVerifySub").textContent =
+      "We sent a six-digit code to " + pendingSignupEmail;
+    codeEl.focus();
+
+    document.getElementById("prvResendBtn").addEventListener("click", async () => {
+      try {
+        await apiPost("/hs/signup/resend", { email: pendingSignupEmail });
+        toast("Sent. Check your inbox.", "info");
+      } catch (_) {
+        toast("Sent. Check your inbox.", "info");
+      }
+    });
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      showError(errBox, "");
+      const code = (codeEl.value || "").trim();
+      if (code.length !== 6) {
+        showError(errBox, "Enter the six-digit code.");
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Confirming…";
+      try {
+        const data = await apiPost("/hs/signup/verify",
+                                   { email: pendingSignupEmail, code });
+        // The username was derived from their organization name and they have
+        // never seen it. Remember it so the login form is prefilled if they
+        // ever come back to it, and say it out loud on the next screen.
+        try { localStorage.setItem("prv_last_username", data.username); } catch (_) {}
+        toast("Your username is " + data.username + ". It is in your email too.", "info");
+        pendingSignupEmail = "";
+        await loadProfileAndRoute();
+      } catch (e) {
+        showError(errBox, e.message || "That code is not right, or it has expired.");
+        btn.disabled = false;
+        btn.textContent = "Confirm";
+      }
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  NAVIGATION RAIL
+  //
+  //  Ported from the physician portal, including its rule: a surface the
+  //  session lacks shows the item LOCKED rather than hiding it. A health
+  //  system that just signed up is going to be approved within the day, and
+  //  hiding the product makes it look empty at exactly the moment we are
+  //  trying to show them what they joined.
+  // ══════════════════════════════════════════════════════════
+  const RAIL_ITEMS = [
+    { dest: "upload",  label: "Upload",    surface: "upload",
+      lockedHint: "Opens once we have reviewed your account" },
+    { dest: "payouts", label: "Payouts",   surface: "payouts" },
+    // "About you", never "Intake". An operator word must not reach a hospital
+    // contact, the same rule the upload status vocabulary follows.
+    { dest: "intake",  label: "About you", surface: "intake" },
+    { dest: "account", label: "Account",   surface: "account" }
+  ];
+
+  const railEl = document.getElementById("prvRail");
+  let currentPanel = "upload";
+
+  // Deny on absence: an older cached profile is not permission.
+  function sessionHasSurface(surface) {
+    if (!surface) return true;
+    const list = (currentUser && currentUser.surfaces) || null;
+    return Array.isArray(list) && list.indexOf(surface) !== -1;
+  }
+
+  function hideRail() {
+    railEl.hidden = true;
+    document.body.classList.remove("prv-has-rail");
+  }
+
+  function renderRail() {
+    clear(railEl);
+    RAIL_ITEMS.forEach((item) => {
+      const unlocked = sessionHasSurface(item.surface);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "asc-rail-item" +
+        (currentPanel === item.dest ? " active" : "") +
+        (unlocked ? "" : " locked");
+      const label = document.createElement("span");
+      label.className = "asc-rail-label";
+      label.textContent = item.label;
+      btn.appendChild(label);
+      if (!unlocked) {
+        const lock = document.createElement("span");
+        lock.className = "asc-rail-lock";
+        lock.textContent = "Locked";
+        btn.appendChild(lock);
+        btn.title = item.lockedHint || "";
+      }
+      // A locked item opens the explanation, not a 403.
+      btn.addEventListener("click", () =>
+        setPanel(unlocked ? item.dest : "pending"));
+      railEl.appendChild(btn);
+    });
+    railEl.hidden = false;
+    document.body.classList.add("prv-has-rail");
+  }
+
+  function setPanel(dest) {
+    if (dest !== "pending") currentPanel = dest;
+    renderRail();
+    if (dest === "upload") renderUpload();
+    else if (dest === "payouts") renderPayouts();
+    else if (dest === "intake") renderIntake();
+    else if (dest === "account") renderAccount();
+    else renderPending();
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SCREEN 6 — ABOUT YOU
+  // ══════════════════════════════════════════════════════════
+  async function renderIntake(opts) {
+    renderHeader();
+    mountTemplate("tplIntake");
+    const fields = document.getElementById("prvIntakeFields");
+    const errBox = document.getElementById("prvIntakeError");
+    const okBox = document.getElementById("prvIntakeOk");
+    const btn = document.getElementById("prvIntakeBtn");
+    const form = document.getElementById("prvIntakeForm");
+
+    if (opts && opts.firstRun) {
+      document.getElementById("prvIntakeSub").textContent =
+        "A few questions, so the first conversation starts from something real. " +
+        "You can change any of it later.";
+    }
+
+    let prompts = [];
+    let previous = {};
+    try {
+      const data = await apiGet("/hs/intake");
+      prompts = data.prompts || [];
+      if (data.submitted && data.submitted.length) previous = data.submitted[0].answers || {};
+    } catch (e) {
+      if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+      showError(errBox, e.message || "Could not load the questions.");
+      return;
+    }
+
+    const inputs = {};
+    prompts.forEach((p) => {
+      const wrap = document.createElement("div");
+      wrap.className = "asc-field prv-intake-field";
+      const label = document.createElement("label");
+      label.className = "asc-label";
+      label.setAttribute("for", "prv-in-" + p.key);
+      // textContent, always: this copy is server-provided.
+      label.textContent = p.label;
+      if (!p.required) {
+        const hint = document.createElement("span");
+        hint.className = "asc-label-hint";
+        hint.textContent = " (optional)";
+        label.appendChild(hint);
+      }
+      const ta = document.createElement("textarea");
+      ta.className = "asc-input";
+      ta.id = "prv-in-" + p.key;
+      ta.rows = 3;
+      ta.placeholder = p.placeholder || "";
+      ta.value = previous[p.key] || "";
+      wrap.appendChild(label);
+      wrap.appendChild(ta);
+      fields.appendChild(wrap);
+      inputs[p.key] = ta;
+    });
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      showError(errBox, "");
+      okBox.hidden = true;
+      const payload = {};
+      Object.keys(inputs).forEach((k) => { payload[k] = inputs[k].value || ""; });
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        await apiPost("/hs/intake", payload);
+        okBox.textContent = "Thank you. We have that.";
+        okBox.hidden = false;
+        // Re-read the profile: this is the write that clears intake_needed.
+        try { currentUser = await apiGet("/hs/me"); } catch (_) {}
+        renderRail();
+      } catch (e) {
+        if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+        showError(errBox, e.message || "Could not save that. Please try again.");
+      }
+      btn.disabled = false;
+      btn.textContent = "Save";
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SCREEN 7 — PAYOUTS
+  // ══════════════════════════════════════════════════════════
+  function formatMoney(cents) {
+    const n = (Number(cents) || 0) / 100;
+    return "$" + n.toLocaleString(undefined,
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function summaryStat(label, value) {
+    const box = document.createElement("div");
+    box.className = "prv-stat";
+    const l = document.createElement("span");
+    l.className = "prv-stat-label";
+    l.textContent = label;
+    const v = document.createElement("span");
+    v.className = "prv-stat-value";
+    v.textContent = value;
+    box.appendChild(l);
+    box.appendChild(v);
+    return box;
+  }
+
+  async function renderPayouts() {
+    renderHeader();
+    mountTemplate("tplPayouts");
+    const summaryEl = document.getElementById("prvPayoutSummary");
+    const bodyEl = document.getElementById("prvPayoutBody");
+    const emptyEl = document.getElementById("prvPayoutEmpty");
+    const emptyText = document.getElementById("prvPayoutEmptyText");
+    const tableWrap = document.getElementById("prvPayoutTableWrap");
+    const howEl = document.getElementById("prvHowWePay");
+    document.getElementById("prvPayoutsRefresh")
+      .addEventListener("click", () => setPanel("payouts"));
+
+    let data;
+    try {
+      data = await apiGet("/hs/payouts");
+    } catch (e) {
+      if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+      // A visible error, never a reassuring zero. A $0.00 that actually means
+      // "we could not load your ledger" is the worst thing this page can show.
+      tableWrap.hidden = true;
+      emptyEl.hidden = false;
+      emptyText.textContent =
+        "We could not load your payouts just now. Please refresh in a moment.";
+      return;
+    }
+
+    howEl.textContent = data.how_we_pay || "";
+    const s = data.summary || {};
+    clear(summaryEl);
+    summaryEl.appendChild(summaryStat("Total recorded", formatMoney(s.total_cents)));
+    summaryEl.appendChild(summaryStat("Paid", formatMoney(s.paid_cents)));
+    summaryEl.appendChild(summaryStat("Awaiting payment", formatMoney(s.pending_cents)));
+
+    const rows = data.payouts || [];
+    if (!rows.length) {
+      tableWrap.hidden = true;
+      emptyEl.hidden = false;
+      emptyText.textContent =
+        "Nothing recorded yet. Every payment we make to your organization will " +
+        "appear here.";
+      return;
+    }
+    tableWrap.hidden = false;
+    emptyEl.hidden = true;
+    rows.forEach((p) => {
+      const tr = document.createElement("tr");
+      const when = document.createElement("td");
+      when.textContent = formatWhen(p.recorded_at);
+      const what = document.createElement("td");
+      what.textContent = p.description || "Data licence";
+      const period = document.createElement("td");
+      period.textContent = (p.period_start && p.period_end)
+        ? p.period_start + " to " + p.period_end : "—";
+      const status = document.createElement("td");
+      const badge = document.createElement("span");
+      badge.className = "asc-badge " +
+        (p.status === "paid" ? "asc-badge-green"
+          : p.status === "cancelled" ? "asc-badge-gray" : "asc-badge-amber");
+      badge.textContent = p.status;
+      status.appendChild(badge);
+      const amount = document.createElement("td");
+      amount.className = "prv-num prv-payout-amount";
+      amount.textContent = formatMoney(p.amount_cents);
+      [when, what, period, status, amount].forEach((td) => tr.appendChild(td));
+      bodyEl.appendChild(tr);
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SCREEN 8 — ACCOUNT
+  // ══════════════════════════════════════════════════════════
+  function renderAccount() {
+    renderHeader();
+    mountTemplate("tplAccount");
+    const form = document.getElementById("prvAccountForm");
+    const errBox = document.getElementById("prvAccountError");
+    const okBox = document.getElementById("prvAccountOk");
+    const btn = document.getElementById("prvAccountBtn");
+    const cur = document.getElementById("prvAcCurrent");
+    const next = document.getElementById("prvAcNew");
+    const strength = document.getElementById("prvAcStrength");
+
+    document.getElementById("prvAccountSub").textContent =
+      "You sign in as " + ((currentUser && currentUser.username) || "") + ".";
+
+    next.addEventListener("input", () => {
+      const s = scorePassword(next.value || "");
+      strength.className = "prv-strength " + s.cls;
+      strength.textContent = next.value ? s.label : "";
+    });
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      showError(errBox, "");
+      okBox.hidden = true;
+      if ((next.value || "").length < MIN_PW_LEN) {
+        showError(errBox, "Use at least " + MIN_PW_LEN + " characters.");
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        await apiPost("/hs/password",
+                      { current_password: cur.value || "", new_password: next.value });
+        okBox.textContent = "Password changed.";
+        okBox.hidden = false;
+        cur.value = "";
+        next.value = "";
+        strength.textContent = "";
+      } catch (e) {
+        if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+        showError(errBox, e.message || "Could not change your password.");
+      }
+      btn.disabled = false;
+      btn.textContent = "Change password";
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SCREEN 9 — IN REVIEW
+  // ══════════════════════════════════════════════════════════
+  function renderPending() {
+    renderHeader();
+    mountTemplate("tplPending");
+    document.getElementById("prvPendingIntake")
+      .addEventListener("click", () => setPanel("intake"));
+  }
+
+  // ══════════════════════════════════════════════════════════
   //  ROUTING
   // ══════════════════════════════════════════════════════════
   async function loadProfileAndRoute() {
     try {
       const me = await apiGet("/hs/me");
       currentUser = me;
+      // 1. A passphrase we mailed has to be replaced before it guards anything.
+      //    A self-signup never lands here: it chose its own password.
       if (me && me.must_reset === true) {
+        hideRail();
         renderReset();
-      } else {
-        renderUpload();
+        return;
       }
+      // 2. A brand-new signup is walked into the intake form once. An existing
+      //    partner is never routed here, whatever intake_at says.
+      if (me && me.intake_needed === true) {
+        currentPanel = "intake";
+        renderRail();
+        renderIntake({ firstRun: true });
+        return;
+      }
+      // 3. Otherwise the last panel, defaulting to upload when it is open and
+      //    to payouts when it is not, so a pending account never opens onto a
+      //    locked door.
+      const dest = sessionHasSurface("upload")
+        ? (currentPanel || "upload")
+        : (currentPanel === "upload" ? "payouts" : currentPanel);
+      setPanel(dest);
     } catch (e) {
-      if (e instanceof AuthError) { renderLogin(); return; }
+      if (e instanceof AuthError) { hideRail(); renderLogin(); return; }
       // Non-auth error fetching profile: show login with a note.
       bounceToLogin(e.message || "Could not load your account. Please sign in again.");
     }

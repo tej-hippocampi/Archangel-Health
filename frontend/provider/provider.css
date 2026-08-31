@@ -210,3 +210,102 @@
   .prv-grid { grid-template-columns: 1fr; }
   .asc-header-inner { flex-wrap: wrap; gap: 10px; }
 }
+
+/* ─── Rail ────────────────────────────────────────────────────
+   .asc-rail, .asc-rail-item and .asc-rail-lock are already defined in
+   asclepius.css, which this page loads. Only the layout offset and the
+   portal's own panels belong here. */
+body.prv-has-rail .prv-main { padding-left: calc(var(--asc-rail-w, 220px) + 8px); }
+.prv-rail { padding-top: var(--sp-5, 24px); }
+
+.prv-panel { padding-top: 8px; }
+
+/* ─── Link-styled button ─────────────────────────────────────
+   A real <button> so it is keyboard- and screen-reader-correct, painted as
+   the inline link it reads as. */
+.prv-linkbtn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.prv-linkbtn:hover { color: var(--green-deep, var(--ink)); }
+
+/* ─── Confirmation code ─────────────────────────────────────
+   Data, so it is set in mono at generous tracking, the same treatment the
+   one-time code gets in mail. */
+.prv-code-input {
+  font-family: var(--mono);
+  font-size: 22px;
+  letter-spacing: 0.36em;
+  text-align: center;
+  padding-left: 0.36em;
+}
+
+/* ─── Payouts ─────────────────────────────────────────────── */
+.prv-payout-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+}
+.prv-stat { display: flex; flex-direction: column; gap: 4px; }
+.prv-stat-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.prv-stat-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.prv-num { text-align: right; }
+.prv-payout-amount {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.prv-note-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--asc-muted);
+  max-width: 52ch;
+}
+
+/* ─── Intake ──────────────────────────────────────────────── */
+.prv-intake-field textarea.asc-input {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+/* ─── In review ───────────────────────────────────────────── */
+.prv-pending { text-align: center; padding: 44px 24px 40px; }
+.prv-pending .asc-empty-icon { font-size: 26px; margin-bottom: 10px; }
+.prv-pending .prv-intro-sub { max-width: 46ch; margin-left: auto; margin-right: auto; }
+.prv-pending-note { color: var(--ink-faint); }
+.prv-pending .asc-btn { margin-top: 20px; }
+
+@media (max-width: 900px) {
+  /* The rail becomes a strip along the top rather than eating a phone's width. */
+  body.prv-has-rail .prv-main { padding-left: 0; }
+  .prv-rail {
+    position: static;
+    width: auto;
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 10px var(--sp-3, 14px);
+    border-right: 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .prv-rail .asc-rail-item { white-space: nowrap; }
+}

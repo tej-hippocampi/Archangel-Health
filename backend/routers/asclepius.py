@@ -3413,6 +3413,20 @@ async def _finalize_submission(
         asc_baselines.record_model_failure(store, task_id, sid)
 
         store.refresh_task_status(task_id)
+        # A completed case was the one notable thing on this product that logged
+        # nothing at all: the flagged paths above each record why they were
+        # flagged, and an ordinary good submission passed through silently. This
+        # is the moment the pipeline has settled and the status is real, which is
+        # also what makes it the right hook for the founder alert.
+        try:
+            store.log_event(
+                entity_type="submission", entity_id=sid,
+                event_type="submission_completed", actor=actor_id,
+                payload={"task_id": task_id, "status": result.get("status"),
+                         "record_count": result.get("record_count")},
+            )
+        except Exception:
+            log.exception("asclepius: could not log submission completion for %s", sid)
         # §8.6 — the relay unlock ping. Fired HERE because this is the moment the
         # relay gate starts letting the next point through: the message and the
         # availability are one event, rather than a sweep noticing an hour later
@@ -3420,6 +3434,10 @@ async def _finalize_submission(
         # the same rule as every other ping — ``notify_relay_unlock`` swallows its
         # own failures, and a community outage must never cost somebody a
         # submission that has already been accepted and packaged.
+        #
+        # AFTER the completion log, not before: both are post-pipeline hooks at the
+        # same seam and they are independent, but the audit line is the one that
+        # must exist even if the other throws its way out of the try above.
         asc_route_notify.notify_relay_unlock(store, task=store.get_task(task_id))
         return result
     except Exception:

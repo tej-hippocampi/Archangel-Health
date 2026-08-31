@@ -4136,6 +4136,14 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   font: inherit; font-size: var(--t-sm); padding: 6px 12px; cursor: pointer;
 }
 .asc-rv-seg button + button { border-left: 1px solid var(--asc-line); }
+/* The group clips to its pill shape (`overflow: hidden` above), which would cut
+   the base `:focus-visible` outline in half on the two end segments. Draw the
+   ring INSIDE the button instead, so a keyboard reviewer can always see which
+   option the aim is sitting on. */
+.asc-rv-seg button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+/* The aimed row keeps its left-edge cue for sighted keyboard users. It is no
+   longer the ONLY signal — the aim now moves real focus, which is what carries
+   it to assistive technology — but it is still the fastest one to scan. */
 .asc-rv-seg button.is-on[data-state="agree"] { background: var(--green); color: var(--card); }
 .asc-rv-seg button.is-on[data-state="disagree"] { background: var(--pink); color: var(--card); }
 .asc-rv-seg button.is-on[data-state="cannot_assess"] { background: var(--ink-faint); color: var(--card); }
@@ -4188,6 +4196,49 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
    from the help menu it is a sibling of. */
 .asc-eval-chooser { min-width: 240px; }
 .asc-eval-chooser .asc-help-menu-item { display: block; text-align: left; }
+
+/* NOTE: this block sits BEFORE the PRD-R banner on purpose. Tests in
+   test_review_dom.py scope themselves as "everything after the PRD-R heading"
+   and assert what that region may not contain, so CSS appended to the end of
+   this file lands inside a contract it has nothing to do with. New unrelated
+   blocks go here, above that line. */
+/* ─── Health-system self-signups, intake and payouts ───────────────────── */
+/* The review queue card. One block per organization waiting on a person.
+   Deliberately not styled as an incident: see the note in admin_health.js. */
+.asc-hs-signup { border-top: 1px solid var(--hairline); }
+.asc-hs-signup:first-of-type { border-top: 0; }
+.asc-hs-signup-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--sp-1); }
+.asc-hs-signup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+}
+
+/* Their answers, read as a label/value list rather than a table: the values
+   are prose of wildly varying length and a table column would ruin them. */
+.asc-hs-intake { margin-top: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-2); }
+.asc-hs-intake-row { display: grid; grid-template-columns: 11rem 1fr; gap: var(--sp-3); align-items: baseline; }
+.asc-hs-intake-label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.asc-hs-intake-value { color: var(--ink-soft); line-height: 1.55; white-space: pre-wrap; }
+
+.asc-hs-payout-form { border-top: 1px solid var(--hairline); }
+.asc-hs-payout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0 var(--sp-3);
+}
+
+@media (max-width: 760px) {
+  .asc-hs-intake-row { grid-template-columns: 1fr; gap: 2px; }
+}
 
 /* ═══ PRD-R: the paired review surface ═══════════════════════════════════════
    The TR page mirrors the TL page's structure, because a physician who has
