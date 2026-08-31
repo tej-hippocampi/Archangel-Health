@@ -1,0 +1,860 @@
+"""Onboarding v2 — every case §8 names.
+
+Grouped the way the PRD groups them: wizard · resume/nudge · credentials ·
+walkthrough · emails. Each test asserts the behaviour a physician or an admin
+would actually observe, not that a function was called.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+import sys
+import uuid
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+os.environ.setdefault("ADMIN_AUTH_TOKEN", "test-admin-token")
+
+import onboarding_emails as oe  # noqa: E402
+import routers.onboarding as onboarding_module  # noqa: E402
+from asclepius import assets as asc_assets  # noqa: E402
+from asclepius import auth as asc_auth  # noqa: E402
+from asclepius import credentialing  # noqa: E402
+from asclepius import onboarding_nudge  # noqa: E402
+from asclepius import plausibility  # noqa: E402
+from asclepius import store as asc_store_mod  # noqa: E402
+from main import app  # noqa: E402
+from tests._asclepius import fresh_store, headers_for, make_user, token_for  # noqa: E402
+
+
+@pytest.fixture()
+def client():
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture(autouse=True)
+def _stub_email(monkeypatch):
+    """No SendGrid round-trip, but record what would have been sent: several of
+    these tests are ABOUT which email goes out, and asserting on a swallowed
+    send would assert nothing."""
+    sent: list = []
+
+    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
+        sent.append({"to": to, "subject": subject, "html": html_body})
+        return True
+
+    monkeypatch.setattr(onboarding_module, "send_html_email", _send)
+    monkeypatch.setattr(onboarding_module, "_email_configured", lambda: True)
+    return sent
+
+
+@pytest.fixture()
+def sent(_stub_email):
+    return _stub_email
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Helpers
+# ═════════════════════════════════════════════════════════════════════════════
+
+CREDS_MINIMAL = {"fullLegalName": "Dr. Amara Okafor", "primarySpecialty": "Nephrology"}
+ATTS = {
+    "consentCredentialShare": True,
+    "attestIndependentJudgment": True,
+    "ipAssignment": True,
+    "noPhi": True,
+    "signedInitials": "AO",
+}
+
+
+def _seed_verified(client: TestClient, *, product: str = "asclepius"):
+    """A self-serve invite advanced to step 2 (mailbox proven), product locked."""
+    ts = client.app.state.team_store
+    invite = ts.create_health_system_invite(
+        invite_base_url="http://localhost:5173", product=product)
+    token = invite["onboarding_url"].rsplit("/", 1)[-1]
+    hs_id = invite["health_system_id"]
+    email = f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org"
+    ts.update_health_system_director_identity(
+        hs_id, first_name="Amara", last_name="Okafor", email=email)
+    with sqlite3.connect(ts.db_path) as conn:
+        conn.execute("UPDATE health_systems SET onboarding_step = 2 WHERE id = ?", (hs_id,))
+        conn.commit()
+    return token, hs_id, email
+
+
+def _age_invite(client: TestClient, hs_id: str, hours: float) -> None:
+    """Backdate created_at so the nudge sweep considers this row."""
+    when = (datetime.utcnow() - timedelta(hours=hours)).replace(microsecond=0).isoformat()
+    ts = client.app.state.team_store
+    with sqlite3.connect(ts.db_path) as conn:
+        conn.execute("UPDATE health_systems SET created_at = ? WHERE id = ?", (when, hs_id))
+        conn.commit()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# wizard
+# ═════════════════════════════════════════════════════════════════════════════
+
+_WIZARD_TSX = Path(__file__).resolve().parents[2] / "landing/src/app/components/OnboardingWizard.tsx"
+
+
+def test_physician_order_is_cv_review_and_has_no_password_step():
+    """§8: identity→verify→cv→review→attestations→success; no password step.
+
+    Asserted against the source of ``orderFor`` because that function IS the
+    contract — it drives the stepper, Back, and every resume target.
+    """
+    src = _WIZARD_TSX.read_text(encoding="utf-8")
+    order_line = '["identity", "verify", "cv", "review", "attestations", "submitted"]'
+    assert order_line in src, "the physician+asclepius order is not the v2 order"
+    # The password screen must not be reachable on this path. It still exists
+    # for member mode and the short signup, so the check is that the physician
+    # array does not contain it, not that the step is gone.
+    idx = src.index(order_line)
+    branch = src[src.index('if (product === "asclepius") {'):idx]
+    assert '"password"' not in branch
+
+
+def test_member_and_short_signup_orders_are_unchanged():
+    """§8 regression: member/advisor/referrer paths keep their password step."""
+    src = _WIZARD_TSX.read_text(encoding="utf-8")
+    assert '["credentials", "attestations", "verify", "password", "ascSuccess"]' in src
+    assert 'const head: StepKey[] = ["identity", "verify", "password"];' in src
+    assert 'if (kind !== "physician") return [...head, "ascSuccess"];' in src
+
+
+def test_submit_succeeds_with_only_name_email_and_specialty(client: TestClient):
+    """§8: submit succeeds with ONLY name+email+specialty.
+
+    No NPI, no CV, no board certification, no licence, no phone — and no
+    password, which is the change that makes the account `pending` rather than
+    usable.
+    """
+    token, hs_id, email = _seed_verified(client)
+    assert client.post("/api/onboarding/asclepius/credentials",
+                       json={"token": token, "credentials": CREDS_MINIMAL}).status_code == 200
+    assert client.post("/api/onboarding/asclepius/attestations",
+                       json={"token": token, "attestations": ATTS}).status_code == 200
+    r = client.post("/api/onboarding/asclepius/finish", json={"token": token})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["awaiting_review"] is True
+    # No session is minted: there is nothing behind the door until an admin
+    # approves, and a token would drop them into a portal that 403s every call.
+    assert not body.get("token")
+
+    asc = client.app.state.asclepius_store
+    u = asc.get_user_by_email(email)
+    assert u is not None
+    assert asc_store_mod.password_is_unset(u), "a v2 application must carry no credential"
+    assert u["verification_status"] == "pending"
+    assert u["specialty"] == "nephrology"
+
+
+def test_missing_npi_cv_and_cert_land_as_review_flags_not_blockers(client: TestClient):
+    """§8: missing NPI lands as a review flag.
+
+    LOW severity specifically, because ``propose_tier`` suppresses its proposal
+    on HIGH findings only — so absence reaches the admin's dossier without
+    turning a two-minute application into a manual hold.
+    """
+    token, hs_id, email = _seed_verified(client)
+    client.post("/api/onboarding/asclepius/credentials",
+                json={"token": token, "credentials": CREDS_MINIMAL})
+    client.post("/api/onboarding/asclepius/attestations",
+                json={"token": token, "attestations": ATTS})
+    assert client.post("/api/onboarding/asclepius/finish",
+                       json={"token": token}).status_code == 200
+
+    asc = client.app.state.asclepius_store
+    u = asc.get_user_by_email(email)
+    flags = json.loads(u["flags_json"] or "[]")
+    issues = {(f["field"], f["issue"]) for f in flags}
+    assert ("npi", "not_provided") in issues
+    assert ("cv", "not_provided") in issues
+    assert ("board_cert", "not_provided") in issues
+    assert all(f["severity"] == plausibility.SEVERITY_LOW
+               for f in flags if f["issue"] == "not_provided")
+    # And none of them suppresses the tier proposal.
+    proposal = credentialing.propose_tier(u)
+    assert not [b for b in proposal["blockers"] if "not_provided" in b]
+
+
+def test_submit_without_a_specialty_is_refused_by_name(client: TestClient):
+    """The other half of the same rule: the three required fields ARE required,
+    and the refusal says which one is missing rather than 'add your credentials'."""
+    token, _hs_id, _email = _seed_verified(client)
+    client.post("/api/onboarding/asclepius/credentials",
+                json={"token": token, "credentials": {"fullLegalName": "Dr. A. Okafor"}})
+    client.post("/api/onboarding/asclepius/attestations",
+                json={"token": token, "attestations": ATTS})
+    r = client.post("/api/onboarding/asclepius/finish", json={"token": token})
+    assert r.status_code == 400
+    assert "specialty" in r.json()["detail"].lower()
+
+
+def test_cv_upload_reports_real_stages_and_parses(client: TestClient):
+    """§2 screen 3: the captions track REAL parse stages, and the Review screen's
+    prefill comes back from /cv/status."""
+    token, hs_id, email = _seed_verified(client)
+    cv = (
+        "Amara N. Okafor, MD\n\n"
+        "NPI: 1234567893\n"
+        "https://www.linkedin.com/in/amara-okafor\n\n"
+        "TRAINING\n"
+        "Residency, Internal Medicine, Massachusetts General Hospital, 2012-2015\n"
+        "Fellowship, Nephrology, Brigham and Women's Hospital, 2015-2018\n\n"
+        "CERTIFICATIONS\nBoard-certified in Nephrology\n\n"
+        "14 years of clinical practice\n"
+    )
+    r = client.post(
+        "/api/onboarding/asclepius/cv",
+        data={"token": token},
+        files={"file": ("cv.txt", cv.encode("utf-8"), "text/plain")},
+    )
+    assert r.status_code == 200, r.text
+    # 'reading' is stamped synchronously, so a first poll can never read the
+    # gap between "upload returned" and "background task started" as idle.
+    assert r.json()["stage"] == "reading"
+
+    # TestClient runs BackgroundTasks to completion before returning, so by now
+    # the parse is done.
+    s = client.get(f"/api/onboarding/asclepius/cv/status?token={token}").json()
+    assert s["uploaded"] is True and s["finished"] is True and s["ok"] is True
+    parsed = s["parsed"]
+    assert parsed["full_name"] == "Amara N. Okafor"
+    assert parsed["npi"] == "1234567893"                       # labelled AND checksum-valid
+    assert parsed["specialty"] == "nephrology"
+    assert parsed["degrees"] == ["MD"]
+    assert parsed["linkedin_url"].endswith("/in/amara-okafor")
+    assert {t["kind"] for t in parsed["training"]} == {"residency", "fellowship"}
+
+
+def test_cv_parse_failure_is_an_empty_state_not_an_error(client: TestClient):
+    """§8: CV parse failure → review page empty-state, not an error.
+
+    The poll still resolves (``finished``), the application is unaffected, and
+    the suggestions are simply absent — which is the same shape the "No CV"
+    manual path produces.
+    """
+    token, _hs_id, email = _seed_verified(client)
+    r = client.post(
+        "/api/onboarding/asclepius/cv",
+        data={"token": token},
+        files={"file": ("cv.txt", b"tiny", "text/plain")},   # under the 40-char floor
+    )
+    assert r.status_code == 200, r.text
+    s = client.get(f"/api/onboarding/asclepius/cv/status?token={token}").json()
+    assert s["finished"] is True and s["ok"] is False
+    assert s["parsed"]["reason"] == "no_extractable_text"
+    # Every key the Review screen indexes is present on the failure shape too.
+    for key in ("full_name", "degrees", "training", "specialty", "npi", "linkedin_url"):
+        assert key in s["parsed"]
+    # And the application still completes.
+    client.post("/api/onboarding/asclepius/credentials",
+                json={"token": token, "credentials": CREDS_MINIMAL})
+    client.post("/api/onboarding/asclepius/attestations",
+                json={"token": token, "attestations": ATTS})
+    assert client.post("/api/onboarding/asclepius/finish",
+                       json={"token": token}).status_code == 200
+
+
+def test_a_client_cannot_set_its_own_cv_parse_or_stage(client: TestClient):
+    """The server owns every CV key. A credentials POST claiming a parse — or a
+    sha into the shared asset store, which also holds de-identified clinical
+    images — must be discarded."""
+    token, hs_id, email = _seed_verified(client)
+    client.post("/api/onboarding/asclepius/credentials", json={
+        "token": token,
+        "credentials": {**CREDS_MINIMAL, "cvAssetSha": "a" * 64,
+                        "cvParsed": {"ok": True, "npi": "9999999999"},
+                        "cvParseStage": "done"},
+    })
+    ts = client.app.state.team_store
+    stored = (ts.get_asclepius_person(hs_id, email) or {}).get("credentials") or {}
+    assert "cvAssetSha" not in stored
+    assert "cvParsed" not in stored
+    assert "cvParseStage" not in stored
+
+
+def test_live_luhn_warns_but_never_blocks():
+    """§8: live Luhn — bad check digit warns, never blocks.
+
+    The port is exercised against the SERVER's implementation on the same
+    numbers, which is what stops the two drifting.
+    """
+    npi_ts = Path(__file__).resolve().parents[2] / "landing/src/lib/npi.ts"
+    src = npi_ts.read_text(encoding="utf-8")
+    assert "This doesn't look like a valid NPI — double-check?" in src
+    # It is a hint, never an `error`: the field the Review screen renders passes
+    # npiWarning() to `hint`, and `error` only outside review mode.
+    steps = (Path(__file__).resolve().parents[2]
+             / "landing/src/app/components/onboarding/steps.tsx").read_text(encoding="utf-8")
+    assert 'hint={npiWarning(c.npi) || "National Provider Identifier (10 digits)."}' in steps
+    assert "error={!reviewMode && c.npi.length > 0" in steps
+    # Server-side truth for the same rule, so a valid number never warns.
+    assert credentialing.npi_checksum_ok("1234567893")
+    assert not credentialing.npi_checksum_ok("1234567890")
+
+
+def test_review_mode_requires_only_name_and_specialty():
+    """The client gate matches the server's: Submit is live once those two are in."""
+    steps = (Path(__file__).resolve().parents[2]
+             / "landing/src/app/components/onboarding/steps.tsx").read_text(encoding="utf-8")
+    assert ("const reviewValid =\n"
+            "    c.fullLegalName.trim().length > 0 && c.primarySpecialty.trim().length > 0;") in steps
+    assert "const valid = reviewMode ? reviewValid" in steps
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# resume / nudge
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _capture_nudges(monkeypatch) -> list:
+    """Record (recipient, subject) for every nudge the sweep sends.
+
+    Assertions below are scoped to ONE invite's address rather than to the
+    sweep's totals, deliberately: team.db is shared across the suite, so a
+    total counts whatever other tests happened to leave unfinished. The
+    property under test is per-application anyway — "this physician is nudged
+    exactly once" — and a global count would only ever have tested run order.
+    """
+    import email_utils  # noqa: PLC0415
+
+    sent: list = []
+
+    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
+        sent.append((to, subject))
+        return True
+
+    monkeypatch.setattr(email_utils, "send_html_email", _send)
+    monkeypatch.setattr(email_utils, "is_email_transport_configured", lambda: True)
+    return sent
+
+
+def _subjects_for(sent: list, email: str) -> list:
+    return [subject for to, subject in sent if to == email]
+
+
+@pytest.mark.anyio
+async def test_nudge_fires_once_at_24h_and_never_twice(client: TestClient, monkeypatch):
+    """§8: nudge fires once at >24h unfinished; never twice."""
+    token, hs_id, email = _seed_verified(client)
+    ts = client.app.state.team_store
+    _age_invite(client, hs_id, hours=30)
+    sent = _capture_nudges(monkeypatch)
+
+    await onboarding_nudge.sweep(ts)
+    assert _subjects_for(sent, email) == ["Your application is waiting — 2 minutes to finish"]
+    assert ts.get_health_system_by_id(hs_id)["nudge_sent_at"]
+
+    # Again, immediately. The stamp is the whole idempotency mechanism, so a
+    # second sweep must send this physician nothing at all.
+    await onboarding_nudge.sweep(ts)
+    assert len(_subjects_for(sent, email)) == 1
+
+
+@pytest.mark.anyio
+async def test_day_six_expiry_warning_fires_once(client: TestClient, monkeypatch):
+    """§8: day-6 expiry warning once."""
+    token, hs_id, email = _seed_verified(client)
+    ts = client.app.state.team_store
+    _age_invite(client, hs_id, hours=150)   # past both thresholds
+    sent = _capture_nudges(monkeypatch)
+
+    await onboarding_nudge.sweep(ts)
+    assert sorted(_subjects_for(sent, email)) == sorted([
+        "Your application is waiting — 2 minutes to finish",
+        "Your Archangel Health link expires tomorrow",
+    ])
+    row = ts.get_health_system_by_id(hs_id)
+    assert row["nudge_sent_at"] and row["expiry_warned_at"]
+
+    await onboarding_nudge.sweep(ts)
+    assert len(_subjects_for(sent, email)) == 2
+
+
+@pytest.mark.anyio
+async def test_a_finished_application_is_never_nudged(client: TestClient, monkeypatch):
+    """The one thing worse than no nudge: nudging someone who already applied."""
+    token, hs_id, email = _seed_verified(client)
+    client.post("/api/onboarding/asclepius/credentials",
+                json={"token": token, "credentials": CREDS_MINIMAL})
+    client.post("/api/onboarding/asclepius/attestations",
+                json={"token": token, "attestations": ATTS})
+    client.post("/api/onboarding/asclepius/finish", json={"token": token})
+    _age_invite(client, hs_id, hours=200)
+    sent = _capture_nudges(monkeypatch)
+
+    ts = client.app.state.team_store
+    await onboarding_nudge.sweep(ts)
+    assert _subjects_for(sent, email) == []
+
+
+@pytest.mark.anyio
+async def test_no_mail_transport_stamps_nothing(client: TestClient, monkeypatch):
+    """A deployment with no mail configured must not silently burn the one
+    nudge every physician gets."""
+    token, hs_id, email = _seed_verified(client)
+    _age_invite(client, hs_id, hours=30)
+    import email_utils
+    monkeypatch.setattr(email_utils, "is_email_transport_configured", lambda: False)
+    ts = client.app.state.team_store
+    assert (await onboarding_nudge.sweep(ts)) == {"nudge": 0, "expiry": 0}
+    row = ts.get_health_system_by_id(hs_id)
+    assert row["nudge_sent_at"] is None
+    assert row["expiry_warned_at"] is None
+
+
+def test_resume_restores_the_exact_screen_and_state(client: TestClient):
+    """§8: resume link restores the exact screen and state.
+
+    The session payload is what the wizard resumes from, so this asserts the
+    payload carries everything the CV and Review screens need.
+    """
+    token, hs_id, email = _seed_verified(client)
+    cv = ("Amara N. Okafor, MD\n\nBoard-certified in Nephrology\n"
+          "Residency, Internal Medicine, Massachusetts General Hospital, 2012-2015\n"
+          "12 years of clinical practice\n")
+    client.post("/api/onboarding/asclepius/cv", data={"token": token},
+                files={"file": ("cv.txt", cv.encode("utf-8"), "text/plain")})
+
+    s = client.get(f"/api/onboarding/session?token={token}").json()
+    assert s["status"] == "pending"
+    assert s["director_cv"]["uploaded"] is True
+    assert s["director_cv"]["stage"] == "done"
+    assert s["director_cv"]["parsed"]["full_name"] == "Amara N. Okafor"
+    assert s["director_cv"]["filename"] == "cv.txt"
+
+    # After the Review screen saves, the resume point moves with it.
+    client.post("/api/onboarding/asclepius/credentials",
+                json={"token": token, "credentials": CREDS_MINIMAL})
+    s2 = client.get(f"/api/onboarding/session?token={token}").json()
+    assert s2["director_credentials"]["primarySpecialty"] == "Nephrology"
+
+
+def test_a_second_link_for_an_applicant_reports_the_review_not_a_signin(client: TestClient):
+    """A physician who already applied and asks for another link is not told to
+    sign in to an account that has no password."""
+    token, hs_id, email = _seed_verified(client)
+    client.post("/api/onboarding/asclepius/credentials",
+                json={"token": token, "credentials": CREDS_MINIMAL})
+    client.post("/api/onboarding/asclepius/attestations",
+                json={"token": token, "attestations": ATTS})
+    client.post("/api/onboarding/asclepius/finish", json={"token": token})
+
+    ts = client.app.state.team_store
+    invite = ts.create_health_system_invite(
+        invite_base_url="http://localhost:5173", product="asclepius",
+        director_email=email)
+    token2 = invite["onboarding_url"].rsplit("/", 1)[-1]
+    s = client.get(f"/api/onboarding/session?token={token2}").json()
+    assert s["status"] == "application_pending"
+    assert s["verification_status"] == "pending"
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# credentials
+# ═════════════════════════════════════════════════════════════════════════════
+
+def test_approve_mints_a_hashed_temp_password_and_sends_the_welcome(client: TestClient, monkeypatch):
+    """§8: approve mints hashed temp password + must_change_password=1 + sends 4.4."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    applicant = store.provision_user(
+        email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
+        password_hash=asc_store_mod.NO_PASSWORD_HASH,
+        role="evaluator", full_name="Amara Okafor", specialty="nephrology",
+        credentials={}, attestations={},
+    )
+    store.set_verification_status(applicant["id"], "pending")
+
+    sent: list = []
+
+    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
+        sent.append({"to": to, "subject": subject, "html": html_body})
+        return True
+
+    import routers.asclepius_verify as verify_module
+    monkeypatch.setattr(verify_module, "send_html_email", _send)
+    monkeypatch.setattr(verify_module, "is_email_transport_configured", lambda: True)
+
+    c = TestClient(app)
+    r = c.post(f"/api/asclepius/verify/queue/{applicant['id']}/approve",
+               json={"tier": "labeler"}, headers=headers_for(admin))
+    assert r.status_code == 200, r.text
+
+    fresh = store.get_user_by_id(applicant["id"])
+    assert fresh["must_change_password"] == 1
+    assert not asc_store_mod.password_is_unset(fresh)
+    assert fresh["password_hash"] not in ("", None)
+
+    assert len(sent) == 1
+    assert sent[0]["subject"] == "Welcome to Archangel Health, Dr. Okafor"
+    html = sent[0]["html"]
+    # The credential is in the email, which is the whole ask...
+    assert "Temporary password" in html
+    # ...and the mission block and the founders' intro are there with it (§4.4).
+    assert "The hardest cases become the most valuable data." in html
+    assert "calendly.com/tejpatel-berkeley" in html
+    # The plaintext password is never written to the audit log.
+    events = store.list_events(entity_type="user", entity_id=applicant["id"]) \
+        if hasattr(store, "list_events") else []
+    for e in events:
+        assert "password" not in json.dumps(e.get("payload") or {}).lower() \
+            or e.get("event_type") == "temp_password_issued"
+
+
+def test_approving_an_account_that_already_has_a_password_does_not_rotate_it(client: TestClient, monkeypatch):
+    """An invited member or a pre-v2 signup chose their own password. Minting
+    over it would replace a credential they are using today."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    member = make_user(store, tier=None)
+    original = store.get_user_by_id(member["id"])["password_hash"]
+    store.set_verification_status(member["id"], "pending")
+
+    sent: list = []
+
+    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
+        sent.append(subject)
+        return True
+
+    import routers.asclepius_verify as verify_module
+    monkeypatch.setattr(verify_module, "send_html_email", _send)
+    monkeypatch.setattr(verify_module, "is_email_transport_configured", lambda: True)
+
+    c = TestClient(app)
+    assert c.post(f"/api/asclepius/verify/queue/{member['id']}/approve",
+                  json={"tier": "labeler"}, headers=headers_for(admin)).status_code == 200
+
+    fresh = store.get_user_by_id(member["id"])
+    assert fresh["password_hash"] == original
+    assert not fresh["must_change_password"]
+    assert sent == ["You're approved for Asclepius"]
+
+
+def test_first_login_forces_a_password_change_and_the_second_does_not(client: TestClient):
+    """§8: first login forces password change, clears flag; second login doesn't."""
+    store = fresh_store()
+    u = make_user(store)
+    store.set_temp_password(u["id"], "temp-Password-123")
+
+    c = TestClient(app)
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": u["email"], "password": "temp-Password-123"})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["must_change_password"] is True
+    token = r.json()["token"]
+
+    r = c.post("/api/asclepius/auth/password/change",
+               json={"current_password": "temp-Password-123",
+                     "new_password": "a-password-they-chose-99"},
+               headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200, r.text
+
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": u["email"], "password": "a-password-they-chose-99"})
+    assert r.status_code == 200, r.text
+    assert r.json()["user"]["must_change_password"] is False
+
+
+def test_pending_no_password_login_returns_the_pending_gate(client: TestClient):
+    """§8: pending/no-password login → authGate 'pending' copy.
+
+    Not "invalid email or password", which is false in both halves and sends a
+    physician to a reset flow that cannot help them.
+    """
+    store = fresh_store()
+    applicant = store.provision_user(
+        email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
+        password_hash=asc_store_mod.NO_PASSWORD_HASH,
+        role="evaluator", full_name="Amara Okafor", credentials={}, attestations={},
+    )
+    store.set_verification_status(applicant["id"], "pending")
+
+    c = TestClient(app)
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": applicant["email"], "password": "anything-at-all"})
+    assert r.status_code == 403, r.text
+    assert r.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending"
+    assert "in review" in r.json()["detail"]
+    assert "24–48 hours" in r.json()["detail"]
+
+
+def test_an_unknown_address_still_gets_the_generic_401(client: TestClient):
+    """The pending answer must not become an account-existence oracle for
+    accounts that HAVE a credential — only for ones that have none."""
+    fresh_store()
+    c = TestClient(app)
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": "nobody@example.org", "password": "x"})
+    assert r.status_code == 401
+    assert r.json()["detail"] == "Invalid email or password"
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# walkthrough
+# ═════════════════════════════════════════════════════════════════════════════
+
+def test_first_run_persists_per_stop_and_a_skip_is_permanent(client: TestClient):
+    """§8: first_run_json persists per stop across devices; skip is permanent."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+
+    r = c.patch("/api/asclepius/me/first-run",
+                json={"action": "done", "stop": "welcome"}, headers=headers_for(u))
+    assert r.status_code == 200, r.text
+    assert r.json()["first_run"]["stops"] == {"welcome": "done"}
+
+    r = c.patch("/api/asclepius/me/first-run",
+                json={"action": "skip", "stop": "community"}, headers=headers_for(u))
+    assert r.json()["first_run"]["stops"]["community"] == "skipped"
+
+    # Server-side, so a different device (a fresh token, no client state) sees it.
+    r = c.get("/api/asclepius/auth/me", headers=headers_for(u))
+    assert r.json()["first_run"]["stops"] == {"welcome": "done", "community": "skipped"}
+
+    # A skip never reopens, and never silently upgrades to 'done'.
+    c.patch("/api/asclepius/me/first-run",
+            json={"action": "done", "stop": "community"}, headers=headers_for(u))
+    r = c.get("/api/asclepius/auth/me", headers=headers_for(u))
+    assert r.json()["first_run"]["stops"]["community"] == "skipped"
+
+
+def test_closing_all_six_stops_completes_the_checklist(client: TestClient):
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    from asclepius.schemas import FIRST_RUN_STOPS
+    for stop in FIRST_RUN_STOPS:
+        c.patch("/api/asclepius/me/first-run",
+                json={"action": "done", "stop": stop}, headers=headers_for(u))
+    fr = c.get("/api/asclepius/auth/me", headers=headers_for(u)).json()["first_run"]
+    assert fr["completed_at"]
+
+
+def test_an_unknown_stop_id_is_refused(client: TestClient):
+    """The stop vocabulary is the server's. A checklist whose '3 of 6' nobody
+    can reproduce is worse than one that refuses an unknown id."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    r = c.patch("/api/asclepius/me/first-run",
+                json={"action": "done", "stop": "invented"}, headers=headers_for(u))
+    assert r.status_code == 422
+
+
+def test_practice_case_completion_checks_the_checklist_via_the_tutorial_event(client: TestClient):
+    """§8: practice-case completion checks the checklist via the EXISTING
+    tutorial event — not a parallel tracker the client has to remember."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    r = c.patch("/api/asclepius/me/tutorial", json={"action": "complete"},
+                headers=headers_for(u))
+    assert r.status_code == 200, r.text
+    assert r.json()["first_run"]["stops"]["practice"] == "done"
+
+    # And a skipped practice case closes the stop too, as 'skipped': §6 says a
+    # skip never nags again, and leaving the box open would be nagging.
+    u2 = make_user(store)
+    r = c.patch("/api/asclepius/me/tutorial", json={"action": "skip"},
+                headers=headers_for(u2))
+    assert r.json()["first_run"]["stops"]["practice"] == "skipped"
+
+
+def test_bank_link_interest_is_recorded_once(client: TestClient):
+    """§6 stop 5: the card is disabled and clearly labelled; this is all that is
+    behind it, and it stores a status rather than pretending to link anything."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    assert c.post("/api/asclepius/me/bank-link/interest",
+                  headers=headers_for(u)).json()["bank_link_status"] == "coming_soon"
+    assert store.get_user_by_id(u["id"])["bank_link_status"] == "coming_soon"
+
+
+# ─── The demo video endpoint ─────────────────────────────────────────────────
+
+def _install_demo(store, payload: bytes = b"z" * 4000 + b"TAIL"):
+    meta = asc_assets.store_media(iter([payload]), "video/mp4")
+    store.set_platform_media("onboarding_demo", sha256=meta["sha256"], mime="video/mp4",
+                             byte_size=meta["byte_size"], filename="demo.mp4")
+    return payload
+
+
+def test_video_endpoint_honours_range_and_requires_auth(client: TestClient):
+    """§8: video endpoint honors Range (206) — seek works; auth required."""
+    store = fresh_store()
+    u = make_user(store)
+    data = _install_demo(store)
+    c = TestClient(app)
+
+    r = c.get("/api/asclepius/assets/onboarding-demo", headers=headers_for(u))
+    assert r.status_code == 200
+    assert r.content == data
+    assert r.headers["accept-ranges"] == "bytes"
+    assert r.headers["cache-control"] == "private, max-age=86400"
+
+    # A seek into the middle: the 206 and the Content-Range are what make the
+    # player's timeline real rather than decorative.
+    r = c.get("/api/asclepius/assets/onboarding-demo",
+              headers={**headers_for(u), "Range": "bytes=100-199"})
+    assert r.status_code == 206
+    assert r.content == data[100:200]
+    assert r.headers["content-range"] == f"bytes 100-199/{len(data)}"
+
+    # The suffix form a player uses to read an MP4's trailing moov atom.
+    r = c.get("/api/asclepius/assets/onboarding-demo",
+              headers={**headers_for(u), "Range": "bytes=-4"})
+    assert r.status_code == 206 and r.content == b"TAIL"
+
+    # Past the end.
+    r = c.get("/api/asclepius/assets/onboarding-demo",
+              headers={**headers_for(u), "Range": "bytes=99999-"})
+    assert r.status_code == 416
+    assert r.headers["content-range"] == f"bytes */{len(data)}"
+
+    # Auth required.
+    assert c.get("/api/asclepius/assets/onboarding-demo").status_code == 401
+
+
+def test_the_literal_demo_path_is_not_swallowed_by_the_asset_id_route(client: TestClient):
+    """asclepius_router owns /assets/{asset_id} and FastAPI matches in
+    registration order, so the media router has to be mounted FIRST. This is
+    what catches someone reordering the mounts in main.py."""
+    store = fresh_store()
+    u = make_user(store)
+    _install_demo(store)
+    c = TestClient(app)
+    r = c.get("/api/asclepius/assets/onboarding-demo", headers=headers_for(u))
+    assert r.status_code == 200, "the {asset_id} route swallowed the literal path"
+
+
+def test_a_media_ticket_plays_the_demo_and_can_do_nothing_else(client: TestClient):
+    """A <video src> cannot send a header. The ticket is what it uses instead —
+    and it must not be usable as a session token."""
+    store = fresh_store()
+    u = make_user(store)
+    data = _install_demo(store)
+    c = TestClient(app)
+
+    ticket = c.post("/api/asclepius/assets/onboarding-demo/ticket",
+                    headers=headers_for(u)).json()["ticket"]
+    r = c.get(f"/api/asclepius/assets/onboarding-demo?t={ticket}",
+              headers={"Range": "bytes=0-9"})
+    assert r.status_code == 206 and r.content == data[:10]
+
+    # Not an API credential.
+    assert c.get("/api/asclepius/score",
+                 headers={"Authorization": f"Bearer {ticket}"}).status_code == 401
+    # And a session token is not a ticket.
+    assert c.get(f"/api/asclepius/assets/onboarding-demo?t={token_for(u)}").status_code == 401
+    # Nor is a ticket minted for some other slot.
+    other = asc_auth.create_media_ticket(u, slot="something_else")
+    assert c.get(f"/api/asclepius/assets/onboarding-demo?t={other}").status_code == 401
+
+
+def test_demo_meta_reports_absence_rather_than_offering_a_broken_card(client: TestClient):
+    """The walkthrough asks this before rendering stop 2, so a deployment that
+    has not had the video uploaded shows the practice case alone."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    assert c.get("/api/asclepius/assets/onboarding-demo/meta",
+                 headers=headers_for(u)).json() == {"available": False}
+
+
+def test_uploading_the_demo_is_admin_only(client: TestClient):
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    r = c.post("/api/asclepius/admin/assets/onboarding-demo",
+               headers=headers_for(u),
+               files={"file": ("d.mp4", b"data", "video/mp4")})
+    assert r.status_code == 403
+
+
+def test_the_asset_store_refuses_a_non_video(client: TestClient):
+    with pytest.raises(asc_assets.UnsupportedMediaType):
+        asc_assets.store_media(iter([b"not a video"]), "application/zip")
+
+
+def test_media_upload_is_capped(client: TestClient):
+    with pytest.raises(asc_assets.MediaTooLarge):
+        asc_assets.store_media(iter([b"x" * 500, b"y" * 500]), "video/mp4", max_bytes=600)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# emails
+# ═════════════════════════════════════════════════════════════════════════════
+
+def test_the_four_builders_render_and_are_in_the_preview():
+    """§8: emails — four builders render in email_preview.py (in its _cases)."""
+    built = {
+        "start": oe.build_application_start_email(
+            first_name="Amara", onboarding_url="https://x/onboard/t", expires_days=7),
+        "nudge": oe.build_application_nudge_email(
+            first_name="Amara", onboarding_url="https://x/onboard/t"),
+        "expiring": oe.build_application_expiring_email(
+            first_name="Amara", onboarding_url="https://x/onboard/t"),
+        "submitted": oe.build_application_submitted_email(full_name="Amara Okafor"),
+        "welcome": oe.build_application_welcome_email(
+            full_name="Amara Okafor", email="a@x.org", temp_password="Kf3-tQ92mXbW7p",
+            sign_in_url="https://x/asclepius"),
+    }
+    for name, html in built.items():
+        assert html.startswith("<!doctype html>"), name
+        assert "Archangel Health" in html, name
+        assert "Tej" in html and "Aryaa" in html, f"{name} is not signed by the founders"
+
+    # The PRD copy, verbatim where it says verbatim.
+    assert "You&rsquo;re most of the way there." in built["nudge"]
+    assert "We read every application personally" in built["nudge"]
+    assert "within 24&ndash;48 hours" in built["submitted"] \
+        or "24–48 hours" in built["submitted"]
+    assert "We keep review human on purpose" in built["submitted"]
+    assert ("Doctors earn from their judgment. Models learn from it. "
+            "The hardest cases become the most valuable data.") in built["welcome"]
+    assert "Verification is the scarce input in medical AI." in built["welcome"]
+    assert "Kf3-tQ92mXbW7p" in built["welcome"]
+    assert oe.FOUNDER_INTRO_CALENDLY in built["welcome"]
+
+    preview = (Path(__file__).resolve().parent.parent / "scripts/email_preview.py") \
+        .read_text(encoding="utf-8")
+    for builder in ("build_application_start_email", "build_application_nudge_email",
+                    "build_application_expiring_email", "build_application_submitted_email",
+                    "build_application_welcome_email"):
+        assert builder in preview, f"{builder} is not in the email preview"
+
+
+def test_physician_names_are_escaped_not_double_escaped():
+    """A physician named O'Brien is greeted by name, not by an entity."""
+    html = oe.build_application_submitted_email(full_name="Amara O'Brien")
+    assert "Dr. O&#x27;Brien" in html
+    assert "O&amp;#x27;Brien" not in html
+
+
+def test_the_submitted_email_is_what_a_v2_application_receives(client: TestClient, sent):
+    """Not 'your workspace is ready' — nothing is ready, and saying so would be
+    the first thing we got wrong."""
+    token, _hs_id, email = _seed_verified(client)
+    client.post("/api/onboarding/asclepius/credentials",
+                json={"token": token, "credentials": CREDS_MINIMAL})
+    client.post("/api/onboarding/asclepius/attestations",
+                json={"token": token, "attestations": ATTS})
+    client.post("/api/onboarding/asclepius/finish", json={"token": token})
+    subjects = [m["subject"] for m in sent if m["to"] == email]
+    assert "We've got your application" in subjects
+    assert "Your Asclepius workspace is ready" not in subjects

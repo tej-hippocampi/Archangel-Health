@@ -69,6 +69,7 @@
   var stops = {};          // { stopId: 'done' | 'skipped' }
   var current = null;      // stop id on screen
   var demoMeta = null;     // { available, url, version } once probed
+  var demoProbe = null;    // the in-flight probe, so stop 2 can wait on it
   var escHandler = null;
   var objectUrl = null;    // blob: URL for the authenticated video, revoked on close
 
@@ -206,6 +207,20 @@
 
   function renderChooseStart() {
     current = 'start';
+    // The probe is started at entry so it is almost always finished by the time
+    // the physician has read the welcome letter. Almost always is not always
+    // though, and rendering "no demo" because a request had not landed yet
+    // would silently hide the video on a slow connection — so if it is still in
+    // flight, wait for it. There is nothing to show underneath either way.
+    if (demoMeta === null && demoProbe) {
+      demoProbe.then(function () { if (current === 'start') renderChooseStart(); });
+      ctx.setRoot(h('div', { class: 'asc-fr-stage' },
+        h('div', { class: 'asc-fr-main' },
+          h('div', { class: 'asc-fr-panel' },
+            h('p', { class: 'asc-fr-body' }, 'One moment…'))),
+        checklistCard()));
+      return;
+    }
     var cards = h('div', { class: 'asc-fr-choice-row' });
 
     // The demo card appears only when a video is actually installed. A
@@ -514,6 +529,17 @@
     return renderManual;
   }
 
+  /** Ask once whether a demo is installed. Never throws, and a failure resolves
+   *  to "no demo" rather than leaving the probe pending forever — stop 2 waits
+   *  on this promise, so a probe that never settles would hang the screen. */
+  function probeDemo() {
+    demoMeta = null;
+    demoProbe = ctx.api('/assets/onboarding-demo/meta')
+      .then(function (meta) { demoMeta = meta || { available: false }; })
+      .catch(function () { demoMeta = { available: false }; });
+    return demoProbe;
+  }
+
   function readState(user) {
     var fr = (user && user.first_run) || {};
     var s = fr.stops || {};
@@ -551,17 +577,17 @@
       stops = readState(context.user);
       // Probe for the demo BEFORE stop 2 needs it, so the choice screen never
       // flashes a card in or out. A failed probe simply means no demo card.
-      demoMeta = null;
-      ctx.api('/assets/onboarding-demo/meta')
-        .then(function (meta) { demoMeta = meta || null; })
-        .catch(function () { demoMeta = null; });
+      probeDemo();
       resumeAt()();
     },
 
-    /** Called by the shell when the tutorial hands control back. */
+    /** Called by the shell when the tutorial hands control back, and by the
+     *  dashboard chip. Re-probes, because a resume can be minutes or days after
+     *  the start and the demo may have been uploaded in between. */
     resume: function (context) {
       ctx = context;
       stops = readState(context.user);
+      probeDemo();
       resumeAt()();
     },
 
