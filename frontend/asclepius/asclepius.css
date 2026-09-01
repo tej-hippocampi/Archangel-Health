@@ -4555,3 +4555,135 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   .asc-handoff-row { flex-direction: column; gap: 2px; }
   .asc-handoff-k { flex: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRD ADMIN-TASKS — Data & Task Creation, and the Task Routing three-column.
+   Append-only. Tokens only: no hex value appears outside _tokens.css (§6.6).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page 1: the two boxes ─────────────────────────────────────────────── */
+.asc-stage-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.asc-stage-title { margin: 0 0 2px; font-size: var(--t-h2); }
+.asc-stage-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.asc-stage-row {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--card-in);
+  padding: 12px 14px;
+}
+/* A finished bundle folds rather than vanishing — quieter, still readable. */
+.asc-stage-row.is-done { background: transparent; border-style: dashed; }
+.asc-stage-head { font-weight: 600; line-height: 1.4; }
+.asc-stage-desc { margin-top: 4px; line-height: 1.5; }
+.asc-stage-counts { margin-top: 4px; font-size: var(--t-sm); color: var(--ink-soft); }
+.asc-stage-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.asc-stage-spacer { flex: 1 1 auto; }
+.asc-stage-radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.asc-stage-drawer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+  max-height: 320px;
+  overflow: auto;
+}
+.asc-stage-done { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+
+/* ── The upload modal ──────────────────────────────────────────────────── */
+.asc-modal-card {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--shadow-float);
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+}
+.asc-mode-picker { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 4px; }
+.asc-mode-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.asc-mode-option:hover { border-color: var(--hairline-strong); }
+.asc-mode-label { display: block; font-weight: 600; }
+.asc-mode-sub {
+  display: block;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+.asc-chip-ok { border-color: var(--green); color: var(--green); }
+
+/* ── Page 2: the three columns ─────────────────────────────────────────── */
+.asc-route-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(260px, 320px);
+  gap: 14px;
+  align-items: start;
+}
+.asc-route-rail { display: flex; flex-direction: column; gap: 8px; }
+.asc-route-rail-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.asc-route-rail-btn:hover { border-color: var(--hairline-strong); }
+.asc-route-rail-btn.active { border-color: var(--ink); background: var(--card-in); }
+.asc-route-rail-title {
+  font-size: var(--t-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.asc-route-rail-count { font-weight: 600; margin-top: 4px; }
+.asc-route-panel {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--card);
+  padding: 14px;
+  position: sticky;
+  top: 12px;
+}
+.asc-route-panel-hint { color: var(--ink-soft); line-height: 1.55; }
+.asc-route-doc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.asc-route-doc:last-child { border-bottom: none; }
+.asc-route-doc-name { flex: 1 1 auto; min-width: 120px; }
+.asc-route-roles { display: inline-flex; gap: 10px; }
+.asc-route-role { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-size: var(--t-sm); }
+/* A task made in the last day, so what you just created is findable. */
+.asc-chip-new { background: var(--lime-wash); border-color: var(--lime); }
+
+@media (max-width: 1100px) {
+  .asc-route-grid { grid-template-columns: 1fr; }
+  .asc-route-panel { position: static; }
+}

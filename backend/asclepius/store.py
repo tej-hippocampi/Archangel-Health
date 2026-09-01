@@ -5085,7 +5085,7 @@ class AsclepiusStore:
         cols = f"""
             t.task_id, t.specialty, t.difficulty, t.status, t.max_labels,
             t.trajectory_id, t.sequence_index, COALESCE(t.distribution,'open') AS distribution,
-            t.case_source, t.created_at,
+            t.case_source, t.created_at, t.display_bucket,
             (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS label_count,
             (SELECT GROUP_CONCAT(u.email, ', ') FROM assignments a
                JOIN users u ON u.id = a.user_id

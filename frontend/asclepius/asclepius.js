@@ -8624,8 +8624,14 @@
     clear(body);
     // §1.3 — QA is NOT deleted. Removing it orphans POST /qa/approve-all and the
     // submission queue, both live. It lands here, beside the work it grades.
+    // §2 — the two pages are named for the two questions an operator actually
+    // asks, in the order the work moves. The STATE KEYS stay 'tasks' and
+    // 'assign': they are read by deep-link aliases, openBatchesFor, and the
+    // physician-row route-in, and renaming them is silent breakage for zero
+    // benefit — the same reasoning that kept 'work' and 'money' at §1.1.
     body.appendChild(adminSubnav('work', [
-      ['tasks', 'Tasks'], ['assign', 'Batches'], ['qa', 'QA'], ['metrics', 'Metrics'],
+      ['tasks', 'Data & Task Creation'], ['assign', 'Task Routing'],
+      ['qa', 'QA'], ['metrics', 'Metrics'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
@@ -8663,6 +8669,9 @@
       err: null, mode: 'all', userIds: [], specialty: '', doctors: null, proposal: null,
       resolved: null, relay: false, relayWalk: null, relaySeed: null,
       relayPreview: null, chain: null,
+      // §4.3 — {user_id: 'label'|'review'}. Sparse: a doctor absent from this
+      // map is a labeler, matching the server's default for the same field.
+      roles: {},
     });
     const host = h('div', {});
     body.appendChild(host);
@@ -8740,7 +8749,15 @@
       const payload = { task_ids: ids, dry_run: dryRun, labels_per_case: 1 };
       if (view.mode === 'all') payload.to_all = true;
       else if (view.mode === 'specialty') payload.specialty = view.specialty;
-      else payload.user_ids = view.userIds;
+      else {
+        payload.user_ids = view.userIds;
+        // Only for the named doctors, and only when a role was actually chosen.
+        // Sending roles for people not in ``user_ids`` would be a payload the
+        // server has no use for and a screen state nobody can see.
+        const roles = {};
+        view.userIds.forEach((id) => { if (view.roles[id]) roles[id] = view.roles[id]; });
+        if (Object.keys(roles).length) payload.roles = roles;
+      }
 
       view.busy = true; view.err = null; paint();
       api('/admin/assignments/allocate', { method: 'POST', body: payload })
@@ -8766,6 +8783,11 @@
             view.err = 'That selection skips earlier points in a chart walk: '
               + Object.keys(d.missing).map((k) => '#' + d.missing[k].join(', #')).join(' · ')
               + '. A walk must be sent from its first unanswered point onward.';
+          } else if (d && d.error === 'not_a_reviewer') {
+            view.err = 'Not a reviewer: ' + (d.emails || []).join(', ')
+              + '. The review queue gates on the reviewer tier, so that '
+              + 'assignment could never be served. Grant the tier on Physicians, '
+              + 'or send them the case to label.';
           } else if (d && d.error === 'not_approved_for_real_data') {
             view.err = 'Not approved for real de-identified cases: '
               + (d.emails || []).join(', ') + '. Approve them first, or the '
@@ -8787,25 +8809,6 @@
         if (view.previewFor !== taskId) return;   // a later click won
         view.preview = res; paint();
       }).catch((e) => toast('Could not load preview: ' + e.message, 'error'));
-    }
-
-    function paintPreview() {
-      const res = view.preview;
-      if (!res) return;
-      const close = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, 'Close preview');
-      close.addEventListener('click', () => { view.preview = null; view.previewFor = null; paint(); });
-      host.appendChild(h('div', { class: 'asc-card asc-preview-card' },
-        h('div', { class: 'asc-card-pad' },
-          h('div', { class: 'asc-eyebrow' }, res.eyebrow),
-          res.trajectory
-            ? h('div', { class: 'asc-dim' },
-                `Decision point ${res.trajectory.position} of ${res.trajectory.n_points} · `
-                + 'the chart is truncated here exactly as the physician sees it')
-            : null,
-          h('div', { class: 'asc-prompt-label' }, 'Clinical question'),
-          h('div', { class: 'asc-prompt-text' }, res.prompt || ''),
-          renderCasePanelReadOnly(res.task),
-          close)));
     }
 
     /* The relay send. A separate endpoint, not a flag on allocate, because it
@@ -8837,56 +8840,6 @@
       });
     }
 
-    /* The chain, for a walk that is already out (§8.7). The point the chart is
-     * WAITING on is the only one marked as such — a 13-point walk sitting at
-     * point 2 has one problem, not eleven, and a view that flagged the rest
-     * would be unreadable exactly when it matters. */
-    /* The rotation, before it commits: #0 → Dr A · #1 → Dr B · … */
-    function paintRelayPreview() {
-      const r = view.relayPreview;
-      if (!r) return;
-      const reshuffle = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' },
-        'Reshuffle');
-      reshuffle.addEventListener('click', () => {
-        view.relaySeed = Math.floor(Math.random() * 1e9); sendRelay(true);
-      });
-      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('h3', {}, 'Proposed relay'),
-        h('div', { class: 'asc-dim' },
-          r.n_points + ' point(s) across ' + r.n_doctors + ' doctor(s). '
-          + 'Only the first is serveable on send; each later point unlocks when '
-          + 'the one before it is submitted.'),
-        h('div', { class: 'asc-chain' }, (r.mapping || []).map((m) =>
-          h('span', { class: 'asc-chain-cell' },
-            h('span', {}, '#' + m.sequence_index + ' → '),
-            h('span', { class: 'asc-dim' }, m.email || m.user_id)))),
-        reshuffle)));
-    }
-
-    function paintChain() {
-      const c = view.chain;
-      if (!c) return;
-      const dot = { done: '✓', waiting: '●', later: '–', retired: '×' };
-      const cells = (c.points || []).map((p) => {
-        const late = p.state === 'waiting' && (p.waiting_hours || 0) >= 24;
-        const kids = [h('span', { class: 'asc-chain-mark' }, dot[p.state] || '–'),
-          h('span', {}, '#' + p.sequence_index)];
-        if (p.state === 'waiting') {
-          kids.push(h('span', { class: 'asc-dim' },
-            ' waiting ' + (p.waiting_hours == null ? '?' : Math.round(p.waiting_hours)) + 'h'));
-          const re = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
-            'Reassign');
-          re.addEventListener('click', () => reassign(c.trajectory_id, p));
-          kids.push(re);
-        }
-        return h('span', { class: 'asc-chain-cell' + (late ? ' is-late' : '') }, ...kids);
-      });
-      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('h3', {}, 'Chain · ' + (c.walk_mode || 'solo')),
-        h('div', { class: 'asc-dim' }, c.n_done + ' of ' + c.n_points + ' done'),
-        h('div', { class: 'asc-chain' }, ...cells))));
-    }
-
     function reassign(trajectoryId, point) {
       loadDoctors().then((docs) => {
         const pick = (docs || []).filter((d) => d.id !== point.user_id);
@@ -8906,65 +8859,91 @@
       });
     }
 
+    /* ═══ PRD ADMIN-TASKS §4 — three columns, always all three ══════════════
+     *
+     * The old shape was two LEVELS: pick a batch, then a table with a send bar
+     * that appeared under it. That answers "what is in this batch" but not the
+     * question an admin actually arrives with, which is one question with three
+     * parts — what is ready, what does it look like, who gets it — and levels
+     * make you navigate between the parts of a single decision.
+     *
+     * So: rail (what is ready) · list (what it is, previewable) · panel (who).
+     * The panel is CONTEXT-SENSITIVE and that is the whole point of the re-cut.
+     * A static selection and a chart walk are routed by different rules, and the
+     * old bar showed one set of controls for both — relay toggles next to
+     * synthetic cases they cannot apply to. It now shows only what the selection
+     * admits, and a one-line hint when nothing is selected.
+     *
+     * Everything the server owns, the server still owns. The implied predecessor
+     * set is resolved by /resolve-selection, the send goes through allocate, and
+     * this file still contains no comparison of sequence indices anywhere.
+     */
     function paint() {
       clear(host);
       if (view.err) host.appendChild(h('div', { class: 'asc-inline-error' }, view.err));
-      if (view.busy && !view.rows) { host.appendChild(loadingCard('Loading batches…')); return; }
+      if (view.busy && !view.overview) { host.appendChild(loadingCard('Loading batches…')); return; }
 
-      if (!view.batch) { paintLevel1(); return; }
-      paintLevel2();
+      host.appendChild(h('div', { class: 'asc-route-grid' },
+        paintRail(), paintCentre(), paintPanel()));
     }
 
-    function paintLevel1() {
-      const ov = view.overview;
-      if (!ov) return;
-      const cards = h('div', { class: 'asc-batch-cards' });
+    // ─── Left rail: the three classes, counted ──────────────────────────────
+    function paintRail() {
+      const ov = view.overview || {};
       const lg = ov.longitudinal || {};
-      cards.appendChild(batchCard('longitudinal',
-        `${lg.n_trajectories || 0} trajector${(lg.n_trajectories === 1) ? 'y' : 'ies'} · ${lg.n_points || 0} pts`,
+      const rail = h('div', { class: 'asc-route-rail' });
+      rail.appendChild(railBtn('longitudinal',
+        `${lg.n_trajectories || 0} trajector${(lg.n_trajectories === 1) ? 'y' : 'ies'} · ${lg.n_points || 0} points`,
         `${lg.n_unrouted || 0} unrouted`));
-      cards.appendChild(batchCard('real_static',
-        `${(ov.real_static || {}).n_cases || 0} cases`, 'open queue'));
-      cards.appendChild(batchCard('synthetic',
-        `${(ov.synthetic || {}).n_cases || 0} cases`, 'open queue'));
-      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('h3', {}, 'Case batches'),
-        h('div', { class: 'asc-dim' },
-          'Longitudinal cases are held back from every doctor’s queue until you '
-          + 'send them. That is the resting state, not a fault: an unrouted walk '
-          + 'shows here and nowhere else.'),
-        cards)));
+      rail.appendChild(railBtn('real_static',
+        `${(ov.real_static || {}).n_cases || 0} cases`,
+        `${(ov.real_static || {}).n_open || 0} in open queue`));
+      rail.appendChild(railBtn('synthetic',
+        `${(ov.synthetic || {}).n_cases || 0} cases`,
+        `${(ov.synthetic || {}).n_open || 0} in open queue`));
+      rail.appendChild(h('div', { class: 'asc-dim', style: 'margin-top:6px' },
+        'Longitudinal cases are held back from every doctor’s queue until you '
+        + 'send them. That is the resting state, not a fault.'));
+      return rail;
     }
 
-    function batchCard(key, line1, line2) {
+    function railBtn(key, line1, line2) {
       const meta = BATCH_META[key];
-      const b = h('button', { class: 'asc-batch-card', type: 'button' },
-        h('div', { class: 'asc-batch-title' }, meta.title),
-        h('div', { class: 'asc-batch-count' }, line1),
+      const b = h('button', {
+        class: 'asc-route-rail-btn' + (view.batch === key ? ' active' : ''),
+        type: 'button',
+      },
+        h('div', { class: 'asc-route-rail-title' }, meta.title),
+        h('div', { class: 'asc-route-rail-count' }, line1),
         h('div', { class: 'asc-dim' }, line2));
       b.addEventListener('click', () => openBatch(key));
       return b;
     }
 
-    function paintLevel2() {
-      const back = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, '← All batches');
-      back.addEventListener('click', () => { view.batch = null; view.rows = null; paint(); });
-      host.appendChild(back);
-
+    // ─── Centre: the task list, every row previewable ───────────────────────
+    function paintCentre() {
+      const col = h('div', {});
+      if (!view.batch) {
+        col.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-dim' }, 'Pick a batch to see its cases.'))));
+        return col;
+      }
+      if (view.busy && !view.rows) { col.appendChild(loadingCard('Loading cases…')); return col; }
       const rows = view.rows || [];
       const table = h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {},
           h('th', {}, ''), h('th', {}, 'Case'), h('th', {}, 'Specialty'),
           h('th', {}, 'Difficulty'), h('th', {}, 'Status'), h('th', {}, ''))),
         h('tbody', {}, rows.map(rowFor)));
-      host.appendChild(h('div', { class: 'asc-card' },
+      col.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-pad' },
           h('h3', {}, BATCH_META[view.batch].title),
-          h('div', { class: 'asc-table-wrap' }, table))));
-      paintPreview();
-      paintChain();
-      paintRelayPreview();
-      paintSendBar();
+          rows.length
+            ? h('div', { class: 'asc-table-wrap' }, table)
+            : h('div', { class: 'asc-empty' }, h('p', {}, 'Nothing in this batch yet.')))));
+      paintPreviewInto(col);
+      paintChainInto(col);
+      return col;
     }
 
     function statusLabel(r) {
@@ -8974,79 +8953,111 @@
       return 'in open queue';
     }
 
+    /* A task made in the last day carries a `new` chip, so what you just built
+     * on the other page is findable here without sorting or searching. Read off
+     * created_at, which the batch query already returns. */
+    function isFresh(r) {
+      if (!r.created_at) return false;
+      const t = Date.parse(String(r.created_at).replace(' ', 'T'));
+      if (isNaN(t)) return false;
+      return (Date.now() - t) < 86400000;
+    }
+
     function rowFor(r) {
       const cb = h('input', { type: 'checkbox' });
       cb.checked = !!view.selected[r.task_id];
       cb.addEventListener('change', () => {
         view.selected[r.task_id] = cb.checked;
         if (!cb.checked) delete view.selected[r.task_id];
-        paintSendBar();                          // immediate, with the old count
-        resolveSelection().then(paintSendBar);   // then the authoritative one
+        paint();                                 // immediate, with the old count
+        resolveSelection().then(paint);          // then the authoritative one
       });
-      const prev = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, 'Preview');
+      const prev = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' }, 'Preview');
       prev.addEventListener('click', () => preview(r.task_id));
       const label = (r.trajectory_id && r.sequence_index != null)
         ? h('span', {}, h('span', { class: 'asc-mono' }, '#' + r.sequence_index), ' ',
             h('span', { class: 'asc-dim asc-mono' }, r.task_id))
         : h('span', { class: 'asc-mono' }, r.task_id);
+      // Gold sits in the SYNTHETIC class — its case_source is not real_deid, and
+      // that is what batch_overview counts on. The chip is how it stays visible
+      // as physician-authored without inventing a fourth rail item that would
+      // then disagree with the backend's three.
+      const chips = h('span', {},
+        r.display_bucket === 'physician_authored'
+          ? h('span', { class: 'asc-chip', title: 'Hand-authored and clinician-ratified' }, 'physician-authored')
+          : null,
+        isFresh(r) ? h('span', { class: 'asc-chip asc-chip-new' }, 'new') : null);
       return h('tr', {},
-        h('td', {}, cb), h('td', {}, label), h('td', {}, r.specialty || '—'),
+        h('td', {}, cb), h('td', {}, label, ' ', chips), h('td', {}, r.specialty || '—'),
         h('td', {}, r.difficulty || '—'), h('td', {}, statusLabel(r)), h('td', {}, prev));
     }
 
-    function paintSendBar() {
-      const old = host.querySelector('.asc-send-bar');
-      if (old) old.remove();
-      const chosen = selectedIds();
-      if (!chosen.length) return;
-      const extra = (view.resolved && view.resolved.n_added) || 0;
+    function paintPreviewInto(col) {
+      const res = view.preview;
+      if (!res) return;
+      const close = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, 'Close preview');
+      close.addEventListener('click', () => { view.preview = null; view.previewFor = null; paint(); });
+      // The two-frontier provenance and the re-grade lever, kept from the old
+      // Tasks table. They belong beside the case they describe rather than in a
+      // column of a table that no longer exists — and dropping them would have
+      // quietly removed the only way to see a HELD "needs baseline" task.
+      const t = res.task || {};
+      col.appendChild(h('div', { class: 'asc-card asc-preview-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-eyebrow' }, res.eyebrow),
+          res.trajectory
+            ? h('div', { class: 'asc-dim' },
+                `Decision point ${res.trajectory.position} of ${res.trajectory.n_points} · `
+                + 'the chart is truncated here exactly as the physician sees it')
+            : null,
+          h('div', { class: 'asc-prompt-label' }, 'Clinical question'),
+          h('div', { class: 'asc-prompt-text' }, res.prompt || ''),
+          renderCasePanelReadOnly(res.task),
+          t.task_id ? baselineCell(t) : null,
+          close)));
+    }
 
-      const modeSel = h('select', { class: 'asc-input' },
-        h('option', { value: 'all' }, 'All approved doctors'),
-        h('option', { value: 'specialty' }, 'Specialty'),
-        h('option', { value: 'explicit' }, 'Specific doctors'));
-      modeSel.value = view.mode;
-      modeSel.addEventListener('change', () => {
-        view.mode = modeSel.value;
-        if (view.mode === 'explicit') loadDoctors().then(paintSendBar);
-        else paintSendBar();
+    function paintChainInto(col) {
+      const c = view.chain;
+      if (!c) return;
+      const dot = { done: '✓', waiting: '●', later: '–', retired: '×' };
+      const cells = (c.points || []).map((p) => {
+        const late = p.state === 'waiting' && (p.waiting_hours || 0) >= 24;
+        const kids = [h('span', { class: 'asc-chain-mark' }, dot[p.state] || '–'),
+          h('span', {}, '#' + p.sequence_index)];
+        if (p.state === 'waiting') {
+          kids.push(h('span', { class: 'asc-dim' },
+            ' waiting ' + (p.waiting_hours == null ? '?' : Math.round(p.waiting_hours)) + 'h'));
+          const re = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+            'Reassign');
+          re.addEventListener('click', () => reassign(c.trajectory_id, p));
+          kids.push(re);
+        }
+        return h('span', { class: 'asc-chain-cell' + (late ? ' is-late' : '') }, ...kids);
       });
+      col.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Chain · ' + (c.walk_mode || 'solo')),
+        h('div', { class: 'asc-dim' }, c.n_done + ' of ' + c.n_points + ' done'),
+        h('div', { class: 'asc-chain' }, ...cells))));
+    }
 
-      const extras = [];
-      if (view.mode === 'specialty') {
-        const inp = h('input', { class: 'asc-input', placeholder: 'e.g. hepatology' });
-        inp.value = view.specialty;
-        inp.addEventListener('input', () => { view.specialty = inp.value.trim().toLowerCase(); });
-        extras.push(inp);
-      } else if (view.mode === 'explicit') {
-        const sel = h('select', { class: 'asc-input', multiple: 'multiple', size: '5' },
-          (view.doctors || []).map((d) => h('option', { value: d.id },
-            `${d.name || d.email} · ${d.specialty || '—'} · ${d.tier || '—'}`)));
-        sel.addEventListener('change', () => {
-          view.userIds = Array.prototype.slice.call(sel.selectedOptions).map((o) => o.value);
-        });
-        extras.push(sel);
+    // ─── Right panel: who gets it, shaped by what is selected ───────────────
+    function paintPanel() {
+      const panel = h('div', { class: 'asc-route-panel' });
+      const chosen = selectedIds();
+      if (!chosen.length) {
+        panel.appendChild(h('div', { class: 'asc-route-panel-hint' },
+          'Select cases to route them. The controls here follow the selection — '
+          + 'a chart walk and a set of standalone cases are sent by different '
+          + 'rules, so they are never offered the same ones.'));
+        return panel;
       }
 
-      /* Send to All on a longitudinal batch UN-SEALS it — the cases leave
-       * assigned_only and any eligible doctor may draw them. That is a real,
-       * deliberate choice and it is stated before the click, not discovered
-       * after it. */
-      const warn = (view.mode === 'all' && view.batch === 'longitudinal')
-        ? h('div', { class: 'asc-inline-warn' },
-            'Longitudinal cases sent to All enter the open queue — any eligible '
-            + 'doctor may draw them, in sequence order.')
-        : null;
+      const extra = (view.resolved && view.resolved.n_added) || 0;
 
-      const dry = h('button', { class: 'asc-btn', type: 'button' }, 'Preview send');
-      dry.addEventListener('click', () => send(true));
-      const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Send');
-      go.addEventListener('click', () => send(false));
-
-      /* §8.3 — Send as: solo or relay, offered only when the selection is exactly
-       * one whole trajectory. Not offered otherwise because a relay is defined
-       * over a walk: half a chart split between five doctors is neither a solo
-       * walk nor a handoff chain, and the server would refuse it anyway. */
+      /* Whole-walk detection, unchanged: a relay is defined over a walk, so it
+       * is offered only when the selection IS one. This counts membership; it
+       * does not order anything, and the server re-derives the required set. */
       const walkIds = {};
       (view.rows || []).forEach(function (r) {
         if (r.trajectory_id) walkIds[r.trajectory_id] = (walkIds[r.trajectory_id] || 0) + 1;
@@ -9059,35 +9070,157 @@
         }
       });
       const walkKeys = Object.keys(chosenWalks);
-      view.relayWalk = null;
       const wholeWalk = (walkKeys.length === 1
         && chosenWalks[walkKeys[0]] === walkIds[walkKeys[0]]
         && chosen.length === chosenWalks[walkKeys[0]]) ? walkKeys[0] : null;
       view.relayWalk = wholeWalk;
+      if (!wholeWalk) view.relay = false;
 
-      const relayToggle = wholeWalk ? h('label', { class: 'asc-send-mode' },
-        (function () {
-          const cb = h('input', { type: 'checkbox' });
-          cb.checked = !!view.relay;
-          cb.addEventListener('change', () => { view.relay = cb.checked; paintSendBar(); });
-          return cb;
-        })(),
-        ' Send as relay — one doctor per point, in sequence') : null;
+      panel.appendChild(h('div', { style: 'font-weight:600;margin-bottom:8px' },
+        wholeWalk
+          ? ('Send trajectory · ' + chosen.length + ' point(s)')
+          : ('Send ' + chosen.length + ' case(s)')));
+      if (extra > 0) {
+        panel.appendChild(h('div', { class: 'asc-dim', style: 'margin-bottom:8px' },
+          `(+${extra} required earlier point(s) included)`));
+      }
 
-      const bar = h('div', { class: 'asc-send-bar' },
-        h('span', {}, `${chosen.length} case(s) selected`
-          + (extra > 0 ? ` (+${extra} required earlier point(s) included)` : '')),
-        h('span', {}, 'Send to: '), modeSel, ...extras, relayToggle, warn, dry, go);
-      host.appendChild(bar);
+      if (wholeWalk) panel.appendChild(walkControls());
+      else panel.appendChild(flatControls());
+
+      const dry = h('button', { class: 'asc-btn', type: 'button' }, 'Preview send');
+      dry.addEventListener('click', () => send(true));
+      const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Send');
+      go.addEventListener('click', () => send(false));
+      panel.appendChild(h('div', { class: 'asc-stage-actions' }, dry, go));
 
       if (view.proposal && view.proposal.dry_run) {
         const per = view.proposal.per_physician || {};
-        host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-          h('h3', {}, 'Proposed send'),
+        panel.appendChild(h('div', { style: 'margin-top:12px' },
+          h('div', { style: 'font-weight:600' }, 'Proposed send'),
           h('div', { class: 'asc-dim' },
             `${view.proposal.cases} case(s) · ${Object.keys(per).length} doctor(s)`),
-          (view.proposal.notes || []).map((n) => h('div', { class: 'asc-dim' }, n)))));
+          (view.proposal.notes || []).map((n) => h('div', { class: 'asc-dim' }, n))));
       }
+      if (view.relayPreview) panel.appendChild(relayPreviewBlock());
+      return panel;
+    }
+
+    /* Static and synthetic: three ways to choose who, and a per-doctor ROLE.
+     * The role was always in ``assignments.role`` and never in this screen, so
+     * an admin who wanted a reviewer got a labeler and nothing said so. */
+    function flatControls() {
+      const box = h('div', {});
+      const modeSel = h('select', { class: 'asc-input' },
+        h('option', { value: 'all' }, 'All approved doctors'),
+        h('option', { value: 'specialty' }, 'Specialty'),
+        h('option', { value: 'explicit' }, 'Specific doctors'));
+      modeSel.value = view.mode;
+      modeSel.addEventListener('change', () => {
+        view.mode = modeSel.value;
+        if (view.mode === 'explicit') loadDoctors().then(paint);
+        else paint();
+      });
+      box.appendChild(h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'To'), modeSel));
+
+      if (view.mode === 'specialty') {
+        const inp = h('input', { class: 'asc-input', placeholder: 'e.g. hepatology' });
+        inp.value = view.specialty;
+        inp.addEventListener('input', () => { view.specialty = inp.value.trim().toLowerCase(); });
+        box.appendChild(inp);
+      } else if (view.mode === 'explicit') {
+        box.appendChild(doctorPicker());
+      }
+
+      /* Send to All on a longitudinal batch UN-SEALS it — the cases leave
+       * assigned_only and any eligible doctor may draw them. That is a real,
+       * deliberate choice and it is stated before the click, not discovered
+       * after it. */
+      if (view.mode === 'all' && view.batch === 'longitudinal') {
+        box.appendChild(h('div', { class: 'asc-inline-warn' },
+          'Longitudinal cases sent to All enter the open queue — any eligible '
+          + 'doctor may draw them, in sequence order.'));
+      }
+      return box;
+    }
+
+    /* One checkbox + two role radios per doctor. The role rides in ``roles`` on
+     * the allocate payload; a name absent from that map is a labeler, which is
+     * what every explicit send meant before the field existed. */
+    function doctorPicker() {
+      const list = h('div', {});
+      (view.doctors || []).forEach((d) => {
+        const on = view.userIds.indexOf(d.id) !== -1;
+        const cb = h('input', { type: 'checkbox', checked: on });
+        cb.addEventListener('change', () => {
+          if (cb.checked) { if (view.userIds.indexOf(d.id) === -1) view.userIds.push(d.id); }
+          else {
+            view.userIds = view.userIds.filter((x) => x !== d.id);
+            delete view.roles[d.id];
+          }
+          paint();
+        });
+        const roles = ['label', 'review'].map((role) => {
+          const rb = h('input', {
+            type: 'radio', name: 'role-' + d.id, value: role,
+            checked: (view.roles[d.id] || 'label') === role, disabled: !on,
+          });
+          rb.addEventListener('change', () => {
+            if (rb.checked) { view.roles[d.id] = role; paint(); }
+          });
+          return h('label', { class: 'asc-route-role' }, rb, role === 'label' ? 'Labeler' : 'Reviewer');
+        });
+        list.appendChild(h('div', { class: 'asc-route-doc' },
+          cb,
+          h('span', { class: 'asc-route-doc-name' },
+            (d.name || d.email) + ' · ' + (d.specialty || '—')),
+          h('span', { class: 'asc-route-roles' }, roles)));
+      });
+      if (!(view.doctors || []).length) {
+        list.appendChild(h('div', { class: 'asc-dim' }, 'No approved doctors to name.'));
+      }
+      return list;
+    }
+
+    /* A whole walk: solo or relay, and nothing else. The flat targeting modes
+     * are not offered here because a walk is routed as a walk. */
+    function walkControls() {
+      const box = h('div', {});
+      const solo = h('input', { type: 'radio', name: 'walk-mode', checked: !view.relay });
+      solo.addEventListener('change', () => { if (solo.checked) { view.relay = false; paint(); } });
+      const relay = h('input', { type: 'radio', name: 'walk-mode', checked: !!view.relay });
+      relay.addEventListener('change', () => { if (relay.checked) { view.relay = true; paint(); } });
+      box.appendChild(h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Mode'),
+        h('label', { class: 'asc-route-role' }, solo, 'Solo walk — one doctor, all points'),
+        h('label', { class: 'asc-route-role' }, relay, 'Send as relay — one doctor per point')));
+      loadDoctors();
+      box.appendChild(doctorPicker());
+      if (view.relay) {
+        box.appendChild(h('div', { class: 'asc-dim' },
+          'Only the first point is serveable on send; each later point unlocks '
+          + 'when the one before it is submitted.'));
+      }
+      return box;
+    }
+
+    function relayPreviewBlock() {
+      const r = view.relayPreview;
+      const reshuffle = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+        'Reshuffle');
+      reshuffle.addEventListener('click', () => {
+        view.relaySeed = Math.floor(Math.random() * 1e9); sendRelay(true);
+      });
+      return h('div', { style: 'margin-top:12px' },
+        h('div', { style: 'font-weight:600' }, 'Proposed relay'),
+        h('div', { class: 'asc-dim' },
+          r.n_points + ' point(s) across ' + r.n_doctors + ' doctor(s).'),
+        h('div', { class: 'asc-chain' }, (r.mapping || []).map((m) =>
+          h('span', { class: 'asc-chain-cell' },
+            h('span', {}, '#' + m.sequence_index + ' → '),
+            h('span', { class: 'asc-dim' }, m.email || m.user_id)))),
+        reshuffle);
     }
 
     load();
@@ -10181,7 +10314,14 @@
     return wrap;
   }
 
-  function openCasePlanModal(upload, ic, plan, statusBox) {
+  /* ``opts.trajectory`` carries the LONGITUDINAL choice from the dry run into
+   * the commit. It has to: the plan an admin approves was computed with
+   * ``trajectory: true``, and a commit that dropped the flag would generate
+   * independent cases from the same chart — the right number of tasks, silently
+   * the wrong product, with no trajectory_id and so no sequence gate. Defaults
+   * to the static behaviour, so the ingestion page's existing call is unchanged. */
+  function openCasePlanModal(upload, ic, plan, statusBox, opts) {
+    const trajectory = !!(opts && opts.trajectory);
     const overlay = h('div', {
       class: 'call-team-overlay is-open',
       onClick: (e) => { if (e.target === overlay) overlay.remove(); },
@@ -10202,11 +10342,14 @@
       clear(status);
       try {
         const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
-          { method: 'POST', body: { dry_run: false } });
+          { method: 'POST', body: { dry_run: false, trajectory } });
         overlay.remove();
         clear(statusBox);
         statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
-          'Generated ' + r.generated + ' V4 case(s)'
+          (trajectory
+            ? 'Built a chart walk of ' + r.generated + ' decision point(s). They are '
+              + 'held back from every queue until you send them from Task Routing.'
+            : 'Generated ' + r.generated + ' V4 case(s)')
           + (r.gated ? ' · ' + r.gated + ' gated' : '')
           + (r.failed ? ' · ' + r.failed + ' failed' : '') + '.'));
         toast('Generated ' + r.generated + ' case(s) from this chart.', 'success');
@@ -10414,294 +10557,578 @@
       h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }), label || 'Loading…'));
   }
 
-  // ─── Admin: Tasks ──────────────────────────────────────────────────────────
+  // ─── Admin: Data & Task Creation (PRD ADMIN-TASKS §3) ──────────────────────
+  //
+  // Two boxes, and the page is the two boxes. Data comes IN (Box 1: what is
+  // this, and is it ours to make tasks from), then data BECOMES tasks (Box 2:
+  // static or longitudinal, preview, create). Everything the old Tasks tab
+  // carried that was not one of those two questions moved to the surface that
+  // owns it — Frontier-model failures to Metrics, where a measurement belongs —
+  // or went away with its card while its endpoint stayed live.
+  //
+  // THE ONE-WAY DOOR. Box 1's two buttons are not symmetrical and the UI must
+  // not imply they are. `task_creation` → `brokering` is always allowed: it
+  // removes a promotion path. The reverse is refused by the server with a 409,
+  // deliberately and permanently — data a partner sent us to broker never
+  // enters the task pipeline, and no admin click can convert it. So Brokering
+  // asks for confirmation and says what it costs, and a brokering row renders
+  // its state as final rather than as a toggle somebody could flip back.
   function renderAdminTasks(body) {
     clear(body);
-    const tax = state.taxonomy;
+    const view = state.dataCreation || (state.dataCreation = {
+      uploads: null, err: null, busy: false, doneOpen: false, previewFor: null,
+    });
 
-    // Paste JSON
-    const jsonTa = h('textarea', { class: 'asc-textarea', style: 'min-height:140px;font-family:ui-monospace,Menlo,monospace;font-size:12px',
-      placeholder: '[{"specialty":"nephrology","difficulty":"medium","prompt":"…","candidate_answers":[{"id":"A","text":"…"},{"id":"B","text":"…"}],"grounding_mode":"optional"}]' });
-    const pasteStatus = h('div', {});
-    const pasteCard = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', {}, h('div', { class: 'asc-card-title' }, 'Paste tasks (JSON)'),
-        h('div', { class: 'asc-card-sub' }, 'A JSON array, a single task object, or {"tasks":[…]}'))),
-      h('div', { class: 'asc-card-pad' },
-        jsonTa,
-        h('div', { style: 'margin-top:12px;display:flex;gap:10px;align-items:center' },
-          h('button', {
-            class: 'asc-btn asc-btn-primary', onClick: async () => {
-              clear(pasteStatus);
-              let parsed;
-              try { parsed = JSON.parse(jsonTa.value); }
-              catch (e) { pasteStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Invalid JSON: ' + e.message)); return; }
-              let tasks = Array.isArray(parsed) ? parsed : (parsed.tasks ? parsed.tasks : [parsed]);
-              try {
-                const res = await api('/tasks', { method: 'POST', body: { tasks } });
-                pasteStatus.appendChild(h('div', { class: 'asc-inline-ok' }, 'Created ' + res.count + ' task(s).'));
-                // V3 (the default flow) serves ONLY difficulty:"hard" tasks. Warn if
-                // any uploaded task isn't hard, so it doesn't silently never appear.
-                const notHard = tasks.filter((t) => ((t && t.difficulty) || 'medium') !== 'hard').length;
-                if (notHard > 0) {
-                  pasteStatus.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top:8px' },
-                    notHard + ' of ' + tasks.length + ' task(s) are not difficulty:"hard" and will NOT appear in the V3 (default) hard-case queue. Set difficulty:"hard" to serve them in V3.'));
-                }
-                jsonTa.value = '';
-                loadTasksTable();
-              } catch (e) { pasteStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-            },
-          }, 'Upload pasted tasks')),
-        pasteStatus));
+    const host = h('div', {});
+    body.appendChild(host);
 
-    // File upload
-    const fileInput = h('input', { type: 'file', accept: '.json,.csv', class: 'asc-input' });
-    const fileStatus = h('div', {});
-    const fileCard = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', {}, h('div', { class: 'asc-card-title' }, 'Upload file'),
-        h('div', { class: 'asc-card-sub' }, 'JSON or CSV (columns: prompt, specialty, difficulty, answer_a, answer_b, …)'))),
-      h('div', { class: 'asc-card-pad' },
-        fileInput,
-        h('div', { style: 'margin-top:12px' },
-          h('button', {
-            class: 'asc-btn asc-btn-primary', onClick: async () => {
-              clear(fileStatus);
-              if (!fileInput.files || !fileInput.files[0]) { fileStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Choose a file first.')); return; }
-              const fd = new FormData();
-              fd.append('file', fileInput.files[0]);
-              try {
-                const res = await api('/tasks/upload-file', { method: 'POST', body: fd, isForm: true });
-                fileStatus.appendChild(h('div', { class: 'asc-inline-ok' }, 'Created ' + res.count + ' task(s).'));
-                fileInput.value = '';
-                loadTasksTable();
-              } catch (e) { fileStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-            },
-          }, 'Upload file')),
-        fileStatus));
-
-    // Generate candidates
-    const genPrompt = h('textarea', { class: 'asc-textarea', placeholder: 'Clinical prompt to generate two candidate answers for…' });
-    const genSpec = h('input', { class: 'asc-input', value: state.user.specialty || 'nephrology' });
-    const genDiff = selectFrom(['easy', 'medium', 'hard'], 'medium');
-    const genGround = selectFrom(tax.grounding_modes || ['optional', 'required'], 'optional');
-    const genCapture = h('input', { type: 'checkbox' });
-    const genStatus = h('div', {});
-    const genCard = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', {}, h('div', { class: 'asc-card-title' }, 'Generate candidates'),
-        h('div', { class: 'asc-card-sub' }, 'Uses the configured LLM to draft two answers (needs an LLM key).'))),
-      h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Prompt'), genPrompt),
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), genSpec),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Difficulty'), genDiff),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Grounding'), genGround)),
-        h('label', { class: 'asc-checkbox-row', style: 'margin-bottom:12px' }, genCapture, 'Capture reasoning'),
-        h('button', {
-          class: 'asc-btn asc-btn-primary', onClick: async () => {
-            clear(genStatus);
-            if (!genPrompt.value.trim()) { genStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Prompt is required.')); return; }
-            try {
-              const res = await api('/tasks/generate', {
-                method: 'POST', body: {
-                  prompt: genPrompt.value.trim(), specialty: genSpec.value.trim() || 'general',
-                  difficulty: genDiff.value, capture_reasoning: genCapture.checked,
-                  max_labels: 1, grounding_mode: genGround.value,
-                },
-              });
-              genStatus.appendChild(h('div', { class: 'asc-inline-ok' }, 'Generated task ' + res.task_id + '.'));
-              genPrompt.value = '';
-              loadTasksTable();
-            } catch (e) {
-              const msg = e.status === 503 ? (e.message || 'Candidate generation unavailable (no LLM key configured).') : e.message;
-              genStatus.appendChild(h('div', { class: 'asc-inline-error' }, msg));
-            }
-          },
-        }, 'Generate'),
-        genStatus));
-
-    // Seedmaker auto-generation (Mode A): generate N validated tasks (prompt + 2
-    // candidates) from the curated seed corpus, as TEXT prompts or structured
-    // MULTIMODAL cases (labs + notes the specialist reasons across, Multimodal PRD).
-    const agSpecialty = selectFrom(['nephrology', 'cardiology'], 'nephrology');
-    const agCaseType = selectFrom(['text', 'multimodal'], 'text');
-    const agCount = h('input', { type: 'number', class: 'asc-input', value: '10', min: '1', max: '200' });
-    const agDiff = selectFrom(['balanced', 'hard_heavy', 'hard_only'], 'balanced');
-    const agGround = selectFrom(tax.grounding_modes || ['optional', 'required'], 'optional');
-    const agCapture = h('input', { type: 'checkbox' });
-    const agStatus = h('div', {});
-    const agNote = h('div', { class: 'asc-card-sub', style: 'margin:8px 0 12px' });
-    const agBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Generate tasks');
-    // Multimodal cases are definitionally hard + always capture the reasoning
-    // trace (that's the value), so those controls don't apply. Reflect that.
-    function syncCaseType() {
-      const mm = agCaseType.value === 'multimodal';
-      agDiff.disabled = mm; agCapture.disabled = mm;
-      agBtn.textContent = mm ? 'Generate multimodal cases' : 'Generate tasks';
-      agNote.textContent = mm
-        ? 'Multimodal: synthesizes a PHI-free clinical case (lab panels + notes) the specialist reasons across. Always hard + reasoning capture; served in the V3 queue with a structured case panel. Needs an LLM key.'
-        : 'Synthesizes novel, hard prompts from the seed corpus + two candidate answers, quality-gated before they enter the queue. Needs an LLM key.';
+    function load() {
+      view.busy = true; paint();
+      api('/ingestion/uploads?limit=200')
+        .then((res) => {
+          view.uploads = res.uploads || []; view.err = null; view.busy = false; paint();
+        })
+        .catch((e) => { view.err = e.message; view.busy = false; paint(); });
     }
-    agCaseType.addEventListener('change', syncCaseType);
-    const autoGenCard = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Auto-generate tasks (Seedmaker, SYNTHETIC, V1–V3)'),
-        h('div', { class: 'asc-card-sub' }, 'Text prompts or structured multimodal cases, all SYNTHETIC (V3 tier). Real patient cases (V4) come only from the Ingestion tab. Quality-gated before they enter the queue.'))),
-      h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), agSpecialty),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Case type'), agCaseType),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'How many'), agCount)),
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Difficulty mix'), agDiff),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Grounding'), agGround),
-          h('div', {})),
-        h('label', { class: 'asc-checkbox-row', style: 'margin-bottom:12px' }, agCapture, 'Capture reasoning steps'),
-        agNote,
-        agBtn,
-        agStatus));
-    syncCaseType();
-    agBtn.addEventListener('click', async () => {
-      clear(agStatus);
-      const count = Math.max(1, parseInt(agCount.value, 10) || 1);
-      const multimodal = agCaseType.value === 'multimodal';
-      const mixMap = {
-        balanced: { hard: 0.6, medium: 0.4 },
-        hard_heavy: { hard: 0.8, medium: 0.2 },
-        hard_only: { hard: 1.0 },
-      };
-      agBtn.setAttribute('disabled', '');
-      agStatus.appendChild(loadingCard('Generating ' + count + ' ' + (multimodal ? 'multimodal case' : 'task') + '(s)… this calls the LLM and may take a moment.'));
-      try {
-        const res = await api('/generation/' + encodeURIComponent(agSpecialty.value), {
-          method: 'POST', body: {
-            count,
-            difficulty_mix: multimodal ? null : (mixMap[agDiff.value] || null),
-            capture_reasoning: multimodal ? true : agCapture.checked,
-            grounding_mode: agGround.value,
-            multimodal,
-          },
+
+    // ─── Box 1: the purpose decision ────────────────────────────────────────
+    function resolvePurpose(upload, purpose) {
+      api('/admin/uploads/' + encodeURIComponent(upload.upload_id) + '/purpose',
+          { method: 'POST', body: { purpose } })
+        .then((res) => {
+          toast(res.message || 'Recorded.');
+          load();
+        })
+        .catch((e) => {
+          // The 409 the server raises on brokering → task creation is a RULE,
+          // not a failure. Render its sentence, which explains the rule.
+          toast((e && e.detail) || e.message || 'Could not set the purpose.', 'error');
         });
-        clear(agStatus);
-        agStatus.appendChild(h('div', { class: 'asc-inline-ok' },
-          'Accepted ' + res.accepted + ' / ' + (res.accepted + (res.shortfall || 0)) + ' requested.'
-          + (res.shortfall ? ' Shortfall ' + res.shortfall + '.' : '')));
-        const dropped = res.dropped || {};
-        const dkeys = Object.keys(dropped);
-        if (dkeys.length) {
-          agStatus.appendChild(h('div', { class: 'asc-card-sub', style: 'margin-top:8px' },
-            'Dropped: ' + dkeys.map((k) => k.replace(/_/g, ' ') + ' (' + dropped[k] + ')').join(', ')));
+    }
+
+    function askBrokering(upload) {
+      const overlay = h('div', {
+        class: 'call-team-overlay is-open',
+        onClick: (e) => { if (e.target === overlay) overlay.remove(); },
+      });
+      const go = h('button', { class: 'asc-btn asc-btn-primary' },
+        'Yes — record as brokering');
+      go.addEventListener('click', () => { overlay.remove(); resolvePurpose(upload, 'brokering'); });
+      overlay.appendChild(h('div', { class: 'asc-modal-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('h3', {}, 'Record this upload as brokering?'),
+          h('div', { class: 'asc-inline-warn', style: 'margin:12px 0' },
+            'This cannot be undone. Brokering data never enters the task '
+            + 'pipeline, so this upload can never become tasks — the server '
+            + 'refuses the reverse change, on purpose. If it turns out to be '
+            + 'task-creation data, the partner has to send it again on a '
+            + 'task-creation link.'),
+          h('div', { class: 'asc-dim' },
+            (upload.partner_label || 'Unknown sender') + ' · '
+            + (upload.filename || 'bundle') + ' · '
+            + ((upload.case_counts || {}).total || 0) + ' case(s)'),
+          h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
+            go,
+            h('button', {
+              class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto',
+              onClick: () => overlay.remove(),
+            }, 'Cancel')))));
+      document.body.appendChild(overlay);
+    }
+
+    // ─── Box 2: making the tasks ────────────────────────────────────────────
+    function setMode(upload, mode) {
+      api('/admin/uploads/' + encodeURIComponent(upload.upload_id) + '/task-mode',
+          { method: 'POST', body: { task_mode: mode } })
+        .then(() => load())
+        .catch((e) => toast((e && e.detail) || e.message || 'Could not set the mode.', 'error'));
+    }
+
+    /* Static: the two-step promote that already exists. `prepare` converts and
+     * gates ONE case and hands it back for review; `promote-all` extends it to
+     * the rest. The sample is not a formality — it is the only point at which a
+     * human sees what a partner file actually turns into before the whole
+     * bundle becomes physician work. */
+    function previewStatic(upload, statusBox) {
+      clear(statusBox);
+      statusBox.appendChild(loadingCard('Converting one sample case…'));
+      api('/ingestion/uploads/' + encodeURIComponent(upload.upload_id) + '/prepare',
+          { method: 'POST', body: {} })
+        .then((prep) => { clear(statusBox); openSampleReviewModal(upload, prep, statusBox); })
+        .catch((e) => {
+          clear(statusBox);
+          statusBox.appendChild(h('div', { class: 'asc-inline-error' },
+            (e && e.detail) || e.message || 'Could not prepare a sample.'));
+        });
+    }
+
+    /* Longitudinal: one chart becomes one ordered walk. Runs per case and dry
+     * first, because a trajectory is a different product with a different price
+     * and a different labeling policy — the plan is what an admin approves, not
+     * the flag that produced it. Points land assigned_only, invisible to every
+     * doctor until Task Routing sends them. */
+    function previewLongitudinal(upload, statusBox) {
+      clear(statusBox);
+      statusBox.appendChild(loadingCard('Planning the chart walk…'));
+      api('/ingestion/uploads/' + encodeURIComponent(upload.upload_id))
+        .then((full) => {
+          const first = (full.cases || []).find((c) => c.status === 'ingested');
+          if (!first) throw new Error('No ingested cases left to plan in this upload.');
+          return api('/ingestion/cases/' + encodeURIComponent(first.ingest_case_id) + '/generate',
+                     { method: 'POST', body: { dry_run: true, trajectory: true } })
+            .then((plan) => {
+              clear(statusBox);
+              openCasePlanModal(upload, first, plan, statusBox, { trajectory: true });
+            });
+        })
+        .catch((e) => {
+          clear(statusBox);
+          statusBox.appendChild(h('div', { class: 'asc-inline-error' },
+            (e && e.detail) || e.message || 'Could not plan this chart.'));
+        });
+    }
+
+    // ─── Rows ───────────────────────────────────────────────────────────────
+    // ``withCounts`` off in Box 2: that row prints a richer count line of its
+    // own immediately below, and §6.2 gives a row three lines, not four.
+    function headerLines(u, withCounts) {
+      const counts = u.case_counts || {};
+      const bits = [
+        u.partner_label || 'Unknown sender',
+        u.created_at ? ('uploaded ' + fmtDate(u.created_at)) : null,
+        u.filename || null,
+        u.size_bytes ? (Math.round(u.size_bytes / 1048576) + ' MB') : null,
+      ].filter(Boolean);
+      const integrity = u.verified_at
+        ? h('span', { class: 'asc-chip asc-chip-ok', title: 'Whole-file digest recomputed and matched' }, 'sha ✓')
+        : h('span', { class: 'asc-chip', title: 'No verified whole-file digest on this row' }, 'sha —');
+      return h('div', {},
+        h('div', { class: 'asc-stage-head' }, bits.join(' · '), ' ', integrity),
+        h('div', { class: 'asc-stage-desc' },
+          h('span', { class: 'asc-badge asc-badge-primary' }, specialtiesLabel(u)),
+          ' ',
+          u.description
+            ? h('span', {}, '“' + u.description + '”')
+            : h('span', { class: 'asc-dim' }, 'No description was sent with this bundle.')),
+        withCounts === false ? null : h('div', { class: 'asc-stage-counts' },
+          (counts.total || 0) + ' ingest case(s)',
+          counts.needs_review ? (' · ' + counts.needs_review + ' need review') : '',
+          counts.quarantined ? (' · ' + counts.quarantined + ' quarantined') : '',
+          counts.promoted ? (' · ' + counts.promoted + ' already tasks') : ''));
+    }
+
+    function specialtiesLabel(u) {
+      const s = u.specialties || [];
+      return s.length ? s.join(', ') : 'specialty not set';
+    }
+
+    function describeBtn(u) {
+      const b = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+        u.description ? 'Edit description' : 'Add description');
+      b.addEventListener('click', () => {
+        const next = window.prompt('What is this data? (free text)', u.description || '');
+        if (next == null) return;
+        api('/admin/uploads/' + encodeURIComponent(u.upload_id) + '/description',
+            { method: 'POST', body: { description: next } })
+          .then(() => load())
+          .catch((e) => toast(e.message || 'Could not save the description.', 'error'));
+      });
+      return b;
+    }
+
+    function previewCasesBtn(u) {
+      const b = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' }, 'Preview cases');
+      b.addEventListener('click', () => {
+        view.previewFor = (view.previewFor === u.upload_id) ? null : u.upload_id;
+        paint();
+      });
+      return b;
+    }
+
+    function casesDrawer(u) {
+      if (view.previewFor !== u.upload_id) return null;
+      const drawer = h('div', { class: 'asc-stage-drawer' }, loadingCard('Loading cases…'));
+      /* The FULL case list, not the review queue. `/review` omits every case
+       * with no review reason, so a clean 27-case bundle would open an empty
+       * drawer captioned "Preview cases" — which reads as a broken button. */
+      api('/ingestion/uploads/' + encodeURIComponent(u.upload_id))
+        .then((full) => {
+          clear(drawer);
+          const cases = full.cases || [];
+          if (!cases.length) {
+            drawer.appendChild(h('div', { class: 'asc-dim' }, 'No cases parsed from this upload yet.'));
+            return;
+          }
+          drawer.appendChild(h('table', { class: 'asc-table' },
+            h('thead', {}, h('tr', {},
+              h('th', {}, 'Case'), h('th', {}, 'Specialty'),
+              h('th', {}, 'Status'), h('th', {}, 'Review'))),
+            h('tbody', {}, cases.slice(0, 100).map((c) => h('tr', {},
+              h('td', { class: 'asc-mono' }, (c.patient_key || c.ingest_case_id || '').slice(0, 18)),
+              h('td', {}, c.specialty || '—'),
+              h('td', {}, c.status || '—'),
+              h('td', {}, (c.review || []).length
+                ? h('span', { class: 'asc-badge asc-badge-amber' },
+                    String((c.review || []).length) + ' reason(s)')
+                : '—'))))));
+        })
+        .catch((e) => { clear(drawer); drawer.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); });
+      return drawer;
+    }
+
+    function box1Row(u) {
+      const toTasks = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button' }, 'Task creation');
+      toTasks.addEventListener('click', () => resolvePurpose(u, 'task_creation'));
+      const toBroker = h('button', { class: 'asc-btn asc-btn-sm', type: 'button' }, 'Brokering');
+      toBroker.addEventListener('click', () => askBrokering(u));
+
+      const dl = h('a', {
+        class: 'asc-btn asc-btn-ghost asc-btn-sm',
+        href: '/api/asclepius/ingestion/uploads/' + encodeURIComponent(u.upload_id) + '/download',
+      }, 'Download');
+
+      return h('div', { class: 'asc-stage-row' },
+        headerLines(u),
+        h('div', { class: 'asc-stage-actions' },
+          dl, previewCasesBtn(u), describeBtn(u),
+          h('span', { class: 'asc-stage-spacer' }),
+          h('span', { class: 'asc-dim' }, 'This data is for: '),
+          toTasks, toBroker),
+        casesDrawer(u));
+    }
+
+    function box2Row(u) {
+      const counts = u.case_counts || {};
+      const statusBox = h('div', { style: 'margin-top:10px' });
+      const mode = u.task_mode || null;
+
+      const radios = ['static', 'longitudinal'].map((m) => {
+        const input = h('input', {
+          type: 'radio', name: 'mode-' + u.upload_id, value: m,
+          checked: mode === m, disabled: !!counts.promoted && mode !== m,
+        });
+        input.addEventListener('change', () => { if (input.checked) setMode(u, m); });
+        return h('label', { class: 'asc-stage-radio' }, input,
+          m === 'static' ? ' Static real cases' : ' Longitudinal real cases');
+      });
+
+      const eligible = counts.ingested || 0;
+      const create = h('button', {
+        class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
+        disabled: !mode || !eligible,
+      }, mode === 'longitudinal'
+        ? ('Build the chart walk →')
+        : ('Create ' + eligible + ' task' + (eligible === 1 ? '' : 's') + ' →'));
+      create.addEventListener('click', () => {
+        if (mode === 'longitudinal') previewLongitudinal(u, statusBox);
+        else previewStatic(u, statusBox);
+      });
+
+      const hint = !mode
+        ? h('div', { class: 'asc-dim' }, 'Choose a mode — it is stored on this upload, so a half-finished batch resumes the same way.')
+        : (!eligible
+          ? h('div', { class: 'asc-dim' }, 'No ingested cases are waiting: every case here is already a task, blocked in review, or quarantined.')
+          : null);
+
+      return h('div', { class: 'asc-stage-row' },
+        headerLines(u, false),
+        h('div', { class: 'asc-stage-counts' },
+          (counts.total || 0) + ' case(s) · ' + eligible + ' eligible'
+          + (counts.needs_review ? (' · ' + counts.needs_review + ' blocked (review)') : '')
+          + ' · ' + (counts.promoted || 0) + ' made into tasks'),
+        h('div', { class: 'asc-stage-actions' },
+          h('span', { class: 'asc-dim' }, 'Make tasks as: '), radios,
+          h('span', { class: 'asc-stage-spacer' }),
+          previewCasesBtn(u), create),
+        hint,
+        casesDrawer(u),
+        statusBox);
+    }
+
+    function doneRow(u) {
+      const counts = u.case_counts || {};
+      const go = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+        'view in Task Routing →');
+      go.addEventListener('click', () => {
+        state.adminSub.work = 'assign';
+        renderAdminView();
+      });
+      return h('div', { class: 'asc-stage-row is-done' },
+        h('div', { class: 'asc-stage-head' },
+          '✓ ' + (counts.promoted || 0) + ' task(s) created · '
+          + (u.partner_label || 'Unknown sender') + ' · ' + (u.filename || 'bundle')
+          + (u.task_mode ? (' · ' + u.task_mode) : '')),
+        go);
+    }
+
+    // ─── Paint ──────────────────────────────────────────────────────────────
+    function paint() {
+      clear(host);
+      if (view.err) host.appendChild(h('div', { class: 'asc-inline-error' }, view.err));
+      if (view.busy && !view.uploads) { host.appendChild(loadingCard('Loading incoming data…')); return; }
+
+      const all = view.uploads || [];
+      const box1 = all.filter((u) => u.staging === 'undecided');
+      const box2 = all.filter((u) => u.staging === 'task_creation' && !u.task_creation_complete);
+      const done = all.filter((u) => u.staging === 'task_creation' && u.task_creation_complete);
+
+      host.appendChild(h('div', { class: 'asc-stage-toolbar' },
+        h('div', {},
+          h('h2', { class: 'asc-stage-title' }, 'Data & task creation'),
+          h('div', { class: 'asc-dim' },
+            'Data arrives, you say what it is for, then you turn it into tasks.')),
+        uploadButton()));
+
+      // Box 1
+      const b1 = h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Incoming data'),
+        h('div', { class: 'asc-dim' },
+          'Every bundle whose purpose has not been decided yet. Choosing '
+          + '“Brokering” cannot be undone.'),
+        box1.length
+          ? h('div', { class: 'asc-stage-list' }, box1.map(box1Row))
+          : h('div', { class: 'asc-empty' }, h('p', {}, 'Nothing waiting on a decision.'))));
+      host.appendChild(b1);
+
+      // Box 2
+      const b2 = h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Task creation'),
+        h('div', { class: 'asc-dim' },
+          'Bundles cleared for task creation, with cases still to turn into tasks.'),
+        box2.length
+          ? h('div', { class: 'asc-stage-list' }, box2.map(box2Row))
+          : h('div', { class: 'asc-empty' }, h('p', {}, 'No bundles waiting to become tasks.')),
+        done.length ? doneFold(done) : null));
+      host.appendChild(b2);
+
+      host.appendChild(autoGenerateCard());
+    }
+
+    /* Finished bundles fold rather than disappear. A row that vanishes on
+     * completion takes its history with it, and "what did we make from St
+     * Mary's in August" stops being answerable on the screen that made it. */
+    function doneFold(done) {
+      const list = h('div', { class: 'asc-stage-list' }, done.map(doneRow));
+      list.hidden = !view.doneOpen;
+      const toggle = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+        (view.doneOpen ? '▾ ' : '▸ ') + 'Done (' + done.length + ')');
+      toggle.addEventListener('click', () => {
+        view.doneOpen = !view.doneOpen;
+        list.hidden = !view.doneOpen;
+        toggle.textContent = (view.doneOpen ? '▾ ' : '▸ ') + 'Done (' + done.length + ')';
+      });
+      return h('div', { class: 'asc-stage-done' }, toggle, list);
+    }
+
+
+    /* §3.3 — one Upload button, one modal, a REQUIRED "what is this".
+     *
+     * The mode picker is required because the four answers go to four different
+     * places, and guessing wrong is expensive in both directions: a real bundle
+     * treated as a task file is a parse error, and a task file treated as a real
+     * bundle is PHI handling we did not need to do.
+     *
+     * Real records go through the PARTNER DOOR — mint a link, post to it — and
+     * not through a second admin-only ingest endpoint. That door fails closed on
+     * unconfigured encryption and on non-durable storage, and a second door
+     * would have to reproduce both exactly or quietly become the unsafe way in.
+     * One door for raw bundles is a property worth keeping, so the admin path
+     * borrows it rather than bypassing it.
+     *
+     * The mode picker already declares intent ("real records, longitudinal"), so
+     * an admin upload lands in Box 2 with that mode set, rather than in Box 1
+     * asking a question it was just answered.
+     */
+    function uploadButton() {
+      const b = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Upload');
+      b.addEventListener('click', openUploadModal);
+      return b;
+    }
+
+    function openUploadModal() {
+      const overlay = h('div', {
+        class: 'call-team-overlay is-open',
+        onClick: (e) => { if (e.target === overlay) overlay.remove(); },
+      });
+      const status = h('div', { style: 'margin-top:12px' });
+
+      const MODES = [
+        ['real_static', 'Real records — static',
+          'A partner bundle. Each qualifying encounter becomes one standalone V4 case.'],
+        ['real_longitudinal', 'Real records — longitudinal',
+          'A partner bundle. Each chart becomes ONE ordered walk of decision points, '
+          + 'held back from every queue until you route it.'],
+        ['gold', 'Physician-authored cases (gold)',
+          'The ratified, hand-authored seed cases. No file and no LLM: this loads what is '
+          + 'already committed, and is safe to run repeatedly.'],
+        ['task_file', 'Task file (JSON/CSV)',
+          'Already-formed tasks. They go straight to Task Routing — there is nothing to stage.'],
+      ];
+      let mode = null;
+
+      const fileInput = h('input', { type: 'file', accept: '.zip,.json,.csv,.hl7,.txt', class: 'asc-input' });
+      const fileField = h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'File'), fileInput);
+      const specInput = h('input', { class: 'asc-input', value: 'nephrology' });
+      const specField = h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Specialty'), specInput,
+        h('div', { class: 'asc-dim' },
+          'Ingest refuses to guess: a wrong specialty routes the case to the wrong '
+          + 'pool and mislabels it in the export, invisibly.'));
+      const descInput = h('input', { class: 'asc-input', placeholder: 'What am I looking at?' });
+      const descField = h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' }, 'Description'), descInput);
+      const go = h('button', { class: 'asc-btn asc-btn-primary', disabled: true }, 'Upload');
+
+      function syncMode() {
+        const needsFile = mode === 'real_static' || mode === 'real_longitudinal' || mode === 'task_file';
+        const needsSpec = mode === 'real_static' || mode === 'real_longitudinal' || mode === 'gold';
+        fileField.hidden = !needsFile;
+        specField.hidden = !needsSpec;
+        descField.hidden = !(mode === 'real_static' || mode === 'real_longitudinal');
+        if (mode) go.removeAttribute('disabled'); else go.setAttribute('disabled', '');
+        go.textContent = mode === 'gold' ? 'Load gold cases' : 'Upload';
+      }
+
+      const picker = h('div', { class: 'asc-mode-picker' }, MODES.map(([id, label, sub]) => {
+        const input = h('input', { type: 'radio', name: 'asc-upload-mode', value: id });
+        input.addEventListener('change', () => { if (input.checked) { mode = id; syncMode(); } });
+        return h('label', { class: 'asc-mode-option' }, input,
+          h('span', {}, h('span', { class: 'asc-mode-label' }, label),
+            h('span', { class: 'asc-mode-sub' }, sub)));
+      }));
+
+      go.addEventListener('click', () => {
+        clear(status);
+        go.setAttribute('disabled', '');
+        const done = (node) => { clear(status); status.appendChild(node); go.removeAttribute('disabled'); };
+        const fail = (e) => done(h('div', { class: 'asc-inline-error' },
+          (e && e.detail) || (e && e.message) || 'Upload failed.'));
+
+        if (mode === 'gold') {
+          status.appendChild(loadingCard('Loading ratified gold cases…'));
+          api('/generation/' + encodeURIComponent(specInput.value.trim() || 'nephrology') + '/load-gold',
+              { method: 'POST' })
+            .then((res) => {
+              overlay.remove();
+              toast('Loaded ' + (res.loaded || 0) + ' gold case(s), skipped '
+                + (res.skipped || 0) + ' already present.', 'success');
+              load();
+            })
+            .catch(fail);
+          return;
         }
-        loadTasksTable();
-        loadGenerationJobs();
-      } catch (e) {
-        clear(agStatus);
-        const msg = e.status === 503
-          ? (e.message || 'Auto-generation unavailable: no LLM key configured.')
-          : e.message;
-        agStatus.appendChild(h('div', { class: 'asc-inline-error' }, msg));
-      } finally {
-        agBtn.removeAttribute('disabled');
-      }
-    });
 
-    // Load GOLD cases (Two-Model PRD Workstream C, the "load gold" half of the
-    // load-vs-generate split). Distinct from auto-generate: inserts the ratified,
-    // hand-authored seed cases with NO LLM required, the reliable way to populate
-    // the V3 queue immediately, independent of the LLM key.
-    const goldSpecialty = selectFrom(['nephrology'], 'nephrology');
-    const goldStatus = h('div', {});
-    const goldBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Load gold cases');
-    goldBtn.addEventListener('click', async () => {
-      clear(goldStatus);
-      goldBtn.setAttribute('disabled', '');
-      goldStatus.appendChild(loadingCard('Loading ratified gold cases…'));
-      try {
-        const res = await api('/generation/' + encodeURIComponent(goldSpecialty.value) + '/load-gold', { method: 'POST' });
-        clear(goldStatus);
-        goldStatus.appendChild(h('div', { class: 'asc-inline-ok' },
-          'Loaded ' + (res.loaded || 0) + ' new, skipped ' + (res.skipped || 0) + ' existing'
-          + ' (' + (res.total || 0) + ' gold total). Multimodal in queue: ' + (res.multimodal_in_queue || 0) + '.'));
-        loadTasksTable();
-        loadGenerationJobs();
-      } catch (e) {
-        clear(goldStatus);
-        goldStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Could not load gold cases.'));
-      } finally {
-        goldBtn.removeAttribute('disabled');
-      }
-    });
-    const goldCard = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Load gold cases (RATIFIED, no LLM needed)'),
-        h('div', { class: 'asc-card-sub' }, 'Insert the hand-authored, clinician-ratified multimodal seed cases (real labs + EHR + an authored A/B pair) straight into the V3 queue. Idempotent: safe to click repeatedly. Use this to populate V3 without an LLM key; use "Auto-generate" above for NOVEL cases.'))),
-      h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-form-row-3' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), goldSpecialty),
-          h('div', {}), h('div', {})),
-        goldBtn,
-        goldStatus));
+        if (!fileInput.files || !fileInput.files[0]) {
+          done(h('div', { class: 'asc-inline-error' }, 'Choose a file first.'));
+          return;
+        }
 
-    // Load the V4 REAL de-identified cases (V4 Cases & Promotion PRD §3). The
-    // startup hook seeds these at boot, so this button is the manual lever for a
-    // deployment that has not restarted — and, more usefully, the place that
-    // tells you WHY a case is not in the queue: `holds` names any case the
-    // content gate is keeping out, which is otherwise only visible by its absence.
-    const realStatus = h('div', {});
-    const realFanout = h('input', { type: 'checkbox', id: 'asc-real-fanout' });
-    const realBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Load real cases');
-    realBtn.addEventListener('click', async () => {
-      clear(realStatus);
-      realBtn.setAttribute('disabled', '');
-      realStatus.appendChild(loadingCard('Loading real de-identified cases…'));
-      try {
-        const q = realFanout.checked ? '?open_to_all_specialties=true' : '';
-        const res = await api('/generation/load-v4-real-cases' + q, { method: 'POST' });
-        clear(realStatus);
-        realStatus.appendChild(h('div', { class: 'asc-inline-ok' },
-          'Loaded ' + (res.loaded || 0) + ' new, skipped ' + (res.skipped || 0)
-          + ' existing, ' + (res.held || 0) + ' held (' + (res.total || 0) + ' total), at '
-          + (res.max_labels || 3) + ' labels each.'));
-        // A held case is a promise not kept. Name it and say why, rather than
-        // letting the operator discover it as a missing row.
-        Object.keys(res.holds || {}).forEach((cid) => {
-          realStatus.appendChild(h('div', { class: 'asc-inline-warn' },
-            cid + ' is HELD: ' + res.holds[cid]));
-        });
-        loadTasksTable();
-      } catch (e) {
-        clear(realStatus);
-        realStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Could not load real cases.'));
-      } finally {
-        realBtn.removeAttribute('disabled');
-      }
-    });
-    const realCard = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Load REAL de-identified cases (V4)'),
-        h('div', { class: 'asc-card-sub' }, 'The real patient cases built from partner bundles — labs, notes and the decision point, with an authored A/B pair. Seeded automatically at boot; this re-runs it. Idempotent. Served only on the real-cases queue, and only to physicians cleared for real data (grant that on Physicians).'))),
-      h('div', { class: 'asc-card-pad' },
-        h('label', { for: 'asc-real-fanout', style: 'display:flex;gap:10px;align-items:flex-start;margin-bottom:12px;cursor:pointer' },
-          realFanout,
-          h('span', {},
-            h('span', { style: 'font-weight:600' }, 'Show to all approved physicians (ignores specialty routing)'),
-            h('span', { class: 'asc-card-sub', style: 'display:block' },
-              'Visibility only — it does not change how many labels we pay for.'))),
-        realBtn,
-        realStatus));
+        if (mode === 'task_file') {
+          const fd = new FormData();
+          fd.append('file', fileInput.files[0]);
+          status.appendChild(loadingCard('Uploading task file…'));
+          api('/tasks/upload-file', { method: 'POST', body: fd, isForm: true })
+            .then((res) => {
+              overlay.remove();
+              toast('Created ' + (res.count || 0) + ' task(s). They are in Task Routing.', 'success');
+            })
+            .catch(fail);
+          return;
+        }
 
-    const corpusCard = h('div', { class: 'asc-card', id: 'ascSeedCorpus' }, loadingCard('Loading seed corpus…'));
-    const jobsCard = h('div', { class: 'asc-card', id: 'ascGenJobs' }, loadingCard('Loading generation jobs…'));
-    const tableCard = h('div', { class: 'asc-card', id: 'ascTasksTable' }, loadingCard('Loading tasks…'));
+        // Real records: mint a one-time link, then post through the partner door.
+        const wantMode = (mode === 'real_longitudinal') ? 'longitudinal' : 'static';
+        status.appendChild(loadingCard('Uploading through the ingest door…'));
+        api('/admin/upload-links', { method: 'POST', body: {
+          partner_id: 'admin-upload',
+          partner_label: 'Uploaded by admin',
+          specialty: specInput.value.trim() || 'nephrology',
+          purpose: 'task_creation',
+          one_time: true,
+        } }).then((link) => {
+          const fd = new FormData();
+          fd.append('file', fileInput.files[0]);
+          fd.append('description', descInput.value.trim());
+          return api('/partner/uploads?t=' + encodeURIComponent(link.token),
+                     { method: 'POST', body: fd, isForm: true })
+            .then((up) => api('/admin/uploads/' + encodeURIComponent(up.upload_id) + '/task-mode',
+                              { method: 'POST', body: { task_mode: wantMode } })
+              .catch(() => null)   // the bundle is in; a mode we can set later must not read as a failed upload
+              .then(() => up));
+        }).then(() => {
+          overlay.remove();
+          toast('Uploaded. Parsing runs in the background — the row appears under '
+            + 'Task creation as its cases land.', 'success');
+          load();
+        }).catch(fail);
+      });
 
-    body.appendChild(h('div', { class: 'asc-cols-2' }, pasteCard, fileCard));
-    body.appendChild(genCard);
-    body.appendChild(autoGenCard);
-    body.appendChild(realCard);
-    body.appendChild(goldCard);
-    body.appendChild(h('div', { class: 'asc-cols-2' }, corpusCard, jobsCard));
-    body.appendChild(tableCard);
-    loadTasksTable();
-    loadSeedCorpus();
-    loadGenerationJobs();
+      syncMode();
+      overlay.appendChild(h('div', { class: 'asc-modal-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('h3', {}, 'Upload'),
+          h('div', { class: 'asc-label', style: 'margin-top:12px' }, 'What is this?'),
+          picker, specField, descField, fileField, status,
+          h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
+            go,
+            h('button', {
+              class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto',
+              onClick: () => overlay.remove(),
+            }, 'Cancel')))));
+      document.body.appendChild(overlay);
+    }
+
+    /* §3.4 — synthetic generation, as ONE compact card and no jobs table.
+     * Its output is a task the moment it exists, so the status line links to
+     * Task Routing rather than growing a second inventory here. */
+    function autoGenerateCard() {
+      const spec = selectFrom(['nephrology', 'cardiology'], 'nephrology');
+      const count = h('input', { type: 'number', class: 'asc-input', value: '10', min: '1', max: '200' });
+      const status = h('div', { style: 'margin-top:10px' });
+      const btn = h('button', { class: 'asc-btn asc-btn-sm', type: 'button' }, 'Generate');
+      btn.addEventListener('click', () => {
+        clear(status);
+        const n = Math.max(1, parseInt(count.value, 10) || 1);
+        btn.setAttribute('disabled', '');
+        status.appendChild(loadingCard('Generating ' + n + ' case(s)… this calls the LLM.'));
+        api('/generation/' + encodeURIComponent(spec.value), { method: 'POST', body: { count: n } })
+          .then((res) => {
+            clear(status);
+            const link = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+              'View in Task Routing →');
+            link.addEventListener('click', () => { state.adminSub.work = 'assign'; renderAdminView(); });
+            status.appendChild(h('div', { class: 'asc-inline-ok' },
+              'Accepted ' + (res.accepted || 0) + ' of ' + n + '.'
+              + ((res.shortfall || 0) ? ' Shortfall ' + res.shortfall + '.' : '')));
+            const dropped = res.dropped || {};
+            const dk = Object.keys(dropped).filter((k) => dropped[k] > 0);
+            if (dk.length) {
+              status.appendChild(h('div', { class: 'asc-dim' }, 'Dropped: '
+                + dk.map((k) => k.replace(/_/g, ' ') + ' ' + dropped[k]).join(' · ')));
+            }
+            status.appendChild(link);
+          })
+          .catch((e) => {
+            clear(status);
+            status.appendChild(h('div', { class: 'asc-inline-error' },
+              e.status === 503 ? (e.message || 'No LLM key configured.') : e.message));
+          })
+          .finally(() => btn.removeAttribute('disabled'));
+      });
+      return h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Auto-generate (synthetic V1–V3)'),
+        h('div', { class: 'asc-dim' },
+          'Novel synthetic cases from the seed corpus, quality-gated. They are tasks '
+          + 'the moment they exist, so they appear in Task Routing, not here.'),
+        h('div', { class: 'asc-stage-actions' },
+          h('span', { class: 'asc-dim' }, 'Specialty '), spec,
+          h('span', { class: 'asc-dim' }, ' How many '), count,
+          h('span', { class: 'asc-stage-spacer' }), btn),
+        status));
+    }
+
+    load();
   }
 
   // Model-Failure view (FEAT-1): per-model failure summary + the individual
@@ -10751,121 +11178,6 @@
           h('div', {}, h('strong', {}, 'Expert correction: '), (f.expert_correction || 'n/a'))));
       });
       card.appendChild(pad);
-    } catch (e) {
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
-    }
-  }
-
-  async function loadSeedCorpus() {
-    const card = document.getElementById('ascSeedCorpus');
-    if (!card) return;
-    try {
-      const m = await api('/generation/seed-corpus?specialty=nephrology');
-      clear(card);
-      const ratBadge = m.ratified
-        ? h('span', { class: 'asc-badge asc-badge-primary' }, 'ratified')
-        : h('span', { class: 'asc-badge asc-badge-amber' }, 'unratified');
-      card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Seed corpus'),
-        h('div', { class: 'asc-card-sub' }, m.version + ' · ' + m.total + ' prompts · ', ratBadge))));
-      const rows = (m.taxonomy || []).map((b) => h('tr', {},
-        h('td', {}, b.label || b.id),
-        h('td', {}, String(b.have != null ? b.have : 0)),
-        h('td', {}, String(b.target_count != null ? b.target_count : 'n/a')),
-        h('td', {}, b.min_difficulty || 'n/a')));
-      card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['Bucket', 'Have', 'Target', 'Min difficulty'].map((c) => h('th', {}, c)))),
-        h('tbody', {}, rows))));
-      if (!m.ratified) {
-        card.appendChild(h('div', { class: 'asc-card-pad' },
-          h('div', { class: 'asc-card-sub' }, 'Note: ' + (m.review_status || 'pending clinician review') + '. Ratify before sale.')));
-      }
-    } catch (e) {
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
-    }
-  }
-
-  async function loadGenerationJobs() {
-    const card = document.getElementById('ascGenJobs');
-    if (!card) return;
-    try {
-      const data = await api('/generation/jobs');
-      const jobs = data.jobs || [];
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-head' },
-        h('div', { class: 'asc-card-title' }, 'Generation jobs (' + jobs.length + ')')));
-      if (!jobs.length) { card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No generation runs yet.'))); return; }
-      const rows = jobs.slice(0, 50).map((j) => {
-        const dropped = j.dropped || {};
-        const dkeys = Object.keys(dropped).filter((k) => dropped[k] > 0);
-        const dsum = dkeys.reduce((a, k) => a + dropped[k], 0);
-        // Per-reason breakdown, permanently visible (Multimodal Debug PRD P1.5):
-        // a batch that drops to 0 accepted must SHOW why (case_incoherent,
-        // multimodal_not_necessary, near_duplicate, …), not just a count; that's
-        // the difference between "broken" and "thresholds need tuning".
-        const breakdown = dkeys.length
-          ? dkeys.sort((a, b) => dropped[b] - dropped[a])
-              .map((k) => k.replace(/_/g, ' ') + ' ' + dropped[k]).join(' · ')
-          : 'n/a';
-        const zeroYield = !j.accepted && dsum > 0;
-        return h('tr', {},
-          h('td', {}, fmtDate(j.created_at)),
-          h('td', {}, zeroYield
-            ? h('span', { class: 'asc-badge asc-badge-amber' }, '0 / ' + String(j.requested_n))
-            : String(j.accepted) + ' / ' + String(j.requested_n)),
-          h('td', {}, String(dsum)),
-          h('td', { class: 'asc-card-sub', style: 'max-width:340px' }, breakdown));
-      });
-      card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['When', 'Accepted / Requested', 'Dropped', 'Why dropped'].map((c) => h('th', {}, c)))),
-        h('tbody', {}, rows))));
-    } catch (e) {
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
-    }
-  }
-
-  async function loadTasksTable() {
-    const card = document.getElementById('ascTasksTable');
-    if (!card) return;
-    clear(card);
-    card.appendChild(loadingCard('Loading tasks…'));
-    try {
-      const data = await api('/tasks');
-      const tasks = data.tasks || [];
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-head' },
-        h('div', { class: 'asc-card-title' }, 'Tasks (' + tasks.length + ')')));
-      if (!tasks.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No tasks yet.'))); return; }
-      const rows = tasks.slice(0, 200).map((t) => h('tr', {},
-        h('td', { class: 'asc-mono' }, (t.task_id || '').slice(0, 10)),
-        h('td', {}, h('span', { class: 'asc-badge asc-badge-primary' }, t.specialty || 'n/a')),
-        // Modality badge (Multimodal Debug PRD P0.3): multimodal batches must be
-        // distinguishable at a glance, not invisible among text tasks.
-        h('td', {}, (t.modality || 'text') === 'multimodal'
-          ? h('span', { class: 'asc-badge asc-badge-accent' }, 'multimodal')
-          : 'text'),
-        // Case source + version (EHR PRD §9.5): an admin must never mistake a
-        // REAL case for a synthetic one at a glance. Real ⇒ V4, always.
-        h('td', {}, t.case_source === 'real_deid'
-          ? h('span', { class: 'asc-badge asc-badge-real' }, 'real · V4')
-          : (t.case_source ? 'synthetic' : 'n/a')),
-        h('td', {}, t.difficulty || 'n/a'),
-        h('td', {}, (t.prompt || '').slice(0, 90) + ((t.prompt || '').length > 90 ? '…' : '')),
-        h('td', {}, t.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
-        h('td', {}, String(t.submission_count != null ? t.submission_count : 0)),
-        h('td', {}, t.status === 'prompt_flagged'
-          ? h('span', { class: 'asc-badge asc-badge-amber' }, 'prompt flagged')
-          : (t.status || 'n/a')),
-        // Frontier-model failure capture (FEAT-1) + two-frontier provenance (§4.2).
-        h('td', {}, baselineCell(t))));
-      card.appendChild(h('div', { class: 'asc-table-wrap' },
-        h('table', { class: 'asc-table' },
-          h('thead', {}, h('tr', {},
-            ['ID', 'Specialty', 'Modality', 'Case source', 'Difficulty', 'Prompt', 'Grounding', 'Labels', 'Status', 'Baselines'].map((c) => h('th', {}, c)))),
-          h('tbody', {}, rows))));
     } catch (e) {
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
