@@ -23,7 +23,7 @@ import re
 import unicodedata
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import httpx
 
@@ -769,6 +769,15 @@ _INSTITUTION_KEYWORDS = (
     "medical center", "medical centre", "hospital", "residency", "fellowship",
     "internship", "health system", "clinic",
 )
+#: WHOLE-WORD keyword match. Substring matching read "14 years of clinical
+#: practice" as an institution, because "clinic" is inside "clinical" — harmless
+#: while this only fed a tier weight, and no longer harmless now that the v2
+#: Review screen shows the extracted institutions back to the physician with a
+#: "from your CV" chip on them.
+_INSTITUTION_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(k) for k in _INSTITUTION_KEYWORDS) + r")\b",
+    re.IGNORECASE,
+)
 _BOARD_LINE = re.compile(
     r"(?:board[\s\-]certified(?:\s+in)?|diplomate,?\s+(?:of\s+)?(?:the\s+)?american board of)"
     r"[\s:]*([A-Za-z][A-Za-z &,/\-]{2,60})",
@@ -784,6 +793,161 @@ _YEAR_RANGE = re.compile(r"\b(19[5-9]\d|20[0-4]\d)\s*[–\-—]\s*(19[5-9]\d|20[
 _TRAINING_WORDS = ("residency", "fellowship", "internship", "resident", "fellow")
 _CITATION_HINT = re.compile(r"\b(?:doi:|pmid[:\s]|et al\.?)", re.IGNORECASE)
 
+# ─── Onboarding v2 §2 extraction targets ─────────────────────────────────────
+# The v2 wizard's Review screen is PRE-FILLED from the parse, so the extractor
+# now has to reach every field that screen shows, not only the four the tier
+# scorer reads. The rule that governed the original four still governs these:
+# a wrong value is worse than a missing one, because a missing field shows an
+# empty box the physician fills in ten seconds, and a wrong one shows a lime
+# "from your CV" chip on something they now have to notice and correct.
+#
+# So every pattern below is anchored (a labeled line, a checksummed number, a
+# known host) rather than inferred, and anything that does not clear its anchor
+# is simply left out.
+
+#: MD · DO · MBBS and the common punctuated spellings. Ordered longest-first so
+#: "MBChB" is not shortened to "MB".
+_DEGREE_PATTERNS = (
+    ("MD",    re.compile(r"\bM\.?\s?D\.?(?![A-Za-z])")),
+    ("DO",    re.compile(r"\bD\.?\s?O\.?(?![A-Za-z])")),
+    ("MBBS",  re.compile(r"\bM\.?B\.?\.?B\.?S\.?(?![A-Za-z])", re.IGNORECASE)),
+    ("MBChB", re.compile(r"\bM\.?B\.?\s?Ch\.?B\.?(?![A-Za-z])", re.IGNORECASE)),
+    ("DPM",   re.compile(r"\bD\.?P\.?M\.?(?![A-Za-z])")),
+    ("PhD",   re.compile(r"\bPh\.?\s?D\.?(?![A-Za-z])", re.IGNORECASE)),
+    ("MPH",   re.compile(r"\bM\.?P\.?H\.?(?![A-Za-z])")),
+)
+
+#: A labeled NPI only. An unlabeled ten-digit run on a CV is a phone number, a
+#: fax number or a DEA-adjacent identifier far more often than it is an NPI, and
+#: the checksum below is not selective enough on its own to tell them apart.
+_NPI_LINE = re.compile(r"\bNPI\b[^0-9]{0,16}(\d[\d\s\-]{9,15})", re.IGNORECASE)
+
+_LINKEDIN_RE = re.compile(
+    r"(?:https?://)?(?:[a-z]{2,3}\.)?linkedin\.com/in/[A-Za-z0-9%_\-]{2,100}",
+    re.IGNORECASE,
+)
+
+#: A CV's name is on one of its first few lines, and it is the line that reads
+#: like a name: two to five capitalized words, no institution vocabulary, no
+#: digits, optionally trailed by credentials.
+_NAME_LINE = re.compile(
+    r"^([A-Z][A-Za-z'’\-]+(?:\s+[A-Z][A-Za-z'’\.\-]+){1,4})\s*(?:,\s*[A-Za-z\.\s,/]{2,60})?$"
+)
+_NAME_STOPWORDS = (
+    "curriculum", "vitae", "resume", "résumé", "university", "hospital", "clinic",
+    "department", "school", "college", "center", "centre", "institute", "phone",
+    "email", "address", "profile", "summary",
+)
+
+#: Training lines: "Residency, Internal Medicine — Johns Hopkins, 2014–2017".
+_TRAINING_KIND = (
+    ("fellowship", re.compile(r"\bfellowship\b|\bfellow\b", re.IGNORECASE)),
+    ("residency",  re.compile(r"\bresidency\b|\bresident\b", re.IGNORECASE)),
+    ("internship", re.compile(r"\binternship\b|\bintern\b", re.IGNORECASE)),
+)
+
+
+def _extract_name(lines: List[str]) -> Optional[str]:
+    """The physician's name, from the head of the document, or None.
+
+    Only the first eight non-empty lines are considered: past that, a
+    capitalized two-word line is a section heading or a co-author, and naming
+    the wrong person on the review screen is a bad way to open a relationship.
+    """
+    for ln in lines[:8]:
+        if len(ln) > 70 or any(ch.isdigit() for ch in ln):
+            continue
+        low = ln.casefold()
+        if any(w in low for w in _NAME_STOPWORDS):
+            continue
+        m = _NAME_LINE.match(ln.strip())
+        if m:
+            return " ".join(m.group(1).split())
+    return None
+
+
+def _extract_degrees(text: str) -> List[str]:
+    """Which medical degrees the document claims, deduped, in canonical spelling."""
+    out: List[str] = []
+    for label, pattern in _DEGREE_PATTERNS:
+        if pattern.search(text) and label not in out:
+            out.append(label)
+    return out
+
+
+def _extract_npi(text: str) -> Optional[str]:
+    """A labeled, CHECKSUM-VALID NPI, or None.
+
+    The checksum is the whole point: it turns "a ten-digit number appeared near
+    the letters NPI" into "this is an NPI", and it is the same Luhn-over-80840
+    the signup field validates with, so the value that lands prefilled is one the
+    review screen will not immediately warn about.
+    """
+    for m in _NPI_LINE.finditer(text):
+        candidate = clean_npi(m.group(1))[:10]
+        if npi_checksum_ok(candidate):
+            return candidate
+    return None
+
+
+def _extract_linkedin(text: str) -> Optional[str]:
+    m = _LINKEDIN_RE.search(text)
+    if not m:
+        return None
+    url = m.group(0).rstrip("/.,);")
+    return url if url.lower().startswith("http") else "https://" + url
+
+
+def _extract_specialty(text: str, certs: List[str]) -> Optional[str]:
+    """A registry specialty, or None.
+
+    Reads the board certifications FIRST and the free text second: a board name
+    ("American Board of Internal Medicine — Nephrology") is a claim the physician
+    made deliberately, while the body of a CV mentions half a dozen specialties
+    in passing. ``match_specialty`` returns None rather than guessing, and that
+    is preserved end-to-end here.
+    """
+    from asclepius import specialties as _specialties  # noqa: PLC0415
+
+    for cert in certs:
+        hit = _specialties.match_specialty(cert)
+        if hit:
+            return hit
+    # Only the head of the document: a "Publications" section naming twelve
+    # specialties must not decide what this physician practises.
+    for chunk in (text[:2000]).splitlines():
+        hit = _specialties.match_specialty(chunk)
+        if hit:
+            return hit
+    return None
+
+
+def _extract_training(lines: List[str]) -> List[Dict[str, Any]]:
+    """Residency / fellowship / internship entries as {kind, institution, years}.
+
+    One entry per line that names a training kind AND an institution, capped at
+    eight, because a CV that produces more than eight is producing noise.
+    """
+    out: List[Dict[str, Any]] = []
+    for ln in lines:
+        if len(ln) > 200:
+            continue
+        kind = next((k for k, pat in _TRAINING_KIND if pat.search(ln)), None)
+        if not kind:
+            continue
+        if not _INSTITUTION_RE.search(ln):
+            continue
+        years = _YEAR_RANGE.search(ln)
+        out.append({
+            "kind": kind,
+            "institution": ln.strip()[:140],
+            "start_year": years.group(1) if years else None,
+            "end_year": years.group(2) if years else None,
+        })
+        if len(out) >= 8:
+            break
+    return out
+
 
 def _parse_cv_text(text: str) -> Dict[str, Any]:
     lines = [ln.strip() for ln in text.splitlines()]
@@ -792,7 +956,7 @@ def _parse_cv_text(text: str) -> Dict[str, Any]:
     institutions: List[str] = []
     for ln in lines:
         low = ln.casefold()
-        if any(k in low for k in _INSTITUTION_KEYWORDS) and 4 < len(ln) < 140:
+        if _INSTITUTION_RE.search(ln) and 4 < len(ln) < 140:
             if ln not in institutions:
                 institutions.append(ln)
         if len(institutions) >= 12:
@@ -840,33 +1004,95 @@ def _parse_cv_text(text: str) -> Dict[str, Any]:
         if _CITATION_HINT.search(ln) or (in_pub_section and re.search(r"\b(19|20)\d{2}\b", ln)):
             pubs += 1
 
+    # The original four keys keep their exact names and meanings: ``propose_tier``
+    # and the admin dossier read them, and this parse feeds both. Everything added
+    # for the v2 Review screen is additive and nullable, so a scorer that has
+    # never heard of these keys behaves exactly as it did before.
     return {
         "institutions": institutions,
         "board_certifications": certs,
         "years_in_practice": years,
         "publications_count": pubs if pubs else None,
+        # ── Onboarding v2 §2: the Review screen's prefill ──
+        "full_name": _extract_name(lines),
+        "degrees": _extract_degrees(text),
+        "training": _extract_training(lines),
+        "specialty": _extract_specialty(text, certs),
+        "npi": _extract_npi(text),
+        "linkedin_url": _extract_linkedin(text),
     }
 
 
-def parse_cv(asset_sha: str, mime: str = "application/pdf") -> Dict[str, Any]:
-    """Best-effort extraction from a stored CV: training institutions, board
-    certifications, years in practice, publications. Never raises — a CV that
-    cannot be parsed returns ``ok=False`` and the admin reviews the raw file.
+def _empty_parse(asset_sha: str, reason: str) -> Dict[str, Any]:
+    """The ``ok=False`` shape, with every key the success shape has.
+
+    One definition, because three copies of it drifted the moment the v2 fields
+    were added and the Review screen started reading ``parsed["npi"]`` on a path
+    where that key did not exist. A CV that could not be read must still hand the
+    caller a dict it can index — the screen it feeds shows empty states, never an
+    error (§2 screen 4).
     """
+    return {
+        "ok": False, "asset_sha": asset_sha, "reason": reason,
+        "institutions": [], "board_certifications": [],
+        "years_in_practice": None, "publications_count": None,
+        "full_name": None, "degrees": [], "training": [],
+        "specialty": None, "npi": None, "linkedin_url": None,
+    }
+
+
+#: The stages the v2 wizard's CV screen narrates while the parse runs (§2
+#: screen 3, §7). They are REAL: each one is emitted as the corresponding piece
+#: of work begins, so the caption a physician reads is the thing that is actually
+#: happening. That is the whole requirement — a timer that walks three captions
+#: on a schedule is a lie that gets found out the first time OCR takes 30 seconds.
+CV_STAGES = ("reading", "matching", "preparing", "done", "failed")
+
+
+def parse_cv(
+    asset_sha: str,
+    mime: str = "application/pdf",
+    *,
+    on_stage: Optional[Callable[[str], None]] = None,
+) -> Dict[str, Any]:
+    """Best-effort extraction from a stored CV: name, degrees, training
+    institutions, board certifications, specialty, NPI, LinkedIn, years in
+    practice, publications. Never raises — a CV that cannot be parsed returns
+    ``ok=False`` and the admin reviews the raw file.
+
+    ``on_stage`` is called with each value of ``CV_STAGES`` as that stage begins.
+    It is best-effort by construction: a callback that raises must not cost the
+    parse, because the progress narration is decoration and the extraction is the
+    product.
+    """
+
+    def _stage(name: str) -> None:
+        if on_stage is None:
+            return
+        try:
+            on_stage(name)
+        except Exception:  # pragma: no cover - narration must never break parsing
+            log.warning("[credentialing] CV stage callback failed at %r", name)
+
     try:
         from asclepius import assets
         data, _ = assets.load_asset(asset_sha)
     except Exception as exc:
-        return {"ok": False, "asset_sha": asset_sha, "reason": f"load_failed:{type(exc).__name__}",
-                "institutions": [], "board_certifications": [],
-                "years_in_practice": None, "publications_count": None}
+        _stage("failed")
+        return _empty_parse(asset_sha, f"load_failed:{type(exc).__name__}")
     try:
+        # "Reading your CV…" — pdfminer/PyPDF2, and the OCR fallback behind them,
+        # which is where the tens of CPU-seconds actually go.
+        _stage("reading")
         text = extract_cv_text(data, mime)
         if len(text.strip()) < 40:
-            return {"ok": False, "asset_sha": asset_sha, "reason": "no_extractable_text",
-                    "institutions": [], "board_certifications": [],
-                    "years_in_practice": None, "publications_count": None}
+            _stage("failed")
+            return _empty_parse(asset_sha, "no_extractable_text")
+        # "Matching credentials…" — the extraction proper.
+        _stage("matching")
         parsed = _parse_cv_text(text)
+        # "Preparing your review…" — the payload the Review screen prefills from.
+        _stage("preparing")
         parsed.update({
             "ok": True,
             "asset_sha": asset_sha,
@@ -874,12 +1100,12 @@ def parse_cv(asset_sha: str, mime: str = "application/pdf") -> Dict[str, Any]:
             "text_chars": len(text),
             "parsed_at": datetime.utcnow().replace(microsecond=0).isoformat(),
         })
+        _stage("done")
         return parsed
     except Exception as exc:  # parsing is advisory; it must never break signup
         log.exception("[credentialing] CV parse failed for %s", asset_sha[:12])
-        return {"ok": False, "asset_sha": asset_sha, "reason": f"parse_failed:{type(exc).__name__}",
-                "institutions": [], "board_certifications": [],
-                "years_in_practice": None, "publications_count": None}
+        _stage("failed")
+        return _empty_parse(asset_sha, f"parse_failed:{type(exc).__name__}")
 
 
 # ─── Tier scoring (Phase 3) ──────────────────────────────────────────────────

@@ -109,6 +109,26 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
+#: Onboarding v2 §2: a physician's account row is created the moment they SUBMIT
+#: their application, before anyone has looked at it — and the v2 wizard has no
+#: password step, so there is nothing to hash. This sentinel is written into
+#: ``password_hash`` in place of a hash, because a NULL there would be
+#: indistinguishable from a schema accident and a random hash (what the column
+#: used to get) is indistinguishable from a real credential the physician has
+#: simply forgotten.
+#:
+#: It can never verify: it is not a PHC string, so ``_pwd.verify`` raises and
+#: ``verify_password`` returns False. The distinction it buys is at
+#: ``/auth/login``, which can now answer "your application is in review" instead
+#: of "invalid email or password" — the difference between a wait and a wall.
+NO_PASSWORD_HASH = "!no-password-set"
+
+
+def password_is_unset(user: Dict[str, Any]) -> bool:
+    """True when this account has never had a password of any kind."""
+    return (user or {}).get("password_hash") == NO_PASSWORD_HASH
+
+
 # ─── Credential vault sealing (Tier B at rest) ────────────────────────────────
 # The private credential vault (Tier B: name, NPI, license, education) is sealed
 # with Fernet when ``ASCLEPIUS_VAULT_KEY`` is set, so PHI-adjacent identifiers are
@@ -1315,6 +1335,60 @@ class AsclepiusStore:
             ):
                 if _col not in cols("users"):
                     conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+
+            # ═══ ONBOARDING v2 (PRD §0.1, §5, §6) ═══════════════════════════
+            # All nullable, all additive. NULL is the pre-v2 meaning in every
+            # case, so nothing here changes behaviour for an existing account.
+            for _col, _ddl in (
+                # §0.1 decision 1: the welcome email carries a TEMPORARY
+                # password. 1 means the account is signed in on a credential it
+                # did not choose, so the next thing it may do is choose one.
+                # NULL/0 is every account that picked its own password, which is
+                # everyone who signed up before this shipped.
+                ("must_change_password",  "INTEGER"),
+                # §6: first-login walkthrough state — {version, stops:{id:
+                # 'done'|'skipped'}, completed_at, dismissed_at}. Server-side and
+                # not localStorage, deliberately: doctors switch devices, and a
+                # checklist that resets on the phone is a checklist that nags.
+                ("first_run_json",        "TEXT"),
+                # §6 stop 5: the payout rail, built now and wired to Stripe on
+                # the payments track. NULL means "never asked"; the only other
+                # value this release writes is 'coming_soon', which the Earnings
+                # card renders as a disabled, clearly-labelled placeholder.
+                ("bank_link_status",      "TEXT"),
+            ):
+                if _col not in cols("users"):
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {_col} {_ddl}")
+                    if _col == "first_run_json":
+                        # ── One-time backfill, and it runs exactly once ──────
+                        # An empty first_run means "show them the walkthrough",
+                        # which is right for a physician who has just been
+                        # accepted and wrong for one who has been labeling for
+                        # months: without this, the deploy that ships §6 drops
+                        # every existing contributor into "Welcome to Archangel
+                        # Health" on their next sign-in and asks them to skim a
+                        # manual they wrote half the feedback on.
+                        #
+                        # Scoped to accounts that have ALREADY BEEN INSIDE the
+                        # portal — approved, or carrying tutorial state. A
+                        # pending applicant has neither, so someone who applied
+                        # the day before this shipped still gets the welcome
+                        # they were always going to get.
+                        #
+                        # Inside the ALTER branch on purpose: that runs on the
+                        # boot that adds the column and never again, so this
+                        # cannot later re-dismiss a checklist a physician is
+                        # halfway through.
+                        conn.execute(
+                            "UPDATE users SET first_run_json = ? "
+                            "WHERE verification_status = 'approved' "
+                            "   OR tutorial_json IS NOT NULL",
+                            (json.dumps({
+                                "version": self.FIRST_RUN_VERSION, "stops": {},
+                                "completed_at": None,
+                                "dismissed_at": _utcnow_iso(),
+                            }),),
+                        )
 
             # ── Tier backfill for pre-tiering accounts ───────────────────────
             # ``capabilities.LABEL`` is now ENFORCED at /tasks/next and
@@ -2729,6 +2803,67 @@ class AsclepiusStore:
                 "CREATE INDEX IF NOT EXISTS idx_task_notify_status ON task_notify_outbox(status)"
             )
 
+            # Onboarding v2 §0.1: platform media — one row per named SLOT
+            # ('onboarding_demo' is the only one today), pointing at a blob in
+            # the content-addressed asset store. The bytes never live here; a
+            # 72 MB video in sqlite would be read wholly into memory on every
+            # range request, which is the one thing a seekable player must not
+            # do. Replacing a slot rewrites the row, so a re-upload is a
+            # deployment step and not a migration.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS platform_media (
+                    slot        TEXT PRIMARY KEY,
+                    sha256      TEXT NOT NULL,
+                    mime        TEXT NOT NULL,
+                    byte_size   INTEGER NOT NULL,
+                    filename    TEXT,
+                    duration_s  INTEGER,
+                    uploaded_by TEXT,
+                    uploaded_at TEXT NOT NULL
+                )
+                """
+            )
+
+    # ─── Platform media (Onboarding v2 §0.1) ──────────────────────────────────
+    def set_platform_media(
+        self,
+        slot: str,
+        *,
+        sha256: str,
+        mime: str,
+        byte_size: int,
+        filename: Optional[str] = None,
+        duration_s: Optional[int] = None,
+        uploaded_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Point a named slot at an asset blob. Idempotent by slot."""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO platform_media
+                    (slot, sha256, mime, byte_size, filename, duration_s,
+                     uploaded_by, uploaded_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(slot) DO UPDATE SET
+                    sha256 = excluded.sha256, mime = excluded.mime,
+                    byte_size = excluded.byte_size, filename = excluded.filename,
+                    duration_s = excluded.duration_s,
+                    uploaded_by = excluded.uploaded_by,
+                    uploaded_at = excluded.uploaded_at
+                """,
+                (slot, sha256, mime, int(byte_size), filename, duration_s,
+                 uploaded_by, _utcnow_iso()),
+            )
+        return self.get_platform_media(slot)  # type: ignore[return-value]
+
+    def get_platform_media(self, slot: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM platform_media WHERE slot = ?", (slot,)
+            ).fetchone()
+        return dict(row) if row else None
+
     # ─── Users ────────────────────────────────────────────────────────────────
     def create_user(
         self,
@@ -2849,9 +2984,18 @@ class AsclepiusStore:
         email = email.lower().strip()
         if password_hash is None and password is not None:
             password_hash = hash_password(password)
+        existing_probe = self.get_user_by_email(email)
+        # Onboarding v2 §2: the wizard provisions with NO_PASSWORD_HASH. On a
+        # RE-onboard that must never touch a credential the physician is signing
+        # in with today — the sentinel means "we were not given one", not "erase
+        # the one you have". Same reasoning as the None case documented above,
+        # which this is the second spelling of.
+        if password_hash == NO_PASSWORD_HASH and existing_probe \
+                and (existing_probe.get("password_hash") or "") != NO_PASSWORD_HASH:
+            password_hash = None
         creds_json = json.dumps(credentials or {})
         atts_json = json.dumps(attestations or {})
-        existing = self.get_user_by_email(email)
+        existing = existing_probe
         with self._conn() as conn:
             if existing:
                 # password_hash is set in its own clause, and only when supplied,
@@ -2900,7 +3044,7 @@ class AsclepiusStore:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    uid, email, password_hash or hash_password(secrets.token_urlsafe(32)), role, specialty, specialty_niche,
+                    uid, email, password_hash or NO_PASSWORD_HASH, role, specialty, specialty_niche,
                     board_cert, years_experience, org_name, id_hashed, full_name, org_name,
                     clinical_role, npi, creds_json, atts_json, account_kind, _utcnow_iso(),
                 ),
@@ -2929,14 +3073,23 @@ class AsclepiusStore:
         """
         now = datetime.utcnow().replace(microsecond=0).isoformat()
         with self._conn() as conn:
+            # ``must_change_password`` is cleared in the SAME statement that
+            # writes the hash, and only here. Onboarding v2 §0.1: the flag means
+            # "this credential was chosen by us, not by you", so the one event
+            # that can retire it is the user choosing one — which is exactly what
+            # every caller of this method represents (reset, change, admin set).
+            # A separate clear() would be a way to drop the flag without a
+            # password having been chosen, so there isn't one.
             if stamp_changed:
                 conn.execute(
-                    "UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?",
+                    "UPDATE users SET password_hash = ?, password_changed_at = ?, "
+                    "must_change_password = 0 WHERE id = ?",
                     (hash_password(new_password), now, user_id),
                 )
             else:
                 conn.execute(
-                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                    "UPDATE users SET password_hash = ?, must_change_password = 0 "
+                    "WHERE id = ?",
                     (hash_password(new_password), user_id),
                 )
 
@@ -4288,6 +4441,75 @@ class AsclepiusStore:
                 "UPDATE users SET tutorial_json = ? WHERE id = ?",
                 (json.dumps(state), user_id),
             )
+
+    # ─── Onboarding v2 §6: the first-login walkthrough ────────────────────────
+    #: Bumping this retires every stored checklist: a physician who finished the
+    #: old walkthrough is shown the new one once. Only bump for a real change in
+    #: what the stops teach — not for copy edits.
+    FIRST_RUN_VERSION = 1
+
+    def get_first_run(self, user_id: str) -> Dict[str, Any]:
+        """The walkthrough checklist for one user.
+
+        A corrupt or stale-version blob returns the empty shape rather than
+        raising: the worst outcome of a bad read is one extra walkthrough, and
+        the worst outcome of a raise is a physician who cannot open the portal.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT first_run_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        empty = {"version": self.FIRST_RUN_VERSION, "stops": {},
+                 "completed_at": None, "dismissed_at": None}
+        raw = row[0] if row else None
+        if not raw:
+            return empty
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, TypeError):
+            return empty
+        if not isinstance(parsed, dict):
+            return empty
+        if int(parsed.get("version") or 0) != self.FIRST_RUN_VERSION:
+            return empty
+        stops = parsed.get("stops")
+        parsed["stops"] = stops if isinstance(stops, dict) else {}
+        parsed.setdefault("completed_at", None)
+        parsed.setdefault("dismissed_at", None)
+        return parsed
+
+    def set_first_run(self, user_id: str, state: Dict[str, Any]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET first_run_json = ? WHERE id = ?",
+                (json.dumps(state), user_id),
+            )
+
+    def set_bank_link_status(self, user_id: str, status: Optional[str]) -> None:
+        """§6 stop 5. Architecture now, Stripe later — nothing in this release
+        moves money, and the only value written is 'coming_soon'."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET bank_link_status = ? WHERE id = ?", (status, user_id)
+            )
+
+    # ─── Onboarding v2 §0.1: the temporary password ───────────────────────────
+    def set_temp_password(self, user_id: str, password: str) -> None:
+        """Store a hashed temporary credential and mark it as one.
+
+        ``password_changed_at`` is stamped in the SAME statement, because the
+        token-revocation check reads it: without the stamp, a session minted
+        before the approval would keep working against a password the physician
+        no longer has.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ?, must_change_password = 1, "
+                "password_changed_at = ? WHERE id = ?",
+                (hash_password(password),
+                 datetime.utcnow().replace(microsecond=0).isoformat(), user_id),
+            )
+
 
     def mock_annotator_id_hashes(self) -> set:
         """The ``id_hashed`` of every mock/sandbox contributor. Records carry the

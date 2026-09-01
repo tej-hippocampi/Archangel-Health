@@ -30,6 +30,32 @@ export default function OnboardingStyles() {
         50%      { opacity: 1; }
       }
 
+      /* Onboarding v2 §2 screen 3 / §7 — the CV scan line.
+         The ONE place in this flow with sustained animation, and it is
+         deliberately a sweep rather than a spinner: a spinner says "something
+         is happening", and this needs to say "your document is being read".
+         The reduced-motion block at the bottom of this sheet stops it; the
+         stage caption and the three-segment rule carry the whole message
+         without it, so nothing is lost by holding still. */
+      @keyframes ah-onb-cv-scan {
+        0%   { transform: translateY(-6px); opacity: 0; }
+        12%  { opacity: 1; }
+        88%  { opacity: 1; }
+        100% { transform: translateY(108px); opacity: 0; }
+      }
+
+      .ah-onb-root .ah-onb-cv-scan {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 2px;
+        background: linear-gradient(90deg,
+          transparent, var(--green) 18%, var(--green) 82%, transparent);
+        box-shadow: 0 0 10px var(--ah-green-glow);
+        animation: ah-onb-cv-scan 1900ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+
       .ah-onb-root {
         ${consolePalette}
 

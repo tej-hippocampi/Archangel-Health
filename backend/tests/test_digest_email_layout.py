@@ -92,10 +92,28 @@ def test_activity_digest_subject_has_no_separator_glyphs():
 
 # ─── Whole-file posture ──────────────────────────────────────────────────────
 
+#: The two subjects Onboarding v2 §4 specifies with an em dash, verbatim and on
+#: purpose. The rule below stands for everything else — it exists because
+#: model-composed copy leans on long dashes as a lazy separator, and a subject is
+#: the most-seen line the product ships. These two are neither: they are authored
+#: founder copy where the dash is doing real work (a pause, not a separator), and
+#: they are quoted in the PRD as the exact strings to send.
+#:
+#: Listed rather than the rule being softened, so the exception is one reviewable
+#: line and the next accidental dash still fails.
+_PRD_AUTHORED_DASH_SUBJECTS = {
+    "Your Archangel Health application — pick up any time",
+    "Your application is waiting — 2 minutes to finish",
+}
+
+
 def test_no_email_subject_carries_a_long_dash():
     """Subjects are the most-seen line of copy the product ships."""
     import inspect
     src = inspect.getsource(oe)
     for line in src.split("\n"):
-        if "subject=" in line and not line.lstrip().startswith("#"):
-            assert "—" not in line and "–" not in line, line
+        if "subject=" not in line or line.lstrip().startswith("#"):
+            continue
+        if any(allowed in line for allowed in _PRD_AUTHORED_DASH_SUBJECTS):
+            continue
+        assert "—" not in line and "–" not in line, line

@@ -265,6 +265,68 @@ def _detail_rows(rows: Iterable[Tuple[str, str, bool]]) -> str:
     return "".join(out)
 
 
+def _pullquote(text: str) -> str:
+    """A quiet, ink-weight pull quote: a lime rule on the left and nothing else.
+
+    The one place the emails raise their voice, and it does it with position and
+    a hairline rather than a colour block, because the sentence is doing the
+    work. Used for the mission lines, which are the same words as the landing
+    page's /mission section on purpose.
+    """
+    return (
+        f'<div style="margin:24px 0;padding:4px 0 4px 20px;border-left:3px solid {_LIME};">'
+        f'<p style="margin:0;font-family:{_SANS};font-size:17px;line-height:1.55;'
+        f'font-weight:500;letter-spacing:-0.01em;color:{_INK};">{text}</p>'
+        "</div>"
+    )
+
+
+def _founder_signoff(line: str) -> str:
+    """The founders sign their own emails. Set slightly apart from the body so it
+    reads as a signature and not as one more paragraph."""
+    return (
+        f'<p style="margin:26px 0 0;padding-top:20px;border-top:1px solid {_HAIRLINE};'
+        f'font-family:{_SANS};font-size:15px;line-height:1.6;color:{_INK};">'
+        f"{html.escape(line)}</p>"
+    )
+
+
+def _section_label(text: str) -> str:
+    """Mono label INSIDE the body, for the two card-topped sections of the
+    welcome email. Distinct from ``_eyebrow``, which is the one wayfinding line
+    at the top of a message and must stay singular to keep meaning that."""
+    return (
+        f'<div style="font-family:{_MONO};font-size:11px;font-weight:500;'
+        f'letter-spacing:0.09em;text-transform:uppercase;color:{_INK_FAINT};'
+        'margin:30px 0 10px;">'
+        f"{html.escape(text)}</div>"
+    )
+
+
+def _first_name(full_or_first: str) -> str:
+    """First token of whatever name we hold, or "Doctor".
+
+    Onboarding stores first and last separately, but several call sites only
+    have a full name, and greeting a physician "Hello Elena Vasquez" reads like
+    a mail merge that did not run.
+    """
+    part = (full_or_first or "").strip().split()
+    return part[0] if part else "Doctor"
+
+
+def _last_name(full_or_last: str) -> str:
+    """Last token, for "Dr. {last_name}". Falls back to nothing so the caller's
+    copy degrades to "Doctor" rather than to "Dr. "."""
+    parts = (full_or_last or "").strip().split()
+    return parts[-1] if parts else ""
+
+
+#: Onboarding v2 §4.4 §4: the founders meet every physician one on one. One
+#: constant, because it appears in the welcome email and the walkthrough and the
+#: two must never drift.
+FOUNDER_INTRO_CALENDLY = "https://calendly.com/tejpatel-berkeley/intro-with-tej-patel"
+
+
 # ─── Public builders ────────────────────────────────────────────────────────
 
 
@@ -842,37 +904,6 @@ def build_complete_email(
 # inherit the shell like everything else.
 
 
-def build_self_serve_link_email(*, onboarding_url: str, expires_days: int) -> str:
-    """The onboarding link a physician asks for from the landing page.
-
-    For a self-serve signup this is the FIRST thing we ever send them, so it is
-    the email most worth getting right.
-    """
-    safe_url = html.escape(onboarding_url, quote=True)
-    body = (
-        _eyebrow("Onboarding · Asclepius")
-        + _h1("Your onboarding link.")
-        + _p(
-            "Pick up where you left off any time. This link stays valid for "
-            f"{_strong(str(expires_days) + ' days')} and remembers your progress, "
-            "so you can stop after any step and come back later."
-        )
-        + _cta(onboarding_url, "Continue onboarding →")
-        + _p(
-            f'If the button does not work, paste this into your browser:<br>'
-            f'<a href="{safe_url}" style="color:{_GREEN_DEEP};">{html.escape(onboarding_url)}</a>',
-            muted=True,
-            small=True,
-        )
-        + _p(
-            "If you did not request this, you can ignore this email.",
-            muted=True,
-            small=True,
-        )
-    )
-    return _shell(subject="Your Archangel Health onboarding link", body_html=body)
-
-
 def build_internal_signup_alert(*, physician_email: str, slug: str, expires_at: str) -> str:
     """Internal notice that someone started physician onboarding."""
     body = (
@@ -895,6 +926,167 @@ def build_internal_signup_alert(*, physician_email: str, slug: str, expires_at: 
         )
     )
     return _shell(subject=f"[Onboarding] Physician contributor started: {physician_email}", body_html=body)
+
+
+# ─── Onboarding v2 §4: the four application emails ───────────────────────────
+# Copy is part of the PRD and is used verbatim. Written in the founders' voice
+# and signed by them, because a physician deciding whether to give us their
+# evenings should be able to see who is asking. Every one of these renders in
+# scripts/email_preview.py.
+
+
+def build_application_start_email(
+    *, first_name: str, onboarding_url: str, expires_days: int = 7
+) -> str:
+    """§4.1 — the link that starts and, more importantly, RESUMES an application.
+
+    Replaces ``build_self_serve_link_email``. The distinction that changed: in v2
+    the landing page drops the physician straight into the wizard, so this email
+    is no longer the way in. It is the way BACK in, and the copy says so.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1(f"{html.escape(_first_name(first_name))}, your application is open.")
+        + _p("Archangel Health is paid clinical AI evaluation, on your schedule: "
+             "you read real cases, you judge the answers, and the models learn from "
+             "what you know.")
+        + _cta(onboarding_url, "Continue your application")
+        + _p(f"Your progress saves automatically, so you can stop anywhere and come "
+             f"back to exactly where you were. This link is yours for {expires_days} days.",
+             muted=True, small=True)
+        + _founder_signoff("— Tej & Aryaa, founders")
+    )
+    return _shell(subject="Your Archangel Health application — pick up any time",
+                  body_html=body)
+
+
+def build_application_nudge_email(*, first_name: str, onboarding_url: str) -> str:
+    """§4.2 — the ONE nudge, sent 24 hours after an unfinished start.
+
+    No guilt language and no countdown, deliberately: the reason a physician
+    stopped is almost always a pager, and a deadline is the wrong answer to that.
+    Exactly one of these is ever sent — the scheduler is idempotent on a stamp.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1(f"{html.escape(_first_name(first_name))}, you&rsquo;re nearly there.")
+        + _p("You&rsquo;re most of the way there. Your answers are saved exactly where "
+             "you left them.")
+        + _cta(onboarding_url, "Finish my application")
+        + _p("We read every application personally — we&rsquo;d love to see yours.")
+        + _founder_signoff("— Tej & Aryaa, founders")
+    )
+    return _shell(subject="Your application is waiting — 2 minutes to finish",
+                  body_html=body)
+
+
+def build_application_expiring_email(
+    *, first_name: str, onboarding_url: str
+) -> str:
+    """§3 — the day-6 note, sent once, before a 7-day link dies.
+
+    Not one of the four §4 emails and deliberately smaller than them: it exists
+    so a link expires with warning rather than silently, and it says the one
+    thing that is actually urgent without pretending anything else is.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1("Your link expires tomorrow.")
+        + _p(f"{_strong(_first_name(first_name))}, the link to your saved application "
+             "stops working tomorrow. Everything you filled in is still there until "
+             "then.")
+        + _cta(onboarding_url, "Finish my application")
+        + _p("If it lapses, just start again from the website and write to us — "
+             "we&rsquo;ll pick it back up with you.", muted=True, small=True)
+        + _founder_signoff("— Tej & Aryaa, founders")
+    )
+    return _shell(subject="Your Archangel Health link expires tomorrow",
+                  body_html=body)
+
+
+def build_application_submitted_email(*, full_name: str) -> str:
+    """§4.3 — sent the moment an application is submitted.
+
+    The whole message is one paragraph in the founders' own words. It sets the
+    24–48h expectation, and it explains WHY review is human, because that
+    explanation is the product's argument about itself.
+    """
+    last = _last_name(full_name)
+    # Unescaped here on purpose: ``_strong`` escapes what it is given, so
+    # escaping first would render "O&#x27;Brien" to a physician named O'Brien.
+    greeting = f"Dr. {last}" if last else "Doctor"
+    body = (
+        _eyebrow("Application received")
+        + _h1("We&rsquo;ve got your application.")
+        + _p(f"{_strong(greeting)} — thank you. "
+             "Your application is with us now, and one of us will personally review it "
+             "within 24–48 hours. We keep review human on purpose: the whole premise of "
+             "Archangel is that medicine needs qualified people at every decision point, "
+             "and that starts with how we welcome physicians. You&rsquo;ll hear from us "
+             "either way.")
+        + _founder_signoff("— Tej Patel & Aryaa Bhatia")
+    )
+    return _shell(subject="We&rsquo;ve got your application", body_html=body)
+
+
+def application_welcome_subject(full_name: str) -> str:
+    """The §4.4 subject line.
+
+    Its own function because the mail transport needs the subject as an argument
+    and the builder needs it for the document ``<title>``. Two spellings of one
+    string is how a subject line and the page it opens drift apart.
+    """
+    last = _last_name(full_name)
+    return f"Welcome to Archangel Health, Dr. {last}" if last \
+        else "Welcome to Archangel Health"
+
+
+def build_application_welcome_email(
+    *,
+    full_name: str,
+    email: str,
+    temp_password: str,
+    sign_in_url: str,
+    calendly_url: str = FOUNDER_INTRO_CALENDLY,
+) -> str:
+    """§4.4 — sent on admin approval. Carries the credentials.
+
+    The password in this email is TEMPORARY and is rotated on first sign-in
+    (§0.1 decision 1). That is the one place this build departs from the ask, and
+    it departs in the physician's favour: the doctor experience is identical —
+    credentials in the email, sign in from the website, works first time — but a
+    credential that lives in an inbox forever does not survive an inbox breach,
+    and neither does the answer we give a hospital partner who asks.
+    """
+    subject = application_welcome_subject(full_name)
+    creds = _detail_rows([
+        ("Email", email, True),
+        ("Temporary password", temp_password, True),
+    ])
+    body = (
+        _eyebrow("Approved · Archangel Health")
+        + _h1("We just approved your application — welcome.")
+        # §4.4 section 2: the mission block, verbatim from the landing /mission.
+        + _pullquote("Doctors earn from their judgment. Models learn from it. "
+                     "The hardest cases become the most valuable data.")
+        + _p("Verification is the scarce input in medical AI. A 70% benchmark score is "
+             "irrelevant when a patient is downstream — the people who carry the "
+             "consequences should define what correct means. That&rsquo;s you.")
+        # §4.4 section 3: the credentials card.
+        + _section_label("Your credentials")
+        + _inset_card(creds)
+        + _p("You&rsquo;ll choose your own password when you first sign in — this one is "
+             "temporary and stops working the moment you do.", muted=True, small=True)
+        + _cta(sign_in_url, "Sign in")
+        # §4.4 section 4: meet us.
+        + _section_label("Meet us")
+        + _p("We meet every physician one on one — it&rsquo;s the part of this we like "
+             "most. Book 20 minutes with us: about the mission, the platform, your "
+             "specialty, or anything else. We&rsquo;d genuinely love to learn from you.")
+        + _cta(calendly_url, "Book 20 minutes")
+        + _founder_signoff("— Tej & Aryaa, co-founders")
+    )
+    return _shell(subject=subject, body_html=body)
 
 
 def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str:
