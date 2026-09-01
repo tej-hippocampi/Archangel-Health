@@ -104,3 +104,32 @@ def test_h1_still_does_not_escape_and_that_is_why_this_file_exists():
     double-escaped and this file should be deleted rather than left passing for
     the wrong reason."""
     assert "<b>x</b>" in oe._h1("<b>x</b>")
+
+
+def test_the_fields_that_reach_a_subject_line_are_bounded(monkeypatch, tmp_path):
+    """RFC 5322 puts a hard ceiling on a header line, so an unbounded name is a
+    signup that can stop its own invitations from being delivered. Capped where
+    it is staged, so every consumer inherits it rather than each send site
+    remembering.
+
+    monkeypatch and a fresh store, not a bare os.environ write: this file is
+    otherwise pure and would otherwise leave ASCLEPIUS_DB_PATH pointing at a
+    temp directory for every test that runs after it in the same process.
+    """
+    monkeypatch.setenv("ASCLEPIUS_DB_PATH", str(tmp_path / "cap.db"))
+    monkeypatch.setenv("ENV", "test")
+    from tests import _asclepius as A
+
+    store = A.fresh_store()
+    store.create_hs_signup(email="cap@example.org", full_name="N" * 500,
+                           organization="O" * 500, password="x" * 24,
+                           code="123456")
+    row = store.get_live_hs_signup("cap@example.org")
+    assert len(row["full_name"]) == 120
+    assert len(row["organization"]) == 120
+    # A newline still cannot survive either, which is the other half.
+    store.create_hs_signup(email="nl@example.org", full_name="A\nB",
+                           organization="C\r\nD", password="x" * 24, code="123456")
+    row = store.get_live_hs_signup("nl@example.org")
+    assert "\n" not in row["full_name"] and "\r" not in row["full_name"]
+    assert "\n" not in row["organization"] and "\r" not in row["organization"]
