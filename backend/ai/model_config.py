@@ -111,6 +111,88 @@ _VISION_CAPABLE_PREFIXES = (
 # Known text-only ids that must NOT be used for a vision A/B.
 _VISION_INCAPABLE_PREFIXES = ("gpt-3.5", "claude-instant", "claude-2", "claude-1")
 
+# ─── Models that accept only DEFAULT sampling ────────────────────────────────
+# Some frontier models reject a pinned sampling parameter outright: sending
+# ``temperature`` (at any value other than the default) or ``top_p`` returns
+#
+#     400 invalid_request_error: `temperature` is deprecated for this model.
+#
+# Measured against the live API, not assumed. Rejecting: ``claude-opus-4-7``,
+# ``claude-opus-4-8`` and the whole Claude 5 family (``claude-opus-5``,
+# ``claude-sonnet-5``, ``claude-fable-5``). Accepting: ``claude-opus-4-6`` and
+# older, plus ``claude-sonnet-4-6`` and ``claude-haiku-4-5``.
+#
+# So this is NOT a family or prefix rule, and the boundary cuts THROUGH the opus
+# 4 line: 4-6 accepts, 4-7 does not. A prefix of ``claude-opus-4`` would wrongly
+# strip sampling from 4-1, 4-5 and 4-6, silently loosening two judges that are
+# pinned to 0.0 on purpose. Exact ids only.
+#
+# WHY THIS MATTERS MORE THAN IT LOOKS: six registry roles pin a temperature on
+# an Opus id — prompt synthesis, the prompt judge, case generation, the CASE
+# JUDGE, the hardness judge, and the frontier baseline. The case judge fails
+# CLOSED, so with it 400ing, real-case generation stops entirely and reports
+# "Case judge unavailable"; the baseline 400ing makes every empirical difficulty
+# come back ``measured=False``. One rejected parameter takes down the whole
+# premium generation path, and the symptom names neither the parameter nor the
+# model.
+#
+# ``MODEL_FIXED_SAMPLING`` (comma-separated ids) extends this at runtime, so a
+# newly-shipped model can be handled without a deploy. ``llm_client`` also
+# retries once without the offending parameter when the API says it is
+# deprecated, which is the backstop for a model nobody has listed yet.
+_FIXED_SAMPLING_MODELS = (
+    "claude-opus-4-7", "claude-opus-4-8",
+    "claude-opus-5", "claude-sonnet-5", "claude-fable-5",
+)
+
+#: Request parameters that a fixed-sampling model refuses.
+SAMPLING_PARAMS = ("temperature", "top_p", "top_k")
+
+# ─── Models that may spend output budget on THINKING ─────────────────────────
+# The Claude 5 family can emit a ``thinking`` content block before its answer,
+# and those tokens come out of the SAME ``max_tokens`` budget as the visible
+# text. This is the Anthropic mirror of the problem ``_openai_output_cap``
+# already documents for o1/o3/gpt-5, and it fails the same silent way: a role
+# with a tight budget (candidate generation is 2000) returns
+# ``stop_reason="max_tokens"`` with the JSON truncated mid-sentence, the parse
+# yields nothing, and the caller reports "no LLM key configured?" — blaming
+# credentials for what is a token budget.
+#
+# Thinking is ADAPTIVE, not a fixed property: measured on one trivial prompt,
+# ``claude-opus-5`` and ``claude-fable-5`` emitted a thinking block and
+# ``claude-sonnet-5`` did not, and the same model will differ by prompt. So this
+# cannot be detected per-response in advance — it is a per-model CAPABILITY, and
+# any model that can think needs the headroom whether or not it uses it.
+_THINKING_CAPABLE_MODELS = ("claude-opus-5", "claude-sonnet-5", "claude-fable-5")
+
+
+def emits_thinking(model_id: str) -> bool:
+    """True when this model may spend part of its output budget on thinking.
+
+    Extend at runtime with ``MODEL_THINKING_MODELS`` (comma-separated ids) so a
+    newly-shipped model can be given headroom without a deploy."""
+    m = (model_id or "").strip().lower()
+    m = m.split(":", 1)[1] if m.startswith("anthropic:") or m.startswith("openai:") else m
+    return m in (set(_THINKING_CAPABLE_MODELS) | set(_csv_env("MODEL_THINKING_MODELS")))
+
+
+def accepts_sampling_params(model_id: str) -> bool:
+    """False when this model must be called with DEFAULT sampling only.
+
+    Callers drop ``temperature``/``top_p`` rather than sending a value the API
+    will reject. The consequence is worth stating where it is decided: a role
+    that asked for ``temperature=0.0`` gets the model's default instead, so a
+    judge pinned for determinism becomes non-deterministic. That is the API's
+    constraint, not a choice available to us — the alternative is a 400 and no
+    answer at all — but it is why the pinned values stay in the registry rather
+    than being edited to 1.0: when a model that honours them is routed, they
+    apply again.
+    """
+    m = (model_id or "").strip().lower()
+    m = m.split(":", 1)[1] if m.startswith("anthropic:") or m.startswith("openai:") else m
+    listed = set(_FIXED_SAMPLING_MODELS) | set(_csv_env("MODEL_FIXED_SAMPLING"))
+    return m not in listed
+
 
 def _csv_env(name: str) -> tuple:
     raw = (os.getenv(name) or "").strip()

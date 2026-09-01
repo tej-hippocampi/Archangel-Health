@@ -83,6 +83,53 @@ def create_token(user: Dict[str, Any]) -> str:
     return jwt.encode(payload, get_asclepius_secret(), algorithm=ALGORITHM)
 
 
+#: How long a media ticket is good for. Long enough to start a 73 MB video on a
+#: slow connection and to scrub around inside it; short enough that one leaking
+#: into a log or a referrer is worth nothing an hour later.
+MEDIA_TICKET_TTL_MINUTES = 30
+
+
+def create_media_ticket(user: Dict[str, Any], *, slot: str) -> str:
+    """A short-lived, single-purpose token for a <video> element.
+
+    A ``<video src>`` cannot carry an Authorization header, and the alternatives
+    are both bad: fetch the whole file with a header and play it as a blob (which
+    throws away the Range support that makes the timeline scrub, and puts 73 MB
+    in the tab), or put the SESSION token in the query string (which writes a
+    credential good for every endpoint into access logs, referrers and browser
+    history).
+
+    So: a token that can do exactly one thing. Different ``typ``, so
+    ``decode_token`` refuses it and it cannot authenticate an API call; a
+    ``slot`` claim, so a ticket for the onboarding demo cannot fetch anything
+    else; and thirty minutes, so a leaked one expires before it is interesting.
+    """
+    now = datetime.utcnow()
+    payload = {
+        "typ": "asclepius_media",
+        "sub": user["id"],
+        "slot": slot,
+        "iat": _epoch_utc(now),
+        "exp": now + timedelta(minutes=MEDIA_TICKET_TTL_MINUTES),
+    }
+    return jwt.encode(payload, get_asclepius_secret(), algorithm=ALGORITHM)
+
+
+def decode_media_ticket(ticket: str, *, slot: str) -> Optional[str]:
+    """The user id a media ticket names, or None. Never raises."""
+    if not ticket:
+        return None
+    try:
+        payload = jwt.decode(ticket, get_asclepius_secret(), algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        return None
+    # Both checks matter: ``typ`` stops a session token being used as a ticket
+    # (and vice versa), and ``slot`` stops a ticket for one asset opening another.
+    if payload.get("typ") != "asclepius_media" or payload.get("slot") != slot:
+        return None
+    return payload.get("sub") or None
+
+
 def _epoch_utc(dt: datetime) -> int:
     """Epoch seconds for a NAIVE datetime that is already UTC.
 
@@ -181,6 +228,19 @@ def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
         # it to stop showing a referral-only account a rail full of locked
         # doors it will never open.
         "account_kind": _caps.account_kind(user),
+        # Onboarding v2 §0.1: this account is signed in on a TEMPORARY password
+        # from the welcome email, and the next thing it may do is choose its own.
+        # Display truth for the portal's rotation screen; the flag itself is
+        # retired server-side by ``set_user_password`` and by nothing else, so a
+        # client that ignores this cannot skip the rotation — it can only skip
+        # being asked politely.
+        "must_change_password": bool(user.get("must_change_password")),
+        # §6: the first-login walkthrough checklist, so the portal knows on the
+        # first paint whether to open it. Server-side and not localStorage,
+        # because doctors switch devices.
+        "first_run": _first_run_public(user),
+        # §6 stop 5: the payout rail. NULL until banking goes live.
+        "bank_link_status": user.get("bank_link_status"),
         # The physician's own picture, or None until they upload one. The rail's
         # profile avatar needs this from the SESSION payload: it renders on every
         # screen, and /me/profile is fetched only when the profile page opens.
@@ -196,6 +256,37 @@ def _avatar_url(user: Dict[str, Any]) -> Optional[str]:
     if not sha:
         return None
     return f"/api/asclepius/users/{user['id']}/avatar?v={sha[:12]}"
+
+
+def _first_run_public(user: Dict[str, Any]) -> Dict[str, Any]:
+    """The walkthrough state as the portal reads it.
+
+    A corrupt or stale-version blob degrades to the empty shape rather than
+    raising, for the same reason ``_parse_tutorial`` does: the worst cost of a
+    bad read is one extra walkthrough, and the worst cost of a raise is a
+    physician who cannot open the portal.
+    """
+    from asclepius.store import AsclepiusStore  # noqa: PLC0415
+
+    empty = {"version": AsclepiusStore.FIRST_RUN_VERSION, "stops": {},
+             "completed_at": None, "dismissed_at": None}
+    raw = user.get("first_run_json")
+    if not raw:
+        return empty
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+    except (ValueError, TypeError):
+        return empty
+    if not isinstance(parsed, dict) or \
+            int(parsed.get("version") or 0) != AsclepiusStore.FIRST_RUN_VERSION:
+        return empty
+    stops = parsed.get("stops")
+    return {
+        "version": AsclepiusStore.FIRST_RUN_VERSION,
+        "stops": stops if isinstance(stops, dict) else {},
+        "completed_at": parsed.get("completed_at"),
+        "dismissed_at": parsed.get("dismissed_at"),
+    }
 
 
 def _parse_tutorial(raw: Any) -> Dict[str, Any]:

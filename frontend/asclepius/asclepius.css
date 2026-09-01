@@ -4055,6 +4055,16 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint);
 }
 .asc-rv-kv { font-size: var(--t-sm); color: var(--ink-soft); }
+/* The falsifier's label inside the sealed prediction. Set apart from the
+   expectations above it because it is the part a reviewer is really grading:
+   anyone can predict improvement; naming what would refute you is the skill. */
+.asc-rv-eyebrow {
+  font-size: var(--t-sm);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 6px;
+}
 .asc-rv-kv b { color: var(--ink); font-weight: 500; }
 .asc-rv-kv-lead { margin: var(--sp-3) 0 var(--sp-2); }
 .asc-rv-main { display: block; }
@@ -4514,3 +4524,501 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .vq-npi-inconclusive, .vq-npi-document_only, .vq-npi-queued, .vq-npi-pending {
   color: var(--asc-muted);
 }
+
+/* ═══ Case Batches §8.4 — the care-team handoff ═════════════════════════════
+   Above the clinical question, visually distinct from it: this is somebody
+   else's reasoning, and a physician must never be unsure which words are the
+   case and which are a colleague's read of it. */
+.asc-handoff {
+  border-left: 3px solid var(--asc-primary);
+  background: var(--asc-bg-soft);
+  border-radius: 0 8px 8px 0;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.asc-handoff-h {
+  font-size: var(--t-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+.asc-handoff-row { display: flex; gap: 12px; margin-bottom: 4px; }
+.asc-handoff-k {
+  flex: 0 0 140px;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.asc-handoff-v { flex: 1; font-size: var(--t-sm); line-height: 1.55; }
+@media (max-width: 560px) {
+  .asc-handoff-row { flex-direction: column; gap: 2px; }
+  .asc-handoff-k { flex: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Onboarding v2 §6 — the first-login walkthrough, and §0.1's password rotation.
+
+   Design bar (§7): design-system tokens only, no new hues, no gradients beyond
+   the auras the system already uses. Motion is 150–200ms ease. The welcome
+   letter is allowed the serif voice, and it is the only place that takes it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The stage: the stop on the left, the persistent checklist on the right. */
+.asc-fr-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 40px;
+  align-items: start;
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+.asc-fr-main { min-width: 0; }
+.asc-fr-panel {
+  background: var(--asc-surface);
+  border: 1px solid var(--asc-line);
+  border-radius: 20px;
+  padding: 40px 44px;
+  box-shadow: var(--shadow-card);
+}
+.asc-fr-panel-wide { padding: 52px 56px; }
+.asc-fr-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 18px;
+}
+.asc-fr-title {
+  font-size: clamp(26px, 3.4vw, 34px);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  color: var(--asc-text);
+  margin: 0 0 18px;
+}
+.asc-fr-body {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--asc-muted);
+  margin: 0 0 16px;
+  max-width: 62ch;
+}
+.asc-fr-note {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+  margin: 18px 0 0;
+}
+/* One primary, one quiet skip. The gap is generous on purpose: they must not
+   read as a pair of options with equal weight. */
+.asc-fr-actions {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 28px;
+  flex-wrap: wrap;
+}
+.asc-fr-skip {
+  background: none;
+  border: 0;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 14px;
+  color: var(--asc-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.asc-fr-skip:hover { color: var(--asc-text); }
+.asc-fr-quiet-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--asc-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── Stop 1: the welcome letter. The serif moment. ── */
+.asc-fr-letter { max-width: 62ch; }
+.asc-fr-letter-title {
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.14;
+  color: var(--asc-text);
+  margin: 0 0 26px;
+}
+/* The mission line carries the weight of a pull quote rather than being one
+   more paragraph — position and scale, never a colour block. */
+.asc-fr-letter-lead {
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-size: 20px;
+  line-height: 1.5;
+  color: var(--asc-text);
+  margin: 0 0 26px;
+  padding-left: 20px;
+  border-left: 3px solid var(--lime);
+}
+.asc-fr-letter-body {
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-size: 16.5px;
+  line-height: 1.72;
+  color: var(--asc-muted);
+  margin: 0 0 20px;
+}
+.asc-fr-letter-sign {
+  margin-top: 32px;
+  padding-top: 22px;
+  border-top: 1px solid var(--asc-line);
+  font-size: 15px;
+  color: var(--asc-text);
+}
+.asc-fr-letter-role {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ── Stop 2: the two start cards. ── */
+.asc-fr-choice-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin: 26px 0 4px;
+}
+.asc-fr-choice {
+  display: block;
+  text-align: left;
+  background: var(--asc-surface-2);
+  border: 1px solid var(--asc-line);
+  border-radius: 16px;
+  padding: 18px;
+  cursor: pointer;
+  transition: border-color 180ms cubic-bezier(.4, 0, .2, 1),
+              background 180ms cubic-bezier(.4, 0, .2, 1);
+}
+.asc-fr-choice:hover {
+  border-color: var(--asc-line-strong);
+  background: var(--asc-surface);
+}
+.asc-fr-choice-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 108px;
+  border-radius: 11px;
+  background: var(--green-wash);
+  border: 1px solid var(--green-line);
+  margin-bottom: 14px;
+}
+.asc-fr-choice-thumb-case {
+  background: var(--lime-wash);
+  border-color: var(--lime-line);
+}
+.asc-fr-choice-play {
+  font-size: 22px;
+  color: var(--asc-text);
+  line-height: 1;
+}
+.asc-fr-choice-title {
+  display: block;
+  font-size: 15px;
+  color: var(--asc-text);
+  margin-bottom: 4px;
+}
+.asc-fr-choice-sub {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--asc-muted);
+}
+
+/* ── The demo player: expands IN PLACE over a dimmed page. ── */
+.asc-fr-demo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(26, 27, 26, 0.62);
+}
+.asc-fr-demo-frame {
+  position: relative;
+  width: min(980px, 100%);
+  background: var(--asc-surface);
+  border: 1px solid var(--asc-line-strong);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--shadow-float);
+}
+.asc-fr-video {
+  display: block;
+  width: 100%;
+  max-height: 74vh;
+  border-radius: 10px;
+  background: var(--ink);
+}
+.asc-fr-demo-close {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--asc-line-strong);
+  background: var(--asc-surface);
+  color: var(--asc-text);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.asc-fr-demo-after {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--asc-surface-2);
+  font-size: 14px;
+  color: var(--asc-text);
+}
+.asc-fr-demo-error {
+  margin: 0;
+  padding: 40px 24px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--asc-muted);
+}
+
+/* ── Stop 4: the community preview. A still, not a live embed. ── */
+.asc-fr-preview {
+  border: 1px solid var(--asc-line);
+  border-radius: 14px;
+  background: var(--asc-surface-2);
+  padding: 16px 18px;
+  margin: 4px 0 22px;
+}
+.asc-fr-preview-community { max-width: 62ch; }
+.asc-fr-preview-line {
+  display: flex;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--asc-line);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.asc-fr-preview-line:last-child { border-bottom: 0; }
+.asc-fr-preview-who {
+  flex: 0 0 84px;
+  color: var(--asc-text);
+  font-weight: 500;
+}
+.asc-fr-preview-said { color: var(--asc-muted); }
+
+/* ── Stop 5: the bank card. Disabled and clearly labelled — architecture on
+      screen, not a control that pretends to work. ── */
+.asc-fr-bank {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px dashed var(--asc-line-strong);
+  border-radius: 14px;
+  background: var(--asc-surface-2);
+  padding: 18px 20px;
+  cursor: not-allowed;
+  opacity: 0.75;
+  margin-top: 8px;
+}
+.asc-fr-bank-title {
+  font-size: 15px;
+  color: var(--asc-text);
+  margin-right: 10px;
+}
+.asc-fr-bank-chip {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--lime-wash);
+  border: 1px solid var(--lime-line);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.asc-fr-bank-sub {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--asc-muted);
+}
+
+/* ── The persistent checklist. Passive: it reports, it never interrupts. ── */
+.asc-fr-checklist {
+  position: sticky;
+  top: 92px;
+  background: var(--asc-surface);
+  border: 1px solid var(--asc-line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-card);
+}
+.asc-fr-check-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.asc-fr-check-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.asc-fr-check-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--asc-text);
+}
+.asc-fr-check-list { list-style: none; margin: 0; padding: 0; }
+.asc-fr-check-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--asc-muted);
+}
+.asc-fr-check-box {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid var(--asc-line-strong);
+  font-size: 10px;
+  line-height: 15px;
+  text-align: center;
+  color: var(--green-deep);
+  transform: translateY(2px);
+}
+.asc-fr-check-item.is-done .asc-fr-check-box {
+  border-color: var(--green-line);
+  background: var(--green-wash);
+}
+/* Closed, not gone: dimmed, so progress stays visible. A skipped stop reads as
+   closed too, because a skip is permanent — see the module header. */
+.asc-fr-check-item.is-done .asc-fr-check-label { color: var(--ink-faint); }
+.asc-fr-check-item.is-current .asc-fr-check-label { color: var(--asc-text); }
+.asc-fr-check-label { flex: 1; }
+.asc-fr-check-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+}
+.asc-fr-check-exit {
+  margin-top: 14px;
+  padding: 8px 0 0;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--asc-line);
+  font: inherit;
+  font-size: 13px;
+  color: var(--asc-muted);
+  cursor: pointer;
+}
+.asc-fr-check-exit:hover { color: var(--asc-text); }
+
+/* §6 stop 6: every stop closed. One line, confetti-free. */
+.asc-fr-checklist-done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+}
+.asc-fr-checklist-done .asc-fr-check-box {
+  border-color: var(--green-line);
+  background: var(--green-wash);
+  transform: none;
+}
+
+/* Re-entry: a quiet chip on the dashboard, never a modal ambush. */
+.asc-fr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--asc-line-strong);
+  background: var(--asc-surface);
+  font: inherit;
+  font-size: 13px;
+  color: var(--asc-text);
+  cursor: pointer;
+  margin-bottom: 18px;
+}
+.asc-fr-chip:hover { border-color: var(--ink-faint); }
+.asc-fr-chip-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--asc-muted);
+}
+
+@media (max-width: 900px) {
+  .asc-fr-stage { grid-template-columns: minmax(0, 1fr); padding: 28px 16px 64px; }
+  .asc-fr-panel { padding: 28px 22px; }
+  .asc-fr-panel-wide { padding: 32px 24px; }
+  /* On a narrow screen the checklist goes UNDER the stop rather than sticking:
+     a sticky card in a single column covers the thing it is reporting on. */
+  .asc-fr-checklist { position: static; }
+}
+
+/* ── §0.1: the temporary password is rotated at first sign-in. ── */
+.asc-fr-rotate-lede {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--asc-muted);
+  margin: 0 0 22px;
+}
+.asc-fr-rotate-rules {
+  list-style: none;
+  margin: 4px 0 20px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--asc-muted);
+}
+.asc-fr-rotate-rule {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 3px 0;
+}
+.asc-fr-rotate-rule.is-met { color: var(--green-deep); }
+.asc-fr-rotate-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}
+.asc-fr-rotate-rule.is-met .asc-fr-rotate-dot { opacity: 1; }

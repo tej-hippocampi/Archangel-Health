@@ -20,6 +20,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+# NOTE: the enterprise-note endpoint 503s without an email transport. That is
+# guaranteed suite-wide by tests/conftest.py (EMAIL_DEV_MODE), which is where the
+# rule lives — this file used to depend on a sibling having set it first.
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests import _asclepius as A  # noqa: E402

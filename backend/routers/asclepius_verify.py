@@ -15,6 +15,7 @@ import html as html_mod
 import json
 import logging
 import os
+import secrets
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -29,7 +30,11 @@ from asclepius import specialties as asc_specialties
 from asclepius import tiering as asc_tiering
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
-from onboarding_emails import build_asclepius_approved_email
+from onboarding_emails import (
+    application_welcome_subject,
+    build_application_welcome_email,
+    build_asclepius_approved_email,
+)
 
 log = logging.getLogger("asclepius.verify")
 
@@ -480,6 +485,20 @@ class RejectBody(BaseModel):
     note: Optional[str] = None
 
 
+def _needs_credentials(user: Dict[str, Any]) -> bool:
+    """Does this physician have no way to sign in yet? (Onboarding v2 §5)
+
+    True only for an account created by the v2 wizard, which has no password step
+    (``NO_PASSWORD_HASH``). An invited member chose their own password during
+    their flow and a pre-v2 signup chose one during theirs — minting a temporary
+    credential for either would REPLACE a password they are using today, which is
+    the exact failure ``provision_user`` was hardened against.
+    """
+    from asclepius import store as _store_mod  # noqa: PLC0415
+
+    return _store_mod.password_is_unset(user)
+
+
 @router.post("/queue/{user_id}/approve")
 async def approve_signup(
     user_id: str,
@@ -580,20 +599,91 @@ async def approve_signup(
         await welcome_new_member(updated or user)
     except Exception:
         log.exception("[verify] community welcome failed (decision stands)")
+    # ── Onboarding v2 §5: the ONE added side-effect ──────────────────────────
+    # Approval is where credentials come into existence. Before v2 a physician
+    # chose a password during signup, so approval only had to say "you're in";
+    # now the wizard has no password step and this is the moment the account
+    # becomes usable at all.
+    #
+    # The password is TEMPORARY and rotated at first sign-in (§0.1 decision 1).
+    # The ask was a permanent password in the email, and the doctor's experience
+    # here is identical to that ask — credentials in the email, sign in from the
+    # website, works first time. What differs is what is left behind: a permanent
+    # plaintext credential sits in an inbox forever, survives an inbox breach,
+    # and is the wrong answer to the security-posture question a hospital partner
+    # and a SOC 2 auditor both ask. One extra screen buys all of that.
+    #
+    # Nothing about it can fail the approval, which has already committed above.
+    temp_password: Optional[str] = None
+    needs_credentials = _needs_credentials(user)
+    if needs_credentials:
+        try:
+            # token_urlsafe(9) — 12 characters, ~72 bits. Long enough that it
+            # cannot be guessed in the hours it is alive, short enough to retype
+            # from a phone, which is where most of these emails are opened.
+            temp_password = secrets.token_urlsafe(9)
+            await run_in_threadpool(store.set_temp_password, user_id, temp_password)
+            store.log_event(
+                entity_type="user", entity_id=user_id,
+                event_type="temp_password_issued", actor=admin["email"],
+                # The password itself is NEVER in the payload. This row exists so
+                # an auditor can see that a credential was minted and by whom,
+                # which is the opposite of a place to write the credential down.
+                payload={"reason": "approval"},
+            )
+        except Exception:
+            log.exception("[verify] could not mint a temporary password "
+                          "(approval stands; the physician has no credential yet)")
+            temp_password = None
+
+    welcome_sent = False
     if is_email_transport_configured():
         try:
-            await send_html_email(
-                user["email"], "You're approved for Asclepius",
-                build_asclepius_approved_email(
-                    full_name=(user.get('full_name') or '').strip(),
-                    workspace_url=_portal_base() + '/asclepius',
-                ), importance_headers=True)
+            if temp_password:
+                # §4.4 — the welcome. Carries the credentials, the mission block,
+                # and the founders' intro link.
+                welcome_sent = bool(await send_html_email(
+                    user["email"],
+                    application_welcome_subject((user.get("full_name") or "").strip()),
+                    build_application_welcome_email(
+                        full_name=(user.get("full_name") or "").strip(),
+                        email=user["email"],
+                        temp_password=temp_password,
+                        sign_in_url=_portal_base() + "/asclepius",
+                    ), importance_headers=True))
+            elif not needs_credentials:
+                # An account that already HAS a password — an invited member, or
+                # a pre-v2 signup — is not being given credentials, so it gets
+                # the notice it always got. Sending them a "your temporary
+                # password is …" email with no password in it would be worse than
+                # sending nothing.
+                welcome_sent = bool(await send_html_email(
+                    user["email"], "You're approved for Asclepius",
+                    build_asclepius_approved_email(
+                        full_name=(user.get('full_name') or '').strip(),
+                        workspace_url=_portal_base() + '/asclepius',
+                    ), importance_headers=True))
+            # The remaining case — credentials were NEEDED and the mint failed —
+            # sends nothing on purpose. "You're approved, open your workspace"
+            # pointing at a door this physician has no key to is worse than
+            # silence, and the response below tells the admin so.
         except Exception:
             log.exception("[verify] welcome email failed (decision stands)")
+    # An approval whose welcome never left is an approval the physician does not
+    # know about, and for a v2 application it is also an account they cannot sign
+    # in to. The admin who clicked approve is the only person positioned to
+    # notice, so say it here rather than only in a log they will not read.
     return {"ok": True, "user_id": user_id, "tier": tier,
             "verification_status": "approved",
             "verified_by": updated.get("verified_by"),
-            "verified_at": updated.get("verified_at")}
+            "verified_at": updated.get("verified_at"),
+            "credentials_issued": bool(temp_password),
+            "welcome_email_sent": welcome_sent,
+            "warning": (
+                None if welcome_sent or not is_email_transport_configured()
+                else "The approval is recorded, but the welcome email did not send. "
+                     "The physician has not been told, and has no sign-in details."
+            )}
 
 
 @router.post("/queue/{user_id}/reject")

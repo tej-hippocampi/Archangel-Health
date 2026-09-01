@@ -290,6 +290,111 @@ def load_asset(asset_or_sha: Any, *, verify: bool = False) -> Tuple[bytes, str]:
     return data, mime
 
 
+# ─── Large media blobs (Onboarding v2 §0.1) ──────────────────────────────────
+# The image path above re-encodes every upload to strip technical metadata. A
+# video cannot go through it: there is no Pillow raster to re-encode, the file is
+# two orders of magnitude larger than the image cap, and the whole point of the
+# demo is that it plays and SEEKS — which needs the bytes on disk, byte-range
+# addressable, exactly as they were authored.
+#
+# So media takes its own door: streamed to disk while hashing, never buffered
+# whole, stored content-addressed in the same fan-out so one store stays one
+# store. Nothing about it is a de-identification path — the only thing that ever
+# reaches this function is company-authored marketing footage uploaded by an
+# admin, which is why there is no strip, no scan, and no partner attestation.
+
+#: Container formats a browser's native <video> element plays without a library.
+#: MOV is accepted on upload because that is what a screen recording arrives as;
+#: it is NOT reliably playable in Firefox, so the admin upload path says so.
+ACCEPTED_MEDIA_MIMES = ("video/mp4", "video/webm", "video/quicktime")
+
+#: Deliberately generous and separate from ``image_max_bytes``: the demo is ~73 MB
+#: today and a re-record is not a reason to redeploy. Bounded all the same, because
+#: an unbounded upload endpoint is a disk-exhaustion endpoint.
+_MEDIA_MAX_DEFAULT = 512 * 1024 * 1024
+
+
+def media_max_bytes() -> int:
+    try:
+        return max(1, int(os.getenv("ASCLEPIUS_MEDIA_MAX_BYTES", "").strip() or _MEDIA_MAX_DEFAULT))
+    except ValueError:
+        return _MEDIA_MAX_DEFAULT
+
+
+class MediaTooLarge(ValueError):
+    """Upload exceeded ``ASCLEPIUS_MEDIA_MAX_BYTES`` → router maps to 413."""
+
+
+def store_media(chunks: Any, mime: str, *, max_bytes: Optional[int] = None) -> Dict[str, Any]:
+    """Stream an iterable of byte chunks into the asset store.
+
+    Hashes and writes in one pass, so a 500 MB upload costs one chunk of memory
+    rather than 500 MB of it. Returns ``{sha256, mime, byte_size}``.
+
+    The temp file is written first and renamed only once the whole stream has
+    landed: an interrupted upload leaves a ``.tmp`` that the reconcile sweep
+    already ignores, never a truncated blob that would serve as a corrupt video.
+    """
+    import uuid
+
+    mime = (mime or "").strip().lower()
+    if mime not in ACCEPTED_MEDIA_MIMES:
+        raise UnsupportedMediaType(
+            f"unsupported media type {mime!r}; accept {ACCEPTED_MEDIA_MIMES}")
+    cap = max_bytes if max_bytes is not None else media_max_bytes()
+
+    root = _store_root()
+    os.makedirs(root, exist_ok=True)
+    tmp = os.path.join(root, f"upload.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    digest = hashlib.sha256()
+    total = 0
+    try:
+        with open(tmp, "wb") as fh:
+            for chunk in chunks:
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > cap:
+                    raise MediaTooLarge(f"media is over {cap} bytes")
+                digest.update(chunk)
+                fh.write(chunk)
+            fh.flush()
+            os.fsync(fh.fileno())
+        if total == 0:
+            raise UnsupportedMediaType("empty upload")
+        sha = digest.hexdigest()
+        final = _blob_path(sha)
+        if os.path.exists(final):
+            os.remove(tmp)          # content-addressed dedupe: identical bytes cost once
+        else:
+            os.makedirs(os.path.dirname(final), exist_ok=True)
+            os.replace(tmp, final)
+    except BaseException:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        raise
+    return {"sha256": sha, "mime": mime, "byte_size": total}
+
+
+def media_blob_path(sha256: str) -> str:
+    """Filesystem path of a stored blob, for range-serving.
+
+    Range serving is why this exists as its own accessor rather than reusing
+    ``load_asset``: that function returns BYTES, and answering a seek into a
+    73 MB video by reading all 73 MB and slicing is how one physician scrubbing
+    a timeline becomes a 73 MB memory spike per request.
+    """
+    if not sha256:
+        raise AssetError("no sha256 to resolve")
+    path = _blob_path(sha256)
+    if not os.path.exists(path):
+        raise AssetError(f"media blob not found for {sha256[:12]}…")
+    return path
+
+
 def find_asset_by_id(store: Any, asset_id: str) -> Optional[Dict[str, Any]]:
     """Resolve ``asset_id`` → a reference dict {asset_id, sha256, mime, task_id,
     case_source} via the ``study_assets`` index (O(1)). Falls back to a one-time scan

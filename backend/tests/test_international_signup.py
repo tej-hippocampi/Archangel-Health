@@ -226,14 +226,27 @@ def test_a_registry_verified_doctor_scores_the_same_as_an_npi_verified_one():
 
 
 def test_signup_flags_are_recorded_even_when_clean():
-    """"Assessed and clean" has to be distinguishable from "never assessed"."""
+    """"Assessed and clean" has to be distinguishable from "never assessed".
+
+    Clean means ``flagged == 0``, not an empty list. Onboarding v2 §2 also
+    records what an application did NOT bring — no CV, no board certification —
+    as LOW-severity notes, and those are the right thing to see on an otherwise
+    clean signup: an admin should be able to tell "we checked and this holds up"
+    from "we checked and there is nothing here to check". They do not flag,
+    which is what keeps ``flagged`` meaning what it meant.
+    """
     store = fresh_store()
     user = _user(store)
     onboarding_module._run_signup_verification(store, user, _saudi_credentials())
 
     row = store.get_user_by_id(user["id"])
     assert row["flagged"] == 0
-    assert json.loads(row["flags_json"] or "null") == []
+    findings = json.loads(row["flags_json"] or "null")
+    assert findings is not None, "an assessed signup must not look like an unassessed one"
+    # Nothing about this signup fails to hold together...
+    assert [f for f in findings if f["issue"] != "not_provided"] == []
+    # ...and everything recorded is a low note about absent evidence.
+    assert all(f["severity"] == "low" for f in findings)
 
 
 def test_a_nonsense_international_signup_is_flagged():

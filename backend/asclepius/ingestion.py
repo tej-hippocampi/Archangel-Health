@@ -1321,6 +1321,75 @@ def completeness_check(declared: List[str], case: Dict[str, Any]) -> Dict[str, A
     return {"present": present, "missing": missing, "unresolved": unresolved}
 
 
+# ─── Per-truncation modality declaration (Longitudinal Cases PRD §4.2.1) ─────
+# Coarse token → the predicate that says this truncated window actually carries it.
+# Deliberately COARSE. A declaration is a claim about what the case contains, and a
+# claim this function cannot re-verify against the same haystack ``completeness_check``
+# reads is a quarantine waiting to happen. Everything here is checked by the
+# round-trip invariant asserted in the tests: for any case ``c``,
+# ``completeness_check(modalities_present_in(c), c)["missing"] == []``.
+_TRUNCATION_MODALITY_RULES: Tuple[Tuple[str, Any], ...] = (
+    ("longitudinal labs", lambda c: bool(c.get("lab_panels"))),
+    ("clinical notes", lambda c: bool(c.get("notes"))),
+    ("medications", lambda c: bool(c.get("medications"))),
+)
+
+
+def modalities_present_in(case: Dict[str, Any]) -> List[str]:
+    """The modality declaration FOR THIS WINDOW — never inherited from the chart.
+
+    READ THIS BEFORE REACHING FOR THE PARENT CHART'S DECLARATION. Inheriting is the
+    obvious implementation, which is exactly why it has to be ruled out in writing.
+
+    A case truncated at encounter *k* **legitimately lacks** modalities the full
+    chart carries. Patient-1's ERCP report exists at day −1242; a case truncated at
+    day −1810 must not contain it, and must not claim to. Inherit the chart's
+    declaration onto that truncation and ``completeness_check`` returns
+    ``missing = ['ERCP procedure report']`` — a token it recognised and confirmed
+    absent — which quarantines the case at ``ingestion``'s only quarantining branch.
+
+    Worse than the quarantine is how it reads: *"the case's decisive evidence is
+    absent — quarantining rather than shipping an unanswerable case"*. That is a
+    clinical-sounding rejection for what is actually correct behaviour, and every
+    early decision point in every trajectory would produce it.
+
+    A decision point is not an incomplete case. It is a **complete case about an
+    earlier moment**, and declaring the chart's full modality set on it asserts
+    evidence the physician is not supposed to have yet.
+
+    Study techniques are named from the studies the window itself carries, using
+    the study's own ``label``/``modality`` text, so the declaration says what is
+    there rather than what the parent bundle promised.
+    """
+    c = case or {}
+    out: List[str] = []
+    for token, present in _TRUNCATION_MODALITY_RULES:
+        if present(c):
+            out.append(token)
+    # Studies are declared individually: a window carrying a renal biopsy and a CT
+    # should say so, because that is what a buyer filters on. The token used is the
+    # study's own label when it has one (that is the text ``completeness_check``
+    # matches against), falling back to the coarse modality enum.
+    for study in c.get("studies") or []:
+        label = str(study.get("label") or "").strip() or str(study.get("modality") or "").strip()
+        if not label:
+            continue
+        # A declaration token must be RECOGNISABLE to ``completeness_check`` or it
+        # lands in ``unresolved`` and stamps the case 'unverified' for no reason.
+        # Its recognition rule is "a known synonym, or at most four words", so a
+        # long OCR'd study label is trimmed to its first four words rather than
+        # declared whole. A trailing connective left behind by that cut ("ERCP
+        # procedure report with") reads as a truncation defect on a buyer-facing
+        # field, so the tail is trimmed back to a content word.
+        words = label.lower().split()[:4]
+        while words and words[-1] in _COMPLETENESS_STOPWORDS:
+            words.pop()
+        token = " ".join(words)
+        if token and token not in out:
+            out.append(token)
+    return out
+
+
 # ─── Admin review queue (Audit PRD §20-§21) ──────────────────────────────────
 def _raise_review(reasons: List[Dict[str, Any]], reason: str, severity: str,
                   detail: str) -> None:

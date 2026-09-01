@@ -216,6 +216,23 @@ class GenerateRealCasesRequest(BaseModel):  # noqa: D401  (see docstring)
     # costs a model call, and an admin scanning encounter structure does not always
     # want to pay for seven of them.
     derive_questions: bool = True
+    # ─── Longitudinal trajectory mode (Longitudinal Cases PRD §4, Phase 5) ────
+    # Chain the chart's qualifying decision points into ONE ordered walk instead of
+    # emitting independent cases: same generation pipeline, plus a shared
+    # ``trajectory_id`` and a ``sequence_index`` per point, which together make the
+    # sequence gate (§9.1) apply and the outcome reveal (Phase 4) resolvable.
+    #
+    # Off by default. A trajectory is not a flag on a batch — it is a different
+    # product with a different price (§7), a different labeling policy
+    # (``max_labels=1``, §9.6) and a different quality metric (outcome verification,
+    # not κ, §4.2.4). An admin turns it on knowingly.
+    trajectory: bool = False
+    # The §2 density gate applies in trajectory mode: only encounters carrying
+    # ≥ 2 distinct dates, ≥ 8 events and ≥ 2 resource types become points. Set
+    # False ONLY to inspect what the gate is rejecting — never to raise the count.
+    # A repeat lab draw is not a decision, and a task built on one teaches a model
+    # that medicine is a series of trivia questions (§2.1).
+    apply_density_gate: bool = True
 
 
 # ─── Evidence anchors (opt §1.2 — the medical premium) ────────────────────────
@@ -569,6 +586,35 @@ class SubmissionIn(BaseModel):
     # rationale?}. Skippable; when present it's persisted onto the task so every
     # packaged record ships an environment-verifiable outcome.
     decisive_action: Optional[Dict[str, Any]] = None
+    # Longitudinal Cases PRD §3.3 field 3 — the physician's SEALED PREDICTION:
+    # {expectations: [{expectation, horizon_days}], falsifiers: [str], note}.
+    #
+    # This is the field buyers do not have. Assessment and plan are opinions; an
+    # expectation with a stated falsifier is a *prediction*, and a prediction is the
+    # only thing an outcome can verify. Written by a board-certified specialist,
+    # before the next encounter is revealed, attached to a real chart — there is
+    # nowhere else to buy it (§7, the falsifier corpus).
+    #
+    # Optional, and it must stay optional: a fabricated falsifier is worth less
+    # than none, because it gets scored against a real chart and the score means
+    # nothing. Normalized and validated by ``trajectory.normalize_expected_trajectory``.
+    expected_trajectory: Optional[Dict[str, Any]] = None
+
+
+class TrajectorySelfScore(BaseModel):
+    """The physician grading their own sealed prediction (PRD §3.4 Phase 4).
+
+    ``marks`` is one entry per expectation they committed to:
+    ``{index, state: held|did_not_hold|not_assessable, note}``. ``falsifier_fired``
+    is their assertion that their own stated falsifier fired in the revealed
+    encounter — the §3.3 claim, recorded as the clinician's judgment about the
+    chart and never derived from text matching.
+
+    Their own falsifier is the rubric. No reviewer grades this."""
+
+    marks: List[Dict[str, Any]] = Field(default_factory=list)
+    falsifier_fired: bool = False
+    note: Optional[str] = None
 
 
 class PrelabelRequest(BaseModel):
@@ -774,6 +820,26 @@ class TutorialStateUpdate(BaseModel):
     action: Literal["start", "advance", "skip", "complete", "reset"]
     step: Optional[str] = None
     version: Optional[int] = None
+
+
+#: Onboarding v2 §6 — the six walkthrough stops, in order. Enumerated here and
+#: not in the client, so a stop id the server has never heard of cannot enter the
+#: checklist and make "3 of 6" mean something nobody can reproduce.
+FIRST_RUN_STOPS = ("welcome", "start", "practice", "community", "earnings", "manual")
+
+
+class FirstRunUpdate(BaseModel):
+    """PATCH /me/first-run — one transition on the caller's own walkthrough.
+
+    ``done`` and ``skip`` both close a stop; the distinction is kept because it
+    is the difference between "they saw the community" and "they chose not to",
+    and §6 requires that a skip never nags again. ``dismiss`` collapses the whole
+    checklist without marking the remaining stops as done, which is what the
+    "You're all set" line and the quiet dashboard chip read from.
+    """
+
+    action: Literal["done", "skip", "dismiss", "reset"]
+    stop: Optional[Literal[FIRST_RUN_STOPS]] = None  # type: ignore[valid-type]
 
 
 class ProfileUpdate(BaseModel):

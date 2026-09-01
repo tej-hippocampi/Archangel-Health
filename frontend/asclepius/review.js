@@ -623,6 +623,36 @@
     }));
   }
 
+  /* The sealed prediction (PRD 2 §3.3 field 3): what they expect to see, and
+     what would tell them they were wrong.
+
+     Its own renderer rather than `pairs`, which would print the expectations
+     list as "[object Object]" — technically visible, actually unread, which is
+     the exact failure mode label_view exists to prevent. The falsifier gets its
+     own line because it is the part a reviewer is really grading: anyone can
+     predict improvement, and naming what would refute you is the skill. */
+  function trajectory(et) {
+    if (!et || typeof et !== 'object') return null;
+    var kids = [];
+    var exps = et.expectations || [];
+    if (exps.length) {
+      kids.push(h('div', {}, exps.map(function (e) {
+        var txt = (e && e.expectation) || String(e || '');
+        var days = e && e.horizon_days;
+        return h('div', { class: 'asc-rv-kv' },
+          txt + (days ? ' — within ' + days + ' day' + (days === 1 ? '' : 's') : ''));
+      })));
+    }
+    var fals = et.falsifiers || [];
+    if (fals.length) {
+      kids.push(h('div', { class: 'asc-rv-eyebrow' }, 'Would change their mind'));
+      kids.push(h('div', {}, fals.map(function (f) {
+        return h('div', { class: 'asc-rv-kv' }, String(f));
+      })));
+    }
+    return kids.length ? h('div', {}, kids) : null;
+  }
+
   /* One physician's answer. Identical structure for A and B, identical accent,
      distinguished ONLY by the mono eyebrow and by which column it is in. */
   function answerCard(entry, task, forks) {
@@ -656,6 +686,9 @@
       body.push(section('Chosen answer (unedited)',
         h('div', { class: 'asc-rv-answer-text' }, finalText)));
     }
+    var et = trajectory(a.expected_trajectory);
+    if (et) body.push(section('What they expect to happen next', et));
+
     if (rev && ((rev.why_better_tags || []).length || rev.why_better_notes)) {
       var whyKids = [];
       if ((rev.why_better_tags || []).length) whyKids.push(chips(rev.why_better_tags));

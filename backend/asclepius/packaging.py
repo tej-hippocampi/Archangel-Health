@@ -1054,9 +1054,93 @@ def supervision_block(
 ) -> Dict[str, Any]:
     """Who supervised this record. ``independent_second_label`` is True ONLY for
     the double-labeled slice whose second observation was explicitly blinded —
-    the slice a real Cohen's κ can be computed on (PRD A §0)."""
+    the slice a real Cohen's κ can be computed on (PRD A §0).
+
+    A κ-EXCLUDED observation is therefore False here, blinded or not, and this is
+    the flag where that distinction bites hardest (PRD 2 §4.2.4). A trajectory
+    observation IS blinded — the physician never saw a co-labeler's identity — so
+    the blinding test alone would stamp ``independent_second_label: true`` on a
+    record that is deliberately absent from the κ denominator. The field's own
+    definition is "the slice a real Cohen's κ can be computed on"; a record
+    claiming membership of a slice it was excluded from is a false claim on a
+    buyer-facing provenance field, made by the one line that is supposed to
+    prevent them.
+    """
+    obs = observation or {}
     return {
         "labeler_id_hashed": labeler_id_hashed,
         "independent_second_label": bool(observation)
-        and (observation or {}).get("blinded") in (True, 1),
+        and obs.get("blinded") in (True, 1)
+        and not obs.get("kappa_excluded_reason"),
+        # Stated when it applies rather than left as a silent False, so a buyer
+        # reading a record with two labels and ``independent_second_label: false``
+        # can see WHY instead of inferring a data defect.
+        "kappa_excluded_reason": obs.get("kappa_excluded_reason") or None,
+    }
+
+
+def trajectory_block(
+    task: Optional[Dict[str, Any]], submission: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """The longitudinal annex for one record, or ``None`` (PRD 2 §4.2.3, §4.2.5).
+
+    THE REASSEMBLY KEY. The bundle writes one JSONL line per record, so thirteen
+    decision points from one chart ship as thirteen disconnected lines unless
+    ``trajectory_id`` and ``sequence_index`` travel with them. **A buyer who cannot
+    reassemble the sequence has bought thirteen single-shot cases at a trajectory
+    price, and will say so.**
+
+    Also carries the two things that make a decision point worth more than a
+    preference pair: the physician's sealed prediction with its falsifier (§3.3
+    field 3 — the falsifier corpus, §7), and their own grading of it against what
+    the record actually showed (§3.4 signal 3 — the RLVR signal).
+
+    ``None`` for a record that is neither part of a walk nor carries a prediction,
+    so the annex appears only where it means something.
+    """
+    from asclepius import trajectory as asc_trajectory
+
+    t, s = task or {}, submission or {}
+    payload = s.get("payload") or {}
+    # The column is authoritative; the payload is the fallback for a record whose
+    # submission row is not in hand (the case bundle builds from mapped records).
+    #
+    # The fallback is re-normalized rather than trusted. The column is written from
+    # an already-normalized object, but a payload can carry whatever a client sent
+    # — the flagged-prompt paths, for instance, store ``body.model_dump()`` verbatim
+    # — and raw client data must never ride into a buyer-facing annex on a
+    # last-resort branch nobody looks at.
+    expected = s.get("expected_trajectory")
+    if not expected:
+        expected = asc_trajectory.normalize_expected_trajectory(
+            payload.get("expected_trajectory"))
+    self_score = s.get("trajectory_self_score")
+    if not asc_trajectory.is_trajectory_point(t) and not expected:
+        return None
+    return {
+        "trajectory_id": t.get("trajectory_id"),
+        "sequence_index": t.get("sequence_index"),
+        # §8.1 — WHICH PRODUCT produced this record. A solo walk is one physician's
+        # judgment evolving over a patient; a relay is N physicians handing off,
+        # each reading the last one's commitment. The rows look identical, so a
+        # buyer cannot tell them apart without being told — and they are priced and
+        # analysed differently. Also the key to the κ annex: solo points are
+        # excluded for sequential dependence, relay points for the single-label
+        # floor, and only the second is fixable by buying a second walk.
+        "walk_mode": asc_trajectory.walk_mode(t) if t.get("trajectory_id") else None,
+        "kappa_exclusion": asc_trajectory.kappa_exclusion_reason(t),
+        # §8.7 — this point changed hands before it was answered. Shipped because
+        # the handoff chain a buyer is paying for now contains a substitution: the
+        # physician at point 5 read point 4's commitment, and point 4 was written
+        # by whoever took it over rather than by the doctor originally rostered.
+        # Absent (rather than False) when the caller could not resolve it, so a
+        # missing lookup never reads as a positive claim that nothing changed.
+        **({"reassigned": True} if t.get("_reassigned") else {}),
+        "expected_trajectory": expected or None,
+        "self_score": self_score or None,
+        # The RLVR claim for THIS record, stated rather than inferred: an outcome
+        # was checked against the record only when the physician marked at least
+        # one expectation assessable against the revealed encounter.
+        "outcome_verified": bool((self_score or {}).get("verified")),
+        "falsifier_fired": bool((self_score or {}).get("falsifier_fired")),
     }

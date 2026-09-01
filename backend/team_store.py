@@ -728,6 +728,13 @@ class TeamStore:
             # wizard may skip the MD credential screens). Display + wizard
             # routing only; verification still decides what the account can do.
             self._add_column_if_missing(conn, "health_systems", "signup_flavor", "TEXT")
+            # Onboarding v2 §3: the nudge schedule. Both are STAMPS, and the
+            # stamp is what makes the sweep idempotent — "exactly one nudge" is
+            # enforced by "the column is NULL", not by a counter the sweep has to
+            # get right, and not by anything the scheduler remembers between
+            # runs. A restart mid-sweep therefore cannot double-send.
+            self._add_column_if_missing(conn, "health_systems", "nudge_sent_at", "TEXT")
+            self._add_column_if_missing(conn, "health_systems", "expiry_warned_at", "TEXT")
             self._add_column_if_missing(conn, "intraop_forms", "draft_completed_by", "TEXT")
             self._add_column_if_missing(conn, "intraop_forms", "draft_completed_at", "TEXT")
             conn.execute(
@@ -998,6 +1005,78 @@ class TeamStore:
             "onboarding_url": url,
             "expires_at": expires,
         }
+
+    #: The two nudges Onboarding v2 §3 defines, and their stamp columns. A dict
+    #: rather than two near-identical methods, because the ONLY difference
+    #: between them is the age threshold and which column proves it already went.
+    _NUDGE_STAMPS = {"nudge": "nudge_sent_at", "expiry": "expiry_warned_at"}
+
+    def list_unfinished_asclepius_invites(
+        self, *, kind: str, older_than_hours: float, limit: int = 200
+    ) -> List[Dict[str, Any]]:
+        """Asclepius applications that were started, never finished, and have not
+        had this particular nudge (Onboarding v2 §3).
+
+        Deliberately narrow, in four ways that each remove a way to mail somebody
+        something wrong:
+
+          * ``product = 'asclepius'`` — an admin-generated health-system invite is
+            a different relationship and gets no consumer nudge.
+          * ``onboarding_completed_at IS NULL`` — they have not finished.
+          * the stamp column IS NULL — this nudge has never been sent.
+          * the token has not already expired — there is no point mailing a link
+            that is dead on arrival, and a "finish your application" button that
+            404s is worse than silence.
+
+        A row with no ``director_email`` or no stored invite URL is skipped in
+        SQL rather than filtered later: without either there is nothing to send
+        and nowhere to send it, and stamping it would burn the one nudge.
+        """
+        column = self._NUDGE_STAMPS.get(kind)
+        if not column:
+            raise ValueError(f"unknown nudge kind {kind!r}")
+        cutoff = (datetime.utcnow() - timedelta(hours=older_than_hours)) \
+            .replace(microsecond=0).isoformat()
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM health_systems
+                 WHERE product = 'asclepius'
+                   AND onboarding_completed_at IS NULL
+                   AND {column} IS NULL
+                   AND created_at < ?
+                   AND onboarding_token_expires_at > ?
+                   AND director_email IS NOT NULL AND TRIM(director_email) != ''
+                   AND last_generated_invite_url IS NOT NULL
+                   AND TRIM(last_generated_invite_url) != ''
+                 ORDER BY created_at ASC
+                 LIMIT ?
+                """,
+                (cutoff, now, int(limit)),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def stamp_onboarding_nudge(self, hs_id: str, kind: str) -> bool:
+        """Claim this nudge for this row. True if THIS call claimed it.
+
+        The claim is a conditional UPDATE, not a read-then-write, so two workers
+        racing on the same row cannot both send: sqlite decides, one gets
+        rowcount 1, the other gets 0 and sends nothing. Callers stamp BEFORE they
+        send, because the failure this protects against is duplicate mail to a
+        physician, and a nudge that is stamped but undelivered costs one email
+        while a nudge sent twice costs their patience.
+        """
+        column = self._NUDGE_STAMPS.get(kind)
+        if not column:
+            raise ValueError(f"unknown nudge kind {kind!r}")
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"UPDATE health_systems SET {column} = ? "
+                f"WHERE id = ? AND {column} IS NULL",
+                (_utcnow_iso(), hs_id),
+            )
+            return cur.rowcount > 0
 
     def reissue_onboarding_token(
         self,
@@ -4780,4 +4859,34 @@ class TeamStore:
         except json.JSONDecodeError:
             rec["table"] = {}
         return rec
+
+
+# ─── Process-wide accessor ───────────────────────────────────────────────────
+# ``main`` builds one TeamStore at import and hangs it on ``app.state``; that is
+# reachable from a request and nowhere else. Background work — the Onboarding v2
+# nudge sweep, which rides the verification agent's loop — has no request and no
+# app, and importing ``main`` from a module ``main`` imports is a cycle.
+#
+# So: the same lazy singleton ``asclepius.store.get_store`` already uses, with
+# main binding ITS instance into it rather than constructing a second one. Two
+# TeamStore objects against one sqlite file would work, but they would also make
+# ``app.state.team_store is get_team_store()`` false, and the test suite rebinds
+# app.state to a temp DB — which would then be invisible to the sweep.
+
+_STORE: Optional["TeamStore"] = None
+
+
+def get_team_store() -> "TeamStore":
+    """The process's TeamStore, created on first use."""
+    global _STORE
+    if _STORE is None:
+        _STORE = TeamStore()
+    return _STORE
+
+
+def set_team_store(store: "TeamStore") -> "TeamStore":
+    """Bind an existing instance (main at startup; the suite between tests)."""
+    global _STORE
+    _STORE = store
+    return _STORE
 

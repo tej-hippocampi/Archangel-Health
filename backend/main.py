@@ -81,6 +81,7 @@ from routers.asclepius_verify import router as asclepius_verify_router
 from routers.asclepius_review import router as asclepius_review_router
 from routers.asclepius_payments import router as asclepius_payments_router
 from routers.asclepius_score import router as asclepius_score_router
+from routers.asclepius_media import router as asclepius_media_router
 from routers.leads import router as leads_router
 from eligibility import store as elig_store
 import demo_credentials
@@ -145,7 +146,7 @@ from auth import (
 )
 import auth as auth_module
 from onboarding_emails import build_doctor_verification_email, build_task_notification_email
-from team_store import TeamStore
+from team_store import TeamStore, set_team_store
 from preop_survey import (
     WINDOW_SURVEY_DAY,
     compute_window_tier,
@@ -235,6 +236,10 @@ _patient_store: dict = {}
 app.state.patient_store = _patient_store
 _team_store = TeamStore()
 app.state.team_store = _team_store
+# Background work (the Onboarding v2 nudge sweep) has no request to reach
+# app.state through. Bind THIS instance rather than letting it build a second
+# one, so both see the same database — including the temp one the suite swaps in.
+set_team_store(_team_store)
 
 # ─── Asclepius — Expert Evaluation Portal (standalone, isolated) ──────────────
 # Own SQLite DB + own auth; never touches team.db or the clinical RBAC.
@@ -6045,6 +6050,40 @@ async def _team_scheduler_loop() -> None:
         await asyncio.sleep(int(os.getenv("TEAM_SCHEDULER_INTERVAL_SECONDS", "3600")))
 
 
+async def _assignment_maintenance_loop() -> None:
+    """Two janitorial passes on assigned work, hourly (PRD CASE-BATCHES §8.7).
+
+    **expire_stale_assignments had no caller.** It was written with a clear
+    rationale — "an exclusive assignment with no timeout is a queue that wedges
+    the moment somebody goes on holiday" — and then nothing ever ran it, so
+    exclusive assignments have never actually expired in production. That is
+    fixed here rather than in its own change because it is the same pass: both
+    are "assigned work that stopped moving".
+
+    **The stall sweep ships LOG-ONLY.** It finds relay and solo points whose
+    assignee could act and has not, and by default it records what it would send
+    without sending it (``ASCLEPIUS_RELAY_NUDGE_ENABLED``). This is the only place
+    the product messages a physician on a timer with no human deciding to, and
+    volunteers with clinics to run deserve an observation window before an
+    automated chase — turning it on is then a config change, not a deploy.
+
+    Never raises out: a janitorial pass must not be able to take the app down.
+    """
+    from asclepius.store import get_store
+    from asclepius import route_notify as asc_route_notify
+
+    while True:
+        try:
+            store = get_store()
+            expired = store.expire_stale_assignments()
+            if expired:
+                print(f"[assignment-maintenance] expired {expired} stale assignment(s)")
+            asc_route_notify.sweep_stalled_points(store)
+        except Exception as e:
+            print(f"[assignment-maintenance] error: {e}")
+        await asyncio.sleep(int(os.getenv("ASCLEPIUS_ASSIGNMENT_SWEEP_SECONDS", "3600")))
+
+
 async def _preop_outreach_loop() -> None:
     while True:
         try:
@@ -6454,6 +6493,7 @@ async def startup_team_scheduler():
     app.state.postop_lost_contact_task = asyncio.create_task(_postop_lost_contact_watcher_loop())
     app.state.postop_nightly_task = asyncio.create_task(_postop_nightly_retier_loop())
     app.state.task_notification_task = asyncio.create_task(_task_notification_loop())
+    app.state.assignment_maintenance_task = asyncio.create_task(_assignment_maintenance_loop())
     # The verification agent drains its own durable queue. Same in-process
     # pattern as the notification loop above: this repo has no scheduler, and
     # this is not the change that introduces one. Guarded so a failure here can
@@ -6750,6 +6790,12 @@ app.include_router(teachback_router)
 app.include_router(triage_explain_router)
 app.include_router(messaging_router)
 app.include_router(telehealth_router)
+# BEFORE asclepius_router, and it has to stay there. That router owns
+# `/api/asclepius/assets/{asset_id}`, and FastAPI matches routes in
+# registration order — so registering this one second would let the path
+# parameter swallow the literal `/assets/onboarding-demo` and answer the demo
+# with `asset_not_found`. A test pins the literal winning.
+app.include_router(asclepius_media_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_admin_router)

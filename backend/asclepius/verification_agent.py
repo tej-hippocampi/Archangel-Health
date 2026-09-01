@@ -37,7 +37,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 from asclepius import capabilities as caps
-from asclepius import credentialing, tiering
+from asclepius import credentialing, onboarding_nudge, tiering
 
 log = logging.getLogger("asclepius.verification_agent")
 
@@ -369,9 +369,25 @@ async def run_agent_loop() -> None:
     # touch a database, and a task created during startup begins running at the
     # first await.
     await asyncio.sleep(_INTERVAL)
+    # Onboarding v2 §3 rides this loop rather than owning a timer of its own: it
+    # already polls, already keeps its sqlite work off the event loop, and
+    # already survives a failing iteration. Its own, much slower cadence though —
+    # this loop's interval is tuned for verification jobs (30s), and re-running
+    # two nudge queries twice a minute forever is pointless work.
+    next_nudge_sweep = 0.0
     while True:
         try:
             store = get_store()
+            now = asyncio.get_running_loop().time()
+            if now >= next_nudge_sweep:
+                next_nudge_sweep = now + onboarding_nudge.SWEEP_INTERVAL_SECONDS
+                try:
+                    await onboarding_nudge.sweep()
+                except Exception:
+                    # sweep() does not raise, but a scheduler that CAN stop is a
+                    # scheduler that eventually does. The verification jobs below
+                    # are not the nudges' business to break.
+                    log.exception("[verify-agent] nudge sweep failed (loop continues)")
             # Every store call here is synchronous sqlite. Running it directly
             # would put it ON THE EVENT LOOP, where one lock-wait stalls every
             # request in the process rather than just this loop. Same rule the
