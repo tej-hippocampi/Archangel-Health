@@ -616,12 +616,6 @@ async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc
 
         registry_name = registry_config.for_country(country).registry_name
 
-    score = None
-    try:
-        score = store.get_contributor_score(user["id"])
-    except Exception:
-        score = None
-
     return {
         "editable": {
             "full_name": row.get("full_name"),
@@ -646,17 +640,21 @@ async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc
             "signed_initials": (json.loads(row.get("attestations_json") or "{}") or {}).get(
                 "signedInitials") if row.get("attestations_json") else None,
         },
+        # No `score`, and no `band`.
+        #
+        # This endpoint's contract is "everything the portal shows a physician
+        # about their own account", so shipping a rating the portal no longer
+        # renders would be dead payload on the one endpoint whose whole job is
+        # to be that list. The contributor score is an internal instrument for
+        # routing and for pay; the admin reads it through /admin/scores, and
+        # nothing about how it is computed changes.
+        #
+        # `tier`/`tier_word` stay. They are capability vocabulary rather than a
+        # rating, and other things read them.
         "standing": {
             "verification_status": row.get("verification_status"),
             "tier": row.get("tier"),
             "tier_word": asc_caps.tier_word(row.get("tier")),
-            "score": (score or {}).get("score"),
-            # Derived, not read off the row: contributor_scores has no `band`
-            # column, so `(score or {}).get("band")` was None for every
-            # physician who ever loaded this page, and the profile rendered a
-            # bare number with nothing saying what it meant.
-            "band": asc_contributor_score.band_word((score or {}).get("score"))
-                    if (score or {}).get("score") is not None else None,
             "referral_code": row.get("referral_code"),
         },
         # Absent until they upload one. The initials and the accent come from

@@ -612,27 +612,6 @@
   background: var(--card); border: 1px solid var(--asc-line); border-radius: var(--r-lg);
 }
 
-/* ── The contributor-score widget (PRD-SCORE). The one Doto numeral outside
-   money: the rating is the number a physician watches. ── */
-.asc-score-widget { gap: 8px; }
-.asc-score-line { display: flex; align-items: baseline; gap: 10px; }
-.asc-score-value {
-  font-family: var(--doto);
-  font-size: 34px; font-weight: 700; color: var(--ink);
-}
-.asc-score-band {
-  font-family: var(--mono); font-size: 11px;
-  letter-spacing: 0.09em; text-transform: uppercase;
-  color: var(--green-deep);
-}
-.asc-score-review {
-  font-size: 12.5px; line-height: 1.55; color: var(--ink);
-  background: var(--orange-wash, var(--card-in));
-  border: 1px solid var(--orange-line, var(--hairline));
-  border-radius: 10px; padding: 8px 10px;
-}
-.asc-score-note { font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
-.asc-score-more { align-self: flex-start; }
 /* ── The review card on the Tasks surface (PRD-R via PRD-SCORE build):
    one surface for every kind of work, so a reviewer's queue is a distinct
    card here instead of a nav tab. Pink accent = the review console's own

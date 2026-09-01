@@ -2133,7 +2133,6 @@
 
     let data = { tasks: [] };
     let stats = null;
-    let scoreInfo = null;
     let queueError = null;
     let practiceGate = null;
     // No real queue and no earnings, and BOTH endpoints below are on the
@@ -2151,7 +2150,6 @@
     // The score is browse-gated on purpose: a provisional physician's "in
     // review" state renders FROM it, so it is fetched outside the real-work
     // try below and never blocks anything.
-    const scorePromise = api('/score').catch(() => null);
     // One Tasks surface for every kind of work: a reviewer's queue arrives
     // here as a distinct card instead of a separate nav tab. The card is the
     // console's route now, so it renders for every reviewer, count or no
@@ -2190,7 +2188,6 @@
       }
     }
     const tasks = data.tasks || [];
-    scoreInfo = await scorePromise;
     const reviewStats = await reviewPromise;
 
     const wrap = h('div', { class: 'asc-wrap' });
@@ -2297,67 +2294,14 @@
     }
     cols.appendChild(main);
     const side = h('div', { class: 'asc-dash-side' });
-    const scoreWidget = renderScoreWidget(scoreInfo);
-    if (scoreWidget) side.appendChild(scoreWidget);
+    // No rating widget. A physician's contributor score is an internal
+    // instrument for routing and pay, and putting it on their dashboard turned
+    // it into a number they were managing rather than a measurement of the
+    // work. It is still computed, and the admin still reads it.
     side.appendChild(renderDashboardWidget(stats));
     cols.appendChild(side);
     wrap.appendChild(cols);
     setRoot(wrap);
-  }
-
-  // ─── The contributor-score widget (PRD-SCORE) ───────────────────────────────
-  // The one number a physician watches: their initial rating out of 100, then
-  // the blended score as graded cases fold in. Rendered from GET /score and
-  // NEVER computed client-side; absent payload = absent widget, not a zero.
-  function renderScoreWidget(info) {
-    if (!info || info.score == null) return null;
-    const inReview = !!info.in_review;
-    const widget = h('div', { class: 'asc-dash-widget asc-score-widget' },
-      h('div', { class: 'asc-dash-widget-title' }, 'Your rating'),
-      h('div', { class: 'asc-score-line' },
-        h('span', { class: 'asc-score-value' }, String(info.score)),
-        h('span', { class: 'asc-score-band' }, info.band || '')),
-      inReview
-        ? h('div', { class: 'asc-score-review' },
-            'Your profile is currently in review.')
-        : (info.n_cases
-            ? h('div', { class: 'asc-score-note' },
-                'Across ' + info.n_cases + (info.n_cases === 1 ? ' graded case' : ' graded cases') + '.')
-            : h('div', { class: 'asc-score-note' },
-                'Your initial rating, from your profile.')),
-      h('button', {
-        class: 'asc-linkish asc-score-more', type: 'button',
-        onClick: () => openScoreInfo(info),
-      }, 'What is this?'));
-    return widget;
-  }
-
-  function openScoreInfo(info) {
-    if (document.getElementById('ascScoreInfo')) return;
-    const bands = info.bands || { reviewer: 70, labeler: 30 };
-    const overlay = h('div', { class: 'call-team-overlay is-open asc-tour-interstitial', id: 'ascScoreInfo' });
-    const close = () => overlay.remove();
-    overlay.addEventListener('click', close);
-    const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
-      h('div', { class: 'asc-tour-chrome' }, 'YOUR RATING'),
-      h('div', { class: 'call-team-title' }, String(info.score) + ' out of 100'),
-      h('p', { class: 'asc-help', style: 'margin:6px 0 10px' },
-        info.in_review
-          ? 'Your profile is currently in review. This number is your initial '
-            + 'rating, built from what you told us: years of experience, board '
-            + 'certification, training, and the credentials we could verify.'
-          : 'Your rating starts from your profile (experience, certification, '
-            + 'training) and updates after every completed, QA-graded case: the '
-            + 'grade, the evidence you cite, the depth of your reasoning, and '
-            + 'the care you take relative to the case\u2019s difficulty all move it.'),
-      h('p', { class: 'asc-help', style: 'margin:0 0 16px' },
-        'At ' + bands.reviewer + ' and above you can review other physicians\u2019 '
-        + 'casework as well as label your own. Everyone can label. Nothing here '
-        + 'is ever shown to other physicians.'),
-      h('div', { style: 'display:flex;gap:10px;align-items:center' },
-        h('button', { class: 'asc-btn asc-btn-primary', type: 'button', onClick: close }, 'Got it')));
-    overlay.appendChild(popup);
-    document.body.appendChild(overlay);
   }
 
   // ─── "Your activity" tracking widget (side column) ──────────────────────────
@@ -7530,35 +7474,22 @@
                   rest: 'write to us and a person will look again.' },
     };
     const v = V[status] || V.pending;
-    const tierRest = {
-      reviewer: 'you may label cases and review other physicians’ work.',
-      labeler: 'you may label cases.',
-    }[st.tier || ''] || 'assigned when your record is approved.';
-    const hasScore = st.score != null;
 
+    // One stat, not three.
+    //
+    // The contributor score is gone: it is an internal instrument for routing
+    // and for pay, and showing it to the physician it measures turned it into
+    // a number they were managing. The tier stat went with it -- it is the same
+    // measurement wearing a permission label, and "Labeler" reads as a rank to
+    // a consultant with twenty years in practice. What the tier actually grants
+    // is visible in the rail, where the surfaces they can open either are or
+    // are not there.
     return h('div', { class: 'asc-me-standing' },
       meStat('Verification', null,
         h('span', { class: 'asc-me-stat-value' },
           h('span', { class: 'asc-me-dot ' + v.dot, 'aria-hidden': 'true' }),
           v.word),
-        v.rest),
-      meStat('Tier', null,
-        h('span', { class: 'asc-me-stat-value' }, st.tier_word || 'Not yet assigned'),
-        tierRest),
-      meStat('Contributor score',
-        infoDot('Contributor score', [
-          'A 0 to 100 average of your graded cases, blended with a starting '
-          + 'estimate until you have enough of them.',
-          '70 and above is Reviewer band, 30 and above is Labeler band. It '
-          + 'moves when a case of yours is graded, and never for any other '
-          + 'reason.',
-        ]),
-        h('span', { class: 'asc-me-stat-value' + (hasScore ? '' : ' is-quiet') },
-          hasScore ? Number(st.score).toFixed(1) : 'Not rated yet'),
-        hasScore
-          ? (st.band ? st.band + ' · from your graded cases.'
-                     : 'From your graded cases.')
-          : 'It starts after your first graded case.'));
+        v.rest));
   }
 
   function meStat(label, dot, valueNode, rest) {
@@ -7750,31 +7681,21 @@
       return {
         title: 'Why add LinkedIn',
         lines: [
-          'Straight answer first: it will not change your tier or what you are '
-          + 'paid. Your tier was set by a person when your record was approved, '
-          + 'and editing your profile does not recalculate it.',
-          'What it does is put a face to your name on your own file. It is what '
-          + 'we look at when a buyer asks who reviewed their data, and when we '
-          + 'vouch for you to a health system.',
+          'It will not change your tier or what you are paid. Your tier was set '
+          + 'by a person when your record was approved, and editing your profile '
+          + 'does not recalculate it.',
           'It has to be your actual profile address, the one starting '
-          + 'linkedin.com/in/. Anything else gets flagged for a person to look '
-          + 'at, which is the opposite of helpful.',
+          + 'linkedin.com/in/. Anything else gets flagged for a person to look at.',
         ],
       };
     }
     return {
       title: 'Why add LinkedIn',
       lines: [
-        'Your record is still being read. The reviewer scores what can be '
-        + 'checked about you out of 100, and a working LinkedIn profile is '
-        + 'worth 3 of those points. Small, and one of the few on that list you '
-        + 'can change right now.',
-        '70 is the Reviewer threshold and 30 is Labeler. Most of the rest is '
-        + 'your registration, your board certification and your years in '
-        + 'practice, which are already in.',
+        'Your record is still being read, and this is one of the few things on '
+        + 'your file you can still add while a person reviews it.',
         'It has to be your actual profile address, the one starting '
-        + 'linkedin.com/in/. Anything else scores zero and raises a flag for a '
-        + 'person to check.',
+        + 'linkedin.com/in/. Anything else raises a flag for a person to check.',
       ],
     };
   }
@@ -7783,7 +7704,7 @@
     return status === 'approved'
       ? 'Shown on your record to the Archangel team. It does not change your '
         + 'tier or your pay.'
-      : 'Worth 3 points on the 100-point score your reviewer is reading now.';
+      : 'Shown on your record to the person reviewing it.';
   }
 
   function meDetailsPanel(editable, standing) {
