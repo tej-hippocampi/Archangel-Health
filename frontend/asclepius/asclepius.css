@@ -4593,6 +4593,13 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   margin-top: 10px;
 }
 .asc-stage-spacer { flex: 1 1 auto; }
+/* Controls sitting INSIDE an action row must not take the full-width default
+   that .asc-input carries for stacked form fields — at 100% each one claims the
+   whole row and the "compact card" of §3.4 becomes a column of giant boxes. */
+.asc-stage-actions .asc-input,
+.asc-stage-actions .asc-select,
+.asc-stage-actions select { width: auto; min-width: 132px; flex: 0 0 auto; }
+.asc-stage-actions input[type="number"].asc-input { min-width: 88px; }
 .asc-stage-radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .asc-stage-drawer {
   margin-top: 10px;

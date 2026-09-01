@@ -491,6 +491,89 @@ def test_the_per_doctor_role_reaches_the_allocate_payload():
     assert "review" in payload["roles"].values()
 
 
+def test_a_solo_walk_sends_to_the_named_doctors_and_never_to_everyone():
+    """The worst bug this branch produced, and the reason the panel sets its own
+    targeting.
+
+    The walk panel rendered a doctor picker but left ``view.mode`` at its default
+    of 'all'. Naming a doctor for a solo walk and pressing Send therefore posted
+    ``to_all``: no assignments written, the whole trajectory flipped to the open
+    queue, and the un-sealing warning not even shown — it lives on the flat
+    control. The operator asked for one doctor and silently got everybody, on the
+    one case class the product deliberately seals."""
+    out = _routing("""
+      findAll(body, 'asc-route-rail-btn')[0].dispatch('click');
+      setTimeout(function () {
+        checkboxes(body).forEach(function (cb) { cb.checked = true; cb.dispatch('change'); });
+        setTimeout(function () {
+          // name a doctor in the walk panel
+          var docs = findAll(body, 'asc-route-doc');
+          var cb = checkboxes(docs[0])[0];
+          cb.checked = true; cb.dispatch('change');
+          setTimeout(function () {
+            var btns = [];
+            (function walk(el) {
+              if (el.tagName === 'BUTTON') btns.push(el);
+              (el.childNodes || []).forEach(function (c) { if (c.tagName) walk(c); });
+            })(body);
+            btns.filter(function (b) { return tidy(b) === 'Send'; })[0].dispatch('click');
+            setTimeout(function () { console.log(JSON.stringify({ sent: SENT })); }, 30);
+          }, 30);
+        }, 30);
+      }, 30);
+    """)
+    assert out["sent"], "nothing was sent"
+    payload = out["sent"][-1]
+    assert payload.get("user_ids"), f"solo walk did not target the named doctor: {payload}"
+    assert not payload.get("to_all"), (
+        "a solo walk posted to_all — this un-seals the trajectory to every "
+        "eligible doctor and writes no assignments")
+
+
+def test_an_explicit_send_with_nobody_named_is_refused_not_posted():
+    """An empty ``user_ids`` reads to the allocator as "no targeting", so it
+    picks doctors itself: the screen says "these people" and the server hears
+    "anyone". Refused client-side, where the operator can still fix it."""
+    out = _routing("""
+      findAll(body, 'asc-route-rail-btn')[0].dispatch('click');
+      setTimeout(function () {
+        checkboxes(body).forEach(function (cb) { cb.checked = true; cb.dispatch('change'); });
+        setTimeout(function () {
+          var btns = [];
+          (function walk(el) {
+            if (el.tagName === 'BUTTON') btns.push(el);
+            (el.childNodes || []).forEach(function (c) { if (c.tagName) walk(c); });
+          })(body);
+          btns.filter(function (b) { return tidy(b) === 'Send'; })[0].dispatch('click');
+          setTimeout(function () {
+            console.log(JSON.stringify({ sent: SENT, text: tidy(body) }));
+          }, 30);
+        }, 30);
+      }, 30);
+    """)
+    assert not out["sent"], "posted an allocate with nobody named"
+    assert "Pick at least one doctor" in out["text"]
+
+
+def test_un_sealing_a_walk_is_its_own_named_mode_and_carries_the_warning():
+    """Sending a walk to the open queue is a legitimate, deliberate act — it just
+    must not be what happens when nobody chose it."""
+    assert "'open', 'Open queue — any eligible doctor, in sequence'" in ROUTING
+    assert "enter the open queue" in ROUTING
+
+
+def test_role_radios_are_not_offered_for_a_doctor_nobody_selected():
+    """Greyed radios beside an unchecked name are noise, and a pre-selected
+    "Labeler" on somebody nobody chose reads as a decision never made."""
+    assert "(withRoles && on) ?" in ROUTING
+
+
+def test_the_relay_mode_offers_no_roles_because_the_endpoint_takes_none():
+    """/batches/relay commits a rotation and has no roles field. Radios there
+    would be a control that silently does nothing."""
+    assert "doctorPicker({ roles: current === 'solo' })" in ROUTING
+
+
 def test_the_reviewer_refusal_is_surfaced_by_name():
     """The server refuses a named non-reviewer at send. Rendering a bare 400
     would make the admin guess which of five names was wrong."""

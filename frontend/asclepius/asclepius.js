@@ -8942,6 +8942,14 @@
       if (view.mode === 'all') payload.to_all = true;
       else if (view.mode === 'specialty') payload.specialty = view.specialty;
       else {
+        // An explicit send with nobody named would post an empty user_ids, which
+        // the allocator reads as "no targeting" and answers by picking doctors
+        // itself — the admin's screen says "these people" and the server hears
+        // "anyone". Refuse it here, where the operator can still fix it.
+        if (!view.userIds.length) {
+          view.err = 'Pick at least one doctor, or choose a different mode.';
+          view.busy = false; paint(); return;
+        }
         payload.user_ids = view.userIds;
         // Only for the named doctors, and only when a role was actually chosen.
         // Sending roles for people not in ``user_ids`` would be a payload the
@@ -9345,7 +9353,8 @@
     /* One checkbox + two role radios per doctor. The role rides in ``roles`` on
      * the allocate payload; a name absent from that map is a labeler, which is
      * what every explicit send meant before the field existed. */
-    function doctorPicker() {
+    function doctorPicker(opts) {
+      const withRoles = !opts || opts.roles !== false;
       const list = h('div', {});
       (view.doctors || []).forEach((d) => {
         const on = view.userIds.indexOf(d.id) !== -1;
@@ -9358,21 +9367,24 @@
           }
           paint();
         });
-        const roles = ['label', 'review'].map((role) => {
+        // Roles only for a doctor who is actually selected. Greyed radios beside
+        // an unchecked name are noise, and a pre-selected "Labeler" on somebody
+        // nobody chose reads as a decision that was never made.
+        const roles = (withRoles && on) ? ['label', 'review'].map((role) => {
           const rb = h('input', {
             type: 'radio', name: 'role-' + d.id, value: role,
-            checked: (view.roles[d.id] || 'label') === role, disabled: !on,
+            checked: (view.roles[d.id] || 'label') === role,
           });
           rb.addEventListener('change', () => {
             if (rb.checked) { view.roles[d.id] = role; paint(); }
           });
           return h('label', { class: 'asc-route-role' }, rb, role === 'label' ? 'Labeler' : 'Reviewer');
-        });
+        }) : null;
         list.appendChild(h('div', { class: 'asc-route-doc' },
           cb,
           h('span', { class: 'asc-route-doc-name' },
             (d.name || d.email) + ' · ' + (d.specialty || '—')),
-          h('span', { class: 'asc-route-roles' }, roles)));
+          roles ? h('span', { class: 'asc-route-roles' }, roles) : null));
       });
       if (!(view.doctors || []).length) {
         list.appendChild(h('div', { class: 'asc-dim' }, 'No approved doctors to name.'));
@@ -9380,25 +9392,56 @@
       return list;
     }
 
-    /* A whole walk: solo or relay, and nothing else. The flat targeting modes
-     * are not offered here because a walk is routed as a walk. */
+    /* A whole walk is routed as a walk: solo, relay, or deliberately un-sealed.
+     *
+     * THE MODE IS SET EXPLICITLY HERE, and that is load-bearing rather than
+     * tidy. The first cut rendered a doctor picker and left ``view.mode`` at its
+     * default of 'all', so naming a doctor for a solo walk and pressing Send
+     * posted ``to_all`` — no assignments written, the whole trajectory flipped
+     * to the open queue, and the un-sealing warning not even shown, because it
+     * lives on the flat control. The operator asked for one doctor and got
+     * everybody, silently. Every branch below names its own targeting. */
     function walkControls() {
       const box = h('div', {});
-      const solo = h('input', { type: 'radio', name: 'walk-mode', checked: !view.relay });
-      solo.addEventListener('change', () => { if (solo.checked) { view.relay = false; paint(); } });
-      const relay = h('input', { type: 'radio', name: 'walk-mode', checked: !!view.relay });
-      relay.addEventListener('change', () => { if (relay.checked) { view.relay = true; paint(); } });
+      const MODES = [
+        ['solo', 'Solo walk — one doctor, all points'],
+        ['relay', 'Send as relay — one doctor per point'],
+        ['open', 'Open queue — any eligible doctor, in sequence'],
+      ];
+      const current = view.walkMode || 'solo';
+      view.walkMode = current;
+      view.relay = current === 'relay';
+      // Keep the targeting the send path reads in step with the choice on
+      // screen, rather than letting a stale default decide it.
+      view.mode = (current === 'open') ? 'all' : 'explicit';
+      const radios = MODES.map(([id, label]) => {
+        const r = h('input', { type: 'radio', name: 'walk-mode', checked: current === id });
+        r.addEventListener('change', () => {
+          if (!r.checked) return;
+          view.walkMode = id;
+          view.relayPreview = null; view.proposal = null;
+          paint();
+        });
+        return h('label', { class: 'asc-route-role' }, r, label);
+      });
       box.appendChild(h('div', { class: 'asc-field' },
-        h('label', { class: 'asc-label' }, 'Mode'),
-        h('label', { class: 'asc-route-role' }, solo, 'Solo walk — one doctor, all points'),
-        h('label', { class: 'asc-route-role' }, relay, 'Send as relay — one doctor per point')));
-      // Fetch-then-REPAINT. A bare loadDoctors() resolves into a screen that
-      // has already been drawn, so the picker renders "No approved doctors to
-      // name." and stays that way until something unrelated repaints — which on
-      // the relay path is the whole control.
+        h('label', { class: 'asc-label' }, 'Mode'), radios));
+
+      if (current === 'open') {
+        box.appendChild(h('div', { class: 'asc-inline-warn' },
+          'Longitudinal cases sent to All enter the open queue — any eligible '
+          + 'doctor may draw them, in sequence order.'));
+        return box;
+      }
+      // Fetch-then-REPAINT. A bare loadDoctors() resolves into a screen that has
+      // already been drawn, so the picker renders "No approved doctors to name."
+      // and stays that way — and on this path that empty list IS the control.
       if (!view.doctors) loadDoctors().then(paint);
-      box.appendChild(doctorPicker());
-      if (view.relay) {
+      // Roles are a label/review split on an ALLOCATE send. The relay endpoint
+      // takes a rotation and no roles, so offering them there would be a control
+      // that silently does nothing.
+      box.appendChild(doctorPicker({ roles: current === 'solo' }));
+      if (current === 'relay') {
         box.appendChild(h('div', { class: 'asc-dim' },
           'Only the first point is serveable on send; each later point unlocks '
           + 'when the one before it is submitted.'));
@@ -10917,7 +10960,16 @@
       return h('div', {},
         h('div', { class: 'asc-stage-head' }, bits.join(' · '), ' ', integrity),
         h('div', { class: 'asc-stage-desc' },
-          h('span', { class: 'asc-badge asc-badge-primary' }, specialtiesLabel(u)),
+          (u.specialties || []).length
+            ? h('span', { class: 'asc-badge asc-badge-primary' }, specialtiesLabel(u))
+            // Amber, not primary. An unset specialty renders in the same slot as
+            // a real one, and both promote endpoints 409 on it — so a chip that
+            // looked like every other specialty would hide the one fact on the
+            // row that stops the bundle progressing.
+            : h('span', { class: 'asc-badge asc-badge-amber',
+                title: 'Ingest refuses to guess a specialty, and both promote '
+                     + 'endpoints refuse this upload until one is set.' },
+                'specialty not set'),
           ' ',
           u.description
             ? h('span', {}, '“' + u.description + '”')
@@ -10991,7 +11043,11 @@
     function box1Row(u) {
       const toTasks = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button' }, 'Task creation');
       toTasks.addEventListener('click', () => resolvePurpose(u, 'task_creation'));
-      const toBroker = h('button', { class: 'asc-btn asc-btn-sm', type: 'button' }, 'Brokering');
+      // Bordered, not bare. The base .asc-btn carries `border: 1px solid
+      // transparent`, so an unqualified button renders as plain text — and this
+      // one commits an IRREVERSIBLE decision. Quiet is right for it; invisible
+      // is not.
+      const toBroker = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' }, 'Brokering');
       toBroker.addEventListener('click', () => askBrokering(u));
 
       const dl = h('a', {
@@ -11298,7 +11354,7 @@
       const spec = selectFrom(['nephrology', 'cardiology'], 'nephrology');
       const count = h('input', { type: 'number', class: 'asc-input', value: '10', min: '1', max: '200' });
       const status = h('div', { style: 'margin-top:10px' });
-      const btn = h('button', { class: 'asc-btn asc-btn-sm', type: 'button' }, 'Generate');
+      const btn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' }, 'Generate');
       btn.addEventListener('click', () => {
         clear(status);
         const n = Math.max(1, parseInt(count.value, 10) || 1);
