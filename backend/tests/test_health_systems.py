@@ -514,16 +514,36 @@ def test_detail_buckets_follow_workflow_order():
     b = res.json()["buckets"]
     ids = {k: {e["upload_id"] for e in v} for k, v in b.items()}
 
-    assert up_clean in ids["ready_to_promote"]
+    # These uploads carry no destination, so their ingested cases are HELD IN
+    # STORAGE rather than ready to promote — that is the one bucket storage
+    # replaces, because it is the one whose action is unavailable until somebody
+    # says what the data is for.
+    assert up_clean in ids["storage"]
+    assert up_clean not in ids["ready_to_promote"]
     assert up_held in ids["needs_attention"]
+    # Already promoted is HISTORY. An upload whose cases went out under the old
+    # rules must not be filed as "awaiting your decision" — that asks an operator
+    # to decide something that has already happened.
     assert up_live in ids["in_production"]
+    assert up_live not in ids["storage"]
     assert up_fresh in ids["needs_review"]
     # A safety hold is never buried in a normal bucket's entry list silently —
     # the reason travels with it.
     held_entry = next(e for e in b["needs_attention"] if e["upload_id"] == up_held)
     assert any("PHI" in r for r in held_entry["reasons"])
-    # The fresh upload appears ONLY in needs_review.
-    assert up_fresh not in ids["needs_attention"] | ids["ready_to_promote"] | ids["in_production"]
+    # The fresh upload appears ONLY in needs_review. Nothing has ingested yet, so
+    # there is nothing to decide about and nothing to promote.
+    assert up_fresh not in (ids["needs_attention"] | ids["ready_to_promote"]
+                            | ids["in_production"] | ids["storage"])
+
+    # And once a destination IS set, the same upload moves to the promote queue.
+    from asclepius import ingestion as asc_ingestion
+
+    store.set_upload_purpose(up_clean, asc_ingestion.PURPOSE_TASK_CREATION)
+    again = client.get(f"/api/asclepius/admin/health-systems/{hs_id}", headers=headers).json()
+    moved = {k: {e["upload_id"] for e in v} for k, v in again["buckets"].items()}
+    assert up_clean in moved["ready_to_promote"]
+    assert up_clean not in moved["storage"]
 
 
 def test_detail_404_for_unknown_health_system():

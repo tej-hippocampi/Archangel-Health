@@ -1482,13 +1482,7 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
         if asc_ingestion.PURPOSE_BROKERING == up.get("purpose"):
             buckets["brokering"].append(entry)
             continue
-        # Held until read. Checked AFTER brokering (an explicitly brokered upload
-        # belongs in its own bucket) and BEFORE the safety holds, so an upload
-        # that is both unreviewed and flagged still surfaces in needs_attention
-        # -- a safety hold outranks a filing decision.
-        if asc_ingestion.is_storage(up.get("purpose")) and not held:
-            buckets["storage"].append(entry)
-            continue
+
         if held:
             # Safety holds must never be buried inside a normal bucket. Surface
             # the actual reasons (review flags + quarantine reasons), deduped.
@@ -1505,7 +1499,21 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
         if promoted:
             buckets["in_production"].append(entry)
         if clean:
-            buckets["ready_to_promote"].append(entry)
+            # STORAGE REPLACES READY-TO-PROMOTE, and only that bucket. It is the
+            # precise substitution: ready_to_promote is exactly the bucket whose
+            # action is unavailable until somebody says what this is for, and
+            # every other bucket keeps its meaning.
+            #
+            # Not a `continue` earlier in this loop, which is what the first cut
+            # did and what got it wrong: an upload whose cases were promoted
+            # under the old rules is HISTORY, and filing it as "awaiting your
+            # decision" would ask an operator to decide something that has
+            # already happened. Safety holds outrank it too — a flagged upload
+            # belongs in needs_attention whatever its destination says.
+            if asc_ingestion.is_storage(up.get("purpose")):
+                buckets["storage"].append(entry)
+            else:
+                buckets["ready_to_promote"].append(entry)
         # Uploaded, not yet examined: still moving through the pipeline (or it
         # produced nothing at all — e.g. rejected outright), and none of the
         # terminal buckets above claimed it.
