@@ -4055,6 +4055,16 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint);
 }
 .asc-rv-kv { font-size: var(--t-sm); color: var(--ink-soft); }
+/* The falsifier's label inside the sealed prediction. Set apart from the
+   expectations above it because it is the part a reviewer is really grading:
+   anyone can predict improvement; naming what would refute you is the skill. */
+.asc-rv-eyebrow {
+  font-size: var(--t-sm);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 6px;
+}
 .asc-rv-kv b { color: var(--ink); font-weight: 500; }
 .asc-rv-kv-lead { margin: var(--sp-3) 0 var(--sp-2); }
 .asc-rv-main { display: block; }
@@ -4513,6 +4523,37 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .vq-flag-low { color: var(--asc-muted); }
 .vq-npi-inconclusive, .vq-npi-document_only, .vq-npi-queued, .vq-npi-pending {
   color: var(--asc-muted);
+}
+
+/* ═══ Case Batches §8.4 — the care-team handoff ═════════════════════════════
+   Above the clinical question, visually distinct from it: this is somebody
+   else's reasoning, and a physician must never be unsure which words are the
+   case and which are a colleague's read of it. */
+.asc-handoff {
+  border-left: 3px solid var(--asc-primary);
+  background: var(--asc-bg-soft);
+  border-radius: 0 8px 8px 0;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.asc-handoff-h {
+  font-size: var(--t-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+}
+.asc-handoff-row { display: flex; gap: 12px; margin-bottom: 4px; }
+.asc-handoff-k {
+  flex: 0 0 140px;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.asc-handoff-v { flex: 1; font-size: var(--t-sm); line-height: 1.55; }
+@media (max-width: 560px) {
+  .asc-handoff-row { flex-direction: column; gap: 2px; }
+  .asc-handoff-k { flex: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

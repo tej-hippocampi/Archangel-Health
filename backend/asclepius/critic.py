@@ -292,11 +292,21 @@ async def generate_candidates_ex(
     on failure (no LLM key / parse error). ``intended_flawed_id`` (the answer the
     model deliberately made weaker, PRD §7.2, §16) is kept server-side only — the
     blinded eval screen never sees it. Never raises."""
-    empty = {"candidates": [], "model": None, "intended_flawed_id": None}
+    def _empty(reason: str) -> Dict[str, Any]:
+        # ``reason`` exists because the caller used to report every empty result
+        # as "no LLM key configured?", which is right for exactly one of the three
+        # ways this fails and actively misleading for the other two. A response
+        # truncated by ``max_tokens`` (a thinking model on a tight budget) and a
+        # well-formed response we could not parse are both indistinguishable from
+        # a missing credential otherwise — and someone will spend an afternoon on
+        # the wrong problem.
+        return {"candidates": [], "model": None, "intended_flawed_id": None,
+                "reason": reason}
+
     try:
         from ai.llm_client import call_llm, first_text
-    except Exception:  # pragma: no cover
-        return empty
+    except Exception as exc:  # pragma: no cover
+        return _empty(f"llm client unavailable: {exc}")
     user = f"Specialty: {specialty}\n\nPROMPT:\n{prompt}"
     if ai_failure_mode:
         user += f"\n\nAI_FAILURE_MODE (key the flawed answer to this): {ai_failure_mode}"
@@ -310,9 +320,24 @@ async def generate_candidates_ex(
         )
     except Exception as exc:
         log.info("asclepius candidate-gen unavailable: %s", exc)
-        return empty
-    parsed = _extract_json(first_text(resp)) or {}
+        return _empty(f"model call failed: {exc}")
+    raw = first_text(resp)
+    parsed = _extract_json(raw) or {}
     cands = parsed.get("candidate_answers") or []
+    if not cands:
+        # Name the actual failure. ``max_tokens`` means the answer was CUT OFF,
+        # which on a thinking model usually means the budget went on thinking —
+        # see llm_client._anthropic_output_cap.
+        stop = getattr(resp, "stop_reason", None)
+        if stop == "max_tokens":
+            return _empty(
+                f"the model's answer was truncated at the token budget "
+                f"(stop_reason=max_tokens, {len(raw)} chars returned), so the JSON "
+                f"could not be parsed. On a thinking-capable model the budget is "
+                f"spent on thinking before the answer starts — raise the role's "
+                f"max_tokens or LLM_ANTHROPIC_THINKING_RESERVE.")
+        return _empty(f"the model replied but no candidate_answers could be parsed "
+                      f"from it ({len(raw)} chars, stop_reason={stop})")
     model = (rec or {}).get("model")
     flawed_src = parsed.get("intended_flawed_id")
 

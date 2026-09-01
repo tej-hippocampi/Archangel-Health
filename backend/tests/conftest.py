@@ -16,12 +16,30 @@ that uploads a task or provisions a member writes a real announcement or
 welcome post into it. Those rows outlive the run, and because their authors are
 throwaway test users that no longer exist in the users plane, they render to
 real members as "Former member". Keep this pointed at a temp path.
+
+**Outgoing email is put in dev mode for the whole suite, and that is an
+ORDER-INDEPENDENCE fix, not a convenience.** Fourteen test files were setting
+``EMAIL_DEV_MODE`` at module scope for themselves — process-wide, never cleaned
+up — so any file collected after one of them inherited a configured transport
+for free. Files that needed one but did not set it were green by collection
+order alone, and CI shards by a bin-packer: adding a single test file anywhere
+in the suite repacks the shards, and two files (``test_referral_program``,
+``test_doctor_email_verification``) went red the first time that happened, on
+endpoints that 503 without a transport. Setting it here makes that whole class
+of failure impossible rather than fixing it one file at a time.
+
+Safe for the tests that assert the UNCONFIGURED path: they monkeypatch
+``is_email_transport_configured`` / ``_email_configured`` directly rather than
+clearing an env var, so this default does not reach them. And dev mode never
+sends — it prints to stdout — so this also removes any chance of a test reaching
+a real transport.
 """
 
 import os
 import tempfile
 
 os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
+os.environ.setdefault("EMAIL_DEV_MODE", "1")
 
 _asclepius_tmp = os.path.join(tempfile.gettempdir(), "asclepius_suite")
 os.makedirs(_asclepius_tmp, exist_ok=True)

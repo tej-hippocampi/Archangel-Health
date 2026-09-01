@@ -30,6 +30,7 @@ import hashlib
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from asclepius import agreement as asc_agreement
+from asclepius import trajectory as asc_trajectory
 
 # ─── The four phases ──────────────────────────────────────────────────────────
 AWAITING_FIRST = "awaiting_first"
@@ -87,6 +88,24 @@ def wants_second_label(task: Dict[str, Any]) -> bool:
     t = task or {}
     if target_labels(t) >= PAIR_LABELS:
         return True
+    # PRD 2 §9.6 — a trajectory point is NOT double-labelled by default, and this
+    # short-circuit is load-bearing rather than a preference.
+    #
+    # ``second_label_is_default()`` is True at the launch rate of 1.0, so without
+    # this branch EVERY trajectory point would answer True here, and
+    # ``store._prd_r_lift_capacity`` would write ``max_labels = 2`` onto all
+    # thirteen of patient-1's points on their first draw. Nobody decided that: it
+    # would double a $975 chart walk to $1,950 (a decision point is one completed
+    # submission, at the standard per-submission rate) as a side effect of a
+    # fleet-wide default, and buy nothing measurable — trajectory points are
+    # excluded from the κ pool by construction (§4.2.4), so the second label
+    # produces no agreement statistic. What it does produce is a second independent
+    # walk of the same chart, which is a different and more expensive product.
+    #
+    # An admin who wants that says so by passing ``max_labels=2`` at insert, which
+    # the first branch above already honours. This only removes the DEFAULT.
+    if asc_trajectory.is_trajectory_point(t):
+        return False
     if second_label_is_default():
         return True
     return asc_agreement.should_double_label(t, current_rate=1.0)

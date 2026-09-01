@@ -68,6 +68,11 @@ RENDER_KINDS = (
     "anchors",   # evidence anchors, rendered attached to the claim they support
     "steps",     # the reasoning-step table
     "rubric",    # the rubric table
+    "trajectory",  # the sealed prediction: what they expect, and what would
+                   # falsify it. Its own kind because it is neither prose nor a
+                   # flat {k: v} map — "pairs" would render the expectations list
+                   # as [object Object], which is how a field can be technically
+                   # visible and still unread.
 )
 
 
@@ -223,6 +228,19 @@ FIELDS: Tuple[Field, ...] = (
     _shown("rubric.critical", "Critical", "rubric", "flag"),
     _shown("rubric.specific", "Machine-checkable", "rubric", "flag"),
     _shown("rubric.evidence_anchor", "Source", "rubric", "anchors"),
+    # PRD 2 §3.3 field 3 — the falsifier. SHOWN, and this is the whole reason
+    # this file exists: the longitudinal work added a submission field and main
+    # added this completeness assertion, neither touched the other's lines, and
+    # together they caught that a reviewer would never have seen it.
+    #
+    # It is not plumbing and it is not identity. "Bilirubin falls within 14 days;
+    # if GGT climbs the stent has occluded" is a clinical claim, authored by the
+    # physician being reviewed, and it is the single most reviewable sentence in a
+    # longitudinal submission — the reviewer grades the medicine, and this IS the
+    # medicine, stated in advance and checkable. Withholding it would leave them
+    # grading a decision with its stated reasoning removed.
+    _shown("expected_trajectory", "What they expect to happen next",
+           "answer", "trajectory"),
     _withheld("rubric.axis", "The deprecated single-value mirror of ``axes[0]``."),
     _withheld("rubric.source",
               "How the criterion was seeded (e.g. ``error_tag:dosing_error``). "

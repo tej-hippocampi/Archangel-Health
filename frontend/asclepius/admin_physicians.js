@@ -649,6 +649,21 @@
       style: 'margin-right:8px',
     }, approved ? 'Approved' : 'Not approved'));
 
+    /* PRD CASE-BATCHES §2.5 — route cases from the physician's own row.
+     * Only offered once they are approved for real data: routing to an
+     * unapproved account is refused at send anyway (the V4 wall), and a button
+     * that always fails is worse than no button. This does not send anything —
+     * it opens Batches with this doctor pre-picked, so there is exactly one
+     * screen where "who gets what" is decided. */
+    if (approved && ctx.openBatchesFor) {
+      const route = h('button', {
+        class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+        style: 'margin-right:8px',
+      }, 'Route cases');
+      route.addEventListener('click', () => ctx.openBatchesFor(p));
+      cell.appendChild(route);
+    }
+
     const btn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
       approved ? 'Revoke' : 'Approve');
     btn.addEventListener('click', () => {

@@ -2138,6 +2138,16 @@
       // hand the doctor a task their own submission would be rejected for.
       state.servedVersion = data.served_portal_version || null;
       state.continuedFrom = data.continued_from || null;
+      // Reset first, then hydrate: a stale walk count carried over from the
+      // previous case would put "Decision 4 of 13" on an unrelated chart, which
+      // is worse than no banner at all.
+      state.trajectoryProgress = null;
+      if (state.task.trajectory_id) {
+        try {
+          const walk = await api('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
+          state.trajectoryProgress = walk.progress || null;
+        } catch (e) { /* the banner degrades to "Longitudinal case" */ }
+      }
       initDraftForTask(state.task);
       // Resuming straight into the compare stage (e.g. mid-task refresh) needs the
       // withheld answer texts loaded before they're rendered.
@@ -2555,6 +2565,16 @@
       // own submission the server rejects with a 400.
       state.servedVersion = data.served_portal_version || null;
       state.continuedFrom = null;
+      // Trajectory progress for the banner. Best-effort and non-blocking: the
+      // case must open whether or not the walk metadata resolves, because the
+      // banner is context and the case is the work.
+      state.trajectoryProgress = null;
+      if (state.task.trajectory_id) {
+        try {
+          const walk = await api('/trajectories/' + encodeURIComponent(state.task.trajectory_id));
+          state.trajectoryProgress = walk.progress || null;
+        } catch (e) { /* the banner degrades to "Longitudinal case" */ }
+      }
       renderHeader();
       initDraftForTask(state.task);
       if (state.draft.stage === 'compare') {
@@ -2562,6 +2582,21 @@
       }
       renderTaskWorkspace();
     } catch (e) {
+      // 409 trajectory_out_of_order (PRD-2 §9.1): the physician is entitled to
+      // this case, just not yet — its history contains the outcomes of decisions
+      // they have not made. Say that, and hand them the one they may open, rather
+      // than reporting a generic failure for a rule that is working correctly.
+      // Handled ahead of the terminal-status branch below deliberately: a 409 here
+      // is the queue working, so the draft must SURVIVE it. Falling through would
+      // not clear it (409 is not in the terminal list) but would strand the
+      // physician on the dashboard with no explanation of a refusal that has a
+      // precise remedy — open the earlier point, which this does for them.
+      if (e.status === 409 && e.detail && e.detail.error === 'trajectory_out_of_order') {
+        toast(e.detail.message || 'Answer the earlier decisions in this chart first.', 'error');
+        if (e.detail.next_task_id) { openTaskById(e.detail.next_task_id); return; }
+        renderDashboardView();
+        return;
+      }
       // 401 already took the screen (handleUnauthorized renders the login form).
       if (e.status === 401) return;
       // Everything else used to leave the physician looking at "Opening case…"
@@ -2645,6 +2680,11 @@
       from_scratch: { ideal_answer: '', approach_notes: '', reasoning_steps: [], evidence_anchor: emptyAnchor() },
       // Decisive action (Audit §13): physician-named verifiable outcome, skippable.
       decisive_action: { action: '', tool_name: '', rationale: '', must_precede_final_answer: true },
+      // Expected trajectory (Longitudinal Cases §3.3 field 3): what should happen
+      // next if this assessment is right, and what would say it is wrong. Skippable
+      // — a fabricated falsifier is worth less than none, because it gets scored
+      // against a real chart and the score means nothing.
+      expected_trajectory: { expectations: [{ expectation: '', horizon_days: '' }], falsifiers: [''], note: '' },
       reasoning_steps: [],
       // §1 substage machine (Evaluation UX Overhaul): V3/V4 only. ``substage``
       // is the persisted position INSIDE stage==='compare'; the *_done flags are
@@ -2711,6 +2751,13 @@
     if (!draft.independent_answer.evidence_anchor) draft.independent_answer.evidence_anchor = emptyAnchor();
     if (!Array.isArray(draft.rubric)) draft.rubric = [];
     if (!draft.decisive_action) draft.decisive_action = { action: '', tool_name: '', rationale: '', must_precede_final_answer: true };
+    if (!draft.expected_trajectory) draft.expected_trajectory = { expectations: [{ expectation: '', horizon_days: '' }], falsifiers: [''], note: '' };
+    if (!Array.isArray(draft.expected_trajectory.expectations) || !draft.expected_trajectory.expectations.length) {
+      draft.expected_trajectory.expectations = [{ expectation: '', horizon_days: '' }];
+    }
+    if (!Array.isArray(draft.expected_trajectory.falsifiers) || !draft.expected_trajectory.falsifiers.length) {
+      draft.expected_trajectory.falsifiers = [''];
+    }
     if (draft.rubricSeeded === undefined) draft.rubricSeeded = false;
     if (!draft.stage) draft.stage = 'prompt_review';
     // §1 substage machine backfill (all additive; an in-flight draft resumes at
@@ -2974,6 +3021,263 @@
       specialties: state.specialties,
       tabKey: (state.task && state.task.task_id) || '',
     });
+  }
+
+  // A physician mid-walk is looking at the SAME PATIENT they saw a moment ago, and
+  // saying so is not decoration: it is why the case does not read as a fourth
+  // unrelated chart, and it is what makes "context loads once, amortised over
+  // several decisions" (§5) true rather than merely claimed.
+  //
+  // Rendered from ``state.trajectoryProgress``, hydrated by ``openTaskById`` on the
+  // way in. Absent on every ordinary case, so V1–V4 render byte-for-byte as before.
+  function renderTrajectoryBanner() {
+    const task = state.task;
+    if (!task || !task.trajectory_id) return null;
+    const prog = state.trajectoryProgress;
+    const step = (task.sequence_index == null) ? null : (task.sequence_index + 1);
+    const of = prog && prog.n_points ? (' of ' + prog.n_points) : '';
+    return h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
+      h('span', { class: 'asc-badge asc-badge-accent' },
+        step ? ('Decision ' + step + of) : 'Longitudinal case'),
+      h('span', { class: 'asc-case-note-meta' },
+        'One patient, in order. You are seeing this chart as it stood at this '
+        + 'moment; what happened afterwards is sealed until you submit.'));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  LONGITUDINAL: the reveal and the self-score (Longitudinal Cases §4, Phase 4)
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Nothing else in this product tells a physician whether their judgment held.
+  // This does — from the chart, not from a reviewer's opinion — and it is the
+  // single most requested thing in expert annotation work.
+  //
+  // It renders only AFTER the submission is committed. The seal is not a UI rule
+  // here: the server refuses this endpoint without a stored submission (409
+  // commitment_required), so a client bug cannot open the future early.
+
+  const SELF_SCORE_CHOICES = [
+    ['held', 'Held', 'the record shows what you expected'],
+    ['did_not_hold', 'Did not hold', 'the record shows otherwise'],
+    ['not_assessable', 'Not assessable', 'this encounter does not say either way'],
+  ];
+
+  async function renderTrajectoryOutcomeView(task) {
+    state.view = 'trajectory_outcome';
+    stopTimer();
+    renderHeader();
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }),
+          'Opening what happened next…'))));
+    let data;
+    try {
+      data = await api('/tasks/' + encodeURIComponent(task.task_id) + '/trajectory-outcome');
+    } catch (e) {
+      if (e.status === 401) return;
+      // A VISIBLE failure, and the work is safe: the submission is already
+      // committed server-side. Never a silent fall-through to the next case,
+      // which would look like the reveal simply does not exist.
+      toast('Your answer is saved. The next encounter could not be loaded: '
+        + (e.message || 'unknown error'), 'error');
+      renderEvalView();
+      return;
+    }
+    paintTrajectoryOutcome(task, data);
+  }
+
+  function paintTrajectoryOutcome(task, data) {
+    const outcome = data.outcome;
+    const expected = (data.expected_trajectory || {}).expectations || [];
+    const falsifiers = (data.expected_trajectory || {}).falsifiers || [];
+    const step = (data.sequence_index == null) ? null : (data.sequence_index + 1);
+
+    const head = h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step' }, step ? ('Step ' + step) : 'Outcome'),
+        h('div', { class: 'asc-substage-title' }, 'What happened next')),
+      h('div', { class: 'asc-help' },
+        outcome
+          ? 'This is the same patient’s record, ' + outcome.days_after_decision
+            + ' day' + (outcome.days_after_decision === 1 ? '' : 's')
+            + ' after the moment you decided. You could not see it when you answered.'
+          : (data.reason || 'There is no later encounter in this record.')));
+
+    const wrap = h('div', { class: 'asc-wrap' }, head);
+    if (outcome) wrap.appendChild(renderOutcomePanel(outcome));
+
+    if (expected.length) {
+      wrap.appendChild(renderSelfScoreCard(task, data, expected, falsifiers));
+    } else {
+      // No prediction was recorded, so there is nothing to grade. Say that
+      // plainly rather than showing an empty scoring card.
+      wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'asc-help' },
+          'You did not record an expected trajectory on this case, so there is '
+          + 'nothing here to check against the record.'),
+        h('div', { style: 'margin-top:16px' }, trajectoryContinueButton(data))));
+    }
+    // §6, in front of the physician at the moment they grade — not only in the
+    // data dictionary a buyer reads.
+    if ((data.limitations || []).length) {
+      wrap.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'asc-substage-title' }, 'What this check can and cannot show'),
+        h('ul', { class: 'asc-case-list', style: 'margin-top:10px' },
+          ...data.limitations.map((l) => h('li', {}, l.detail)))));
+    }
+    setRoot(wrap);
+  }
+
+  function renderOutcomePanel(outcome) {
+    const parts = [];
+    if ((outcome.lab_panels || []).length) {
+      parts.push(h('div', { class: 'asc-case-body' }, renderLabsTrend(outcome.lab_panels)));
+    }
+    (outcome.notes || []).forEach((n) => {
+      parts.push(h('div', { class: 'asc-case-note' },
+        h('div', { class: 'asc-case-note-meta' },
+          '[' + (n.note_type || 'Note') + ' · ' + (n.author_role || 'clinician')
+          + ' · day +' + n.collected_offset_days + ']'),
+        h('div', { class: 'asc-case-note-text' }, (n.text || '').trim())));
+    });
+    (outcome.studies || []).forEach((st) => {
+      // ``study_findings_policy`` is computed per truncation and legitimately
+      // varies across one walk (§9.5): a window with no imaging is 'visible', a
+      // later one carrying an image asset is 'hidden'. Honoured here rather than
+      // assumed, so the reveal never prints findings the case is holding back.
+      const showFindings = (outcome.study_findings_policy || 'visible') === 'visible';
+      parts.push(h('div', { class: 'asc-case-note' },
+        h('div', { class: 'asc-case-note-meta' },
+          '[' + (st.label || st.modality || 'Study') + ' · day +' + st.collected_offset_days + ']'),
+        showFindings && st.findings
+          ? h('div', { class: 'asc-case-note-text' }, st.findings)
+          : h('div', { class: 'asc-case-note-text' }, 'Findings withheld for this window.')));
+    });
+    if ((outcome.medications || []).length) {
+      parts.push(h('div', { class: 'asc-case-body' },
+        h('div', { class: 'asc-case-sub' }, 'Started after your decision'),
+        h('ul', { class: 'asc-case-list' }, ...outcome.medications.map((m) => h('li', {},
+          [m.drug, m.dose, m.route, m.freq].filter(Boolean).join(' ')
+          + ' (day +' + m.collected_offset_days + ')')))));
+    }
+    if ((outcome.problem_list || []).length) {
+      parts.push(h('div', { class: 'asc-case-body' },
+        h('div', { class: 'asc-case-sub' }, 'Added to the problem list'),
+        h('ul', { class: 'asc-case-list' }, ...outcome.problem_list.map((pr) => h('li', {},
+          pr.condition + ' (day +' + pr.collected_offset_days + ')')))));
+    }
+    if (!parts.length) {
+      // A window with nothing in it is a real answer about the record — an
+      // encounter can genuinely add nothing this physician's expectations touch —
+      // and it must not render as a broken panel.
+      parts.push(h('div', { class: 'asc-help' },
+        'The record adds nothing between your decision and the next one.'));
+    }
+    return h('div', { class: 'asc-card asc-case-card' },
+      h('div', { class: 'asc-case-head' },
+        h('span', { class: 'asc-badge asc-badge-accent' }, 'The record, after your decision')),
+      h('div', { class: 'asc-case-host' }, ...parts));
+  }
+
+  function renderSelfScoreCard(task, data, expected, falsifiers) {
+    // The physician's own falsifier is the rubric. No reviewer grades this.
+    const marks = expected.map((_, i) => ({ index: i, state: null, note: '' }));
+    let falsifierFired = false;
+    const rows = h('div', {});
+
+    expected.forEach((exp, i) => {
+      // The confidence pills' styling, reused rather than re-invented: a class
+      // with no CSS behind it renders as an unstyled button and is invisible to
+      // every source assertion, which is the exact defect class the rendered-
+      // appearance gate exists to catch.
+      const pills = h('div', { class: 'asc-conf-pills', style: 'margin-top:8px' });
+      SELF_SCORE_CHOICES.forEach(([key, label, why]) => {
+        const btn = h('button', { class: 'asc-conf-pill', type: 'button', title: why }, label);
+        btn.addEventListener('click', () => {
+          marks[i].state = key;
+          Array.prototype.forEach.call(pills.children, (b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          refresh();
+        });
+        pills.appendChild(btn);
+      });
+      const note = h('input', { class: 'asc-input', style: 'margin-top:8px',
+        placeholder: 'What in the record shows that? (optional)' });
+      note.addEventListener('input', () => { marks[i].note = note.value; });
+      rows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:18px' : '' },
+        h('div', { class: 'asc-prompt-text' },
+          exp.expectation
+          + (exp.horizon_days ? ' (within ' + exp.horizon_days + ' days)' : '')),
+        pills, note));
+    });
+
+    let falsifierBlock = null;
+    if (falsifiers.length) {
+      const box = h('input', { type: 'checkbox', id: 'ascFalsifierFired' });
+      box.addEventListener('change', () => { falsifierFired = box.checked; });
+      falsifierBlock = h('div', { class: 'asc-field', style: 'margin-top:22px' },
+        h('label', { class: 'asc-label' }, 'You said you would be wrong if:'),
+        h('ul', { class: 'asc-case-list' }, ...falsifiers.map((f) => h('li', {}, f))),
+        h('label', { class: 'asc-submit-row', style: 'margin-top:10px;cursor:pointer' },
+          box, h('span', {}, 'That happened.')));
+    }
+
+    const save = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg' }, 'Save and continue');
+    const hint = h('span', { class: 'asc-submit-hint' });
+    function refresh() {
+      const marked = marks.filter((m) => m.state).length;
+      save.disabled = marked === 0;
+      hint.textContent = marked
+        ? ''
+        : 'Mark at least one expectation before continuing.';
+    }
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      save.textContent = 'Saving…';
+      try {
+        await api('/tasks/' + encodeURIComponent(task.task_id) + '/trajectory-self-score', {
+          method: 'POST',
+          body: {
+            marks: marks.filter((m) => m.state),
+            falsifier_fired: falsifierFired,
+          },
+        });
+        toast('Recorded. Your own expectations, checked against the record.', 'success');
+        continueTrajectory(data);
+      } catch (e) {
+        if (e.status === 401) return;
+        save.disabled = false;
+        save.textContent = 'Save and continue';
+        toast('Could not save that: ' + (e.message || 'unknown error'), 'error');
+      }
+    });
+    refresh();
+
+    return h('div', { class: 'asc-card asc-card-pad asc-substage' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step' }, 'Your call'),
+        h('div', { class: 'asc-substage-title' }, 'Which of your expectations held?')),
+      h('div', { class: 'asc-help', style: 'margin-bottom:12px' },
+        'Judge against what this record actually shows. It reflects the treatment '
+        + 'that was actually given — where you proposed something different, this '
+        + 'does not test your plan.'),
+      rows, falsifierBlock,
+      h('div', { class: 'asc-submit-row', style: 'margin-top:22px' }, hint, save));
+  }
+
+  function trajectoryContinueButton(data) {
+    const btn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Continue');
+    btn.addEventListener('click', () => continueTrajectory(data));
+    return btn;
+  }
+
+  // Continue the walk. The next point is opened by id rather than by drawing from
+  // the queue, so a physician mid-chart stays on that patient — reading a new
+  // chart is the expensive part of a task, and the whole per-decision time saving
+  // (§5) comes from paying it once.
+  function continueTrajectory(data) {
+    const next = (data.progress || {}).next_task_id;
+    if (next) { openTaskById(next); return; }
+    renderEvalView();
   }
 
   // ─── Grounding (mirror of backend validation.grounding_status) ──────────────
@@ -3698,6 +4002,33 @@
     return _SPECIALTY_CYCLE[acc % _SPECIALTY_CYCLE.length];
   }
 
+  /* The care-team handoff (§8.4): what the physician before you committed.
+   *
+   * Their assessment and what they expected — never what actually happened. The
+   * outcome of their decision is precisely what THIS physician is being asked to
+   * predict, and the server does not send it; this function must never grow a
+   * fetch that goes looking for it. It reads state.task and stops. */
+  function renderRelayHandoff() {
+    const ho = state.task && state.task.relay_handoff;
+    if (!ho) return null;                 // point 0, a solo walk, or an ordinary case
+    const line = (label, value) => (value
+      ? h('div', { class: 'asc-handoff-row' },
+          h('span', { class: 'asc-handoff-k' }, label),
+          h('span', { class: 'asc-handoff-v' }, value))
+      : null);
+    const list = (label, items) => ((items && items.length)
+      ? h('div', { class: 'asc-handoff-row' },
+          h('span', { class: 'asc-handoff-k' }, label),
+          h('span', { class: 'asc-handoff-v' }, items.join('; ')))
+      : null);
+    return h('div', { class: 'asc-handoff' },
+      h('div', { class: 'asc-handoff-h' },
+        'HANDOFF · ' + (ho.from_label || 'the previous physician')),
+      line('Assessment', ho.assessment),
+      list('Expecting', ho.expectations),
+      list('Would change my mind', ho.falsifiers));
+  }
+
   function renderTaskWorkspace() {
     const task = state.task;
     const d = state.draft;
@@ -3716,6 +4047,18 @@
     // chart primes the answer.
     const promptCard = h('div', { class: 'asc-card asc-prompt-card' },
       h('div', { class: 'asc-card-pad' },
+        // §7 removed the metadata chip row (difficulty/modality prime the answer
+        // before the chart is read). The trajectory banner is NOT that: it says
+        // which decision point of which chart walk this is, which a physician
+        // needs to orient at all — the same fact the dashboard card used to carry
+        // before one-button entry replaced the card list.
+        renderTrajectoryBanner(),
+        // §8.4 — the handoff sits ABOVE the question, because it is context the
+        // physician reads before deciding anything, exactly as a verbal handoff
+        // precedes the ward round. Rendered from the served payload only: the
+        // server sends the predecessor's COMMITMENT and never their reveal or
+        // self-score, so there is nothing here to hide and nothing to fetch.
+        renderRelayHandoff(),
         h('div', { class: 'asc-prompt-label' }, caseObj ? 'Clinical question' : 'Clinical prompt'),
         h('div', { class: 'asc-prompt-text' }, promptText),
       ));
@@ -5697,8 +6040,114 @@
     setTimeout(updateSubmitState, 0);
     // The decisive-action capture is OPTIONAL, so it lives in its own card ABOVE the
     // confidence + submit gate: never wedged into the commit moment (Audit §13).
-    const decisive = renderDecisiveActionCard();
-    return decisive ? h('div', {}, decisive, confidenceCard) : confidenceCard;
+    // The expected-trajectory card sits above BOTH, because on a longitudinal case
+    // it is the highest-value thing the physician writes and must not read as an
+    // afterthought bolted to the submit button.
+    const parts = [renderExpectedTrajectoryCard(), renderDecisiveActionCard(), confidenceCard]
+      .filter(Boolean);
+    return parts.length > 1 ? h('div', {}, ...parts) : confidenceCard;
+  }
+
+  // ── Expected trajectory (Longitudinal Cases §3.3, field 3) ─────────────────
+  // "What should happen next if this assessment is right, and what would tell me I
+  // am wrong." Assessment and plan are opinions; this is a PREDICTION, and a
+  // prediction is the only thing an outcome can verify. On a trajectory case the
+  // chart's own next encounter checks it — nobody grades it, the record does.
+  //
+  // Clearly OPTIONAL, in its own card, never a required step and never wedged into
+  // the submit gate. A physician who cannot name a falsifier for this decision must
+  // be able to say so: a fabricated one is worse than none, because it will be
+  // scored against a real chart and the score will mean nothing.
+  function renderExpectedTrajectoryCard() {
+    const d = state.draft;
+    if (!isV3()) return null;
+    const et = d.expected_trajectory;
+    const onTrajectory = !!(state.task && state.task.trajectory_id);
+
+    const rows = h('div', {});
+    const paintRows = () => {
+      clear(rows);
+      et.expectations.forEach((exp, i) => {
+        const text = autoGrow(h('textarea', {
+          class: 'asc-textarea',
+          placeholder: i === 0
+            ? 'e.g. enzymes stay down and bilirubin falls over 2–3 weeks'
+            : 'another thing you expect to see',
+        }, exp.expectation || ''));
+        text.addEventListener('input', () => { exp.expectation = text.value; saveDraft(); });
+        const days = h('input', {
+          class: 'asc-input', type: 'number', min: '1', max: '1825',
+          style: 'max-width:150px', placeholder: 'within … days',
+          value: exp.horizon_days === '' || exp.horizon_days == null ? '' : String(exp.horizon_days),
+        });
+        // A prediction with no horizon is not falsifiable — "bilirubin will fall"
+        // is true eventually. Optional, because a specialist may genuinely not want
+        // to commit to a window, but asked for every time.
+        days.addEventListener('input', () => { exp.horizon_days = days.value; saveDraft(); });
+        const remove = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button' }, 'Remove');
+        remove.addEventListener('click', () => {
+          et.expectations.splice(i, 1);
+          if (!et.expectations.length) et.expectations.push({ expectation: '', horizon_days: '' });
+          saveDraft(); paintRows();
+        });
+        rows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:14px' : '' },
+          text,
+          h('div', { class: 'asc-submit-row', style: 'margin-top:8px' },
+            days, et.expectations.length > 1 ? remove : null)));
+      });
+    };
+    paintRows();
+    const addExp = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button', style: 'margin-top:10px' },
+      '+ Add another expectation');
+    addExp.addEventListener('click', () => {
+      et.expectations.push({ expectation: '', horizon_days: '' }); saveDraft(); paintRows();
+    });
+
+    const falsRows = h('div', {});
+    const paintFals = () => {
+      clear(falsRows);
+      et.falsifiers.forEach((f, i) => {
+        const ta = autoGrow(h('textarea', {
+          class: 'asc-textarea',
+          placeholder: 'e.g. if GGT climbs again, the stent has occluded',
+        }, f || ''));
+        ta.addEventListener('input', () => { et.falsifiers[i] = ta.value; saveDraft(); });
+        falsRows.appendChild(h('div', { class: 'asc-field', style: i ? 'margin-top:12px' : '' }, ta));
+      });
+    };
+    paintFals();
+    const addFals = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button', style: 'margin-top:10px' },
+      '+ Add another');
+    addFals.addEventListener('click', () => { et.falsifiers.push(''); saveDraft(); paintFals(); });
+
+    const info = infoDot('Why we ask', [
+      onTrajectory
+        ? 'This chart continues. Once you submit, we show you what actually happened '
+          + 'next and you mark which of your expectations held — from the record, not '
+          + 'from a reviewer’s opinion.'
+        : 'A stated expectation with a stated falsifier is a prediction rather than an '
+          + 'opinion, and a prediction is the only thing an outcome can check.',
+      'Skip it when you cannot name one. A made-up falsifier is worse than none: it '
+      + 'gets checked against a real chart, and the check means nothing.',
+      'We score anticipation of what the record shows, never a counterfactual. What '
+      + 'happened next reflects the treatment actually given, not the plan you propose.',
+    ]);
+
+    return h('div', { class: 'asc-card asc-card-pad asc-substage' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step asc-substage-step--optional' }, 'Optional'),
+        h('div', { class: 'asc-substage-title' }, 'Expected trajectory', info)),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label' },
+          'If your assessment is right, what should happen next?'),
+        h('div', { class: 'asc-help', style: 'margin-bottom:8px' },
+          'One expectation per box. Add a time window where you can commit to one.'),
+        rows, addExp),
+      h('div', { class: 'asc-field', style: 'margin-top:18px;margin-bottom:0' },
+        h('label', { class: 'asc-label' }, 'What would tell you that you are wrong?'),
+        h('div', { class: 'asc-help', style: 'margin-bottom:8px' },
+          'The observation that would make you abandon this assessment.'),
+        falsRows, addFals));
   }
 
   // Decisive action (Audit §13): the physician-named verifiable outcome: the test or
@@ -7306,10 +7755,24 @@
         timedOut = !done.done;
       }
       const n = recordCount != null ? recordCount : 0;
+      // Longitudinal reveal (§4 Phase 4). Captured BEFORE the draft is cleared and
+      // the view is re-rendered: the seal has just been honoured — the action is
+      // committed — so this is the first legal moment to show what happened next.
+      const revealTask = (state.task && state.task.trajectory_id
+                          && payload.expected_trajectory) ? state.task : null;
       // The submission is committed server-side the moment we got the 202, so a
       // poll timeout is "still finalizing", NOT a failure; never lose the work.
       clearDraft(taskId);
       stopTimer();
+      if (revealTask) {
+        // Straight to the reveal, not through a toast and a fresh queue draw. The
+        // physician has just made a prediction about a real patient; making them
+        // click back to find out whether it held is the single most disengaging
+        // thing this product could do with it.
+        state.submitting = false;
+        renderTrajectoryOutcomeView(revealTask);
+        return;
+      }
       if (timedOut) {
         toast('Submitted. Still finalizing in the background. It will appear once the pipeline completes.', 'success');
       } else if (finalStatus === 'needs_qa') {
@@ -7517,6 +7980,27 @@
         tool_name: (da.tool_name || '').trim() || null,
         must_precede_final_answer: da.must_precede_final_answer !== false,
         rationale: (da.rationale || '').trim(),
+      };
+    }
+    // Expected trajectory (Longitudinal Cases §3.3 field 3). Sent only when the
+    // physician actually wrote an expectation; the server normalizes and stores
+    // None for anything that is not a usable prediction, so an empty shell here
+    // would only inflate the falsifier corpus's count with nothing behind it.
+    const et = d.expected_trajectory || {};
+    const expectations = (et.expectations || [])
+      .filter((e) => e && (e.expectation || '').trim())
+      .map((e) => {
+        const days = parseInt(e.horizon_days, 10);
+        return {
+          expectation: e.expectation.trim(),
+          horizon_days: Number.isFinite(days) ? days : null,
+        };
+      });
+    if (expectations.length) {
+      payload.expected_trajectory = {
+        expectations,
+        falsifiers: (et.falsifiers || []).map((f) => (f || '').trim()).filter(Boolean),
+        note: (et.note || '').trim(),
       };
     }
     return payload;
@@ -8233,6 +8717,19 @@
         state.pipelineFocus = (entry && (entry.upload_id || entry.uploadId)) || null;
         renderAdminView();
       },
+      // PRD CASE-BATCHES §2.5 — route cases to one physician, entered from their
+      // row. The same flow as picking them in the send bar, not a second one:
+      // this only pre-selects them in Batches, so there is one place where
+      // "who gets what" is decided and one place it can be got wrong.
+      openBatchesFor: (physician) => {
+        state.adminTab = 'work'; state.adminSub.work = 'assign';
+        state.batches = {
+          overview: null, batch: null, rows: null, selected: {}, busy: false,
+          err: null, mode: 'explicit', userIds: [physician && physician.id].filter(Boolean),
+          specialty: '', doctors: physician ? [physician] : null, proposal: null,
+        };
+        renderAdminView();
+      },
       // Move the Physicians sub-tab strip from inside a section (the roster's
       // "N mid-onboarding" notice links to Signups). The section owns its views;
       // the shell owns which tab looks selected, so the jump has to come back
@@ -8320,14 +8817,497 @@
     // §1.3 — QA is NOT deleted. Removing it orphans POST /qa/approve-all and the
     // submission queue, both live. It lands here, beside the work it grades.
     body.appendChild(adminSubnav('work', [
-      ['tasks', 'Tasks'], ['assign', 'Assign'], ['qa', 'QA'], ['metrics', 'Metrics'],
+      ['tasks', 'Tasks'], ['assign', 'Batches'], ['qa', 'QA'], ['metrics', 'Metrics'],
     ]));
     const inner = h('div', {});
     body.appendChild(inner);
     if (state.adminSub.work === 'qa') renderAdminQA(inner);
-    else if (state.adminSub.work === 'assign') renderAdminAssign(inner);
+    else if (state.adminSub.work === 'assign') renderAdminBatches(inner);
     else if (state.adminSub.work === 'metrics') renderAdminMetrics(inner);
     else renderAdminTasks(inner);
+  }
+
+  /* Batches: the three case classes, previewed and sent.
+   *
+   * Before this, routing meant pasting task ids into a textarea — which works
+   * only if you already know the ids, and there is nowhere in the product that
+   * tells you them for a chart walk. So the surface starts from what an admin
+   * actually has: three classes of case, counted.
+   *
+   * The longitudinal class is the one with a rule attached. A chart walk is
+   * ordered, and the server refuses a selection that skips earlier points (it
+   * re-derives the required set — the client is not trusted with sequence, and a
+   * test asserts this file contains no sequence comparison). So the UI's job is
+   * to make the implied set VISIBLE before sending, not to compute authority
+   * over it: selecting point 5 shows "+5 earlier points included" and sends them,
+   * and if this file ever gets that arithmetic wrong the server still refuses.
+   */
+  const BATCH_META = {
+    longitudinal: { title: 'LONGITUDINAL V4', accent: 'purple' },
+    real_static: { title: 'REAL · STATIC V4', accent: 'green' },
+    synthetic: { title: 'SYNTHETIC V3', accent: 'orange' },
+  };
+
+  function renderAdminBatches(body) {
+    clear(body);
+    const view = state.batches || (state.batches = {
+      overview: null, batch: null, rows: null, selected: {}, busy: false,
+      err: null, mode: 'all', userIds: [], specialty: '', doctors: null, proposal: null,
+      resolved: null, relay: false, relayWalk: null, relaySeed: null,
+      relayPreview: null, chain: null,
+    });
+    const host = h('div', {});
+    body.appendChild(host);
+
+    function selectedIds() { return Object.keys(view.selected).filter((k) => view.selected[k]); }
+
+    /* The implied set comes from the SERVER, and this file contains no
+     * comparison of sequence indices at all.
+     *
+     * The screen still needs to say "3 selected, +5 earlier points included"
+     * before an operator commits, and the obvious way to get that number is a
+     * loop over sequence_index right here. That is exactly what this product
+     * does not allow anywhere, for a reason that outlives this screen: a client
+     * that knows how to order a walk is a client somebody will later trust to
+     * enforce the order, and the seal would then be one hand-typed task id away
+     * from being defeated. A test asserts this file contains no such comparison,
+     * and it should keep passing for the admin surface as firmly as for the
+     * doctor's.
+     *
+     * So: one cheap call on selection change, answered by the same function
+     * ``allocate`` refuses with — the count shown and the set committed cannot
+     * disagree, because they are the same derivation. */
+    function resolveSelection() {
+      const chosen = selectedIds();
+      if (!chosen.length) { view.resolved = null; return Promise.resolve(null); }
+      return api('/admin/batches/resolve-selection',
+                 { method: 'POST', body: { task_ids: chosen } })
+        .then((res) => { view.resolved = res; return res; })
+        .catch(() => { view.resolved = null; return null; });
+    }
+
+    function load() {
+      view.busy = true; paint();
+      api('/admin/batches').then((res) => {
+        view.overview = res; view.busy = false; paint();
+      }).catch((e) => { view.err = e.message; view.busy = false; paint(); });
+    }
+
+    function openBatch(key, trajectoryId) {
+      view.batch = key; view.rows = null; view.selected = {}; view.proposal = null;
+      view.busy = true; paint();
+      api('/admin/batches/' + encodeURIComponent(key)).then((res) => {
+        view.rows = res.cases || []; view.busy = false;
+        view.chain = null;
+        // A walk that has already been sent gets its chain loaded, so a stalled
+        // one is visible on the screen an admin is already looking at rather
+        // than only to somebody who thinks to go looking for it.
+        if (key === 'longitudinal' && trajectoryId) loadChain(trajectoryId);
+        else paint();
+      }).catch((e) => { view.err = e.message; view.busy = false; paint(); });
+    }
+
+    function loadChain(trajectoryId) {
+      api('/admin/batches/relay/' + encodeURIComponent(trajectoryId))
+        .then((c) => { view.chain = c; paint(); })
+        .catch(() => paint());               // an unsent walk has no chain yet
+    }
+
+    function loadDoctors() {
+      if (view.doctors) return Promise.resolve(view.doctors);
+      return api('/admin/physicians').then((res) => {
+        view.doctors = (res.physicians || res.rows || []).filter((d) => d.real_data_approved);
+        return view.doctors;
+      }).catch(() => { view.doctors = []; return view.doctors; });
+    }
+
+    function send(dryRun) {
+      /* The resolved set when we have one, the raw selection otherwise. Falling
+       * back is safe: the server re-derives and refuses a payload missing a
+       * predecessor, naming what to add, so the worst case is a message rather
+       * than a stranded assignment. */
+      const ids = (view.resolved && view.resolved.task_ids) || selectedIds();
+      if (!ids.length) return;
+      if (view.relay && view.relayWalk) { sendRelay(dryRun); return; }
+      const payload = { task_ids: ids, dry_run: dryRun, labels_per_case: 1 };
+      if (view.mode === 'all') payload.to_all = true;
+      else if (view.mode === 'specialty') payload.specialty = view.specialty;
+      else payload.user_ids = view.userIds;
+
+      view.busy = true; view.err = null; paint();
+      api('/admin/assignments/allocate', { method: 'POST', body: payload })
+        .then((res) => {
+          view.proposal = res; view.busy = false;
+          if (!dryRun) {
+            toast(res.targeting === 'all'
+              ? `${ids.length} case(s) released to the open queue.`
+              : `Sent ${ids.length} case(s) to ${Object.keys(res.per_physician || {}).length} doctor(s).`);
+            view.selected = {};
+            openBatch(view.batch);
+            return;
+          }
+          paint();
+        })
+        .catch((e) => {
+          view.busy = false;
+          /* The server names the points a selection is missing. Saying "400" here
+           * and making the admin diff two lists by hand would be the product
+           * knowing something and not saying it. */
+          const d = e && e.detail;
+          if (d && d.error === 'missing_trajectory_predecessors') {
+            view.err = 'That selection skips earlier points in a chart walk: '
+              + Object.keys(d.missing).map((k) => '#' + d.missing[k].join(', #')).join(' · ')
+              + '. A walk must be sent from its first unanswered point onward.';
+          } else if (d && d.error === 'not_approved_for_real_data') {
+            view.err = 'Not approved for real de-identified cases: '
+              + (d.emails || []).join(', ') + '. Approve them first, or the '
+              + 'assignment could never be served.';
+          } else {
+            view.err = (e && e.message) || 'Send failed.';
+          }
+          paint();
+        });
+    }
+
+    /* Rendered INLINE rather than in a modal, deliberately. An admin deciding
+     * who walks a chart opens point 0, then point 3, then point 0 again; a
+     * dialog that has to be dismissed between each turns comparison into
+     * clicking. It also keeps the table's selection state on screen. */
+    function preview(taskId) {
+      view.previewFor = taskId;
+      api('/admin/batches/preview/' + encodeURIComponent(taskId)).then((res) => {
+        if (view.previewFor !== taskId) return;   // a later click won
+        view.preview = res; paint();
+      }).catch((e) => toast('Could not load preview: ' + e.message, 'error'));
+    }
+
+    function paintPreview() {
+      const res = view.preview;
+      if (!res) return;
+      const close = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, 'Close preview');
+      close.addEventListener('click', () => { view.preview = null; view.previewFor = null; paint(); });
+      host.appendChild(h('div', { class: 'asc-card asc-preview-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-eyebrow' }, res.eyebrow),
+          res.trajectory
+            ? h('div', { class: 'asc-dim' },
+                `Decision point ${res.trajectory.position} of ${res.trajectory.n_points} · `
+                + 'the chart is truncated here exactly as the physician sees it')
+            : null,
+          h('div', { class: 'asc-prompt-label' }, 'Clinical question'),
+          h('div', { class: 'asc-prompt-text' }, res.prompt || ''),
+          renderCasePanelReadOnly(res.task),
+          close)));
+    }
+
+    /* The relay send. A separate endpoint, not a flag on allocate, because it
+     * commits a different thing: a rotation (which doctor takes which point),
+     * plus walk_mode on every point. The seed is fixed from the preview so the
+     * mapping the admin was SHOWN is the one that commits — otherwise preview and
+     * commit are two draws from the same distribution and the screen is a lie
+     * they cannot detect. */
+    function sendRelay(dryRun) {
+      if (!view.userIds.length) {
+        view.err = 'Pick the doctors for the relay first.'; paint(); return;
+      }
+      if (view.relaySeed == null) view.relaySeed = Math.floor(Math.random() * 1e9);
+      view.busy = true; view.err = null; paint();
+      api('/admin/batches/relay', { method: 'POST', body: {
+        trajectory_id: view.relayWalk, user_ids: view.userIds,
+        dry_run: dryRun, seed: view.relaySeed,
+      } }).then((res) => {
+        view.busy = false;
+        if (dryRun) { view.relayPreview = res; paint(); return; }
+        toast(`Relay sent — ${res.n_points} point(s) across ${res.n_doctors} doctors.`);
+        view.relayPreview = null; view.relaySeed = null; view.selected = {};
+        openBatch(view.batch);
+      }).catch((e) => {
+        view.busy = false;
+        const d = e && e.detail;
+        view.err = (d && d.message) || (e && e.message) || 'Relay send failed.';
+        paint();
+      });
+    }
+
+    /* The chain, for a walk that is already out (§8.7). The point the chart is
+     * WAITING on is the only one marked as such — a 13-point walk sitting at
+     * point 2 has one problem, not eleven, and a view that flagged the rest
+     * would be unreadable exactly when it matters. */
+    /* The rotation, before it commits: #0 → Dr A · #1 → Dr B · … */
+    function paintRelayPreview() {
+      const r = view.relayPreview;
+      if (!r) return;
+      const reshuffle = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' },
+        'Reshuffle');
+      reshuffle.addEventListener('click', () => {
+        view.relaySeed = Math.floor(Math.random() * 1e9); sendRelay(true);
+      });
+      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Proposed relay'),
+        h('div', { class: 'asc-dim' },
+          r.n_points + ' point(s) across ' + r.n_doctors + ' doctor(s). '
+          + 'Only the first is serveable on send; each later point unlocks when '
+          + 'the one before it is submitted.'),
+        h('div', { class: 'asc-chain' }, (r.mapping || []).map((m) =>
+          h('span', { class: 'asc-chain-cell' },
+            h('span', {}, '#' + m.sequence_index + ' → '),
+            h('span', { class: 'asc-dim' }, m.email || m.user_id)))),
+        reshuffle)));
+    }
+
+    function paintChain() {
+      const c = view.chain;
+      if (!c) return;
+      const dot = { done: '✓', waiting: '●', later: '–', retired: '×' };
+      const cells = (c.points || []).map((p) => {
+        const late = p.state === 'waiting' && (p.waiting_hours || 0) >= 24;
+        const kids = [h('span', { class: 'asc-chain-mark' }, dot[p.state] || '–'),
+          h('span', {}, '#' + p.sequence_index)];
+        if (p.state === 'waiting') {
+          kids.push(h('span', { class: 'asc-dim' },
+            ' waiting ' + (p.waiting_hours == null ? '?' : Math.round(p.waiting_hours)) + 'h'));
+          const re = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+            'Reassign');
+          re.addEventListener('click', () => reassign(c.trajectory_id, p));
+          kids.push(re);
+        }
+        return h('span', { class: 'asc-chain-cell' + (late ? ' is-late' : '') }, ...kids);
+      });
+      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Chain · ' + (c.walk_mode || 'solo')),
+        h('div', { class: 'asc-dim' }, c.n_done + ' of ' + c.n_points + ' done'),
+        h('div', { class: 'asc-chain' }, ...cells))));
+    }
+
+    function reassign(trajectoryId, point) {
+      loadDoctors().then((docs) => {
+        const pick = (docs || []).filter((d) => d.id !== point.user_id);
+        if (!pick.length) { toast('No other approved doctor to hand it to.', 'error'); return; }
+        const sel = h('select', { class: 'asc-input' },
+          pick.map((d) => h('option', { value: d.id }, d.name || d.email)));
+        const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Reassign');
+        const box = h('div', { class: 'asc-card asc-card-pad' },
+          h('div', {}, 'Hand point #' + point.sequence_index + ' to:'), sel, go);
+        go.addEventListener('click', () => {
+          api('/admin/batches/relay/' + encodeURIComponent(trajectoryId) + '/reassign',
+              { method: 'POST', body: { task_id: point.task_id, user_id: sel.value } })
+            .then((res) => { view.chain = res.chain; toast('Reassigned.'); paint(); })
+            .catch((e) => toast('Could not reassign: ' + e.message, 'error'));
+        });
+        host.appendChild(box);
+      });
+    }
+
+    function paint() {
+      clear(host);
+      if (view.err) host.appendChild(h('div', { class: 'asc-inline-error' }, view.err));
+      if (view.busy && !view.rows) { host.appendChild(loadingCard('Loading batches…')); return; }
+
+      if (!view.batch) { paintLevel1(); return; }
+      paintLevel2();
+    }
+
+    function paintLevel1() {
+      const ov = view.overview;
+      if (!ov) return;
+      const cards = h('div', { class: 'asc-batch-cards' });
+      const lg = ov.longitudinal || {};
+      cards.appendChild(batchCard('longitudinal',
+        `${lg.n_trajectories || 0} trajector${(lg.n_trajectories === 1) ? 'y' : 'ies'} · ${lg.n_points || 0} pts`,
+        `${lg.n_unrouted || 0} unrouted`));
+      cards.appendChild(batchCard('real_static',
+        `${(ov.real_static || {}).n_cases || 0} cases`, 'open queue'));
+      cards.appendChild(batchCard('synthetic',
+        `${(ov.synthetic || {}).n_cases || 0} cases`, 'open queue'));
+      host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('h3', {}, 'Case batches'),
+        h('div', { class: 'asc-dim' },
+          'Longitudinal cases are held back from every doctor’s queue until you '
+          + 'send them. That is the resting state, not a fault: an unrouted walk '
+          + 'shows here and nowhere else.'),
+        cards)));
+    }
+
+    function batchCard(key, line1, line2) {
+      const meta = BATCH_META[key];
+      const b = h('button', { class: 'asc-batch-card', type: 'button' },
+        h('div', { class: 'asc-batch-title' }, meta.title),
+        h('div', { class: 'asc-batch-count' }, line1),
+        h('div', { class: 'asc-dim' }, line2));
+      b.addEventListener('click', () => openBatch(key));
+      return b;
+    }
+
+    function paintLevel2() {
+      const back = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, '← All batches');
+      back.addEventListener('click', () => { view.batch = null; view.rows = null; paint(); });
+      host.appendChild(back);
+
+      const rows = view.rows || [];
+      const table = h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {},
+          h('th', {}, ''), h('th', {}, 'Case'), h('th', {}, 'Specialty'),
+          h('th', {}, 'Difficulty'), h('th', {}, 'Status'), h('th', {}, ''))),
+        h('tbody', {}, rows.map(rowFor)));
+      host.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('h3', {}, BATCH_META[view.batch].title),
+          h('div', { class: 'asc-table-wrap' }, table))));
+      paintPreview();
+      paintChain();
+      paintRelayPreview();
+      paintSendBar();
+    }
+
+    function statusLabel(r) {
+      if (r.assigned_to) return 'routed → ' + r.assigned_to;
+      if (r.distribution === 'assigned_only') return 'unrouted';
+      if (r.label_count > 0) return `labeled ${r.label_count}/${r.max_labels || 1}`;
+      return 'in open queue';
+    }
+
+    function rowFor(r) {
+      const cb = h('input', { type: 'checkbox' });
+      cb.checked = !!view.selected[r.task_id];
+      cb.addEventListener('change', () => {
+        view.selected[r.task_id] = cb.checked;
+        if (!cb.checked) delete view.selected[r.task_id];
+        paintSendBar();                          // immediate, with the old count
+        resolveSelection().then(paintSendBar);   // then the authoritative one
+      });
+      const prev = h('button', { class: 'asc-btn asc-btn-ghost', type: 'button' }, 'Preview');
+      prev.addEventListener('click', () => preview(r.task_id));
+      const label = (r.trajectory_id && r.sequence_index != null)
+        ? h('span', {}, h('span', { class: 'asc-mono' }, '#' + r.sequence_index), ' ',
+            h('span', { class: 'asc-dim asc-mono' }, r.task_id))
+        : h('span', { class: 'asc-mono' }, r.task_id);
+      return h('tr', {},
+        h('td', {}, cb), h('td', {}, label), h('td', {}, r.specialty || '—'),
+        h('td', {}, r.difficulty || '—'), h('td', {}, statusLabel(r)), h('td', {}, prev));
+    }
+
+    function paintSendBar() {
+      const old = host.querySelector('.asc-send-bar');
+      if (old) old.remove();
+      const chosen = selectedIds();
+      if (!chosen.length) return;
+      const extra = (view.resolved && view.resolved.n_added) || 0;
+
+      const modeSel = h('select', { class: 'asc-input' },
+        h('option', { value: 'all' }, 'All approved doctors'),
+        h('option', { value: 'specialty' }, 'Specialty'),
+        h('option', { value: 'explicit' }, 'Specific doctors'));
+      modeSel.value = view.mode;
+      modeSel.addEventListener('change', () => {
+        view.mode = modeSel.value;
+        if (view.mode === 'explicit') loadDoctors().then(paintSendBar);
+        else paintSendBar();
+      });
+
+      const extras = [];
+      if (view.mode === 'specialty') {
+        const inp = h('input', { class: 'asc-input', placeholder: 'e.g. hepatology' });
+        inp.value = view.specialty;
+        inp.addEventListener('input', () => { view.specialty = inp.value.trim().toLowerCase(); });
+        extras.push(inp);
+      } else if (view.mode === 'explicit') {
+        const sel = h('select', { class: 'asc-input', multiple: 'multiple', size: '5' },
+          (view.doctors || []).map((d) => h('option', { value: d.id },
+            `${d.name || d.email} · ${d.specialty || '—'} · ${d.tier || '—'}`)));
+        sel.addEventListener('change', () => {
+          view.userIds = Array.prototype.slice.call(sel.selectedOptions).map((o) => o.value);
+        });
+        extras.push(sel);
+      }
+
+      /* Send to All on a longitudinal batch UN-SEALS it — the cases leave
+       * assigned_only and any eligible doctor may draw them. That is a real,
+       * deliberate choice and it is stated before the click, not discovered
+       * after it. */
+      const warn = (view.mode === 'all' && view.batch === 'longitudinal')
+        ? h('div', { class: 'asc-inline-warn' },
+            'Longitudinal cases sent to All enter the open queue — any eligible '
+            + 'doctor may draw them, in sequence order.')
+        : null;
+
+      const dry = h('button', { class: 'asc-btn', type: 'button' }, 'Preview send');
+      dry.addEventListener('click', () => send(true));
+      const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Send');
+      go.addEventListener('click', () => send(false));
+
+      /* §8.3 — Send as: solo or relay, offered only when the selection is exactly
+       * one whole trajectory. Not offered otherwise because a relay is defined
+       * over a walk: half a chart split between five doctors is neither a solo
+       * walk nor a handoff chain, and the server would refuse it anyway. */
+      const walkIds = {};
+      (view.rows || []).forEach(function (r) {
+        if (r.trajectory_id) walkIds[r.trajectory_id] = (walkIds[r.trajectory_id] || 0) + 1;
+      });
+      const chosenWalks = {};
+      chosen.forEach(function (id) {
+        const row = (view.rows || []).find(function (r) { return r.task_id === id; });
+        if (row && row.trajectory_id) {
+          chosenWalks[row.trajectory_id] = (chosenWalks[row.trajectory_id] || 0) + 1;
+        }
+      });
+      const walkKeys = Object.keys(chosenWalks);
+      view.relayWalk = null;
+      const wholeWalk = (walkKeys.length === 1
+        && chosenWalks[walkKeys[0]] === walkIds[walkKeys[0]]
+        && chosen.length === chosenWalks[walkKeys[0]]) ? walkKeys[0] : null;
+      view.relayWalk = wholeWalk;
+
+      const relayToggle = wholeWalk ? h('label', { class: 'asc-send-mode' },
+        (function () {
+          const cb = h('input', { type: 'checkbox' });
+          cb.checked = !!view.relay;
+          cb.addEventListener('change', () => { view.relay = cb.checked; paintSendBar(); });
+          return cb;
+        })(),
+        ' Send as relay — one doctor per point, in sequence') : null;
+
+      const bar = h('div', { class: 'asc-send-bar' },
+        h('span', {}, `${chosen.length} case(s) selected`
+          + (extra > 0 ? ` (+${extra} required earlier point(s) included)` : '')),
+        h('span', {}, 'Send to: '), modeSel, ...extras, relayToggle, warn, dry, go);
+      host.appendChild(bar);
+
+      if (view.proposal && view.proposal.dry_run) {
+        const per = view.proposal.per_physician || {};
+        host.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+          h('h3', {}, 'Proposed send'),
+          h('div', { class: 'asc-dim' },
+            `${view.proposal.cases} case(s) · ${Object.keys(per).length} doctor(s)`),
+          (view.proposal.notes || []).map((n) => h('div', { class: 'asc-dim' }, n)))));
+      }
+    }
+
+    load();
+  }
+
+  /* A read-only case body for the admin preview.
+   *
+   * It renders the SERVED payload (the endpoint hands back exactly what the
+   * doctor's own /tasks/{id} returns), so there is nothing to truncate here —
+   * a longitudinal point's stored case IS its visible window. This function must
+   * never reach past `task` for "more context": the whole point of previewing
+   * through the serve payload is that admin cannot see what the portal hides. */
+  function renderCasePanelReadOnly(task) {
+    const c = (task && task.case) || null;
+    if (!c) return h('div', { class: 'asc-dim' }, 'No structured case on this task.');
+    const section = (title, items, fmt) => (items && items.length)
+      ? h('div', { class: 'asc-case-section' },
+          h('div', { class: 'asc-case-h' }, title),
+          h('ul', {}, items.map((it) => h('li', {}, fmt(it)))))
+      : null;
+    return h('div', { class: 'asc-case-panel' },
+      section('Problems', c.problem_list, (p) => p.condition || String(p)),
+      section('Medications', c.medications, (m) => [m.drug, m.dose].filter(Boolean).join(' ')),
+      section('Labs', c.lab_panels, (p) =>
+        `${p.panel || 'panel'} · day ${p.collected_offset_days}`),
+      section('Notes', c.notes, (n) =>
+        `day ${n.collected_offset_days}: ${(n.text || '').slice(0, 400)}`),
+      section('Studies', c.studies, (st) => st.modality || st.study || String(st)));
   }
 
   /* Assign: who does which case.
@@ -9276,6 +10256,26 @@
   const _diffBadgeClass = (band) => (
     band === 'hard' ? 'asc-badge-red' : band === 'medium' ? 'asc-badge-amber' : 'asc-badge-gray');
 
+  // Longitudinal density (PRD 2 §2): why this encounter is or is not a decision
+  // point, WITH the measurements. 34 of the 59 encounters across the four real
+  // charts fail this gate; an admin looking at a chart that yielded 3 points out
+  // of 17 needs to read which threshold each one missed, or the gate is
+  // unarguable — and the gate is the product.
+  function renderDensityLine(p) {
+    const d = p.density;
+    if (!d) return null;
+    if (p.qualifies_as_decision_point) {
+      return h('div', { class: 'asc-case-note-meta' },
+        'Decision point · ' + d.n_distinct_dates + ' date(s), ' + d.n_events
+        + ' event(s), ' + d.n_resource_types + ' resource type(s)'
+        + (p.outcome_verifiable
+            ? ' · a later encounter can check it'
+            : ' · nothing later in the record to check it against'));
+    }
+    return h('div', { class: 'asc-case-note-meta' },
+      'Below the decision-point gate: ' + (d.reasons || []).join('; '));
+  }
+
   function renderProposalRow(ic, p, refresh) {
     const wrap = h('div', {
       class: 'asc-card-pad',
@@ -9290,7 +10290,8 @@
           'index event day ' + p.index_event_offset
           + ' · window ' + (p.encounter_span || []).join(' … ')
           + ' · ' + (p.n_events || 0) + ' recorded events'),
-        h('div', { class: 'asc-card-sub' }, (p.index_rationale || {}).reason || '')),
+        h('div', { class: 'asc-card-sub' }, (p.index_rationale || {}).reason || ''),
+        renderDensityLine(p)),
       h('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap' },
         // The difficulty band is a CLAIM until it is measured, and the plan never
         // measures — so the preview says so rather than showing a bare band.
@@ -9410,6 +10411,51 @@
       }
     });
 
+    // ── Longitudinal trajectory (PRD 2 §4 Phase 5) ───────────────────────────
+    // A different product from a batch of independent cases, so it is a different
+    // button with its own stated count and its own stated price. The confirm is not
+    // ceremony: this writes N tasks at $75 a completed submission, and §9.3 exists
+    // because "a trajectory is not a discount on physician time — it is N tasks
+    // that happen to share a chart".
+    const nPoints = plan.decision_points || 0;
+    const nVerifiable = plan.verifiable_decision_points || 0;
+    const trajBtn = h('button', { class: 'asc-btn asc-btn-primary' },
+      'Chain ' + nPoints + ' decision point(s) into one trajectory');
+    if (!nPoints) trajBtn.setAttribute('disabled', '');
+    trajBtn.addEventListener('click', async () => {
+      const cost = (nPoints * 75).toLocaleString();
+      if (!window.confirm(
+        'Create a ' + nPoints + '-point longitudinal trajectory from this chart?\n\n'
+        + '· ' + nVerifiable + ' of the ' + nPoints + ' points can be checked against a later '
+        + 'encounter. The last point has nothing after it in the record.\n'
+        + '· Points are single-labelled. They are excluded from the κ pool by '
+        + 'construction, so a second label buys no agreement statistic.\n'
+        + '· Physician cost at the standard rate: about $' + cost + '.\n\n'
+        + 'Each physician answers the points in order and cannot read ahead.')) return;
+      trajBtn.setAttribute('disabled', '');
+      trajBtn.textContent = 'Generating trajectory…';
+      clear(status);
+      try {
+        const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
+          { method: 'POST', body: { dry_run: false, trajectory: true } });
+        overlay.remove();
+        clear(statusBox);
+        statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
+          'Trajectory ' + (r.trajectory_id || '') + ': ' + (r.trajectory_points || 0)
+          + ' point(s), ' + (r.trajectory_verifiable_points || 0) + ' outcome-verifiable'
+          + (r.estimated_cost_usd ? ' · est. $' + r.estimated_cost_usd : '')
+          + (r.gated ? ' · ' + r.gated + ' gated' : '')
+          + (r.failed ? ' · ' + r.failed + ' failed' : '') + '.'));
+        toast('Chained ' + (r.trajectory_points || 0) + ' decision points into one trajectory.', 'success');
+        loadIngestionLists();
+      } catch (e) {
+        status.appendChild(h('div', { class: 'asc-inline-error' },
+          (e && e.detail && e.detail.error) || e.message || 'Trajectory generation failed.'));
+        trajBtn.removeAttribute('disabled');
+        trajBtn.textContent = 'Chain ' + nPoints + ' decision point(s) into one trajectory';
+      }
+    });
+
     const popup = h('div', {
       class: 'call-team-popup',
       style: 'max-width:900px;max-height:90vh;overflow:auto;text-align:left',
@@ -9421,13 +10467,19 @@
         (ic.patient_key || '') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
         + nGen + ' generatable'
         + (plan.specialty_hint ? ' · specialty ' + plan.specialty_hint : '')),
-      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:6px' },
         'Nothing here has been written. Difficulty is measured only when you generate — '
         + 'a band shown as "proposed" is the structural prior, not a frontier failure rate.'),
+      // Both numbers, always, because they are what a chart walk is priced on and
+      // they are never the same number.
+      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
+        nPoints + ' encounter(s) clear the decision-point gate (≥2 dates, ≥8 events, '
+        + '≥2 resource types) · ' + nVerifiable + ' have a later encounter to be checked '
+        + 'against. Encounters below the gate are single-contact draws, not decisions.'),
       list,
       status,
-      h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
-        allBtn,
+      h('div', { style: 'display:flex;gap:10px;margin-top:16px;flex-wrap:wrap' },
+        allBtn, trajBtn,
         h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto',
                       onClick: () => overlay.remove() }, 'Close')));
     overlay.appendChild(popup);
