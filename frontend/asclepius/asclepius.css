@@ -4882,8 +4882,8 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   border-color: var(--green-line);
   background: var(--green-wash);
 }
-/* Closed, not gone: progress stays visible. A skipped stop reads as closed
-   too, because a skip is permanent — see the module header. */
+/* Closed, not gone: dimmed, so progress stays visible. A skipped stop reads as
+   closed too, because a skip is permanent — see the module header. */
 .asc-fr-check-item.is-done .asc-fr-check-label { color: var(--ink-faint); }
 .asc-fr-check-item.is-current .asc-fr-check-label { color: var(--asc-text); }
 .asc-fr-check-label { flex: 1; }
@@ -4907,6 +4907,19 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   cursor: pointer;
 }
 .asc-fr-check-exit:hover { color: var(--asc-text); }
+
+/* §6 stop 6: every stop closed. One line, confetti-free. */
+.asc-fr-checklist-done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+}
+.asc-fr-checklist-done .asc-fr-check-box {
+  border-color: var(--green-line);
+  background: var(--green-wash);
+  transform: none;
+}
 
 /* Re-entry: a quiet chip on the dashboard, never a modal ambush. */
 .asc-fr-chip {

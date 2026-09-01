@@ -1975,14 +1975,20 @@ export function Step5Credentials({
   const c = data.credentials;
   const autofilled = new Set(data.cvAutofilled || []);
   const set = (patch: Partial<Credentials>) => {
-    setData({ credentials: { ...c, ...patch } });
     // A chip claims "this is what your CV said". The moment the physician
     // rewrites the field, that claim is false, so the chip goes — per key, so
     // correcting the NPI does not silently un-label the specialty.
+    //
+    // ONE setData call, carrying both halves. Two calls would each read `data`
+    // from this render's closure, so two edits landing before the next render
+    // would have the second one restore a chip the first had just cleared.
     const touched = Object.keys(patch).filter((k) => autofilled.has(k));
-    if (touched.length) {
-      setData({ cvAutofilled: (data.cvAutofilled || []).filter((k) => !touched.includes(k)) });
-    }
+    setData({
+      credentials: { ...c, ...patch },
+      ...(touched.length
+        ? { cvAutofilled: (data.cvAutofilled || []).filter((k) => !touched.includes(k)) }
+        : {}),
+    });
   };
   const show = (n: 1 | 2 | 3) => reviewMode || phase === undefined || phase === n;
   /** A field label, with the "from your CV" chip when this key was prefilled. */

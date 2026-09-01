@@ -293,8 +293,16 @@ function applyCvParse(
   // chip that says we read it off their CV.
   fill("npi", parsed.npi);
   // Degrees are a list; the primary is the first medical one we recognized.
+  // The qualification control renders `degree` for a US physician and
+  // `qualification` for everyone else, and its own onChange writes BOTH. The
+  // prefill has to do the same: filling only `degree` left a doctor licensed
+  // outside the US looking at an empty box wearing a "from your CV" chip —
+  // a label claiming their CV said something the field does not show.
   const degree = (parsed.degrees || []).find((d) => ["MD", "DO", "MBBS", "MBChB", "DPM"].includes(d));
-  if (degree) fill("degree", degree);
+  if (degree) {
+    fill("degree", degree);
+    fill("qualification", degree);
+  }
   if (parsed.years_in_practice != null) fill("yearsInActivePractice", String(parsed.years_in_practice));
 
   // Board certifications: only when the physician has not started their own, and
@@ -767,7 +775,12 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         cvAutofilled: filled,
       };
     });
-    setStep("review");
+    // Advance ONLY from the CV screen. This resolves on a background poll that
+    // outlives the screen that started it, so a physician who pressed Back
+    // while their CV was being read would otherwise be yanked forward onto
+    // Review mid-thought. The parse itself still lands either way — it is
+    // waiting for them when they arrive.
+    setStep((cur) => (cur === "cv" ? "review" : cur));
   }, []);
 
   /** Poll the parse until it reaches a terminal stage, then advance.

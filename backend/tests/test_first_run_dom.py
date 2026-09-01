@@ -344,6 +344,30 @@ def test_the_manual_stop_offers_the_founders_intro_and_finishes_the_checklist():
     assert out["calls"][-1]["body"] == {"action": "skip", "stop": "manual"}
 
 
+def test_the_checklist_card_collapses_to_one_line_when_every_stop_is_closed():
+    """§6 stop 6: "the card collapses to a one-line 'You're all set' with
+    confetti-free restraint". It is not REMOVED — a checklist that vanishes at
+    the moment you finish it takes the sense of having finished with it."""
+    out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
+        "welcome": "done", "start": "done", "practice": "done", "community": "done",
+        "earnings": "done", "manual": "skipped"}}}) + """
+      window.FirstRunWalkthrough.resume(ctx);
+      done(function () {
+        var card = find(rootNode, 'asc-fr-checklist')[0];
+        console.log(JSON.stringify({
+          collapsed: !!card && card.classList.contains('asc-fr-checklist-done'),
+          text: card ? textOf(card).trim() : null,
+          items: card ? find(card, 'asc-fr-check-item').length : -1,
+        }));
+      });
+    """)
+    assert out["collapsed"], "the checklist did not collapse"
+    assert "You’re all set" in out["text"]
+    assert out["items"] == 0
+    # No exclamation, no count, no confetti.
+    assert "!" not in out["text"]
+
+
 def test_the_finish_card_dismisses_the_checklist_for_good():
     out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
         "welcome": "done", "start": "done", "practice": "done", "community": "done",
@@ -418,9 +442,29 @@ def test_the_shell_gates_on_rotation_before_the_walkthrough():
 
 
 def test_the_walkthrough_is_offered_to_physicians_only():
+    """Admins, QA reviewers and advisors do not get a first-login walkthrough.
+
+    The role check is the SHELL's, not the module's — the module only answers
+    the checklist question — so it is asserted on the one predicate both the
+    entry gate and the dashboard chip go through.
+    """
     js = _PORTAL_JS.read_text(encoding="utf-8")
-    assert ("if (state.user.role === 'evaluator' && !isAdvisor()\n"
-            "        && window.FirstRunWalkthrough") in js
+    body = js[js.index("function firstRunPending()"):]
+    body = body[:body.index("\n  }") + 4]
+    assert "state.user.role === 'evaluator'" in body
+    assert "!isAdvisor()" in body
+    assert "window.FirstRunWalkthrough.shouldRun(state.user)" in body
+    # And both entry points go through it rather than re-deriving the rule.
+    assert "if (firstRunPending()) { startFirstRun(); return; }" in js
+    assert "if (!firstRunPending()) return null;" in js
+
+
+def test_the_review_deep_link_is_read_before_the_walkthrough_opens():
+    """`#review` comes from a link we already emailed. Returning early on the
+    walkthrough would both ignore it and leave it in the URL to fire on some
+    later reload."""
+    js = _PORTAL_JS.read_text(encoding="utf-8")
+    assert js.index("readReviewHash()") < js.index("if (firstRunPending()) { startFirstRun()")
 
 
 def test_the_walkthrough_builds_its_dom_with_h_and_never_innerHTML():

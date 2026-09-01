@@ -32,7 +32,7 @@ from typing import Any, Dict, Iterator, Optional, Tuple
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from asclepius import assets
 from asclepius import auth as asc_auth
@@ -174,6 +174,7 @@ async def onboarding_demo_ticket(
 @router.get("/api/asclepius/assets/onboarding-demo")
 async def onboarding_demo(
     range_header: Optional[str] = Header(None, alias="Range"),
+    if_none_match: Optional[str] = Header(None, alias="If-None-Match"),
     authorization: Optional[str] = Header(None),
     t: Optional[str] = None,
 ):
@@ -190,15 +191,25 @@ async def onboarding_demo(
     # the same blob, so a strong validator costs nothing to compute and is
     # exactly right. A re-record changes the sha, which invalidates every cached
     # copy without anyone having to remember to bust a query string.
+    etag = '"%s"' % row["sha256"]
     headers = {
         "Accept-Ranges": "bytes",
         "Cache-Control": _CACHE_CONTROL,
-        "ETag": f'"{row["sha256"]}"',
+        "ETag": etag,
         "X-Content-Type-Options": "nosniff",
-        # The store also holds de-identified clinical images. Nothing served from
-        # it should ever be framed by a third-party page.
+        # Render in the page, never prompt a save. Framing is refused globally by
+        # the app's `frame-ancestors 'none'` (http_security.py) — this header does
+        # not do that job and must not be mistaken for it.
         "Content-Disposition": "inline",
     }
+    # Re-sending 73 MB because a validator was ignored is the one avoidable cost
+    # on this route. Non-Range requests only: answering 304 to a range is a
+    # separate negotiation (If-Range), and getting that half right is how a
+    # player ends up unable to seek.
+    if range_header is None and if_none_match and etag in [
+        v.strip() for v in if_none_match.split(",")
+    ]:
+        return Response(status_code=304, headers=headers)
     rng = _parse_range(range_header, size)
     if rng is None:
         headers["Content-Length"] = str(size)

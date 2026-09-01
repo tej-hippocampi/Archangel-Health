@@ -615,7 +615,8 @@ async def approve_signup(
     #
     # Nothing about it can fail the approval, which has already committed above.
     temp_password: Optional[str] = None
-    if _needs_credentials(user):
+    needs_credentials = _needs_credentials(user)
+    if needs_credentials:
         try:
             # token_urlsafe(9) — 12 characters, ~72 bits. Long enough that it
             # cannot be guessed in the hours it is alive, short enough to retype
@@ -635,12 +636,13 @@ async def approve_signup(
                           "(approval stands; the physician has no credential yet)")
             temp_password = None
 
+    welcome_sent = False
     if is_email_transport_configured():
         try:
             if temp_password:
                 # §4.4 — the welcome. Carries the credentials, the mission block,
                 # and the founders' intro link.
-                await send_html_email(
+                welcome_sent = bool(await send_html_email(
                     user["email"],
                     application_welcome_subject((user.get("full_name") or "").strip()),
                     build_application_welcome_email(
@@ -648,25 +650,40 @@ async def approve_signup(
                         email=user["email"],
                         temp_password=temp_password,
                         sign_in_url=_portal_base() + "/asclepius",
-                    ), importance_headers=True)
-            else:
+                    ), importance_headers=True))
+            elif not needs_credentials:
                 # An account that already HAS a password — an invited member, or
                 # a pre-v2 signup — is not being given credentials, so it gets
                 # the notice it always got. Sending them a "your temporary
                 # password is …" email with no password in it would be worse than
                 # sending nothing.
-                await send_html_email(
+                welcome_sent = bool(await send_html_email(
                     user["email"], "You're approved for Asclepius",
                     build_asclepius_approved_email(
                         full_name=(user.get('full_name') or '').strip(),
                         workspace_url=_portal_base() + '/asclepius',
-                    ), importance_headers=True)
+                    ), importance_headers=True))
+            # The remaining case — credentials were NEEDED and the mint failed —
+            # sends nothing on purpose. "You're approved, open your workspace"
+            # pointing at a door this physician has no key to is worse than
+            # silence, and the response below tells the admin so.
         except Exception:
             log.exception("[verify] welcome email failed (decision stands)")
+    # An approval whose welcome never left is an approval the physician does not
+    # know about, and for a v2 application it is also an account they cannot sign
+    # in to. The admin who clicked approve is the only person positioned to
+    # notice, so say it here rather than only in a log they will not read.
     return {"ok": True, "user_id": user_id, "tier": tier,
             "verification_status": "approved",
             "verified_by": updated.get("verified_by"),
-            "verified_at": updated.get("verified_at")}
+            "verified_at": updated.get("verified_at"),
+            "credentials_issued": bool(temp_password),
+            "welcome_email_sent": welcome_sent,
+            "warning": (
+                None if welcome_sent or not is_email_transport_configured()
+                else "The approval is recorded, but the welcome email did not send. "
+                     "The physician has not been told, and has no sign-in details."
+            )}
 
 
 @router.post("/queue/{user_id}/reject")

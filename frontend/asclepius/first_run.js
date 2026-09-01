@@ -130,8 +130,17 @@
 
   /** The persistent right-side checklist — the researched activation pattern.
    *  Passive by construction: it reports, it never interrupts, and a closed stop
-   *  is struck through rather than removed so progress stays visible. */
+   *  is dimmed rather than removed so progress stays visible.
+   *
+   *  §6 stop 6: once every stop is closed the card collapses to a single line.
+   *  It is not removed mid-flow, because a checklist that vanishes at the moment
+   *  you finish it takes the sense of having finished with it. */
   function checklistCard() {
+    if (!openStops().length) {
+      return h('aside', { class: 'asc-fr-checklist asc-fr-checklist-done' },
+        h('span', { class: 'asc-fr-check-box', 'aria-hidden': 'true' }, '✓'),
+        h('span', { class: 'asc-fr-check-title' }, 'You’re all set'));
+    }
     var items = STOPS.map(function (id) {
       var state = stops[id];
       var cls = 'asc-fr-check-item'
@@ -440,9 +449,10 @@
       eyebrow: 'Stop 5 of 6',
       body: body,
       primary: primaryBtn('Show me Earnings', function () {
-        // Register the interest as we go past: this is the list of people to DM
-        // when banking opens, and asking them to opt in twice would be asking
-        // twice for something they already said yes to by reading this.
+        // Stamp that this physician has SEEN the coming-soon card. Not an
+        // opt-in — the button says "Show me Earnings", and reading a card is
+        // not consent to anything — but it is what the payments track reads to
+        // find who has been told banking is coming and is waiting on it.
         ctx.api('/me/bank-link/interest', { method: 'POST' }).catch(function () { /* best-effort */ });
         close('earnings', 'done', function () {
           teardownChrome();

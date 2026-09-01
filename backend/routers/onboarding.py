@@ -1648,7 +1648,11 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     director_email = (row.get("director_email") or "").strip()
     director = ts.get_asclepius_person(row["id"], director_email) if director_email else None
     if not director:
-        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+        # v2 §2 deleted the institution screen from the physician flow, so the old
+        # copy here pointed at a screen that no longer exists. Every screen that
+        # writes onto this row seeds it (``_ensure_director_person``), which means
+        # reaching finish without one is "you have not filled anything in yet".
+        raise HTTPException(status_code=400, detail="Start your application first.")
     # Which door this link came from. An advisor and a referral partner walk a
     # four-screen signup that never shows the credential or attestation screens,
     # so demanding them here is demanding something the wizard never offered.

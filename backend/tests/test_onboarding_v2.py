@@ -514,6 +514,72 @@ def test_approve_mints_a_hashed_temp_password_and_sends_the_welcome(client: Test
             or e.get("event_type") == "temp_password_issued"
 
 
+def test_a_failed_credential_mint_sends_nothing_and_says_so(client: TestClient, monkeypatch):
+    """"You're approved, open your workspace" pointing at a door this physician
+    has no key to is worse than silence — and the admin who clicked approve is
+    the only person positioned to notice, so the response has to say it."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    applicant = store.provision_user(
+        email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
+        password_hash=asc_store_mod.NO_PASSWORD_HASH,
+        role="evaluator", full_name="Amara Okafor", credentials={}, attestations={},
+    )
+    store.set_verification_status(applicant["id"], "pending")
+
+    sent: list = []
+
+    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
+        sent.append(subject)
+        return True
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("disk is full")
+
+    import routers.asclepius_verify as verify_module
+    monkeypatch.setattr(verify_module, "send_html_email", _send)
+    monkeypatch.setattr(verify_module, "is_email_transport_configured", lambda: True)
+    monkeypatch.setattr(store, "set_temp_password", _boom)
+
+    c = TestClient(app)
+    r = c.post(f"/api/asclepius/verify/queue/{applicant['id']}/approve",
+               json={"tier": "labeler"}, headers=headers_for(admin))
+    # The approval still commits — a credential-minting failure must never undo
+    # a decision an admin has made.
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["verification_status"] == "approved"
+    assert body["credentials_issued"] is False
+    assert body["welcome_email_sent"] is False
+    assert "no sign-in details" in body["warning"]
+    assert sent == [], "an approval with no credential must not promise a workspace"
+
+
+def test_a_successful_approval_reports_that_the_welcome_went_out(client: TestClient, monkeypatch):
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    applicant = store.provision_user(
+        email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
+        password_hash=asc_store_mod.NO_PASSWORD_HASH,
+        role="evaluator", full_name="Amara Okafor", credentials={}, attestations={},
+    )
+    store.set_verification_status(applicant["id"], "pending")
+
+    async def _send(to, subject, html_body, **kwargs):  # noqa: ANN001
+        return True
+
+    import routers.asclepius_verify as verify_module
+    monkeypatch.setattr(verify_module, "send_html_email", _send)
+    monkeypatch.setattr(verify_module, "is_email_transport_configured", lambda: True)
+
+    c = TestClient(app)
+    body = c.post(f"/api/asclepius/verify/queue/{applicant['id']}/approve",
+                  json={"tier": "labeler"}, headers=headers_for(admin)).json()
+    assert body["credentials_issued"] is True
+    assert body["welcome_email_sent"] is True
+    assert body["warning"] is None
+
+
 def test_approving_an_account_that_already_has_a_password_does_not_rotate_it(client: TestClient, monkeypatch):
     """An invited member or a pre-v2 signup chose their own password. Minting
     over it would replace a credential they are using today."""
@@ -796,6 +862,36 @@ def test_video_endpoint_honours_range_and_requires_auth(client: TestClient):
 
     # Auth required.
     assert c.get("/api/asclepius/assets/onboarding-demo").status_code == 401
+
+
+def test_a_matching_validator_saves_the_re_download(client: TestClient):
+    """The one avoidable cost on this route is re-sending 73 MB to a browser
+    that already has it. A Range request is deliberately NOT short-circuited:
+    that is a separate negotiation, and half-implementing it breaks seeking.
+    """
+    store = fresh_store()
+    u = make_user(store)
+    data = _install_demo(store)
+    c = TestClient(app)
+
+    first = c.get("/api/asclepius/assets/onboarding-demo", headers=headers_for(u))
+    etag = first.headers["etag"]
+    assert etag
+
+    again = c.get("/api/asclepius/assets/onboarding-demo",
+                  headers={**headers_for(u), "If-None-Match": etag})
+    assert again.status_code == 304
+    assert again.content == b""
+
+    # A stale validator still gets the body.
+    stale = c.get("/api/asclepius/assets/onboarding-demo",
+                  headers={**headers_for(u), "If-None-Match": '"nope"'})
+    assert stale.status_code == 200 and stale.content == data
+
+    # And a range is served even when the validator matches.
+    ranged = c.get("/api/asclepius/assets/onboarding-demo",
+                   headers={**headers_for(u), "If-None-Match": etag, "Range": "bytes=0-9"})
+    assert ranged.status_code == 206 and ranged.content == data[:10]
 
 
 def test_the_literal_demo_path_is_not_swallowed_by_the_asset_id_route(client: TestClient):

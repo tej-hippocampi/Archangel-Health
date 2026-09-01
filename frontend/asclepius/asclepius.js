@@ -1610,23 +1610,21 @@
     // the credential in their inbox stops working the moment they do this, and
     // that is the whole reason it is temporary.
     if (state.user.must_change_password) { renderRotateTempPassword(); return; }
-    // §6: the first-login walkthrough. A newly approved physician lands in the
-    // welcome letter, not on a dashboard they have to reverse-engineer.
-    // Admins, QA reviewers and advisors are excluded here rather than inside the
-    // module: the role is the shell's knowledge, and the checklist question is
-    // the module's.
-    if (state.user.role === 'evaluator' && !isAdvisor()
-        && window.FirstRunWalkthrough
-        && window.FirstRunWalkthrough.shouldRun(state.user)) {
-      startFirstRun();
-      return;
-    }
     // `/asclepius/review` redirects here with `#review` (PRD-1 §2.1). The old
     // standalone URL is in bookmarks and in email we have already sent, so it
     // has to land a reviewer on their work rather than on a generic dashboard.
     // Consumed once — the hash is cleared so a later reload is not permanently
     // pinned to review — and gated on the capability like every other route in.
     if (readReviewHash() && sessionCan('review')) { setPanel('review'); return; }
+    // §6: the first-login walkthrough. A newly approved physician lands in the
+    // welcome letter, not on a dashboard they have to reverse-engineer.
+    //
+    // AFTER the #review hash, deliberately. That hash arrives from a link we
+    // already emailed, and returning before it is read would both ignore the
+    // link and leave it in the URL to fire on some later reload. Admins, QA
+    // reviewers and advisors are excluded here rather than inside the module:
+    // the role is the shell's knowledge, the checklist is the module's.
+    if (firstRunPending()) { startFirstRun(); return; }
     // An advisor lands on the dashboard, not inside the tutorial. Being dropped
     // straight into a case is right for a physician whose first job is to learn
     // the interface; someone here to look around should be shown the product
