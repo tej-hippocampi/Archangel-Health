@@ -385,3 +385,23 @@ def test_a_failed_attempt_offers_another_go_rather_than_the_door():
     """)
     assert out["label"] == "Take it again"
     assert "replay:true" in out["calls"], "the retry must start a clean run"
+
+
+def test_leaving_the_practice_case_does_not_put_you_straight_back_into_it():
+    """"Leave for now" renders the dashboard, and the dashboard's queue call
+    403s on the gate. If that 403 relaunched the tour, leaving would be
+    impossible: the physician would bounce out and back in forever.
+
+    So the dashboard renders a CARD and boot() is the only thing that opens the
+    tour unasked.
+    """
+    src = _LINE_COMMENT.sub("", JS)
+    dash = _LINE_COMMENT.sub("", _extract_function(JS, "renderDashboardView"))
+    assert "goToPracticeCase()" not in dash, (
+        "the dashboard relaunches the tour on a gate 403, so Leave for now loops"
+    )
+    assert "renderPracticeGateCard" in dash
+    assert "function renderPracticeGateCard" in src
+    # And leaving still lands on the dashboard rather than a dead end.
+    leave = _LINE_COMMENT.sub("", _extract_function(JS, "leaveTutorial"))
+    assert "renderDashboardView()" in leave

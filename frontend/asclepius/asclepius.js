@@ -1932,6 +1932,21 @@
     else renderLogin(gate.message, 'notice');
   }
 
+  /** The dashboard's one card when the practice case is still owed.
+   *
+   *  Not an error state: nothing has gone wrong and there is exactly one thing
+   *  to do, so it says that and offers the button. */
+  function renderPracticeGateCard() {
+    return h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-dash-widget-title' }, 'One practice case first'),
+      h('p', { class: 'asc-help', style: 'margin:8px 0 16px' },
+        'It takes about four minutes and runs on a real case where we already '
+        + 'know the answer. Real cases open once you have passed it, and you '
+        + 'can retake it as many times as you like.'),
+      h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
+        onClick: () => startTutorial({}) }, 'Open the practice case'));
+  }
+
   /** True when this error is the practice-case gate rather than a real refusal.
    *
    *  Matched on the structured `error` code, never on the message: the copy is
@@ -2120,6 +2135,7 @@
     let stats = null;
     let scoreInfo = null;
     let queueError = null;
+    let practiceGate = null;
     // No real queue and no earnings, and BOTH endpoints below are on the
     // real-work surface. Asking anyway would produce two 403s and render "we
     // could not load your queue", which is a bug report, not the truth.
@@ -2164,9 +2180,13 @@
       // A gate is not an outage. renderDashboardError says "your queue could
       // not be loaded, so nothing below is a real number", which is true of a
       // 500 and a lie about a physician who simply has not done the practice
-      // case yet. Send them to it instead.
-      if (isPracticeGate(e)) { goToPracticeCase(); return; }
-      queueError = e;
+      // case yet.
+      //
+      // A CARD, not a relaunch. Auto-starting the tour from here would make
+      // "Leave for now" impossible: leaving renders the dashboard, the
+      // dashboard 403s, and the physician is put straight back into the tour
+      // they just left. boot() is the one place that opens it unasked.
+      practiceGate = e;
       }
     }
     const tasks = data.tasks || [];
@@ -2202,7 +2222,9 @@
         h('span', { class: 'asc-dash-card-go', 'aria-hidden': 'true' }, '\u2192')));
     }
 
-    if (queueError) {
+    if (practiceGate) {
+      main.appendChild(renderPracticeGateCard());
+    } else if (queueError) {
       main.appendChild(renderDashboardError(queueError));
     } else if (noRealWork) {
       main.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
