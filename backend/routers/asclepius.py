@@ -5276,11 +5276,15 @@ def _promote_block(
     instead of a clickable button that 409s. Same order as the promote endpoints,
     so the reason shown is the reason that would fire.
     """
-    brokering = {
-        "reason": "brokering",
-        "message": "This upload is held for brokering. Brokering data is never "
-                   "promoted to tasks — the server refuses it.",
-    }
+    def _blocked(value) -> Dict[str, str]:
+        """The reason THIS value is barred, so the disabled button says the thing
+        that lifts it. Brokering never lifts; storage lifts the moment somebody
+        reads the file and sets a destination on this row."""
+        return {
+            "reason": "brokering" if asc_ingestion.is_brokering(value) else "storage",
+            "message": asc_ingestion.promotion_block_reason(value),
+        }
+
     # When cases exist, the EFFECTIVE per-case purpose decides, exactly as the
     # promote endpoints decide it (COALESCE(case.purpose, upload.purpose) — see
     # `promotable` at the call site). Testing the upload row first would have
@@ -5288,15 +5292,17 @@ def _promote_block(
     # to task creation, disabling a button the server would happily have honored.
     # The upload row is consulted only when there are no cases to speak for it.
     if not ingested:
-        if asc_ingestion.is_brokering(upload.get("purpose")):
-            return brokering
+        if asc_ingestion.blocks_promotion(upload.get("purpose")):
+            return _blocked(upload.get("purpose"))
         return {
             "reason": "no_cases",
             "message": "No cases in this upload have finished ingesting. Clear any "
                        "review holds in Partner uploads above.",
         }
     if not promotable:
-        return brokering
+        # Every ingested case is barred. Report the upload's own value, which is
+        # what the operator would resolve, rather than an arbitrary case's.
+        return _blocked(upload.get("purpose"))
     if undetermined:
         return {
             "reason": "specialty",
@@ -5348,7 +5354,8 @@ async def list_ingestion_uploads(
         # than with a second query per upload.
         ingested = [c for c in cases if c.get("status") == "ingested"]
         promotable = [c for c in ingested
-                      if not asc_ingestion.is_brokering(c.get("purpose") or u.get("purpose"))]
+                      if not asc_ingestion.blocks_promotion(
+                          c.get("purpose") or u.get("purpose"))]
         undetermined = [c for c in promotable
                         if asc_ingestion.specialty_is_undetermined(c.get("specialty"))]
         u["specialties"] = sorted({c.get("specialty") for c in cases
@@ -5895,12 +5902,16 @@ async def promote_ingest_case(
     # best-effort by design (it must never strand an upload), so reading only the
     # case column would let a swallowed copy failure present as NULL and resolve
     # to task_creation. Fail-open on the one check whose job is to fail closed.
-    if asc_ingestion.is_brokering(store.ingest_case_effective_purpose(ingest_case_id)):
-        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                        event_type="promote_refused_brokering", actor=admin["id"])
+    _purpose = store.ingest_case_effective_purpose(ingest_case_id)
+    if asc_ingestion.blocks_promotion(_purpose):
+        store.log_event(
+            entity_type="ingest_case", entity_id=ingest_case_id,
+            event_type=("promote_refused_brokering"
+                        if asc_ingestion.is_brokering(_purpose)
+                        else "promote_refused_unreviewed"),
+            actor=admin["id"], payload={"purpose": _purpose})
         raise HTTPException(
-            status_code=409,
-            detail="This case came in on a brokering link and cannot be promoted.")
+            status_code=409, detail=asc_ingestion.promotion_block_reason(_purpose))
     if ic["status"] != "ingested":
         raise HTTPException(status_code=409, detail=f"Case is {ic['status']!r}, not 'ingested'")
     # PRD-I §4.2: a WRONG specialty is worse than a missing one. It routes the case
@@ -6030,7 +6041,7 @@ async def prepare_upload_promotion(
     _purposes = store.ingest_case_purposes_for_upload(upload_id)
     ingested = [c for c in store.list_ingest_cases(upload_id=upload_id)
                 if c.get("status") == "ingested"
-                and not asc_ingestion.is_brokering(
+                and not asc_ingestion.blocks_promotion(
                     _purposes.get(c.get("ingest_case_id"), c.get("purpose")))]
     if not ingested:
         raise HTTPException(status_code=409,
@@ -6082,21 +6093,30 @@ async def promote_upload_all(
     # case eventually slips through.
     _purposes = store.ingest_case_purposes_for_upload(upload_id)
 
-    def _is_brokering(c: Dict[str, Any]) -> bool:
-        return asc_ingestion.is_brokering(
-            _purposes.get(c.get("ingest_case_id"), c.get("purpose")))
+    def _case_purpose(c: Dict[str, Any]) -> Optional[str]:
+        return _purposes.get(c.get("ingest_case_id"), c.get("purpose"))
 
-    ingested = [c for c in candidates if not _is_brokering(c)]
-    skipped_brokering = [c for c in candidates if _is_brokering(c)]
+    def _barred(c: Dict[str, Any]) -> bool:
+        return asc_ingestion.blocks_promotion(_case_purpose(c))
+
+    ingested = [c for c in candidates if not _barred(c)]
+    skipped_brokering = [c for c in candidates if _barred(c)]
     if skipped_brokering:
         store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                         event_type="promote_skipped_brokering", actor=admin["id"],
                         payload={"skipped": len(skipped_brokering)})
     if not ingested:
-        detail = ("No ingested cases awaiting promotion in this upload."
-                  if not skipped_brokering else
-                  f"All {len(skipped_brokering)} case(s) in this upload came in on a "
-                  "brokering link and cannot be promoted.")
+        if not skipped_brokering:
+            detail = "No ingested cases awaiting promotion in this upload."
+        else:
+            # Name which bar it was. "Held for brokering" and "nobody has read
+            # this yet" call for completely different next actions, and a batch
+            # that reported the wrong one would send the operator looking for a
+            # decision they had already made.
+            detail = (f"All {len(skipped_brokering)} case(s) in this upload are "
+                      "held. "
+                      + asc_ingestion.promotion_block_reason(
+                          _case_purpose(skipped_brokering[0])))
         raise HTTPException(status_code=409, detail=detail)
     promoted: List[Dict[str, Any]] = []
     promoted_tasks: List[Dict[str, Any]] = []
@@ -6433,12 +6453,16 @@ async def generate_real_cases(
     # else, and before the dry run too: the plan renders the chart and sends it to
     # a third-party model to author questions, which is the activity the rule
     # exists to prevent whether or not a task comes out the other end.
-    if asc_ingestion.is_brokering(store.ingest_case_effective_purpose(ingest_case_id)):
-        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                        event_type="generate_refused_brokering", actor=admin["id"])
+    _purpose = store.ingest_case_effective_purpose(ingest_case_id)
+    if asc_ingestion.blocks_promotion(_purpose):
+        store.log_event(
+            entity_type="ingest_case", entity_id=ingest_case_id,
+            event_type=("generate_refused_brokering"
+                        if asc_ingestion.is_brokering(_purpose)
+                        else "generate_refused_unreviewed"),
+            actor=admin["id"], payload={"purpose": _purpose})
         raise HTTPException(
-            status_code=409,
-            detail="This case came in on a brokering link and cannot be generated from.")
+            status_code=409, detail=asc_ingestion.promotion_block_reason(_purpose))
     if ic["status"] not in ("ingested", "promoted"):
         raise HTTPException(status_code=409,
                             detail=f"Case is {ic['status']!r}, not 'ingested'")

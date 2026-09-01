@@ -226,11 +226,53 @@ def test_every_provider_route_is_observationally_identical(variants):
         # is what stops a later field from quietly making them differ.
         ("get", f"{API}/hs/intake", {}),
         ("get", f"{API}/hs/payouts", {}),
+        # Added with the onboarding flow. Both variants are created with no
+        # application and no team beyond their own account, so these are
+        # identical by construction; asserting it is what stops a later field
+        # from quietly making them differ.
+        ("get", f"{API}/hs/application", {}),
+        ("get", f"{API}/hs/members", {}),
     ]
     for method, path, kw in cases:
         _assert_observationally_identical(call(a, method, path, **kw),
                                           call(b, method, path, **kw),
                                           f"{method.upper()} {path}")
+
+
+def test_the_agreement_is_the_same_document_for_both_variants(variants):
+    """The one provider-facing route the word ban does not apply to, and why.
+
+    The agreement names both things we may do with licensed data, because the
+    PRD requires it to: you cannot license a right you have not disclosed, so
+    the grant says the data may be used for annotation work AND may be licensed
+    onward, and that the allocation of any given record is ours. That is a
+    disclosure to EVERY partner, in identical words, in a document they sign.
+
+    What §0 protects is which one a PARTICULAR partner's data went to, and this
+    route cannot leak that because it does not read the column: the two variants
+    receive byte-identical text once their own names are substituted out. That
+    is a stronger property than "the response does not contain the word", and it
+    is the one asserted here.
+    """
+    a, b = variants
+    ra = a["client"].get(f"{API}/hs/agreement")
+    rb = b["client"].get(f"{API}/hs/agreement")
+    assert ra.status_code == rb.status_code == 200, (ra.text[:200], rb.text[:200])
+    ja, jb = ra.json(), rb.json()
+
+    # Same version, same shape, same signing state.
+    assert ja["doc_version"] == jb["doc_version"]
+    assert ja["can_sign"] == jb["can_sign"]
+    assert ja["signed"] is None and jb["signed"] is None
+
+    # Same text, once each has its own name taken out. A hash that differed
+    # after this substitution would mean the document itself varies by partner,
+    # which is the leak this route could plausibly carry.
+    neutral_a = ja["text"].replace(ja["organization"], "LICENSOR")
+    neutral_b = jb["text"].replace(jb["organization"], "LICENSOR")
+    assert neutral_a == neutral_b
+    # And the hashes DO differ, because each signs a document naming itself.
+    assert ja["doc_sha256"] != jb["doc_sha256"]
 
 
 def test_a_full_upload_is_identical_end_to_end(variants):

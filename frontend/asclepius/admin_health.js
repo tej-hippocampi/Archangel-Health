@@ -55,6 +55,41 @@
     { key: 'brokering', label: 'Brokering' },
   ];
 
+  // The organization's onboarding state, as a chip. Four of these are the PRD's
+  // chips; `declined` is the fifth because Decline is one of the two buttons on
+  // the card and its outcome has to be representable. `active` is also what a
+  // NULL collapses to — a health system provisioned before the state machine
+  // existed — which is why the DLA chip is rendered SEPARATELY: "active, no
+  // agreement on file" is a real and visible condition, not a hidden one.
+  const STATE_CHIPS = {
+    intake: { label: 'Intake', cls: 'asc-badge-gray' },
+    submitted: { label: 'Submitted', cls: 'asc-badge-lime' },
+    approved_awaiting_dla: { label: 'Awaiting DLA', cls: 'asc-badge-amber' },
+    active: { label: 'Active', cls: 'asc-badge-green' },
+    declined: { label: 'Declined', cls: 'asc-badge-gray' },
+  };
+
+  function stateChip(h, state) {
+    const meta = STATE_CHIPS[state] || STATE_CHIPS.active;
+    return h('span', { class: 'asc-badge ' + meta.cls }, meta.label);
+  }
+
+  // `DLA ✓ v1 · signed by {name} · {date}` (PRD §5.3), or the honest absence.
+  // The signer and the date are RENDERED, not hidden in a tooltip: who signed
+  // is the thing an operator scanning this column actually wants, and a
+  // title attribute is invisible to anyone who is not holding a mouse.
+  function dlaChip(h, fmtDate, agreement) {
+    if (!agreement) {
+      return h('span', { class: 'asc-dim asc-mono', style: 'font-size:11px' }, 'no DLA');
+    }
+    return h('div', {},
+      h('span', { class: 'asc-badge asc-badge-green' },
+        'DLA \u2713 ' + (agreement.doc_version || '')),
+      h('div', { class: 'asc-dim', style: 'font-size:11px; margin-top:2px' },
+        (agreement.signed_by || 'signed') +
+        (agreement.signed_at ? ' \u00b7 ' + fmtDate(agreement.signed_at) : '')));
+  }
+
   // Operator-facing labels for the intake answers. The questions themselves are
   // server-owned (the portal renders them from /hs/intake); these are just the
   // short headings we read the replies under.
@@ -115,6 +150,8 @@
     const table = h('table', { class: 'asc-table' },
       h('thead', {}, h('tr', {},
         h('th', {}, 'Health system'),
+        h('th', {}, 'State'),
+        h('th', {}, 'Agreement'),
         h('th', {}, 'ID'),
         h('th', {}, 'Purpose'),
         h('th', {}, 'Physicians'),
@@ -130,6 +167,8 @@
         const chips = (r.purposes || []).map((p) => purposeChip(h, p));
         const tr = h('tr', { class: 'asc-row-click' },
           h('td', {}, h('strong', {}, r.name), r.active ? '' : h('span', { class: 'asc-badge asc-badge-gray', style: 'margin-left: var(--sp-2)' }, 'Inactive')),
+          h('td', {}, stateChip(h, r.onboarding_state)),
+          h('td', {}, dlaChip(h, fmtDate, r.agreement)),
           h('td', {}, h('code', { class: 'asc-mono asc-dim' }, r.hs_id)),
           h('td', {}, chips.length ? chips : '—'),
           h('td', {}, String(r.physicians_linked || 0)),
@@ -357,6 +396,7 @@
 
       body.appendChild(h('div', { class: 'asc-hs-signup-head' },
         h('strong', {}, r.organization || '(no name given)'),
+        h('span', { style: 'margin-left: var(--sp-2)' }, stateChip(h, r.onboarding_state)),
         h('code', { class: 'asc-mono asc-dim', style: 'margin-left: var(--sp-2)' }, r.hs_id)));
       body.appendChild(h('div', { class: 'asc-dim' },
         (r.full_name || 'Someone') + ' · ' + (r.email || 'no email') +
@@ -373,6 +413,45 @@
           ', ' + c.uploads + ' uploads). This signup has its own id and cannot see ' +
           'their data. Check who this is before approving.'));
       });
+
+      // THE FOUR ANSWERS, VERBATIM (PRD §4). The words they chose, in the
+      // order they were asked, with the two answers that change what we are
+      // allowed to do called out — an operator reading this decides whether a
+      // BAA has to exist before a byte moves, and that answer must not be
+      // something they have to go looking for.
+      (r.applications || []).slice(0, 1).forEach((app) => {
+        const dl = h('div', { class: 'asc-hs-intake' });
+        (app.answers || []).forEach((a) => {
+          dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
+            h('div', { class: 'asc-hs-intake-label' }, a.title),
+            h('div', { class: 'asc-hs-intake-value' }, a.words || '—')));
+        });
+        if ((app.specialties || []).length) {
+          dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
+            h('div', { class: 'asc-hs-intake-label' }, 'Specialties'),
+            h('div', { class: 'asc-hs-intake-value' }, app.specialties.join(', '))));
+        }
+        body.appendChild(dl);
+        if (app.needs_baa) {
+          body.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top: var(--sp-2)' },
+            'They cannot de-identify on their side. A BAA has to be executed ' +
+            'before any data moves — approving here does not create one.'));
+        }
+        if (app.authority_unclear) {
+          body.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top: var(--sp-2)' },
+            'They are not sure they have the authority to license this data. ' +
+            'That is a conversation before it is a signature.'));
+        }
+      });
+      if (r.org_level && !(r.applications || []).length) {
+        body.appendChild(h('div', { class: 'asc-dim', style: 'margin-top: var(--sp-2)' },
+          'They have not submitted the four questions yet.'));
+      }
+      if ((r.members || []).length > 1) {
+        body.appendChild(h('div', { class: 'asc-dim', style: 'margin-top: var(--sp-2)' },
+          'Team: ' + r.members.map((m) => m.email || m.username).join(', ') +
+          ' — all of them are emailed the agreement; one of them signs it.'));
+      }
 
       (r.intake || []).slice(0, 1).forEach((entry) => {
         const dl = h('div', { class: 'asc-hs-intake' });
@@ -391,38 +470,77 @@
       }
 
       const actions = h('div', { class: 'asc-hs-signup-actions' });
-      // Two approve buttons, one per destination, matching the shape of the
-      // provision form so the operator's muscle memory transfers. Approval is
-      // the only moment anyone is looking at a self-signup, which is why it
-      // cannot be deferred.
-      PURPOSES.forEach((p) => {
-        actions.appendChild(btn(h, 'Approve · ' + p.label, 'asc-btn-primary', async () => {
+      if (r.org_level) {
+        // ONE Approve, for the whole organization. It approves every account on
+        // it and mails all of them the agreement; one of them signs, and that
+        // is what opens the upload door. No destination is chosen here on
+        // purpose — accounts are minted with it unset so each upload is
+        // resolved deliberately, on the per-upload control in the detail view.
+        actions.appendChild(btn(h, 'Approve', 'asc-btn-primary', async () => {
           try {
-            await api('/admin/health-systems/' + encodeURIComponent(r.hs_id) +
-                      '/accounts/' + encodeURIComponent(r.username) + '/approve',
-                      { method: 'POST', body: { purpose: p.key } });
-            toast(r.organization + ' can upload now.', 'success');
+            const res = await api('/admin/health-systems/' +
+                                  encodeURIComponent(r.hs_id) + '/approve',
+                                  { method: 'POST', body: {} });
+            toast(r.organization + ' has been asked to sign. ' +
+                  (res.emailed || 0) + ' invitation(s) sent.', 'success');
             render(listContainer.parentNode, ctx);
           } catch (e) {
             toast(e.message || 'Could not approve that.', 'error');
           }
         }));
-      });
-      actions.appendChild(btn(h, 'Not a fit', 'asc-btn-ghost', async () => {
-        const reason = window.prompt(
-          'Why? Recorded on the account, not sent to them: a refusal at this ' +
-          'size is a conversation somebody has.');
-        if (reason === null) return;
-        try {
-          await api('/admin/health-systems/' + encodeURIComponent(r.hs_id) +
-                    '/accounts/' + encodeURIComponent(r.username) + '/reject',
-                    { method: 'POST', body: { reason: reason } });
-          toast('Recorded. No email was sent.', 'info');
-          render(listContainer.parentNode, ctx);
-        } catch (e) {
-          toast(e.message || 'Could not record that.', 'error');
-        }
-      }));
+        actions.appendChild(btn(h, 'Decline', 'asc-btn-ghost', async () => {
+          const reason = window.prompt(
+            'Why? Required, recorded on the row, and not sent to them: a ' +
+            'refusal at this size is a conversation somebody has.');
+          if (reason === null) return;
+          if (!reason.trim()) {
+            toast('A reason is required to decline.', 'error');
+            return;
+          }
+          try {
+            await api('/admin/health-systems/' + encodeURIComponent(r.hs_id) +
+                      '/decline', { method: 'POST', body: { reason: reason } });
+            toast('Recorded. No email was sent.', 'info');
+            render(listContainer.parentNode, ctx);
+          } catch (e) {
+            toast(e.message || 'Could not record that.', 'error');
+          }
+        }));
+      } else {
+        // The pre-state-machine path, for an account on an organization that
+        // predates it. Two approve buttons, one per destination, matching the
+        // shape of the provision form so the operator's muscle memory
+        // transfers. Approval is the only moment anyone is looking at one of
+        // these, which is why it cannot be deferred.
+        PURPOSES.forEach((p) => {
+          actions.appendChild(btn(h, 'Approve · ' + p.label, 'asc-btn-primary', async () => {
+            try {
+              await api('/admin/health-systems/' + encodeURIComponent(r.hs_id) +
+                        '/accounts/' + encodeURIComponent(r.username) + '/approve',
+                        { method: 'POST', body: { purpose: p.key } });
+              toast(r.organization + ' can upload now.', 'success');
+              render(listContainer.parentNode, ctx);
+            } catch (e) {
+              toast(e.message || 'Could not approve that.', 'error');
+            }
+          }));
+        });
+        actions.appendChild(btn(h, 'Not a fit', 'asc-btn-ghost', async () => {
+          const reason = window.prompt(
+            'Why? Recorded on the account, not sent to them: a refusal at this ' +
+            'size is a conversation somebody has.');
+          if (reason === null) return;
+          try {
+            await api('/admin/health-systems/' + encodeURIComponent(r.hs_id) +
+                      '/accounts/' + encodeURIComponent(r.username) + '/reject',
+                      { method: 'POST', body: { reason: reason } });
+            toast('Recorded. No email was sent.', 'info');
+            render(listContainer.parentNode, ctx);
+          } catch (e) {
+            toast(e.message || 'Could not record that.', 'error');
+          }
+        }));
+      }
       body.appendChild(actions);
       card.appendChild(body);
     });
@@ -500,6 +618,16 @@
     { key: 'needs_review', title: 'Needs review',
       sub: 'Uploaded, not yet examined.',
       cls: '', actions: ['download', 'review'] },
+    // The default landing place, and the operator's real queue. Download it,
+    // read it, then say what it is for on the row — the controls are in the
+    // Destination column. No Promote button, because there is nothing to
+    // promote until that decision is made.
+    { key: 'storage', title: 'Held in storage',
+      sub: 'Received and stored, used for nothing. Everything arrives here. '
+           + 'Read the file, then set what it is for on the row — task creation '
+           + 'opens the promote controls, brokering routes it out of this '
+           + 'workflow entirely.',
+      cls: '', actions: ['download', 'review'] },
     { key: 'ready_to_promote', title: 'Ready to promote',
       sub: 'Reviewed and clean, not yet a task.',
       cls: '', actions: ['download', 'promote'] },
@@ -574,8 +702,11 @@
           h('div', { class: 'asc-dim' }, data.link_purpose_note))));
     }
 
+    renderApplicationCard(container, ctx, data);
+    renderAgreementsCard(container, ctx, data);
     renderIntakeCard(container, ctx, data);
     renderPayoutsCard(container, ctx, hsId, data);
+    renderInvoicesCard(container, ctx, hsId, data);
 
     // The buckets, in workflow order. Needs attention renders only when
     // non-empty — but ALWAYS above the rest when it exists.
@@ -607,9 +738,10 @@
       h('div', { class: 'asc-hs-meta-label' }, label));
   }
 
-  // Set the purpose on a row the admin has to resolve. A "Purpose not set" row is
-  // a WORK ITEM, not a default — the promotion gate reads NULL as task creation,
-  // so leaving it is a decision, just not one anybody made deliberately.
+  // Set the destination on a row that still needs one. NULL means nobody was
+  // ever asked — a row from before the column had a default — and it now behaves
+  // exactly like storage: held, promotable by nothing, waiting on a person. The
+  // control is here because this is where the operator is looking.
   function purposeResolver(ctx, hsId, username, container) {
     const { h, api, toast } = ctx;
     const wrap = h('span', { style: 'margin-left: var(--sp-2); white-space: nowrap' });
@@ -716,7 +848,10 @@
         h('div', { class: 'asc-dim asc-mono', style: 'font-size:11px' }, it.upload_id),
         custody),
       h('td', {}, purposeChip(h, it),
-        it.resolved ? '' : uploadPurposeResolver(ctx, it.upload_id, hsId, container)),
+        // The server decides whether this row still needs a person; the UI does
+        // not re-derive it. `resolved` is about whether a VALUE is set, which is
+        // a different question now that the default value is a real one.
+        it.needs_decision ? uploadPurposeResolver(ctx, it.upload_id, hsId, container) : ''),
       h('td', {}, caseCountText(it), specialtyNote(h, it)),
       h('td', { class: 'asc-hs-notes' }, notes.length ? notes : '—'),
       h('td', { class: 'asc-hs-actions' }, actions));
@@ -758,6 +893,98 @@
     const b = h('button', { class: 'asc-btn asc-btn-sm ' + cls, style: 'margin-right: var(--sp-1)' }, label);
     b.addEventListener('click', onClick);
     return b;
+  }
+
+  // ─── The application: the four answers, verbatim ──────────
+  function renderApplicationCard(container, ctx, data) {
+    const { h, fmtDate } = ctx;
+    const entries = data.applications || [];
+    if (!entries.length) return;
+    const card = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Their application',
+          h('span', { style: 'margin-left: var(--sp-2)' },
+            stateChip(h, data.onboarding_state))),
+        h('div', { class: 'asc-card-sub' },
+          'The four questions, in the order they were asked, in the words they ' +
+          'chose. Newest first; every submission is kept.'))));
+    entries.forEach((app, i) => {
+      const body = h('div', { class: 'asc-card-pad' });
+      body.appendChild(h('div', { class: 'asc-dim' },
+        (i === 0 ? 'Latest · ' : '') +
+        (app.submitted_at ? fmtDate(app.submitted_at) : '') +
+        (app.username ? ' · answered by ' + app.username : '')));
+      const dl = h('div', { class: 'asc-hs-intake' });
+      (app.answers || []).forEach((a) => {
+        dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
+          h('div', { class: 'asc-hs-intake-label' }, a.title),
+          h('div', { class: 'asc-hs-intake-value' }, a.words || '—')));
+      });
+      if ((app.specialties || []).length) {
+        dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
+          h('div', { class: 'asc-hs-intake-label' }, 'Specialties'),
+          h('div', { class: 'asc-hs-intake-value' }, app.specialties.join(', '))));
+      }
+      body.appendChild(dl);
+      if (i === 0 && app.needs_baa) {
+        body.appendChild(h('div', { class: 'asc-inline-warn' },
+          'They cannot de-identify on their side. A BAA has to be executed ' +
+          'before any data moves.'));
+      }
+      card.appendChild(body);
+    });
+    container.appendChild(card);
+  }
+
+  // ─── Signed agreements: the evidence ──────────────────────
+  // Every signature, with the whole E-SIGN record and a download. Nothing here
+  // can be edited, and there is no control that would try: the row is
+  // append-only in the database, and a UI offering an edit that the database
+  // refuses is a UI teaching an operator that the record is negotiable.
+  function renderAgreementsCard(container, ctx, data) {
+    const { h, fmtDate } = ctx;
+    const rows = data.agreements || [];
+    const state = data.onboarding_state;
+    // Rendered when there is something to say: a signature, or an organization
+    // that is supposed to have one and does not.
+    if (!rows.length && state !== 'approved_awaiting_dla') return;
+    const card = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Data licensing agreement'),
+        h('div', { class: 'asc-card-sub' },
+          rows.length
+            ? 'Signed. These rows are append-only — a newer version is a new ' +
+              'row, and nothing here is ever rewritten.'
+            : 'Approved and waiting on a signature. Any member of this ' +
+              'organization can sign; uploading opens when one of them does.'))));
+    if (!rows.length) {
+      card.appendChild(h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-empty' }, 'Nothing signed yet.')));
+      container.appendChild(card);
+      return;
+    }
+    rows.forEach((r) => {
+      const body = h('div', { class: 'asc-card-pad' });
+      body.appendChild(h('div', {},
+        h('strong', {}, r.typed_name || ''),
+        h('span', { class: 'asc-dim' },
+          (r.typed_title ? ', ' + r.typed_title : '') +
+          ' · ' + (r.signed_at ? fmtDate(r.signed_at) : '') +
+          ' · version ' + (r.doc_version || ''))));
+      body.appendChild(h('div', { class: 'asc-dim', style: 'font-size:12px' },
+        'Signed in as ' + (r.signer_user_id || '') +
+        ' (' + (r.signer_email || 'no address') + ') from ' + (r.ip || 'unknown') +
+        ' · ' + (r.consent_esign ? 'E-SIGN consent recorded' : 'NO E-SIGN CONSENT') +
+        ' · ' + (r.authority_affirmed ? 'authority affirmed' : 'NO AUTHORITY AFFIRMATION')));
+      body.appendChild(h('div', { class: 'asc-hs-reason' },
+        h('code', { class: 'asc-mono' }, 'doc ' + String(r.doc_sha256 || '').slice(0, 24) + '…')));
+      const link = h('a', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+                            href: r.download_url, target: '_blank', rel: 'noopener' },
+                     'Download the signed PDF');
+      body.appendChild(link);
+      card.appendChild(body);
+    });
+    container.appendChild(card);
   }
 
   // ─── What they told us ────────────────────────────────────
@@ -899,6 +1126,92 @@
       h('div', { class: 'asc-hs-payout-grid' },
         amountEl, refEl, descEl, startEl, endEl),
       recordBtn));
+
+    container.appendChild(card);
+  }
+
+  // ─── Invoices ─────────────────────────────────────────────
+  // What we have BILLED, as distinct from what we have PAID them below. The
+  // status is an operator's statement of fact — nothing in this release can
+  // observe that money arrived, and nothing here calls a payment processor.
+  // When a rail is wired it is wired behind these same three endpoints and the
+  // meaning of `paid` does not change.
+  const INVOICE_FLOW = { draft: 'sent', sent: 'paid' };
+
+  function renderInvoicesCard(container, ctx, hsId, data) {
+    const { h, api, toast, fmtDate } = ctx;
+    const rows = data.invoices || [];
+    const card = h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Invoices'),
+        h('div', { class: 'asc-card-sub' },
+          'One per period, per organization. Amounts come from their ' +
+          'agreement\u2019s Schedule A.'))));
+
+    if (rows.length) {
+      card.appendChild(h('div', { class: 'asc-table-wrap' },
+        h('table', { class: 'asc-table' },
+          h('thead', {}, h('tr', {},
+            h('th', {}, 'Period'), h('th', {}, 'For'), h('th', {}, 'Status'),
+            h('th', {}, 'Amount'), h('th', {}, ''))),
+          h('tbody', {}, rows.map((inv) => {
+            const actions = h('td', {});
+            const nextStatus = INVOICE_FLOW[inv.status];
+            if (nextStatus) {
+              actions.appendChild(btn(h, 'Mark ' + nextStatus, 'asc-btn-subtle', async () => {
+                try {
+                  await api('/admin/health-systems/' + encodeURIComponent(hsId) +
+                            '/invoices/' + encodeURIComponent(inv.invoice_id) + '/status',
+                            { method: 'POST', body: { status: nextStatus } });
+                  toast('Marked ' + nextStatus + '.', 'success');
+                  render(container.parentNode, ctx);
+                } catch (e) { toast(e.message || 'Could not update that.', 'error'); }
+              }));
+            }
+            const badgeCls = inv.status === 'paid' ? 'asc-badge-green'
+              : inv.status === 'sent' ? 'asc-badge-amber' : 'asc-badge-gray';
+            return h('tr', {},
+              h('td', {}, h('code', { class: 'asc-mono' }, inv.period || '—')),
+              h('td', {}, inv.description || '—'),
+              h('td', {}, h('span', { class: 'asc-badge ' + badgeCls }, inv.status)),
+              h('td', {}, h('span', { class: 'asc-mono' }, money(inv.amount_cents))),
+              actions);
+          })))));
+    } else {
+      card.appendChild(h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-empty' }, 'No invoices for this organization yet.')));
+    }
+
+    const periodEl = h('input', { class: 'asc-input', type: 'text',
+                                  placeholder: 'Period, e.g. 2026-Q1' });
+    const amountEl = h('input', { class: 'asc-input', type: 'text',
+                                  placeholder: 'Amount, e.g. 25000.00' });
+    const descEl = h('input', { class: 'asc-input', type: 'text',
+                                placeholder: 'What it is for, in words they will read' });
+    const createBtn = btn(h, 'Draft invoice', 'asc-btn-primary', async () => {
+      const dollars = parseFloat((amountEl.value || '').replace(/[$,\s]/g, ''));
+      if (!(periodEl.value || '').trim()) {
+        toast('Give it a period. One invoice per period, per organization.', 'error');
+        return;
+      }
+      if (!isFinite(dollars) || dollars <= 0) {
+        toast('Enter an amount greater than zero.', 'error');
+        return;
+      }
+      try {
+        await api('/admin/health-systems/' + encodeURIComponent(hsId) + '/invoices',
+                  { method: 'POST', body: {
+                    period: periodEl.value.trim(),
+                    amount_cents: Math.round(dollars * 100),
+                    description: (descEl.value || '').trim() || null } });
+        toast('Drafted.', 'success');
+        render(container.parentNode, ctx);
+      } catch (e) { toast(e.message || 'Could not draft that.', 'error'); }
+    });
+    card.appendChild(h('div', { class: 'asc-card-pad asc-hs-payout-form' },
+      h('div', { class: 'asc-card-title' }, 'Draft an invoice'),
+      h('div', { class: 'asc-hs-payout-grid' }, periodEl, amountEl, descEl),
+      createBtn));
 
     container.appendChild(card);
   }

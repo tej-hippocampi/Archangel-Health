@@ -296,45 +296,19 @@ def collect_verify_values(verify_blocks: List[Dict[str, Any]]) -> List[str]:
 
 
 # ─── Dependency-free PDF rendering ────────────────────────────────────────────
-# A minimal, correct single-font PDF writer. Avoids adding a heavyweight PDF
-# dependency to the runtime: the dossier is plain text (watermark, §9 notice,
-# credential fields), which this lays out across as many Letter pages as needed.
+# The writer itself moved to asclepius/pdf_render.py when the signed data
+# licensing agreement needed the same one. The names below are re-exported so
+# this module's call sites, and anything vendored against them, are unchanged.
 
-_PAGE_W, _PAGE_H = 612, 792           # US Letter, 72 dpi
-_MARGIN = 54
-_LINE_H = 14
-_FONT_SIZE = 10
-_HEAD_SIZE = 15
-_WATERMARK_SIZE = 8
-_MAX_CHARS = 92                        # wrap width at 10pt Helvetica
+from asclepius.pdf_render import (  # noqa: E402
+    MAX_CHARS as _MAX_CHARS,
+    assemble_pdf as _assemble_pdf,
+    pdf_escape as _pdf_escape,
+    render_text_pdf as _render_text_pdf,
+    wrap as _wrap,
+)
 
-
-def _pdf_escape(text: str) -> str:
-    return text.replace("\\", r"\\").replace("(", r"\(").replace(")", r"\)")
-
-
-def _wrap(text: str, width: int = _MAX_CHARS) -> List[str]:
-    out: List[str] = []
-    for raw in (text or "").split("\n"):
-        raw = raw.rstrip()
-        if not raw:
-            out.append("")
-            continue
-        line = ""
-        for word in raw.split(" "):
-            if not line:
-                line = word
-            elif len(line) + 1 + len(word) <= width:
-                line += " " + word
-            else:
-                out.append(line)
-                line = word
-            # hard-break absurdly long tokens
-            while len(line) > width:
-                out.append(line[:width])
-                line = line[width:]
-        out.append(line)
-    return out
+_WATERMARK_SIZE = 8   # kept: the dossier's banner size is its own decision
 
 
 def _dossier_lines(dossier: Dict[str, Any]) -> List[tuple]:
@@ -401,102 +375,6 @@ def render_dossier_pdf(dossier: Dict[str, Any]) -> bytes:
     """Render the dossier to a valid multi-page PDF (Helvetica), with the
     confidential watermark on every page. Dependency-free."""
     watermark = dossier.get("watermark") or CREDENTIAL_SUMMARY_WATERMARK
-    rows = _dossier_lines(dossier)
-
-    # Paginate into content streams.
-    usable_top = _PAGE_H - _MARGIN - 24      # leave room for the watermark band
-    usable_bottom = _MARGIN
-    lines_per_page = int((usable_top - usable_bottom) / _LINE_H)
-
-    pages: List[str] = []
-    cur: List[str] = []
-
-    def flush():
-        if cur:
-            pages.append("".join(cur))
-
-    def begin_page():
-        cur.clear()
-        # watermark band
-        cur.append("BT /F1 %d Tf 1 0 0 1 %d %d Tm (%s) Tj ET\n" % (
-            _WATERMARK_SIZE, _MARGIN, _PAGE_H - _MARGIN + 6, _pdf_escape(watermark)))
-
-    y_state = {"y": usable_top}
-    begin_page()
-    count = 0
-    for kind, text in rows:
-        if count >= lines_per_page:
-            flush()
-            begin_page()
-            y_state["y"] = usable_top
-            count = 0
-        y = y_state["y"]
-        if kind == "gap":
-            pass
-        else:
-            size = _HEAD_SIZE if kind == "head" else (_FONT_SIZE if kind != "sub" else 11)
-            cur.append("BT /F1 %d Tf 1 0 0 1 %d %d Tm (%s) Tj ET\n" % (
-                size, _MARGIN, int(y), _pdf_escape(text)))
-        y_state["y"] = y - (_LINE_H + (6 if kind in ("head", "sub") else 0))
-        count += 1
-    flush()
-    if not pages:
-        begin_page()
-        flush()
-
-    return _assemble_pdf(pages)
+    return _render_text_pdf(_dossier_lines(dossier), banner=watermark)
 
 
-def _assemble_pdf(page_streams: List[str]) -> bytes:
-    """Build the PDF object graph (catalog, pages, per-page content + font)."""
-    objects: List[bytes] = []
-
-    def add(obj: bytes) -> int:
-        objects.append(obj)
-        return len(objects)  # 1-based object number
-
-    # WinAnsiEncoding (≈ cp1252) so accented Latin names (e.g. "José") render
-    # correctly rather than as the wrong StandardEncoding glyph.
-    font_num = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
-
-    # Reserve catalog (1) and pages (2) numbers by placing them first conceptually;
-    # we build content + page objects, then pages tree, then catalog.
-    page_obj_nums: List[int] = []
-    content_nums: List[int] = []
-    for stream in page_streams:
-        data = stream.encode("cp1252", "replace")
-        content = b"<< /Length %d >>\nstream\n%s\nendstream" % (len(data), data)
-        content_nums.append(add(content))
-
-    # placeholder for pages tree number (filled after page objects exist)
-    pages_tree_num = len(objects) + len(page_streams) + 1
-    for cnum in content_nums:
-        page = (
-            b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %d %d] "
-            b"/Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>"
-            % (pages_tree_num, _PAGE_W, _PAGE_H, font_num, cnum)
-        )
-        page_obj_nums.append(add(page))
-
-    kids = b" ".join(b"%d 0 R" % n for n in page_obj_nums)
-    pages_tree = b"<< /Type /Pages /Count %d /Kids [%s] >>" % (len(page_obj_nums), kids)
-    pages_tree_actual = add(pages_tree)
-    assert pages_tree_actual == pages_tree_num, (pages_tree_actual, pages_tree_num)
-    catalog_num = add(b"<< /Type /Catalog /Pages %d 0 R >>" % pages_tree_num)
-
-    # Serialize with a cross-reference table.
-    out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
-    offsets = [0] * (len(objects) + 1)
-    for i, obj in enumerate(objects, start=1):
-        offsets[i] = len(out)
-        out += b"%d 0 obj\n" % i
-        out += obj
-        out += b"\nendobj\n"
-    xref_pos = len(out)
-    out += b"xref\n0 %d\n" % (len(objects) + 1)
-    out += b"0000000000 65535 f \n"
-    for i in range(1, len(objects) + 1):
-        out += b"%010d 00000 n \n" % offsets[i]
-    out += b"trailer\n<< /Size %d /Root %d 0 R >>\n" % (len(objects) + 1, catalog_num)
-    out += b"startxref\n%d\n%%%%EOF\n" % xref_pos
-    return bytes(out)

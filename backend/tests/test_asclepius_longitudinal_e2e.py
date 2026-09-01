@@ -39,6 +39,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests import _asclepius as A  # noqa: E402
+from asclepius import ingestion as asc_ingestion  # noqa: E402
 from asclepius import real_cases  # noqa: E402
 from asclepius import trajectory as asc_trajectory  # noqa: E402
 
@@ -269,6 +270,16 @@ def _ingest_chart(store, chart):
     upload = store.insert_ingest_upload(
         link_id="lnk-e2e", partner_id="e2e-partner", filename="patient-1.zip",
         sha256="0" * 64, size_bytes=1234, raw_path=None, source_ip=None)
+    # Stamped the way EVERY production door stamps it. This fixture writes the
+    # upload row directly, so it skips `attach_upload_provenance` — the call all
+    # four doors make, which joins the authorizing link or account and copies its
+    # destination onto the upload. Without this the fixture produces a row no
+    # door could have produced: no purpose at all, which the gate holds in
+    # storage because nobody has said what it is for.
+    #
+    # `task_creation` because that is what a corpus link is minted for, and it
+    # is the premise every assertion below rests on.
+    store.set_upload_purpose(upload["upload_id"], asc_ingestion.PURPOSE_TASK_CREATION)
     return store.insert_ingest_case(
         upload_id=upload["upload_id"], patient_key="ehr-1-patient", specialty=SPECIALTY,
         case=chart, status="ingested", report={})["ingest_case_id"]

@@ -6,6 +6,10 @@ landing/
 .git
 .gitignore
 *.md
+# ...except the agreement, which the app READS at runtime rather than being
+# documentation about it. Last match wins in this file, so this line has to
+# stay below the *.md above.
+!docs/legal/*.md
 .env
 .env.*
 !.env.example
