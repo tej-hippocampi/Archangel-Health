@@ -284,25 +284,18 @@
     // Community entry lives in the persistent SIDE PANEL (per the Community
     // PRD §1 and the Side Panel PRD), not the header: see renderSidePanel().
 
-    const badge = document.getElementById('ascUserBadge');
-    clear(badge);
-    badge.appendChild(h('span', { class: 'asc-user-email' }, state.user.email));
-    // The account kind wins over the raw role when there is one. Every
-    // non-physician account is provisioned role="evaluator" so the rest of the
-    // portal keeps working, which meant an advisor's own header called them an
-    // "evaluator" -- a word for the people doing clinical work, and not a word
-    // they would recognise as theirs.
-    const roleWord = isAdvisor() ? 'advisor'
-      : isReferralOnly() ? 'referral partner'
-        : state.user.role.replace('_', ' ');
-    badge.appendChild(h('span', { class: 'asc-user-role' },
-      roleWord + (state.user.specialty ? ' · ' + state.user.specialty : '')));
+    // No identity in the header. It is at the foot of the rail, once, and this
+    // used to be a second copy of it: email, role word, specialty, and its own
+    // Sign out beside the rail's own Sign out.
+    //
+    // The role word is gone with it and is not missed. Every non-physician
+    // account is provisioned role="evaluator" so the rest of the portal keeps
+    // working, which meant an advisor's own header called them an "evaluator",
+    // and a physician's called them one too: a routing word, printed at
+    // somebody as though it were their job title.
 
     // The corner ? tab (below) is the single help entry point: replay the
     // practice case or view a summary of it. No separate header control.
-    ensureInstrTab();
-
-    document.getElementById('ascLogoutBtn').onclick = logout;
   }
 
   function switchView(view) {
@@ -574,7 +567,6 @@
     // A colleague joining a colleague: one figure, one plus.
     referral: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8" cy="7" r="2.6" stroke="currentColor" stroke-width="1.5"/><path d="M3.4 16c.6-2.6 2.4-4 4.6-4s4 1.4 4.6 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M15 6v5M12.5 8.5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     // PRD-R: two panels side by side, the shape of the paired review.
-    review: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="2.8" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><rect x="11.2" y="4" width="6" height="12" rx="1.3" stroke="currentColor" stroke-width="1.5"/><path d="M4.6 8.2h2.4M4.6 11h2.4M13 8.2h2.4M13 11h2.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
     guide: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4.5A1.5 1.5 0 015.5 3H10v14H5.5A1.5 1.5 0 014 15.5v-11z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 3h4.5A1.5 1.5 0 0116 4.5v11a1.5 1.5 0 01-1.5 1.5H10" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 7h1.5M6.5 9.5h1.5M12 7h1.5M12 9.5h1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
     earnings: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 3.2v13.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M12.9 6.3a2.6 2.6 0 00-2.4-1.3h-.8a2.35 2.35 0 000 4.7h.6a2.35 2.35 0 010 4.7h-.8a2.6 2.6 0 01-2.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
@@ -622,7 +614,6 @@
     referral: 'asc-rail-item-referral',
     earnings: 'asc-rail-item-earnings',
     guide: 'asc-rail-item-guide',
-    profile: 'asc-rail-item-profile',
   };
 
   const RAIL_ITEMS = [
@@ -649,11 +640,15 @@
     // zero before verification, which is true rather than hidden.
     { dest: 'earnings',  label: 'Earnings', surface: 'earnings' },
     { dest: 'guide',     label: 'Guide' },
-    // Profile. No gate: a physician can always read what we hold about them
-    // and correct their own contact details, including while they are waiting
-    // on verification -- they are the people most likely to have just noticed
-    // a typo in what they submitted.
-    { dest: 'profile',   label: 'Profile' },
+    // Profile is NOT a rail item. It is reached from the identity chip at the
+    // foot, which is where somebody looks for it: it is the thing behind your
+    // own name rather than a place to go. It stays ungated there for the same
+    // reason it was ungated here -- a physician can always read what we hold
+    // about them, including while they wait, because they are the people most
+    // likely to have just noticed a typo in what they submitted.
+    //
+    // setPanel validates against its own allowlist and never consults this
+    // array, so the route is unaffected.
   ];
 
   // The capability list the server put on the session. Absent (an older token,
@@ -706,7 +701,9 @@
     // instructions for work they cannot do is the same broken promise as a
     // locked Tasks tab, just quieter.
     if (isReferralOnly()) {
-      return items.filter((it) => ['referral', 'profile'].includes(it.dest));
+      // Profile left this list with the rail tab, not with their access: the
+      // chip at the foot is on every screen and opens it for them too.
+      return items.filter((it) => it.dest === 'referral');
     }
     // An advisor's Tasks tab is not a locked door either. It has something
     // behind it -- the practice case, which is the whole point of showing them
@@ -927,8 +924,17 @@
         'aria-disabled': item.locked ? 'true' : null,
         // aria-label carries the accessible name even in the icon-collapsed rail,
         // where the visible label span is display:none (and thus off the a11y tree).
-        'aria-label': item.external ? item.label + ' (opens in a new tab)' : item.label,
-        title: item.external ? item.label + ' (opens in a new tab)' : item.label,
+        //
+        // lockedHint was authored, propagated through visibleRailItems, and
+        // then rendered by nothing: a locked tab showed a bare middot and no
+        // explanation. "Opens when your credentials clear" is the one sentence
+        // a waiting physician most needs, and it was already written.
+        'aria-label': item.locked && item.lockedHint
+          ? item.label + ': ' + item.lockedHint
+          : (item.external ? item.label + ' (opens in a new tab)' : item.label),
+        title: item.locked && item.lockedHint
+          ? item.lockedHint
+          : (item.external ? item.label + ' (opens in a new tab)' : item.label),
         onClick: () => {
           // A locked surface opens the explanation, not a 403.
           if (item.locked) { setPanel('verification'); return; }
@@ -937,18 +943,33 @@
       }, children));
     });
 
+    // The one identity in the product: a name, and the two things you can do
+    // with it.
+    //
+    // The specialty WORD is gone. A physician does not need their own
+    // specialty printed back at them, and it was the second half of a chip
+    // that already had their name on it. The specialty HUE stays on the
+    // avatar, because that is a colour rather than a label.
+    //
+    // Profile sits here rather than in the rail: it is not a destination in
+    // the way Tasks and Earnings are, it is the thing behind your own name,
+    // and putting it here is what let the rail lose a tab.
     const specColor = specialtyDotColor(state.user.specialty);
     const foot = h('div', { class: 'asc-rail-foot' },
-      h('div', { class: 'asc-rail-user' },
+      // The row itself opens Profile. On the mobile tab bar the text links
+      // below are hidden and the avatar is the only handle there is, so the
+      // affordance has to be on the thing that survives.
+      h('div', { class: 'asc-rail-user', role: 'button', tabindex: '0',
+                 title: 'Profile', 'aria-label': 'Profile',
+                 onClick: () => setPanel('profile') },
         railAvatarEl(specColor),
         h('div', { class: 'asc-rail-usertext' },
-          h('span', { class: 'asc-rail-name', title: railDisplayName() }, railDisplayName()),
-          state.user.specialty
-            ? h('span', { class: 'asc-rail-spec' },
-                h('span', { class: 'dot ' + specColor, 'aria-hidden': 'true' }),
-                h('span', {}, state.user.specialty))
-            : null)),
-      h('button', { type: 'button', class: 'asc-rail-signout', onClick: logout }, 'Sign out'));
+          h('span', { class: 'asc-rail-name', title: railDisplayName() }, railDisplayName()))),
+      h('div', { class: 'asc-rail-footlinks' },
+        h('button', { type: 'button', class: 'asc-rail-signout',
+                      onClick: () => setPanel('profile') }, 'Profile'),
+        h('button', { type: 'button', class: 'asc-rail-signout',
+                      onClick: logout }, 'Sign out')));
 
     // The bottom edge of the rail is the one place that is neither a destination
     // nor an identity: top-of-rail competes with the wordmark, inline-with-nav
@@ -7407,6 +7428,12 @@
         meCredentialsPanel(data.credentials || {}),
         mePasswordPanel(),
         meReferralPanel(data.standing || {})));
+      // Sign out lives on a destination, not only in chrome. It is what lets
+      // the rail foot collapse to an avatar on a narrow screen without
+      // stranding anybody, and it is where somebody looks for it anyway.
+      body.appendChild(h('div', { class: 'asc-me-card asc-me-signout' },
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button', onClick: logout },
+          'Sign out')));
     }).catch((err) => {
       clear(body);
       body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
