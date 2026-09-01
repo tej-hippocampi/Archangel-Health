@@ -29,7 +29,6 @@ from asclepius import specialties as asc_specialties
 from asclepius import tiering as asc_tiering
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
-from onboarding_emails import build_asclepius_approved_email
 
 log = logging.getLogger("asclepius.verify")
 
@@ -580,16 +579,12 @@ async def approve_signup(
         await welcome_new_member(updated or user)
     except Exception:
         log.exception("[verify] community welcome failed (decision stands)")
-    if is_email_transport_configured():
-        try:
-            await send_html_email(
-                user["email"], "You're approved for Asclepius",
-                build_asclepius_approved_email(
-                    full_name=(user.get('full_name') or '').strip(),
-                    workspace_url=_portal_base() + '/asclepius',
-                ), importance_headers=True)
-        except Exception:
-            log.exception("[verify] welcome email failed (decision stands)")
+    # The approval email is NOT sent here any more. It is queued by
+    # store.record_verification_decision, so the agent's auto-approval and
+    # /admin/physicians/restore get the same mail this path used to send alone,
+    # and so a transport failure is a retry rather than a physician who is never
+    # told. The cost is up to one drainer interval of latency on a message
+    # nobody is watching a clock for.
     return {"ok": True, "user_id": user_id, "tier": tier,
             "verification_status": "approved",
             "verified_by": updated.get("verified_by"),

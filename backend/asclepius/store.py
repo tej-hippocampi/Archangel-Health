@@ -2821,6 +2821,26 @@ class AsclepiusStore:
             )
             return cur.rowcount > 0
 
+    def void_pending_admin_notification(self, idempotency_key: str) -> bool:
+        """Drop a queued mail that has not gone out yet.
+
+        Returns True only when THIS call claimed it. The guarded UPDATE is the
+        arbiter, the same shape as mark_community_welcomed, so a concurrent
+        drain and a void cannot both win.
+
+        Exists for exactly one case: a rejection queued behind a grace window,
+        and an admin who then approves inside that window. Once status is no
+        longer 'pending' the mail is gone and this is a no-op, which is the
+        honest answer rather than a pretend one.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE admin_notify_outbox SET status = 'void' "
+                "WHERE idempotency_key = ? AND status = 'pending'",
+                (idempotency_key,),
+            )
+            return cur.rowcount > 0
+
     def due_admin_notifications(self, limit: int = 50) -> List[Dict[str, Any]]:
         now = _utcnow_iso()
         with self._conn() as conn:
@@ -6646,6 +6666,10 @@ class AsclepiusStore:
         a decision, not a computation, so it arrives only from this method."""
         now = _utcnow_iso()
         with self._conn() as conn:
+            was = conn.execute(
+                "SELECT verification_status FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            prior = was["verification_status"] if was else None
             if status == "approved":
                 conn.execute(
                     "UPDATE users SET verification_status = 'approved', "
@@ -6661,7 +6685,36 @@ class AsclepiusStore:
                     "verified_by = ?, verified_at = ? WHERE id = ?",
                     (status, note, decided_by, now, user_id),
                 )
-        return self.get_user_by_id(user_id)
+        updated = self.get_user_by_id(user_id)
+
+        # Tell the physician, from the WRITE rather than from the handler.
+        #
+        # This is the only production writer of verification_status='approved'
+        # and the only writer of the tier columns, so hooking it here covers the
+        # admin console, the verification agent's auto-approval and
+        # /admin/physicians/restore at once. Two of those three sent nothing: a
+        # physician the agent approved was never told, and neither was one an
+        # operator repaired. Adding a send to each handler would have been three
+        # call sites, three try/excepts, and a fourth the day somebody writes
+        # another one.
+        #
+        # Outside the connection block on purpose: the hook queues a row through
+        # this same store, and re-entering an open connection is the C-5.5 bug.
+        # It queues and never sends -- the existing 60s drainer sends -- so no
+        # request pays for a network round trip and a transport blip becomes a
+        # retry instead of a physician who is never told.
+        #
+        # Gated on the TRANSITION, not the final state: restore_physician
+        # re-stamps an already-approved account to change a tier, and "you're
+        # approved" months after the fact is not news.
+        if status != prior:
+            try:
+                import notifications  # noqa: PLC0415 - avoid an import cycle at boot
+                notifications.on_verification_decision(
+                    self, user=updated, status=status, tier=tier, prior=prior)
+            except Exception:  # pragma: no cover - a notification must never break a write
+                pass
+        return updated
 
     def mark_community_welcomed(self, user_id: str) -> bool:
         """Community v2: idempotency flag for the one-time community welcome

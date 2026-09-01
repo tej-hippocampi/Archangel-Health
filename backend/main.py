@@ -734,6 +734,7 @@ async def _drain_admin_notifications() -> None:
     """
     from asclepius.store import get_store as _asc_store  # noqa: PLC0415
     from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
+    from notifications import IMPORTANT_KINDS  # noqa: PLC0415
 
     if not is_email_transport_configured():
         return
@@ -742,6 +743,11 @@ async def _drain_admin_notifications() -> None:
         try:
             ok = await send_html_email(
                 row["recipient_email"], row["subject"], row["body_html"],
+                # Preserved from the inline send this outbox replaced. Moving
+                # the approval mail here would otherwise have quietly dropped
+                # the flag it was sent with, and a verification decision is the
+                # one queued mail its recipient is actually waiting on.
+                importance_headers=row["kind"] in IMPORTANT_KINDS,
             )
             store.mark_admin_notification_sent(row["id"], ok=bool(ok))
         except Exception as exc:
