@@ -102,13 +102,38 @@ agreement page 503s on a deploy with nothing failing in CI.
 `tests/test_hs_onboarding.py::test_the_agreement_ships_with_the_application`
 holds both.
 
-## Where the upload destination is decided
+## Everything lands in storage
 
-Accounts are minted with it **unset**, deliberately (PRD §6): the admin resolves
-each upload on the per-upload control that already exists, rather than a choice
-made once at approval standing for everything after it. `Approve` accepts an
-optional destination for an organization whose answer is already settled; the
-admin list shows an unresolved account as a work item either way.
+There are three purposes, not two: `task_creation`, `brokering`, and **`storage`
+— the default**. An upload arrives, is stored, and is used for **nothing** until
+a person has read the file and said what it is for.
+
+```
+upload ──▶ storage ──read it──▶ task_creation   promote controls open
+                     └────────▶ brokering       leaves the task workflow entirely
+```
+
+* `asclepius.ingestion.blocks_promotion()` is the gate, and it is an
+  **allowlist**: only `task_creation` passes. The old test was
+  `not is_brokering(...)`, which was correct while there were exactly two
+  purposes and silently admitted the third the moment it existed.
+* **NULL now means storage.** It used to resolve to `task_creation`, so a row
+  from before the column existed kept promoting — the one place the system
+  decided something consequential because nobody had decided it. It fails closed
+  now. The cost is real and is the point: rows that predate this stop being
+  promotable until somebody resolves them, and the control that resolves one is
+  on the row.
+* `is_brokering()` still means *literally brokering*, and is what the brokering
+  bucket and the export rules read. The two questions came apart when storage
+  arrived; conflating them again is how an unreviewed file becomes a task.
+* Accounts are minted as storage by `create_hs_portal_user`. The default lives
+  with the **column**, not with a caller, because the provider router mints
+  accounts on the self-signup path and is forbidden from naming a purpose at all.
+
+The admin's **Held in storage** bucket is the review queue: download, read, then
+`Set: Task creation` or `Set: Brokering` on the row. It carries no Promote
+button — the same rule brokering has, because a control that 409s teaches an
+operator to work around the workflow rather than through it.
 
 ## Files
 

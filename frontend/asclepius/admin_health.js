@@ -447,6 +447,16 @@
     { key: 'needs_review', title: 'Needs review',
       sub: 'Uploaded, not yet examined.',
       cls: '', actions: ['download', 'review'] },
+    // The default landing place, and the operator's real queue. Download it,
+    // read it, then say what it is for on the row — the controls are in the
+    // Destination column. No Promote button, because there is nothing to
+    // promote until that decision is made.
+    { key: 'storage', title: 'Held in storage',
+      sub: 'Received and stored, used for nothing. Everything arrives here. '
+           + 'Read the file, then set what it is for on the row — task creation '
+           + 'opens the promote controls, brokering routes it out of this '
+           + 'workflow entirely.',
+      cls: '', actions: ['download', 'review'] },
     { key: 'ready_to_promote', title: 'Ready to promote',
       sub: 'Reviewed and clean, not yet a task.',
       cls: '', actions: ['download', 'promote'] },
@@ -666,7 +676,10 @@
         h('div', { class: 'asc-dim asc-mono', style: 'font-size:11px' }, it.upload_id),
         custody),
       h('td', {}, purposeChip(h, it),
-        it.resolved ? '' : uploadPurposeResolver(ctx, it.upload_id, hsId, container)),
+        // The server decides whether this row still needs a person; the UI does
+        // not re-derive it. `resolved` is about whether a VALUE is set, which is
+        // a different question now that the default value is a real one.
+        it.needs_decision ? uploadPurposeResolver(ctx, it.upload_id, hsId, container) : ''),
       h('td', {}, caseCountText(it), specialtyNote(h, it)),
       h('td', { class: 'asc-hs-notes' }, notes.length ? notes : '—'),
       h('td', { class: 'asc-hs-actions' }, actions));

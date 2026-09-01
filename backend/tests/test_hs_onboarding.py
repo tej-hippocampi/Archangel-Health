@@ -488,20 +488,33 @@ def test_approve_flips_the_state_and_mails_every_member(mail):
         assert account["approval_status"] == "approved"
 
 
-def test_approve_leaves_the_upload_destination_unset_by_default():
-    """§6: accounts are minted with it unset so the admin resolves each upload
-    deliberately, on the per-upload control that already exists."""
+def test_everything_a_new_organization_sends_lands_in_storage():
+    """§6, as the owner sharpened it: uploads are STORED and used for nothing
+    until a person has read the file and said what it is for. Approval opens the
+    door; it does not decide what comes through it.
+
+    `storage` rather than NULL, deliberately. NULL is "nobody has been asked",
+    which is what a row predating the column means; storage is "we asked, and
+    the answer is: hold it". Both refuse promotion, and only one of them is a
+    statement.
+    """
+    from asclepius import ingestion as asc_ingestion
+
     client = _client()
     store = _store()
     org = _signup(client)
     _rotate(client)
     _apply(client)
     _approve(client, store, org["hs_id"])
-    assert store.hs_purposes_for(org["hs_id"]) == [None]
+    assert store.hs_purposes_for(org["hs_id"]) == [asc_ingestion.PURPOSE_STORAGE]
+    assert asc_ingestion.blocks_promotion(asc_ingestion.PURPOSE_STORAGE) is True
     listing = client.get(f"{API}/admin/health-systems",
                          headers=_admin_headers(store)).json()
     row = [h for h in listing["health_systems"] if h["hs_id"] == org["hs_id"]][0]
-    assert row["purpose_unresolved"] == 1
+    # Storage IS the account's answer, so the account is not a work item. The
+    # work item is the per-upload decision, and it has its own bucket.
+    assert row["purpose_unresolved"] == 0
+    assert [p["label"] for p in row["purposes"]] == ["storage"]
 
 
 def test_approve_can_still_set_a_destination_when_the_operator_knows_it():

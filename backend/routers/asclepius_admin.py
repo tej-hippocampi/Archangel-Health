@@ -1384,6 +1384,14 @@ def _purpose_view(purpose: Optional[str]) -> Dict[str, Any]:
     if purpose == asc_ingestion.PURPOSE_BROKERING:
         return {"purpose": purpose, "label": "brokering", "accent": "grey",
                 "resolved": True}
+    if purpose == asc_ingestion.PURPOSE_STORAGE:
+        # RESOLVED, and the distinction matters. On an ACCOUNT, storage is a
+        # deliberate setting — everything this partner sends is held until read,
+        # which is the design — so it is not a work item and does not want a
+        # resolver beside it. The work item is the per-UPLOAD decision, and it
+        # has its own bucket.
+        return {"purpose": purpose, "label": "storage", "accent": "lime",
+                "resolved": True}
     return {"purpose": None, "label": asc_ingestion.PURPOSE_UNSET_LABEL,
             "accent": "lime", "resolved": False}
 
@@ -1391,6 +1399,12 @@ def _purpose_view(purpose: Optional[str]) -> Dict[str, Any]:
 def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
     buckets: Dict[str, List[Dict[str, Any]]] = {
         "needs_attention": [], "rejected": [], "needs_review": [],
+        # Received and held, waiting on a person to say what it is for. Its own
+        # bucket for the same reason brokering has one: it must never appear
+        # next to a Promote button, because it cannot be promoted until the
+        # decision is made, and a button that 409s teaches an operator to ignore
+        # the workflow.
+        "storage": [],
         "ready_to_promote": [], "in_production": [],
         # Brokering gets its OWN bucket rather than a badge inside another one
         # (PRD-I §5). It has a different lifecycle — it is never promoted — and
@@ -1433,6 +1447,13 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
             "sha256_short": (up.get("sha256") or "")[:12] or None,
             "verified_at": up.get("verified_at"),
             **_purpose_view(up.get("purpose")),
+            # Whether THIS upload still needs a person to say what it is for.
+            # Decided server-side so the UI never re-derives the policy: an
+            # unreviewed upload wants the resolver beside it, a brokered one is
+            # already decided, and a task-creation one is done.
+            "needs_decision": bool(
+                asc_ingestion.blocks_promotion(up.get("purpose"))
+                and not asc_ingestion.is_brokering(up.get("purpose"))),
             "upload_status": up.get("status"),
             "case_total": len(cases),
             "case_counts": {"held": len(held), "clean": len(clean), "promoted": len(promoted)},
@@ -1460,6 +1481,13 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
         # that eventually promotes one by accident.
         if asc_ingestion.PURPOSE_BROKERING == up.get("purpose"):
             buckets["brokering"].append(entry)
+            continue
+        # Held until read. Checked AFTER brokering (an explicitly brokered upload
+        # belongs in its own bucket) and BEFORE the safety holds, so an upload
+        # that is both unreviewed and flagged still surfaces in needs_attention
+        # -- a safety hold outranks a filing decision.
+        if asc_ingestion.is_storage(up.get("purpose")) and not held:
+            buckets["storage"].append(entry)
             continue
         if held:
             # Safety holds must never be buried inside a normal bucket. Surface

@@ -8514,9 +8514,15 @@
     // button was pressed, and that is the requirement: not a nicety. Only the
     // admin knows.
     //
-    // There is no default and no third "unset" option. A partner minted with no
-    // purpose is a decision nobody made, and the promotion gate would read it as
-    // task creation.
+    // THREE buttons now, and storage is the one to press unless you already
+    // know. It used to be two, on the reasoning that a partner minted with no
+    // purpose was a decision nobody made which the gate would read as task
+    // creation — true when it was written, and no longer: unset and storage
+    // both mean "held until somebody reads the file", and neither promotes.
+    //
+    // So the third option is not an escape hatch, it is the normal path: take
+    // the data, store it, look at it, then decide. The other two remain for a
+    // partner whose answer is already settled.
     const hsOrg = h('input', { class: 'asc-input', placeholder: 'Mass General Hospital' });
     const hsEmail = h('input', { type: 'email', class: 'asc-input', placeholder: 'data@mgh.harvard.edu' });
     const mintStatus = h('div', {});
@@ -8539,11 +8545,13 @@
       } catch (e) { mintStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
       finally { mintButtons.forEach((b) => b.removeAttribute('disabled')); }
     }
-    const mintTaskBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send link: task creation');
+    const mintStorageBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send link: storage');
+    const mintTaskBtn = h('button', { class: 'asc-btn asc-btn-subtle', style: 'margin-left:8px' }, 'Send link: task creation');
     const mintBrokerBtn = h('button', { class: 'asc-btn asc-btn-subtle', style: 'margin-left:8px' }, 'Send link: brokering');
+    mintStorageBtn.addEventListener('click', () => sendUploadAccess('storage'));
     mintTaskBtn.addEventListener('click', () => sendUploadAccess('task_creation'));
     mintBrokerBtn.addEventListener('click', () => sendUploadAccess('brokering'));
-    mintButtons.push(mintTaskBtn, mintBrokerBtn);
+    mintButtons.push(mintStorageBtn, mintTaskBtn, mintBrokerBtn);
     const mintCard = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Send a health system its upload access'),
@@ -8552,9 +8560,12 @@
         h('div', { class: 'asc-form-row-3' },
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Organization'), hsOrg),
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Email'), hsEmail)),
-        mintTaskBtn, mintBrokerBtn,
+        mintStorageBtn, mintTaskBtn, mintBrokerBtn,
         h('div', { class: 'asc-label-hint', style: 'margin-top:8px' },
-          'Both links are byte-identical to the recipient. Which button you press is recorded on our side only, and decides whether the data can ever become a task.'),
+          'All three links are byte-identical to the recipient. Which button you '
+          + 'press is recorded on our side only. Storage takes the data and holds '
+          + 'it, used for nothing, until you read a file and set what it is for on '
+          + 'its row — nothing is promoted or sent to a model before that.'),
         mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));

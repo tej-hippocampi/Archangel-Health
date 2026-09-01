@@ -7711,16 +7711,26 @@ class AsclepiusStore:
         Every argument after ``email`` is defaulted to the pre-existing behaviour
         so the admin call sites are unchanged by this.
         """
+        from asclepius.ingestion import DEFAULT_PURPOSE
+
         uname = (username or "").strip().lower()
         if not uname:
             raise ValueError("username is required")
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO hs_portal_users (username, hs_id, password_hash, must_reset, "
-                "email, active, created_at, full_name, signup_source, approval_status) "
-                "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+                "email, active, created_at, full_name, signup_source, approval_status, "
+                "purpose) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)",
                 (uname, hs_id, hash_password(password), 1 if must_reset else 0, email,
-                 _utcnow_iso(), full_name, signup_source, approval_status),
+                 _utcnow_iso(), full_name, signup_source, approval_status,
+                 # Everything an account sends lands in STORAGE, held and used for
+                 # nothing, until a person reads the file and says what it is for.
+                 #
+                 # Stamped HERE rather than by the caller because the provider
+                 # router mints accounts on the self-signup path and is forbidden
+                 # from naming a purpose at all — a rule a static test enforces.
+                 # The column's default belongs with the column anyway.
+                 DEFAULT_PURPOSE),
             )
         return self.get_hs_portal_user_public(uname)  # type: ignore[return-value]
 
@@ -9311,11 +9321,16 @@ class AsclepiusStore:
 
         The fallback is the point. Purpose is copied onto cases at the end of
         ingest, and that copy is best-effort — it must never strand an upload, so
-        a failure there is logged and swallowed. Reading only the case column would
-        turn that swallowed failure into a brokering case with a NULL purpose,
-        which the gate resolves as task_creation. Fail-open on the one check whose
-        whole job is to fail closed. COALESCE removes the possibility rather than
-        relying on the copy having happened."""
+        a failure there is logged and swallowed. Reading only the case column
+        would turn that swallowed failure into a brokering case wearing a NULL
+        purpose, and the gate would then be deciding on the absence of a value
+        rather than on what the operator chose. COALESCE removes the possibility
+        rather than relying on the copy having happened.
+
+        A NULL on BOTH rows no longer resolves to task_creation — it resolves to
+        storage, and the gate refuses it. So a swallowed copy failure now costs
+        an operator one click on the upload row instead of promoting a case
+        nobody classified."""
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT COALESCE(c.purpose, u.purpose) AS purpose FROM ingest_cases c "
