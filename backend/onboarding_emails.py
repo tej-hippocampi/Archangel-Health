@@ -137,7 +137,18 @@ def _eyebrow(text: str) -> str:
 
 
 def _h1(text: str) -> str:
-    """Scale, not boldness: weight 400, negative tracking, ink."""
+    """Scale, not boldness: weight 400, negative tracking, ink.
+
+    DOES NOT ESCAPE. Several callers pass markup deliberately (``&rsquo;``, an
+    escaped name inside a sentence), so escaping here would double-escape them.
+    The convention is that the CALLER escapes anything a person can type, and
+    every caller below that interpolates a value does exactly that.
+
+    Three health-system alert builders did not, and the value they passed was an
+    organization name straight off the public signup form — rendered into the
+    headline of the email that lands next to the Approve button. Fixed at the
+    call sites; ``test_email_escaping.py`` now holds all of them.
+    """
     return (
         f'<h1 style="margin:0 0 16px;font-family:{_SANS};font-size:30px;'
         f'font-weight:400;letter-spacing:-0.015em;color:{_INK};line-height:1.2;">'
@@ -1591,7 +1602,7 @@ def build_hs_intake_alert(*, full_name: str, email: str, organization: str,
         )
     body = (
         _eyebrow("Health system intake")
-        + _h1(organization or "A health system told us about itself")
+        + _h1(html.escape(organization) or "A health system told us about itself")
         + _inset_card(_detail_rows(rows))
         + ("".join(parts) or _p("They submitted the form without filling anything in.",
                                 muted=True))
@@ -1627,7 +1638,7 @@ def build_hs_signup_alert(*, full_name: str, email: str, organization: str,
         )
     body = (
         _eyebrow("New health system")
-        + _h1(organization or "A health system signed up")
+        + _h1(html.escape(organization) or "A health system signed up")
         + _p("They signed themselves up through the portal and are waiting on a "
              "decision. Uploading is locked until someone approves it.")
         + _inset_card(_detail_rows(rows))
@@ -1870,7 +1881,7 @@ def build_hs_application_alert(*, organization: str, hs_id: str, full_name: str,
         )
     body = (
         _eyebrow("Health system application")
-        + _h1(organization or "A health system applied")
+        + _h1(html.escape(organization) or "A health system applied")
         + _p("They answered the four questions. Nothing is approved and nothing "
              "can be uploaded until someone decides.")
         + _inset_card(_detail_rows(rows))
