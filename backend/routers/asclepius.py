@@ -5256,9 +5256,14 @@ async def list_ingestion_uploads(
         # it is already tasks". Both are answered from rows this loop already
         # holds plus ONE grouped count per upload, rather than by a second
         # endpoint the two boxes would have to keep in sync with this one.
-        counts = store.upload_task_counts(u["upload_id"])
-        u["case_counts"] = counts
-        u["tasks_created"] = counts["promoted"]
+        # NB the name: ``counts`` is the per-STATUS upload tally built above and
+        # returned at the top level. Reusing that name here shadowed it, so the
+        # response's status chips became whichever upload happened to be last in
+        # the page — a filtered request then reported the counts of one upload's
+        # cases as the totals for the whole pipeline.
+        case_counts = store.upload_task_counts(u["upload_id"])
+        u["case_counts"] = case_counts
+        u["tasks_created"] = case_counts["promoted"]
         # The three states §3 renders. 'undecided' is NOT the same as
         # task_creation even though ``effective_purpose`` resolves NULL that way
         # for promotion: the admin has not answered yet, and Box 1 exists to ask.
@@ -5267,7 +5272,7 @@ async def list_ingestion_uploads(
                         else "task_creation")
         # Whether every eligible case has become a task — the §3.2 "done" fold.
         u["task_creation_complete"] = bool(
-            counts["promoted"] and not counts["ingested"])
+            case_counts["promoted"] and not case_counts["ingested"])
         u.pop("raw_path", None)  # server-side path is not admin-relevant
     return {"uploads": uploads, "total": total, "limit": limit, "offset": offset,
             "counts": counts, "status": status}

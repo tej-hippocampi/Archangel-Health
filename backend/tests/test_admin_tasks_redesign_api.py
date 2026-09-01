@@ -131,6 +131,48 @@ def test_an_upload_whose_cases_are_all_tasks_is_complete():
     assert row["task_creation_complete"] is True
 
 
+def test_the_per_status_chips_are_not_clobbered_by_the_per_upload_counts():
+    """Regression, and the reason it is worth pinning.
+
+    The staging fields are computed in a loop over the page of uploads, and the
+    endpoint ALSO returns a per-status tally of every upload under the key
+    ``counts``. The first implementation named the loop variable ``counts`` too,
+    which shadowed it — so the response's status chips silently became whichever
+    upload happened to be last in the page, and a filtered request reported one
+    upload's case counts as the totals for the whole pipeline.
+
+    Every test of the new fields still passed, because they all read
+    ``case_counts``. This asserts the SHAPE of the two dicts stays distinct."""
+    from asclepius import ingestion as asc_ingestion
+
+    store = _store()
+    _upload(store, "up-a", purpose=asc_ingestion.PURPOSE_TASK_CREATION,
+            n_cases=4, promoted=1)
+    _upload(store, "up-b", n_cases=2)
+    r = client.get("/api/asclepius/ingestion/uploads", headers=_admin(store))
+    body = r.json()
+    # The per-status chips: keyed by UPLOAD status, and 'all' counts uploads.
+    assert set(body["counts"]) == {"all", "ingested", "needs_review",
+                                   "quarantined", "rejected"}
+    assert body["counts"]["all"] == 2, "two uploads, not a case count"
+    # The per-upload tally: keyed by CASE status, and never at the top level.
+    row = next(u for u in body["uploads"] if u["upload_id"] == "up-a")
+    assert set(row["case_counts"]) == {"total", "ingested", "promoted",
+                                       "needs_review", "quarantined", "rejected"}
+    assert row["case_counts"]["total"] == 4
+
+
+def test_the_chips_survive_a_filtered_request():
+    """The shadowing only showed itself under ``?status=`` — the unfiltered page
+    happened to end on an upload whose numbers looked plausible."""
+    store = _store()
+    _upload(store, "up-a", n_cases=3)
+    r = client.get("/api/asclepius/ingestion/uploads?status=ingested",
+                   headers=_admin(store))
+    assert set(r.json()["counts"]) == {"all", "ingested", "needs_review",
+                                       "quarantined", "rejected"}
+
+
 def test_an_admin_can_write_a_description_for_a_bundle_that_arrived_without_one():
     store = _store()
     _upload(store)
