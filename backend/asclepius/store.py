@@ -1852,6 +1852,68 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_intake_hs "
                          "ON hs_intake(hs_id, submitted_at)")
 
+            # ─── Health-system referrals (HS-REF) ────────────────────────────
+            # A physician names a real person at a health system and we email
+            # THAT PERSON. Distinct from ``referrals`` above, which is the
+            # physician bounty spine, and the separation is deliberate.
+            #
+            # REFERRALS.md warns that "two referral tables is how a bounty gets
+            # paid twice", and that warning holds for a second PHYSICIAN
+            # referral system. This is not one. ``accrue_referral_bounty``,
+            # ``claim_referral_for_signup``, ``advance_referral_for_user`` and
+            # ``sweep_expiries`` all assume physician semantics: a signup, a
+            # first ACCEPTED case, a 90-day expiry, a rate stamped at accrual.
+            # An institutional introduction has none of those, it resolves
+            # through a meeting and a negotiated contract, over months.
+            #
+            # Threading a ``kind`` column through ``referrals`` would put a
+            # discriminator inside the money path that every future edit has to
+            # remember, and forgetting it once pays a physician bounty for a
+            # health-system introduction. This table has NO accrual path at
+            # all: nothing here reaches ``earnings`` except an admin writing a
+            # row by hand, exactly as ``hs_payouts`` below already works. It
+            # cannot double-pay by construction rather than by vigilance.
+            #
+            # ``status`` is nullable with no DEFAULT for the same reason it is
+            # on ``referrals``: NULL means "not heard back", never "declined".
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_referrals (
+                    hs_referral_id  TEXT PRIMARY KEY,
+                    referrer_id     TEXT NOT NULL,   -- users.id of the physician
+                    referral_code   TEXT,            -- their code, for attribution
+                    contact_name    TEXT NOT NULL,
+                    contact_email   TEXT NOT NULL,   -- lowercased
+                    contact_role    TEXT,
+                    hs_name         TEXT NOT NULL,
+                    relationship    TEXT NOT NULL,   -- how they know them
+                    note            TEXT,
+                    status          TEXT,            -- sent|opened|submitted|booked|met|signed|NULL
+                    invited_at      TEXT NOT NULL,
+                    resolved_at     TEXT,
+                    enrich_json     TEXT,            -- fixed keys, never a splat
+                    enrich_state    TEXT,            -- pending|ok|skipped|blocked
+                    email_sent_at   TEXT,
+                    landing_token   TEXT,            -- opaque; keys the /partner prefill
+                    reward_state    TEXT,            -- NULL until an admin decides
+                    reward_earning_id TEXT,
+                    client_ip       TEXT,
+                    fraud_flag      TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_referrals_referrer "
+                         "ON hs_referrals(referrer_id, invited_at)")
+            # The 24h per-contact cap and the self-referral check both look up
+            # by address on every submit, so it must not be a growing scan.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_referrals_contact "
+                         "ON hs_referrals(contact_email, invited_at)")
+            # The landing page resolves a token on an unauthenticated request.
+            # Partial + UNIQUE: two rows must never share a token, and the many
+            # rows whose token was cleared after resolution do not collide.
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_hs_referrals_token "
+                         "ON hs_referrals(landing_token) WHERE landing_token IS NOT NULL")
+
             # Admin-entry only, by construction: there is no accrual path from a
             # health system's uploads to money, no schedule, and no Stripe. The
             # portal's empty state says so rather than implying a ledger that
@@ -10535,6 +10597,195 @@ class AsclepiusStore:
                 "ORDER BY invited_at DESC LIMIT ?",
                 (referrer_id, max(1, limit))).fetchall()
         return [dict(r) for r in rows]
+
+    # ─── Health-system referrals (HS-REF) ────────────────────────────────────
+    # Deliberately NOT routed through the ``referrals`` methods above. See the
+    # table comment in the migration block for why the two are kept apart.
+    def insert_hs_referral(
+        self,
+        *,
+        referrer_id: str,
+        contact_name: str,
+        contact_email: str,
+        hs_name: str,
+        relationship: str,
+        referral_code: Optional[str] = None,
+        contact_role: Optional[str] = None,
+        note: Optional[str] = None,
+        client_ip: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Record one health-system introduction and mint its landing token.
+
+        The token is minted HERE rather than by the router so there is exactly
+        one place a token can come into existence, and it is
+        ``secrets.token_urlsafe`` rather than the row id: the id appears in
+        admin views and logs, and a value that lets an unauthenticated caller
+        read the contact's details back must not be guessable from either.
+        """
+        rid = _new_id("hsref")
+        token = secrets.token_urlsafe(24)
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO hs_referrals (hs_referral_id, referrer_id, referral_code,
+                                          contact_name, contact_email, contact_role,
+                                          hs_name, relationship, note, status,
+                                          invited_at, enrich_state, landing_token,
+                                          client_ip)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (rid, referrer_id, referral_code,
+                 (contact_name or "").strip(),
+                 (contact_email or "").lower().strip(),
+                 (contact_role or "").strip() or None,
+                 (hs_name or "").strip(),
+                 (relationship or "").strip(),
+                 note, None, _utcnow_iso(), "pending", token,
+                 (client_ip or "").strip() or None),
+            )
+        return self.get_hs_referral(rid)  # type: ignore[return-value]
+
+    def get_hs_referral(self, hs_referral_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_referrals WHERE hs_referral_id = ?",
+                (hs_referral_id,)).fetchone()
+        return dict(row) if row else None
+
+    def get_hs_referral_by_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Resolve a landing token on an UNAUTHENTICATED request.
+
+        Empty/whitespace tokens are refused before they reach SQL: the column is
+        nullable, and ``WHERE landing_token = ''`` against a stray empty-string
+        row would hand a stranger somebody's contact details.
+        """
+        tok = (token or "").strip()
+        if not tok:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_referrals WHERE landing_token = ?", (tok,)).fetchone()
+        return dict(row) if row else None
+
+    def list_hs_referrals_by_referrer(self, referrer_id: str,
+                                      *, limit: int = 500) -> List[Dict[str, Any]]:
+        """Every health-system introduction THIS physician made. Scoped by the
+        caller's session id, never by a query parameter, and bounded, same two
+        rules as ``list_referrals_by_referrer``."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_referrals WHERE referrer_id = ? "
+                "ORDER BY invited_at DESC LIMIT ?",
+                (referrer_id, max(1, limit))).fetchall()
+        return [dict(r) for r in rows]
+
+    def count_hs_referrals_for_contact(self, contact_email: str, *, since_iso: str) -> int:
+        """How many times this address has been introduced since ``since_iso``,
+        by ANYBODY. Keyed on the contact rather than the referrer on purpose:
+        without it, one inbox can be mailed without bound by rotating which
+        physician submits it, which buries the real introduction. Same
+        reasoning behind ``REFERRALS_PER_INVITEE_24H`` on the physician path.
+        """
+        email = (contact_email or "").lower().strip()
+        if not email:
+            return 0
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM hs_referrals "
+                "WHERE contact_email = ? AND invited_at >= ?",
+                (email, since_iso)).fetchone()
+        return int(row["n"] if row else 0)
+
+    def set_hs_referral_enrichment(self, hs_referral_id: str, *,
+                                   state: str, payload: Optional[str] = None) -> None:
+        """Stamp the enrichment outcome. ``state`` is one of pending|ok|skipped|
+        blocked; ``payload`` is the JSON we are willing to act on."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_referrals SET enrich_state = ?, enrich_json = ? "
+                "WHERE hs_referral_id = ?",
+                (state, payload, hs_referral_id))
+
+    def stamp_hs_referral_sent(self, hs_referral_id: str, *, at: Optional[str] = None) -> None:
+        """Record that the introduction email left the building.
+
+        First writer wins (``email_sent_at IS NULL``): a send is a historical
+        fact, and a retry that raced the first one must not overwrite when it
+        happened, nor let a second email read as the first.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_referrals SET email_sent_at = ?, status = COALESCE(status, 'sent') "
+                "WHERE hs_referral_id = ? AND email_sent_at IS NULL",
+                (at or _utcnow_iso(), hs_referral_id))
+
+    #: Funnel order. A status may only ever move FORWARD along this list.
+    HS_REFERRAL_STAGES = ("sent", "opened", "submitted", "booked", "met", "signed")
+
+    def advance_hs_referral(self, hs_referral_id: str, status: str) -> None:
+        """Move a referral forward, never backward.
+
+        The landing page stamps ``opened`` on every view and ``submitted`` on
+        every form post, and a person who books a call and then re-opens the
+        emailed link would otherwise walk their own status back from ``booked``
+        to ``opened``: the referrer watching the funnel would see the
+        introduction regress for no reason. Rank comparison rather than a
+        blind UPDATE makes that impossible.
+        """
+        if status not in self.HS_REFERRAL_STAGES:
+            return
+        want = self.HS_REFERRAL_STAGES.index(status)
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT status FROM hs_referrals WHERE hs_referral_id = ?",
+                (hs_referral_id,)).fetchone()
+            if row is None:
+                return
+            current = row["status"]
+            have = (self.HS_REFERRAL_STAGES.index(current)
+                    if current in self.HS_REFERRAL_STAGES else -1)
+            if want <= have:
+                return
+            resolved = _utcnow_iso() if status == "signed" else None
+            conn.execute(
+                "UPDATE hs_referrals SET status = ?, "
+                "resolved_at = COALESCE(?, resolved_at) WHERE hs_referral_id = ?",
+                (status, resolved, hs_referral_id))
+
+    def hs_contact_is_known(self, contact_email: str) -> bool:
+        """True when this address already belongs to a health system we work with.
+
+        Checked at DELIVERY, never at capture. Refusing the submission would
+        answer "do you already work with this organization?" to anyone who can
+        type an address, which is the oracle ``create_referral`` was rewritten
+        to close on the physician side; the referrer sees the same response
+        either way and their funnel reports the outcome.
+
+        What it prevents is the other half: sending a cold "let us introduce
+        ourselves" email to a partner who already has a portal login. The
+        physician meant well, the recipient would rightly wonder who we think
+        they are, and a founder should pick that thread up by hand instead.
+        """
+        email = (contact_email or "").lower().strip()
+        if not email:
+            return False
+        with self._conn() as conn:
+            for sql in (
+                "SELECT 1 FROM hs_portal_users WHERE LOWER(email) = ? LIMIT 1",
+                "SELECT 1 FROM health_systems WHERE LOWER(contact_email) = ? LIMIT 1",
+                "SELECT 1 FROM hs_signups WHERE LOWER(email) = ? AND consumed_at IS NOT NULL LIMIT 1",
+            ):
+                if conn.execute(sql, (email,)).fetchone():
+                    return True
+        return False
+
+    def set_hs_referral_fraud_flag(self, hs_referral_id: str, flag: str) -> None:
+        """Display-only review cue, exactly like ``set_referral_fraud_flag``:
+        nothing reads it on a money path."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_referrals SET fraud_flag = ? WHERE hs_referral_id = ?",
+                (flag, hs_referral_id))
 
     def referral_counts_by_referrer(self, referrer_ids: List[str]) -> Dict[str, Dict[str, int]]:
         """{referrer_id: {total, active}} for a page of advisors in ONE query.
