@@ -827,8 +827,11 @@ def test_a_task_creation_link_still_promotes(monkeypatch):
 
 
 def test_minting_a_link_requires_a_purpose():
-    """Same rule as the portal door: a link with no purpose is a decision nobody
-    made, and the gate reads NULL as task creation."""
+    """Same rule as the portal door. `storage` is a real choice the form offers
+    now, so the field is not required to stop the data being promoted — the gate
+    does that. It is required because a caller that forgot to send one and an
+    operator who chose to hold the data are different things, and only one of
+    them should reach the database."""
     A.fresh_store()
     admin_h = _admin_h(_store())
     assert _mint_link(admin_h, None).status_code == 422

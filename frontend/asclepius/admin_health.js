@@ -567,9 +567,10 @@
       h('div', { class: 'asc-hs-meta-label' }, label));
   }
 
-  // Set the purpose on a row the admin has to resolve. A "Purpose not set" row is
-  // a WORK ITEM, not a default — the promotion gate reads NULL as task creation,
-  // so leaving it is a decision, just not one anybody made deliberately.
+  // Set the destination on a row that still needs one. NULL means nobody was
+  // ever asked — a row from before the column had a default — and it now behaves
+  // exactly like storage: held, promotable by nothing, waiting on a person. The
+  // control is here because this is where the operator is looking.
   function purposeResolver(ctx, hsId, username, container) {
     const { h, api, toast } = ctx;
     const wrap = h('span', { style: 'margin-left: var(--sp-2); white-space: nowrap' });

@@ -60,11 +60,15 @@ from asclepius.portal_accounts import (  # noqa: E402,F401
 class HealthSystemProvisionRequest(BaseModel):
     organization: str
     email: EmailStr
-    # Which of the two buttons was pressed (PRD-I §2.2). Same form, same endpoint,
-    # same code path, one different value — and EVERYTHING downstream of the mint
-    # is identical, which is what makes the two indistinguishable to the
-    # recipient. Required: a new partner with no purpose is a decision nobody
-    # made, and the promotion gate would read it as task_creation.
+    # Which of the three buttons was pressed (PRD-I §2.2). Same form, same
+    # endpoint, same code path, one different value — and EVERYTHING downstream
+    # of the mint is identical, which is what makes them indistinguishable to
+    # the recipient.
+    #
+    # Still REQUIRED even though `storage` is now a real value the form offers.
+    # Omitting the field is not the same as choosing to hold the data: one is a
+    # caller that forgot, the other is an operator who decided. The gate treats
+    # them alike; this endpoint should not have to.
     purpose: str
 
 
