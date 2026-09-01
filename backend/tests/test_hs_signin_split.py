@@ -241,7 +241,11 @@ def test_the_preview_actually_renders_them():
             capture_output=True, text=True, timeout=120)
         assert proc.returncode == 0, proc.stderr
         rendered = {p.name for p in Path(tmp).glob("*.html")}
-    for slug in ("26-hs-access.html", "27-hs-member-added.html",
-                 "28-hs-dla-request.html", "29-hs-agreement-receipt.html",
-                 "30-hs-uploads-open.html", "31-hs-application-alert.html"):
+    # 31-36, not 26-31: Onboarding v2 inserted five physician-application
+    # letters ahead of these. The numbers are ordering, not identity — what this
+    # asserts is that all six health-system letters render, whatever they sit
+    # behind.
+    for slug in ("31-hs-access.html", "32-hs-member-added.html",
+                 "33-hs-dla-request.html", "34-hs-agreement-receipt.html",
+                 "35-hs-uploads-open.html", "36-hs-application-alert.html"):
         assert slug in rendered, slug

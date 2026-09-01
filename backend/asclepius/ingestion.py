@@ -2167,8 +2167,10 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     # Purpose flows link/account → upload → case, copied SERVER-SIDE by joining
     # the upload row (PRD-I §2.1). Done once here rather than threaded through
     # every insert_ingest_case call site, so a future case-creation path cannot
-    # forget it and produce a case with no purpose — which the promotion gate
-    # would then read as task_creation.
+    # forget it and produce a case with no purpose. A case that misses this is no
+    # longer promotable-by-accident — the gate holds an unstamped case in storage
+    # — but it is still wrong: it reaches an operator as a decision to make about
+    # data whose destination was in fact already chosen at the door.
     try:
         store.propagate_purpose_to_cases(upload_id)
     except Exception as exc:  # pragma: no cover - defensive; never strand an upload
