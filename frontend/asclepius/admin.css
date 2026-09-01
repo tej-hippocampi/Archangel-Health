@@ -117,3 +117,46 @@
   gap: 6px;
   font-size: var(--t-sm);
 }
+
+/* ═══ Onboarding demo video — the admin drop zone (Onboarding v2 §0.1) ═══════
+   Swapping the demo is done by whoever recorded it, so the control lives in the
+   console next to the storage panel that says whether the volume it lands on is
+   durable — not in a terminal. Sized for a ~73 MB file: the progress bar exists
+   because an upload that long with no feedback is one an operator abandons
+   halfway, convinced it hung. */
+.asc-demo-drop {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 28px 20px;
+  border: 1px dashed var(--asc-line-strong);
+  border-radius: 12px;
+  background: var(--asc-surface-2);
+  color: var(--asc-text);
+  font: inherit;
+  cursor: pointer;
+  transition: background 160ms cubic-bezier(.4, 0, .2, 1),
+              border-color 160ms cubic-bezier(.4, 0, .2, 1);
+}
+.asc-demo-drop:hover,
+.asc-demo-drop.is-over {
+  border-color: var(--green-line);
+  background: var(--green-wash);
+}
+.asc-demo-drop-lead { font-size: 15px; margin-bottom: 6px; }
+.asc-demo-drop-sub { font-size: 13px; line-height: 1.5; color: var(--asc-muted); }
+
+.asc-demo-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--asc-line-strong);
+  overflow: hidden;
+  margin-top: 12px;
+}
+.asc-demo-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--green);
+  transition: width 120ms linear;
+}

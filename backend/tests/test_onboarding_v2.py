@@ -936,8 +936,75 @@ def test_demo_meta_reports_absence_rather_than_offering_a_broken_card(client: Te
     store = fresh_store()
     u = make_user(store)
     c = TestClient(app)
-    assert c.get("/api/asclepius/assets/onboarding-demo/meta",
-                 headers=headers_for(u)).json() == {"available": False}
+    body = c.get("/api/asclepius/assets/onboarding-demo/meta", headers=headers_for(u)).json()
+    assert body["available"] is False
+
+
+def test_meta_states_the_real_upload_limit(client: TestClient):
+    """The admin drop zone prints the limit and pre-checks against it. A number
+    hardcoded in the client would drift from ASCLEPIUS_MEDIA_MAX_BYTES and start
+    telling operators a file is too big when it is not."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+
+    # Present whether or not a demo is installed — the panel draws the drop zone
+    # in both states.
+    empty = c.get("/api/asclepius/assets/onboarding-demo/meta", headers=headers_for(u)).json()
+    assert empty["available"] is False
+    assert empty["max_upload_bytes"] == asc_assets.media_max_bytes()
+
+    _install_demo(store)
+    full = c.get("/api/asclepius/assets/onboarding-demo/meta", headers=headers_for(u)).json()
+    assert full["available"] is True
+    assert full["max_upload_bytes"] == asc_assets.media_max_bytes()
+
+    # And the default comfortably clears the 72.8 MB demo it exists for.
+    assert asc_assets.media_max_bytes() >= 100 * 1024 * 1024
+
+
+def test_a_seventy_three_megabyte_upload_goes_through(client: TestClient, monkeypatch):
+    """The demo is ~73 MB. Nothing in the request path may cap below it: no body
+    middleware, no buffering of the whole file, and a store cap far above it."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    c = TestClient(app)
+    # The suite's asset store lives under /tmp, which the durability gate
+    # correctly refuses — see the test below, which pins that refusal. Stand it
+    # down HERE so this test exercises the thing it is about: the size.
+    import routers.asclepius_media as media_module
+    monkeypatch.setattr(media_module.assets, "asset_storage_durable",
+                        lambda: (True, "test volume"))
+
+    # A real 73 MB body, streamed through the actual multipart path.
+    payload = b"\x00" * (73 * 1024 * 1024)
+    r = c.post("/api/asclepius/admin/assets/onboarding-demo",
+               headers=headers_for(admin),
+               files={"file": ("demo.mp4", payload, "video/mp4")})
+    assert r.status_code == 200, r.text[:400]
+    assert r.json()["byte_size"] == len(payload)
+    assert r.json()["warning"] is None
+
+    # And it serves back byte-for-byte, including a seek near the end.
+    viewer = make_user(store)
+    tail = c.get("/api/asclepius/assets/onboarding-demo",
+                 headers={**headers_for(viewer), "Range": "bytes=-16"})
+    assert tail.status_code == 206 and tail.content == payload[-16:]
+
+
+def test_an_upload_onto_ephemeral_storage_is_refused(client: TestClient):
+    """A demo that plays today and 404s on Tuesday is worse than a refused
+    upload, because nobody is watching for it. The suite's own store is under
+    /tmp, so this is the real gate refusing a real request."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    c = TestClient(app)
+    r = c.post("/api/asclepius/admin/assets/onboarding-demo",
+               headers=headers_for(admin),
+               files={"file": ("demo.mp4", b"data", "video/mp4")})
+    assert r.status_code == 503
+    # And it names the variable to set, rather than just saying no.
+    assert "ASCLEPIUS_ASSET_STORE" in r.json()["detail"]
 
 
 def test_uploading_the_demo_is_admin_only(client: TestClient):

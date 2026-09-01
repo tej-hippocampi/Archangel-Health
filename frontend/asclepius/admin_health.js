@@ -148,6 +148,177 @@
     container.appendChild(card);
     renderPendingSignups(pendingSlot, ctx, container);
     renderStoragePanel(container, ctx);
+    renderDemoVideoPanel(container, ctx);
+  }
+
+  // ─── The onboarding demo video (Onboarding v2 §0.1) ───────
+  // Swapping the demo is a recurring operation performed by the people who
+  // RECORD it, not by whoever is nearest a terminal. A CLI is a fine second
+  // door and a bad only one: it wants a checkout, a Python, and a password
+  // typed into a shell, and the cost of all that is a stale video nobody
+  // replaces. So the control lives here, next to the storage panel that says
+  // whether the volume it lands on is durable.
+  //
+  // Deliberately NOT a generic asset browser: there is one slot, it has one
+  // meaning, and the page should show what is in it and let you replace it.
+  const DEMO_ACCEPT = 'video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov';
+
+  function humanBytes(n) {
+    const v = Number(n) || 0;
+    if (v < 1024) return v + ' B';
+    if (v < 1024 * 1024) return (v / 1024).toFixed(0) + ' KB';
+    if (v < 1024 * 1024 * 1024) return (v / (1024 * 1024)).toFixed(1) + ' MB';
+    return (v / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  }
+
+  async function renderDemoVideoPanel(container, ctx) {
+    const { h, api, clear, toast } = ctx;
+    const card = h('div', { class: 'asc-card', style: 'margin-top: var(--sp-4)' });
+    container.appendChild(card);
+    const head = h('div', { class: 'asc-card-head' });
+    const body = h('div', { class: 'asc-card-pad' });
+    card.appendChild(head);
+    card.appendChild(body);
+
+    async function paint() {
+      clear(head);
+      clear(body);
+      let meta = null;
+      try {
+        meta = await api('/assets/onboarding-demo/meta');
+      } catch (e) {
+        meta = null;
+      }
+      const installed = !!(meta && meta.available);
+      // "Registered but its file is gone" is a THIRD state, and it is the one
+      // that matters: it means the volume was wiped, not that nobody uploaded.
+      const blobMissing = !!(meta && !meta.available && meta.reason === 'blob_missing');
+
+      head.appendChild(h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Onboarding demo video',
+          installed
+            ? h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left: var(--sp-2)' }, 'Live')
+            : h('span', {
+                class: 'asc-badge ' + (blobMissing ? 'asc-badge-red' : 'asc-badge-lime'),
+                style: 'margin-left: var(--sp-2)',
+              }, blobMissing ? 'File missing' : 'Not uploaded')),
+        h('div', { class: 'asc-card-sub' },
+          installed
+            ? 'Physicians see this on the second stop of their first-login walkthrough. '
+              + humanBytes(meta.byte_size) + ' · ' + (meta.mime || '')
+            : blobMissing
+              ? 'A demo is registered but its file is gone from the asset store — the '
+                + 'volume was wiped. Upload it again.'
+              : 'No demo uploaded yet. Until there is one, the walkthrough shows the '
+                + 'practice case on its own rather than a card that plays nothing.')));
+
+      const fileInput = h('input', { type: 'file', accept: DEMO_ACCEPT, style: 'display:none' });
+      const status = h('div', { class: 'asc-dim', style: 'font-size:12px;margin-top:var(--sp-2)' });
+      const bar = h('div', { class: 'asc-demo-bar' }, h('span', { class: 'asc-demo-bar-fill' }));
+      const barWrap = h('div', { hidden: true }, bar);
+
+      // XHR, not fetch: fetch cannot report upload progress, and a 73 MB upload
+      // with no progress is one an operator abandons halfway convinced it hung.
+      function upload(file) {
+        if (!file) return;
+        // Checked against the SERVER's number, so this can only ever refuse a
+        // file the server would also refuse — and it refuses it before spending
+        // ten minutes uploading it.
+        if (maxBytes && file.size > maxBytes) {
+          toast(file.name + ' is ' + humanBytes(file.size) + ', over the '
+                + humanBytes(maxBytes) + ' limit. Compress it, or raise '
+                + 'ASCLEPIUS_MEDIA_MAX_BYTES.', 'error');
+          return;
+        }
+        status.textContent = 'Uploading ' + file.name + ' (' + humanBytes(file.size) + ')…';
+        barWrap.removeAttribute('hidden');
+        const form = new FormData();
+        form.append('file', file, file.name);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/asclepius/admin/assets/onboarding-demo');
+        let token = null;
+        try { token = localStorage.getItem('asclepius_token'); } catch (e) { token = null; }
+        if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.upload.addEventListener('progress', (ev) => {
+          if (!ev.lengthComputable) return;
+          const pct = Math.round((ev.loaded / ev.total) * 100);
+          bar.firstChild.style.width = pct + '%';
+          status.textContent = 'Uploading… ' + pct + '%';
+        });
+        xhr.addEventListener('load', () => {
+          barWrap.setAttribute('hidden', '');
+          let res = null;
+          try { res = JSON.parse(xhr.responseText || '{}'); } catch (e) { res = null; }
+          if (xhr.status === 200) {
+            toast('Demo video is live.', 'success');
+            // The server warns about a .mov rather than refusing it: it stores
+            // fine and plays everywhere except Firefox, so the operator gets to
+            // decide. Surfaced as a toast rather than swallowed.
+            if (res && res.warning) toast(res.warning, 'error');
+            paint();
+            return;
+          }
+          const detail = (res && (res.detail || res.message)) || ('HTTP ' + xhr.status);
+          status.textContent = '';
+          toast(typeof detail === 'string' ? detail : 'Upload failed.', 'error');
+        });
+        xhr.addEventListener('error', () => {
+          barWrap.setAttribute('hidden', '');
+          status.textContent = '';
+          toast('Upload failed — check your connection and try again.', 'error');
+        });
+        xhr.send(form);
+      }
+
+      // A drop target AND a button. A drop-only zone is unreachable from a
+      // keyboard and unusable on a tablet.
+      // The cap comes from the SERVER (ASCLEPIUS_MEDIA_MAX_BYTES, 512 MB by
+      // default). Stating a number this file made up would drift from the one
+      // actually enforced, and the failure mode of that is telling an operator
+      // their file is too big when it is not.
+      const maxBytes = Number(meta && meta.max_upload_bytes) || 0;
+      const zone = h('button', { class: 'asc-demo-drop', type: 'button' },
+        h('div', { class: 'asc-demo-drop-lead' },
+          installed ? 'Drop a new video here to replace it' : 'Drop your video here, or click to choose'),
+        h('div', { class: 'asc-demo-drop-sub' },
+          'MP4 (H.264 + AAC) plays everywhere. WebM and MOV are accepted; MOV does not play in Firefox.'
+          + (maxBytes ? ' Up to ' + humanBytes(maxBytes) + '.' : '')));
+      zone.addEventListener('click', () => fileInput.click());
+      zone.addEventListener('dragover', (ev) => { ev.preventDefault(); zone.classList.add('is-over'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('is-over'));
+      zone.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        zone.classList.remove('is-over');
+        upload(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]);
+      });
+      fileInput.addEventListener('change', () => {
+        upload(fileInput.files && fileInput.files[0]);
+        fileInput.value = '';
+      });
+
+      body.appendChild(zone);
+      body.appendChild(fileInput);
+      body.appendChild(barWrap);
+      body.appendChild(status);
+
+      if (installed) {
+        // Watch what a physician will watch, from the page that replaced it —
+        // "it uploaded" and "it plays" are different claims, and only the
+        // second one matters.
+        const preview = btn(h, 'Preview it', 'asc-btn-subtle', async () => {
+          try {
+            const t = await api('/assets/onboarding-demo/ticket', { method: 'POST' });
+            window.open('/api/asclepius/assets/onboarding-demo?t='
+                        + encodeURIComponent(t.ticket), '_blank', 'noopener');
+          } catch (e) {
+            toast(e.message || 'Could not open the demo.', 'error');
+          }
+        });
+        body.appendChild(h('div', { style: 'margin-top: var(--sp-3)' }, preview));
+      }
+    }
+
+    paint();
   }
 
   // ─── Self-signups awaiting a decision ─────────────────────
