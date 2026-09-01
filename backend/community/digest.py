@@ -15,10 +15,13 @@ Failure policy: every run is recorded in ``community_digest_runs``
 scheduler loop can never crash. Three consecutive failures of a kind logs a
 grep-able ``ADMIN ATTENTION`` line.
 
-The scheduled loop ships OFF (set ``COMMUNITY_NEWS_ENABLED=1`` to enable);
-the internal trigger endpoint fires a run on demand either way. It is off
-because the community starts empty by policy: automated news posting comes
-back when the dedicated news software replaces this pipeline.
+The scheduled loop is gated on ``COMMUNITY_NEWS_ENABLED=1``; the internal
+trigger endpoint fires a run on demand either way. The gate defaults to OFF,
+which dates from when the community was empty and no bot-authored post
+belonged in it. That is no longer the case, so a deployment that wants the
+digest must set the variable, and ``/internal/community/status`` reports
+whether it did, because a loop that never started is otherwise indis-
+tinguishable from a quiet week.
 """
 
 from __future__ import annotations
@@ -339,11 +342,12 @@ async def run_digest(kind: str) -> Dict[str, Any]:
         return {"ok": False, "kind": kind, "error": str(exc)[:500]}
 
 
-# ─── Scheduler (in-process, restart-safe, news OFF by default) ───────────────
+# ─── Scheduler (in-process, restart-safe, gated OFF by default) ──────────────
 def news_enabled() -> bool:
-    # OFF by default. The community starts empty by policy: no bot-authored
-    # news posts until the dedicated news software replaces this pipeline.
-    # Set COMMUNITY_NEWS_ENABLED=1 to run the scheduled loop anyway.
+    # Defaults to OFF. Set COMMUNITY_NEWS_ENABLED=1 to run the scheduled loop.
+    # Startup logs which way this resolved: an unset variable used to disable
+    # the whole pipeline in total silence, which is how it stayed off in
+    # production for weeks without anyone being able to tell.
     return (os.getenv("COMMUNITY_NEWS_ENABLED") or "0").strip() in ("1", "true", "yes", "on")
 
 
@@ -414,6 +418,17 @@ def start_content_loop() -> None:
     _loop_task = asyncio.get_running_loop().create_task(_run())
     log.info("[digest] content loop started (news daily %02d:00 UTC, papers weekly dow=%d)",
              _news_hour_utc(), _papers_dow())
+
+
+def loop_running() -> bool:
+    """True when the scheduler task is actually alive.
+
+    Deliberately distinct from ``news_enabled()``: the gate reports what the
+    environment asked for, this reports what the process is doing. They differ
+    when startup raised after the gate passed, so a status surface must show
+    both rather than infer one from the other.
+    """
+    return _loop_task is not None and not _loop_task.done()
 
 
 def stop_content_loop() -> None:

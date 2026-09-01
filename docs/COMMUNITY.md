@@ -89,6 +89,7 @@ message and deactivate (community-ban) a member.
 | `COMMUNITY_SPECIALTY_MIN_MEMBERS` | `3` | Verified members of a specialty required before its channel appears (v2) |
 | `COMMUNITY_EVENT_REMINDER_MIN` | `60` | Minutes before an event starts that interested members are emailed (v2.1) |
 | `COMMUNITY_NEWS_ENABLED` | `0` (off) | `1` starts the scheduled #medical-ai-news content loop (v2) |
+| `COMMUNITY_MORNING_ENABLED` | `0` (off) | `1` starts the morning routine: #events, #research-and-opportunities, the weekly discussion prompt, and the per-doctor 7am email. See `docs/asclepius/MORNING_ROUTINE_SETUP.md` |
 | `COMMUNITY_NEWS_FEEDS` | built-in reporter set | Comma-separated `key=url` RSS overrides (v2) |
 | `COMMUNITY_NEWS_KEYWORDS` | built-in AI-in-medicine list | Comma-separated keyword filter for reporter feeds (v2) |
 | `COMMUNITY_DIGEST_MAX_ITEMS` | `15` | Max stories per digest post (v2) |
@@ -175,6 +176,17 @@ text-layer PDFs, and all messaging work regardless.
   (daily news / weekly papers, restart-safe via the run ledger) ships OFF;
   `POST /internal/community/run-digest?kind=news|papers` (Bearer
   `INTERNAL_TOOL_SECRET`) fires a run on demand.
+* **Is it actually on?** `GET /internal/community/status` (same Bearer token)
+  answers in one call: whether each gate resolved on, whether the loop is
+  really running, each kind's last successful run and consecutive failures,
+  and whether the model key, email transport and `COMMUNITY_DB_PATH` are
+  configured. Worth knowing why it exists: every way this subsystem switches
+  itself off is silent. An unset gate posts nothing, a missing
+  `ANTHROPIC_API_KEY` records a *successful* empty run, absent email transport
+  reports 0 sent, and the default `COMMUNITY_DB_PATH` is ephemeral on Railway
+  so the dedup ledger resets each deploy. From outside, all four look like a
+  community with nothing to say. Startup now also logs each gate at INFO when
+  on and WARNING when off.
 * **Demo**: `backend/scripts/demo_community_v2.py` seeds a demo world
   (mixed bridge/vault members across specialties, a pending physician for a
   live approval, welcomes, chatter) — see its docstring for the runbook.
