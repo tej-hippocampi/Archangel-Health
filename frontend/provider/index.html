@@ -389,6 +389,20 @@
           <p id="prvPayoutEmptyText"></p>
         </div>
       </section>
+      <section class="asc-card" id="prvInvoicesCard">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">Invoices</div>
+            <div class="asc-card-sub">
+              What we have billed, per period. Amounts follow your
+              agreement&rsquo;s Schedule A.
+            </div>
+          </div>
+        </div>
+        <div class="asc-card-pad">
+          <div class="prv-invoices" id="prvInvoices" hidden></div>
+        </div>
+      </section>
       <section class="asc-card">
         <div class="asc-card-head"><div class="asc-card-title">How we pay</div></div>
         <div class="asc-card-pad">
@@ -439,18 +453,170 @@
       <section class="asc-card">
         <div class="asc-card-pad prv-pending">
           <div class="asc-empty-icon" aria-hidden="true">·</div>
-          <h1 class="prv-intro-title">We are reviewing your account</h1>
-          <p class="prv-intro-sub">
+          <h1 class="prv-intro-title" id="prvPendingTitle">
+            We are reviewing your account
+          </h1>
+          <p class="prv-intro-sub" id="prvPendingNext">
             Uploading opens once someone here has looked at what you told us,
             usually the same day. We will email you when it does.
           </p>
           <p class="prv-intro-sub prv-pending-note">
-            In the meantime you can add to what you have told us, and your
-            payouts page is already live.
+            Nothing here is hidden from you: whichever step you are on, the
+            portal says what happens next and who it is waiting on.
           </p>
           <button type="button" class="asc-btn asc-btn-primary" id="prvPendingIntake">
             Tell us more about your data
           </button>
+          <button type="button" class="asc-btn asc-btn-secondary" id="prvPendingSign"
+                  hidden>Read and sign the agreement</button>
+        </div>
+      </section>
+    </div>
+  </template>
+
+  <!-- 10) YOUR APPLICATION — the four questions, the team, and the free-text
+       note, on ONE page. The question copy comes from the server so it lives in
+       one auditable place; this template holds only the shape it goes into. -->
+  <template id="tplApplication">
+    <div class="asc-wrap asc-wrap-narrow prv-panel">
+      <section class="asc-card prv-state-card" id="prvStateCard" hidden>
+        <div class="asc-card-pad">
+          <div class="prv-state-chip" id="prvStateChip"></div>
+          <p class="prv-note-text" id="prvStateNext"></p>
+        </div>
+      </section>
+
+      <section class="asc-card">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">About your organization</div>
+            <div class="asc-card-sub" id="prvAppSub">
+              Four questions. &ldquo;Not sure&rdquo; is a real answer to any of
+              them and nothing here commits you to anything.
+            </div>
+          </div>
+        </div>
+        <div class="asc-card-pad">
+          <div class="asc-inline-ok" id="prvAppOk" hidden></div>
+          <div class="asc-login-error" id="prvAppError" role="alert" hidden></div>
+          <form id="prvAppForm" novalidate>
+            <div id="prvAppFields"></div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg"
+                    id="prvAppBtn">Submit</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- §3.2 — teammates, on the same page. -->
+      <section class="asc-card">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">Your team</div>
+            <div class="asc-card-sub">
+              Anyone you add gets their own sign-in, emailed to them.
+            </div>
+          </div>
+        </div>
+        <div class="asc-card-pad">
+          <ul class="prv-members" id="prvMembers"></ul>
+          <div class="asc-inline-ok" id="prvMembersOk" hidden></div>
+          <div class="asc-login-error" id="prvMembersError" role="alert" hidden></div>
+          <form id="prvMembersForm" novalidate>
+            <div id="prvMemberRows"></div>
+            <div class="prv-member-actions">
+              <button type="button" class="prv-linkbtn" id="prvAddRow">
+                + Add another
+              </button>
+              <button type="submit" class="asc-btn asc-btn-secondary"
+                      id="prvMembersBtn">Send invitations</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- The older free-text intake, kept and demoted. It is a different
+           question ("anything else") from the four above, and folding it away
+           means one page rather than two forms that look like each other. -->
+      <section class="asc-card">
+        <details class="prv-details" id="prvNotesDetails">
+          <summary class="asc-card-head prv-details-summary">
+            <div>
+              <div class="asc-card-title">Anything else we should know</div>
+              <div class="asc-card-sub">Optional, and useful. Open to write.</div>
+            </div>
+          </summary>
+          <div class="asc-card-pad">
+            <div class="asc-inline-ok" id="prvIntakeOk" hidden></div>
+            <div class="asc-login-error" id="prvIntakeError" role="alert" hidden></div>
+            <form id="prvIntakeForm" novalidate>
+              <div id="prvIntakeFields"></div>
+              <button type="submit" class="asc-btn asc-btn-secondary"
+                      id="prvIntakeBtn">Save</button>
+            </form>
+          </div>
+        </details>
+      </section>
+    </div>
+  </template>
+
+  <!-- 11) AGREEMENT — the full text on screen, then the clickwrap. No
+       download-to-read: an "I have read this" over a document that was never
+       rendered is provably false, and that is exactly where the case law is. -->
+  <template id="tplAgreement">
+    <div class="asc-wrap asc-wrap-narrow prv-panel">
+      <section class="asc-card">
+        <div class="asc-card-head">
+          <div>
+            <div class="asc-card-title">Data licensing agreement</div>
+            <div class="asc-card-sub" id="prvAgreementSub"></div>
+          </div>
+          <span class="asc-badge" id="prvAgreementVersion"></span>
+        </div>
+
+        <!-- Signed: who, when, and a copy to keep. -->
+        <div class="asc-card-pad prv-signed" id="prvSignedBox" hidden>
+          <p class="prv-signed-line" id="prvSignedLine"></p>
+          <p class="prv-note-text" id="prvSignedHash"></p>
+          <a class="asc-btn asc-btn-secondary" id="prvSignedDownload"
+             href="/api/asclepius/hs/agreement/document">Download the signed PDF</a>
+        </div>
+
+        <div class="asc-card-pad">
+          <div class="prv-doc" id="prvAgreementText" tabindex="0"
+               role="region" aria-label="Agreement text"></div>
+        </div>
+
+        <!-- The clickwrap. Hidden unless this session may actually sign. -->
+        <div class="asc-card-pad prv-sign" id="prvSignBox" hidden>
+          <div class="asc-login-error" id="prvSignError" role="alert" hidden></div>
+          <form id="prvSignForm" novalidate>
+            <label class="prv-check">
+              <input type="checkbox" id="prvSignAuthority" />
+              <span id="prvSignAuthorityLabel"></span>
+            </label>
+            <label class="prv-check">
+              <input type="checkbox" id="prvSignEsign" />
+              <span>I agree to conduct this transaction electronically.</span>
+            </label>
+            <div class="asc-field">
+              <label class="asc-label" for="prvSignName">Your full name</label>
+              <input class="asc-input" id="prvSignName" type="text"
+                     autocomplete="name" maxlength="120" />
+            </div>
+            <div class="asc-field">
+              <label class="asc-label" for="prvSignTitle">Your title</label>
+              <input class="asc-input" id="prvSignTitle" type="text"
+                     autocomplete="organization-title" maxlength="120"
+                     placeholder="Chief Information Officer" />
+            </div>
+            <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg"
+                    id="prvSignBtn" disabled>Sign agreement</button>
+            <p class="asc-help prv-sign-help">
+              Typing your name and clicking Sign is a legal signature. We record
+              the time, the account you are signed in as, and a fingerprint of
+              the exact text above, and we email you a countersigned copy.
+            </p>
+          </form>
         </div>
       </section>
     </div>

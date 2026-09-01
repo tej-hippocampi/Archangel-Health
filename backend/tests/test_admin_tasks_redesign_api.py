@@ -91,6 +91,45 @@ def test_an_undecided_upload_reports_staging_undecided():
     assert row["purpose"] is None
 
 
+def test_an_upload_explicitly_filed_as_storage_is_also_undecided():
+    """``storage`` is the DEFAULT purpose and explicitly includes NULL —
+    "received, stored, and used for nothing until a person says what it is
+    for". Testing ``purpose`` for falsiness would file a row deliberately
+    marked 'storage' as task creation and offer to build tasks from it. Box 1
+    IS the storage bucket."""
+    from asclepius import ingestion as asc_ingestion
+
+    store = _store()
+    _upload(store, purpose=asc_ingestion.PURPOSE_STORAGE)
+    r = client.get("/api/asclepius/ingestion/uploads", headers=_admin(store))
+    row = next(u for u in r.json()["uploads"] if u["upload_id"] == "up-1")
+    assert row["purpose"] == "storage"
+    assert row["staging"] == "undecided"
+
+
+def test_an_upload_whose_cases_already_shipped_is_history_not_a_decision():
+    """Rows predating the storage default were promoted while NULL still
+    resolved to task_creation. Asking an operator to decide what they are for
+    asks them to decide something that has already happened — they belong in
+    the done fold, never in the queue of pending decisions."""
+    store = _store()
+    _upload(store, n_cases=3, promoted=3)          # NULL purpose, already promoted
+    r = client.get("/api/asclepius/ingestion/uploads", headers=_admin(store))
+    row = next(u for u in r.json()["uploads"] if u["upload_id"] == "up-1")
+    assert row["purpose"] is None
+    assert row["staging"] == "task_creation", "not 'undecided' — this already happened"
+    assert row["task_creation_complete"] is True
+
+
+def test_an_unpromoted_null_upload_is_still_a_pending_decision():
+    """The other half of the rule: nothing shipped, so the decision is real."""
+    store = _store()
+    _upload(store, n_cases=3, promoted=0)
+    r = client.get("/api/asclepius/ingestion/uploads", headers=_admin(store))
+    row = next(u for u in r.json()["uploads"] if u["upload_id"] == "up-1")
+    assert row["staging"] == "undecided"
+
+
 def test_a_task_creation_upload_moves_to_box_two():
     from asclepius import ingestion as asc_ingestion
 

@@ -383,10 +383,18 @@
         // The temporary password was consumed at login; on the forced reset the
         // session itself is proof of identity, so no current password is sent.
         await apiPost("/hs/password", { new_password: pw });
-        okBox.textContent = "Password updated. Taking you to your uploads…";
+        okBox.textContent = "Password updated. One moment…";
         okBox.hidden = false;
         if (currentUser) currentUser.must_reset = false;
-        setTimeout(() => renderUpload(), 700);
+        // Route through the profile, never straight to a panel. This used to
+        // call renderUpload() directly, which was right when the only account
+        // that ever reached this screen was one an operator had already
+        // approved. A self-serve organization arrives here on its FIRST sign-in
+        // — before it has told us anything and before anyone has approved it —
+        // and hard-routing it landed it on a locked upload screen with no rail
+        // and no way out of it. loadProfileAndRoute is the one function that
+        // knows where somebody belongs; there is no second copy of that answer.
+        setTimeout(() => { loadProfileAndRoute(); }, 700);
       } catch (e) {
         if (e instanceof AuthError) { bounceToLogin(e.message); return; }
         showError(errBox, e.message || "Could not update your password.");
@@ -710,6 +718,27 @@
     const tdDetail = document.createElement("td");
     tdDetail.className = "prv-hist-detail";
     tdDetail.textContent = u.detail || statusMeta(u.status).help;
+    // The integrity receipt (PRD §6). The checksum is what turns "we got it"
+    // into something the sender can check against their own copy, and a
+    // hospital handing over years of records is entitled to that rather than
+    // to a green tick. Truncated because 64 hex characters in a table cell is
+    // unreadable; the full value is selectable in the title.
+    if (u.sha256) {
+      const integrity = document.createElement("div");
+      integrity.className = "prv-hist-integrity";
+      const digest = document.createElement("code");
+      digest.className = "prv-mono";
+      digest.textContent = "sha256 " + u.sha256.slice(0, 16) + "…";
+      digest.title = u.sha256;
+      integrity.appendChild(digest);
+      if (u.verified_at) {
+        const when = document.createElement("span");
+        when.className = "prv-hist-verified";
+        when.textContent = " verified " + formatWhen(u.verified_at);
+        integrity.appendChild(when);
+      }
+      tdDetail.appendChild(integrity);
+    }
     tr.appendChild(tdDetail);
 
     return tr;
@@ -838,11 +867,12 @@
   // ══════════════════════════════════════════════════════════
   const RAIL_ITEMS = [
     { dest: "upload",  label: "Upload",    surface: "upload",
-      lockedHint: "Opens once we have reviewed your account" },
-    { dest: "payouts", label: "Payouts",   surface: "payouts" },
+      lockedHint: "Opens once your agreement is signed" },
     // "About you", never "Intake". An operator word must not reach a hospital
     // contact, the same rule the upload status vocabulary follows.
-    { dest: "intake",  label: "About you", surface: "intake" },
+    { dest: "application", label: "About you",  surface: "intake" },
+    { dest: "agreement",   label: "Agreement",  surface: "intake" },
+    { dest: "payouts", label: "Payouts",   surface: "payouts" },
     { dest: "account", label: "Account",   surface: "account" }
   ];
 
@@ -856,6 +886,26 @@
     return Array.isArray(list) && list.indexOf(surface) !== -1;
   }
 
+  // The organization's own onboarding state, as the server reports it. The rail
+  // reads this ALONGSIDE the surface list because the two are different
+  // questions: the surface says this login may upload, the state says the
+  // organization has finished the paperwork behind it. Both have to be true,
+  // and the server enforces both regardless of what this function decides —
+  // this is what the rail LOOKS like, never what is allowed.
+  function orgState() {
+    return (currentUser && currentUser.state) || "active";
+  }
+
+  function orgNextStep() {
+    return (currentUser && currentUser.next_step) || "";
+  }
+
+  function railUnlocked(item) {
+    if (!sessionHasSurface(item.surface)) return false;
+    if (item.dest === "upload") return orgState() === "active";
+    return true;
+  }
+
   function hideRail() {
     railEl.hidden = true;
     document.body.classList.remove("prv-has-rail");
@@ -864,7 +914,7 @@
   function renderRail() {
     clear(railEl);
     RAIL_ITEMS.forEach((item) => {
-      const unlocked = sessionHasSurface(item.surface);
+      const unlocked = railUnlocked(item);
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "asc-rail-item" +
@@ -879,7 +929,11 @@
         lock.className = "asc-rail-lock";
         lock.textContent = "Locked";
         btn.appendChild(lock);
-        btn.title = item.lockedHint || "";
+        // The state's own sentence beats the generic hint: it names what has
+        // to happen next rather than saying "not yet".
+        btn.title = (item.dest === "upload" && orgNextStep())
+          ? orgNextStep()
+          : (item.lockedHint || "");
       }
       // A locked item opens the explanation, not a 403.
       btn.addEventListener("click", () =>
@@ -895,28 +949,329 @@
     renderRail();
     if (dest === "upload") renderUpload();
     else if (dest === "payouts") renderPayouts();
-    else if (dest === "intake") renderIntake();
+    else if (dest === "application") renderApplication();
+    else if (dest === "agreement") renderAgreement();
     else if (dest === "account") renderAccount();
     else renderPending();
   }
 
   // ══════════════════════════════════════════════════════════
   //  SCREEN 6 — ABOUT YOU
+  //
+  //  One page: the four structured questions, the team, and the older
+  //  free-text note folded away underneath. Two forms that look like each
+  //  other on two tabs is how you get a partner who fills in neither.
   // ══════════════════════════════════════════════════════════
-  async function renderIntake(opts) {
+
+  // Where the state banner is drawn, if the panel has one. Every panel that
+  // shows it reads the SAME server sentence, so the portal never has two
+  // opinions about what happens next.
+  function paintState() {
+    const card = document.getElementById("prvStateCard");
+    if (!card) return;
+    const chip = document.getElementById("prvStateChip");
+    const next = document.getElementById("prvStateNext");
+    const label = (currentUser && currentUser.state_label) || "";
+    if (!label) { card.hidden = true; return; }
+    chip.textContent = label;
+    chip.className = "prv-state-chip prv-state-" + orgState();
+    next.textContent = orgNextStep();
+    card.hidden = false;
+  }
+
+  // One question, rendered by its shape. Radio for a single choice, because a
+  // three-option select hides two of the three answers behind a click and the
+  // whole point of these questions is that "Not sure" is visibly allowed.
+  function radioGroup(question, chosen) {
+    const wrap = document.createElement("fieldset");
+    wrap.className = "prv-qgroup";
+    const legend = document.createElement("legend");
+    legend.className = "asc-label";
+    legend.textContent = question.label;          // textContent: server copy
+    wrap.appendChild(legend);
+    if (question.help) {
+      const help = document.createElement("p");
+      help.className = "asc-help";
+      help.textContent = question.help;
+      wrap.appendChild(help);
+    }
+    (question.options || []).forEach((opt) => {
+      const row = document.createElement("label");
+      row.className = "prv-choice";
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = question.key;
+      input.value = opt.value;
+      if (chosen === opt.value) input.checked = true;
+      const span = document.createElement("span");
+      span.textContent = opt.label;
+      row.appendChild(input);
+      row.appendChild(span);
+      wrap.appendChild(row);
+    });
+    return wrap;
+  }
+
+  function selectField(field, chosen) {
+    const wrap = document.createElement("div");
+    wrap.className = "asc-field";
+    const label = document.createElement("label");
+    label.className = "asc-label";
+    label.setAttribute("for", "prv-f-" + field.key);
+    label.textContent = field.label;
+    const sel = document.createElement("select");
+    sel.className = "asc-input";
+    sel.id = "prv-f-" + field.key;
+    sel.name = field.key;
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "Choose one";
+    sel.appendChild(blank);
+    (field.options || []).forEach((opt) => {
+      const o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.label;
+      if (chosen === opt.value) o.selected = true;
+      sel.appendChild(o);
+    });
+    wrap.appendChild(label);
+    wrap.appendChild(sel);
+    return wrap;
+  }
+
+  function multiField(field, chosenList) {
+    const chosen = Array.isArray(chosenList) ? chosenList : [];
+    const wrap = document.createElement("fieldset");
+    wrap.className = "prv-qgroup prv-multi";
+    const legend = document.createElement("legend");
+    legend.className = "asc-label";
+    legend.textContent = field.label;
+    wrap.appendChild(legend);
+    const grid = document.createElement("div");
+    grid.className = "prv-multi-grid";
+    (field.options || []).forEach((opt) => {
+      const row = document.createElement("label");
+      row.className = "prv-choice prv-choice-inline";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.name = field.key;
+      input.value = opt.value;
+      if (chosen.indexOf(opt.value) !== -1) input.checked = true;
+      const span = document.createElement("span");
+      span.textContent = opt.label;
+      row.appendChild(input);
+      row.appendChild(span);
+      grid.appendChild(row);
+    });
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  async function renderApplication(opts) {
     renderHeader();
-    mountTemplate("tplIntake");
+    mountTemplate("tplApplication");
+    paintState();
+
+    const fieldsEl = document.getElementById("prvAppFields");
+    const errBox = document.getElementById("prvAppError");
+    const okBox = document.getElementById("prvAppOk");
+    const btn = document.getElementById("prvAppBtn");
+    const form = document.getElementById("prvAppForm");
+
+    if (opts && opts.firstRun) {
+      document.getElementById("prvAppSub").textContent =
+        "Four questions, so the first conversation starts from something real. " +
+        "“Not sure” is a real answer to any of them.";
+    }
+
+    let data;
+    try {
+      data = await apiGet("/hs/application");
+    } catch (e) {
+      if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+      showError(errBox, e.message || "Could not load the questions.");
+      return;
+    }
+    const previous = data.submitted || {};
+    (data.prompts || []).forEach((q) => {
+      if (q.options) {
+        fieldsEl.appendChild(radioGroup(q, previous[q.key]));
+        return;
+      }
+      // The composite question: one legend, three inputs under it.
+      const group = document.createElement("div");
+      group.className = "prv-qgroup prv-qgroup-composite";
+      const legend = document.createElement("div");
+      legend.className = "asc-label";
+      legend.textContent = q.label;
+      group.appendChild(legend);
+      if (q.help) {
+        const help = document.createElement("p");
+        help.className = "asc-help";
+        help.textContent = q.help;
+        group.appendChild(help);
+      }
+      (q.fields || []).forEach((f) => {
+        group.appendChild(f.kind === "multiselect"
+          ? multiField(f, previous[f.key])
+          : selectField(f, previous[f.key]));
+      });
+      fieldsEl.appendChild(group);
+    });
+
+    if (previous.submitted_at) {
+      btn.textContent = "Update answers";
+    }
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      showError(errBox, "");
+      okBox.hidden = true;
+      const body = {};
+      let missing = false;
+      (data.prompts || []).forEach((q) => {
+        if (q.options) {
+          const picked = form.querySelector('input[name="' + q.key + '"]:checked');
+          if (!picked) { missing = true; return; }
+          body[q.key] = picked.value;
+          return;
+        }
+        (q.fields || []).forEach((f) => {
+          if (f.kind === "multiselect") {
+            body[f.key] = Array.prototype.slice
+              .call(form.querySelectorAll('input[name="' + f.key + '"]:checked'))
+              .map((el) => el.value);
+            return;
+          }
+          const el = document.getElementById("prv-f-" + f.key);
+          if (!el || !el.value) { missing = true; return; }
+          body[f.key] = el.value;
+        });
+      });
+      if (missing) {
+        showError(errBox, "Please answer every question. “Not sure” counts.");
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Submitting…";
+      try {
+        await apiPost("/hs/application", body);
+        okBox.textContent =
+          "Thank you. We are reading it, and we will come back to you within " +
+          "one to two business days.";
+        okBox.hidden = false;
+        try { currentUser = await apiGet("/hs/me"); } catch (_) {}
+        paintState();
+        renderRail();
+      } catch (e) {
+        if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+        showError(errBox, e.message || "Could not save that. Please try again.");
+      }
+      btn.disabled = false;
+      btn.textContent = "Update answers";
+    });
+
+    renderMembers();
+    renderNotes();
+  }
+
+  // ─── §3.2 the team, on the same page ────────────────────────
+  function memberRow() {
+    const row = document.createElement("div");
+    row.className = "asc-field prv-member-row";
+    const input = document.createElement("input");
+    input.className = "asc-input";
+    input.type = "email";
+    input.placeholder = "colleague@yourhospital.org";
+    input.setAttribute("aria-label", "Teammate email address");
+    row.appendChild(input);
+    return row;
+  }
+
+  async function renderMembers() {
+    const listEl = document.getElementById("prvMembers");
+    const rowsEl = document.getElementById("prvMemberRows");
+    const errBox = document.getElementById("prvMembersError");
+    const okBox = document.getElementById("prvMembersOk");
+    const btn = document.getElementById("prvMembersBtn");
+    const form = document.getElementById("prvMembersForm");
+    if (!listEl) return;
+
+    async function paint() {
+      clear(listEl);
+      let data;
+      try {
+        data = await apiGet("/hs/members");
+      } catch (e) {
+        if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+        showError(errBox, e.message || "Could not load your team.");
+        return;
+      }
+      (data.members || []).forEach((m) => {
+        const li = document.createElement("li");
+        li.className = "prv-member";
+        const who = document.createElement("span");
+        who.className = "prv-member-who";
+        who.textContent = m.email || m.username;
+        li.appendChild(who);
+        if (m.is_you) {
+          const you = document.createElement("span");
+          you.className = "prv-member-you";
+          you.textContent = "you";
+          li.appendChild(you);
+        }
+        listEl.appendChild(li);
+      });
+    }
+
+    rowsEl.appendChild(memberRow());
+    document.getElementById("prvAddRow").addEventListener("click", () => {
+      if (rowsEl.children.length >= 10) return;
+      rowsEl.appendChild(memberRow());
+    });
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      showError(errBox, "");
+      okBox.hidden = true;
+      const emails = Array.prototype.slice.call(rowsEl.querySelectorAll("input"))
+        .map((el) => (el.value || "").trim())
+        .filter((v) => v);
+      if (!emails.length) {
+        showError(errBox, "Add an email address first.");
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+      try {
+        const res = await apiPost("/hs/members", { emails: emails });
+        const added = (res && res.added) || [];
+        okBox.textContent = added.length
+          ? "Invitations sent to " + added.join(", ") + "."
+          : "Everyone you listed already has access.";
+        okBox.hidden = false;
+        clear(rowsEl);
+        rowsEl.appendChild(memberRow());
+        await paint();
+      } catch (e) {
+        if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+        showError(errBox, e.message || "Could not send those invitations.");
+      }
+      btn.disabled = false;
+      btn.textContent = "Send invitations";
+    });
+
+    paint();
+  }
+
+  // ─── The older free-text note, folded away ──────────────────
+  async function renderNotes() {
     const fields = document.getElementById("prvIntakeFields");
     const errBox = document.getElementById("prvIntakeError");
     const okBox = document.getElementById("prvIntakeOk");
     const btn = document.getElementById("prvIntakeBtn");
     const form = document.getElementById("prvIntakeForm");
-
-    if (opts && opts.firstRun) {
-      document.getElementById("prvIntakeSub").textContent =
-        "A few questions, so the first conversation starts from something real. " +
-        "You can change any of it later.";
-    }
+    if (!fields) return;
 
     let prompts = [];
     let previous = {};
@@ -926,7 +1281,7 @@
       if (data.submitted && data.submitted.length) previous = data.submitted[0].answers || {};
     } catch (e) {
       if (e instanceof AuthError) { bounceToLogin(e.message); return; }
-      showError(errBox, e.message || "Could not load the questions.");
+      showError(errBox, e.message || "Could not load these questions.");
       return;
     }
 
@@ -969,7 +1324,6 @@
         await apiPost("/hs/intake", payload);
         okBox.textContent = "Thank you. We have that.";
         okBox.hidden = false;
-        // Re-read the profile: this is the write that clears intake_needed.
         try { currentUser = await apiGet("/hs/me"); } catch (_) {}
         renderRail();
       } catch (e) {
@@ -978,6 +1332,109 @@
       }
       btn.disabled = false;
       btn.textContent = "Save";
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SCREEN 10 — THE AGREEMENT
+  //
+  //  Full text on screen, then the clickwrap. The Sign button stays disabled
+  //  until both boxes are ticked and both fields are filled, which is the
+  //  affirmative-assent requirement made visible rather than merely enforced
+  //  on the server — the server enforces it too, and refuses either way.
+  // ══════════════════════════════════════════════════════════
+  async function renderAgreement() {
+    renderHeader();
+    mountTemplate("tplAgreement");
+
+    const sub = document.getElementById("prvAgreementSub");
+    const version = document.getElementById("prvAgreementVersion");
+    const textEl = document.getElementById("prvAgreementText");
+    const signedBox = document.getElementById("prvSignedBox");
+    const signBox = document.getElementById("prvSignBox");
+
+    let data;
+    try {
+      data = await apiGet("/hs/agreement");
+    } catch (e) {
+      if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+      textEl.textContent =
+        "We could not load the agreement just now. Please refresh in a moment.";
+      return;
+    }
+
+    version.textContent = data.doc_version || "";
+    // textContent into a <pre>-styled box: the agreement is TEXT and must never
+    // be parsed as markup. A contract that renders differently from the bytes
+    // that were hashed is the one defect this feature cannot have.
+    textEl.textContent = data.text || "";
+
+    if (data.signed) {
+      const when = formatWhen(data.signed.signed_at);
+      sub.textContent = "Signed for your organization. Nothing further is needed.";
+      document.getElementById("prvSignedLine").textContent =
+        "Signed by " + (data.signed.signed_by || "") +
+        (data.signed.signed_by_title ? ", " + data.signed.signed_by_title : "") +
+        " on " + when + ".";
+      document.getElementById("prvSignedHash").textContent =
+        "Document fingerprint " + (data.signed.doc_sha256 || "").slice(0, 16) +
+        "… · version " + (data.signed.doc_version || "");
+      signedBox.hidden = false;
+      return;
+    }
+
+    if (!data.can_sign) {
+      sub.textContent = data.next_step || "";
+      return;
+    }
+
+    sub.textContent =
+      "Read it in full, then sign below. Uploading opens the moment you do.";
+    signBox.hidden = false;
+    document.getElementById("prvSignAuthorityLabel").textContent =
+      "I am authorized to sign on behalf of " + (data.organization || "my organization") + ".";
+
+    const authority = document.getElementById("prvSignAuthority");
+    const esign = document.getElementById("prvSignEsign");
+    const name = document.getElementById("prvSignName");
+    const title = document.getElementById("prvSignTitle");
+    const btn = document.getElementById("prvSignBtn");
+    const errBox = document.getElementById("prvSignError");
+    name.value = data.signer_name_prefill || "";
+
+    function refresh() {
+      btn.disabled = !(authority.checked && esign.checked &&
+                       (name.value || "").trim() && (title.value || "").trim());
+    }
+    [authority, esign].forEach((el) => el.addEventListener("change", refresh));
+    [name, title].forEach((el) => el.addEventListener("input", refresh));
+    refresh();
+
+    document.getElementById("prvSignForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      showError(errBox, "");
+      btn.disabled = true;
+      btn.textContent = "Signing…";
+      try {
+        await apiPost("/hs/agreement/sign", {
+          typed_name: (name.value || "").trim(),
+          typed_title: (title.value || "").trim(),
+          authority_affirmed: authority.checked,
+          consent_esign: esign.checked,
+          // Echoed back so the server can refuse a signature against a document
+          // that changed while this page was open.
+          doc_sha256: data.doc_sha256 || ""
+        });
+        try { currentUser = await apiGet("/hs/me"); } catch (_) {}
+        toast("Signed. Uploading is open.", "success");
+        setPanel("upload");
+        return;
+      } catch (e) {
+        if (e instanceof AuthError) { bounceToLogin(e.message); return; }
+        showError(errBox, e.message || "We could not record that signature.");
+      }
+      btn.textContent = "Sign agreement";
+      refresh();
     });
   }
 
@@ -1037,11 +1494,16 @@
     summaryEl.appendChild(summaryStat("Paid", formatMoney(s.paid_cents)));
     summaryEl.appendChild(summaryStat("Awaiting payment", formatMoney(s.pending_cents)));
 
+    renderInvoices(data.invoices || []);
+
     const rows = data.payouts || [];
     if (!rows.length) {
       tableWrap.hidden = true;
       emptyEl.hidden = false;
-      emptyText.textContent =
+      // The server's own sentence. It says two true things and no more: this is
+      // where money appears, and the amounts come from the agreement they
+      // signed rather than from anything on this page.
+      emptyText.textContent = data.empty_note ||
         "Nothing recorded yet. Every payment we make to your organization will " +
         "appear here.";
       return;
@@ -1069,6 +1531,39 @@
       amount.textContent = formatMoney(p.amount_cents);
       [when, what, period, status, amount].forEach((td) => tr.appendChild(td));
       bodyEl.appendChild(tr);
+    });
+  }
+
+  // What we have BILLED, as distinct from what we have PAID above. Drafts never
+  // reach here — the server filters them — so every row is a number we have
+  // committed to.
+  function renderInvoices(invoices) {
+    const host = document.getElementById("prvInvoices");
+    if (!host) return;
+    clear(host);
+    if (!invoices.length) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    invoices.forEach((inv) => {
+      const row = document.createElement("div");
+      row.className = "prv-invoice";
+      const period = document.createElement("span");
+      period.className = "prv-mono";
+      period.textContent = inv.period;
+      const what = document.createElement("span");
+      what.className = "prv-invoice-what";
+      what.textContent = inv.description || "Data licence";
+      const badge = document.createElement("span");
+      badge.className = "asc-badge " +
+        (inv.status === "paid" ? "asc-badge-green" : "asc-badge-amber");
+      badge.textContent = inv.status;
+      const amount = document.createElement("span");
+      amount.className = "prv-num prv-invoice-amount";
+      amount.textContent = formatMoney(inv.amount_cents);
+      [period, what, badge, amount].forEach((el) => row.appendChild(el));
+      host.appendChild(row);
     });
   }
 
@@ -1128,8 +1623,21 @@
   function renderPending() {
     renderHeader();
     mountTemplate("tplPending");
+    // The server's own sentence for whichever state this organization is in.
+    // The template's copy is the fallback, not the source: a state added later
+    // says the right thing here without this file changing.
+    const title = document.getElementById("prvPendingTitle");
+    const next = document.getElementById("prvPendingNext");
+    if (currentUser && currentUser.state_label) title.textContent = currentUser.state_label;
+    if (orgNextStep()) next.textContent = orgNextStep();
     document.getElementById("prvPendingIntake")
-      .addEventListener("click", () => setPanel("intake"));
+      .addEventListener("click", () => setPanel("application"));
+    // The one state where there is something to DO rather than wait for.
+    const sign = document.getElementById("prvPendingSign");
+    if (orgState() === "approved_awaiting_dla") {
+      sign.hidden = false;
+      sign.addEventListener("click", () => setPanel("agreement"));
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1146,20 +1654,40 @@
         renderReset();
         return;
       }
-      // 2. A brand-new signup is walked into the intake form once. An existing
-      //    partner is never routed here, whatever intake_at says.
-      if (me && me.intake_needed === true) {
-        currentPanel = "intake";
+      // 2. An organization still at the start of onboarding lands on the
+      //    application, every time, until it has been submitted. That is the
+      //    one thing standing between them and a decision, and a portal that
+      //    opens onto a locked upload screen instead teaches them there is
+      //    nothing here for them.
+      if (orgState() === "intake") {
+        currentPanel = "application";
         renderRail();
-        renderIntake({ firstRun: true });
+        renderApplication({ firstRun: true });
         return;
       }
-      // 3. Otherwise the last panel, defaulting to upload when it is open and
-      //    to payouts when it is not, so a pending account never opens onto a
+      // 3. Approved and unsigned: the agreement is the whole job.
+      if (orgState() === "approved_awaiting_dla" && !(me && me.agreement)) {
+        currentPanel = "agreement";
+        renderRail();
+        renderAgreement();
+        return;
+      }
+      // 4. A brand-new signup on an organization that predates the state
+      //    machine is still walked into the questions once. An existing partner
+      //    is never routed here, whatever intake_at says.
+      if (me && me.intake_needed === true) {
+        currentPanel = "application";
+        renderRail();
+        renderApplication({ firstRun: true });
+        return;
+      }
+      // 5. Otherwise the last panel, defaulting to upload when it is open and
+      //    to the application when it is not, so nobody ever opens onto a
       //    locked door.
-      const dest = sessionHasSurface("upload")
+      const uploadOpen = sessionHasSurface("upload") && orgState() === "active";
+      const dest = uploadOpen
         ? (currentPanel || "upload")
-        : (currentPanel === "upload" ? "payouts" : currentPanel);
+        : (currentPanel === "upload" || !currentPanel ? "application" : currentPanel);
       setPanel(dest);
     } catch (e) {
       if (e instanceof AuthError) { hideRail(); renderLogin(); return; }

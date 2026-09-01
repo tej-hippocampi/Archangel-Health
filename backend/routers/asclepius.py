@@ -49,6 +49,7 @@ from asclepius import generation as asc_generation
 from asclepius import pipeline as asc_pipeline
 from asclepius import profiles as asc_profiles
 from asclepius import specialties as asc_specialties
+from asclepius import store as asc_store
 from asclepius import task_notify as asc_task_notify
 # Pure policy module (stdlib only) — safe at module scope, no cycle.
 from asclepius import route_notify as asc_route_notify
@@ -130,6 +131,8 @@ from asclepius.schemas import (
     BuyerRequestStatusUpdate,
     CandidateGenRequest,
     CiteRequest,
+    FirstRunUpdate,
+    FIRST_RUN_STOPS as _FIRST_RUN_STOPS,
     ForgotPasswordRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
@@ -301,6 +304,29 @@ async def login(body: LoginRequest):
     store = _store()
     user = asc_auth.authenticate(store, body.email, body.password)
     if not user:
+        # Onboarding v2 §2: a physician who submitted an application has an
+        # account row with NO password — the v2 wizard has no password step, and
+        # credentials are minted and mailed on approval (§4.4, §5). Telling them
+        # "invalid email or password" would be false in both halves and would
+        # send them to the reset flow, which cannot help: there is nothing to
+        # reset. Answer with the state they are actually in.
+        #
+        # This is not an enumeration oracle worth worrying about, and the reason
+        # is structural rather than a judgment call: the only accounts it can
+        # distinguish are ones that HAVE NO CREDENTIAL. There is nothing to
+        # guess, nothing to brute-force, and nothing an attacker can do with the
+        # answer that they could not do by submitting an application to the same
+        # address. Every account that has a password still gets the same generic
+        # 401 it always did.
+        pending = store.get_user_by_email((body.email or "").strip().lower())
+        if pending and asc_store.password_is_unset(pending) \
+                and (pending.get("verification_status") or "pending") == "pending":
+            raise HTTPException(
+                status_code=403,
+                detail=("Your application is in review — we'll email you within "
+                        "24–48 hours."),
+                headers={asc_auth.AUTH_GATE_HEADER: "pending"},
+            )
         raise HTTPException(status_code=401, detail="Invalid email or password")
     store.log_event(entity_type="user", entity_id=user["id"], event_type="login", actor=user["id"])
     return {"token": asc_auth.create_token(user), "user": asc_auth.public_user(user)}
@@ -915,7 +941,101 @@ async def update_my_tutorial(
         event_type="tutorial_" + action, actor=user["id"],
         payload={"step": body.step} if body.step else None,
     )
+    # Onboarding v2 §6 stop 3: the practice case IS a walkthrough stop, and it is
+    # checked off HERE — from the tutorial's own transition — rather than by a
+    # second tracker the client would have to remember to call. The PRD is
+    # explicit about this ("hook the existing tutorial-complete server event; do
+    # not add a parallel tracker"), and the reason is that two writers of one
+    # fact drift: a doctor who finishes the practice case from the help menu, or
+    # on another device, or after a reload, must still find the box ticked.
+    #
+    # A skip closes the stop too. §6 says a skip never nags again, and leaving
+    # the box open after a deliberate skip is exactly nagging.
+    if action in ("complete", "skip"):
+        _close_first_run_stop(store, user["id"], "practice",
+                              "done" if action == "complete" else "skipped")
     return asc_auth.public_user(store.get_user_by_id(user["id"]))
+
+
+# ─── First-login walkthrough (Onboarding v2 §6) ──────────────────────────────
+def _close_first_run_stop(store: Any, user_id: str, stop: str, outcome: str) -> None:
+    """Mark one stop closed, and the whole checklist complete once all six are.
+
+    Idempotent and monotonic: a stop that is already closed keeps its FIRST
+    outcome, so replaying the practice case after skipping it does not rewrite
+    history, and a stop can never reopen. That is what makes "skip for now never
+    nags again" true rather than aspirational.
+    """
+    state = store.get_first_run(user_id)
+    stops = dict(state.get("stops") or {})
+    if stops.get(stop):
+        return
+    stops[stop] = outcome
+    state["stops"] = stops
+    if not state.get("completed_at") and all(stops.get(s) for s in _FIRST_RUN_STOPS):
+        state["completed_at"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    store.set_first_run(user_id, state)
+
+
+@router.patch("/me/first-run")
+async def update_my_first_run(
+    body: FirstRunUpdate,
+    # get_current_account, not require_full_access: the walkthrough is the FIRST
+    # thing a newly approved physician sees, and on some deployments they reach
+    # it while still provisional. A checklist that 403s is a checklist nobody
+    # can finish.
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+):
+    """One transition on the caller's own first-login walkthrough.
+
+    Server-authoritative and server-STORED (§6): doctors switch devices, and a
+    checklist in localStorage restarts on the phone. The rules that make a stop
+    permanent live here, not in client flags.
+    """
+    store = _store()
+    if body.action in ("done", "skip"):
+        if not body.stop:
+            raise HTTPException(status_code=400, detail="Which stop?")
+        _close_first_run_stop(store, user["id"], body.stop,
+                              "done" if body.action == "done" else "skipped")
+    elif body.action == "dismiss":
+        state = store.get_first_run(user["id"])
+        if not state.get("dismissed_at"):
+            state["dismissed_at"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+            store.set_first_run(user["id"], state)
+    elif body.action == "reset":
+        # Self-service, for the same reason the tutorial's reset is: the
+        # walkthrough writes no real data, so replaying it costs nothing and
+        # refusing would just mean asking an admin for something harmless.
+        store.set_first_run(user["id"], {
+            "version": store.FIRST_RUN_VERSION, "stops": {},
+            "completed_at": None, "dismissed_at": None,
+        })
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="first_run_" + body.action, actor=user["id"],
+        payload={"stop": body.stop} if body.stop else None,
+    )
+    return asc_auth.public_user(store.get_user_by_id(user["id"]))
+
+
+@router.post("/me/bank-link/interest")
+async def register_bank_link_interest(
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+):
+    """§6 stop 5 — "we'll DM you the moment banking goes live".
+
+    The card in the walkthrough is disabled and clearly labelled; this is the
+    only thing behind it, and it stores a status rather than pretending to link
+    anything. The Stripe work lands on the payments track and reads this column
+    to find who has been waiting.
+    """
+    store = _store()
+    if not (user.get("bank_link_status") or "").strip():
+        store.set_bank_link_status(user["id"], "coming_soon")
+        store.log_event(entity_type="user", entity_id=user["id"],
+                        event_type="bank_link_interest", actor=user["id"])
+    return {"ok": True, "bank_link_status": "coming_soon"}
 
 
 # ─── Tutorial — Calibration Case 1 ───────────────────────────────────────────
@@ -5167,11 +5287,15 @@ def _promote_block(
     instead of a clickable button that 409s. Same order as the promote endpoints,
     so the reason shown is the reason that would fire.
     """
-    brokering = {
-        "reason": "brokering",
-        "message": "This upload is held for brokering. Brokering data is never "
-                   "promoted to tasks — the server refuses it.",
-    }
+    def _blocked(value) -> Dict[str, str]:
+        """The reason THIS value is barred, so the disabled button says the thing
+        that lifts it. Brokering never lifts; storage lifts the moment somebody
+        reads the file and sets a destination on this row."""
+        return {
+            "reason": "brokering" if asc_ingestion.is_brokering(value) else "storage",
+            "message": asc_ingestion.promotion_block_reason(value),
+        }
+
     # When cases exist, the EFFECTIVE per-case purpose decides, exactly as the
     # promote endpoints decide it (COALESCE(case.purpose, upload.purpose) — see
     # `promotable` at the call site). Testing the upload row first would have
@@ -5179,15 +5303,17 @@ def _promote_block(
     # to task creation, disabling a button the server would happily have honored.
     # The upload row is consulted only when there are no cases to speak for it.
     if not ingested:
-        if asc_ingestion.is_brokering(upload.get("purpose")):
-            return brokering
+        if asc_ingestion.blocks_promotion(upload.get("purpose")):
+            return _blocked(upload.get("purpose"))
         return {
             "reason": "no_cases",
             "message": "No cases in this upload have finished ingesting. Clear any "
                        "review holds in Partner uploads above.",
         }
     if not promotable:
-        return brokering
+        # Every ingested case is barred. Report the upload's own value, which is
+        # what the operator would resolve, rather than an arbitrary case's.
+        return _blocked(upload.get("purpose"))
     if undetermined:
         return {
             "reason": "specialty",
@@ -5239,7 +5365,8 @@ async def list_ingestion_uploads(
         # than with a second query per upload.
         ingested = [c for c in cases if c.get("status") == "ingested"]
         promotable = [c for c in ingested
-                      if not asc_ingestion.is_brokering(c.get("purpose") or u.get("purpose"))]
+                      if not asc_ingestion.blocks_promotion(
+                          c.get("purpose") or u.get("purpose"))]
         undetermined = [c for c in promotable
                         if asc_ingestion.specialty_is_undetermined(c.get("specialty"))]
         u["specialties"] = sorted({c.get("specialty") for c in cases
@@ -5264,12 +5391,25 @@ async def list_ingestion_uploads(
         case_counts = store.upload_task_counts(u["upload_id"])
         u["case_counts"] = case_counts
         u["tasks_created"] = case_counts["promoted"]
-        # The three states §3 renders. 'undecided' is NOT the same as
-        # task_creation even though ``effective_purpose`` resolves NULL that way
-        # for promotion: the admin has not answered yet, and Box 1 exists to ask.
-        u["staging"] = ("undecided" if not u.get("purpose")
-                        else "brokering" if asc_ingestion.is_brokering(u.get("purpose"))
-                        else "task_creation")
+        # The three states §3 renders, over the THREE-value purpose vocabulary.
+        #
+        # 'undecided' is ``is_storage``, not ``purpose IS NULL``. Storage is the
+        # default and it explicitly includes NULL — "received, stored, and used
+        # for nothing until a person says what it is for" — so testing falsiness
+        # would file an upload deliberately marked 'storage' as task creation and
+        # offer to build tasks out of it. Box 1 IS the storage bucket.
+        _purpose = u.get("purpose")
+        if asc_ingestion.is_brokering(_purpose):
+            u["staging"] = "brokering"
+        elif asc_ingestion.is_storage(_purpose):
+            # An upload whose cases already became tasks is HISTORY, not a
+            # decision. Those rows predate the storage default, when NULL
+            # resolved to task_creation and promoted; asking an operator to
+            # decide what they are for asks them to decide something that has
+            # already happened. They belong in the done fold, not Box 1.
+            u["staging"] = "task_creation" if case_counts["promoted"] else "undecided"
+        else:
+            u["staging"] = "task_creation"
         # Whether every eligible case has become a task — the §3.2 "done" fold.
         u["task_creation_complete"] = bool(
             case_counts["promoted"] and not case_counts["ingested"])
@@ -5808,12 +5948,16 @@ async def promote_ingest_case(
     # best-effort by design (it must never strand an upload), so reading only the
     # case column would let a swallowed copy failure present as NULL and resolve
     # to task_creation. Fail-open on the one check whose job is to fail closed.
-    if asc_ingestion.is_brokering(store.ingest_case_effective_purpose(ingest_case_id)):
-        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                        event_type="promote_refused_brokering", actor=admin["id"])
+    _purpose = store.ingest_case_effective_purpose(ingest_case_id)
+    if asc_ingestion.blocks_promotion(_purpose):
+        store.log_event(
+            entity_type="ingest_case", entity_id=ingest_case_id,
+            event_type=("promote_refused_brokering"
+                        if asc_ingestion.is_brokering(_purpose)
+                        else "promote_refused_unreviewed"),
+            actor=admin["id"], payload={"purpose": _purpose})
         raise HTTPException(
-            status_code=409,
-            detail="This case came in on a brokering link and cannot be promoted.")
+            status_code=409, detail=asc_ingestion.promotion_block_reason(_purpose))
     if ic["status"] != "ingested":
         raise HTTPException(status_code=409, detail=f"Case is {ic['status']!r}, not 'ingested'")
     # PRD-I §4.2: a WRONG specialty is worse than a missing one. It routes the case
@@ -5943,7 +6087,7 @@ async def prepare_upload_promotion(
     _purposes = store.ingest_case_purposes_for_upload(upload_id)
     ingested = [c for c in store.list_ingest_cases(upload_id=upload_id)
                 if c.get("status") == "ingested"
-                and not asc_ingestion.is_brokering(
+                and not asc_ingestion.blocks_promotion(
                     _purposes.get(c.get("ingest_case_id"), c.get("purpose")))]
     if not ingested:
         raise HTTPException(status_code=409,
@@ -5995,21 +6139,30 @@ async def promote_upload_all(
     # case eventually slips through.
     _purposes = store.ingest_case_purposes_for_upload(upload_id)
 
-    def _is_brokering(c: Dict[str, Any]) -> bool:
-        return asc_ingestion.is_brokering(
-            _purposes.get(c.get("ingest_case_id"), c.get("purpose")))
+    def _case_purpose(c: Dict[str, Any]) -> Optional[str]:
+        return _purposes.get(c.get("ingest_case_id"), c.get("purpose"))
 
-    ingested = [c for c in candidates if not _is_brokering(c)]
-    skipped_brokering = [c for c in candidates if _is_brokering(c)]
+    def _barred(c: Dict[str, Any]) -> bool:
+        return asc_ingestion.blocks_promotion(_case_purpose(c))
+
+    ingested = [c for c in candidates if not _barred(c)]
+    skipped_brokering = [c for c in candidates if _barred(c)]
     if skipped_brokering:
         store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                         event_type="promote_skipped_brokering", actor=admin["id"],
                         payload={"skipped": len(skipped_brokering)})
     if not ingested:
-        detail = ("No ingested cases awaiting promotion in this upload."
-                  if not skipped_brokering else
-                  f"All {len(skipped_brokering)} case(s) in this upload came in on a "
-                  "brokering link and cannot be promoted.")
+        if not skipped_brokering:
+            detail = "No ingested cases awaiting promotion in this upload."
+        else:
+            # Name which bar it was. "Held for brokering" and "nobody has read
+            # this yet" call for completely different next actions, and a batch
+            # that reported the wrong one would send the operator looking for a
+            # decision they had already made.
+            detail = (f"All {len(skipped_brokering)} case(s) in this upload are "
+                      "held. "
+                      + asc_ingestion.promotion_block_reason(
+                          _case_purpose(skipped_brokering[0])))
         raise HTTPException(status_code=409, detail=detail)
     promoted: List[Dict[str, Any]] = []
     promoted_tasks: List[Dict[str, Any]] = []
@@ -6346,12 +6499,16 @@ async def generate_real_cases(
     # else, and before the dry run too: the plan renders the chart and sends it to
     # a third-party model to author questions, which is the activity the rule
     # exists to prevent whether or not a task comes out the other end.
-    if asc_ingestion.is_brokering(store.ingest_case_effective_purpose(ingest_case_id)):
-        store.log_event(entity_type="ingest_case", entity_id=ingest_case_id,
-                        event_type="generate_refused_brokering", actor=admin["id"])
+    _purpose = store.ingest_case_effective_purpose(ingest_case_id)
+    if asc_ingestion.blocks_promotion(_purpose):
+        store.log_event(
+            entity_type="ingest_case", entity_id=ingest_case_id,
+            event_type=("generate_refused_brokering"
+                        if asc_ingestion.is_brokering(_purpose)
+                        else "generate_refused_unreviewed"),
+            actor=admin["id"], payload={"purpose": _purpose})
         raise HTTPException(
-            status_code=409,
-            detail="This case came in on a brokering link and cannot be generated from.")
+            status_code=409, detail=asc_ingestion.promotion_block_reason(_purpose))
     if ic["status"] not in ("ingested", "promoted"):
         raise HTTPException(status_code=409,
                             detail=f"Case is {ic['status']!r}, not 'ingested'")

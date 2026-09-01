@@ -81,6 +81,7 @@ from routers.asclepius_verify import router as asclepius_verify_router
 from routers.asclepius_review import router as asclepius_review_router
 from routers.asclepius_payments import router as asclepius_payments_router
 from routers.asclepius_score import router as asclepius_score_router
+from routers.asclepius_media import router as asclepius_media_router
 from routers.leads import router as leads_router
 from eligibility import store as elig_store
 import demo_credentials
@@ -145,7 +146,7 @@ from auth import (
 )
 import auth as auth_module
 from onboarding_emails import build_doctor_verification_email, build_task_notification_email
-from team_store import TeamStore
+from team_store import TeamStore, set_team_store
 from preop_survey import (
     WINDOW_SURVEY_DAY,
     compute_window_tier,
@@ -235,6 +236,10 @@ _patient_store: dict = {}
 app.state.patient_store = _patient_store
 _team_store = TeamStore()
 app.state.team_store = _team_store
+# Background work (the Onboarding v2 nudge sweep) has no request to reach
+# app.state through. Bind THIS instance rather than letting it build a second
+# one, so both see the same database — including the temp one the suite swaps in.
+set_team_store(_team_store)
 
 # ─── Asclepius — Expert Evaluation Portal (standalone, isolated) ──────────────
 # Own SQLite DB + own auth; never touches team.db or the clinical RBAC.
@@ -6785,6 +6790,12 @@ app.include_router(teachback_router)
 app.include_router(triage_explain_router)
 app.include_router(messaging_router)
 app.include_router(telehealth_router)
+# BEFORE asclepius_router, and it has to stay there. That router owns
+# `/api/asclepius/assets/{asset_id}`, and FastAPI matches routes in
+# registration order — so registering this one second would let the path
+# parameter swallow the literal `/assets/onboarding-demo` and answer the demo
+# with `asset_not_found`. A test pins the literal winning.
+app.include_router(asclepius_media_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_admin_router)

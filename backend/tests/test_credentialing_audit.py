@@ -356,12 +356,48 @@ def test_identity_capture_round_trips_through_the_signup_helper():
 
 def test_cv_sha_is_never_accepted_from_the_client():
     """Not a sender/receiver pair by design: a client-named sha would be an unvalidated
-    reference into the same asset store that holds de-identified clinical images."""
-    import inspect
+    reference into the same asset store that holds de-identified clinical images.
+
+    Exercises the function rather than grepping its source. The source check this
+    replaces asserted that the string "cvAssetSha" appeared somewhere in the
+    body, which stopped being true the moment the key list moved to a named
+    constant — while the property itself never changed. A guard that a refactor
+    can break without the behaviour breaking is a guard that gets deleted the
+    next time it goes red, so it is worth writing the harder version.
+    """
     from routers import onboarding
 
-    src = inspect.getsource(onboarding._preserve_server_cv_fields)
-    assert "cvAssetSha" in src and "stored" in src
+    class _FakeTs:
+        def get_asclepius_person(self, hs_id, email):
+            return {"credentials": {"cvAssetSha": "server-owned-sha",
+                                    "cvMime": "application/pdf",
+                                    "cvParsed": {"ok": True},
+                                    "cvParseStage": "done",
+                                    "cvFilename": "real.pdf"}}
+
+    out = onboarding._preserve_server_cv_fields(_FakeTs(), "hs-1", "dr@x.org", {
+        "primarySpecialty": "Nephrology",
+        # Everything a hostile client might try to name for itself.
+        "cvAssetSha": "a" * 64,
+        "cvMime": "text/plain",
+        "cvParsed": {"ok": True, "npi": "9999999999"},
+        "cvParseStage": "done",
+        "cvFilename": "forged.pdf",
+    })
+    assert out["primarySpecialty"] == "Nephrology"      # ordinary fields pass through
+    assert out["cvAssetSha"] == "server-owned-sha"      # the sha is the server's
+    assert out["cvParsed"] == {"ok": True}
+    assert out["cvFilename"] == "real.pdf"
+    assert out["cvParseStage"] == "done"
+
+    # And with nothing stored, a client-supplied sha is dropped rather than kept.
+    class _EmptyTs:
+        def get_asclepius_person(self, hs_id, email):
+            return {"credentials": {}}
+
+    bare = onboarding._preserve_server_cv_fields(_EmptyTs(), "hs-1", "dr@x.org",
+                                                 {"cvAssetSha": "a" * 64})
+    assert "cvAssetSha" not in bare
 
 
 # ═══ Migration hygiene (context pack §6) ═════════════════════════════════════

@@ -89,12 +89,26 @@ def test_noise_earns_no_points_and_says_so():
 
 
 # ─── ...without calling real doctors liars ───────────────────────────────────
+def _problems(user, creds):
+    """Findings about what does not HOLD TOGETHER, which is what this module is
+    for.
+
+    Onboarding v2 §2 added a second, deliberately different category to
+    ``flags()``: LOW notes recording what an application did not bring (no NPI,
+    no CV, no certification), because v2 stopped requiring them. Absence is
+    pending, never penalized — it does not flag, it does not suppress a tier
+    proposal, and it is not an implausibility. So the tests below, which are all
+    about implausibility, filter it out rather than asserting a total.
+    """
+    return [f for f in plausibility.flags(user, creds) if f["issue"] != "not_provided"]
+
+
 def test_a_real_doctor_still_scores_and_is_not_flagged():
     out = credentialing.propose_tier(_REAL_USER)
     assert out["score"] >= 70
     assert out["blockers"] == []
     assert out["proposed_tier"] == "reviewer"
-    assert plausibility.flags(_REAL_USER, json.loads(_REAL_USER["credentials_json"])) == []
+    assert _problems(_REAL_USER, json.loads(_REAL_USER["credentials_json"])) == []
 
 
 @pytest.mark.parametrize("licence", [
@@ -163,7 +177,7 @@ def test_claiming_more_practice_than_time_since_qualifying_is_flagged():
 
 def test_missing_years_are_not_suspicious():
     """Saying nothing is not evidence of anything."""
-    assert plausibility.flags({}, {"residency": {}, "fellowship": {}}) == []
+    assert _problems({}, {"residency": {}, "fellowship": {}}) == []
 
 
 # ─── LinkedIn ────────────────────────────────────────────────────────────────
@@ -269,7 +283,7 @@ def test_a_fellowship_that_follows_a_future_residency_is_not_flagged():
     from datetime import datetime, timezone
 
     year = datetime.now(timezone.utc).year
-    found = plausibility.flags({}, {
+    found = _problems({}, {
         "residency": {"institution": "Mass General", "year": str(year + 2)},
         "fellowship": {"institution": "Stanford", "year": str(year + 5)},
     })

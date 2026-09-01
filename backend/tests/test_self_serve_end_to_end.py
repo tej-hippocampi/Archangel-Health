@@ -135,23 +135,49 @@ def test_a_physician_can_actually_finish_self_serve_onboarding(client, monkeypat
     assert user["active"]
 
 
-def test_the_password_step_is_reachable_from_the_otp_step():
+def test_the_otp_hands_off_to_a_screen_that_actually_exists():
     """A backend that accepts a password is no use if the wizard never visits
-    the screen that sends one."""
+    the screen that sends one — and the reverse is just as bad.
+
+    Onboarding v2 §2 removed the password step from the PHYSICIAN path: that
+    account is created `pending` with no credential, and one is minted and
+    emailed on approval. So the invariant is no longer "post-OTP goes to
+    password"; it is that each door hands off to a screen its own order
+    contains. Routing a physician to a step that is not in their order would
+    strand them exactly the way skipping the password step used to.
+    """
     src = _WIZARD.read_text(encoding="utf-8")
-    m = re.search(r'setStep\(data\.product === "asclepius" \? "([a-zA-Z]+)"', src)
-    assert m, "the post-OTP branch changed shape; re-check it still reaches password"
-    assert m.group(1) == "password", (
-        f"post-OTP goes to {m.group(1)!r}, skipping the password step; the physician "
-        "reaches finish and is told to choose a password with no way back"
+    m = re.search(
+        r'setStep\(signupKind === "physician" \? "([a-zA-Z]+)" : "([a-zA-Z]+)"\);', src)
+    assert m, "the post-OTP branch changed shape; re-check where each door goes"
+    physician_next, other_next = m.group(1), m.group(2)
+    assert physician_next == "cv", (
+        f"post-OTP sends a physician to {physician_next!r}; v2 §2 goes to the CV screen"
+    )
+    assert other_next == "password", (
+        f"post-OTP sends the short signup to {other_next!r}; those accounts open "
+        "immediately and still choose their own password"
     )
 
+    i = src.index("function orderFor")
+    order_fn = src[i:src.index("\n}\n", i)]
+    physician_order = re.search(
+        r'return \["identity", "verify", "cv", "review", "attestations", "submitted"\];',
+        order_fn)
+    assert physician_order, "the physician order is not the v2 order"
+    assert f'"{physician_next}"' in physician_order.group(0)
 
-def test_the_password_step_is_in_the_self_serve_order():
+
+def test_the_password_step_is_still_in_the_orders_that_have_one():
+    """v2 removed it from the physician path ONLY. Member mode and the
+    advisor/referrer short signup provision an account that opens immediately,
+    so they still choose a credential — and a change that dropped it from those
+    would leave an open account nobody can sign in to."""
     src = _WIZARD.read_text(encoding="utf-8")
     i = src.index("function orderFor")
-    order = src[i:src.index("\n}", i)]
-    assert '"password"' in order
+    order = src[i:src.index("\n}\n", i)]
+    assert '["credentials", "attestations", "verify", "password", "ascSuccess"]' in order
+    assert 'const head: StepKey[] = ["identity", "verify", "password"];' in order
 
 
 def test_each_credentials_screen_gates_only_on_its_own_fields():

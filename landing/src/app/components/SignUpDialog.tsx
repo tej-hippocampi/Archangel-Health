@@ -6,7 +6,21 @@ import { useAuth } from "@/contexts/AuthContext";
 import * as authApi from "@/lib/auth-api";
 import { authDialogStyles } from "./authDialogStyles";
 
-type Step = "role" | "register" | "verify-email" | "doctor-onboard" | "patient-codes";
+/**
+ * The patient CARD is gone from the role screen (PRD §1) but the
+ * `patient-codes` STEP stays: care-team emails already in inboxes deep-link to
+ * `/#recovery-plan`, which opens this dialog straight at that step. Deleting
+ * the step would break a live URL to fix a layout problem.
+ */
+type Step =
+  | "role"
+  | "register"
+  | "verify-email"
+  | "doctor-onboard"
+  | "patient-codes"
+  | "org"
+  | "org-verify"
+  | "org-done";
 
 type Props = {
   open: boolean;
@@ -34,6 +48,13 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
   const [hospitalAffiliations, setHospitalAffiliations] = React.useState("");
   const [clinicCode, setClinicCode] = React.useState("");
   const [resourceCode, setResourceCode] = React.useState("");
+  // ─ Health system / organization: three fields and a code (PRD §2) ─
+  const [orgName, setOrgName] = React.useState("");
+  const [orgContact, setOrgContact] = React.useState("");
+  const [orgEmail, setOrgEmail] = React.useState("");
+  const [orgCode, setOrgCode] = React.useState("");
+  const [orgHoneypot, setOrgHoneypot] = React.useState("");
+  const [orgUsername, setOrgUsername] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [apiError, setApiError] = React.useState<string | null>(null);
 
@@ -51,6 +72,12 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
     setHospitalAffiliations("");
     setClinicCode("");
     setResourceCode("");
+    setOrgName("");
+    setOrgContact("");
+    setOrgEmail("");
+    setOrgCode("");
+    setOrgHoneypot("");
+    setOrgUsername("");
     setApiError(null);
     clearError();
     onOpenChange(false);
@@ -138,6 +165,51 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
     }
   };
 
+  const handleOrgSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setApiError(null);
+    clearError();
+    setSubmitting(true);
+    try {
+      await authApi.healthSystemSignup({
+        fullName: orgContact.trim(),
+        email: orgEmail.trim().toLowerCase(),
+        organization: orgName.trim(),
+        companyWebsite: orgHoneypot,
+      });
+      setStep("org-verify");
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleOrgVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setApiError(null);
+    setSubmitting(true);
+    try {
+      const result = await authApi.healthSystemVerify(
+        orgEmail.trim().toLowerCase(),
+        orgCode.trim(),
+      );
+      setOrgUsername(result.username);
+      // A beat before the redirect, not a straight jump. The username was
+      // derived from their organization name and they have never seen it; if
+      // the session cookie does not survive the hop to the portal (a different
+      // host in some deployments) this screen is the only place they can read
+      // it before their email arrives.
+      setStep("org-done");
+      window.setTimeout(() => {
+        window.location.assign(authApi.healthSystemPortalUrl());
+      }, 2200);
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : "That code is not right.");
+      setSubmitting(false);
+    }
+  };
+
   if (!open) return null;
 
   const modal = (
@@ -162,13 +234,21 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
               {step === "verify-email" && "Verify your email"}
               {step === "doctor-onboard" && "Doctor onboarding"}
               {step === "patient-codes" && "View your recovery plan"}
+              {step === "org" && "Health system sign-up"}
+              {step === "org-verify" && "Confirm your email"}
+              {step === "org-done" && "You are in"}
             </h2>
             <p className="adg-sub">
-              {step === "role" && "Are you a patient or a doctor?"}
+              {step === "role" && "Which one are you?"}
               {step === "register" && "Create your Archangel Health account."}
               {step === "verify-email" && `We sent a code and a link to ${email || "your email"}.`}
               {step === "doctor-onboard" && "Tell us about your practice."}
               {step === "patient-codes" && "Enter the codes from your care team email."}
+              {step === "org" &&
+                "Three things, and we will take you straight into your portal."}
+              {step === "org-verify" &&
+                `We sent a six-digit code to ${orgEmail || "your email"}.`}
+              {step === "org-done" && "Taking you to your portal."}
             </p>
           </div>
           <button type="button" onClick={resetAndClose} className="adg-close" aria-label="Close">
@@ -187,21 +267,25 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
         {step === "role" && (
           <div className="adg-form">
             <div className="adg-roles">
-              <button type="button" className="adg-role" onClick={() => setStep("patient-codes")}>
-                <span className="adg-role-for">
-                  <span className="adg-dot adg-dot-faint" aria-hidden="true" />
-                  <span className="adg-chrome">Access codes</span>
-                </span>
-                <span className="adg-role-title">Patient</span>
-                <span className="adg-role-sub">Health system &amp; resource codes</span>
-              </button>
               <button type="button" className="adg-role" onClick={() => setStep("register")}>
                 <span className="adg-role-for">
                   <span className="adg-dot adg-dot-green" aria-hidden="true" />
                   <span className="adg-chrome">Credentialed</span>
                 </span>
-                <span className="adg-role-title">Doctor</span>
-                <span className="adg-role-sub">I provide care</span>
+                <span className="adg-role-title">Physician</span>
+                <span className="adg-role-sub">
+                  Label, review, advise &mdash; paid clinical AI work
+                </span>
+              </button>
+              <button type="button" className="adg-role" onClick={() => setStep("org")}>
+                <span className="adg-role-for">
+                  <span className="adg-dot adg-dot-faint" aria-hidden="true" />
+                  <span className="adg-chrome">Organization</span>
+                </span>
+                <span className="adg-role-title">Health system / organization</span>
+                <span className="adg-role-sub">
+                  Contribute clinical data for task creation and licensing
+                </span>
               </button>
             </div>
             <div className="adg-actions">
@@ -428,6 +512,145 @@ export function SignUpDialog({ open, onOpenChange, initialStep = "role" }: Props
               </button>
             </div>
           </form>
+        )}
+
+        {/* Step: Health system — three fields, one button (PRD §2).
+            No password field. The backend mints a temporary one, mails it, and
+            forces its replacement at first sign-in: the same compromise the
+            physician onboarding makes, for the same SOC 2 reason. Asking a CIO
+            to invent a password before they know what this is costs signups
+            and buys nothing. */}
+        {step === "org" && (
+          <form onSubmit={handleOrgSubmit} className="adg-form">
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="signup-org-contact">Your name</label>
+              <input
+                id="signup-org-contact"
+                className="adg-input"
+                type="text"
+                placeholder="Dana Reyes"
+                value={orgContact}
+                onChange={(e) => setOrgContact(e.target.value)}
+                required
+                autoComplete="name"
+              />
+            </div>
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="signup-org-email">Work email</label>
+              <input
+                id="signup-org-email"
+                className="adg-input"
+                type="email"
+                placeholder="d.reyes@yourhospital.org"
+                value={orgEmail}
+                onChange={(e) => setOrgEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
+            </div>
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="signup-org-name">
+                Health system / organization name
+              </label>
+              <input
+                id="signup-org-name"
+                className="adg-input"
+                type="text"
+                placeholder="St Mary&apos;s Health"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                required
+                autoComplete="organization"
+              />
+            </div>
+            {/* Honeypot, mirrored from the contributor modal: never shown to a
+                person, always filled by a naive bot. */}
+            <input
+              type="text"
+              name="company_website"
+              value={orgHoneypot}
+              onChange={(e) => setOrgHoneypot(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              style={{ position: "absolute", left: -9999, width: 1, height: 1, opacity: 0 }}
+            />
+            <div className="adg-actions">
+              <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("role")}>
+                Back
+              </button>
+              <button
+                type="submit"
+                className="adg-btn adg-btn-primary"
+                disabled={submitting || !orgContact.trim() || !orgEmail.trim() || !orgName.trim()}
+              >
+                {submitting ? "One moment…" : "Continue"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Step: the six digits. */}
+        {step === "org-verify" && (
+          <form onSubmit={handleOrgVerify} className="adg-form">
+            <div className="adg-field">
+              <label className="adg-label" htmlFor="signup-org-code">Six-digit code</label>
+              <input
+                id="signup-org-code"
+                className="adg-input adg-input-code"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="000000"
+                value={orgCode}
+                onChange={(e) => setOrgCode(e.target.value.replace(/\D/g, ""))}
+                required
+                autoFocus
+              />
+            </div>
+            <button
+              type="button"
+              className="adg-linkish"
+              onClick={() => {
+                void authApi.healthSystemResendCode(orgEmail.trim().toLowerCase());
+                setApiError(null);
+              }}
+            >
+              Send it again
+            </button>
+            <div className="adg-actions">
+              <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("org")}>
+                Back
+              </button>
+              <button
+                type="submit"
+                className="adg-btn adg-btn-primary"
+                disabled={submitting || orgCode.length !== 6}
+              >
+                {submitting ? "Confirming…" : "Confirm"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Step: done. The username is on screen because they never chose it. */}
+        {step === "org-done" && (
+          <div className="adg-form">
+            <p className="adg-sub">
+              Your portal for <strong>{orgName.trim()}</strong> is open. You sign
+              in as <strong>{orgUsername}</strong> — it is in your email too,
+              with a temporary password to replace on your first sign-in.
+            </p>
+            <div className="adg-actions">
+              <a
+                className="adg-btn adg-btn-primary"
+                href={authApi.healthSystemPortalUrl()}
+              >
+                Open the portal
+              </a>
+            </div>
+          </div>
         )}
         </div>
       </div>

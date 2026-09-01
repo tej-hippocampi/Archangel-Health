@@ -207,11 +207,26 @@ def asset_storage_durable() -> Tuple[bool, str]:
     degraded. The raw-upload path already fails closed (503) on non-durable storage;
     this extends the same gate to the derived image blobs."""
     from asclepius.constants import (
-        asset_store, asset_store_is_ephemeral, path_is_ephemeral,
+        VOLUME_MOUNT_ENV, asset_store, asset_store_is_ephemeral,
+        declared_volume_mount, path_is_ephemeral, path_under_declared_volume,
     )
     root = asset_store()
     if root.startswith("s3://"):
         return True, "s3 backend configured"
+    # The platform's own word first, when it gives one. Everything below this is
+    # inference from a list of well-known temp directories, and inference cannot
+    # tell a real volume mounted at /data from a container-local directory of the
+    # same name — it calls both durable. That is the failure this check exists to
+    # catch, so a DECLARED mount outranks the guess in both directions: outside it
+    # is a refusal, inside it is a durability claim we can actually stand behind.
+    on_volume = path_under_declared_volume(root)
+    if on_volume is False:
+        return False, (f"asset store {root} is NOT under the persistent volume this "
+                       f"platform mounted at {declared_volume_mount()} "
+                       f"({VOLUME_MOUNT_ENV}); everything written there — the "
+                       f"onboarding demo video included — is destroyed on the next "
+                       f"redeploy. Point ASCLEPIUS_ASSET_STORE (or "
+                       f"ASCLEPIUS_DATA_DIR) at a path inside that mount.")
     # One shared prefix list (PRD I-0 §F1) — this used to re-implement the /tmp
     # check that ``asset_store_is_ephemeral`` should have been doing all along.
     if path_is_ephemeral(root):
@@ -230,6 +245,11 @@ def asset_storage_durable() -> Tuple[bool, str]:
                               f"confirm that volume is persistent")
         except OSError:
             pass
+    if on_volume:
+        # Say WHICH volume. "durable" on its own is a claim an operator has no way
+        # to check; naming the mount the platform declared is one they can.
+        return True, (f"asset store {root} is on the persistent volume mounted at "
+                      f"{declared_volume_mount()}")
     return True, f"asset store {root} is durable"
 
 
@@ -288,6 +308,111 @@ def load_asset(asset_or_sha: Any, *, verify: bool = False) -> Tuple[bytes, str]:
     if verify and _sha256(data) != sha:  # integrity — a corrupted blob must never serve
         raise AssetError(f"asset integrity check failed for {sha[:12]}…")
     return data, mime
+
+
+# ─── Large media blobs (Onboarding v2 §0.1) ──────────────────────────────────
+# The image path above re-encodes every upload to strip technical metadata. A
+# video cannot go through it: there is no Pillow raster to re-encode, the file is
+# two orders of magnitude larger than the image cap, and the whole point of the
+# demo is that it plays and SEEKS — which needs the bytes on disk, byte-range
+# addressable, exactly as they were authored.
+#
+# So media takes its own door: streamed to disk while hashing, never buffered
+# whole, stored content-addressed in the same fan-out so one store stays one
+# store. Nothing about it is a de-identification path — the only thing that ever
+# reaches this function is company-authored marketing footage uploaded by an
+# admin, which is why there is no strip, no scan, and no partner attestation.
+
+#: Container formats a browser's native <video> element plays without a library.
+#: MOV is accepted on upload because that is what a screen recording arrives as;
+#: it is NOT reliably playable in Firefox, so the admin upload path says so.
+ACCEPTED_MEDIA_MIMES = ("video/mp4", "video/webm", "video/quicktime")
+
+#: Deliberately generous and separate from ``image_max_bytes``: the demo is ~73 MB
+#: today and a re-record is not a reason to redeploy. Bounded all the same, because
+#: an unbounded upload endpoint is a disk-exhaustion endpoint.
+_MEDIA_MAX_DEFAULT = 512 * 1024 * 1024
+
+
+def media_max_bytes() -> int:
+    try:
+        return max(1, int(os.getenv("ASCLEPIUS_MEDIA_MAX_BYTES", "").strip() or _MEDIA_MAX_DEFAULT))
+    except ValueError:
+        return _MEDIA_MAX_DEFAULT
+
+
+class MediaTooLarge(ValueError):
+    """Upload exceeded ``ASCLEPIUS_MEDIA_MAX_BYTES`` → router maps to 413."""
+
+
+def store_media(chunks: Any, mime: str, *, max_bytes: Optional[int] = None) -> Dict[str, Any]:
+    """Stream an iterable of byte chunks into the asset store.
+
+    Hashes and writes in one pass, so a 500 MB upload costs one chunk of memory
+    rather than 500 MB of it. Returns ``{sha256, mime, byte_size}``.
+
+    The temp file is written first and renamed only once the whole stream has
+    landed: an interrupted upload leaves a ``.tmp`` that the reconcile sweep
+    already ignores, never a truncated blob that would serve as a corrupt video.
+    """
+    import uuid
+
+    mime = (mime or "").strip().lower()
+    if mime not in ACCEPTED_MEDIA_MIMES:
+        raise UnsupportedMediaType(
+            f"unsupported media type {mime!r}; accept {ACCEPTED_MEDIA_MIMES}")
+    cap = max_bytes if max_bytes is not None else media_max_bytes()
+
+    root = _store_root()
+    os.makedirs(root, exist_ok=True)
+    tmp = os.path.join(root, f"upload.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    digest = hashlib.sha256()
+    total = 0
+    try:
+        with open(tmp, "wb") as fh:
+            for chunk in chunks:
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > cap:
+                    raise MediaTooLarge(f"media is over {cap} bytes")
+                digest.update(chunk)
+                fh.write(chunk)
+            fh.flush()
+            os.fsync(fh.fileno())
+        if total == 0:
+            raise UnsupportedMediaType("empty upload")
+        sha = digest.hexdigest()
+        final = _blob_path(sha)
+        if os.path.exists(final):
+            os.remove(tmp)          # content-addressed dedupe: identical bytes cost once
+        else:
+            os.makedirs(os.path.dirname(final), exist_ok=True)
+            os.replace(tmp, final)
+    except BaseException:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        raise
+    return {"sha256": sha, "mime": mime, "byte_size": total}
+
+
+def media_blob_path(sha256: str) -> str:
+    """Filesystem path of a stored blob, for range-serving.
+
+    Range serving is why this exists as its own accessor rather than reusing
+    ``load_asset``: that function returns BYTES, and answering a seek into a
+    73 MB video by reading all 73 MB and slicing is how one physician scrubbing
+    a timeline becomes a 73 MB memory spike per request.
+    """
+    if not sha256:
+        raise AssetError("no sha256 to resolve")
+    path = _blob_path(sha256)
+    if not os.path.exists(path):
+        raise AssetError(f"media blob not found for {sha256[:12]}…")
+    return path
 
 
 def find_asset_by_id(store: Any, asset_id: str) -> Optional[Dict[str, Any]]:
@@ -370,6 +495,28 @@ def reconcile_assets(store: Any) -> Dict[str, Any]:
             _scan(getter(), case_key=case_key, id_key=id_key)
         except Exception as exc:  # pragma: no cover - defensive; report what we can
             log.warning("asset reconcile: could not scan %s rows: %s", case_key, exc)
+
+    # Platform media (the onboarding demo video) lives in the same content-addressed
+    # store but is referenced by a `platform_media` row rather than a case study, so
+    # the two scans above cannot see it. Left out, its blob is inventoried as an
+    # UNREFERENCED ORPHAN — first in line for any future sweep — and a demo video
+    # that vanished off the volume is reported as nothing at all. Both inversions of
+    # the truth, on the one asset an operator uploads by hand and expects to stay put.
+    try:
+        for row in store.list_platform_media():
+            sha = (row or {}).get("sha256")
+            if not sha:
+                continue
+            referenced.setdefault(sha, {
+                "sha256": sha,
+                "source": "platform_media",
+                "case_id": row.get("slot"),
+                "study_id": row.get("filename") or row.get("slot"),
+                "ingested_at": row.get("uploaded_at"),
+                "detail": "platform media slot " + str(row.get("slot")),
+            })
+    except Exception as exc:  # pragma: no cover - defensive; report what we can
+        log.warning("asset reconcile: could not scan platform_media rows: %s", exc)
 
     for sha, ref in referenced.items():
         if not os.path.exists(_blob_path(sha)):

@@ -54,6 +54,18 @@ _CSS = _FRONTEND / "asclepius.css"
 # stylesheet on it, and it has already been edited out from under them by an
 # unrelated house-style rule.
 _PRD_R_CSS_HEADING = "PRD-R: the paired review surface"
+#: The heading of the section that FOLLOWS PRD-R's, so a slice of "the PRD-R
+#: block" is actually that block. It used to be "everything after the PRD-R
+#: heading", which quietly grew to mean "and every section written since" — so
+#: an unrelated surface appended to the stylesheet failed a rule that was only
+#: ever about PRD-R's own grid.
+_AFTER_PRD_R_CSS_HEADING = "Promote gate: the reason, and the control that clears it"
+
+
+def _prd_r_css(css: str) -> str:
+    """Just the PRD-R block."""
+    assert _PRD_R_CSS_HEADING in css and _AFTER_PRD_R_CSS_HEADING in css
+    return css.split(_PRD_R_CSS_HEADING)[1].split(_AFTER_PRD_R_CSS_HEADING)[0]
 # ...and the heading of the block PRD-1 added, which sits BEFORE it so the
 # splits above keep meaning what they meant.
 _PRD_1_CSS_HEADING = "PRD-1: review inside the shell"
@@ -1086,7 +1098,7 @@ def test_under_two_minutes_the_copy_changes_and_the_colour_does_not():
     # The clock element's class is the same one in both states.
     assert out["classes"].count("asc-session-clock") == 1
     css = _CSS.read_text(encoding="utf-8")
-    block = css.split(_PRD_R_CSS_HEADING)[1]
+    block = _prd_r_css(css)
     clock_rule = block.split(".asc-session-clock")[1].split("}")[0]
     assert "--lime" in clock_rule and "--pink" not in clock_rule
 
@@ -1346,11 +1358,11 @@ def test_mobile_collapses_through_the_existing_breakpoint():
     # and was only passing because the sections that followed happened not to.
     # It read as a guard on PRD-R and behaved as a freeze on the whole file.
     assert _PRD_R_CSS_HEADING in css
-    after = css.split(_PRD_R_CSS_HEADING)[1]
-    # Sections are delimited by the file's own banner comment.
-    prd_r = after.split("/* ═══")[0]
-    assert ".asc-answer-physician" in prd_r, (
-        "section boundary lost — this no longer covers the PRD-R block")
+    # Main solved this independently and better: ``_prd_r_css`` bounds the block
+    # on BOTH ends with named headings, so the range cannot silently grow to
+    # swallow the rest of an append-only stylesheet. Taking it over the inline
+    # banner-split this branch had written for the same defect.
+    prd_r = _prd_r_css(css)
     assert "grid-template-columns" not in prd_r
 
 

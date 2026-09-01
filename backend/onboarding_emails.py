@@ -137,7 +137,18 @@ def _eyebrow(text: str) -> str:
 
 
 def _h1(text: str) -> str:
-    """Scale, not boldness: weight 400, negative tracking, ink."""
+    """Scale, not boldness: weight 400, negative tracking, ink.
+
+    DOES NOT ESCAPE. Several callers pass markup deliberately (``&rsquo;``, an
+    escaped name inside a sentence), so escaping here would double-escape them.
+    The convention is that the CALLER escapes anything a person can type, and
+    every caller below that interpolates a value does exactly that.
+
+    Three health-system alert builders did not, and the value they passed was an
+    organization name straight off the public signup form — rendered into the
+    headline of the email that lands next to the Approve button. Fixed at the
+    call sites; ``test_email_escaping.py`` now holds all of them.
+    """
     return (
         f'<h1 style="margin:0 0 16px;font-family:{_SANS};font-size:30px;'
         f'font-weight:400;letter-spacing:-0.015em;color:{_INK};line-height:1.2;">'
@@ -263,6 +274,68 @@ def _detail_rows(rows: Iterable[Tuple[str, str, bool]]) -> str:
             "</tr></table>"
         )
     return "".join(out)
+
+
+def _pullquote(text: str) -> str:
+    """A quiet, ink-weight pull quote: a lime rule on the left and nothing else.
+
+    The one place the emails raise their voice, and it does it with position and
+    a hairline rather than a colour block, because the sentence is doing the
+    work. Used for the mission lines, which are the same words as the landing
+    page's /mission section on purpose.
+    """
+    return (
+        f'<div style="margin:24px 0;padding:4px 0 4px 20px;border-left:3px solid {_LIME};">'
+        f'<p style="margin:0;font-family:{_SANS};font-size:17px;line-height:1.55;'
+        f'font-weight:500;letter-spacing:-0.01em;color:{_INK};">{text}</p>'
+        "</div>"
+    )
+
+
+def _founder_signoff(line: str) -> str:
+    """The founders sign their own emails. Set slightly apart from the body so it
+    reads as a signature and not as one more paragraph."""
+    return (
+        f'<p style="margin:26px 0 0;padding-top:20px;border-top:1px solid {_HAIRLINE};'
+        f'font-family:{_SANS};font-size:15px;line-height:1.6;color:{_INK};">'
+        f"{html.escape(line)}</p>"
+    )
+
+
+def _section_label(text: str) -> str:
+    """Mono label INSIDE the body, for the two card-topped sections of the
+    welcome email. Distinct from ``_eyebrow``, which is the one wayfinding line
+    at the top of a message and must stay singular to keep meaning that."""
+    return (
+        f'<div style="font-family:{_MONO};font-size:11px;font-weight:500;'
+        f'letter-spacing:0.09em;text-transform:uppercase;color:{_INK_FAINT};'
+        'margin:30px 0 10px;">'
+        f"{html.escape(text)}</div>"
+    )
+
+
+def _first_name(full_or_first: str) -> str:
+    """First token of whatever name we hold, or "Doctor".
+
+    Onboarding stores first and last separately, but several call sites only
+    have a full name, and greeting a physician "Hello Elena Vasquez" reads like
+    a mail merge that did not run.
+    """
+    part = (full_or_first or "").strip().split()
+    return part[0] if part else "Doctor"
+
+
+def _last_name(full_or_last: str) -> str:
+    """Last token, for "Dr. {last_name}". Falls back to nothing so the caller's
+    copy degrades to "Doctor" rather than to "Dr. "."""
+    parts = (full_or_last or "").strip().split()
+    return parts[-1] if parts else ""
+
+
+#: Onboarding v2 §4.4 §4: the founders meet every physician one on one. One
+#: constant, because it appears in the welcome email and the walkthrough and the
+#: two must never drift.
+FOUNDER_INTRO_CALENDLY = "https://calendly.com/tejpatel-berkeley/intro-with-tej-patel"
 
 
 # ─── Public builders ────────────────────────────────────────────────────────
@@ -842,37 +915,6 @@ def build_complete_email(
 # inherit the shell like everything else.
 
 
-def build_self_serve_link_email(*, onboarding_url: str, expires_days: int) -> str:
-    """The onboarding link a physician asks for from the landing page.
-
-    For a self-serve signup this is the FIRST thing we ever send them, so it is
-    the email most worth getting right.
-    """
-    safe_url = html.escape(onboarding_url, quote=True)
-    body = (
-        _eyebrow("Onboarding · Asclepius")
-        + _h1("Your onboarding link.")
-        + _p(
-            "Pick up where you left off any time. This link stays valid for "
-            f"{_strong(str(expires_days) + ' days')} and remembers your progress, "
-            "so you can stop after any step and come back later."
-        )
-        + _cta(onboarding_url, "Continue onboarding →")
-        + _p(
-            f'If the button does not work, paste this into your browser:<br>'
-            f'<a href="{safe_url}" style="color:{_GREEN_DEEP};">{html.escape(onboarding_url)}</a>',
-            muted=True,
-            small=True,
-        )
-        + _p(
-            "If you did not request this, you can ignore this email.",
-            muted=True,
-            small=True,
-        )
-    )
-    return _shell(subject="Your Archangel Health onboarding link", body_html=body)
-
-
 def build_internal_signup_alert(*, physician_email: str, slug: str, expires_at: str) -> str:
     """Internal notice that someone started physician onboarding."""
     body = (
@@ -895,6 +937,167 @@ def build_internal_signup_alert(*, physician_email: str, slug: str, expires_at: 
         )
     )
     return _shell(subject=f"[Onboarding] Physician contributor started: {physician_email}", body_html=body)
+
+
+# ─── Onboarding v2 §4: the four application emails ───────────────────────────
+# Copy is part of the PRD and is used verbatim. Written in the founders' voice
+# and signed by them, because a physician deciding whether to give us their
+# evenings should be able to see who is asking. Every one of these renders in
+# scripts/email_preview.py.
+
+
+def build_application_start_email(
+    *, first_name: str, onboarding_url: str, expires_days: int = 7
+) -> str:
+    """§4.1 — the link that starts and, more importantly, RESUMES an application.
+
+    Replaces ``build_self_serve_link_email``. The distinction that changed: in v2
+    the landing page drops the physician straight into the wizard, so this email
+    is no longer the way in. It is the way BACK in, and the copy says so.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1(f"{html.escape(_first_name(first_name))}, your application is open.")
+        + _p("Archangel Health is paid clinical AI evaluation, on your schedule: "
+             "you read real cases, you judge the answers, and the models learn from "
+             "what you know.")
+        + _cta(onboarding_url, "Continue your application")
+        + _p(f"Your progress saves automatically, so you can stop anywhere and come "
+             f"back to exactly where you were. This link is yours for {expires_days} days.",
+             muted=True, small=True)
+        + _founder_signoff("— Tej & Aryaa, founders")
+    )
+    return _shell(subject="Your Archangel Health application — pick up any time",
+                  body_html=body)
+
+
+def build_application_nudge_email(*, first_name: str, onboarding_url: str) -> str:
+    """§4.2 — the ONE nudge, sent 24 hours after an unfinished start.
+
+    No guilt language and no countdown, deliberately: the reason a physician
+    stopped is almost always a pager, and a deadline is the wrong answer to that.
+    Exactly one of these is ever sent — the scheduler is idempotent on a stamp.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1(f"{html.escape(_first_name(first_name))}, you&rsquo;re nearly there.")
+        + _p("You&rsquo;re most of the way there. Your answers are saved exactly where "
+             "you left them.")
+        + _cta(onboarding_url, "Finish my application")
+        + _p("We read every application personally — we&rsquo;d love to see yours.")
+        + _founder_signoff("— Tej & Aryaa, founders")
+    )
+    return _shell(subject="Your application is waiting — 2 minutes to finish",
+                  body_html=body)
+
+
+def build_application_expiring_email(
+    *, first_name: str, onboarding_url: str
+) -> str:
+    """§3 — the day-6 note, sent once, before a 7-day link dies.
+
+    Not one of the four §4 emails and deliberately smaller than them: it exists
+    so a link expires with warning rather than silently, and it says the one
+    thing that is actually urgent without pretending anything else is.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1("Your link expires tomorrow.")
+        + _p(f"{_strong(_first_name(first_name))}, the link to your saved application "
+             "stops working tomorrow. Everything you filled in is still there until "
+             "then.")
+        + _cta(onboarding_url, "Finish my application")
+        + _p("If it lapses, just start again from the website and write to us — "
+             "we&rsquo;ll pick it back up with you.", muted=True, small=True)
+        + _founder_signoff("— Tej & Aryaa, founders")
+    )
+    return _shell(subject="Your Archangel Health link expires tomorrow",
+                  body_html=body)
+
+
+def build_application_submitted_email(*, full_name: str) -> str:
+    """§4.3 — sent the moment an application is submitted.
+
+    The whole message is one paragraph in the founders' own words. It sets the
+    24–48h expectation, and it explains WHY review is human, because that
+    explanation is the product's argument about itself.
+    """
+    last = _last_name(full_name)
+    # Unescaped here on purpose: ``_strong`` escapes what it is given, so
+    # escaping first would render "O&#x27;Brien" to a physician named O'Brien.
+    greeting = f"Dr. {last}" if last else "Doctor"
+    body = (
+        _eyebrow("Application received")
+        + _h1("We&rsquo;ve got your application.")
+        + _p(f"{_strong(greeting)} — thank you. "
+             "Your application is with us now, and one of us will personally review it "
+             "within 24–48 hours. We keep review human on purpose: the whole premise of "
+             "Archangel is that medicine needs qualified people at every decision point, "
+             "and that starts with how we welcome physicians. You&rsquo;ll hear from us "
+             "either way.")
+        + _founder_signoff("— Tej Patel & Aryaa Bhatia")
+    )
+    return _shell(subject="We&rsquo;ve got your application", body_html=body)
+
+
+def application_welcome_subject(full_name: str) -> str:
+    """The §4.4 subject line.
+
+    Its own function because the mail transport needs the subject as an argument
+    and the builder needs it for the document ``<title>``. Two spellings of one
+    string is how a subject line and the page it opens drift apart.
+    """
+    last = _last_name(full_name)
+    return f"Welcome to Archangel Health, Dr. {last}" if last \
+        else "Welcome to Archangel Health"
+
+
+def build_application_welcome_email(
+    *,
+    full_name: str,
+    email: str,
+    temp_password: str,
+    sign_in_url: str,
+    calendly_url: str = FOUNDER_INTRO_CALENDLY,
+) -> str:
+    """§4.4 — sent on admin approval. Carries the credentials.
+
+    The password in this email is TEMPORARY and is rotated on first sign-in
+    (§0.1 decision 1). That is the one place this build departs from the ask, and
+    it departs in the physician's favour: the doctor experience is identical —
+    credentials in the email, sign in from the website, works first time — but a
+    credential that lives in an inbox forever does not survive an inbox breach,
+    and neither does the answer we give a hospital partner who asks.
+    """
+    subject = application_welcome_subject(full_name)
+    creds = _detail_rows([
+        ("Email", email, True),
+        ("Temporary password", temp_password, True),
+    ])
+    body = (
+        _eyebrow("Approved · Archangel Health")
+        + _h1("We just approved your application — welcome.")
+        # §4.4 section 2: the mission block, verbatim from the landing /mission.
+        + _pullquote("Doctors earn from their judgment. Models learn from it. "
+                     "The hardest cases become the most valuable data.")
+        + _p("Verification is the scarce input in medical AI. A 70% benchmark score is "
+             "irrelevant when a patient is downstream — the people who carry the "
+             "consequences should define what correct means. That&rsquo;s you.")
+        # §4.4 section 3: the credentials card.
+        + _section_label("Your credentials")
+        + _inset_card(creds)
+        + _p("You&rsquo;ll choose your own password when you first sign in — this one is "
+             "temporary and stops working the moment you do.", muted=True, small=True)
+        + _cta(sign_in_url, "Sign in")
+        # §4.4 section 4: meet us.
+        + _section_label("Meet us")
+        + _p("We meet every physician one on one — it&rsquo;s the part of this we like "
+             "most. Book 20 minutes with us: about the mission, the platform, your "
+             "specialty, or anything else. We&rsquo;d genuinely love to learn from you.")
+        + _cta(calendly_url, "Book 20 minutes")
+        + _founder_signoff("— Tej & Aryaa, co-founders")
+    )
+    return _shell(subject=subject, body_html=body)
 
 
 def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str:
@@ -1399,7 +1602,7 @@ def build_hs_intake_alert(*, full_name: str, email: str, organization: str,
         )
     body = (
         _eyebrow("Health system intake")
-        + _h1(organization or "A health system told us about itself")
+        + _h1(html.escape(organization) or "A health system told us about itself")
         + _inset_card(_detail_rows(rows))
         + ("".join(parts) or _p("They submitted the form without filling anything in.",
                                 muted=True))
@@ -1435,7 +1638,7 @@ def build_hs_signup_alert(*, full_name: str, email: str, organization: str,
         )
     body = (
         _eyebrow("New health system")
-        + _h1(organization or "A health system signed up")
+        + _h1(html.escape(organization) or "A health system signed up")
         + _p("They signed themselves up through the portal and are waiting on a "
              "decision. Uploading is locked until someone approves it.")
         + _inset_card(_detail_rows(rows))
@@ -1458,3 +1661,232 @@ def build_founder_event_alert(*, eyebrow: str, headline: str, lede: str,
     if note:
         body += _p(html.escape(note), muted=True, small=True)
     return _shell(subject=headline, body_html=body)
+
+
+# ─── Health-system onboarding (sign-in split → intake → DLA → uploads) ──────
+# Five partner-facing letters and one internal alert. They are the entire
+# outside-the-product voice of this flow, so they carry the same weight the
+# physician letters do: the mission first, the mechanics second, and never a
+# sentence that says "wait" without saying what for.
+
+#: The block a health system reads before anything transactional, verbatim from
+#: the mission page and from the physician letters. It is the same claim to the
+#: same effect: the reason a hospital's records are worth licensing is that a
+#: physician's judgment on them is scarce, and this is who is paying for it.
+_MISSION_BLOCK = (
+    _p(f"{_strong('Doctors earn from their judgment. Models learn from it.')}<br>"
+       "The hardest cases become the most valuable data.")
+    + _p("Verification is the scarce input in medical AI. A 70% benchmark score "
+         "is irrelevant when a patient is downstream, and the people who carry "
+         "the consequences should define what correct means. Your records are "
+         "where that judgment gets exercised.")
+)
+
+#: Rendered under every credentials card. The password in this mail is a
+#: one-time credential and the letter has to say so in the same breath it hands
+#: it over -- §0.1.1, and the same compromise the physician onboarding makes.
+_TEMP_PASSWORD_NOTE = (
+    "This password is temporary. You will choose your own the first time you "
+    "sign in, and this one stops working the moment you do."
+)
+
+
+def _credentials_card(*, username: str, temp_password: str) -> str:
+    return _inset_card(
+        _detail_rows([
+            ("Sign in with", username, True),
+            ("Temporary password", temp_password, True),
+        ])
+        + _p(_TEMP_PASSWORD_NOTE, muted=True, small=True)
+    )
+
+
+def _bookmark_line(portal_url: str) -> str:
+    """The literal instruction the PRD asks for. It reads like housekeeping and
+    it is not: the username is derived rather than chosen, so for a self-signup
+    this mail is the only record of how to get back in."""
+    return _p(
+        f"Bookmark this email, your portal lives at "
+        f"{_strong(portal_url.replace('https://', '').replace('http://', ''))}.",
+        small=True,
+    )
+
+
+_SIGNED_OFF = _p("Tej &amp; Aryaa<br>Archangel Health", muted=True, small=True)
+
+
+def build_hs_access_email(*, organization: str, full_name: str, username: str,
+                          temp_password: str, portal_url: str) -> str:
+    """Email 1 of 5: sent the moment a health system clears its signup code.
+
+    Sent immediately after the code verifies rather than at the end of intake,
+    because the portal is reachable from that second and a session that is lost
+    before this mail exists is an organization with no way back to it.
+    """
+    greeting = f"{html.escape(full_name.strip())}," if (full_name or "").strip() else "Welcome."
+    body = (
+        _eyebrow("Your portal access")
+        + _h1("Welcome to Archangel Health.")
+        + _p(greeting)
+        + _MISSION_BLOCK
+        + _p(f"Your portal for {_strong(organization)} is open. It walks you "
+             "through four questions about what your organization holds, and "
+             "nothing in it commits you to anything until you sign an agreement.")
+        + _credentials_card(username=username, temp_password=temp_password)
+        + _cta(portal_url, "Open your portal →")
+        + _bookmark_line(portal_url)
+        + _SIGNED_OFF
+    )
+    return _shell(subject="Welcome to Archangel Health: your portal access",
+                  body_html=body)
+
+
+def build_hs_member_added_email(*, organization: str, added_by: str, username: str,
+                                temp_password: str, portal_url: str) -> str:
+    """Email 2 of 5: a colleague added you.
+
+    Names who added them in the subject line and again in the first sentence. An
+    unexpected credentials email from a company you have not heard of is
+    indistinguishable from a phishing attempt; the name of a colleague is the
+    single thing that makes it legible.
+    """
+    who = (added_by or "").strip() or "A colleague"
+    body = (
+        _eyebrow("Your portal access")
+        + _h1(f"{html.escape(who)} added you.")
+        + _p(f"{_strong(who)} added you to {_strong(organization)}'s Archangel "
+             "Health workspace. You have your own sign-in below.")
+        + _MISSION_BLOCK
+        + _credentials_card(username=username, temp_password=temp_password)
+        + _cta(portal_url, "Open your portal →")
+        + _bookmark_line(portal_url)
+        + _SIGNED_OFF
+    )
+    return _shell(
+        subject=f"{who} added you to {organization}'s Archangel Health workspace",
+        body_html=body)
+
+
+def build_hs_dla_request_email(*, organization: str, portal_url: str) -> str:
+    """Email 3 of 5: approved, one signature away. Sent to EVERY member.
+
+    Everyone is told; one person signs. The agreement binds the organization on
+    one authorized signature, so the letter says who it needs rather than
+    implying every recipient must act -- otherwise five people sign the same
+    contract and we have five rows to explain.
+    """
+    body = (
+        _eyebrow("Data licensing agreement")
+        + _h1("One signature away.")
+        + _p(f"We have reviewed what {_strong(organization)} told us and we would "
+             "like to move ahead.")
+        + _p("What is left is the data licensing agreement. Sign in with your "
+             "existing credentials, read it in full on screen, and sign it "
+             "there. Uploading unlocks the moment it is signed.")
+        + _cta(portal_url, "Read and sign →")
+        + _p("One person with signing authority for your organization signs it, "
+             "once. Everyone else on your team is copied on this so nobody is "
+             "waiting on a forward, and the portal shows who signed and when.",
+             muted=True, small=True)
+        + _SIGNED_OFF
+    )
+    return _shell(subject="One signature away: your data licensing agreement",
+                  body_html=body)
+
+
+def build_hs_agreement_receipt_email(*, organization: str, doc_version: str,
+                                     signer_name: str, signer_title: str,
+                                     signed_at: str, doc_sha256: str) -> str:
+    """Email 4 of 5: the countersigned copy, to the signer and to us.
+
+    This is a legal requirement rather than a courtesy. E-SIGN conditions the
+    enforceability of an electronic record on the signer being able to RETAIN a
+    copy of it, so the signed PDF is attached to this mail and the hash of the
+    exact text signed is printed in the body -- a version label alone is a claim
+    about a file that can be edited afterwards.
+    """
+    body = (
+        _eyebrow("Signed agreement")
+        + _h1("Your countersigned copy.")
+        + _p(f"This confirms the data licensing agreement between "
+             f"{_strong(organization)} and Archangel Health Inc. The signed PDF "
+             "is attached to this email; keep it with your contract records.")
+        + _inset_card(
+            _detail_rows([
+                ("Signed by", signer_name, False),
+                ("Title", signer_title, False),
+                ("Agreement", doc_version, True),
+                ("Signed at (UTC)", signed_at, True),
+                ("Document hash", (doc_sha256 or "")[:32] + "…", True),
+            ])
+        )
+        + _p("The document hash is a fingerprint of the exact text that was on "
+             "screen when it was signed. It is printed here so either party can "
+             "prove, later, which words were agreed.", muted=True, small=True)
+        + _SIGNED_OFF
+    )
+    return _shell(subject=f"Signed: your data licensing agreement, {organization}",
+                  body_html=body)
+
+
+def build_hs_uploads_open_email(*, organization: str, portal_url: str,
+                                signer_name: str, signed_at: str) -> str:
+    """Email 5 of 5: to every member, the moment the agreement is signed."""
+    signed_line = (
+        f"{_strong(signer_name)} signed the data licensing agreement for "
+        f"{_strong(organization)} on {html.escape((signed_at or '')[:10])}."
+        if (signer_name or "").strip()
+        else f"The data licensing agreement for {_strong(organization)} is signed."
+    )
+    body = (
+        _eyebrow("Uploads are open")
+        + _h1("You can send data now.")
+        + _p(signed_line)
+        + _p("The upload screen is live for everyone on your team.")
+        + _cta(portal_url, "Upload data →")
+        + _p("Send a .zip, or individual files, and we package them for you. "
+             "Large files are sent in pieces and resume if the connection "
+             "drops, and every upload shows you its size and checksum once we "
+             "have verified it. Please make sure data is de-identified and "
+             "date-shifted before it reaches us.")
+        + _SIGNED_OFF
+    )
+    return _shell(subject=f"Uploads are open for {organization}", body_html=body)
+
+
+def build_hs_application_alert(*, organization: str, hs_id: str, full_name: str,
+                               email: str, answers: "list",
+                               members: "list" = None) -> str:
+    """Internal: a health system finished the four questions.
+
+    The four answers VERBATIM, in the order they were asked, because the whole
+    point of a structured intake is that the operator reads what they actually
+    chose rather than a summary of it. ``answers`` arrives as (label, value)
+    pairs already resolved to their human wording by the router that owns the
+    question list.
+    """
+    rows = [
+        ("Contact", full_name or "(not given)", False),
+        ("Email", email or "(not given)", False),
+        ("Organization", organization or "(not given)", False),
+        ("Health system id", hs_id, True),
+    ]
+    answer_rows = [(label, value or "(not answered)", False)
+                   for label, value in (answers or [])]
+    member_block = ""
+    if members:
+        member_block = (
+            _p(_strong("Team members on the account"))
+            + _lead_list([(html.escape(str(m)), "") for m in members])
+        )
+    body = (
+        _eyebrow("Health system application")
+        + _h1(html.escape(organization) or "A health system applied")
+        + _p("They answered the four questions. Nothing is approved and nothing "
+             "can be uploaded until someone decides.")
+        + _inset_card(_detail_rows(rows))
+        + _inset_card(_detail_rows(answer_rows))
+        + member_block
+    )
+    return _shell(subject=f"[Health system] Application: {organization}",
+                  body_html=body)

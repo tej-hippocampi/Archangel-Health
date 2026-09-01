@@ -822,6 +822,26 @@ class TutorialStateUpdate(BaseModel):
     version: Optional[int] = None
 
 
+#: Onboarding v2 §6 — the six walkthrough stops, in order. Enumerated here and
+#: not in the client, so a stop id the server has never heard of cannot enter the
+#: checklist and make "3 of 6" mean something nobody can reproduce.
+FIRST_RUN_STOPS = ("welcome", "start", "practice", "community", "earnings", "manual")
+
+
+class FirstRunUpdate(BaseModel):
+    """PATCH /me/first-run — one transition on the caller's own walkthrough.
+
+    ``done`` and ``skip`` both close a stop; the distinction is kept because it
+    is the difference between "they saw the community" and "they chose not to",
+    and §6 requires that a skip never nags again. ``dismiss`` collapses the whole
+    checklist without marking the remaining stops as done, which is what the
+    "You're all set" line and the quiet dashboard chip read from.
+    """
+
+    action: Literal["done", "skip", "dismiss", "reset"]
+    stop: Optional[Literal[FIRST_RUN_STOPS]] = None  # type: ignore[valid-type]
+
+
 class ProfileUpdate(BaseModel):
     """PATCH /me/profile — the fields a physician may correct about themselves.
 

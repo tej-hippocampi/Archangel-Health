@@ -6,7 +6,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import * as authApi from "@/lib/auth-api";
 import { authDialogStyles } from "./authDialogStyles";
 
-type Step = "role" | "doctor" | "patient";
+/**
+ * Two doors, not three.
+ *
+ * The patient card is gone from this dialog (PRD §1). It was a peri-op surface
+ * whose routes are already flag-gated, and it sat beside "Doctor" implying the
+ * landing page served two audiences equally when it serves one. The BACKEND
+ * patient routes are untouched — this is a dialog edit — and the care-team
+ * emails that deep-link patients to `/#recovery-plan` still open the sign-up
+ * dialog at its code-entry step, which is why that step survives there and this
+ * one has nothing to keep.
+ *
+ * "Health system / organization" is not a step: they have a username and a
+ * password for a different app, so the card navigates to it rather than
+ * rendering a second login form the portal would have to keep in sync.
+ */
+type Step = "role" | "doctor";
 
 type Props = { open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -16,8 +31,6 @@ export function SignInDialog({ open, onOpenChange }: Props) {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [notice, setNotice] = React.useState("");
-  const [clinicCode, setClinicCode] = React.useState("");
-  const [resourceCode, setResourceCode] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [apiError, setApiError] = React.useState<string | null>(null);
   const [demoRoutes, setDemoRoutes] = React.useState<Record<string, authApi.DemoSignInRoute>>({});
@@ -37,8 +50,6 @@ export function SignInDialog({ open, onOpenChange }: Props) {
     setEmail("");
     setPassword("");
     setNotice("");
-    setClinicCode("");
-    setResourceCode("");
     setApiError(null);
     clearError();
     onOpenChange(false);
@@ -108,22 +119,6 @@ export function SignInDialog({ open, onOpenChange }: Props) {
     }
   };
 
-  const handlePatientSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setApiError(null);
-    clearError();
-    setSubmitting(true);
-    try {
-      const data = await authApi.getPatientByCodes(clinicCode, resourceCode);
-      resetAndClose();
-      window.location.href = data.dashboard_url;
-    } catch (e) {
-      setApiError(e instanceof Error ? e.message : "Invalid codes");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   if (!open) return null;
 
   const modal = (
@@ -140,13 +135,11 @@ export function SignInDialog({ open, onOpenChange }: Props) {
             <div>
               <h2 id="signin-title" className="adg-title">
                 {step === "role" && "Sign in"}
-                {step === "doctor" && "Doctor sign in"}
-                {step === "patient" && "Access your recovery plan"}
+                {step === "doctor" && "Physician sign in"}
               </h2>
               <p className="adg-sub">
-                {step === "role" && "Are you a patient or a doctor?"}
-                {step === "doctor" && "Sign in with your account to access the doctor dashboard."}
-                {step === "patient" && "Enter the codes from your care team email."}
+                {step === "role" && "Which one are you?"}
+                {step === "doctor" && "Sign in with your account to access the physician dashboard."}
               </p>
               {step === "doctor" && authApi.signInServerHost() && (
                 <p className="adg-chrome adg-server">Server · {authApi.signInServerHost()}</p>
@@ -167,21 +160,32 @@ export function SignInDialog({ open, onOpenChange }: Props) {
           {step === "role" && (
             <div className="adg-form">
               <div className="adg-roles">
-                <button type="button" className="adg-role" onClick={() => setStep("patient")}>
-                  <span className="adg-role-for">
-                    <span className="adg-dot adg-dot-faint" aria-hidden="true" />
-                    <span className="adg-chrome">Access codes</span>
-                  </span>
-                  <span className="adg-role-title">Patient</span>
-                  <span className="adg-role-sub">Health system &amp; resource codes</span>
-                </button>
                 <button type="button" className="adg-role" onClick={() => setStep("doctor")}>
                   <span className="adg-role-for">
                     <span className="adg-dot adg-dot-green" aria-hidden="true" />
                     <span className="adg-chrome">Credentialed</span>
                   </span>
-                  <span className="adg-role-title">Doctor</span>
-                  <span className="adg-role-sub">Email &amp; password</span>
+                  <span className="adg-role-title">Physician</span>
+                  <span className="adg-role-sub">
+                    Label, review, advise &mdash; paid clinical AI work
+                  </span>
+                </button>
+                {/* Sentence case, and it names the work rather than the app:
+                    the person clicking this runs a data platform team and has
+                    never heard of us. */}
+                <button
+                  type="button"
+                  className="adg-role"
+                  onClick={() => window.location.assign(authApi.healthSystemPortalUrl())}
+                >
+                  <span className="adg-role-for">
+                    <span className="adg-dot adg-dot-faint" aria-hidden="true" />
+                    <span className="adg-chrome">Organization</span>
+                  </span>
+                  <span className="adg-role-title">Health system / organization</span>
+                  <span className="adg-role-sub">
+                    Contribute clinical data for task creation and licensing
+                  </span>
                 </button>
               </div>
               <div className="adg-actions">
@@ -227,9 +231,14 @@ export function SignInDialog({ open, onOpenChange }: Props) {
                   style={{ marginTop: 8 }}
                   onClick={async () => {
                     const addr = email.trim();
-                    if (!addr) { setError("Enter your email above first."); return; }
+                    // setApiError, not setError: there is no setError in this
+                    // component, so this line threw a ReferenceError and the
+                    // button did nothing for anyone who clicked it with the
+                    // email field empty. esbuild strips types without checking
+                    // them, which is why a build never caught it.
+                    if (!addr) { setApiError("Enter your email above first."); return; }
                     const { message } = await authApi.asclepiusForgotPassword(addr);
-                    setError("");
+                    setApiError(null);
                     setNotice(message);
                   }}
                 >
@@ -248,42 +257,6 @@ export function SignInDialog({ open, onOpenChange }: Props) {
             </form>
           )}
 
-          {step === "patient" && (
-            <form onSubmit={handlePatientSubmit} className="adg-form">
-              <div className="adg-field">
-                <label className="adg-label" htmlFor="signin-clinic-code">Health system code</label>
-                <input
-                  id="signin-clinic-code"
-                  className="adg-input adg-input-code"
-                  type="text"
-                  placeholder="From your email"
-                  value={clinicCode}
-                  onChange={(e) => setClinicCode(e.target.value.toUpperCase())}
-                  required
-                />
-              </div>
-              <div className="adg-field">
-                <label className="adg-label" htmlFor="signin-resource-code">Resource code</label>
-                <input
-                  id="signin-resource-code"
-                  className="adg-input adg-input-code"
-                  type="text"
-                  placeholder="From your email"
-                  value={resourceCode}
-                  onChange={(e) => setResourceCode(e.target.value.toUpperCase())}
-                  required
-                />
-              </div>
-              <div className="adg-actions">
-                <button type="button" className="adg-btn adg-btn-secondary" onClick={() => setStep("role")}>
-                  Back
-                </button>
-                <button type="submit" className="adg-btn adg-btn-primary" disabled={submitting}>
-                  {submitting ? "Loading…" : "View recovery plan"}
-                </button>
-              </div>
-            </form>
-          )}
         </div>
       </div>
     </div>

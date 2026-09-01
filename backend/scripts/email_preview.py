@@ -26,6 +26,7 @@ import onboarding_emails as oe  # noqa: E402
 
 WORKSPACE = "https://app.archangelhealth.ai/asclepius"
 ONBOARD = "https://archangelhealth.ai/onboard/sample-token"
+PORTAL = "https://app.archangelhealth.ai/provider"
 
 # (filename, human label, why this email exists, html)
 def _cases() -> list[tuple[str, str, str, str]]:
@@ -103,11 +104,6 @@ def _cases() -> list[tuple[str, str, str, str]]:
                 portal_url=WORKSPACE, email="data@riverside.example.org",
                 temporary_password="Kf3-tQ92mXbW7p", org_name="Riverside Health",
                 specialty="Nephrology"),
-        ),
-        (
-            "12-self-serve-link", "Onboarding link (self-serve)",
-            "The FIRST thing a self-serve physician ever receives from us.",
-            oe.build_self_serve_link_email(onboarding_url=ONBOARD, expires_days=7),
         ),
         (
             "13-approved", "You're approved",
@@ -221,6 +217,97 @@ def _cases() -> list[tuple[str, str, str, str]]:
                 lede="dr-chen has completed 5 in the last few minutes.",
                 rows=[("Event", "submission_completed", True), ("How many", "5", True)],
                 note="Queued automatically when this happened on the product."),
+        ),
+        # ─── Onboarding v2 §4 — the four application emails, in send order ───
+        (
+            "26-application-start", "Application: start / resume",
+            "§4.1 — sent the moment a physician starts. In v2 the landing drops "
+            "them straight into the wizard, so this is the way BACK in.",
+            oe.build_application_start_email(
+                first_name="Amara", onboarding_url=ONBOARD, expires_days=7),
+        ),
+        (
+            "27-application-nudge", "Application: the 24h nudge",
+            "§4.2 — sent once, 24 hours into an unfinished application. Never twice.",
+            oe.build_application_nudge_email(
+                first_name="Amara", onboarding_url=ONBOARD),
+        ),
+        (
+            "28-application-expiring", "Application: link expires tomorrow",
+            "§3 — the day-6 note, so a 7-day link dies with warning rather than "
+            "silently. Also sent exactly once.",
+            oe.build_application_expiring_email(
+                first_name="Amara", onboarding_url=ONBOARD),
+        ),
+        (
+            "29-application-submitted", "Application: we've got it",
+            "§4.3 — sent on submit. Sets the 24–48h expectation and says why "
+            "review is human.",
+            oe.build_application_submitted_email(full_name="Amara Okafor"),
+        ),
+        (
+            "30-application-welcome", "Application: approved (credentials)",
+            "§4.4 — sent on admin approval. Carries the TEMPORARY password that "
+            "is rotated at first sign-in, the mission block, and the founder intro.",
+            oe.build_application_welcome_email(
+                full_name="Amara Okafor", email="a.okafor@riverside.example.org",
+                temp_password="Kf3-tQ92mXbW7p", sign_in_url=WORKSPACE),
+        ),
+        (
+            "31-hs-access", "Health system: portal access",
+            "Sent the second a health system clears its signup code. Mission "
+            "block, temporary credentials, and where the portal lives.",
+            oe.build_hs_access_email(
+                organization="St Mary's Health", full_name="Dana Reyes",
+                username="stmarys", temp_password="harbor-thistle-meadow-41",
+                portal_url=PORTAL),
+        ),
+        (
+            "32-hs-member-added", "Health system: a colleague added you",
+            "The same access letter for someone a partner added, named for the "
+            "colleague who added them so it does not read as phishing.",
+            oe.build_hs_member_added_email(
+                organization="St Mary's Health", added_by="Dana Reyes",
+                username="stmarys2", temp_password="cedar-lagoon-quartz-b7",
+                portal_url=PORTAL),
+        ),
+        (
+            "33-hs-dla-request", "Health system: one signature away",
+            "On approval, to EVERY member. Notification to all, signature by one.",
+            oe.build_hs_dla_request_email(
+                organization="St Mary's Health", portal_url=PORTAL),
+        ),
+        (
+            "34-hs-agreement-receipt", "Health system: the countersigned copy",
+            "To the signer and to us. The signed PDF is attached; the hash of "
+            "the exact text signed is printed in the body.",
+            oe.build_hs_agreement_receipt_email(
+                organization="St Mary's Health", doc_version="v1",
+                signer_name="Dana Reyes", signer_title="Chief Information Officer",
+                signed_at="2026-03-14T16:20:05",
+                doc_sha256="9f2b1c7d4e5a6b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e"),
+        ),
+        (
+            "35-hs-uploads-open", "Health system: uploads are open",
+            "To every member the moment the agreement is signed.",
+            oe.build_hs_uploads_open_email(
+                organization="St Mary's Health", portal_url=PORTAL,
+                signer_name="Dana Reyes", signed_at="2026-03-14T16:20:05"),
+        ),
+        (
+            "36-hs-application-alert", "Internal: a health system applied",
+            "To us, with the four answers verbatim and the team on the account.",
+            oe.build_hs_application_alert(
+                organization="St Mary's Health", hs_id="hs-st-marys-ab12",
+                full_name="Dana Reyes", email="d.reyes@stmarys.org",
+                answers=[
+                    ("Authority to license", "Yes"),
+                    ("De-identification", "We would need a BAA"),
+                    ("Export contents", "Notes and structured fields"),
+                    ("Scale", "50,000-250,000 patients, 10-15 years, "
+                              "Nephrology, Cardiology"),
+                ],
+                members=["d.reyes@stmarys.org", "k.patel@stmarys.org"]),
         ),
     ]
 
