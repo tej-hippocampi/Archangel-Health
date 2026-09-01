@@ -3014,6 +3014,16 @@ class AsclepiusStore:
             )
         return self.get_platform_media(slot)  # type: ignore[return-value]
 
+    def list_platform_media(self) -> List[Dict[str, Any]]:
+        """Every occupied slot. Small by construction — one row per named slot —
+        and read by the asset reconciler, which otherwise cannot see these blobs
+        at all and reports the onboarding demo video as an unreferenced orphan."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM platform_media ORDER BY slot"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_platform_media(self, slot: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
@@ -12523,11 +12533,22 @@ def _db_storage_durable() -> tuple:
     mistake you can see. Writability is a mount that ATTACHED WRONG — a read-only
     volume, or a failed attach leaving a bare directory where the mount should be —
     which looks completely healthy until the first write. So we probe it."""
-    from asclepius.constants import path_is_ephemeral
+    from asclepius.constants import (
+        VOLUME_MOUNT_ENV, declared_volume_mount, path_is_ephemeral,
+        path_under_declared_volume,
+    )
 
     db_path = os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "asclepius.db")
     db_dir = os.path.dirname(os.path.abspath(db_path)) or "/"
+    # A declared volume mount beats the prefix list, which cannot tell a real
+    # volume at /data from a container-local directory of the same name.
+    if path_under_declared_volume(db_dir) is False:
+        return False, (
+            f"database directory {db_dir} is NOT under the persistent volume this "
+            f"platform mounted at {declared_volume_mount()} ({VOLUME_MOUNT_ENV}); a "
+            "redeploy destroys every user, task, submission and payout row. Set "
+            "ASCLEPIUS_DB_PATH to a path inside that mount.")
     if path_is_ephemeral(db_dir):
         return False, (
             f"database directory {db_dir} is on ephemeral storage; a redeploy "

@@ -491,11 +491,24 @@ def ingest_storage_durable() -> Tuple[bool, str]:
     (2) it should live on the same volume (device) as the DB, so a blob is
     exactly as durable as its row. (1) is fail-closed-worthy; (2) is a warning
     (a deliberately separate durable mount is legitimate)."""
+    from asclepius.constants import (
+        VOLUME_MOUNT_ENV, declared_volume_mount, path_under_declared_volume,
+    )
+
     # A durability check must never touch the filesystem: quarantine_root() would
     # mkdir the probe path (raising on a root-owned /run) and .resolve() it (hiding
     # an ephemeral /tmp behind its real target). _ingest_root_path() does neither.
     root = _ingest_root_path()
     root_str = str(root)
+    # A declared volume mount beats the prefix list, which cannot tell a real
+    # volume at /data from a container-local directory of the same name.
+    if path_under_declared_volume(root_str) is False:
+        return False, (
+            f"raw ingest dir {root_str} is NOT under the persistent volume this "
+            f"platform mounted at {declared_volume_mount()} ({VOLUME_MOUNT_ENV}); a "
+            "redeploy will delete partner uploads. Set ASCLEPIUS_INGEST_DIR to a "
+            "path inside that mount."
+        )
     for pre in _EPHEMERAL_PREFIXES:
         if root_str == pre or root_str.startswith(pre + "/"):
             return False, (

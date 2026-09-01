@@ -139,11 +139,18 @@
           'Who supplies our data, and where each batch is in the pipeline. ' +
           'Send new upload access from the Pipeline tools tab.'))));
 
+    // The storage and demo-video panels are NOT about health systems and must not
+    // be gated on there being any: a fresh deployment has zero partners and is
+    // exactly the deployment that needs to upload the demo video and check that
+    // the volume is durable. Returning early here made both panels unreachable —
+    // and the demo uploader exists precisely so that job needs no terminal.
     if (!rows.length) {
       card.appendChild(h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-empty' },
           'No health systems yet. Send an organization its upload access and it will appear here.')));
       container.appendChild(card);
+      renderStoragePanel(container, ctx);
+      renderDemoVideoPanel(container, ctx);
       return;
     }
 
@@ -568,25 +575,41 @@
     }
     const missing = rep.missing_count || 0;
     const nonDurable = (rep.storage || []).filter((s) => !s.durable);
+    // Three states, not two. The badge used to read off `missing` alone, so a
+    // deployment whose asset store was ephemeral showed a green OK directly above
+    // the sentence "blobs will be lost on redeploy" — the panel contradicting
+    // itself, with the reassuring half in the larger type. Data already gone is
+    // red; data that WILL go is lime, which is what lime means everywhere else in
+    // this palette; green is reserved for when neither is true.
+    const badge = missing
+      ? h('span', { class: 'asc-badge asc-badge-red', style: 'margin-left: var(--sp-2)' },
+          missing + ' missing')
+      : nonDurable.length
+        ? h('span', { class: 'asc-badge asc-badge-lime', style: 'margin-left: var(--sp-2)' },
+            'Not durable')
+        : h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left: var(--sp-2)' }, 'OK');
+    const sub = missing
+      ? missing + ' asset reference' + (missing === 1 ? '' : 's') +
+        ' point at blobs that are gone from disk. This is data loss, not a warning.'
+      : nonDurable.length
+        ? nonDurable.length + ' of ' + (rep.storage || []).length + ' stores will not '
+          + 'survive a redeploy. Nothing is lost yet; everything below will be.'
+        : 'All ' + (rep.n_rows || 0) + ' asset reference' +
+          ((rep.n_rows || 0) === 1 ? '' : 's') +
+          ((rep.n_rows || 0) === 1 ? ' resolves. ' : ' resolve. ') +
+          (rep.orphan_count || 0) + ' unreferenced blob' +
+          ((rep.orphan_count || 0) === 1 ? '' : 's') + ' on disk (reported, never deleted).';
     card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
-      h('div', { class: 'asc-card-title' }, 'Storage integrity',
-        missing
-          // Pink: this one IS critical — it is data that is gone.
-          ? h('span', { class: 'asc-badge asc-badge-red', style: 'margin-left: var(--sp-2)' },
-              missing + ' missing')
-          : h('span', { class: 'asc-badge asc-badge-green', style: 'margin-left: var(--sp-2)' }, 'OK')),
-      h('div', { class: 'asc-card-sub' },
-        missing
-          ? missing + ' asset reference' + (missing === 1 ? '' : 's') +
-            ' point at blobs that are gone from disk. This is data loss, not a warning.'
-          : 'All ' + (rep.n_rows || 0) + ' asset references resolve. ' +
-            (rep.orphan_count || 0) + ' unreferenced blob' +
-            ((rep.orphan_count || 0) === 1 ? '' : 's') + ' on disk (reported, never deleted).'))));
+      h('div', { class: 'asc-card-title' }, 'Storage integrity', badge),
+      h('div', { class: 'asc-card-sub' }, sub))));
     const body = h('div', { class: 'asc-card-pad' });
-    if (nonDurable.length) {
-      nonDurable.forEach((s) => body.appendChild(
-        h('div', { class: 'asc-hs-reason' }, s.store + ' — ' + s.detail)));
-    }
+    // Every store, durable or not. Listing only the failures means the panel is
+    // blank when things are fine, which reads as "not checked" rather than "safe"
+    // — and leaves an operator asking "so WHERE does the demo video live?" with
+    // nowhere on the page to look. The detail line names the resolved path.
+    (rep.storage || []).forEach((s) => body.appendChild(
+      h('div', { class: s.durable ? 'asc-hs-reason asc-hs-reason-ok' : 'asc-hs-reason' },
+        h('strong', {}, s.store), ' — ', s.detail)));
     (rep.missing_blobs || []).slice(0, 20).forEach((m) => body.appendChild(
       h('div', { class: 'asc-hs-reason' },
         h('code', { class: 'asc-mono' }, String(m.sha256 || '').slice(0, 12)),

@@ -12,6 +12,7 @@ item rather than a default, and the chain-of-custody triple is on every row.
 """
 from __future__ import annotations
 
+import copy
 import json
 import shutil
 import subprocess
@@ -183,12 +184,19 @@ setTimeout(function () {
 """
 
 
-def _render(open_detail: bool) -> dict:
+_DEMO_META = {"available": True, "byte_size": 76388352, "mime": "video/mp4",
+              "max_upload_bytes": 536870912,
+              "url": "/api/asclepius/assets/onboarding-demo"}
+
+
+def _render(open_detail: bool, *, health_systems: dict | None = None,
+            reconcile: dict | None = None) -> dict:
     src = (_FRONTEND / "admin_health.js").read_text(encoding="utf-8")
     routes = {
-        "/admin/health-systems": _LIST,
+        "/admin/health-systems": health_systems if health_systems is not None else _LIST,
         "/admin/health-systems/" + _HS_ID: _DETAIL,
-        "/admin/storage/reconcile": _RECONCILE,
+        "/admin/storage/reconcile": reconcile if reconcile is not None else _RECONCILE,
+        "/assets/onboarding-demo/meta": _DEMO_META,
     }
     return _run_node(_JS % {
         "shim": json.dumps(str(_DOM_SHIM)),
@@ -289,3 +297,88 @@ def test_the_storage_panel_states_the_healthy_case_explicitly():
     assert "All 7 asset references resolve" in card["text"]
     assert "1 unreferenced blob" in card["text"]
     assert "never deleted" in card["text"]
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# The panels that are not about health systems
+# ═════════════════════════════════════════════════════════════════════════════
+# The storage and demo-video panels render inside this section but describe the
+# deployment, not the partners. They were mounted after an early return taken on
+# `!rows.length`, so on a deployment with no health systems both disappeared —
+# and a deployment with no partners is a FRESH one, which is precisely when the
+# demo video has not been uploaded and the volume has not been checked. The
+# console uploader exists so that job needs no terminal; gated this way, it left
+# no door at all.
+
+def test_the_storage_and_demo_panels_render_when_there_are_no_health_systems():
+    out = _render(open_detail=False, health_systems={"health_systems": []})
+    assert "No health systems yet" in out["text"], "the empty state still renders"
+    _card(out, "Storage integrity")
+    _card(out, "Onboarding demo video")
+
+
+def test_the_demo_uploader_is_reachable_with_no_health_systems():
+    """Not merely present — usable. The drop zone is the only upload control."""
+    out = _render(open_detail=False, health_systems={"health_systems": []})
+    card = _card(out, "Onboarding demo video")
+    assert "asc-demo-drop" in card["classes"]
+
+
+def test_both_panels_still_render_when_health_systems_exist():
+    out = _render(open_detail=False)
+    _card(out, "Storage integrity")
+    _card(out, "Onboarding demo video")
+
+
+# ── the storage badge tells the truth about durability ───────────────────────
+# It used to be computed from `missing_count` alone, so a deployment whose asset
+# store was ephemeral showed a green OK directly above the sentence "blobs will
+# be lost on redeploy": the panel contradicting itself, with the reassuring half
+# set in the larger type. Data already gone is red; data that WILL go is lime,
+# which is what lime means everywhere else in this palette.
+
+def _reconcile_with_ephemeral_asset_store() -> dict:
+    rep = copy.deepcopy(_RECONCILE)
+    rep["storage"][2] = {"store": "asset store", "durable": False,
+                         "detail": "asset store /data/assets is NOT under the "
+                                   "persistent volume mounted at /srv/volume"}
+    rep["all_durable"] = False
+    return rep
+
+
+def test_an_ephemeral_asset_store_is_never_badged_ok():
+    out = _render(open_detail=False, reconcile=_reconcile_with_ephemeral_asset_store())
+    card = _card(out, "Storage integrity")
+    assert "asc-badge-green" not in card["classes"], (
+        "a store that loses everything on redeploy is not OK")
+    assert "asc-badge-lime" in card["classes"], "lime is this palette's needs-attention"
+    assert "Not durable" in card["text"]
+    # And the reason is on the page, naming the resolved path.
+    assert "/data/assets" in card["text"]
+
+
+def test_missing_blobs_outrank_a_durability_warning():
+    """Red beats lime: data already gone is the more urgent of the two, and the
+    badge has one slot."""
+    rep = _reconcile_with_ephemeral_asset_store()
+    rep["missing_count"] = 2
+    out = _render(open_detail=False, reconcile=rep)
+    card = _card(out, "Storage integrity")
+    assert "asc-badge-red" in card["classes"]
+    assert "2 missing" in card["text"]
+
+
+def test_a_healthy_deployment_still_says_where_its_stores_are():
+    """Listing only the failures left the panel blank when things were fine,
+    which reads as "not checked" rather than "safe" — and left an operator
+    asking where the demo video actually lives with nowhere to look."""
+    rep = copy.deepcopy(_RECONCILE)
+    rep["storage"][2]["detail"] = ("asset store /data/assets is on the persistent "
+                                   "volume mounted at /data")
+    out = _render(open_detail=False, reconcile=rep)
+    card = _card(out, "Storage integrity")
+    assert "asc-badge-green" in card["classes"]
+    assert "/data/assets" in card["text"], "name the resolved path, not just 'durable'"
+    for store in ("database", "raw ingest", "asset store"):
+        assert store in card["text"]
+
