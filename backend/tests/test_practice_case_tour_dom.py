@@ -301,3 +301,87 @@ def test_a_gate_403_never_costs_the_physician_their_draft():
         "the practice-case gate must be handled BEFORE the terminal-403 clearDraft"
     )
     assert "isPracticeGate" in src
+
+
+# ─── The reveal ──────────────────────────────────────────────────────────────
+_REVEAL_PRELUDE = """
+require(%(dom)r);
+let rootNode = null;
+function setRoot(n) { rootNode = n; }
+function isAdvisor() { return false; }
+function openInstructionDrawer() {}
+function renderDashboardView() { calls.push('dashboard'); }
+function startTutorial(o) { calls.push('replay:' + !!(o && o.replay)); }
+const calls = [];
+const state = { user: {}, tutorial: null };
+%(payload)s
+function find(pred, n) {
+  if (!n) return null;
+  if (pred(n)) return n;
+  for (const c of (n.childNodes || [])) { const r = find(pred, c); if (r) return r; }
+  return null;
+}
+function out(o) { console.log(JSON.stringify(o)); }
+"""
+
+
+def _reveal_harness(body: str) -> dict:
+    payload = "\n".join([_fn("h"), _fn("appendChildren"), _fn("renderTutorialReveal")])
+    return _run_node(_REVEAL_PRELUDE % {"dom": _DOM, "payload": payload} + "\n" + body)
+
+
+_RESULT = """
+  const result = {
+    passed: true, headline: 'You got the call right.',
+    findings: [
+      {id:'sound-answer', label:'Picked the answer', matched:true, reason:'ok',
+       your_answer:'You chose B.'},
+      {id:'congestion-evidence', label:'Cited congestion', matched:false,
+       reason:'you did not name it', your_answer:'You wrote: "Increase the loop dose."',
+       planted:true},
+    ],
+    planted_finding: {id:'congestion-evidence', matched:false, reason:'the JVP is the point'},
+    must_acknowledge: ['congestion-evidence'],
+    teaching: { key_data: ['JVP 12 cm', 'weight down 1.5 kg'],
+                reference_answer: 'the rise is permissive' },
+  };
+"""
+
+
+def test_the_reveal_quotes_the_physician_back_to_themselves():
+    """"You missed the congestion evidence" teaches nothing next to the sentence
+    they actually wrote."""
+    out = _reveal_harness(_RESULT + """
+    renderTutorialReveal(result, {});
+    out({ text: rootNode.textContent });
+    """)
+    assert 'You wrote: "Increase the loop dose."' in out["text"]
+    assert "JVP 12 cm" in out["text"], "the teaching block did not render"
+
+
+def test_a_miss_has_to_be_opened_before_the_physician_can_move_on():
+    out = _reveal_harness(_RESULT + """
+    renderTutorialReveal(result, {});
+    const btn = find((n) => n.tagName === 'BUTTON'
+                            && n.textContent.indexOf('Start real') >= 0, rootNode);
+    const det = find((n) => n.tagName === 'DETAILS'
+                            && n.className.indexOf('asc-tour-finding-ack') >= 0, rootNode);
+    const before = btn.disabled;
+    det.open = true;
+    det.dispatch('toggle');
+    out({ before, after: btn.disabled });
+    """)
+    assert out["before"] is True, "a pass with an unread miss must not offer the exit yet"
+    assert out["after"] is False, "opening the miss must release it: one click, not a quiz"
+
+
+def test_a_failed_attempt_offers_another_go_rather_than_the_door():
+    out = _reveal_harness("""
+    renderTutorialReveal({ passed: false, headline: 'Not yet.', findings: [],
+                           planted_finding: null, must_acknowledge: [], teaching: {} }, {});
+    const btn = find((n) => n.tagName === 'BUTTON', rootNode);
+    btn.dispatch('click');
+    out({ label: btn.textContent, calls });
+    """)
+    assert out["label"] == "Take it again"
+    assert "replay:true" in out["calls"], "the retry must start a clean run"
