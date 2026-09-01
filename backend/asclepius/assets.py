@@ -207,11 +207,26 @@ def asset_storage_durable() -> Tuple[bool, str]:
     degraded. The raw-upload path already fails closed (503) on non-durable storage;
     this extends the same gate to the derived image blobs."""
     from asclepius.constants import (
-        asset_store, asset_store_is_ephemeral, path_is_ephemeral,
+        VOLUME_MOUNT_ENV, asset_store, asset_store_is_ephemeral,
+        declared_volume_mount, path_is_ephemeral, path_under_declared_volume,
     )
     root = asset_store()
     if root.startswith("s3://"):
         return True, "s3 backend configured"
+    # The platform's own word first, when it gives one. Everything below this is
+    # inference from a list of well-known temp directories, and inference cannot
+    # tell a real volume mounted at /data from a container-local directory of the
+    # same name — it calls both durable. That is the failure this check exists to
+    # catch, so a DECLARED mount outranks the guess in both directions: outside it
+    # is a refusal, inside it is a durability claim we can actually stand behind.
+    on_volume = path_under_declared_volume(root)
+    if on_volume is False:
+        return False, (f"asset store {root} is NOT under the persistent volume this "
+                       f"platform mounted at {declared_volume_mount()} "
+                       f"({VOLUME_MOUNT_ENV}); everything written there — the "
+                       f"onboarding demo video included — is destroyed on the next "
+                       f"redeploy. Point ASCLEPIUS_ASSET_STORE (or "
+                       f"ASCLEPIUS_DATA_DIR) at a path inside that mount.")
     # One shared prefix list (PRD I-0 §F1) — this used to re-implement the /tmp
     # check that ``asset_store_is_ephemeral`` should have been doing all along.
     if path_is_ephemeral(root):
@@ -230,6 +245,11 @@ def asset_storage_durable() -> Tuple[bool, str]:
                               f"confirm that volume is persistent")
         except OSError:
             pass
+    if on_volume:
+        # Say WHICH volume. "durable" on its own is a claim an operator has no way
+        # to check; naming the mount the platform declared is one they can.
+        return True, (f"asset store {root} is on the persistent volume mounted at "
+                      f"{declared_volume_mount()}")
     return True, f"asset store {root} is durable"
 
 
@@ -475,6 +495,28 @@ def reconcile_assets(store: Any) -> Dict[str, Any]:
             _scan(getter(), case_key=case_key, id_key=id_key)
         except Exception as exc:  # pragma: no cover - defensive; report what we can
             log.warning("asset reconcile: could not scan %s rows: %s", case_key, exc)
+
+    # Platform media (the onboarding demo video) lives in the same content-addressed
+    # store but is referenced by a `platform_media` row rather than a case study, so
+    # the two scans above cannot see it. Left out, its blob is inventoried as an
+    # UNREFERENCED ORPHAN — first in line for any future sweep — and a demo video
+    # that vanished off the volume is reported as nothing at all. Both inversions of
+    # the truth, on the one asset an operator uploads by hand and expects to stay put.
+    try:
+        for row in store.list_platform_media():
+            sha = (row or {}).get("sha256")
+            if not sha:
+                continue
+            referenced.setdefault(sha, {
+                "sha256": sha,
+                "source": "platform_media",
+                "case_id": row.get("slot"),
+                "study_id": row.get("filename") or row.get("slot"),
+                "ingested_at": row.get("uploaded_at"),
+                "detail": "platform media slot " + str(row.get("slot")),
+            })
+    except Exception as exc:  # pragma: no cover - defensive; report what we can
+        log.warning("asset reconcile: could not scan platform_media rows: %s", exc)
 
     for sha, ref in referenced.items():
         if not os.path.exists(_blob_path(sha)):

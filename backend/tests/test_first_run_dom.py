@@ -163,13 +163,22 @@ def test_a_fresh_physician_lands_in_the_welcome_letter():
     assert out["skips"] == 0
 
 
-def test_every_later_stop_has_exactly_one_primary_and_one_quiet_skip():
-    """§7: one primary action, one quiet skip. Never two primaries."""
+def test_no_stop_ever_shows_two_primaries_or_two_ways_to_do_one_thing():
+    """§7: at most one primary action, one quiet skip — and no action offered twice.
+
+    Stop 2 has ZERO primaries on purpose. It asks "where would you like to
+    start?" and its two choice cards are the answers, so a black
+    "Start the practice case →" underneath them was the right-hand card a second
+    time: same words, same destination, and the heaviest element on the screen,
+    which is a screen answering its own question. §7's "one primary" is a ceiling
+    on emphasis, not a requirement that every stop carry a button.
+    """
     out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {"welcome": "done"}}}) + """
       var seen = [];
       function snapshot(label) {
         seen.push({ stop: label,
-                    primaries: find(rootNode, 'asc-btn-primary').length,
+                    primaries: find(rootNode, 'asc-btn-primary').map(textOf),
+                    choices: find(rootNode, 'asc-fr-choice').map(textOf),
                     skips: find(rootNode, 'asc-fr-skip').length });
       }
       window.FirstRunWalkthrough.start(ctx);
@@ -182,11 +191,59 @@ def test_every_later_stop_has_exactly_one_primary_and_one_quiet_skip():
       }); });
     """)
     start = out["seen"][0]
-    assert start["primaries"] == 1, "two primaries is exactly what §7 forbids"
+    assert len(start["primaries"]) == 0, (
+        "stop 2's choice cards ARE the action; a primary here duplicates one of them")
     assert start["skips"] == 1
+    # The real rule, stated positively: nothing on this screen offers the same
+    # action twice. A primary that repeats a card's label is the failure mode.
+    labels = [t.strip() for t in start["primaries"]]
+    for choice in start["choices"]:
+        for label in labels:
+            assert label.rstrip(" →") not in choice, (
+                f"primary {label!r} repeats the choice card {choice!r}")
     # Skipping "choose your start" still runs the practice case: the stop being
     # skipped is the CHOICE, not the case.
     assert "tutorial" in out["handoffs"]
+
+
+def test_later_stops_still_carry_one_primary_and_one_quiet_skip():
+    """The ceiling is one primary; stops 4-6 each spend theirs."""
+    out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
+        "welcome": "done", "start": "done", "practice": "done"}}}) + """
+      var seen = [];
+      function snapshot(label) {
+        seen.push({ stop: label,
+                    primaries: find(rootNode, 'asc-btn-primary').length,
+                    skips: find(rootNode, 'asc-fr-skip').length });
+      }
+      window.FirstRunWalkthrough.start(ctx);
+      done(function () { done(function () {
+        snapshot('community');
+        find(rootNode, 'asc-fr-skip')[0].dispatch('click');
+        done(function () {
+          snapshot('earnings');
+          find(rootNode, 'asc-fr-skip')[0].dispatch('click');
+          done(function () {
+            snapshot('manual');
+            console.log(JSON.stringify({ seen: seen }));
+          });
+        });
+      }); });
+    """)
+    assert [s["stop"] for s in out["seen"]] == ["community", "earnings", "manual"]
+    for stop in out["seen"]:
+        assert stop["primaries"] == 1, f"{stop['stop']} should have exactly one primary"
+        assert stop["skips"] == 1, f"{stop['stop']} should have exactly one quiet skip"
+
+
+def test_no_stop_prints_its_own_position_beside_the_checklists_count():
+    """The checklist counts COMPLETED ("3 of 6"); an eyebrow counted POSITION
+    ("Stop 4 of 6"). Two different numbers for the same six things, in the same
+    visual register, 400px apart. Only the checklist survives."""
+    src = _FIRST_RUN_JS.read_text()
+    assert "asc-fr-eyebrow" not in src
+    assert not re.search(r"Stop\s+\d\s+of\s+6'", src), (
+        "a stop is printing its own position; the checklist already reports progress")
 
 
 def test_stop_two_offers_the_demo_only_when_one_is_installed():
@@ -488,3 +545,57 @@ def test_every_walkthrough_class_is_styled_and_emitted():
     assert styled, "no walkthrough styles found"
     assert not (styled - emitted), f"styled but never emitted: {sorted(styled - emitted)}"
     assert not (emitted - styled), f"emitted but never styled: {sorted(emitted - styled)}"
+
+
+# ── the demo player reserves its own frame ───────────────────────────────────
+def test_the_video_element_reserves_its_frame_before_metadata_loads():
+    """A <video> has no intrinsic height until the browser has read the moov atom
+    off the file. On a 73 MB demo over a physician's connection that is a real
+    window, during which the player renders as a thin strip of controls and then
+    jumps to full size — a layout shift on the first thing a new physician sees.
+    An aspect-ratio reserves the box immediately."""
+    css = _CSS.read_text(encoding="utf-8")
+    block = css[css.index(".asc-fr-video {"):]
+    block = block[:block.index("}")]
+    assert "aspect-ratio" in block
+
+
+def test_the_demo_close_button_sits_inside_the_frame():
+    """At top/right -14px it hung off the card and landed on whatever the overlay
+    was centred over — in the six-stop layout, the setup checklist. A close button
+    floating on unrelated content reads as belonging to that content."""
+    css = _CSS.read_text(encoding="utf-8")
+    block = css[css.index(".asc-fr-demo-close {"):]
+    block = block[:block.index("}")]
+    offsets = re.findall(r"(?:top|right):\s*(-?[\d.]+)px", block)
+    assert offsets, "the close button is absolutely positioned; it needs offsets"
+    assert all(float(v) >= 0 for v in offsets), (
+        f"negative offsets put the button outside the frame: {offsets}")
+    # Moving it inside the frame puts it over the <video>, which is replaced
+    # content and paints over a positioned sibling carrying no stack order — so
+    # the button becomes not merely invisible but UNCLICKABLE (verified in
+    # Chromium: elementFromPoint over its centre returned the video). The two
+    # changes only work together, so they are asserted together.
+    assert "z-index" in block, (
+        "a close button inside the frame must out-stack the video it sits on")
+
+
+def test_the_resume_chip_does_not_stretch_to_the_content_width():
+    """`.asc-wrap` is a flex COLUMN whose default align-items:stretch beats the
+    chip's inline-flex, turning a quiet pill into a full-bleed 1180px bar with two
+    words at the far left — which reads as a broken empty banner."""
+    css = _CSS.read_text(encoding="utf-8")
+    block = css[css.index(".asc-fr-chip {"):]
+    block = block[:block.index("}")]
+    assert "align-self: flex-start" in block
+
+
+def test_the_two_choice_cards_on_stop_two_share_one_accent():
+    """Green means physician-verified and lime means needs attention. Neither
+    describes "a video" or "a practice case", and colouring two equal options
+    differently says one of them carries weight the other does not."""
+    js = _FIRST_RUN_JS.read_text(encoding="utf-8")
+    thumbs = re.findall(r"'(asc-fr-choice-thumb[^']*)'", js)
+    assert len(thumbs) == 2, f"expected two choice thumbs, found {thumbs}"
+    assert thumbs[0] == thumbs[1], f"peer cards carry different accents: {thumbs}"
+

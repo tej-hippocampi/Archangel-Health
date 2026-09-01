@@ -3128,6 +3128,9 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-hs-bucket-attention { border: 1px solid #e8447b; }
 .asc-hs-bucket-attention .asc-card-title { color: #e8447b; }
 .asc-hs-reason { color: #ec9440; font-size: 13px; }
+/* The same line when the store is FINE. Amber is the alarm colour; a healthy
+   store rendered in it is an alarm that means nothing. */
+.asc-hs-reason-ok { color: var(--ink-soft); }
 .asc-hs-notes { max-width: 320px; }
 .asc-hs-actions { white-space: nowrap; text-align: right; }
 .asc-row-click { cursor: pointer; }
@@ -4583,14 +4586,6 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   box-shadow: var(--shadow-card);
 }
 .asc-fr-panel-wide { padding: 52px 56px; }
-.asc-fr-eyebrow {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  margin-bottom: 18px;
-}
 .asc-fr-title {
   font-size: clamp(26px, 3.4vw, 34px);
   font-weight: 400;
@@ -4720,10 +4715,12 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   border: 1px solid var(--green-line);
   margin-bottom: 14px;
 }
-.asc-fr-choice-thumb-case {
-  background: var(--lime-wash);
-  border-color: var(--lime-line);
-}
+/* Both choice thumbs share the one accent above, deliberately. The practice card
+   used to be lime against the demo card's green, and in this palette accent is
+   not decoration — lime is the needs-attention colour, and the practice case
+   needs no more attention than the demo does. Two equal options rendered in two
+   different accents say one of them carries weight the other does not, which is
+   the opposite of what the note underneath them says. */
 .asc-fr-choice-play {
   font-size: 22px;
   color: var(--asc-text);
@@ -4765,14 +4762,30 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-fr-video {
   display: block;
   width: 100%;
+  /* Reserve the frame BEFORE metadata arrives. Without this the element has no
+     intrinsic height until the browser has read the moov atom off a 73 MB file,
+     so the player opens as a thin strip of controls and then jumps to full size
+     — a layout shift measured in seconds on a slow connection, on the very first
+     thing a new physician is shown. 16/9 is what the demo is recorded at; a file
+     with different dimensions still gets its true aspect once metadata lands. */
+  aspect-ratio: 16 / 9;
   max-height: 74vh;
   border-radius: 10px;
   background: var(--ink);
 }
 .asc-fr-demo-close {
   position: absolute;
-  top: -14px;
-  right: -14px;
+  /* Inside the frame, over the video's top-right corner. At -14px it hung off
+     the card entirely and landed on whatever the overlay happened to be centred
+     over — in the six-stop layout, the setup checklist. A close button floating
+     on unrelated content reads as belonging to that content.
+     z-index is not decoration: <video> is replaced content and paints over a
+     positioned sibling that has no stack order of its own, so without this the
+     button is not merely hidden, it is unclickable — elementFromPoint over its
+     centre returns the video. */
+  top: 24px;
+  right: 24px;
+  z-index: 1;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -4975,7 +4988,11 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   font-size: 13px;
   color: var(--asc-text);
   cursor: pointer;
-  margin-bottom: 18px;
+  /* .asc-wrap is a flex COLUMN, whose default align-items:stretch beats the
+     inline-flex above and stretched this to the full 1180px content width — a
+     full-bleed bar with two words at the far left, which reads as a broken empty
+     banner rather than the quiet chip it is meant to be. */
+  align-self: flex-start;
 }
 .asc-fr-chip:hover { border-color: var(--ink-faint); }
 .asc-fr-chip-count {
@@ -5022,3 +5039,54 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   opacity: 0.5;
 }
 .asc-fr-rotate-rule.is-met .asc-fr-rotate-dot { opacity: 1; }
+
+/* ═══ Onboarding demo video — the admin drop zone (Onboarding v2 §0.1) ═══════
+   These rules were written into admin.css, which NOTHING LOADS: index.html links
+   _tokens, _base and this file, and admin.css has never been on that list. The
+   drop zone therefore rendered as centred text with no border, no hover and no
+   drag affordance — still clickable, so the bug looked like a design choice.
+   Moved here rather than linking admin.css, because linking it would apply ~1000
+   lines of never-loaded rules to every admin surface at once. That file is worth
+   fixing; it is not worth fixing inside a change about a video.
+
+   Swapping the demo is done by whoever recorded it, so the control lives in the
+   console next to the storage panel that says whether the volume it lands on is
+   durable — not in a terminal. Sized for a ~73 MB file: the progress bar exists
+   because an upload that long with no feedback is one an operator abandons
+   halfway, convinced it hung. */
+.asc-demo-drop {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 28px 20px;
+  border: 1px dashed var(--asc-line-strong);
+  border-radius: 12px;
+  background: var(--asc-surface-2);
+  color: var(--asc-text);
+  font: inherit;
+  cursor: pointer;
+  transition: background 160ms cubic-bezier(.4, 0, .2, 1),
+              border-color 160ms cubic-bezier(.4, 0, .2, 1);
+}
+.asc-demo-drop:hover,
+.asc-demo-drop.is-over {
+  border-color: var(--green-line);
+  background: var(--green-wash);
+}
+.asc-demo-drop-lead { font-size: 15px; margin-bottom: 6px; }
+.asc-demo-drop-sub { font-size: 13px; line-height: 1.5; color: var(--asc-muted); }
+
+.asc-demo-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--asc-line-strong);
+  overflow: hidden;
+  margin-top: 12px;
+}
+.asc-demo-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--green);
+  transition: width 120ms linear;
+}
