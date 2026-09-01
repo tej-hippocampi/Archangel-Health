@@ -30,6 +30,7 @@ from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
 from asclepius import route_notify as asc_route_notify
 from asclepius import trajectory as asc_trajectory
+from asclepius import store as asc_store_mod
 from asclepius import specialties as asc_specialties
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
@@ -535,6 +536,93 @@ async def set_upload_purpose(
             "cases_updated": cases,
             "message": f"{cases} case{'' if cases == 1 else 's'} recorded as "
                        f"{purpose.replace('_', ' ')}."}
+
+
+class UploadTaskModeRequest(BaseModel):
+    """How an upload's cases become tasks (PRD ADMIN-TASKS §3.2)."""
+
+    task_mode: Optional[str] = None
+
+
+@router.post("/uploads/{upload_id}/task-mode", include_in_schema=False)
+async def set_upload_task_mode(
+    upload_id: str, body: UploadTaskModeRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Record static vs longitudinal for this upload, before any task is made.
+
+    The choice was previously a boolean in the body of a generate call, which
+    meant it existed only for the duration of one request: come back tomorrow to a
+    half-finished bundle and nothing on the screen could tell you which kind of
+    task the first half became. Storing it on the upload is what makes the §3.2
+    row self-describing and lets a resumed batch continue in the same mode.
+
+    Freely changeable while it still means something, and refused once it does
+    not: mode is a property of the tasks that come out, so flipping it after the
+    first task exists would describe rows that were built the other way. The
+    remaining cases can still be promoted — as the mode they were staged under.
+
+    This writes NO task and promotes nothing. It records an intention.
+    """
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    # A brokering upload has no task mode, because it will never become tasks.
+    # Accepting one here would put a static/longitudinal choice on a row whose
+    # every promote path 409s — a control that does nothing, which reads as the
+    # product being broken rather than as the rule it actually is.
+    if asc_ingestion.is_brokering(upload.get("purpose")):
+        raise HTTPException(
+            status_code=409,
+            detail="This upload came in on a brokering link, so it never becomes "
+                   "tasks and has no task mode.")
+    mode = (body.task_mode or "").strip().lower() or None
+    if mode is not None and mode not in asc_store_mod.TASK_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"task_mode must be one of {', '.join(asc_store_mod.TASK_MODES)}.")
+    counts = store.upload_task_counts(upload_id)
+    if counts["promoted"] and mode != (upload.get("task_mode") or None):
+        raise HTTPException(
+            status_code=409,
+            detail=f"{counts['promoted']} case(s) from this upload are already "
+                   f"tasks, built as "
+                   f"{upload.get('task_mode') or 'static'}. Changing the mode now "
+                   f"would describe them as something they are not — promote the "
+                   f"rest in the same mode, or send a new upload.")
+    store.set_upload_task_mode(upload_id, mode)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="task_mode_set", actor=admin["id"],
+                    payload={"task_mode": mode})
+    return {"ok": True, "upload_id": upload_id, "task_mode": mode}
+
+
+class UploadDescriptionRequest(BaseModel):
+    """Free text: what this bundle is (PRD ADMIN-TASKS §3.1)."""
+
+    description: Optional[str] = None
+
+
+@router.post("/uploads/{upload_id}/description", include_in_schema=False)
+async def set_upload_description(
+    upload_id: str, body: UploadDescriptionRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Let an admin write down what an upload IS when the sender did not say.
+
+    Most bundles arrive through integrations that predate the description field,
+    so without this the answer to "what am I looking at" would stay unavailable
+    for exactly the uploads that already exist — the ones an operator most needs
+    to triage."""
+    store = _store()
+    if not store.get_ingest_upload(upload_id):
+        raise HTTPException(status_code=404, detail="Upload not found")
+    store.set_upload_description(upload_id, body.description)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="description_set", actor=admin["id"])
+    return {"ok": True, "upload_id": upload_id,
+            "description": store.get_ingest_upload(upload_id).get("description")}
 
 
 # ─── Physicians (PRD C Phase 3) ──────────────────────────────────────────────
@@ -1908,6 +1996,30 @@ class AllocateBody(BaseModel):
     specialty: Optional[str] = None
     to_all: bool = False
 
+    # ═══ PRD ADMIN-TASKS §4.3 — per-doctor role ══════════════════════════════
+    # {user_id: 'label' | 'review'}. Sparse and optional: a name absent from this
+    # map is a LABELER, which is what every explicit send meant before this field
+    # existed, so an old client's payload keeps its exact meaning.
+    #
+    # ``assignments.role`` already carries both values and the review path already
+    # reads it — the gap was that the explicit-send builder hardcoded 'label', so
+    # the Batches screen could name a reviewer and silently assign them labeling.
+    roles: Optional[Dict[str, str]] = None
+
+    @model_validator(mode="after")
+    def _roles_are_a_known_vocabulary(self):
+        """Refuse an unknown role at the door.
+
+        ``allocate`` and the review path both compare ``role`` against the exact
+        strings 'label' and 'review'. A third value would write a row that no
+        query matches: not an error, just an assignment that never appears in
+        anyone's queue and cannot be explained by looking at the screen."""
+        for uid, role in (self.roles or {}).items():
+            if role not in ("label", "review"):
+                raise ValueError(
+                    f"role for {uid!r} must be 'label' or 'review', got {role!r}")
+        return self
+
     @model_validator(mode="after")
     def _one_targeting_mode(self):
         chosen = [n for n, v in (("user_ids", self.user_ids),
@@ -2308,6 +2420,27 @@ def _resolve_send_targets(store: Any, body: "AllocateBody") -> Optional[List[Dic
                         "cases, so an assignment to them could never be served."),
             "user_ids": [u["id"] for u in blocked],
             "emails": [u.get("email") for u in blocked]})
+
+    # ═══ PRD ADMIN-TASKS §4.3 — the same rule, for the review role ═══════════
+    # Naming a labeler as a REVIEWER writes a row the review queue never returns:
+    # ``review.can_review`` gates that surface on an explicit reviewer/advisor
+    # tier, so the assignment would sit in a queue the doctor cannot open. That is
+    # precisely the failure the V4 wall check above exists to prevent, one field
+    # over, and it reads to everyone as the product being broken rather than as a
+    # tier that was never granted. Refuse at send, naming who and why.
+    from asclepius import review as _review
+
+    wrong_tier = [u for u in people
+                  if (body.roles or {}).get(u["id"]) == "review"
+                  and not _review.can_review(u)]
+    if wrong_tier:
+        raise HTTPException(status_code=400, detail={
+            "error": "not_a_reviewer",
+            "message": ("These accounts do not carry the reviewer tier, so a "
+                        "review assignment to them could never be served. Grant "
+                        "the tier on Physicians, or send them the case to label."),
+            "user_ids": [u["id"] for u in wrong_tier],
+            "emails": [u.get("email") for u in wrong_tier]})
     return people
 
 
@@ -2324,8 +2457,15 @@ def _explicit_proposal(cases: List[Dict[str, Any]], people: List[Dict[str, Any]]
     """
     from asclepius import allocation as asc_allocation
 
-    assignments = [{"task_id": c.task_id, "user_id": u["id"], "role": "label",
-                    "reason": "named by admin"}
+    # §4.3 — the admin's per-doctor role, defaulting to 'label' for anyone the map
+    # does not name. That default is the compatibility contract: every explicit
+    # send that predates this field meant "these people label these cases".
+    roles = body.roles or {}
+    assignments = [{"task_id": c.task_id, "user_id": u["id"],
+                    "role": roles.get(u["id"], "label"),
+                    "reason": ("named by admin as "
+                               + ("reviewer" if roles.get(u["id"]) == "review"
+                                  else "labeler"))}
                    for c in cases for u in people]
     # Same nested shape ``allocate()`` produces ({label, review, total} per user),
     # because the admin screen and the response contract read one of these without
@@ -2333,12 +2473,16 @@ def _explicit_proposal(cases: List[Dict[str, Any]], people: List[Dict[str, Any]]
     per_physician: Dict[str, Dict[str, int]] = {}
     for a in assignments:
         c = per_physician.setdefault(a["user_id"], {"label": 0, "review": 0, "total": 0})
-        c["label"] += 1
+        c[a["role"]] += 1
         c["total"] += 1
     notes = []
-    if len(people) > body.labels_per_case:
+    # Counted over LABELERS only. ``labels_per_case`` bounds labeling, and a note
+    # that counted a named reviewer toward it would warn about contention that
+    # does not exist — reviewers do not race labelers for a case.
+    n_labelers = sum(1 for u in people if roles.get(u["id"], "label") == "label")
+    if n_labelers > body.labels_per_case:
         notes.append(
-            f"{len(people)} doctors named for {body.labels_per_case} label(s) per "
+            f"{n_labelers} doctors named for {body.labels_per_case} label(s) per "
             f"case: whoever opens a case first takes it, and the rest see it drop "
             f"out of their queue.")
     return asc_allocation.Proposal(

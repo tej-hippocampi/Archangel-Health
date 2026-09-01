@@ -314,6 +314,77 @@ _PRD_CB_DISTRIBUTION = (
 #: unrecognised value fails CLOSED here — the predicate above compares against the
 #: exact string 'open', so a typo would hide the task from every queue in silence.
 _PRD_CB_DISTRIBUTIONS = ("open", "assigned_only")
+
+# ═══ PRD ADMIN-TASKS §5 — the display bucket ═════════════════════════════════
+# "Where did this task come from", as ONE derivation used everywhere.
+#
+# The four discriminators (trajectory_id, case_source, source, generation.mode)
+# already exist on every task row, so this is a naming of a grouping rather than
+# a new taxonomy — and it is deliberately the SAME grouping ``batch_overview``
+# does in SQL. Two spellings of "which batch is this in" is the defect this
+# codebase keeps writing comments about: the first time they disagree, the
+# Routing rail and the task list describe the same task differently and neither
+# is obviously wrong.
+#
+# WHY ``source`` AND NOT ``generation.mode`` FOR GOLD. The obvious predicate is
+# generation_json.$.mode, and it is the wrong one: ``replace_task_candidates``
+# merges a patch into that block, and "Grade real" patches mode to
+# 'grade_real_models'. A gold case graded against the frontier models would
+# silently stop being physician-authored. ``source`` is never rewritten after
+# insert — grep for "UPDATE tasks SET" — so it is the stable fact.
+#
+# ORDER MATTERS and is not alphabetical: a trajectory point that is also
+# real_deid is longitudinal FIRST, because the walk is the thing being routed.
+BUCKET_LONGITUDINAL = "longitudinal_real"
+BUCKET_STATIC_REAL = "static_real"
+BUCKET_PHYSICIAN = "physician_authored"
+BUCKET_SYNTHETIC = "synthetic"
+DISPLAY_BUCKETS = (
+    BUCKET_LONGITUDINAL, BUCKET_STATIC_REAL, BUCKET_PHYSICIAN, BUCKET_SYNTHETIC,
+)
+#: The one source of gold provenance. gold_cases.py writes BOTH ``source`` and
+#: ``generation.mode`` as this; only ``source`` survives a re-grade.
+GOLD_SOURCE = "gold_seed"
+
+#: §3.2 — how an upload's cases become tasks. NULL means "not chosen yet", which
+#: is a real third state: the row renders with neither radio selected and asks.
+TASK_MODE_STATIC = "static"
+TASK_MODE_LONGITUDINAL = "longitudinal"
+TASK_MODES = (TASK_MODE_STATIC, TASK_MODE_LONGITUDINAL)
+
+
+def derive_display_bucket(
+    *,
+    trajectory_id: Optional[str] = None,
+    case_source: Optional[str] = None,
+    source: Optional[str] = None,
+) -> str:
+    """Which display bucket a task belongs to. Pure; no I/O.
+
+    Called from exactly three places — ``insert_task``, the two paths that
+    rewrite ``case_source``, and the boot backfill — so a task's stored bucket
+    and a freshly derived one can never differ. ``test_display_bucket_never_
+    drifts`` asserts that for every row in the database, which is the assertion
+    that actually protects production: a cache nobody re-derives is a cache that
+    is wrong and cannot be caught.
+    """
+    if trajectory_id:
+        return BUCKET_LONGITUDINAL
+    if (case_source or "") == "real_deid":
+        return BUCKET_STATIC_REAL
+    if (source or "") == GOLD_SOURCE:
+        return BUCKET_PHYSICIAN
+    return BUCKET_SYNTHETIC
+
+
+def display_bucket_for_row(row: Any) -> str:
+    """``derive_display_bucket`` over a task row/dict, for callers holding one."""
+    get = row.get if hasattr(row, "get") else (lambda k, d=None: row[k])
+    return derive_display_bucket(
+        trajectory_id=get("trajectory_id", None),
+        case_source=get("case_source", None),
+        source=get("source", None),
+    )
 # ═══ END PRD CASE-BATCHES ═════════════════════════════════════════════════════
 # ═══ END PRD-R ═══════════════════════════════════════════════════════════════
 
@@ -2020,6 +2091,46 @@ class AsclepiusStore:
             # recomputed over the assembled bytes and matched the declared value.
             if "verified_at" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN verified_at TEXT")
+
+            # ═══ PRD ADMIN-TASKS §3 / §5 — staging, and where a task came from ═══
+            # Three additive, NULLable columns. Nothing is deleted, truncated or
+            # re-keyed by this block; `test_admin_tasks_redesign_migration` snapshots
+            # the id sets of the five tables around it and asserts they are identical.
+            #
+            # description — what the health system says this data IS, in their words.
+            #   POST /partner/uploads had no field for it, so an admin looking at
+            #   "3 files · 412 MB" had to open the bundle to find out what it was.
+            # task_mode   — 'static' | 'longitudinal', the choice §3.2 makes
+            #   first-class. It was previously a flag buried in a request body, which
+            #   meant a half-finished batch could not tell you what it was half-way
+            #   through.
+            for _col in ("description", "task_mode"):
+                if _col not in cols("ingest_uploads"):
+                    conn.execute(f"ALTER TABLE ingest_uploads ADD COLUMN {_col} TEXT")
+            # display_bucket — the §5 classification, stored so the tasks list can
+            # group without four CASE arms in every query, and BACKFILLED from
+            # columns the row already has. Read-only derivation: the four source
+            # columns are never written here.
+            if "display_bucket" not in cols("tasks"):
+                conn.execute("ALTER TABLE tasks ADD COLUMN display_bucket TEXT")
+            # Idempotent, and re-runnable on purpose: `WHERE display_bucket IS NULL`
+            # makes boot cheap once it has run, and the drift test re-derives every
+            # row rather than trusting this ever ran at all.
+            #
+            # Written through the SAME function the write paths use, not a SQL CASE
+            # duplicating it. A CASE here would be a fifth spelling of the grouping
+            # and the one nobody updates.
+            _unbucketed = conn.execute(
+                "SELECT task_id, trajectory_id, case_source, source FROM tasks "
+                " WHERE display_bucket IS NULL"
+            ).fetchall()
+            for _r in _unbucketed:
+                conn.execute(
+                    "UPDATE tasks SET display_bucket = ? WHERE task_id = ?",
+                    (derive_display_bucket(trajectory_id=_r["trajectory_id"],
+                                           case_source=_r["case_source"],
+                                           source=_r["source"]), _r["task_id"]),
+                )
             # Resumable chunked upload sessions (PRD-I §1.1). A session is NOT an
             # upload: no ingest_uploads row exists until `complete` verifies the
             # whole-file digest, which is what makes "an assembled file with no
@@ -4511,6 +4622,11 @@ class AsclepiusStore:
         # when the case itself says so; any other case is 'synthetic'; a text
         # task has none. First-class column so the V4 routing wall is pure SQL.
         cs = ((case.get("case_source") or "synthetic") if case else None)
+        # PRD ADMIN-TASKS §5 — the display bucket, derived here rather than by the
+        # reader, so every task carries one from the moment it exists and the
+        # backfill has nothing to do for new rows.
+        bucket = derive_display_bucket(
+            trajectory_id=trajectory_id, case_source=cs, source=source)
         # Empirical difficulty (PRD §9) rides in the generation block; lift it to the
         # first-class columns for the serving gate + admin/export.
         ed_val, ed_measured = _empirical_difficulty_fields(
@@ -4525,8 +4641,8 @@ class AsclepiusStore:
                    buyer_request_id, generation_json, value_tier, modality, case_json,
                    case_source, empirical_difficulty, difficulty_measured,
                    open_to_all_specialties, trajectory_id, sequence_index,
-                   distribution, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   distribution, display_bucket, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -4551,6 +4667,7 @@ class AsclepiusStore:
                     trajectory_id,
                     sequence_index,
                     dist,
+                    bucket,
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -4564,10 +4681,21 @@ class AsclepiusStore:
         StudyAsset reference is written here."""
         md = "multimodal" if (case and (case.get("lab_panels") or case.get("notes") or case.get("studies"))) else "text"
         cs = ((case.get("case_source") or "synthetic") if case else None)
+        # This is one of only two paths that rewrite ``case_source`` after insert,
+        # and ``case_source`` is a display-bucket discriminator — so the bucket is
+        # re-derived here rather than left stale. A task that became real_deid and
+        # kept a 'synthetic' bucket would sit in the wrong Routing rail while
+        # ``batch_overview`` counted it correctly: two surfaces, one task, no way
+        # to tell which is lying.
+        prior = self.get_task(task_id) or {}
+        bucket = derive_display_bucket(
+            trajectory_id=prior.get("trajectory_id"), case_source=cs,
+            source=prior.get("source"))
         with self._conn() as conn:
             conn.execute(
-                "UPDATE tasks SET case_json = ?, modality = ?, case_source = ? WHERE task_id = ?",
-                (json.dumps(case) if case else None, md, cs, task_id),
+                "UPDATE tasks SET case_json = ?, modality = ?, case_source = ?, "
+                "       display_bucket = ? WHERE task_id = ?",
+                (json.dumps(case) if case else None, md, cs, bucket, task_id),
             )
         return self.get_task(task_id)
 
@@ -9974,6 +10102,56 @@ class AsclepiusStore:
             conn.execute(
                 "UPDATE ingest_uploads SET purpose = ?, updated_at = ? WHERE upload_id = ?",
                 (purpose, _utcnow_iso(), upload_id))
+
+    # ═══ PRD ADMIN-TASKS §3 — staging state on the upload ════════════════════
+    def set_upload_description(self, upload_id: str, description: Optional[str]) -> None:
+        """What the sender says this bundle IS, in their words.
+
+        Free text and deliberately unvalidated beyond a length cap: it is a
+        human sentence for a human reader, not a field anything branches on.
+        Trimmed to empty means "they told us nothing", stored as NULL so the row
+        renders the honest absence rather than an empty quote."""
+        text = (description or "").strip()[:2000] or None
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET description = ?, updated_at = ? "
+                " WHERE upload_id = ?", (text, _utcnow_iso(), upload_id))
+
+    def set_upload_task_mode(self, upload_id: str, task_mode: Optional[str]) -> None:
+        """'static' | 'longitudinal' | None — how this upload's cases become tasks.
+
+        Stored on the upload so a half-finished batch resumes in the same mode and
+        the row is self-describing tomorrow. Refuses an unrecognised value rather
+        than storing it: the UI branches on this string, and a typo would render a
+        row with neither mode selected and no way to tell why."""
+        mode = (task_mode or "").strip().lower() or None
+        if mode is not None and mode not in TASK_MODES:
+            raise ValueError(f"task_mode must be one of {TASK_MODES}, got {task_mode!r}")
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET task_mode = ?, updated_at = ? "
+                " WHERE upload_id = ?", (mode, _utcnow_iso(), upload_id))
+
+    def upload_task_counts(self, upload_id: str) -> Dict[str, int]:
+        """Per-upload case tallies for the §3.2 row, in ONE query.
+
+        ``promoted`` is cases that already became tasks; ``ingested`` is what is
+        still waiting. The Box 2 row subtracts nothing and derives nothing — it
+        prints these — so "0 made into tasks" can never disagree with what
+        promote-all would actually act on."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS n FROM ingest_cases "
+                " WHERE upload_id = ? GROUP BY status", (upload_id,)).fetchall()
+        by = {str(r["status"]): int(r["n"]) for r in rows}
+        return {
+            "total": sum(by.values()),
+            "ingested": by.get("ingested", 0),
+            "promoted": by.get("promoted", 0),
+            "needs_review": by.get("needs_review", 0),
+            "quarantined": by.get("quarantined", 0),
+            "rejected": by.get("rejected", 0),
+        }
 
     def set_data_provider_purpose(self, provider_id: str, purpose: Optional[str]) -> int:
         """Admin-side assignment of what a provider account's uploads are FOR.

@@ -4965,6 +4965,13 @@ async def partner_upload(
     background: BackgroundTasks,
     file: UploadFile = File(...),
     t: Optional[str] = Query(None, description="upload link token"),
+    # PRD ADMIN-TASKS §3.1 — what the sender says this data IS, in their words.
+    # OPTIONAL with an empty default, which is the whole compatibility story: every
+    # partner integration that posts only `file` keeps working byte-for-byte, and a
+    # bundle that arrives without one renders "no description given" rather than a
+    # blank line pretending to be one. Never branched on — it is a sentence for a
+    # human, not a routing key.
+    description: str = Form(""),
 ):
     """The partner's one capability (PRD §4): POST a .zip through their token.
     Caps + magic-byte check + SHA-256 + encrypted quarantine write happen inline;
@@ -5057,6 +5064,10 @@ async def partner_upload(
     # Provenance from the authorizing LINK row, joined server-side (PRD-I §2.1).
     # This door had no such call at all, which is why its purpose column was dead.
     store.attach_upload_provenance(upload["upload_id"], link_id=link["link_id"])
+    # §3.1 — written AFTER provenance so a failure here cannot cost us the row. A
+    # missing description is a cosmetic loss; a missing upload is the 410 incident.
+    if (description or "").strip():
+        store.set_upload_description(upload["upload_id"], description)
     store.log_event(entity_type="ingest_upload", entity_id=upload["upload_id"],
                     event_type="upload_received",
                     payload={"partner_id": link["partner_id"], "sha256": digest,
@@ -5240,6 +5251,23 @@ async def list_ingestion_uploads(
         # Notification affordances for the row (never expose the raw path).
         u["contact_email"] = _contact_email_for_upload(store, u)
         u["failure_notified"] = bool(u.get("failure_notified_at"))
+        # ═══ PRD ADMIN-TASKS §3 — the staging fields ═════════════════════════
+        # Box 1 asks "what is this and where does it go", Box 2 asks "how much of
+        # it is already tasks". Both are answered from rows this loop already
+        # holds plus ONE grouped count per upload, rather than by a second
+        # endpoint the two boxes would have to keep in sync with this one.
+        counts = store.upload_task_counts(u["upload_id"])
+        u["case_counts"] = counts
+        u["tasks_created"] = counts["promoted"]
+        # The three states §3 renders. 'undecided' is NOT the same as
+        # task_creation even though ``effective_purpose`` resolves NULL that way
+        # for promotion: the admin has not answered yet, and Box 1 exists to ask.
+        u["staging"] = ("undecided" if not u.get("purpose")
+                        else "brokering" if asc_ingestion.is_brokering(u.get("purpose"))
+                        else "task_creation")
+        # Whether every eligible case has become a task — the §3.2 "done" fold.
+        u["task_creation_complete"] = bool(
+            counts["promoted"] and not counts["ingested"])
         u.pop("raw_path", None)  # server-side path is not admin-relevant
     return {"uploads": uploads, "total": total, "limit": limit, "offset": offset,
             "counts": counts, "status": status}
