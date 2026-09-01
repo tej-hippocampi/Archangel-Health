@@ -4411,13 +4411,6 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   padding: var(--sp-3) 0;
   border-top: 1px solid var(--hairline);
 }
-.asc-verif-open {
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--hairline);
-}
-.asc-verif-open ul { margin: var(--sp-2) 0 0; padding-left: 1.1rem; }
-.asc-verif-open li { margin: var(--sp-1) 0; color: var(--ink-soft); }
 .asc-dash-cta { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); flex-wrap: wrap; }
 
 /* Recovery affordance on the portal login. A button, not an anchor: it performs

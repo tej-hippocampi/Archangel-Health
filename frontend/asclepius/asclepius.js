@@ -2092,9 +2092,8 @@
       h('span', { class: 'asc-provisional-dot', 'aria-hidden': 'true' }),
       h('div', { class: 'asc-provisional-copy' },
         h('strong', {}, 'We are verifying your credentials.'),
-        ' Usually one to two business days. Try the practice case and meet '
-        + 'colleagues in the community while you wait. Real cases and earnings '
-        + 'open as soon as we are done.'),
+        ' Usually one to two business days. Real cases open as soon as we '
+        + 'are done.'),
       h('button', {
         type: 'button',
         class: 'asc-btn asc-btn-ghost asc-btn-sm',
@@ -2121,12 +2120,11 @@
             h('div', { class: 'asc-chrome' }, r.label || ''),
             h('div', {}, r.body || ''))))
         : null,
-      h('div', { class: 'asc-verif-open' },
-        h('div', { class: 'asc-chrome' }, 'Open to you now'),
-        h('ul', {},
-          h('li', {}, 'The practice case, start to finish.'),
-          h('li', {}, 'The community: introduce yourself and follow the medical-AI digest.'),
-          h('li', {}, 'The guide, so you know how the work runs before your first real case.')))));
+      // No "Open to you now" list. The rail already answers that question by
+      // being a rail: what is open is not locked. This was the third statement
+      // of it on one screen, after the banner's own clause and the manual rows
+      // above.
+      ));
     setRoot(h('div', { class: 'asc-wrap' }, card));
   }
 
@@ -3258,9 +3256,7 @@
       requiresRealData: true,
       blurb: 'Work through real, de-identified patient cases: labs, notes, and a real clinical snapshot. Same task as synthetic; the data is real.',
       bullets: [
-        'Read a real de-identified case: labs, notes, meds, vitals',
         'Give a 10-second first impression before you see the AI answers',
-        'Pick the better of two AI answers, refine it, and say why',
         'A single point-in-time (static) case, not a timeline',
         'Requires real-data approval (BAA / training)',
       ],
@@ -3269,7 +3265,6 @@
       v: 'v3', label: 'Synthetic Multimodal Cases', tag: 'Recommended', dot: 'asc-dot-lime',
       blurb: 'Structured synthetic cases (labs, EHR notes, and meds) built to be hard.',
       bullets: [
-        'Read a multimodal case: labs, EHR notes, meds, vitals',
         'Give a 10-second first impression before the AI answers appear',
         'Compare two AI answers and pick the stronger one',
         'Refine it, flag the weaker one’s errors, and check the reasoning',
@@ -3284,7 +3279,6 @@
       route: '/asclepius/v5/annotate',
       blurb: 'Review an AI agent working a case step by step: label each move and write what it should have done instead.',
       bullets: [
-        'Watch an agent order tests and reason across multiple steps',
         'Label each step correct / suboptimal / wrong',
         'Mark the first error and write the correct next action',
         'Validate the environment’s auto-reward against your judgment',
@@ -11263,8 +11257,7 @@
           // representation, so it gets a tour-local ledger rather than an
           // invented draft field (tour bookkeeping must never ride in the
           // submitted payload).
-          doneWhen: () => tutDone('ch1-tabs'),
-          note: 'Every case starts with the chart. Open each tab (Patient, Labs, EHR, Meds, Vitals) and read it through before judging anything.' },
+          doneWhen: () => tutDone('ch1-tabs') },
         { id: 'ch1-valid', target: TOUR_TARGETS.promptContinue,
           copy: 'If the case reads as real and answerable, continue. If not, flag it.',
           // The exact field validatePrompt() writes, which belongs to this step
@@ -11293,8 +11286,7 @@
         { id: 'ch2-reveal', target: TOUR_TARGETS.revealBtn,
           copy: 'Now reveal the two AI answers.',
           advanceOn: { state: (d) => d.stage === 'compare' },
-          autofill: () => commitIndependentAnswerAndReveal(),
-          note: 'Reveal commits your line and unblinds the answers (Enter works too).' },
+          autofill: () => commitIndependentAnswerAndReveal() },
       ],
     },
     {
@@ -11352,8 +11344,7 @@
             d.why_better_done = true;
             state._reopenedSubstage = null;
             refreshStagedFlow();
-          },
-          note: 'One sentence plus at least one why-better tag.' },
+          } },
         { id: 'ch4-cite', target: TOUR_TARGETS.citations,
           copy: 'Attach a supporting citation: or continue without one.',
           skipIf: (d) => d.verdict === 'both_inadequate',
@@ -11396,8 +11387,7 @@
           copy: 'Confirm each reasoning step that’s right; open any that aren’t.',
           skipIf: () => !(state.task && state.task.capture_reasoning),
           advanceOn: { state: () => substageComplete('reasoning') },
-          autofill: () => autofillReasoningSteps(),
-          note: 'The answer splits into steps; confirm the good ones, correct the bad ones.' },
+          autofill: () => autofillReasoningSteps() },
       ],
     },
     {
@@ -11427,8 +11417,7 @@
             const d = state.draft;
             if (!d.confidence_set) { d.confidence = 'high'; d.confidence_set = true; saveDraft(); }
             renderTaskWorkspace();
-          },
-          note: 'Low / medium / high: honest calibration beats looking sure.' },
+          } },
         { id: 'ch5-submit', target: TOUR_TARGETS.submit,
           copy: 'Submit: and see how you compare with the reference panel.',
           advanceOn: { state: () => false },  // the submit path ends the tour
