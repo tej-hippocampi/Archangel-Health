@@ -8958,9 +8958,14 @@
      * created_at, which the batch query already returns. */
     function isFresh(r) {
       if (!r.created_at) return false;
-      const t = Date.parse(String(r.created_at).replace(' ', 'T'));
-      if (isNaN(t)) return false;
-      return (Date.now() - t) < 86400000;
+      // toUtcDate, not Date.parse: the server writes a bare
+      // 'YYYY-MM-DDTHH:MM:SS' with no zone, which Date.parse reads as LOCAL.
+      // In UTC+14 that shifts a 30-hour-old task inside the 24-hour window and
+      // chips it "new", which is a lie on the one screen an operator uses to
+      // find what they just made.
+      const dt = toUtcDate(r.created_at);
+      if (!dt || isNaN(dt.getTime())) return false;
+      return (Date.now() - dt.getTime()) < 86400000;
     }
 
     function rowFor(r) {
@@ -9195,7 +9200,11 @@
         h('label', { class: 'asc-label' }, 'Mode'),
         h('label', { class: 'asc-route-role' }, solo, 'Solo walk — one doctor, all points'),
         h('label', { class: 'asc-route-role' }, relay, 'Send as relay — one doctor per point')));
-      loadDoctors();
+      // Fetch-then-REPAINT. A bare loadDoctors() resolves into a screen that
+      // has already been drawn, so the picker renders "No approved doctors to
+      // name." and stays that way until something unrelated repaints — which on
+      // the relay path is the whole control.
+      if (!view.doctors) loadDoctors().then(paint);
       box.appendChild(doctorPicker());
       if (view.relay) {
         box.appendChild(h('div', { class: 'asc-dim' },

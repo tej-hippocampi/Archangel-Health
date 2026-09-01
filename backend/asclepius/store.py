@@ -361,12 +361,16 @@ def derive_display_bucket(
 ) -> str:
     """Which display bucket a task belongs to. Pure; no I/O.
 
-    Called from exactly three places — ``insert_task``, the two paths that
-    rewrite ``case_source``, and the boot backfill — so a task's stored bucket
-    and a freshly derived one can never differ. ``test_display_bucket_never_
-    drifts`` asserts that for every row in the database, which is the assertion
-    that actually protects production: a cache nobody re-derives is a cache that
-    is wrong and cannot be caught.
+    Called from three places — ``insert_task``, ``update_task_case`` (the one
+    path that rewrites ``case_source`` after insert) and the boot backfill — so
+    a task's stored bucket and a freshly derived one can never differ.
+    ``test_the_display_bucket_never_drifts_from_its_derivation`` asserts exactly
+    that over every row in the database, which is the assertion that actually
+    protects production: a cache nobody re-derives is a cache that is wrong and
+    cannot be caught.
+
+    The backfill runs AFTER the ``case_source`` backfill earlier in the same
+    migration, so it reads the corrected value rather than the legacy NULL.
     """
     if trajectory_id:
         return BUCKET_LONGITUDINAL

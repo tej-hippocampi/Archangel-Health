@@ -117,13 +117,31 @@ function checkboxes(el) {
 function tidy(el) { return textOf(el).replace(/\\s+/g, ' ').trim(); }
 """
 
+# The REAL ``toUtcDate``, spliced from the shipped file rather than stubbed:
+# ``isFresh`` depends on it reading a bare server timestamp as UTC, and a stub
+# built on Date.parse would hide the exact defect that dependency exists to fix.
+_HARNESS += "\n" + _fn(JS, "toUtcDate") + "\n"
 
-def _run(script: str) -> dict:
+
+def _run(script: str, tz: str | None = None) -> dict:
+    """Execute a render against the DOM shim.
+
+    ``tz`` is applied to the CHILD PROCESS ENVIRONMENT, not with
+    ``process.env.TZ`` inside the script: V8 caches the zone at startup, so an
+    in-script assignment is ignored and any test relying on it passes against
+    the very bug it was written for. (It did. That is why this parameter
+    exists.)"""
+    import os
+
     node = shutil.which("node")
     if not node:
         pytest.skip("node is not installed in this environment")
     full = f"require({json.dumps(str(_SHIM))});\nvar CALLS = [];\n{_HARNESS}\n{script}"
-    proc = subprocess.run([node, "-e", full], capture_output=True, text=True, timeout=60)
+    env = dict(os.environ)
+    if tz:
+        env["TZ"] = tz
+    proc = subprocess.run([node, "-e", full], capture_output=True, text=True,
+                          timeout=60, env=env)
     if proc.returncode != 0:
         raise AssertionError(f"node failed:\n{proc.stderr}\n{proc.stdout}")
     return json.loads(proc.stdout.strip().splitlines()[-1])
@@ -375,6 +393,52 @@ def test_a_task_made_today_carries_a_new_chip():
       }, 30);
     """)
     assert out["n"] == 1, "exactly the recent task, not the 2020 one"
+
+
+def test_the_new_chip_reads_the_timestamp_as_utc_not_local():
+    """The server writes a bare 'YYYY-MM-DDTHH:MM:SS' with no zone, which
+    Date.parse reads as LOCAL time. East of UTC that shifts an old task inside
+    the 24-hour window and chips it "new" — a lie on the one screen an operator
+    uses to find what they just made.
+
+    The zone has to be WEST of UTC to expose it. Parsing a bare stamp as local
+    in UTC+O places the instant at C-O, so the apparent age is (age + O): east
+    makes a task look OLDER and hides the bug, west makes it look younger. At
+    UTC-11 a 30-hour-old task reads as 19 hours and gets chipped.
+
+    Guarded here rather than left to the implementation because the naive
+    spelling is the one a later reader reaches for first."""
+    import datetime as _dt
+
+    old = (_dt.datetime.utcnow() - _dt.timedelta(hours=30)).strftime("%Y-%m-%dT%H:%M:%S")
+    out = _run(f"""
+var ROUTES = {{
+  '/admin/batches': {{ longitudinal: {{}}, real_static: {{}}, synthetic: {{n_cases:1}} }},
+  '/admin/batches/synthetic': {{ cases: [
+     {{task_id:'old', specialty:'x', difficulty:'hard', distribution:'open',
+      label_count:0, max_labels:1, created_at:'{old}', display_bucket:'synthetic'}}]}},
+}};
+function api(path, opts) {{ return Promise.resolve(ROUTES[path] || {{}}); }}
+var state = {{ batches: null }};
+{_META}
+{ROUTING}
+var body = document.createElement('div');
+renderAdminBatches(body);
+setTimeout(function () {{
+  findAll(body, 'asc-route-rail-btn')[2].dispatch('click');
+  setTimeout(function () {{
+    console.log(JSON.stringify({{ fresh: findAll(body, 'asc-chip-new').length }}));
+  }}, 30);
+}}, 30);
+""", tz="Pacific/Midway")   # UTC-11, applied before node starts
+    assert out["fresh"] == 0, "a 30-hour-old task was chipped 'new' in UTC-11"
+
+
+def test_the_relay_doctor_picker_repaints_once_the_roster_arrives():
+    """A bare loadDoctors() resolves into a screen already drawn, leaving "No
+    approved doctors to name." permanently — and on the relay path that empty
+    list IS the control."""
+    assert "if (!view.doctors) loadDoctors().then(paint);" in ROUTING
 
 
 def test_the_per_doctor_role_reaches_the_allocate_payload():

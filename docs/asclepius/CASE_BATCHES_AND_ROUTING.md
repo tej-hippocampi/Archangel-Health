@@ -51,11 +51,12 @@ and the filter cannot drift.
 
 ---
 
-## §2 The Batches screen
+## §2 The Task Routing screen
 
-`Admin → Tasks → Batches`. Three classes, grouped on discriminators every task
-row already carries, so this can never disagree with what the queue thinks a case
-is:
+`Admin → Tasks → Task Routing` (called *Batches* until the Admin Tasks redesign;
+the sub-tab's state key is still `assign`). Three classes, grouped on
+discriminators every task row already carries, so this can never disagree with
+what the queue thinks a case is:
 
 | class | discriminator |
 |---|---|
@@ -98,7 +99,15 @@ modes, mutually exclusive by validation because they mean different things:
 | `to_all` | nobody in particular — no assignment rows at all | `open` |
 
 `to_all` on a longitudinal batch **un-seals the walk**. That is a real choice and
-the send bar says so before the click.
+the right-hand routing panel says so before the click.
+
+Since the redesign that panel is **context-sensitive**: a whole-trajectory
+selection is offered solo-vs-relay and nothing else, a standalone selection is
+offered the three targeting modes above, and an empty selection is offered a
+one-line hint instead of controls that cannot act. Each named doctor also
+carries a **role** (labeler or reviewer) that rides in `roles` on the allocate
+payload; naming a doctor without the reviewer tier is refused at send, for the
+same reason the V4 wall is — the assignment could never be served.
 
 The V4 wall is enforced at send: naming a doctor explicitly is still not
 permission to show them real patient data, and an assignment written past that
@@ -301,6 +310,6 @@ doctor** instead.
   is DM'd; the other doctors are not told the roster changed. With no channel there
   is no natural place for that, and N DMs saying "somebody else has point 2 now" is
   noise for people whose own turn has not moved.
-* **The chain view is not linked from anywhere but the Batches longitudinal
-  drill-in.** An admin who wants it goes to the batch; there is no "walks that are
+* **The chain view is not linked from anywhere but the Task Routing longitudinal
+  batch.** An admin who wants it opens that batch; there is no "walks that are
   stuck" landing view across all trajectories.

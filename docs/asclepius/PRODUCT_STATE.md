@@ -36,9 +36,10 @@ below is **on `main`** — there is no unmerged delta.
 > A promoted chart walk is invisible to every doctor until an admin sends it
 > (`tasks.distribution`), which is what makes the longitudinal merge safe: without
 > it, every promoted point lands in every approved physician's queue on deploy.
-> Admin Batches groups the three case classes, previews a case through the
-> doctor's own payload function, and sends to named doctors, a specialty, or the
-> open queue. **Relay mode** walks one chart across N physicians, one decision
+> Admin **Task Routing** (renamed from Batches by the Admin Tasks redesign)
+> groups the three case classes, previews a case through the doctor's own payload
+> function, and sends to named doctors — each with a labeler/reviewer role — a
+> specialty, or the open queue. **Relay mode** walks one chart across N physicians, one decision
 > point each, with the previous physician's commitment — never their outcome — as
 > a handoff; the sequence gate becomes mode-dependent, and relay points leave the
 > κ pool on the single-label floor rather than the sequential-dependence rule.
