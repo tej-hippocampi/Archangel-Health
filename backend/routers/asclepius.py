@@ -22,7 +22,7 @@ import secrets
 import time
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Query, Request,
@@ -136,6 +136,8 @@ from asclepius.schemas import (
     FirstRunUpdate,
     FIRST_RUN_STOPS as _FIRST_RUN_STOPS,
     ForgotPasswordRequest,
+    SigninLinkExchange,
+    SigninLinkRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
     GenerateRealCasesRequest,
@@ -178,6 +180,7 @@ from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
     build_asclepius_password_changed_email,
     build_asclepius_password_reset_email,
+    build_asclepius_signin_link_email,
 )
 from ratelimit import rate_limiter
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
@@ -431,6 +434,105 @@ async def forgot_password(
     return _FORGOT_ANSWER
 
 
+# ─── Pre-approval sign-in links ──────────────────────────────────────────────
+# An applicant has no password, so "sign in again" cannot mean what it means
+# everywhere else. It means: prove you still hold the mailbox we already sent an
+# OTP to, and we will let you back into the practice case.
+#
+# Same anti-enumeration discipline as the forgot door above, and for a sharper
+# reason: the interesting question an attacker could ask here is not "does this
+# address exist" but "is this physician still under review", which is a fact
+# about a named person's professional standing. So the answer, the latency and
+# the log shape are all identical in every branch.
+
+_SIGNIN_LINK_ANSWER = {
+    "ok": True,
+    "message": (
+        "If that email has an application with us, we've sent a sign in link. "
+        "It expires in 15 minutes."
+    ),
+}
+
+
+async def _mail_signin_link(email: str, raw_token: str) -> None:
+    if not is_email_transport_configured():
+        return
+    try:
+        await send_html_email(
+            email,
+            "Your Archangel Health sign in link",
+            build_asclepius_signin_link_email(
+                signin_url=asc_passwords.signin_url(raw_token),
+                expires_minutes=asc_passwords.SIGNIN_TTL_MINUTES,
+            ),
+        )
+    except Exception:
+        log.exception("[asclepius] sign in link email failed")
+
+
+@router.post(
+    "/auth/signin-link",
+    dependencies=[Depends(rate_limiter("asclepius_signin_link", 5, 600))],
+)
+async def request_signin_link(
+    body: SigninLinkRequest, request: Request, background: BackgroundTasks,
+):
+    store = _store()
+    email = (body.email or "").strip().lower()
+    user = store.get_user_by_email(email) if email else None
+
+    # Offered only to accounts that have no password. An account WITH one has a
+    # door already, and quietly mailing a second way in would be a downgrade
+    # attack on the stronger credential.
+    if user and user.get("active") and asc_store.password_is_unset(user):
+        raw, hashed = asc_passwords.new_signin_token()
+        store.create_signin_link(
+            user_id=user["id"], token_hash=hashed,
+            expires_at=asc_passwords.signin_expires_at(),
+        )
+        store.log_event(
+            entity_type="user", entity_id=user["id"],
+            event_type="signin_link_requested", actor=user["id"],
+        )
+        background.add_task(_mail_signin_link, user["email"], raw)
+    else:
+        store.log_event(
+            entity_type="user", entity_id=None,
+            event_type="signin_link_requested_unusable", actor=None,
+            payload={"domain": email.split("@")[-1] if "@" in email else ""},
+        )
+    return _SIGNIN_LINK_ANSWER
+
+
+@router.post(
+    "/auth/signin-link/exchange",
+    dependencies=[Depends(rate_limiter("asclepius_signin_exchange", 10, 600))],
+)
+async def exchange_signin_link(body: SigninLinkExchange):
+    """Trade the emailed token for a session, once.
+
+    Expired, already used and never-existed collapse to one sentence, the same
+    way the reset door collapses them: the holder of a bad link learns nothing
+    about which it was."""
+    store = _store()
+    token = (body.token or "").strip()
+    dead = "This sign in link is no longer valid. Request a new one."
+    if not token:
+        raise HTTPException(status_code=400, detail=dead)
+
+    user_id = store.consume_signin_link(asc_passwords.hash_reset_token(token))
+    user = store.get_user_by_id(user_id) if user_id else None
+    if not user or not user.get("active"):
+        raise HTTPException(status_code=400, detail=dead)
+
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="signin_link_used", actor=user["id"],
+    )
+    return {"ok": True, "token": asc_auth.create_token(user),
+            "user": asc_auth.public_user(user)}
+
+
 @router.post(
     "/auth/password/reset",
     dependencies=[Depends(rate_limiter("asclepius_pw_reset", 10, 900))],
@@ -630,6 +732,90 @@ async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
     return asc_auth.public_user(user)
 
 
+#: What the physician's own profile may show back from the credential blob.
+#:
+#: A WHITELIST, and that is the whole design. The blob also carries the keys in
+#: tiering.FORBIDDEN_CREDENTIAL_KEYS, and those are absent from this product on
+#: purpose: medical school, graduation year, date of birth, sex, IMG status.
+#: They are not collected, not scored, and not displayed, because a pedigree
+#: field on a physician's profile becomes a pedigree field in somebody's
+#: judgment of them. Whitelisting means a future key added to the blob is
+#: invisible here until somebody decides it should be visible, rather than
+#: appearing the moment it is collected.
+_PROFILE_DETAIL_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("languages", "languages"),
+    ("subspecialties", "subspecialties"),
+    ("boardCertifications", "board_certifications"),
+    ("residency", "residency"),
+    ("fellowship", "fellowship"),
+    ("practiceSettings", "practice_settings"),
+    ("yearsInActivePractice", "years_in_active_practice"),
+    ("clinicalHalfDaysPerMonth", "clinical_half_days_per_month"),
+    ("structuredReviewExperience", "structured_review_experience"),
+    ("currentlyActive", "currently_active"),
+)
+
+
+def _credentials_detail(creds: Dict[str, Any]) -> Dict[str, Any]:
+    """The training and practice the physician told us about, read back.
+
+    Absent stays absent. A key with no value is omitted rather than returned as
+    an empty list, so the client renders nothing rather than a row that looks
+    like data somebody entered.
+    """
+    out: Dict[str, Any] = {}
+    for src, dest in _PROFILE_DETAIL_KEYS:
+        val = creds.get(src)
+        if val in (None, "", [], {}):
+            continue
+        out[dest] = val
+    return out
+
+
+#: The completeness prompt, in the order we would ask.
+#:
+#: Ordered by what actually improves routing: languages and subspecialties
+#: decide which cases can reach somebody, so they come first. Nothing here is
+#: required, and none of it gates anything.
+_COMPLETENESS_FIELDS: Tuple[Tuple[str, str], ...] = (
+    ("languages", "the languages you practise in"),
+    ("subspecialties", "your subspecialties"),
+    ("practice_settings", "the settings you practise in"),
+    ("years_in_active_practice", "your years in active practice"),
+    ("avatar", "a profile photo"),
+    ("specialty_niche", "your particular focus within your specialty"),
+    ("linkedin_url", "your LinkedIn"),
+)
+
+
+def _profile_completeness(row: Dict[str, Any], creds: Dict[str, Any]) -> Dict[str, Any]:
+    """A percentage and what is missing, in the order we would ask for it.
+
+    Deliberately a quiet meter and not a demand. Everything in here is optional,
+    it exists because a fuller profile routes better work to somebody, and a
+    product that nags a busy clinician about an optional field is one they stop
+    opening.
+    """
+    detail = _credentials_detail(creds)
+    present: Dict[str, bool] = {
+        "languages": bool(detail.get("languages")),
+        "subspecialties": bool(detail.get("subspecialties")),
+        "practice_settings": bool(detail.get("practice_settings")),
+        "years_in_active_practice": detail.get("years_in_active_practice") is not None,
+        "avatar": bool(row.get("avatar_asset_sha")),
+        "specialty_niche": bool((row.get("specialty_niche") or "").strip()),
+        "linkedin_url": bool((row.get("linkedin_url") or "").strip()),
+    }
+    missing = [{"field": f, "label": label}
+               for f, label in _COMPLETENESS_FIELDS if not present.get(f)]
+    total = len(_COMPLETENESS_FIELDS)
+    return {
+        "percent": round(100 * (total - len(missing)) / total) if total else 100,
+        "missing": missing,
+        "complete": not missing,
+    }
+
+
 @router.get("/me/profile")
 async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE))):
     """Everything the portal shows a physician about their own account.
@@ -679,6 +865,14 @@ async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc
             "signed_initials": (json.loads(row.get("attestations_json") or "{}") or {}).get(
                 "signedInitials") if row.get("attestations_json") else None,
         },
+        # Training and practice. Every one of these was already collected at
+        # signup and shown to the ADMIN reviewing the application, while the
+        # physician who typed them could not see them back. That asymmetry is
+        # the actual bug: a doctor should be able to read what we hold about
+        # them, and it is also what makes a completeness prompt honest rather
+        # than a demand for information they cannot check.
+        "training_and_practice": _credentials_detail(creds),
+        "completeness": _profile_completeness(row, creds),
         # No `score`, and no `band`.
         #
         # This endpoint's contract is "everything the portal shows a physician
@@ -1144,6 +1338,13 @@ async def tutorial_submit(
             gate["passed_at"] = gate.get("passed_at") or now
             gate["passed_version"] = TUTORIAL_VERSION
             gate["source"] = "tutorial_submit"
+        # Stamped at the moment of the FIRST pass and never rewritten, because
+        # `attempts` keeps climbing on replays: a physician who passed first
+        # time and later reopened the case for practice would otherwise stop
+        # reading as a first-time pass. This is the vetting signal, so it has to
+        # mean what it meant on the day.
+        if "first_attempt_pass" not in gate:
+            gate["first_attempt_pass"] = (attempts == 1)
         current["status"] = "completed"
         if not already_done:
             current["completed_at"] = now
@@ -2734,9 +2935,24 @@ async def my_stats(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     total cases completed, how many in the last 7 days, and their last
     submission timestamp. Every ``submissions`` row is already a completed
     case (drafts live client-side, never written here), so no status filter
-    is needed."""
+    is needed.
+
+    Counts and dates only, and that is a rule rather than a current limitation.
+    This is the one work-history surface the physician themselves reads, so the
+    moment a field here derives from grading, agreement or the contributor
+    score it becomes the internal number wearing a chart. What somebody sees
+    about their own record is what they did, not how we rate it.
+    """
     store = _store()
-    return store.evaluator_self_stats(user["id"])
+    stats = dict(store.evaluator_self_stats(user["id"]) or {})
+    try:
+        stats["monthly"] = store.monthly_submission_counts(user["id"])
+    except Exception:
+        # The widget that already works is still the truth. A history panel
+        # that cannot be built costs the panel, never the dashboard.
+        log.exception("[asclepius] monthly submission counts failed for %s", user["id"])
+        stats["monthly"] = []
+    return stats
 
 
 def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> None:

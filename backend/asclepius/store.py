@@ -129,6 +129,16 @@ def password_is_unset(user: Dict[str, Any]) -> bool:
     return (user or {}).get("password_hash") == NO_PASSWORD_HASH
 
 
+#: Post-submission nudge kinds, mapped to the column that stamps each one.
+#: Named here rather than interpolated at the call site so an unknown kind is a
+#: ValueError instead of a SQL error, and so the set of things we are willing
+#: to chase an applicant about stays legible in one place.
+_APPLICANT_NUDGE_COLUMNS = {
+    "credentials": "nudge_credentials_sent_at",
+    "practice": "nudge_practice_sent_at",
+}
+
+
 # ─── Credential vault sealing (Tier B at rest) ────────────────────────────────
 # The private credential vault (Tier B: name, NPI, license, education) is sealed
 # with Fernet when ``ASCLEPIUS_VAULT_KEY`` is set, so PHI-adjacent identifiers are
@@ -798,6 +808,34 @@ class AsclepiusStore:
             def cols(table: str) -> set:
                 return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
 
+            # ── Pre-approval sign-in links (Applicant Funnel PRD D1/R2).
+            # An applicant has no password: Onboarding v2 deliberately removed
+            # that step, and approval is where a credential comes into
+            # existence. They still need to get back in to finish the practice
+            # case, so this is the door, and it is deliberately the weakest one
+            # that works: single-use, short-lived, and it opens onto the
+            # PROVISIONAL surface set and nothing else.
+            #
+            # Same shape as ingest_upload_links above, for the same reason: the
+            # raw token is never stored, only its SHA-256, so a read of this
+            # table is not a set of working keys.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS signin_links (
+                    link_id    TEXT PRIMARY KEY,
+                    token_hash TEXT NOT NULL UNIQUE,   -- SHA-256; raw token never stored
+                    user_id    TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    used_at    TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_signin_links_user "
+                "ON signin_links(user_id)"
+            )
+
             # ── Real EHR ingestion (EHR PRD §4, §5, §8) — new tables (idempotent).
             conn.execute(
                 """
@@ -1088,6 +1126,31 @@ class AsclepiusStore:
             user_cols = cols("users")
             if "organization" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN organization TEXT")
+
+            # Post-submission nudges (Applicant Funnel PRD R9/R10). Two stamps,
+            # one per kind, each written ONCE ever. The stamp is what makes the
+            # sweep idempotent: it is claimed by a conditional UPDATE before the
+            # send, so a restart or a second worker cannot mail the same person
+            # twice. Same discipline as the pre-submit nudges in
+            # team_store.stamp_onboarding_nudge.
+            if "nudge_credentials_sent_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN nudge_credentials_sent_at TEXT")
+            if "nudge_practice_sent_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN nudge_practice_sent_at TEXT")
+
+            # The shareable verified card. Opt-in and revocable, so the token is
+            # stored hashed like every other token here: a read of the users
+            # table must not be a list of working card URLs.
+            if "card_token_hash" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN card_token_hash TEXT")
+            if "card_minted_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN card_minted_at TEXT")
+            # Per-field stamps for profile-completeness nudges, plus the last
+            # send. One blob rather than a column per field, because the set of
+            # things worth asking about will change and a migration per question
+            # is how a nudge feature stops being worth shipping.
+            if "profile_nudge_json" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN profile_nudge_json TEXT")
 
             sub_cols = cols("submissions")
             if "grounded" not in sub_cols:
@@ -3536,6 +3599,237 @@ class AsclepiusStore:
                 (now, user_id),
             )
             return cur.rowcount
+
+    # ── Pre-approval sign-in links ───────────────────────────────────────────
+
+    def create_signin_link(
+        self, *, user_id: str, token_hash: str, expires_at: str,
+    ) -> Dict[str, Any]:
+        """Mint one sign-in link for an applicant who has no password yet.
+
+        Every earlier live link for this user is killed first. Two working
+        links means a forwarded email keeps opening the account after the
+        person asked for a fresh one, and "I already used that" is the answer
+        a physician expects."""
+        now = _utcnow_iso()
+        lid = "sl_" + uuid.uuid4().hex
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE signin_links SET used_at = ? "
+                "WHERE user_id = ? AND used_at IS NULL",
+                (now, user_id),
+            )
+            conn.execute(
+                "INSERT INTO signin_links (link_id, token_hash, user_id, "
+                "expires_at, created_at) VALUES (?,?,?,?,?)",
+                (lid, token_hash, user_id, expires_at, now),
+            )
+            row = conn.execute(
+                "SELECT * FROM signin_links WHERE link_id = ?", (lid,)
+            ).fetchone()
+        return dict(row)
+
+    def consume_signin_link(self, token_hash: str) -> Optional[str]:
+        """Claim a link exactly once and return the user_id, or None.
+
+        One guarded UPDATE, never SELECT-then-UPDATE: prior use and expiry are
+        checked in the same statement that claims it, so two tabs opening the
+        same emailed link cannot both win. Same discipline as
+        ``consume_password_reset``."""
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE signin_links SET used_at = ? "
+                "WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
+                (now, token_hash, now),
+            )
+            if cur.rowcount <= 0:
+                return None
+            row = conn.execute(
+                "SELECT user_id FROM signin_links WHERE token_hash = ?",
+                (token_hash,),
+            ).fetchone()
+        return row["user_id"] if row else None
+
+    # ── Applicant nudges (post-submission) ───────────────────────────────────
+
+    def stamp_applicant_nudge(self, user_id: str, kind: str) -> bool:
+        """Claim the right to send one nudge, returning whether we got it.
+
+        Claim-first, exactly like the pre-submit nudges: the caller stamps and
+        only mails if this returned True. Doing it the other way round means a
+        worker that dies between the send and the stamp mails the same
+        physician again on the next sweep."""
+        col = _APPLICANT_NUDGE_COLUMNS.get(kind)
+        if not col:
+            raise ValueError(f"unknown applicant nudge kind: {kind!r}")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"UPDATE users SET {col} = ? WHERE id = ? AND {col} IS NULL",
+                (now, user_id),
+            )
+            return cur.rowcount > 0
+
+    def list_applicants_needing_nudge(
+        self, kind: str, older_than_hours: int, limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Applicants still waiting on a decision who have not had THIS nudge.
+
+        Scoped to pending physicians: a decided account is no longer being
+        chased, and an account with no email cannot be mailed. The
+        `still-missing` half is not expressed here because it reads from
+        credentials and the tutorial blob; the caller filters on those."""
+        col = _APPLICANT_NUDGE_COLUMNS.get(kind)
+        if not col:
+            raise ValueError(f"unknown applicant nudge kind: {kind!r}")
+        cutoff = (datetime.utcnow() - timedelta(hours=max(0, older_than_hours))
+                  ).replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM users "
+                f"WHERE {col} IS NULL "
+                f"  AND verification_status = 'pending' "
+                f"  AND COALESCE(active, 1) = 1 "
+                f"  AND email IS NOT NULL AND email != '' "
+                f"  AND created_at <= ? "
+                f"ORDER BY created_at ASC LIMIT ?",
+                (cutoff, max(1, limit)),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── The shareable verified card ──────────────────────────────────────────
+
+    def set_card_token(self, user_id: str, token_hash: str) -> bool:
+        """Mint or re-mint. Re-minting replaces the hash, which is what makes
+        the old URL dead: there is no second row to forget to revoke."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET card_token_hash = ?, card_minted_at = ? WHERE id = ?",
+                (token_hash, _utcnow_iso(), user_id),
+            )
+            return cur.rowcount > 0
+
+    def revoke_card_token(self, user_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET card_token_hash = NULL, card_minted_at = NULL "
+                "WHERE id = ? AND card_token_hash IS NOT NULL",
+                (user_id,),
+            )
+            return cur.rowcount > 0
+
+    def get_user_by_card_token_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        """The card page reads the account LIVE through this, deliberately.
+
+        Nothing about the physician is baked into the token, so revoking it or
+        un-approving the account kills the page on the next load rather than
+        leaving a stale card in circulation saying they are verified."""
+        if not token_hash:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE card_token_hash = ?", (token_hash,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    # ── Profile-completeness nudges ──────────────────────────────────────────
+
+    def profile_nudge_state(self, user_id: str) -> Dict[str, Any]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT profile_nudge_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        if not row or not row["profile_nudge_json"]:
+            return {}
+        try:
+            blob = json.loads(row["profile_nudge_json"])
+            return blob if isinstance(blob, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+
+    def stamp_profile_nudge(self, user_id: str, field: str,
+                            *, min_days_between: int = 30) -> bool:
+        """Claim the right to ask about ONE field, returning whether we got it.
+
+        Two rules in one place, because they are one decision: a field is asked
+        about once ever, and a physician hears from us about their profile at
+        most once every ``min_days_between`` days. The second is what stops a
+        sparse profile turning into a nightly reminder that we are unsatisfied
+        with them.
+
+        Claim-first, like every other nudge here: the caller mails only if this
+        returned True.
+        """
+        now = datetime.utcnow().replace(microsecond=0)
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT profile_nudge_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            try:
+                blob = json.loads(row["profile_nudge_json"] or "{}")
+                if not isinstance(blob, dict):
+                    blob = {}
+            except (TypeError, ValueError):
+                blob = {}
+
+            asked = blob.get("fields") or {}
+            if field in asked:
+                return False
+            last = blob.get("last_sent_at")
+            if last:
+                try:
+                    if (now - datetime.fromisoformat(str(last).replace("Z", ""))
+                            ).days < max(0, min_days_between):
+                        return False
+                except (TypeError, ValueError):
+                    pass
+
+            stamp = now.isoformat()
+            asked[field] = stamp
+            blob["fields"] = asked
+            blob["last_sent_at"] = stamp
+            cur = conn.execute(
+                "UPDATE users SET profile_nudge_json = ? WHERE id = ?",
+                (json.dumps(blob), user_id),
+            )
+            return cur.rowcount > 0
+
+    def monthly_submission_counts(self, user_id: str, *, months: int = 12
+                                  ) -> List[Dict[str, Any]]:
+        """A count per calendar month for the physician's own history panel.
+
+        Counts only. Nothing here derives from grading, agreement or the
+        contributor score, because this is the one history surface the
+        physician themselves reads."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT substr(created_at, 1, 7) AS month, COUNT(*) AS n "
+                "FROM submissions WHERE evaluator_id = ? "
+                "GROUP BY month ORDER BY month DESC LIMIT ?",
+                (user_id, max(1, months)),
+            ).fetchall()
+        return [{"month": r["month"], "count": r["n"]} for r in rows][::-1]
+
+    # ── Tier ─────────────────────────────────────────────────────────────────
+
+    def set_user_tier(self, user_id: str, tier: Optional[str]) -> bool:
+        """Move a decided physician between labeler and reviewer.
+
+        Deliberately separate from ``record_verification_decision``, which owns
+        the APPROVAL decision and writes the first tier as part of it. This is
+        the later, smaller thing: a role change on an account that was already
+        approved, so it touches the tier column and nothing else, and it never
+        creates a tier on an undecided account."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET tier = ? "
+                "WHERE id = ? AND verification_status = 'approved'",
+                (tier, user_id),
+            )
+            return cur.rowcount > 0
 
     # ── Verification jobs ────────────────────────────────────────────────
 

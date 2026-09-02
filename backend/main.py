@@ -82,6 +82,7 @@ from routers.asclepius_review import router as asclepius_review_router
 from routers.asclepius_payments import router as asclepius_payments_router
 from routers.asclepius_score import router as asclepius_score_router
 from routers.asclepius_media import router as asclepius_media_router
+from routers.asclepius_card import router as asclepius_card_router
 from routers.leads import router as leads_router
 from eligibility import store as elig_store
 import demo_credentials
@@ -6971,6 +6972,7 @@ app.include_router(asclepius_verify_router)
 app.include_router(asclepius_review_router)
 app.include_router(asclepius_payments_router)
 app.include_router(asclepius_score_router)
+app.include_router(asclepius_card_router)
 # ENV · Clinical RL Environments (agentic tier). Additive; mounted defensively so
 # a missing optional dependency disables ENV rather than crashing the app. The
 # single-turn portal V1–V5 is unaffected (the environments live in their own
