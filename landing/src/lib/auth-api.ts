@@ -457,34 +457,6 @@ export type LeadSource =
  * backend stores the row and emails the configured recipient. Throws an
  * actionable error on failure so the form can show its "or email us" fallback.
  */
-/** What a referred health-system contact was already sent, for prefill. */
-export type HsReferralPrefill = {
-  found: boolean;
-  contact_name?: string;
-  contact_email?: string;
-  contact_role?: string;
-  hs_name?: string;
-  referrer_first_name?: string;
-};
-
-/** Resolve a `?hs=` landing token.
-
-    Never throws and never rejects: this only saves the visitor from retyping
-    four fields, so a backend that is down, slow, or has forgotten the token
-    must degrade to an ordinary empty form rather than an error page in front
-    of somebody a physician just vouched for. */
-export async function fetchHsReferralPrefill(token: string): Promise<HsReferralPrefill> {
-  try {
-    const res = await fetch(
-      `${API_BASE}/api/asclepius/hs-referral/${encodeURIComponent(token)}`,
-    );
-    if (!res.ok) return { found: false };
-    return (await res.json()) as HsReferralPrefill;
-  } catch {
-    return { found: false };
-  }
-}
-
 export async function submitLead(payload: {
   source: LeadSource;
   email: string;
@@ -493,9 +465,6 @@ export async function submitLead(payload: {
      caller sent it, so the trap was armed and unbaited. Optional, because the
      two-field modals have no field to put it in. */
   company_website?: string;
-  /* Ties this submission back to the physician who made the introduction, so
-     their funnel row advances on its own. */
-  referral_token?: string;
 }): Promise<void> {
   let res: Response;
   try {

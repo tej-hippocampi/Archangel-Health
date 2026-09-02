@@ -33,19 +33,7 @@
   var noteMessage = null;
   var noteError = null;
 
-  // The health-system card is a real form now, so its fields are module state
-  // like every other draft here: a re-render must not wipe half-typed input.
-  var hsDraft = {
-    contact_name: '', contact_email: '', contact_role: '',
-    hs_name: '', relationship: '', note: '',
-  };
-  var hsConsent = false;
-
-  // WHICH button says "Copied", not WHETHER one does. There are four copy
-  // controls on this page now; a shared boolean lit them all at once, so
-  // copying the physician link also told you the health-system blurb was on
-  // your clipboard when it was not.
-  var copiedKey = null;
+  var copied = false;
   var copiedTimer = null;
 
   // green earned · lime in flight · muted grey settled-without-money.
@@ -80,10 +68,7 @@
     // A fresh mount is a fresh visit: drafts must not outlive a logout.
     refDraft = ''; refBusy = false; refMessage = null; refError = null;
     noteDraft = ''; noteBusy = false; noteMessage = null; noteError = null;
-    hsDraft = { contact_name: '', contact_email: '', contact_role: '',
-                hs_name: '', relationship: '', note: '' };
-    hsConsent = false;
-    copiedKey = null;
+    copied = false;
     ctx.clear(body);
     body.appendChild(ctx.h('div', { class: 'asc-pay-loading' }, 'Loading your referrals…'));
     load();
@@ -92,9 +77,6 @@
   function reset() {
     rootEl = null; rootCtx = null; data = null; loadError = null;
     refDraft = ''; noteDraft = '';
-    hsDraft = { contact_name: '', contact_email: '', contact_role: '',
-                hs_name: '', relationship: '', note: '' };
-    hsConsent = false; copiedKey = null;
     if (copiedTimer) { clearTimeout(copiedTimer); copiedTimer = null; }
   }
 
@@ -206,11 +188,9 @@
         h('code', { class: 'asc-mono asc-ref-linktext' }, url),
         h('button', {
           class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-copy', type: 'button',
-          onClick: function () { copyText('phys-link', url); },
-        }, copiedKey === 'phys-link' ? 'Copied' : 'Copy link')));
+          onClick: function () { copyLink(url); },
+        }, copied ? 'Copied' : 'Copy link')));
       col.appendChild(shareRow(h, url));
-      col.appendChild(copyBlock(h, 'phys-msg', physicianMessage(url),
-        'Copy the message'));
     }
 
     col.appendChild(composerForm(h));
@@ -262,31 +242,6 @@
   var SHARE_MESSAGE =
     'I am contributing to Archangel Health, which pays physicians to evaluate '
     + 'medical AI. Thought of you:';
-
-  /* The copyable messages. Two of them, because the two asks are not the same
-     ask: a colleague is being invited to do paid work, and a health system is
-     being invited into a commercial conversation. One blurb covering both
-     would be vague about each.
-
-     No figure appears in the health-system one. That is the same rule the card
-     below follows and REFERRALS.md records: institutional terms are negotiated
-     one deal at a time, so a number pasted into a group chat becomes a promise
-     the negotiation then has to keep. */
-  function physicianMessage(url) {
-    return 'I have been doing evaluation work for Archangel Health. You compare '
-      + 'two model answers on a case, write the ideal one, and grade the '
-      + 'reasoning step by step, in your own specialty. It is paid, remote and '
-      + 'async, and you set your own load. Thought of you:\n' + url;
-  }
-
-  function healthSystemMessage() {
-    return 'I work with Archangel Health, who build the physician-graded data '
-      + 'frontier AI labs use to evaluate medical models. They work with health '
-      + 'systems two ways: licensing properly de-identified records (Expert '
-      + 'Determination, no PHI on their side, DUA and BAA ready), and paying '
-      + 'your physicians for evaluation work in their own specialty. Worth a '
-      + 'short call?\n' + (data.partner_url || '');
-  }
 
   /* Brand marks. Single-path glyphs where the company publishes one
      (WhatsApp, LinkedIn, X) and house-drawn strokes where none applies: an
@@ -401,41 +356,19 @@
     return row;
   }
 
-  function copyText(key, text) {
+  function copyLink(url) {
     function done() {
-      copiedKey = key;
+      copied = true;
       rerender();
       if (copiedTimer) clearTimeout(copiedTimer);
-      copiedTimer = setTimeout(function () { copiedKey = null; rerender(); }, 2000);
+      copiedTimer = setTimeout(function () { copied = false; rerender(); }, 2000);
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text); done(); });
+      navigator.clipboard.writeText(url).then(done, function () { legacyCopy(url); done(); });
     } else {
-      legacyCopy(text);
+      legacyCopy(url);
       done();
     }
-  }
-
-  /* A link with the context already attached.
-
-     "Copy link" hands over a URL and nothing else, so the physician has to
-     write the explanation themselves every time, and the version they write
-     at 11pm is not the version we would write. This copies the sentence AND
-     the link together, which is what actually gets pasted into a group chat.
-
-     Rendered as a read-only preview rather than a bare button: a doctor is
-     about to send this to a colleague in their own name, so they get to read
-     it first. */
-  function copyBlock(h, key, text, label) {
-    var wrap = h('div', { class: 'asc-ref-copyblock' });
-    var pre = h('div', { class: 'asc-ref-copypreview' }, text);
-    wrap.appendChild(pre);
-    var btn = h('button', {
-      class: 'asc-btn asc-btn-sm asc-ref-copy', type: 'button',
-    }, copiedKey === key ? 'Copied' : label);
-    btn.addEventListener('click', function () { copyText(key, text); });
-    wrap.appendChild(btn);
-    return wrap;
   }
 
   function legacyCopy(text) {
@@ -511,176 +444,76 @@
   }
 
   /* ── Right: introduce a health system ───────────────────────────────────
-     An interest form that now knows WHO it is introducing.
+     An INTEREST FORM, not a payout offer. No dollar figure, no percentage,
+     no worked example.
 
-     What this card used to be: one textarea that emailed a founder. The
-     physician typed a paragraph, we replied to them, and the person they
-     actually wanted us to meet never heard from anybody. The hero above still
-     advertised institutional introductions as the largest thing you can do
-     here, which made the dead end worse rather than smaller.
+     This card used to carry "a $1M data partnership at a 15 to 20 percent
+     introducer share is $150,000 to $200,000", and that is the exact defect:
+     institutional terms are negotiated one deal at a time, so a number printed
+     here becomes a promise the negotiation then has to keep. A physician who
+     read $200,000 and was paid a fraction of it would be right to feel misled,
+     and would be right that we told them the figure first.
 
-     What did NOT change, and must not: no dollar figure, no percentage, no
-     worked example. This card once carried "a $1M data partnership at a 15 to
-     20 percent introducer share is $150,000 to $200,000", and that number was
-     removed because institutional terms are negotiated one deal at a time, so
-     a figure printed here becomes a promise the negotiation then has to keep.
-     A physician who read $200,000 and was paid a fraction of it would be right
-     to feel misled. Capturing a contact does not change that reasoning, see
-     docs/asclepius/REFERRALS.md. ──────────────────────────────────────────── */
+     What replaces it is the truth: send a note, a person reads it, and we set
+     up a meeting. ────────────────────────────────────────────────────────── */
   var NOTE_PLACEHOLDER =
-    'Anything that would help: what they do, how big the system is, what they '
-    + 'might be open to.';
-
-  function hsField(h, key, label, placeholder, opts) {
-    opts = opts || {};
-    var input = h('input', {
-      class: 'asc-ref-input',
-      type: opts.type || 'text',
-      placeholder: placeholder,
-      value: hsDraft[key],
-      disabled: noteBusy,
-    });
-    input.addEventListener('input', function () { hsDraft[key] = input.value; });
-    return h('label', { class: 'asc-ref-field' },
-      h('span', { class: 'asc-ref-fieldlabel' }, label), input);
-  }
+    'Hey, I work at Cedars in our oncology division. We’re looking to make '
+    + 'some extra cash and would love to sell our de-identified records.';
 
   function systemCol(h) {
     var col = h('div', { class: 'asc-ref-card asc-ref-col' });
     col.appendChild(h('div', { class: 'asc-ref-title' }, 'Introduce a health system'));
     col.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'If you know someone at a health system that might license de-identified '
-      + 'records, tell us who they are and we’ll write to them in your name. '
+      'If you work at, know, or run a health system that might sell '
+      + 'de-identified records, send us a note and we’ll set up a meeting. '
       + 'These are the largest agreements we sign, and they start with an '
       + 'introduction from someone on the inside.'));
 
-    col.appendChild(hsField(h, 'contact_name', 'Their name', 'James Okoye'));
-    col.appendChild(hsField(h, 'contact_email', 'Their email',
-      'j.okoye@meridianhealth.org', { type: 'email' }));
-    col.appendChild(hsField(h, 'contact_role', 'Their role (optional)',
-      'Chief Operating Officer'));
-    col.appendChild(hsField(h, 'hs_name', 'Health system', 'Meridian Health'));
-    col.appendChild(hsField(h, 'relationship', 'How you know them',
-      'We were at college together'));
-
-    var note = h('textarea', {
-      class: 'asc-ref-input asc-ref-note', rows: '3',
-      placeholder: NOTE_PLACEHOLDER, disabled: noteBusy,
+    var input = h('textarea', {
+      class: 'asc-ref-input asc-ref-note', rows: '5',
+      placeholder: NOTE_PLACEHOLDER,
+      disabled: noteBusy,
     });
-    note.value = hsDraft.note;
-    note.addEventListener('input', function () { hsDraft.note = note.value; });
-    col.appendChild(h('label', { class: 'asc-ref-field' },
-      h('span', { class: 'asc-ref-fieldlabel' }, 'Anything we should know (optional)'),
-      note));
-
-    /* The consent checkbox is not chrome. We send this email in the
-       physician's name, with their address on the reply-to, so the claim it
-       makes to the recipient is that somebody they know asked us to write.
-       This is the cheapest possible place for the physician to assert that is
-       true before we say it on their behalf. */
-    var check = h('input', { type: 'checkbox', class: 'asc-ref-check', disabled: noteBusy });
-    check.checked = hsConsent;
-    check.addEventListener('change', function () { hsConsent = check.checked; });
-    col.appendChild(h('label', { class: 'asc-ref-consent' }, check,
-      h('span', {},
-        'I know this person and they’re OK hearing from us. We’ll write in '
-        + 'your name, and their reply comes to you.')));
+    input.value = noteDraft;
+    input.addEventListener('input', function () { noteDraft = input.value; });
 
     var button = h('button', {
       class: 'asc-btn asc-btn-sm asc-btn-go', type: 'button', disabled: noteBusy,
-    }, noteBusy ? 'Sending…' : 'Send the introduction');
-    button.addEventListener('click', submitHsReferral);
-    col.appendChild(h('div', { class: 'asc-ref-form asc-ref-noteform' }, button));
+    }, noteBusy ? 'Sending…' : 'Send the note');
+    button.addEventListener('click', function () { submitNote(input.value); });
 
+    col.appendChild(input);
+    col.appendChild(h('div', { class: 'asc-ref-form asc-ref-noteform' }, button));
     if (noteError) col.appendChild(h('div', { class: 'asc-ref-error' }, noteError));
     else if (noteMessage) col.appendChild(h('div', { class: 'asc-ref-msg' }, noteMessage));
-
-    col.appendChild(copyBlock(h, 'hs-msg', healthSystemMessage(),
-      'Copy an intro to forward'));
-
-    col.appendChild(hsFunnelBlock(h));
-
+    // No character counter and no maxlength on the textarea. The server's
+    // bound is far past anything a person writes here, and a limit the writer
+    // is nowhere near does not deserve chrome; if they somehow reach it, the
+    // 422 detail lands in noteError, which is where it belongs.
     col.appendChild(h('div', { class: 'asc-ref-foot' },
-      'A founder reads every one of these. If you’d rather make the '
-      + 'introduction yourself, copy the message above and send it from your '
-      + 'own inbox.'));
+      'A founder reads every one of these and replies from a person’s '
+      + 'address. Write as much or as little as you like.'));
     return col;
   }
 
-  /* The health-system funnel. Mirrors the physician one on purpose, same
-     scroll box, same count outside it, with one deliberate difference: there
-     is no amount column, and no empty space where one would go.
-
-     These rows also live far longer than a physician's. An institutional deal
-     resolves over months, so a row that said nothing for a quarter would read
-     as broken; every state has a sentence, and the server supplies it. */
-  function hsFunnelBlock(h) {
-    var rows = data.health_systems || [];
-    var wrap = h('div', { class: 'asc-ref-funnel' });
-    wrap.appendChild(h('div', { class: 'asc-ref-listhead' },
-      h('span', { class: 'asc-ref-listtitle' }, 'Your introductions'),
-      h('span', { class: 'asc-ref-listcount' }, rows.length ? String(rows.length) : '')));
-    if (!rows.length) {
-      wrap.appendChild(h('div', { class: 'asc-ref-empty' }, 'No introductions yet.'));
-      return wrap;
-    }
-    var list = h('div', { class: 'asc-ref-list' });
-    rows.forEach(function (r) {
-      list.appendChild(h('div', { class: 'asc-ref-row' },
-        h('span', { class: 'asc-ref-who' }, r.hs_name || 'A health system'),
-        h('span', { class: 'asc-ref-when' }, shortDate(r.invited_at)),
-        h('span', { class: 'asc-ref-state' },
-          r.status_sentence || 'Introduction recorded.')));
-    });
-    wrap.appendChild(h('div', { class: 'asc-ref-listwrap' }, list));
-    return wrap;
-  }
-
-  function submitHsReferral() {
+  function submitNote(value) {
     if (noteBusy) return;
-    var body = {
-      contact_name: String(hsDraft.contact_name || '').trim(),
-      contact_email: String(hsDraft.contact_email || '').trim(),
-      contact_role: String(hsDraft.contact_role || '').trim(),
-      hs_name: String(hsDraft.hs_name || '').trim(),
-      relationship: String(hsDraft.relationship || '').trim(),
-      note: String(hsDraft.note || '').trim(),
-      consent: !!hsConsent,
-    };
-
-    // Checked here as well as on the server, because the round trip is the
-    // slow part and "you missed a field" does not need one.
-    if (!body.contact_name || !body.contact_email || !body.hs_name
-        || !body.relationship) {
-      noteError = 'Their name, their email, the health system, and how you know '
-        + 'them are all needed.';
+    var note = String(value == null ? '' : value).trim();
+    noteDraft = note;
+    if (!note) {
+      noteError = 'Write a sentence or two first.';
       noteMessage = null;
       rerender();
       return;
     }
-    if (!body.consent) {
-      noteError = 'Please confirm you know this person and they’re OK hearing '
-        + 'from us.';
-      noteMessage = null;
-      rerender();
-      return;
-    }
-
     noteBusy = true; noteError = null; noteMessage = null;
     rerender();
-    rootCtx.api('/referrals/health-system', { method: 'POST', body: body })
+    rootCtx.api('/referrals/enterprise-note', { method: 'POST', body: { note: note } })
       .then(function (res) {
         noteBusy = false;
-        hsDraft = { contact_name: '', contact_email: '', contact_role: '',
-                    hs_name: '', relationship: '', note: '' };
-        hsConsent = false;
-        noteMessage = (res && res.message)
-          || 'Introduction recorded. We’ll reach out and you’ll see it below.';
+        noteDraft = '';
+        noteMessage = (res && res.message) || 'Sent. A founder reads every one of these.';
         rerender();
-        // Refetch so the new row appears with the status the SERVER gave it,
-        // rather than being optimistically drawn here in a state the server
-        // has not agreed to yet.
-        load();
       })
       .catch(function (err) {
         noteBusy = false;

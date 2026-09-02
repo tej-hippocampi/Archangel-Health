@@ -16,7 +16,6 @@ import html
 import logging
 import os
 import secrets
-import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -29,7 +28,6 @@ from onboarding_emails import build_asclepius_invite_email
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
-from asclepius import payments as asc_payments
 from asclepius import route_notify as asc_route_notify
 from asclepius import trajectory as asc_trajectory
 from asclepius import store as asc_store_mod
@@ -376,132 +374,6 @@ async def storage_reconcile(
 # purpose is THEIRS, but §0 protects the fact that the distinction exists at
 # all — a partner who learns we broker goes looking for the buyer. The admin UI
 # calls these directly and never reads the schema.
-# ─── Health-system referrals (HS-REF) ─────────────────────────────────────────
-class HsReferralAdvanceBody(BaseModel):
-    status: str
-
-
-@router.get("/hs-referrals", include_in_schema=False)
-async def list_hs_referrals(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    """Every health-system introduction, newest first, with the referrer named.
-
-    Admin-side, so unlike the physician's own funnel this DOES carry the contact
-    details and the enrichment: working the lead is the whole job here, and the
-    person doing it is proven to be an administrator by the dependency above.
-    """
-    store = get_store()
-    out: List[Dict[str, Any]] = []
-    with store._conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM hs_referrals ORDER BY invited_at DESC LIMIT 500").fetchall()
-    for r in rows:
-        row = dict(r)
-        referrer = store.get_user_by_id(row.get("referrer_id") or "") or {}
-        row["referrer_name"] = (referrer.get("full_name") or "").strip()
-        row["referrer_email"] = (referrer.get("email") or "").strip()
-        # The bearer token never leaves the server, not even for an admin: it
-        # would let anyone holding a screenshot read the contact's details off
-        # the public prefill route.
-        row.pop("landing_token", None)
-        out.append(row)
-    return {"referrals": out, "total": len(out)}
-
-
-@router.post("/hs-referrals/{hs_referral_id}/advance", include_in_schema=False)
-async def advance_hs_referral(
-    hs_referral_id: str,
-    body: HsReferralAdvanceBody,
-    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
-):
-    """Move an introduction along the funnel, met, signed.
-
-    The earlier stages stamp themselves (the email sends, the page is opened,
-    the form is submitted). These last two cannot: they happen in a meeting and
-    in a contract, so a human records them. Forward-only, enforced in the store.
-    """
-    store = get_store()
-    row = store.get_hs_referral(hs_referral_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="No such introduction.")
-    status = (body.status or "").strip()
-    if status not in store.HS_REFERRAL_STAGES:
-        raise HTTPException(
-            status_code=422,
-            detail="Unknown stage. One of: " + ", ".join(store.HS_REFERRAL_STAGES))
-    store.advance_hs_referral(hs_referral_id, status)
-    store.log_event(
-        entity_type="user", entity_id=row["referrer_id"],
-        event_type="hs_referral_advanced", actor=admin.get("email"),
-        payload={"hs_referral_id": hs_referral_id, "status": status})
-    return {"ok": True, "referral": store.get_hs_referral(hs_referral_id)}
-
-
-class HsReferralRewardBody(BaseModel):
-    amount_cents: int
-    note: str = ""
-
-
-@router.post("/hs-referrals/{hs_referral_id}/reward", include_in_schema=False)
-async def reward_hs_referral(
-    hs_referral_id: str,
-    body: HsReferralRewardBody,
-    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
-):
-    """Pay a physician for an introduction that closed.
-
-    **The amount is typed by a human, every time.** There is no rate, no
-    percentage, and nothing that derives one, because there is nothing to
-    derive it from: institutional terms are negotiated one deal at a time. That
-    is the same reason the Referral tab prints no figure for this, and it is
-    why this endpoint takes ``amount_cents`` rather than computing it.
-
-    Idempotent through ``UNIQUE(kind, ref_id)`` on the ledger: a double-click,
-    or two admins working the same deal, cannot pay the introduction twice.
-    """
-    store = get_store()
-    row = store.get_hs_referral(hs_referral_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="No such introduction.")
-    amount = int(body.amount_cents or 0)
-    if amount <= 0:
-        raise HTTPException(status_code=422, detail="Enter an amount above zero.")
-
-    existing = store.get_earning(kind=asc_payments.KIND_HS_REFERRAL, ref_id=hs_referral_id)
-    if existing:
-        return {"ok": True, "already": True, "earning": existing}
-
-    now = datetime.now(timezone.utc).isoformat()
-    earning = store.insert_earning(
-        earning_id=f"earn-{uuid.uuid4().hex[:12]}",
-        user_id=row["referrer_id"],
-        kind=asc_payments.KIND_HS_REFERRAL,
-        ref_id=hs_referral_id,
-        amount_cents=amount,
-        # Not a rate. Stamped equal to the amount so the ledger's shape holds
-        # for a one-off with no schedule behind it.
-        rate_cents=amount,
-        status=asc_payments.APPROVED,
-        accrued_at=now,
-        resolved_at=now,
-        note=(body.note or "").strip() or f"Health-system introduction: {row.get('hs_name')}",
-    )
-    if earning is None:  # lost the race; the other writer's row is the truth
-        return {"ok": True, "already": True,
-                "earning": store.get_earning(
-                    kind=asc_payments.KIND_HS_REFERRAL, ref_id=hs_referral_id)}
-
-    with store._conn() as conn:
-        conn.execute(
-            "UPDATE hs_referrals SET reward_state = ?, reward_earning_id = ? "
-            "WHERE hs_referral_id = ?",
-            ("paid", earning.get("earning_id"), hs_referral_id))
-    store.log_event(
-        entity_type="user", entity_id=row["referrer_id"],
-        event_type="hs_referral_rewarded", actor=admin.get("email"),
-        payload={"hs_referral_id": hs_referral_id, "amount_cents": amount})
-    return {"ok": True, "already": False, "earning": earning}
-
-
 @router.post("/health-systems/provision", include_in_schema=False)
 async def provision_health_system_portal(
     body: HealthSystemProvisionRequest,

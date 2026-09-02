@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import OnboardingStyles from "./onboarding/OnboardingStyles";
 import {
   ChromeHeader,
@@ -88,12 +88,6 @@ export default function PartnerInterest() {
   const [name, setName] = useState((params.get("name") || "").trim());
   const [email, setEmail] = useState((params.get("email") || "").trim());
   const [organization, setOrganization] = useState((params.get("org") || "").trim());
-  /* `hs` is the per-referral token on a link inside an introduction email a
-     physician asked us to send. It does two jobs: it fills the form in with
-     what we already told this person about themselves, and it carries the
-     attribution back on submit so the referring physician's funnel moves. */
-  const referralToken = (params.get("hs") || "").trim();
-  const [referrerFirstName, setReferrerFirstName] = useState("");
   const [role, setRole] = useState("");
   const [dataHeld, setDataHeld] = useState("");
   const [licensable, setLicensable] = useState("");
@@ -104,25 +98,6 @@ export default function PartnerInterest() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
-
-  /* Prefill, once, and only into fields the visitor has not already touched --
-     a value they typed always beats one we fetched. Fire-and-forget: the form
-     is fully usable before this resolves and stays usable if it never does. */
-  useEffect(() => {
-    if (!referralToken) return;
-    let live = true;
-    authApi.fetchHsReferralPrefill(referralToken).then((p) => {
-      if (!live || !p.found) return;
-      if (p.contact_name) setName((v) => v || p.contact_name!.trim());
-      if (p.contact_email) setEmail((v) => v || p.contact_email!.trim());
-      if (p.hs_name) setOrganization((v) => v || p.hs_name!.trim());
-      if (p.contact_role) setRole((v) => v || p.contact_role!.trim());
-      if (p.referrer_first_name) setReferrerFirstName(p.referrer_first_name.trim());
-    });
-    return () => {
-      live = false;
-    };
-  }, [referralToken]);
 
   const emailValid = /.+@.+\..+/.test(email.trim());
   /* Four required fields, and no more. Every extra required box on a page like
@@ -144,7 +119,6 @@ export default function PartnerInterest() {
         email: email.trim().toLowerCase(),
         message: composeMessage(answers),
         company_website: honeypot,
-        referral_token: referralToken || undefined,
       });
       setSent(true);
     } catch (e) {
@@ -166,11 +140,7 @@ export default function PartnerInterest() {
             maxWidth={560}
             eyebrow="Health systems"
             title="Got it. Now pick a time."
-            lede={
-              referrerFirstName
-                ? `We read every one of these before the call, so we will come with specifics about your data rather than a pitch. ${referrerFirstName} will be glad you took it.`
-                : "We read every one of these before the call, so we will come with specifics about your data rather than a pitch."
-            }
+            lede="We read every one of these before the call, so we will come with specifics about your data rather than a pitch."
           >
             {/* A real anchor, via PrimaryButton's link form. This was a
                 <PrimaryButton> wrapped in an <a>, which is a button nested

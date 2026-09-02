@@ -3773,77 +3773,10 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
    past anything a person types. ── */
 .asc-ref-note {
   width: 100%;
-  min-height: 88px;
+  min-height: 132px;
   resize: vertical;
   line-height: 1.6;
-  margin-top: 0;
-}
-
-/* ── The health-system form ───────────────────────────────────────────────
-   Stacked label-over-field rather than the inline row the physician composer
-   uses. That composer asks for ONE value and can afford to sit on a line with
-   its button; this asks for five, and five inline rows would wrap
-   unpredictably against the column beside it. */
-.asc-ref-field {
-  display: block;
-  margin-top: var(--sp-3);
-}
-.asc-ref-fieldlabel {
-  display: block;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--asc-muted);
-  margin-bottom: 5px;
-}
-/* The shared .asc-ref-input is a flex child sized for that inline row; inside a
-   stacked field it has to fill the column instead. */
-.asc-ref-field .asc-ref-input {
-  display: block;
-  width: 100%;
-  flex: none;
-}
-
-/* Consent reads as a sentence the physician is agreeing to, not as a settings
-   toggle: full-size target, text beside it, no uppercase label treatment. */
-.asc-ref-consent {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
   margin-top: var(--sp-4);
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--asc-muted);
-  cursor: pointer;
-}
-.asc-ref-check {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  margin-top: 1px;
-  accent-color: var(--green);
-  cursor: pointer;
-}
-.asc-ref-consent:hover { color: var(--asc-text); }
-
-/* The copyable message. Shown before it is copied, because the physician is
-   about to send it to a colleague in their own name and gets to read it
-   first. Bounded height so a long blurb cannot push the funnel off-screen. */
-.asc-ref-copyblock { margin-top: var(--sp-4); }
-.asc-ref-copypreview {
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--asc-muted);
-  background: var(--card-in);
-  border: 1px solid var(--asc-line);
-  border-radius: var(--r-sm);
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  max-height: 132px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 .asc-ref-noteform { align-items: flex-start; justify-content: flex-end; }
 .asc-ref-foot {

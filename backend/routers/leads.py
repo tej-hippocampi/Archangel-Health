@@ -51,10 +51,6 @@ class LeadBody(BaseModel):
     message: str = Field(min_length=1, max_length=5000)
     # Honeypot — real users never see or fill this; a non-empty value is a bot.
     company_website: str = Field(default="", max_length=200)
-    #: Set by /partner when the visitor arrived from a physician's introduction
-    #: (HS-REF). Opaque here: this router does not read it, it only hands it to
-    #: the store to resolve, and an unknown value is a no-op.
-    referral_token: str = Field(default="", max_length=128)
 
 
 def _build_lead_email_html(source: str, email: str, message: str) -> str:
@@ -93,22 +89,6 @@ async def submit_lead(body: LeadBody, request: Request):
     # nothing, send nothing — so the bot can't tell it was caught.
     if body.company_website.strip():
         return {"ok": True}
-
-    # A submission that came from a physician's introduction advances that
-    # physician's funnel row. Best-effort and deliberately BEFORE the transport
-    # check below: this endpoint 503s when email is unconfigured, and the
-    # referring doctor should not lose the one signal that their introduction
-    # is working because our SendGrid key expired.
-    if body.referral_token:
-        try:
-            from asclepius.store import get_store
-
-            store = get_store()
-            row = store.get_hs_referral_by_token(body.referral_token)
-            if row:
-                store.advance_hs_referral(row["hs_referral_id"], "submitted")
-        except Exception:
-            pass
 
     if body.source not in _LEAD_SOURCES:
         raise HTTPException(status_code=422, detail="Unknown form.")

@@ -69,21 +69,6 @@ MODEL_REGISTRY: dict[str, dict[str, Any]] = {
     # (model override) from ASCLEPIUS_BASELINE_MODELS; this registry entry only
     # supplies defaults (temperature/max_tokens) and the audit role.
     "asclepius_baseline": {"model": "claude-opus-4-8", "temperature": 0.2, "max_tokens": 2000},
-    # Health-system referral enrichment (HS-REF). Verifies one named contact
-    # with web search before we email them on a physician's behalf.
-    #
-    # ``claude-opus-5`` because this call decides whether a stranger gets an
-    # email that a physician's own relationship is staked on, and the failure we
-    # care about is a confident wrong answer rather than a slow one. It is also
-    # the reason ``temperature`` is None: the 5 family refuses a pinned sampling
-    # parameter (see _FIXED_SAMPLING_MODELS below), so a value here would be
-    # stripped anyway, recording None says that plainly instead of leaving a
-    # number that looks honoured and is not.
-    #
-    # ``max_tokens`` covers only the tool-call arguments; the search results the
-    # model reads are input, and ``_anthropic_output_cap`` adds thinking headroom
-    # on top because this model can think. Overridable via MODEL_ASCLEPIUS_HS_ENRICH.
-    "asclepius_hs_enrich": {"model": "claude-opus-5", "temperature": None, "max_tokens": 1200},
 }
 
 _LEGACY_ENV = {"intraop_extract": "INTRAOP_EXTRACTOR_MODEL"}

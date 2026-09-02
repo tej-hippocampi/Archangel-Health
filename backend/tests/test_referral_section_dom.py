@@ -135,14 +135,6 @@ _FUNNEL = {
     "bounty_cents": 5000,
     "referral_code": "ABCD2345",
     "invite_url": "https://example.com/join?ref=ABCD2345",
-    "partner_url": "https://example.com/partner?ref=ABCD2345",
-    "health_systems": [
-        {"hs_referral_id": "hsref-1", "hs_name": "Meridian Health",
-         "contact_display": "James Okoye", "contact_role": "COO",
-         "status": "booked", "status_sentence": "They booked a call with us.",
-         "invited_at": "2026-08-11T09:00:00", "email_sent_at": "2026-08-11T09:01:00",
-         "resolved_at": None},
-    ],
     "referrals": [
         {"referral_id": "ref-1", "invitee_display": "Dr A. Whitfield",
          "status": "approved", "status_sentence": "Completed first case",
@@ -323,87 +315,24 @@ def test_sending_an_invite_posts_and_refetches_the_funnel():
     assert len(gets) >= 2  # initial load + post-send refetch
 
 
-# ─── The health-system introduction ───────────────────────────────────────────
-_FILL_HS = """
-  var inputs = tagsOf(body, 'INPUT');
-  function byPlaceholder(p) {
-    for (var i = 0; i < inputs.length; i++) {
-      if ((inputs[i].attributes.placeholder || '').indexOf(p) !== -1) return inputs[i];
-    }
-    return null;
-  }
-  byPlaceholder('James Okoye').value = 'James Okoye';
-  byPlaceholder('j.okoye@').value = 'j.okoye@meridianhealth.org';
-  byPlaceholder('Meridian Health').value = 'Meridian Health';
-  byPlaceholder('We were at college').value = 'We were at college together';
-  inputs.forEach(function (i) { i.dispatch('input'); });
-"""
-
-
-def test_the_health_system_form_posts_a_named_contact():
-    """The card used to collect a paragraph and email a founder; the person the
-    physician actually wanted us to meet never heard from anyone. It now posts a
-    named contact to its own endpoint."""
+# ─── The enterprise note ──────────────────────────────────────────────────────
+def test_the_enterprise_note_posts_to_its_endpoint():
     routes = {"/api/asclepius/referrals": _FUNNEL,
-              "/api/asclepius/referrals/health-system": {"ok": True, "message": "Recorded."}}
-    out = _run_node(_script(routes, _RENDER + _FILL_HS + """
-  var checks = tagsOf(body, 'INPUT').filter(function (i) {
-    return (i.attributes.type || '') === 'checkbox'; });
-  checks[0].checked = true;
-  checks[0].dispatch('change');
+              "/api/asclepius/referrals/enterprise-note": {"ok": True, "message": "Sent."}}
+    out = _run_node(_script(routes, _RENDER + """
+  var ta = tagsOf(body, 'TEXTAREA')[0];
+  ta.value = 'Our CMIO wants to talk about a data partnership.';
   var buttons = tagsOf(body, 'BUTTON').filter(function (b) {
-    return textOf(b).indexOf('Send the introduction') !== -1; });
+    return textOf(b).indexOf('Send the note') !== -1; });
   buttons[0].dispatch('click');
   done(function () {
-    console.log(JSON.stringify({calls: apiCalls, errs: find(body, 'asc-ref-error').map(textOf)}));
+    console.log(JSON.stringify({calls: apiCalls, msgs: find(body, 'asc-ref-msg').map(textOf)}));
   });
 });
 """))
     posts = [c for c in out["calls"] if c["method"] == "POST"]
-    assert posts, out["errs"]
-    assert posts[0]["path"] == "/referrals/health-system"
-    body = posts[0]["body"]
-    assert body["contact_name"] == "James Okoye"
-    assert body["contact_email"] == "j.okoye@meridianhealth.org"
-    assert body["hs_name"] == "Meridian Health"
-    assert body["consent"] is True
-    # And it refetches, so the new row appears with the status the SERVER gave
-    # it rather than one the page invented.
-    assert len([c for c in out["calls"] if c["method"] != "POST"]) >= 2
-
-
-def test_an_introduction_without_consent_never_leaves_the_browser():
-    """We send this in the physician's name with their address on the reply-to.
-    Unticked, the claim the email makes is one nobody actually made."""
-    routes = {"/api/asclepius/referrals": _FUNNEL,
-              "/api/asclepius/referrals/health-system": {"ok": True}}
-    out = _run_node(_script(routes, _RENDER + _FILL_HS + """
-  var buttons = tagsOf(body, 'BUTTON').filter(function (b) {
-    return textOf(b).indexOf('Send the introduction') !== -1; });
-  buttons[0].dispatch('click');
-  done(function () {
-    console.log(JSON.stringify({calls: apiCalls, errs: find(body, 'asc-ref-error').map(textOf)}));
-  });
-});
-"""))
-    assert not [c for c in out["calls"] if c["method"] == "POST"]
-    assert any("OK hearing from us" in e for e in out["errs"]), out["errs"]
-
-
-def test_the_health_system_funnel_renders_sentences_and_no_amount():
-    out = _render_and("""
-  var cols = find(body, 'asc-ref-col');
-  var sys = cols[cols.length - 1];
-  console.log(JSON.stringify({
-    rows: find(sys, 'asc-ref-row').map(textOf),
-    amounts: find(sys, 'asc-ref-amount').length,
-  }));
-""")
-    assert any("Meridian Health" in r for r in out["rows"])
-    assert any("booked a call" in r for r in out["rows"])
-    # The physician column renders an amount per row. This one must not, and
-    # must not render an empty amount slot either.
-    assert out["amounts"] == 0
+    assert posts and posts[0]["path"] == "/referrals/enterprise-note"
+    assert "CMIO" in posts[0]["body"]["note"]
 
 
 def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
@@ -414,11 +343,8 @@ def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
     was paid a fraction of it would be right to feel misled, and right that we
     named the number first.
 
-    That rule SURVIVES the card learning to send email. What changed is that we
-    now capture a contact and write to them; what did not change is that no
-    figure for an institutional introduction appears anywhere on this column --
-    including in the copyable blurb, which is the new way a number could escape
-    into a group chat."""
+    So: no dollar sign and no percentage anywhere in this column. It asks for
+    a note and says a person will read it."""
     out = _render_and("""
   var cols = find(body, 'asc-ref-col');
   console.log(JSON.stringify({ system: textOf(cols[cols.length - 1]) }));
@@ -427,21 +353,20 @@ def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
     assert "health system" in text.lower()
     assert "$" not in text, text
     assert "%" not in text and "percent" not in text.lower(), text
-    # It still says a person reads it, and it still asks for an introduction.
-    assert "founder reads every one" in text.lower()
-    assert "introduction" in text.lower()
+    assert "send us a note" in text.lower()
+    assert "meeting" in text.lower()
 
 
-def test_the_optional_note_asks_for_help_not_a_pitch():
-    """The structured fields now carry who and where, so the free-text box is
-    only for what a form cannot ask. Its placeholder should invite context, not
-    a pitch -- the old one asked the physician to make our case for us."""
+def test_the_note_placeholder_sounds_like_a_person_wrote_it():
+    """The old placeholder was "Who you are connected to, and what might be
+    possible", which asks for a pitch. The example is what somebody would
+    actually type."""
     out = _render_and("""
   var t = tagsOf(body, 'TEXTAREA')[0];
   console.log(JSON.stringify({ ph: t ? (t.attributes.placeholder || '') : '' }));
 """)
-    assert "Anything that would help" in out["ph"]
-    assert "$" not in out["ph"]
+    assert "oncology division" in out["ph"]
+    assert "de-identified records" in out["ph"]
 
 
 def test_the_note_field_surfaces_no_character_limit():

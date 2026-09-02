@@ -60,7 +60,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -306,93 +305,6 @@ def invite_url(code: Optional[str]) -> Optional[str]:
     if not code:
         return None
     return f"{landing_base()}/join?ref={code}"
-
-
-def partner_url(code: Optional[str], landing_token: Optional[str]) -> str:
-    """Where a referred health-system contact lands.
-
-    ``/partner`` already exists and is the right door: five questions that make
-    the intro call start from something real, then a booking. It is deliberately
-    NOT the portal signup, a COO reading a forwarded introduction is not about
-    to create an account or upload anything, and asking is how you lose them.
-
-    Two parameters, two jobs. ``ref`` is the referring physician's code, the same
-    attribution key ``/join`` uses. ``hs`` is the per-referral landing token,
-    which is what lets the page prefill what we already emailed this person
-    instead of asking them to retype it.
-    """
-    base = f"{landing_base()}/partner"
-    parts = []
-    if code:
-        parts.append(f"ref={quote(str(code), safe='')}")
-    if landing_token:
-        parts.append(f"hs={quote(str(landing_token), safe='')}")
-    return f"{base}?{'&'.join(parts)}" if parts else base
-
-
-#: Funnel copy for a health-system introduction, in stage order.
-#:
-#: Sentences, never tokens, and never rendered as absence. Same rule the
-#: physician funnel follows, and for the same reason: an institutional deal
-#: settles over MONTHS, so the referrer is staring at this row far longer than
-#: at a physician one. A row that says nothing for a quarter reads as broken.
-_HS_STATUS_SENTENCES = {
-    "sent": "Introduction sent. We will let you know when they open it.",
-    "opened": "They opened the introduction.",
-    "submitted": "They told us about their system.",
-    "booked": "They booked a call with us.",
-    "met": "We met. This one is live.",
-    "signed": "Partnership signed. Thank you for the introduction.",
-}
-
-
-def hs_status_sentence(status: Optional[str]) -> str:
-    """One plain sentence for a health-system referral's funnel row."""
-    return _HS_STATUS_SENTENCES.get(
-        (status or "").strip(),
-        "Introduction recorded. We are getting in touch.")
-
-
-def public_hs_referral(r: Dict[str, Any]) -> Dict[str, Any]:
-    """What a referrer may see about a health-system introduction they made.
-
-    WHITELIST, like ``public_referral`` and for the same reason: a whitelist
-    cannot leak the next column somebody adds to ``hs_referrals``, and that
-    table now carries an enrichment blob and a landing token.
-
-    Two fields are deliberately absent.
-
-    ``landing_token``: it is a bearer credential. Anyone holding it can read
-    the contact's name, role and address off the public prefill endpoint, and
-    handing it to the browser would put it in the referrer's devtools, their
-    history, and any screenshot of this page.
-
-    ``enrich_json``: what a search turned up about a third party is our
-    research, not a report we owe the person who made the introduction.
-
-    **No money appears here at all.** Not zero, not "pending". The key does not
-    exist. Institutional terms are negotiated one deal at a time, so a figure on
-    this row would be a promise the negotiation then has to keep; that is the
-    same reasoning REFERRALS.md records for the card above it, and it survives
-    the card learning to send email.
-    """
-    return {
-        "hs_referral_id": r.get("hs_referral_id"),
-        "hs_name": r.get("hs_name"),
-        "contact_display": (r.get("contact_name") or "").strip() or "Your contact",
-        "contact_role": r.get("contact_role"),
-        "status": r.get("status"),
-        "status_sentence": hs_status_sentence(r.get("status")),
-        "invited_at": r.get("invited_at"),
-        "email_sent_at": r.get("email_sent_at"),
-        "resolved_at": r.get("resolved_at"),
-    }
-
-
-def hs_funnel(store, *, referrer: Dict[str, Any], limit: int = 200) -> List[Dict[str, Any]]:
-    """This physician's health-system introductions, newest first."""
-    rows = store.list_hs_referrals_by_referrer(referrer["id"], limit=limit)
-    return [public_hs_referral(r) for r in rows]
 
 
 # ═══ Creating a referral ══════════════════════════════════════════════════════
@@ -711,12 +623,6 @@ def funnel(
         "bounty_cents": int(bounty_cents),
         "referral_code": referrer.get("referral_code"),
         "invite_url": invite_url(referrer.get("referral_code")),
-        # The health-system equivalent, and it comes off the wire for the same
-        # reason ``invite_url`` does: the portal and the landing app are
-        # separately configurable (ASCLEPIUS_PORTAL_URL vs LANDING_URL), so a
-        # frontend building this from window.location would point a forwarded
-        # introduction at whichever host the physician happened to be on.
-        "partner_url": partner_url(referrer.get("referral_code"), None),
         "referrals": items,
         "total": len(items),
         "earned_count": earned,

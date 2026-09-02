@@ -88,12 +88,6 @@ def _strip_html(html: str) -> str:
     return text.strip()
 
 
-#: A bare ``local@domain.tld`` and nothing else. Deliberately stricter than the
-#: addresses we accept at signup: this value is written into a mail header, so
-#: the bar is "cannot possibly be two headers" rather than "is deliverable".
-_REPLY_TO_RE = re.compile(r"[^@\s,<>;:\\\"]+@[^@\s,<>;:\\\"]+\.[A-Za-z]{2,}")
-
-
 async def send_html_email(
     to_email: str,
     subject: str,
@@ -101,11 +95,10 @@ async def send_html_email(
     *,
     importance_headers: bool = False,
     attachments: Optional[list] = None,
-    reply_to: str | None = None,
 ) -> bool:
     ok, _reason = await send_html_email_with_reason(
         to_email, subject, html_body, importance_headers=importance_headers,
-        attachments=attachments, reply_to=reply_to,
+        attachments=attachments,
     )
     return ok
 
@@ -117,7 +110,6 @@ async def send_html_email_with_reason(
     *,
     importance_headers: bool = False,
     attachments: Optional[list] = None,
-    reply_to: str | None = None,
 ) -> "tuple[bool, str]":
     """Send an HTML email. Returns (ok, reason). `reason` is a short, human-
     readable explanation suitable for surfacing in the UI when ok is False.
@@ -128,17 +120,6 @@ async def send_html_email_with_reason(
     a copy, and a link into a portal they may lose access to is not retention.
     Nothing carrying PHI goes through here -- every caller is a document we
     generated about the relationship, not about a patient.
-
-    ``reply_to`` sets the Reply-To header and changes nothing else: the From
-    address stays the verified sending identity, because that is what the
-    domain's SPF and DKIM records authorise and forging it is how a message
-    lands in spam instead of an inbox. It exists for mail we send ON SOMEBODY'S
-    BEHALF, a physician's introduction to a colleague, where a reply belongs
-    with that physician rather than with a noreply mailbox nobody reads.
-
-    Validated before it reaches a header. A display name arrives from user
-    input, and a CR/LF in a MIME header is header injection on the SMTP path;
-    anything that does not look like a bare address is dropped rather than sent.
     """
     # Dev mode short-circuit: print the message to stdout and return success.
     # This lets onboarding / OTP / invite flows run end-to-end without SendGrid.
@@ -146,8 +127,6 @@ async def send_html_email_with_reason(
         print("\n" + "=" * 72)
         print(f"[email_utils] DEV MODE — pretending to send email")
         print(f"  To:      {to_email}")
-        if reply_to:
-            print(f"  Reply-To: {reply_to}")
         print(f"  Subject: {subject}")
         print("-" * 72)
         print(_strip_html(html_body))
@@ -155,14 +134,6 @@ async def send_html_email_with_reason(
             print(f"  [attachment] {name} ({len(blob)} bytes)")
         print("=" * 72 + "\n", flush=True)
         return True, "dev_mode"
-
-    # One bare address, or nothing. No display name, no comma-separated list,
-    # no whitespace: each of those is a way to smuggle a second header or a
-    # second recipient through a field that is meant to carry one mailbox.
-    clean_reply_to = (reply_to or "").strip()
-    if clean_reply_to and not _REPLY_TO_RE.fullmatch(clean_reply_to):
-        print(f"[email_utils] ignoring malformed reply_to={clean_reply_to!r}")
-        clean_reply_to = ""
 
     try:
         api_key = _normalize_sendgrid_api_key(os.getenv("SENDGRID_API_KEY"))
@@ -192,8 +163,6 @@ async def send_html_email_with_reason(
                     FileContent(_b64.b64encode(blob).decode("ascii")),
                     FileName(name), FileType(mime_type), Disposition("attachment"),
                 ))
-            if clean_reply_to:
-                message.reply_to = clean_reply_to
             sg = SendGridAPIClient(api_key)
             response = sg.send(message)
             status_code = getattr(response, "status_code", None)
@@ -232,8 +201,6 @@ async def send_html_email_with_reason(
             if importance_headers:
                 msg["Importance"] = "high"
                 msg["X-Priority"] = "1"
-            if clean_reply_to:
-                msg["Reply-To"] = clean_reply_to
             msg.attach(MIMEText(html_body, "html", "utf-8"))
             if attachments:
                 # "alternative" means "the same content in two formats", so a
