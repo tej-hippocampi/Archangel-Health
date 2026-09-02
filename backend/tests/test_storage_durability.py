@@ -28,7 +28,7 @@ client = TestClient(A.app)
 
 def _clear_store_env(monkeypatch):
     for k in ("ASCLEPIUS_ASSET_STORE", "ASCLEPIUS_DATA_DIR", "ASCLEPIUS_DB_PATH",
-              "ASCLEPIUS_INGEST_DIR"):
+              "ASCLEPIUS_INGEST_DIR", asc_constants.VOLUME_MOUNT_ENV):
         monkeypatch.delenv(k, raising=False)
 
 
@@ -86,6 +86,70 @@ def test_every_ephemeral_prefix_fails_all_three_checks(monkeypatch, prefix):
 def test_ephemeral_prefixes_have_one_definition():
     """Three copies of a security-relevant list is how they drift (§F1)."""
     assert asc_ingestion._EPHEMERAL_PREFIXES is asc_constants.EPHEMERAL_PREFIXES
+
+
+# ── The platform's declared volume mount outranks the prefix heuristic ───────
+# EPHEMERAL_PREFIXES can only recognise storage it has been TOLD about, and it
+# holds four well-known temp directories. A container-local /data is on none of
+# them, so a store under it reads "durable" whether or not a volume was ever
+# attached — a confident wrong answer, which is worse than no answer, on exactly
+# the deployment shape this product ships in. When the host declares a mount
+# (Railway sets RAILWAY_VOLUME_MOUNT_PATH on every service with a volume), that
+# declaration is ground truth and the guess does not get a vote.
+
+def test_declared_mount_absent_changes_nothing(monkeypatch):
+    """No declaration, no new behaviour. A host that says nothing must land on
+    exactly the verdict it landed on before this check existed."""
+    _clear_store_env(monkeypatch)
+    monkeypatch.setenv("ASCLEPIUS_DATA_DIR", "/data")
+    monkeypatch.setenv("ASCLEPIUS_DB_PATH", "/data/asclepius.db")
+    assert asc_constants.declared_volume_mount() == ""
+    assert asc_constants.path_under_declared_volume("/data/assets") is None
+    assert asc_assets.asset_storage_durable()[0] is True
+
+
+def test_store_outside_the_declared_mount_is_not_durable(monkeypatch):
+    """The whole point: /data LOOKS durable and is not. Only the platform knows."""
+    _clear_store_env(monkeypatch)
+    monkeypatch.setenv("ASCLEPIUS_DATA_DIR", "/data")
+    monkeypatch.setenv("ASCLEPIUS_DB_PATH", "/data/asclepius.db")
+    monkeypatch.setenv("ASCLEPIUS_INGEST_DIR", "/data/ingest")
+    monkeypatch.setenv(asc_constants.VOLUME_MOUNT_ENV, "/srv/volume")
+    for check in (asc_assets.asset_storage_durable, _db_storage_durable,
+                  asc_ingestion.ingest_storage_durable):
+        ok, why = check()
+        assert ok is False, check.__name__
+        assert "/srv/volume" in why and asc_constants.VOLUME_MOUNT_ENV in why
+
+
+def test_store_inside_the_declared_mount_names_the_volume(monkeypatch):
+    """Durable is not enough on its own: "durable" is a claim an operator cannot
+    check, and naming the mount the platform declared is one they can."""
+    _clear_store_env(monkeypatch)
+    monkeypatch.setenv("ASCLEPIUS_DATA_DIR", "/data")
+    monkeypatch.setenv("ASCLEPIUS_DB_PATH", "/data/asclepius.db")
+    monkeypatch.setenv(asc_constants.VOLUME_MOUNT_ENV, "/data")
+    ok, why = asc_assets.asset_storage_durable()
+    assert ok is True and "/data" in why
+
+
+def test_a_declared_mount_is_matched_on_path_segments_not_string_prefix(monkeypatch):
+    """/database must not count as "under /data". A substring match here would
+    silently bless a directory that shares nothing but its opening letters."""
+    _clear_store_env(monkeypatch)
+    monkeypatch.setenv(asc_constants.VOLUME_MOUNT_ENV, "/data")
+    assert asc_constants.path_under_declared_volume("/data") is True
+    assert asc_constants.path_under_declared_volume("/data/assets") is True
+    assert asc_constants.path_under_declared_volume("/database/assets") is False
+    assert asc_constants.path_under_declared_volume("/datastore") is False
+
+
+def test_an_s3_backend_ignores_the_declared_mount(monkeypatch):
+    """s3 durability has nothing to do with any local volume."""
+    _clear_store_env(monkeypatch)
+    monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", "s3://bucket/assets")
+    monkeypatch.setenv(asc_constants.VOLUME_MOUNT_ENV, "/srv/volume")
+    assert asc_assets.asset_storage_durable()[0] is True
 
 
 # ── F3: the database check ───────────────────────────────────────────────────
@@ -220,6 +284,66 @@ def test_reconcile_reports_orphans_and_deletes_nothing(monkeypatch, tmp_path):
     # Reporting must never be destructive: an orphan costs disk, a wrongly-deleted
     # blob costs a case whose partner bundle has already been purged.
     assert path.exists() and path.read_bytes() == b"not referenced by anything"
+
+
+# ── The onboarding demo video is an asset like any other ─────────────────────
+# It lives in the same content-addressed store but is referenced by a
+# `platform_media` row, not a case study — so the reconciler, which walked
+# ingest cases and tasks only, could not see it. That inverted the truth twice on
+# the one asset a human uploads by hand and expects to stay put: the blob was
+# inventoried as an unreferenced orphan (first in line for any future sweep), and
+# a demo video that had actually vanished off the volume was reported as nothing
+# at all.
+
+def _install_demo(store, data=b"fake-mp4-bytes-for-the-reconciler"):
+    meta = asc_assets.store_media(iter([data]), "video/mp4")
+    store.set_platform_media("onboarding_demo", sha256=meta["sha256"],
+                             mime="video/mp4", byte_size=len(data),
+                             filename="demo.mp4")
+    return meta["sha256"]
+
+
+def test_the_demo_video_is_a_reference_not_an_orphan(monkeypatch, tmp_path):
+    monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
+    store = A.fresh_store()
+    sha = _install_demo(store)
+
+    rep = asc_assets.reconcile_assets(store)
+    assert sha not in rep["orphan_blobs"], "the demo video is referenced, not stray"
+    assert rep["n_rows"] == 1
+    assert rep["missing_blobs"] == []
+
+
+def test_a_demo_video_that_vanished_off_the_volume_is_reported_missing(monkeypatch, tmp_path):
+    """The alarm that matters: the row survives a redeploy on the durable DB
+    while the blob does not, and the walkthrough then plays a 404. Silence here
+    is the failure — an operator has no other way to learn the video is gone."""
+    monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
+    store = A.fresh_store()
+    sha = _install_demo(store)
+
+    os.unlink(asc_assets._blob_path(sha))
+    rep = asc_assets.reconcile_assets(store)
+    assert [m["sha256"] for m in rep["missing_blobs"]] == [sha]
+    entry = rep["missing_blobs"][0]
+    assert entry["source"] == "platform_media"
+    assert entry["case_id"] == "onboarding_demo", "name the slot, not a case id"
+
+
+def test_replacing_the_demo_leaves_the_old_blob_as_a_reported_orphan(monkeypatch, tmp_path):
+    """`set_platform_media` rewrites the slot in place, so the previous upload
+    stops being referenced. That is a real orphan and should read as one —
+    reported, never deleted, exactly like every other orphan."""
+    monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", str(tmp_path / "assets"))
+    store = A.fresh_store()
+    first = _install_demo(store, b"first-cut-of-the-demo")
+    second = _install_demo(store, b"second-cut-of-the-demo")
+    assert first != second
+
+    rep = asc_assets.reconcile_assets(store)
+    assert second not in rep["orphan_blobs"]
+    assert first in rep["orphan_blobs"]
+    assert Path(asc_assets._blob_path(first)).exists()
 
 
 def test_reconcile_endpoint_requires_admin(monkeypatch, tmp_path):

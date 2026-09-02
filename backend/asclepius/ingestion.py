@@ -163,26 +163,95 @@ _EXECUTABLE_EXTS = (".exe", ".dll", ".so", ".sh", ".bat", ".cmd", ".ps1", ".msi"
 # router and the promotion gate, and by nothing a provider can reach.
 PURPOSE_TASK_CREATION = "task_creation"
 PURPOSE_BROKERING = "brokering"
-PURPOSES = (PURPOSE_TASK_CREATION, PURPOSE_BROKERING)
+#: Received, stored, and used for NOTHING until a person has looked at the file
+#: and said what it is for. This is the DEFAULT, and it is the only one of the
+#: three that is not a decision -- it is the absence of one, made explicit and
+#: made safe. An upload sitting here is not in limbo; it is exactly where it is
+#: supposed to be until somebody reads it.
+PURPOSE_STORAGE = "storage"
+PURPOSES = (PURPOSE_TASK_CREATION, PURPOSE_BROKERING, PURPOSE_STORAGE)
 
-# A row from before this column existed. Rendered to the admin as a WORK ITEM,
-# never quietly filled in — a legacy link silently becoming task_creation on a
+#: What an account, a link or an upload gets when nobody says otherwise.
+DEFAULT_PURPOSE = PURPOSE_STORAGE
+
+#: The only value that lets a case become a task or reach a model. Named as a
+#: list of ONE so that adding a fourth purpose forces whoever adds it to decide
+#: whether it belongs here, rather than inheriting promotability by default.
+PROMOTABLE_PURPOSES = (PURPOSE_TASK_CREATION,)
+
+# A row nobody has made this decision about. Rendered to the admin as a WORK
+# ITEM, never quietly filled in — a row silently becoming task_creation on a
 # screen is how brokering data would end up in a training bundle.
-PURPOSE_UNSET_LABEL = "Purpose not set — legacy link"
+#
+# It used to read "Purpose not set — legacy link", because when it was written
+# the only way to reach this state was a row predating the column. That is no
+# longer true: a health system that signs itself up is minted with this UNSET
+# on purpose, so each of its uploads is resolved deliberately on the per-upload
+# control. Calling that a legacy link tells the operator the wrong thing about
+# the newest partner on the page.
+PURPOSE_UNSET_LABEL = "Purpose not set"
 
 
 def effective_purpose(value: Optional[str]) -> str:
     """Resolve a stored purpose for the PROMOTION GATE and nowhere else.
 
-    NULL resolves to task_creation here because that is the only reading that
-    preserves the behaviour legacy links already had. It is deliberately confined
-    to this one decision: everywhere the admin can SEE, NULL stays NULL so it gets
-    resolved rather than defaulted."""
-    return value if value in PURPOSES else PURPOSE_TASK_CREATION
+    NULL RESOLVES TO STORAGE. It used to resolve to task_creation, on the reading
+    that this preserved what legacy links already did -- which was true, and was
+    also the one place the system decided something consequential on a partner's
+    behalf because nobody had decided it yet. An upload whose destination nobody
+    has chosen could become a physician task and reach a third-party model, and
+    the only thing standing in the way was an operator noticing a lime chip.
+
+    Now it fails closed. Nothing is promoted, and nothing is sent to a model,
+    until a person has read the file and said what it is for. The cost is real
+    and is the point: rows that predate this stop being promotable until somebody
+    resolves them, and the control that resolves one sits on the row itself.
+
+    Confined to this one decision, as before: everywhere the admin can SEE, NULL
+    stays NULL, so the difference between "held by default" and "somebody chose
+    to hold this" is still legible.
+    """
+    return value if value in PURPOSES else DEFAULT_PURPOSE
 
 
 def is_brokering(value: Optional[str]) -> bool:
+    """Literally brokering. NOT the promotion gate -- see ``blocks_promotion``.
+
+    Kept distinct because the two questions came apart when storage arrived: the
+    brokering BUCKET, the export rules and the no-promotion-ever rule are about
+    brokering specifically, while the gate is about everything that is not
+    cleared for task creation."""
     return effective_purpose(value) == PURPOSE_BROKERING
+
+
+def is_storage(value: Optional[str]) -> bool:
+    """Held, awaiting a person. Includes NULL, which now means the same thing."""
+    return effective_purpose(value) == PURPOSE_STORAGE
+
+
+def blocks_promotion(value: Optional[str]) -> bool:
+    """THE GATE. True unless this has been cleared for task creation.
+
+    An allowlist, not a denylist. ``not is_brokering(...)`` was the old test and
+    it was correct only while there were exactly two purposes -- the moment a
+    third existed it silently admitted it, which is precisely how a file nobody
+    had reviewed would have become a task.
+    """
+    return effective_purpose(value) not in PROMOTABLE_PURPOSES
+
+
+def promotion_block_reason(value: Optional[str]) -> str:
+    """Why this cannot be promoted, in words an operator can act on.
+
+    ADMIN-FACING only -- every caller is behind require_admin. A refusal that
+    does not name the control that lifts it is a refusal somebody files a bug
+    about."""
+    if is_brokering(value):
+        return ("This is held for brokering. Brokering data is never promoted to "
+                "tasks — the server refuses it.")
+    return ("This has not been reviewed yet. Everything arrives as storage and "
+            "stays there until you set what it is for; set it to task creation "
+            "on this row and the promote controls open.")
 
 
 # What ingest writes when nothing declared a specialty. It is a real value in the
@@ -422,11 +491,24 @@ def ingest_storage_durable() -> Tuple[bool, str]:
     (2) it should live on the same volume (device) as the DB, so a blob is
     exactly as durable as its row. (1) is fail-closed-worthy; (2) is a warning
     (a deliberately separate durable mount is legitimate)."""
+    from asclepius.constants import (
+        VOLUME_MOUNT_ENV, declared_volume_mount, path_under_declared_volume,
+    )
+
     # A durability check must never touch the filesystem: quarantine_root() would
     # mkdir the probe path (raising on a root-owned /run) and .resolve() it (hiding
     # an ephemeral /tmp behind its real target). _ingest_root_path() does neither.
     root = _ingest_root_path()
     root_str = str(root)
+    # A declared volume mount beats the prefix list, which cannot tell a real
+    # volume at /data from a container-local directory of the same name.
+    if path_under_declared_volume(root_str) is False:
+        return False, (
+            f"raw ingest dir {root_str} is NOT under the persistent volume this "
+            f"platform mounted at {declared_volume_mount()} ({VOLUME_MOUNT_ENV}); a "
+            "redeploy will delete partner uploads. Set ASCLEPIUS_INGEST_DIR to a "
+            "path inside that mount."
+        )
     for pre in _EPHEMERAL_PREFIXES:
         if root_str == pre or root_str.startswith(pre + "/"):
             return False, (
@@ -2098,8 +2180,10 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     # Purpose flows link/account → upload → case, copied SERVER-SIDE by joining
     # the upload row (PRD-I §2.1). Done once here rather than threaded through
     # every insert_ingest_case call site, so a future case-creation path cannot
-    # forget it and produce a case with no purpose — which the promotion gate
-    # would then read as task_creation.
+    # forget it and produce a case with no purpose. A case that misses this is no
+    # longer promotable-by-accident — the gate holds an unstamped case in storage
+    # — but it is still wrong: it reaches an operator as a decision to make about
+    # data whose destination was in fact already chosen at the door.
     try:
         store.propagate_purpose_to_cases(upload_id)
     except Exception as exc:  # pragma: no cover - defensive; never strand an upload

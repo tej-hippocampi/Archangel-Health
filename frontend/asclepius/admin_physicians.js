@@ -356,6 +356,10 @@
     // them, so a banner inside a tab would be hidden by the same bug it reports.
     const misfiled = misfiledCard(ctx, container);
     if (misfiled) container.appendChild(misfiled);
+    // Same placement, same reason: an account in here is invisible in BOTH
+    // tabs, so a banner inside a tab would be hidden by the bug it reports.
+    const unfiled = unfiledCard(ctx, container);
+    if (unfiled) container.appendChild(unfiled);
 
     if (activeTab === 'pending') {
       if (pendingErr) {
@@ -436,6 +440,89 @@
                   p.verification_status ? 'verification: ' + p.verification_status
                                         : 'never verified',
                   p.tier ? 'tier: ' + p.tier : 'no tier'].filter(Boolean);
+    return h('div', { class: 'asc-misfiled-row' },
+      h('div', {},
+        h('div', { class: 'asc-misfiled-email' }, p.email || p.name || p.id),
+        h('div', { class: 'asc-misfiled-meta' }, bits.join(' \u00b7 '))),
+      h('div', { class: 'asc-misfiled-act' }, status, btn));
+  }
+
+  /* ─── Physicians whose verification state no tab renders ──────────────────
+   *
+   * The roster is `verification_status === 'approved'` and the queue is
+   * `status=pending` plus signups. An account whose verification was NEVER
+   * DECIDED is on neither, and an account nobody can see is one nobody can
+   * approve, tier, or route a real case to.
+   *
+   * That is the same invisibility the card above exists for, one column over —
+   * and it was missed because that card looks at the ROLE, which here is
+   * correct. A directly provisioned physician (the director onboarding mails an
+   * access key and creates a working evaluator) never enters the queue: they log
+   * in, draw cases and label them, while the admin looking for them sees an
+   * empty roster. Nothing errors on either side.
+   */
+  function unfiledCard(ctx, container) {
+    const { h } = ctx;
+    const rows = ((cache || {}).unfiled_physicians) || [];
+    if (!rows.length) return null;
+    const list = h('div', { class: 'asc-misfiled-rows' });
+    rows.forEach((p) => list.appendChild(unfiledRow(ctx, p, container)));
+    return h('div', { class: 'asc-card asc-misfiled' }, h('div', { class: 'asc-card-pad' },
+      h('div', { class: 'asc-chrome' }, 'In no tab'),
+      h('h3', {}, rows.length === 1
+        ? 'One physician account has no verification decision.'
+        : rows.length + ' physician accounts have no verification decision.'),
+      h('p', {},
+        'They are filed correctly as physicians, but the roster shows only '
+        + 'approved accounts and the queue shows only pending ones — so these '
+        + 'appear in neither, and cannot be tiered or sent a real case from this '
+        + 'console. They can still sign in and label. Approving one here records '
+        + 'the decision against your account, exactly as the queue would, and '
+        + 'puts it in the roster below.'),
+      list));
+  }
+
+  function unfiledRow(ctx, p, container) {
+    const { h, api } = ctx;
+    const status = h('span', { class: 'asc-misfiled-status' }, '');
+    const btn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button' },
+      'Approve as labeler');
+    btn.onclick = async () => {
+      btn.disabled = true;
+      status.textContent = 'Approving\u2026';
+      try {
+        /* The existing repair route, not a new one. It records the approval as a
+         * human decision by THIS admin, writes the tier with it, and leaves
+         * real-data approval to the APPROVED + LABELING policy that governs
+         * everyone else — so this button cannot become a side door around it. */
+        const res = await api('/admin/physicians/restore?email='
+                              + encodeURIComponent(p.email || ''),
+                              { method: 'POST',
+                                body: { approve_verification: true, tier: 'labeler',
+                                        note: 'Approved from the unfiled card' } });
+        if (res && res.can_label_real_cases === false) {
+          // Approved, but still not able to draw a real case. Say so here rather
+          // than let the operator discover it as an empty queue on their side.
+          status.textContent = 'Approved \u2014 but real cases are still blocked; '
+            + 'check Tasks › real-case access.';
+          status.classList.add('asc-inline-warn');
+        }
+        await renderTabs(container, ctx);
+      } catch (e) {
+        btn.disabled = false;
+        status.textContent = errText(e);
+        status.classList.add('asc-inline-error');
+      }
+    };
+    const bits = [
+      p.specialty || 'no specialty',
+      p.verification_status ? 'verification: ' + p.verification_status
+                            : 'never verified',
+      p.tier ? 'tier: ' + p.tier : 'no tier',
+      p.real_data_approved ? 'real data: approved' : 'real data: no',
+      // The fact that changes how urgent this is.
+      (p.submissions_total || 0) + ' labelled',
+    ].filter(Boolean);
     return h('div', { class: 'asc-misfiled-row' },
       h('div', {},
         h('div', { class: 'asc-misfiled-email' }, p.email || p.name || p.id),

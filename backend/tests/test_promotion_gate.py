@@ -98,8 +98,11 @@ def _upload_as(purpose, *, org="Regional Health", patient="pt1"):
     store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
                                 password="portal-pass-123456", email="it@example.org")
     store.set_hs_portal_password(username, "portal-pass-123456", must_reset=False)
-    if purpose:
-        store.set_hs_portal_purpose(username, purpose)
+    # None means a genuine LEGACY row — one written before the column had a
+    # default. Accounts are minted as `storage` now, so reaching the NULL case
+    # takes an explicit clear; without this the helper would quietly stop
+    # testing the state it exists to test.
+    store.set_hs_portal_purpose(username, purpose or None)
     c = TestClient(A.app, base_url="https://testserver")
     assert c.post(f"{API}/hs/login", json={"username": username,
                                            "password": "portal-pass-123456"}).status_code == 200
@@ -258,10 +261,15 @@ def test_an_all_brokering_upload_says_why_it_promoted_nothing(monkeypatch):
     assert "brokering" in r.json()["detail"]
 
 
-def test_a_legacy_null_purpose_case_still_promotes(monkeypatch):
-    """NULL means a link minted before the column existed. It resolves to
-    task_creation HERE and only here, so legacy links keep the behaviour they had
-    — while everywhere the admin can see, NULL stays an unresolved work item."""
+def test_a_legacy_null_purpose_case_no_longer_promotes(monkeypatch):
+    """NULL used to resolve to task_creation, so a link minted before the column
+    existed kept promoting. That was the one place the system decided something
+    consequential because nobody had decided it — an upload nobody had read could
+    become a physician task and reach a third-party model.
+
+    NULL now means the same thing as storage: held until a person says otherwise.
+    The refusal names the control that lifts it, and lifting it works.
+    """
     A.fresh_store()
     _stub_llm(monkeypatch)
     store = _store()
@@ -269,11 +277,66 @@ def test_a_legacy_null_purpose_case_still_promotes(monkeypatch):
     _hs, upload_id = _upload_as(None, org="Legacy Partner")
     cases = _cases(upload_id)
     assert cases and cases[0]["purpose"] is None
-    r = client.post(f"{API}/ingestion/cases/{cases[0]['ingest_case_id']}/promote",
+    case_id = cases[0]["ingest_case_id"]
+
+    r = client.post(f"{API}/ingestion/cases/{case_id}/promote",
+                    json={"question": "Classify the AKI."}, headers=admin_h)
+    assert r.status_code == 409, r.text
+    detail = r.json()["detail"]
+    assert "not been reviewed" in detail
+    assert "task creation" in detail, "the refusal must name what lifts it"
+    # And it is not reported as brokering, which would send the operator looking
+    # for a decision somebody made rather than one nobody has.
+    assert "brokering" not in detail.lower()
+
+    assert asc_ingestion.effective_purpose(None) == "storage"
+    assert asc_ingestion.is_brokering(None) is False
+    assert asc_ingestion.blocks_promotion(None) is True
+
+    # Reviewed and released: the same case promotes.
+    r = client.post(f"{API}/admin/uploads/{upload_id}/purpose",
+                    json={"purpose": "task_creation"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    r = client.post(f"{API}/ingestion/cases/{case_id}/promote",
                     json={"question": "Classify the AKI."}, headers=admin_h)
     assert r.status_code == 200, r.text
-    assert asc_ingestion.effective_purpose(None) == "task_creation"
-    assert asc_ingestion.is_brokering(None) is False
+
+
+def test_storage_is_the_default_and_refuses_every_door(monkeypatch):
+    """Everything arrives as storage. Nothing promotes, nothing is generated
+    from, and nothing reaches a model until a person has read the file."""
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, upload_id = _upload_as("storage", org="Held Health")
+    cases = _cases(upload_id)
+    assert cases and cases[0]["purpose"] == "storage"
+    case_id = cases[0]["ingest_case_id"]
+
+    one = client.post(f"{API}/ingestion/cases/{case_id}/promote",
+                      json={"question": "q"}, headers=admin_h)
+    batch = client.post(f"{API}/ingestion/uploads/{upload_id}/promote-all",
+                        json={"question": "q"}, headers=admin_h)
+    gen = client.post(f"{API}/ingestion/cases/{case_id}/generate",
+                      json={}, headers=admin_h)
+    for name, r in (("promote", one), ("promote-all", batch), ("generate", gen)):
+        assert r.status_code == 409, f"{name}: {r.status_code} {r.text[:200]}"
+        assert "not been reviewed" in r.json()["detail"], name
+
+
+def test_an_account_mints_as_storage_so_nothing_arrives_undecided():
+    """The default lives with the COLUMN, not with a caller. The provider router
+    mints accounts on the self-signup path and is forbidden from naming a purpose
+    at all, so a caller-side default would have had to be written in the one file
+    that cannot write it."""
+    A.fresh_store()
+    store = _store()
+    hs = store.ensure_health_system("Fresh Health", contact_email="it@example.org")
+    username = "hs" + A.uniq(8)
+    store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
+                                password="portal-pass-123456", email="it@example.org")
+    assert store.get_hs_portal_user(username)["purpose"] == "storage"
 
 
 def test_the_refusal_never_reaches_a_provider(monkeypatch):
@@ -764,8 +827,11 @@ def test_a_task_creation_link_still_promotes(monkeypatch):
 
 
 def test_minting_a_link_requires_a_purpose():
-    """Same rule as the portal door: a link with no purpose is a decision nobody
-    made, and the gate reads NULL as task creation."""
+    """Same rule as the portal door. `storage` is a real choice the form offers
+    now, so the field is not required to stop the data being promoted — the gate
+    does that. It is required because a caller that forgot to send one and an
+    operator who chose to hold the data are different things, and only one of
+    them should reach the database."""
     A.fresh_store()
     admin_h = _admin_h(_store())
     assert _mint_link(admin_h, None).status_code == 422
@@ -945,3 +1011,70 @@ def test_an_undetermined_specialty_blocks_promotion(monkeypatch):
                      json={"question": "Classify the chest pain."}, headers=admin_h)
     assert ok.status_code == 200, ok.text
     assert store.get_task(ok.json()["task_id"])["specialty"] == "cardiology"
+
+
+def test_a_stored_upload_gets_its_own_bucket_and_the_control_that_frees_it():
+    """A storage upload must never sit next to a Promote button — the same rule
+    brokering has, for the same reason. It gets its own bucket, and the control
+    that resolves it is on the row rather than somewhere the operator has to go
+    looking for."""
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    hs, upload_id = _upload_as("storage", org="Held General")
+    detail = client.get(f"{API}/admin/health-systems/{hs['hs_id']}",
+                        headers=admin_h).json()
+
+    assert [e["upload_id"] for e in detail["buckets"]["storage"]] == [upload_id]
+    for other in ("ready_to_promote", "brokering", "in_production"):
+        assert not [e for e in detail["buckets"][other] if e["upload_id"] == upload_id], other
+
+    row = detail["buckets"]["storage"][0]
+    assert row["label"] == "storage"
+    # The row asks for a decision; a brokered one does not, because somebody
+    # already made it.
+    assert row["needs_decision"] is True
+
+    r = client.post(f"{API}/admin/uploads/{upload_id}/purpose",
+                    json={"purpose": "task_creation"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    after = client.get(f"{API}/admin/health-systems/{hs['hs_id']}",
+                       headers=admin_h).json()
+    assert not after["buckets"]["storage"]
+    moved = [e for rows in after["buckets"].values() for e in rows
+             if e["upload_id"] == upload_id][0]
+    assert moved["label"] == "task creation"
+    assert moved["needs_decision"] is False
+
+
+def test_a_brokered_upload_is_not_asked_to_be_decided_again():
+    A.fresh_store()
+    store = _store()
+    admin_h = _admin_h(store)
+    hs, upload_id = _upload_as("brokering", org="Brokered General")
+    detail = client.get(f"{API}/admin/health-systems/{hs['hs_id']}",
+                        headers=admin_h).json()
+    row = detail["buckets"]["brokering"][0]
+    assert row["upload_id"] == upload_id
+    assert row["needs_decision"] is False
+    assert not detail["buckets"]["storage"]
+
+
+def test_the_disabled_promote_button_says_which_bar_it_is(monkeypatch):
+    """The UI renders a disabled control with the server's reason. "Held for
+    brokering" and "nobody has read this yet" call for completely different next
+    actions, so reporting the wrong one sends the operator looking for a decision
+    they had already made."""
+    A.fresh_store()
+    _stub_llm(monkeypatch)
+    store = _store()
+    admin_h = _admin_h(store)
+    _hs, stored = _upload_as("storage", org="Stored Reasons")
+    _hs2, brokered = _upload_as("brokering", org="Brokered Reasons", patient="pt2")
+
+    rows = client.get(f"{API}/ingestion/uploads", headers=admin_h).json()["uploads"]
+    by_id = {u["upload_id"]: u for u in rows}
+    assert by_id[stored]["promote_block"]["reason"] == "storage"
+    assert "not been reviewed" in by_id[stored]["promote_block"]["message"]
+    assert by_id[brokered]["promote_block"]["reason"] == "brokering"
+    assert "brokering" in by_id[brokered]["promote_block"]["message"]

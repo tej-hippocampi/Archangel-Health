@@ -94,9 +94,11 @@ async def send_html_email(
     html_body: str,
     *,
     importance_headers: bool = False,
+    attachments: Optional[list] = None,
 ) -> bool:
     ok, _reason = await send_html_email_with_reason(
-        to_email, subject, html_body, importance_headers=importance_headers
+        to_email, subject, html_body, importance_headers=importance_headers,
+        attachments=attachments,
     )
     return ok
 
@@ -107,9 +109,18 @@ async def send_html_email_with_reason(
     html_body: str,
     *,
     importance_headers: bool = False,
+    attachments: Optional[list] = None,
 ) -> "tuple[bool, str]":
     """Send an HTML email. Returns (ok, reason). `reason` is a short, human-
-    readable explanation suitable for surfacing in the UI when ok is False."""
+    readable explanation suitable for surfacing in the UI when ok is False.
+
+    ``attachments`` is a list of ``(filename, mime_type, bytes)``. It exists for
+    one requirement and should stay rare: the E-SIGN Act conditions the
+    enforceability of an electronic agreement on the signer being able to RETAIN
+    a copy, and a link into a portal they may lose access to is not retention.
+    Nothing carrying PHI goes through here -- every caller is a document we
+    generated about the relationship, not about a patient.
+    """
     # Dev mode short-circuit: print the message to stdout and return success.
     # This lets onboarding / OTP / invite flows run end-to-end without SendGrid.
     if _is_dev_mode():
@@ -119,6 +130,8 @@ async def send_html_email_with_reason(
         print(f"  Subject: {subject}")
         print("-" * 72)
         print(_strip_html(html_body))
+        for name, _mime, blob in (attachments or []):
+            print(f"  [attachment] {name} ({len(blob)} bytes)")
         print("=" * 72 + "\n", flush=True)
         return True, "dev_mode"
 
@@ -139,6 +152,17 @@ async def send_html_email_with_reason(
             if importance_headers:
                 message.add_header(Header("Importance", "high"))
                 message.add_header(Header("X-Priority", "1"))
+            for name, mime_type, blob in (attachments or []):
+                import base64 as _b64
+
+                from sendgrid.helpers.mail import (
+                    Attachment, Disposition, FileContent, FileName, FileType,
+                )
+
+                message.add_attachment(Attachment(
+                    FileContent(_b64.b64encode(blob).decode("ascii")),
+                    FileName(name), FileType(mime_type), Disposition("attachment"),
+                ))
             sg = SendGridAPIClient(api_key)
             response = sg.send(message)
             status_code = getattr(response, "status_code", None)
@@ -178,6 +202,27 @@ async def send_html_email_with_reason(
                 msg["Importance"] = "high"
                 msg["X-Priority"] = "1"
             msg.attach(MIMEText(html_body, "html", "utf-8"))
+            if attachments:
+                # "alternative" means "the same content in two formats", so a
+                # file added to it is a format of the message rather than an
+                # attachment and most clients hide it. Re-wrap in "mixed", which
+                # is what an attachment actually is.
+                from email.mime.base import MIMEBase
+                from email.encoders import encode_base64
+
+                outer = MIMEMultipart("mixed")
+                for header in ("Subject", "From", "To", "Importance", "X-Priority"):
+                    if msg.get(header):
+                        outer[header] = msg[header]
+                outer.attach(msg)
+                for name, mime_type, blob in attachments:
+                    maintype, _, subtype = (mime_type or "application/octet-stream").partition("/")
+                    part = MIMEBase(maintype, subtype or "octet-stream")
+                    part.set_payload(blob)
+                    encode_base64(part)
+                    part.add_header("Content-Disposition", "attachment", filename=name)
+                    outer.attach(part)
+                msg = outer
             port = int(os.getenv("SMTP_PORT", "587"))
             with smtplib.SMTP(smtp_host, port) as server:
                 server.starttls()

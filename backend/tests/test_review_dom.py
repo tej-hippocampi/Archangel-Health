@@ -1351,7 +1351,17 @@ def test_mobile_collapses_through_the_existing_breakpoint():
     breakpoint = css.split("@media (max-width: 880px)")[1].split("}")[0] + "}"
     assert ".asc-answers { grid-template-columns: 1fr; }" in breakpoint
     # And the PRD-R block reuses that grid rather than defining a second one.
+    #
+    # Scoped to the PRD-R SECTION, not to everything after its heading. The
+    # stylesheet is append-only, so a split-to-EOF made this rule mean "no
+    # section ever added below PRD-R may use CSS grid" — which is not the rule,
+    # and was only passing because the sections that followed happened not to.
+    # It read as a guard on PRD-R and behaved as a freeze on the whole file.
     assert _PRD_R_CSS_HEADING in css
+    # Main solved this independently and better: ``_prd_r_css`` bounds the block
+    # on BOTH ends with named headings, so the range cannot silently grow to
+    # swallow the rest of an append-only stylesheet. Taking it over the inline
+    # banner-split this branch had written for the same defect.
     prd_r = _prd_r_css(css)
     assert "grid-template-columns" not in prd_r
 

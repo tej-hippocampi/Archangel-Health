@@ -79,7 +79,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest pytest-asyncio
       - name: Run tests
         # RATE_LIMIT_ENABLED + the Asclepius DB/export temp paths are defaulted in
         # tests/conftest.py; nothing else is needed to boot the app under test.
@@ -128,7 +128,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest playwright   # Pillow comes from requirements.txt
+          pip install pytest pytest-asyncio playwright   # Pillow comes from requirements.txt
       - name: Install Chromium
         # --with-deps pulls the system libraries headless Chromium needs; without
         # it the launch fails and every test in the file SKIPS, which would look

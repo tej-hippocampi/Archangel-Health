@@ -8,7 +8,7 @@ unambiguous and easy to bump (mirrors ``APP_AI_CONFIG_VERSION`` in
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Optional
 
 from ai.model_config import APP_AI_CONFIG_VERSION
 
@@ -966,6 +966,39 @@ def path_is_ephemeral(path: str) -> bool:
     """True when ``path`` sits on storage a redeploy erases."""
     root = os.path.abspath((path or "").strip() or ".")
     return any(root == p or root.startswith(p + "/") for p in EPHEMERAL_PREFIXES)
+
+
+#: Railway injects this into every service that has a volume attached, set to the
+#: volume's mount path. It is the only DECLARED fact about durability available
+#: inside the container — everything else (a prefix list, a device number) is an
+#: inference. Named here so the two callers read the same variable.
+VOLUME_MOUNT_ENV = "RAILWAY_VOLUME_MOUNT_PATH"
+
+
+def declared_volume_mount() -> str:
+    """The platform's own statement of where the persistent volume is mounted, or
+    "" when the platform does not say (local dev, a plain container, a host that
+    uses a different convention).
+
+    ``path_is_ephemeral`` can only recognise storage it has been TOLD about, and
+    its list is four well-known temp directories. A container-local ``/data`` is
+    not on that list and never will be, so a store under it reads as durable
+    whether or not a volume was ever attached — the exact failure the storage
+    gate exists to prevent, arrived at by a confident "durable" instead of a
+    silence. When the platform declares a mount, prefer it over the guess."""
+    return os.path.abspath(m) if (m := os.getenv(VOLUME_MOUNT_ENV, "").strip()) else ""
+
+
+def path_under_declared_volume(path: str) -> Optional[bool]:
+    """True/False when a volume mount is declared and ``path`` is/is not under it;
+    None when the platform declares nothing and the caller must fall back to the
+    prefix heuristic. Three states on purpose: "no volume declared" is not the
+    same answer as "declared, and you are not on it"."""
+    mount = declared_volume_mount()
+    if not mount:
+        return None
+    root = os.path.abspath((path or "").strip() or ".")
+    return root == mount or root.startswith(mount + os.sep)
 
 
 def asset_store_is_ephemeral() -> bool:

@@ -334,6 +334,81 @@ _PRD_CB_DISTRIBUTION = (
 #: unrecognised value fails CLOSED here — the predicate above compares against the
 #: exact string 'open', so a typo would hide the task from every queue in silence.
 _PRD_CB_DISTRIBUTIONS = ("open", "assigned_only")
+
+# ═══ PRD ADMIN-TASKS §5 — the display bucket ═════════════════════════════════
+# "Where did this task come from", as ONE derivation used everywhere.
+#
+# The four discriminators (trajectory_id, case_source, source, generation.mode)
+# already exist on every task row, so this is a naming of a grouping rather than
+# a new taxonomy — and it is deliberately the SAME grouping ``batch_overview``
+# does in SQL. Two spellings of "which batch is this in" is the defect this
+# codebase keeps writing comments about: the first time they disagree, the
+# Routing rail and the task list describe the same task differently and neither
+# is obviously wrong.
+#
+# WHY ``source`` AND NOT ``generation.mode`` FOR GOLD. The obvious predicate is
+# generation_json.$.mode, and it is the wrong one: ``replace_task_candidates``
+# merges a patch into that block, and "Grade real" patches mode to
+# 'grade_real_models'. A gold case graded against the frontier models would
+# silently stop being physician-authored. ``source`` is never rewritten after
+# insert — grep for "UPDATE tasks SET" — so it is the stable fact.
+#
+# ORDER MATTERS and is not alphabetical: a trajectory point that is also
+# real_deid is longitudinal FIRST, because the walk is the thing being routed.
+BUCKET_LONGITUDINAL = "longitudinal_real"
+BUCKET_STATIC_REAL = "static_real"
+BUCKET_PHYSICIAN = "physician_authored"
+BUCKET_SYNTHETIC = "synthetic"
+DISPLAY_BUCKETS = (
+    BUCKET_LONGITUDINAL, BUCKET_STATIC_REAL, BUCKET_PHYSICIAN, BUCKET_SYNTHETIC,
+)
+#: The one source of gold provenance. gold_cases.py writes BOTH ``source`` and
+#: ``generation.mode`` as this; only ``source`` survives a re-grade.
+GOLD_SOURCE = "gold_seed"
+
+#: §3.2 — how an upload's cases become tasks. NULL means "not chosen yet", which
+#: is a real third state: the row renders with neither radio selected and asks.
+TASK_MODE_STATIC = "static"
+TASK_MODE_LONGITUDINAL = "longitudinal"
+TASK_MODES = (TASK_MODE_STATIC, TASK_MODE_LONGITUDINAL)
+
+
+def derive_display_bucket(
+    *,
+    trajectory_id: Optional[str] = None,
+    case_source: Optional[str] = None,
+    source: Optional[str] = None,
+) -> str:
+    """Which display bucket a task belongs to. Pure; no I/O.
+
+    Called from three places — ``insert_task``, ``update_task_case`` (the one
+    path that rewrites ``case_source`` after insert) and the boot backfill — so
+    a task's stored bucket and a freshly derived one can never differ.
+    ``test_the_display_bucket_never_drifts_from_its_derivation`` asserts exactly
+    that over every row in the database, which is the assertion that actually
+    protects production: a cache nobody re-derives is a cache that is wrong and
+    cannot be caught.
+
+    The backfill runs AFTER the ``case_source`` backfill earlier in the same
+    migration, so it reads the corrected value rather than the legacy NULL.
+    """
+    if trajectory_id:
+        return BUCKET_LONGITUDINAL
+    if (case_source or "") == "real_deid":
+        return BUCKET_STATIC_REAL
+    if (source or "") == GOLD_SOURCE:
+        return BUCKET_PHYSICIAN
+    return BUCKET_SYNTHETIC
+
+
+def display_bucket_for_row(row: Any) -> str:
+    """``derive_display_bucket`` over a task row/dict, for callers holding one."""
+    get = row.get if hasattr(row, "get") else (lambda k, d=None: row[k])
+    return derive_display_bucket(
+        trajectory_id=get("trajectory_id", None),
+        case_source=get("case_source", None),
+        source=get("source", None),
+    )
 # ═══ END PRD CASE-BATCHES ═════════════════════════════════════════════════════
 # ═══ END PRD-R ═══════════════════════════════════════════════════════════════
 
@@ -1743,6 +1818,19 @@ class AsclepiusStore:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_signups_email "
                          "ON hs_signups(email, created_at)")
+            # Whether this signup CHOSE a password or is to be mailed one.
+            # The landing dialog asks for three fields and no password (PRD §2),
+            # the portal's own signup screen still asks for four, and the two
+            # must not diverge anywhere except here: same guards, same code,
+            # same account, one flag deciding whether the credential in the
+            # welcome email is real or whether they already have their own.
+            #
+            # 0 is the pre-existing behaviour, so every staged row written by
+            # the previous release verifies exactly as it did.
+            if "needs_temp_password" not in cols("hs_signups"):
+                conn.execute("ALTER TABLE hs_signups ADD COLUMN "
+                             "needs_temp_password INTEGER NOT NULL DEFAULT 0")
+
 
             # Append-only, never UPDATE. Not health_systems.notes: that column is
             # already written by ensure_health_system(notes=...), has no timestamp
@@ -1806,6 +1894,150 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_payouts_batch "
                          "ON hs_payouts(payout_batch_id)")
             # ═══ END HS SELF-SERVE + PAYOUTS ═══
+            # ═══ HS ONBOARDING (PRD: sign-in split, intake, e-signed DLA) ═══
+            # The organization-level half of the portal. Everything above this
+            # fence is about an ACCOUNT: which login may touch which surface.
+            # These four tables are about the ORGANIZATION: how far through
+            # onboarding it is, what it told us, what it signed, and what we
+            # have billed it. See asclepius/hs_states.py for why that is a
+            # second axis rather than more columns on hs_portal_users.
+            #
+            # NO DEFAULT on onboarding_state, and no backfill, for exactly the
+            # reason approval_status has none: a NULL means "this organization
+            # predates the state machine", hs_states collapses it to active, and
+            # every partner already uploading keeps uploading across the deploy.
+            if "onboarding_state" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN onboarding_state TEXT")
+            if "state_changed_at" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN state_changed_at TEXT")
+
+            # The four questions, as COLUMNS. Not answers_json like hs_intake
+            # beside it: these are read by an operator deciding whether to open
+            # a data pipeline, and two of them (authority, deid_capability)
+            # decide whether a BAA has to exist before a single byte moves. A
+            # value that has to be dug out of a JSON blob is a value nobody
+            # filters on. Free text lives in hs_intake, which is a different
+            # surface and stays what it is.
+            #
+            # Append-only, like hs_intake: a resubmission is a new row, so what
+            # they told us in March is still there in June.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_applications (
+                    application_id    TEXT PRIMARY KEY,
+                    hs_id             TEXT NOT NULL,
+                    username          TEXT,             -- which account answered
+                    authority         TEXT NOT NULL,    -- yes | no | not_sure
+                    deid_capability   TEXT NOT NULL,    -- in_our_environment | needs_baa | not_sure
+                    export_scope      TEXT NOT NULL,    -- notes_and_structured | structured_only | varies
+                    scale_patients    TEXT NOT NULL,    -- banded, never a free-text number
+                    scale_years       TEXT NOT NULL,
+                    scale_specialties TEXT NOT NULL,    -- JSON array of specialty labels
+                    submitted_at      TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_applications_hs "
+                         "ON hs_applications(hs_id, submitted_at)")
+
+            # ─── The signed agreement ────────────────────────────────────────
+            # This is evidence. Under the E-SIGN Act (15 U.S.C. §7001) and UETA
+            # what makes a clickwrap enforceable is not the checkbox, it is
+            # being able to show, later, WHAT was agreed and by WHOM. So the row
+            # carries the hash of the exact rendered text (doc_sha256), not just
+            # a version label: "v1" is a claim about a file that can be edited,
+            # a sha256 is a claim about the bytes that were on the signer's
+            # screen. pdf_sha256 addresses the rendered counterpart in the asset
+            # store, which is what actually gets emailed to both parties.
+            #
+            # ip and user_agent are the attribution leg. They are weak evidence
+            # alone and strong beside an authenticated session, which is exactly
+            # how the case law treats them.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS signed_agreements (
+                    agreement_id       TEXT PRIMARY KEY,
+                    hs_id              TEXT NOT NULL,
+                    doc_version        TEXT NOT NULL,
+                    doc_sha256         TEXT NOT NULL,   -- of the exact rendered text
+                    pdf_sha256         TEXT,            -- the counterpart in the asset store
+                    signer_user_id     TEXT NOT NULL,   -- portal username
+                    signer_email       TEXT,
+                    typed_name         TEXT NOT NULL,
+                    typed_title        TEXT NOT NULL,
+                    ip                 TEXT,
+                    user_agent         TEXT,
+                    signed_at          TEXT NOT NULL,   -- UTC
+                    consent_esign      INTEGER NOT NULL,
+                    authority_affirmed INTEGER NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_signed_agreements_hs "
+                         "ON signed_agreements(hs_id, signed_at)")
+            # Immutability, enforced by the DATABASE rather than by everyone
+            # remembering. "Rows are never updated or deleted" is a sentence in
+            # a PRD until something makes it true; a trigger makes it true for
+            # every writer, including a future migration script and a console
+            # session at 2am. A newer version of the agreement is a new row --
+            # which the triggers permit, because INSERT is untouched.
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS signed_agreements_no_update
+                BEFORE UPDATE ON signed_agreements
+                BEGIN
+                    SELECT RAISE(ABORT, 'signed_agreements is append-only');
+                END
+                """
+            )
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS signed_agreements_no_delete
+                BEFORE DELETE ON signed_agreements
+                BEGIN
+                    SELECT RAISE(ABORT, 'signed_agreements is append-only');
+                END
+                """
+            )
+
+            # ─── Invoices (architecture now, Stripe later) ───────────────────
+            # stripe_invoice_id is a column and NOT a call. The disbursement
+            # seam that routers/asclepius_payments.py documents applies verbatim
+            # here: the shape money will move in is worth fixing now, moving it
+            # is not this change's job, and a half-wired processor is worse than
+            # none. Nothing in this repository writes stripe_invoice_id yet.
+            #
+            # There is deliberately no bank_account, routing_number, iban or
+            # tax_id column, for the same reason hs_payouts has none.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_invoices (
+                    invoice_id        TEXT PRIMARY KEY,
+                    hs_id             TEXT NOT NULL,
+                    period            TEXT NOT NULL,   -- '2026-Q1', '2026-03', whatever the schedule says
+                    amount_cents      INTEGER NOT NULL,
+                    currency          TEXT NOT NULL DEFAULT 'usd',
+                    status            TEXT NOT NULL,   -- draft | sent | paid
+                    description       TEXT,            -- partner-readable words
+                    stripe_invoice_id TEXT,            -- always NULL in this release
+                    created_by        TEXT NOT NULL,
+                    created_at        TEXT NOT NULL,
+                    sent_at           TEXT,
+                    paid_at           TEXT,
+                    UNIQUE(hs_id, period)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_invoices_hs "
+                         "ON hs_invoices(hs_id, status)")
+
+            # Who added whom. A member account is provisioned by a colleague
+            # rather than by us, and when a hospital asks six months later why
+            # this address has access, "an operator did it" and "the CIO did it"
+            # are different answers.
+            if "invited_by" not in cols("hs_portal_users"):
+                conn.execute("ALTER TABLE hs_portal_users ADD COLUMN invited_by TEXT")
+            # ═══ END HS ONBOARDING ═══
             # ═══ PROFILE PICTURE — owned by the own-profile surface ═══════════
             # Its own fenced block rather than an edit to PRD-B or PRD-D above,
             # per the convention those fences establish.
@@ -2095,6 +2327,46 @@ class AsclepiusStore:
             # recomputed over the assembled bytes and matched the declared value.
             if "verified_at" not in cols("ingest_uploads"):
                 conn.execute("ALTER TABLE ingest_uploads ADD COLUMN verified_at TEXT")
+
+            # ═══ PRD ADMIN-TASKS §3 / §5 — staging, and where a task came from ═══
+            # Three additive, NULLable columns. Nothing is deleted, truncated or
+            # re-keyed by this block; `test_admin_tasks_redesign_migration` snapshots
+            # the id sets of the five tables around it and asserts they are identical.
+            #
+            # description — what the health system says this data IS, in their words.
+            #   POST /partner/uploads had no field for it, so an admin looking at
+            #   "3 files · 412 MB" had to open the bundle to find out what it was.
+            # task_mode   — 'static' | 'longitudinal', the choice §3.2 makes
+            #   first-class. It was previously a flag buried in a request body, which
+            #   meant a half-finished batch could not tell you what it was half-way
+            #   through.
+            for _col in ("description", "task_mode"):
+                if _col not in cols("ingest_uploads"):
+                    conn.execute(f"ALTER TABLE ingest_uploads ADD COLUMN {_col} TEXT")
+            # display_bucket — the §5 classification, stored so the tasks list can
+            # group without four CASE arms in every query, and BACKFILLED from
+            # columns the row already has. Read-only derivation: the four source
+            # columns are never written here.
+            if "display_bucket" not in cols("tasks"):
+                conn.execute("ALTER TABLE tasks ADD COLUMN display_bucket TEXT")
+            # Idempotent, and re-runnable on purpose: `WHERE display_bucket IS NULL`
+            # makes boot cheap once it has run, and the drift test re-derives every
+            # row rather than trusting this ever ran at all.
+            #
+            # Written through the SAME function the write paths use, not a SQL CASE
+            # duplicating it. A CASE here would be a fifth spelling of the grouping
+            # and the one nobody updates.
+            _unbucketed = conn.execute(
+                "SELECT task_id, trajectory_id, case_source, source FROM tasks "
+                " WHERE display_bucket IS NULL"
+            ).fetchall()
+            for _r in _unbucketed:
+                conn.execute(
+                    "UPDATE tasks SET display_bucket = ? WHERE task_id = ?",
+                    (derive_display_bucket(trajectory_id=_r["trajectory_id"],
+                                           case_source=_r["case_source"],
+                                           source=_r["source"]), _r["task_id"]),
+                )
             # Resumable chunked upload sessions (PRD-I §1.1). A session is NOT an
             # upload: no ingest_uploads row exists until `complete` verifies the
             # whole-file digest, which is what makes "an assembled file with no
@@ -2857,6 +3129,16 @@ class AsclepiusStore:
                  uploaded_by, _utcnow_iso()),
             )
         return self.get_platform_media(slot)  # type: ignore[return-value]
+
+    def list_platform_media(self) -> List[Dict[str, Any]]:
+        """Every occupied slot. Small by construction — one row per named slot —
+        and read by the asset reconciler, which otherwise cannot see these blobs
+        at all and reports the onboarding demo video as an unreferenced orphan."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM platform_media ORDER BY slot"
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_platform_media(self, slot: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -4817,6 +5099,11 @@ class AsclepiusStore:
         # when the case itself says so; any other case is 'synthetic'; a text
         # task has none. First-class column so the V4 routing wall is pure SQL.
         cs = ((case.get("case_source") or "synthetic") if case else None)
+        # PRD ADMIN-TASKS §5 — the display bucket, derived here rather than by the
+        # reader, so every task carries one from the moment it exists and the
+        # backfill has nothing to do for new rows.
+        bucket = derive_display_bucket(
+            trajectory_id=trajectory_id, case_source=cs, source=source)
         # Empirical difficulty (PRD §9) rides in the generation block; lift it to the
         # first-class columns for the serving gate + admin/export.
         ed_val, ed_measured = _empirical_difficulty_fields(
@@ -4831,8 +5118,8 @@ class AsclepiusStore:
                    buyer_request_id, generation_json, value_tier, modality, case_json,
                    case_source, empirical_difficulty, difficulty_measured,
                    open_to_all_specialties, trajectory_id, sequence_index,
-                   distribution, status, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                   distribution, display_bucket, status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
                 """,
                 (
                     tid,
@@ -4857,6 +5144,7 @@ class AsclepiusStore:
                     trajectory_id,
                     sequence_index,
                     dist,
+                    bucket,
                     created_by,
                     _utcnow_iso(),
                 ),
@@ -4870,10 +5158,21 @@ class AsclepiusStore:
         StudyAsset reference is written here."""
         md = "multimodal" if (case and (case.get("lab_panels") or case.get("notes") or case.get("studies"))) else "text"
         cs = ((case.get("case_source") or "synthetic") if case else None)
+        # This is one of only two paths that rewrite ``case_source`` after insert,
+        # and ``case_source`` is a display-bucket discriminator — so the bucket is
+        # re-derived here rather than left stale. A task that became real_deid and
+        # kept a 'synthetic' bucket would sit in the wrong Routing rail while
+        # ``batch_overview`` counted it correctly: two surfaces, one task, no way
+        # to tell which is lying.
+        prior = self.get_task(task_id) or {}
+        bucket = derive_display_bucket(
+            trajectory_id=prior.get("trajectory_id"), case_source=cs,
+            source=prior.get("source"))
         with self._conn() as conn:
             conn.execute(
-                "UPDATE tasks SET case_json = ?, modality = ?, case_source = ? WHERE task_id = ?",
-                (json.dumps(case) if case else None, md, cs, task_id),
+                "UPDATE tasks SET case_json = ?, modality = ?, case_source = ?, "
+                "       display_bucket = ? WHERE task_id = ?",
+                (json.dumps(case) if case else None, md, cs, bucket, task_id),
             )
         return self.get_task(task_id)
 
@@ -5263,7 +5562,7 @@ class AsclepiusStore:
         cols = f"""
             t.task_id, t.specialty, t.difficulty, t.status, t.max_labels,
             t.trajectory_id, t.sequence_index, COALESCE(t.distribution,'open') AS distribution,
-            t.case_source, t.created_at,
+            t.case_source, t.created_at, t.display_bucket,
             (SELECT COUNT(*) FROM submissions s WHERE s.task_id = t.task_id) AS label_count,
             (SELECT GROUP_CONCAT(u.email, ', ') FROM assignments a
                JOIN users u ON u.id = a.user_id
@@ -8972,16 +9271,26 @@ class AsclepiusStore:
         Every argument after ``email`` is defaulted to the pre-existing behaviour
         so the admin call sites are unchanged by this.
         """
+        from asclepius.ingestion import DEFAULT_PURPOSE
+
         uname = (username or "").strip().lower()
         if not uname:
             raise ValueError("username is required")
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO hs_portal_users (username, hs_id, password_hash, must_reset, "
-                "email, active, created_at, full_name, signup_source, approval_status) "
-                "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+                "email, active, created_at, full_name, signup_source, approval_status, "
+                "purpose) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)",
                 (uname, hs_id, hash_password(password), 1 if must_reset else 0, email,
-                 _utcnow_iso(), full_name, signup_source, approval_status),
+                 _utcnow_iso(), full_name, signup_source, approval_status,
+                 # Everything an account sends lands in STORAGE, held and used for
+                 # nothing, until a person reads the file and says what it is for.
+                 #
+                 # Stamped HERE rather than by the caller because the provider
+                 # router mints accounts on the self-signup path and is forbidden
+                 # from naming a purpose at all — a rule a static test enforces.
+                 # The column's default belongs with the column anyway.
+                 DEFAULT_PURPOSE),
             )
         return self.get_hs_portal_user_public(uname)  # type: ignore[return-value]
 
@@ -9472,9 +9781,16 @@ class AsclepiusStore:
     # ─── Signup staging (unverified mailboxes never reach the partner list) ──
     def create_hs_signup(self, *, email: str, full_name: str, organization: str,
                          password: str, code: str, ttl_minutes: int = 15,
-                         client_ip: Optional[str] = None) -> Dict[str, Any]:
+                         client_ip: Optional[str] = None,
+                         needs_temp_password: bool = False) -> Dict[str, Any]:
         """Stage a signup and its emailed code. Both secrets are hashed at rest:
-        the code guards account creation, so it is a credential."""
+        the code guards account creation, so it is a credential.
+
+        ``needs_temp_password`` records that this signup gave us no password of
+        its own, so verification mints one and mails it. ``password`` is still
+        required and still hashed in that case -- it is an unusable random
+        string, so a row staged this way cannot be turned into a login by
+        anything short of the verify path that replaces it."""
         addr = (email or "").strip().lower()
         signup_id = uuid.uuid4().hex
         now = datetime.now(timezone.utc)
@@ -9495,10 +9811,23 @@ class AsclepiusStore:
             )
             conn.execute(
                 "INSERT INTO hs_signups (signup_id, email, full_name, organization, "
-                "password_hash, code_hash, attempts, expires_at, consumed_at, client_ip, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, ?)",
-                (signup_id, addr, (full_name or "").strip(), " ".join((organization or "").split()),
-                 hash_password(password), hash_password(code), expires, client_ip, _utcnow_iso()),
+                "password_hash, code_hash, attempts, expires_at, consumed_at, client_ip, "
+                "created_at, needs_temp_password) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, ?, ?)",
+                # BOTH collapsed AND capped, not just stripped. A newline
+                # inside a name reaches an email SUBJECT line ("{name} added you
+                # to {org}'s workspace"), and a header that contains one is a
+                # header-injection question nobody should have to think about at
+                # the send site. The cap is the other half: RFC 5322 puts a hard
+                # ceiling on a header line, so an unbounded name is a signup that
+                # can stop its own invitations from being deliverable.
+                #
+                # 120 matches the cap the signature route puts on a typed name,
+                # and is longer than any real hospital's.
+                (signup_id, addr, " ".join((full_name or "").split())[:120],
+                 " ".join((organization or "").split())[:120],
+                 hash_password(password), hash_password(code), expires, client_ip, _utcnow_iso(),
+                 1 if needs_temp_password else 0),
             )
         return {"signup_id": signup_id, "email": addr, "expires_at": expires}
 
@@ -9746,6 +10075,207 @@ class AsclepiusStore:
             )
         return self.get_hs_payout(payout_id)
     # ═══ END HS SELF-SERVE + PAYOUTS STORE METHODS ═══
+    # ═══ HS ONBOARDING STORE METHODS ═══
+    # ─── State ───────────────────────────────────────────────────────────────
+    def set_hs_onboarding_state(self, hs_id: str, state: str) -> Optional[Dict[str, Any]]:
+        """Write the organization's state and stamp when it changed.
+
+        Validation of the EDGE (may this state follow that one) lives in
+        hs_states.check_transition and is the caller's to run: the store's job
+        is to refuse a value that is not a state at all, which is the failure a
+        typo produces and the one no caller can catch for itself.
+        """
+        from asclepius import hs_states
+        target = (state or "").strip().lower()
+        if target not in hs_states.STATES:
+            raise ValueError(f"unknown onboarding state: {state!r}")
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE health_systems SET onboarding_state = ?, state_changed_at = ? "
+                "WHERE hs_id = ?",
+                (target, _utcnow_iso(), hs_id),
+            )
+        return self.get_health_system(hs_id)
+
+    def set_hs_portal_invited_by(self, username: str, invited_by: str) -> None:
+        """Stamp who added this account. Written once at provisioning time and
+        never rewritten -- a colleague who later leaves is still who did it."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET invited_by = ? WHERE username = ? "
+                "AND invited_by IS NULL",
+                (invited_by, (username or "").lower()),
+            )
+
+    # ─── The application (four structured answers) ───────────────────────────
+    def record_hs_application(self, *, hs_id: str, username: Optional[str],
+                              authority: str, deid_capability: str, export_scope: str,
+                              scale_patients: str, scale_years: str,
+                              scale_specialties: List[str]) -> Dict[str, Any]:
+        """Append one submission and move the organization to `submitted`, in ONE
+        connection block.
+
+        Both writes together, for the C-5.5 reason record_hs_intake gives: a
+        second connection opened from inside a still-uncommitted block reads the
+        pre-update row, so splitting these would show a partner the form they
+        just submitted, still empty.
+        """
+        from asclepius import hs_states
+        application_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        specialties = [str(s) for s in (scale_specialties or [])]
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO hs_applications (application_id, hs_id, username, authority, "
+                "deid_capability, export_scope, scale_patients, scale_years, "
+                "scale_specialties, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (application_id, hs_id, (username or None), authority, deid_capability,
+                 export_scope, scale_patients, scale_years,
+                 json.dumps(specialties), now),
+            )
+            # Only forward, and only from the two states a submission can arrive
+            # in. An organization that is already approved or active re-answering
+            # the questions records the answers and keeps its state -- otherwise
+            # editing a form would revoke an upload door.
+            current = conn.execute(
+                "SELECT onboarding_state FROM health_systems WHERE hs_id = ?", (hs_id,)
+            ).fetchone()
+            cur_state = (current["onboarding_state"] if current else None) or ""
+            if cur_state.strip().lower() in (hs_states.INTAKE, hs_states.DECLINED):
+                conn.execute(
+                    "UPDATE health_systems SET onboarding_state = ?, state_changed_at = ? "
+                    "WHERE hs_id = ?", (hs_states.SUBMITTED, now, hs_id))
+        return {"application_id": application_id, "hs_id": hs_id, "username": username,
+                "authority": authority, "deid_capability": deid_capability,
+                "export_scope": export_scope, "scale_patients": scale_patients,
+                "scale_years": scale_years, "scale_specialties": specialties,
+                "submitted_at": now}
+
+    @staticmethod
+    def _hs_application_row(row: Any) -> Dict[str, Any]:
+        d = dict(row)
+        try:
+            d["scale_specialties"] = json.loads(d.get("scale_specialties") or "[]")
+        except (TypeError, ValueError):
+            d["scale_specialties"] = []
+        return d
+
+    def list_hs_applications(self, hs_id: str, *, limit: int = 50) -> List[Dict[str, Any]]:
+        """Newest first. Every submission, never just the last one."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_applications WHERE hs_id = ? "
+                "ORDER BY submitted_at DESC, rowid DESC LIMIT ?", (hs_id, int(limit)),
+            ).fetchall()
+        return [self._hs_application_row(r) for r in rows]
+
+    def latest_hs_application(self, hs_id: str) -> Optional[Dict[str, Any]]:
+        rows = self.list_hs_applications(hs_id, limit=1)
+        return rows[0] if rows else None
+
+    # ─── Signed agreements (append-only; the DB enforces it) ─────────────────
+    def record_signed_agreement(self, *, hs_id: str, doc_version: str, doc_sha256: str,
+                                signer_user_id: str, typed_name: str, typed_title: str,
+                                consent_esign: bool, authority_affirmed: bool,
+                                signer_email: Optional[str] = None,
+                                pdf_sha256: Optional[str] = None,
+                                ip: Optional[str] = None,
+                                user_agent: Optional[str] = None) -> Dict[str, Any]:
+        """Insert one signature. There is no update counterpart, by design and by
+        trigger: a corrected agreement is a new document version and a new row."""
+        agreement_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO signed_agreements (agreement_id, hs_id, doc_version, "
+                "doc_sha256, pdf_sha256, signer_user_id, signer_email, typed_name, "
+                "typed_title, ip, user_agent, signed_at, consent_esign, "
+                "authority_affirmed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (agreement_id, hs_id, doc_version, doc_sha256, pdf_sha256,
+                 (signer_user_id or "").lower(), signer_email, typed_name, typed_title,
+                 ip, (user_agent or "")[:400], now,
+                 1 if consent_esign else 0, 1 if authority_affirmed else 0),
+            )
+        return self.get_signed_agreement(agreement_id)  # type: ignore[return-value]
+
+    def get_signed_agreement(self, agreement_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM signed_agreements WHERE agreement_id = ?", (agreement_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_signed_agreements(self, hs_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM signed_agreements WHERE hs_id = ? "
+                "ORDER BY signed_at DESC, rowid DESC", (hs_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def latest_signed_agreement(self, hs_id: str) -> Optional[Dict[str, Any]]:
+        rows = self.list_signed_agreements(hs_id)
+        return rows[0] if rows else None
+
+    # ─── Invoices ────────────────────────────────────────────────────────────
+    def create_hs_invoice(self, *, hs_id: str, period: str, amount_cents: int,
+                          created_by: str, description: Optional[str] = None,
+                          currency: str = "usd",
+                          status: str = "draft") -> Optional[Dict[str, Any]]:
+        """One invoice per (health system, period). Returns None if that pair is
+        already taken -- the UNIQUE constraint is the double-billing guard, the
+        same shape record_hs_payout uses for external_ref, and a caller that
+        wanted an update is a caller that should have said so."""
+        if status not in ("draft", "sent", "paid"):
+            raise ValueError(f"unknown invoice status: {status!r}")
+        invoice_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        try:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO hs_invoices (invoice_id, hs_id, period, amount_cents, "
+                    "currency, status, description, stripe_invoice_id, created_by, "
+                    "created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)",
+                    (invoice_id, hs_id, period, int(amount_cents), currency, status,
+                     description, created_by, now),
+                )
+        except sqlite3.IntegrityError:
+            return None
+        return self.get_hs_invoice(invoice_id)
+
+    def get_hs_invoice(self, invoice_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_invoices WHERE invoice_id = ?", (invoice_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_hs_invoices(self, hs_id: str, *, limit: int = 200) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_invoices WHERE hs_id = ? ORDER BY created_at DESC LIMIT ?",
+                (hs_id, int(limit)),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_hs_invoice_status(self, invoice_id: str, status: str) -> Optional[Dict[str, Any]]:
+        """draft -> sent -> paid. The timestamps are set by the status that earns
+        them, so nothing has to remember to pass them."""
+        if status not in ("draft", "sent", "paid"):
+            raise ValueError(f"unknown invoice status: {status!r}")
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            if status == "sent":
+                conn.execute("UPDATE hs_invoices SET status = ?, sent_at = COALESCE(sent_at, ?) "
+                             "WHERE invoice_id = ?", (status, now, invoice_id))
+            elif status == "paid":
+                conn.execute("UPDATE hs_invoices SET status = ?, paid_at = COALESCE(paid_at, ?) "
+                             "WHERE invoice_id = ?", (status, now, invoice_id))
+            else:
+                conn.execute("UPDATE hs_invoices SET status = ? WHERE invoice_id = ?",
+                             (status, invoice_id))
+        return self.get_hs_invoice(invoice_id)
+    # ═══ END HS ONBOARDING STORE METHODS ═══
     # ═══ REFERRAL STORE METHODS (PRD-REF) ═══
     # The referral spine. Shipped with the retired advisor tier and kept:
     # every verified physician refers now.
@@ -10314,6 +10844,56 @@ class AsclepiusStore:
                 "UPDATE ingest_uploads SET purpose = ?, updated_at = ? WHERE upload_id = ?",
                 (purpose, _utcnow_iso(), upload_id))
 
+    # ═══ PRD ADMIN-TASKS §3 — staging state on the upload ════════════════════
+    def set_upload_description(self, upload_id: str, description: Optional[str]) -> None:
+        """What the sender says this bundle IS, in their words.
+
+        Free text and deliberately unvalidated beyond a length cap: it is a
+        human sentence for a human reader, not a field anything branches on.
+        Trimmed to empty means "they told us nothing", stored as NULL so the row
+        renders the honest absence rather than an empty quote."""
+        text = (description or "").strip()[:2000] or None
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET description = ?, updated_at = ? "
+                " WHERE upload_id = ?", (text, _utcnow_iso(), upload_id))
+
+    def set_upload_task_mode(self, upload_id: str, task_mode: Optional[str]) -> None:
+        """'static' | 'longitudinal' | None — how this upload's cases become tasks.
+
+        Stored on the upload so a half-finished batch resumes in the same mode and
+        the row is self-describing tomorrow. Refuses an unrecognised value rather
+        than storing it: the UI branches on this string, and a typo would render a
+        row with neither mode selected and no way to tell why."""
+        mode = (task_mode or "").strip().lower() or None
+        if mode is not None and mode not in TASK_MODES:
+            raise ValueError(f"task_mode must be one of {TASK_MODES}, got {task_mode!r}")
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET task_mode = ?, updated_at = ? "
+                " WHERE upload_id = ?", (mode, _utcnow_iso(), upload_id))
+
+    def upload_task_counts(self, upload_id: str) -> Dict[str, int]:
+        """Per-upload case tallies for the §3.2 row, in ONE query.
+
+        ``promoted`` is cases that already became tasks; ``ingested`` is what is
+        still waiting. The Box 2 row subtracts nothing and derives nothing — it
+        prints these — so "0 made into tasks" can never disagree with what
+        promote-all would actually act on."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS n FROM ingest_cases "
+                " WHERE upload_id = ? GROUP BY status", (upload_id,)).fetchall()
+        by = {str(r["status"]): int(r["n"]) for r in rows}
+        return {
+            "total": sum(by.values()),
+            "ingested": by.get("ingested", 0),
+            "promoted": by.get("promoted", 0),
+            "needs_review": by.get("needs_review", 0),
+            "quarantined": by.get("quarantined", 0),
+            "rejected": by.get("rejected", 0),
+        }
+
     def set_data_provider_purpose(self, provider_id: str, purpose: Optional[str]) -> int:
         """Admin-side assignment of what a provider account's uploads are FOR.
 
@@ -10357,11 +10937,16 @@ class AsclepiusStore:
 
         The fallback is the point. Purpose is copied onto cases at the end of
         ingest, and that copy is best-effort — it must never strand an upload, so
-        a failure there is logged and swallowed. Reading only the case column would
-        turn that swallowed failure into a brokering case with a NULL purpose,
-        which the gate resolves as task_creation. Fail-open on the one check whose
-        whole job is to fail closed. COALESCE removes the possibility rather than
-        relying on the copy having happened."""
+        a failure there is logged and swallowed. Reading only the case column
+        would turn that swallowed failure into a brokering case wearing a NULL
+        purpose, and the gate would then be deciding on the absence of a value
+        rather than on what the operator chose. COALESCE removes the possibility
+        rather than relying on the copy having happened.
+
+        A NULL on BOTH rows no longer resolves to task_creation — it resolves to
+        storage, and the gate refuses it. So a swallowed copy failure now costs
+        an operator one click on the upload row instead of promoting a case
+        nobody classified."""
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT COALESCE(c.purpose, u.purpose) AS purpose FROM ingest_cases c "
@@ -12247,11 +12832,22 @@ def _db_storage_durable() -> tuple:
     mistake you can see. Writability is a mount that ATTACHED WRONG — a read-only
     volume, or a failed attach leaving a bare directory where the mount should be —
     which looks completely healthy until the first write. So we probe it."""
-    from asclepius.constants import path_is_ephemeral
+    from asclepius.constants import (
+        VOLUME_MOUNT_ENV, declared_volume_mount, path_is_ephemeral,
+        path_under_declared_volume,
+    )
 
     db_path = os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "asclepius.db")
     db_dir = os.path.dirname(os.path.abspath(db_path)) or "/"
+    # A declared volume mount beats the prefix list, which cannot tell a real
+    # volume at /data from a container-local directory of the same name.
+    if path_under_declared_volume(db_dir) is False:
+        return False, (
+            f"database directory {db_dir} is NOT under the persistent volume this "
+            f"platform mounted at {declared_volume_mount()} ({VOLUME_MOUNT_ENV}); a "
+            "redeploy destroys every user, task, submission and payout row. Set "
+            "ASCLEPIUS_DB_PATH to a path inside that mount.")
     if path_is_ephemeral(db_dir):
         return False, (
             f"database directory {db_dir} is on ephemeral storage; a redeploy "

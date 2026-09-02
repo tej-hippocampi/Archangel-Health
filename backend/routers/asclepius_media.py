@@ -233,14 +233,22 @@ async def onboarding_demo_meta(
     a card that plays a 404.
     """
     row = _store().get_platform_media(DEMO_SLOT)
+    # The admin panel states the upload limit in its own copy, and a number
+    # hardcoded there would drift from ASCLEPIUS_MEDIA_MAX_BYTES the first time
+    # anyone changed it — telling an operator a 73 MB file is too big, or that a
+    # 600 MB one is fine, both of which are worse than saying nothing. Served on
+    # every branch because the panel renders the drop zone whether or not a demo
+    # is installed.
+    limit = {"max_upload_bytes": assets.media_max_bytes()}
     if not row:
-        return {"available": False}
+        return {"available": False, **limit}
     try:
         assets.media_blob_path(row["sha256"])
     except assets.AssetError:
-        return {"available": False, "reason": "blob_missing"}
+        return {"available": False, "reason": "blob_missing", **limit}
     return {
         "available": True,
+        **limit,
         "mime": row.get("mime"),
         "byte_size": row.get("byte_size"),
         "duration_s": row.get("duration_s"),

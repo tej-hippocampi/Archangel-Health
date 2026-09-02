@@ -107,14 +107,21 @@
 
   /** One stop. `primary` is the single emphatic action; `skip` is the quiet one.
    *  There is no third slot, because §7 says one primary and one quiet skip and
-   *  a third button is how that becomes two primaries. */
+   *  a third button is how that becomes two primaries. `primary` may be absent
+   *  on a stop whose body already IS the choice (stop 2).
+   *
+   *  No "Stop 4 of 6" eyebrow: the checklist sits ~400px to the right counting
+   *  the same six things and reads "3 of 6", because one counts POSITION and the
+   *  other counts COMPLETED. Both true, both in the same visual register, and a
+   *  reader has to stop and work out why they disagree. The checklist is the
+   *  richer of the two — it names every stop and marks the skips — so it is the
+   *  one that stays. */
   function stopShell(opts) {
     var actions = h('div', { class: 'asc-fr-actions' }, opts.primary);
     if (opts.skip) actions.appendChild(opts.skip);
     return h('div', { class: 'asc-fr-stage' },
       h('div', { class: 'asc-fr-main' },
         h('div', { class: 'asc-fr-panel' + (opts.wide ? ' asc-fr-panel-wide' : '') },
-          opts.eyebrow ? h('div', { class: 'asc-fr-eyebrow' }, opts.eyebrow) : null,
           opts.body,
           actions)),
       checklistCard());
@@ -250,7 +257,7 @@
       class: 'asc-fr-choice', type: 'button',
       onClick: function () { close('start', 'done', runPracticeCase); },
     },
-      h('span', { class: 'asc-fr-choice-thumb asc-fr-choice-thumb-case', 'aria-hidden': 'true' },
+      h('span', { class: 'asc-fr-choice-thumb', 'aria-hidden': 'true' },
         h('span', { class: 'asc-fr-choice-play' }, '→')),
       h('span', { class: 'asc-fr-choice-title' }, 'Start the practice case'),
       h('span', { class: 'asc-fr-choice-sub' }, 'A real case, in the real interface.')));
@@ -261,13 +268,15 @@
       h('p', { class: 'asc-fr-note' },
         'Either path works — the practice case is the real interface.'));
 
+    // No primary button. This screen asks a question and offers exactly two
+    // answers; a black "Start the practice case →" underneath them repeated the
+    // right-hand card verbatim — same words, same destination — and, being the
+    // heaviest thing on the screen, answered the question on the physician's
+    // behalf. The two cards ARE the primary action, which is why the whole card
+    // is the button. "Skip for now" stays: it is the third, different answer.
     ctx.setRoot(stopShell({
-      eyebrow: 'Stop 2 of 6',
       body: body,
       wide: true,
-      primary: primaryBtn('Start the practice case →', function () {
-        close('start', 'done', runPracticeCase);
-      }),
       skip: skipBtn('Skip for now', function () { close('start', 'skipped', runPracticeCase); }),
     }));
   }
@@ -404,7 +413,6 @@
         + 'with other doctors, this is where you’ll coordinate. We’ll also ping you '
         + 'here when new cases land for you.'));
     ctx.setRoot(stopShell({
-      eyebrow: 'Stop 4 of 6',
       body: body,
       primary: primaryBtn('Open the community', function () {
         // Opens in a new tab (the community is its own page), so the
@@ -446,7 +454,6 @@
       bankBtn);
 
     ctx.setRoot(stopShell({
-      eyebrow: 'Stop 5 of 6',
       body: body,
       primary: primaryBtn('Show me Earnings', function () {
         // Stamp that this physician has SEEN the coming-soon card. Not an
@@ -478,7 +485,6 @@
       }, 'Book 20 minutes with the founders →'));
 
     ctx.setRoot(stopShell({
-      eyebrow: 'Stop 6 of 6',
       body: body,
       primary: primaryBtn('Open the manual', function () {
         close('manual', 'done', function () {

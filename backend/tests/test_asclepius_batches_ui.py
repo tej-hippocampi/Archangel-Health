@@ -64,9 +64,17 @@ PREVIEW_PANEL = _fn(JS, "renderCasePanelReadOnly")
 # ═══════════════════════════════════════════════════════════════════════════════
 # The surface exists and replaced the old one
 # ═══════════════════════════════════════════════════════════════════════════════
-def test_the_subnav_says_batches_and_routes_to_the_batch_flow():
-    assert "['assign', 'Batches']" in JS
+def test_the_subnav_says_task_routing_and_routes_to_the_batch_flow():
+    """PRD ADMIN-TASKS §2 renamed the LABEL and deliberately kept the STATE KEY.
+
+    'assign' is read by the deep-link aliases, ``openBatchesFor`` and the
+    physician-row route-in; renaming it would be silent breakage for zero
+    benefit. So the assertion is: the operator sees "Task Routing", the code
+    still says 'assign'."""
+    assert "['assign', 'Task Routing']" in JS
+    assert "['tasks', 'Data & Task Creation']" in JS
     assert "renderAdminBatches(inner)" in JS
+    assert "state.adminSub.work === 'assign'" in JS
 
 
 def test_the_three_classes_are_the_ones_the_backend_groups_by():
@@ -159,8 +167,17 @@ def test_sending_a_walk_to_all_warns_that_it_un_seals_it():
     assert "view.mode === 'all' && view.batch === 'longitudinal'" in BATCHES
 
 
-def test_the_send_bar_only_exists_when_something_is_selected():
-    assert "if (!chosen.length) return;" in BATCHES
+def test_the_send_controls_only_exist_when_something_is_selected():
+    """§4.3 turned the send BAR into a context-sensitive PANEL, so the spelling
+    changed; the property did not. With an empty selection the panel returns a
+    one-line hint before constructing any control — no targeting select, no role
+    radios, no Send button — because controls that cannot act are the "fluff"
+    this re-cut exists to remove."""
+    assert "if (!chosen.length) {" in BATCHES
+    hint_at = BATCHES.index("asc-route-panel-hint")
+    for control in ("'Preview send'", "asc-route-role", "flatControls()", "walkControls()"):
+        assert BATCHES.index(control) > hint_at, (
+            f"{control} is built before the empty-selection early return")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

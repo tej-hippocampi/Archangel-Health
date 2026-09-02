@@ -17,7 +17,7 @@ import logging
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
@@ -30,6 +30,7 @@ from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
 from asclepius import route_notify as asc_route_notify
 from asclepius import trajectory as asc_trajectory
+from asclepius import store as asc_store_mod
 from asclepius import specialties as asc_specialties
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
@@ -48,6 +49,9 @@ def _store():
 # asclepius/portal_accounts.py when self-signup needed the same naming: the
 # provider router cannot import this module to reach them. Re-exported here so
 # every call site and test that reaches them through this router is unchanged.
+from asclepius import dla as asc_dla  # noqa: E402
+from asclepius import hs_provisioning as asc_hs_provisioning  # noqa: E402
+from asclepius import hs_states  # noqa: E402
 from asclepius.portal_accounts import (  # noqa: E402,F401
     derive_hs_username,
     generate_portal_passphrase,
@@ -59,11 +63,15 @@ from asclepius.portal_accounts import (  # noqa: E402,F401
 class HealthSystemProvisionRequest(BaseModel):
     organization: str
     email: EmailStr
-    # Which of the two buttons was pressed (PRD-I §2.2). Same form, same endpoint,
-    # same code path, one different value — and EVERYTHING downstream of the mint
-    # is identical, which is what makes the two indistinguishable to the
-    # recipient. Required: a new partner with no purpose is a decision nobody
-    # made, and the promotion gate would read it as task_creation.
+    # Which of the three buttons was pressed (PRD-I §2.2). Same form, same
+    # endpoint, same code path, one different value — and EVERYTHING downstream
+    # of the mint is identical, which is what makes them indistinguishable to
+    # the recipient.
+    #
+    # Still REQUIRED even though `storage` is now a real value the form offers.
+    # Omitting the field is not the same as choosing to hold the data: one is a
+    # caller that forgot, the other is an operator who decided. The gate treats
+    # them alike; this endpoint should not have to.
     purpose: str
 
 
@@ -394,19 +402,15 @@ async def provision_health_system_portal(
 
     store = _store()
     hs = store.ensure_health_system(name, contact_email=str(body.email))
-    passphrase = generate_portal_passphrase()
-
-    existing = [u for u in store.list_hs_portal_users(hs["hs_id"])
-                if (u.get("email") or "").lower() == str(body.email).lower() and u.get("active")]
-    if existing:
-        username = existing[0]["username"]
-        store.set_hs_portal_password(username, passphrase, must_reset=True)
-        action = "credentials_rotated"
-    else:
-        username = unique_hs_username(store, derive_hs_username(name))
-        store.create_hs_portal_user(username=username, hs_id=hs["hs_id"],
-                                    password=passphrase, email=str(body.email))
-        action = "portal_user_created"
+    # The one place accounts are minted, shared with self-signup and with a
+    # partner adding a colleague (asclepius/hs_provisioning.py). Which health
+    # system row to use stays HERE, because this door reuses by name and the
+    # public one must never.
+    minted = asc_hs_provisioning.provision_account(
+        store, hs_id=hs["hs_id"], org_name=name, email=str(body.email))
+    username = minted["username"]
+    passphrase = minted["passphrase"]
+    action = minted["action"]
     # Stamped on the ACCOUNT, which is the row that authorizes an upload on this
     # door — the health-system portal has no link row (it carries the 'hs-portal'
     # sentinel link_id), so the account is where a link's purpose would live. Set
@@ -537,6 +541,93 @@ async def set_upload_purpose(
                        f"{purpose.replace('_', ' ')}."}
 
 
+class UploadTaskModeRequest(BaseModel):
+    """How an upload's cases become tasks (PRD ADMIN-TASKS §3.2)."""
+
+    task_mode: Optional[str] = None
+
+
+@router.post("/uploads/{upload_id}/task-mode", include_in_schema=False)
+async def set_upload_task_mode(
+    upload_id: str, body: UploadTaskModeRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Record static vs longitudinal for this upload, before any task is made.
+
+    The choice was previously a boolean in the body of a generate call, which
+    meant it existed only for the duration of one request: come back tomorrow to a
+    half-finished bundle and nothing on the screen could tell you which kind of
+    task the first half became. Storing it on the upload is what makes the §3.2
+    row self-describing and lets a resumed batch continue in the same mode.
+
+    Freely changeable while it still means something, and refused once it does
+    not: mode is a property of the tasks that come out, so flipping it after the
+    first task exists would describe rows that were built the other way. The
+    remaining cases can still be promoted — as the mode they were staged under.
+
+    This writes NO task and promotes nothing. It records an intention.
+    """
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    # A brokering upload has no task mode, because it will never become tasks.
+    # Accepting one here would put a static/longitudinal choice on a row whose
+    # every promote path 409s — a control that does nothing, which reads as the
+    # product being broken rather than as the rule it actually is.
+    if asc_ingestion.is_brokering(upload.get("purpose")):
+        raise HTTPException(
+            status_code=409,
+            detail="This upload came in on a brokering link, so it never becomes "
+                   "tasks and has no task mode.")
+    mode = (body.task_mode or "").strip().lower() or None
+    if mode is not None and mode not in asc_store_mod.TASK_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"task_mode must be one of {', '.join(asc_store_mod.TASK_MODES)}.")
+    counts = store.upload_task_counts(upload_id)
+    if counts["promoted"] and mode != (upload.get("task_mode") or None):
+        raise HTTPException(
+            status_code=409,
+            detail=f"{counts['promoted']} case(s) from this upload are already "
+                   f"tasks, built as "
+                   f"{upload.get('task_mode') or 'static'}. Changing the mode now "
+                   f"would describe them as something they are not — promote the "
+                   f"rest in the same mode, or send a new upload.")
+    store.set_upload_task_mode(upload_id, mode)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="task_mode_set", actor=admin["id"],
+                    payload={"task_mode": mode})
+    return {"ok": True, "upload_id": upload_id, "task_mode": mode}
+
+
+class UploadDescriptionRequest(BaseModel):
+    """Free text: what this bundle is (PRD ADMIN-TASKS §3.1)."""
+
+    description: Optional[str] = None
+
+
+@router.post("/uploads/{upload_id}/description", include_in_schema=False)
+async def set_upload_description(
+    upload_id: str, body: UploadDescriptionRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Let an admin write down what an upload IS when the sender did not say.
+
+    Most bundles arrive through integrations that predate the description field,
+    so without this the answer to "what am I looking at" would stay unavailable
+    for exactly the uploads that already exist — the ones an operator most needs
+    to triage."""
+    store = _store()
+    if not store.get_ingest_upload(upload_id):
+        raise HTTPException(status_code=404, detail="Upload not found")
+    store.set_upload_description(upload_id, body.description)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="description_set", actor=admin["id"])
+    return {"ok": True, "upload_id": upload_id,
+            "description": store.get_ingest_upload(upload_id).get("description")}
+
+
 # ─── Physicians (PRD C Phase 3) ──────────────────────────────────────────────
 # Roster + profile for the Physicians admin section. Every PRD-B column (tier,
 # verification_status, npi, phone, health_system_id, slack_joined, …) is read
@@ -617,6 +708,59 @@ def _misfiled_physicians(store: Any) -> List[Dict[str, Any]]:
     return out
 
 
+#: The two verification states the Physicians console has a tab for. Anything
+#: else is on NEITHER, which is the whole point of ``_unfiled_physicians``.
+_TABBED_VERIFICATION = ("approved", "pending")
+
+
+def _unfiled_physicians(store: Any) -> List[Dict[str, Any]]:
+    """Physicians the console cannot show, because no tab claims their state.
+
+    The roster tab is ``verification_status == 'approved'`` and the queue tab is
+    ``status=pending`` plus mid-wizard signups. An evaluator whose verification
+    was never decided — NULL — is therefore in NEITHER, and an account nobody can
+    see is an account nobody can approve, tier, or route a real case to. It is
+    the same invisibility ``_misfiled_physicians`` was written for, one column
+    over: that one catches a doctor filed under an operator ROLE, and missed this
+    because the role here is correct and it is the STATUS that has no home.
+
+    It is not hypothetical. An account provisioned directly (the director
+    onboarding mails an access key and creates a working evaluator) never enters
+    the verification queue, so it logs in, draws synthetic cases and labels them
+    perfectly — while being absent from the roster the operator is looking at.
+    The physician sees a working product; the admin sees an empty screen; nothing
+    errors anywhere.
+
+    ``rejected`` is included deliberately. A decided-and-rejected account is also
+    invisible today, and "we decided no" is a thing an operator should be able to
+    see and reconsider — the row carries its status so the two cases are never
+    confused.
+    """
+    out: List[Dict[str, Any]] = []
+    for u in _physician_users(store):
+        if (u.get("verification_status") or None) in _TABBED_VERIFICATION:
+            continue
+        out.append({
+            "id": u["id"],
+            "name": _display_name(u),
+            "email": u.get("email"),
+            "specialty": u.get("specialty"),
+            "tier": u.get("tier"),
+            "verification_status": u.get("verification_status"),
+            "real_data_approved": bool(u.get("real_data_approved")),
+            "active": bool(u.get("active", 1)),
+            "created_at": u.get("created_at"),
+            # Whether they have been WORKING while invisible. An operator
+            # reading this card needs to know they are looking at a live
+            # contributor, not a dormant row — a doctor who has labelled
+            # thirty cases nobody can see is a different problem from an
+            # account that was created and never used.
+            "submissions_total": (
+                store.evaluator_self_stats(u["id"]) or {}).get("submissions_total", 0),
+        })
+    return out
+
+
 def _hs_name_map(store: Any) -> Dict[str, str]:
     return {hs["hs_id"]: hs["name"] for hs in store.list_health_systems()}
 
@@ -690,8 +834,13 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     # ``physicians`` or ``counts`` — they are not supply until someone decides
     # they are — but never again invisible.
     misfiled = _misfiled_physicians(store)
+    # Correctly filed as physicians, but in a verification state no tab renders.
+    # Separate from ``misfiled`` because the repair is different: those need a
+    # role change, these need a verification decision.
+    unfiled = _unfiled_physicians(store)
     return {"physicians": out, "counts": counts,
-            "misfiled_physicians": misfiled, "misfiled_count": len(misfiled)}
+            "misfiled_physicians": misfiled, "misfiled_count": len(misfiled),
+            "unfiled_physicians": unfiled, "unfiled_count": len(unfiled)}
 
 
 @router.get("/physicians/{user_id}")
@@ -1398,6 +1547,14 @@ def _purpose_view(purpose: Optional[str]) -> Dict[str, Any]:
     if purpose == asc_ingestion.PURPOSE_BROKERING:
         return {"purpose": purpose, "label": "brokering", "accent": "grey",
                 "resolved": True}
+    if purpose == asc_ingestion.PURPOSE_STORAGE:
+        # RESOLVED, and the distinction matters. On an ACCOUNT, storage is a
+        # deliberate setting — everything this partner sends is held until read,
+        # which is the design — so it is not a work item and does not want a
+        # resolver beside it. The work item is the per-UPLOAD decision, and it
+        # has its own bucket.
+        return {"purpose": purpose, "label": "storage", "accent": "lime",
+                "resolved": True}
     return {"purpose": None, "label": asc_ingestion.PURPOSE_UNSET_LABEL,
             "accent": "lime", "resolved": False}
 
@@ -1405,6 +1562,12 @@ def _purpose_view(purpose: Optional[str]) -> Dict[str, Any]:
 def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
     buckets: Dict[str, List[Dict[str, Any]]] = {
         "needs_attention": [], "rejected": [], "needs_review": [],
+        # Received and held, waiting on a person to say what it is for. Its own
+        # bucket for the same reason brokering has one: it must never appear
+        # next to a Promote button, because it cannot be promoted until the
+        # decision is made, and a button that 409s teaches an operator to ignore
+        # the workflow.
+        "storage": [],
         "ready_to_promote": [], "in_production": [],
         # Brokering gets its OWN bucket rather than a badge inside another one
         # (PRD-I §5). It has a different lifecycle — it is never promoted — and
@@ -1447,6 +1610,13 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
             "sha256_short": (up.get("sha256") or "")[:12] or None,
             "verified_at": up.get("verified_at"),
             **_purpose_view(up.get("purpose")),
+            # Whether THIS upload still needs a person to say what it is for.
+            # Decided server-side so the UI never re-derives the policy: an
+            # unreviewed upload wants the resolver beside it, a brokered one is
+            # already decided, and a task-creation one is done.
+            "needs_decision": bool(
+                asc_ingestion.blocks_promotion(up.get("purpose"))
+                and not asc_ingestion.is_brokering(up.get("purpose"))),
             "upload_status": up.get("status"),
             "case_total": len(cases),
             "case_counts": {"held": len(held), "clean": len(clean), "promoted": len(promoted)},
@@ -1475,6 +1645,7 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
         if asc_ingestion.PURPOSE_BROKERING == up.get("purpose"):
             buckets["brokering"].append(entry)
             continue
+
         if held:
             # Safety holds must never be buried inside a normal bucket. Surface
             # the actual reasons (review flags + quarantine reasons), deduped.
@@ -1491,7 +1662,21 @@ def _bucket_uploads(store: Any, hs_id: str) -> Dict[str, List[Dict[str, Any]]]:
         if promoted:
             buckets["in_production"].append(entry)
         if clean:
-            buckets["ready_to_promote"].append(entry)
+            # STORAGE REPLACES READY-TO-PROMOTE, and only that bucket. It is the
+            # precise substitution: ready_to_promote is exactly the bucket whose
+            # action is unavailable until somebody says what this is for, and
+            # every other bucket keeps its meaning.
+            #
+            # Not a `continue` earlier in this loop, which is what the first cut
+            # did and what got it wrong: an upload whose cases were promoted
+            # under the old rules is HISTORY, and filing it as "awaiting your
+            # decision" would ask an operator to decide something that has
+            # already happened. Safety holds outrank it too — a flagged upload
+            # belongs in needs_attention whatever its destination says.
+            if asc_ingestion.is_storage(up.get("purpose")):
+                buckets["storage"].append(entry)
+            else:
+                buckets["ready_to_promote"].append(entry)
         # Uploaded, not yet examined: still moving through the pipeline (or it
         # produced nothing at all — e.g. rejected outright), and none of the
         # terminal buckets above claimed it.
@@ -1541,6 +1726,18 @@ async def health_system_detail(
                    for r in store.list_hs_intake(hs_id)],
         "payouts": store.list_hs_payouts(hs_id),
         "payouts_summary": store.hs_payout_summary(hs_id),
+        # ─ Onboarding ─
+        "onboarding_state": hs_states.state_of(hs),
+        "state_changed_at": hs.get("state_changed_at"),
+        # THE FOUR ANSWERS VERBATIM, every submission, newest first. Both the
+        # stored value and the words the partner actually saw: an operator
+        # deciding whether a BAA is needed should read "We would need a BAA",
+        # and a later query should filter on `needs_baa`.
+        "applications": [_hs_application_admin_view(r)
+                         for r in store.list_hs_applications(hs_id)],
+        "agreements": [_hs_agreement_admin_view(r)
+                       for r in store.list_signed_agreements(hs_id)],
+        "invoices": store.list_hs_invoices(hs_id),
     }
 
 
@@ -1554,9 +1751,19 @@ async def health_system_detail(
 # form carries no purpose" would send an operator looking for a missing field that
 # is now mandatory — and, worse, teach them that "Purpose not set" is normal.
 def _link_purpose_note() -> Optional[str]:
-    return ("Uploads from links minted before purpose became mandatory arrive as "
-            "“Purpose not set”. Resolve them on the upload row before promoting. "
-            "Newly minted links always carry one.")
+    """The one sentence explaining an unresolved destination on this page.
+
+    Rewritten when self-signup started minting accounts with it unset ON
+    PURPOSE. The old text said these were links from before the field became
+    mandatory and that newly minted ones always carry a destination — which is
+    now false for every health system that lets itself in, and told an operator
+    the newest partner on the page was a leftover.
+    """
+    return ("A destination is mandatory when you mint an upload link, so a link "
+            "always carries one. An ACCOUNT can still arrive without: a row from "
+            "before the field existed, or a health system that signed itself up, "
+            "where the choice is made per upload instead of once. Resolve those "
+            "on the upload row before promoting.")
 
 
 class UploadSpecialtyRequest(BaseModel):
@@ -1764,6 +1971,14 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
             "physicians_linked": len(physicians),
             "uploads_count": len(uploads),
             "last_activity": last_activity,
+            # ─ Onboarding, for the state chip and the DLA chip ─
+            # Raw state here, unlike the portal's own responses: the queue needs
+            # the five states distinguishable, and only the hospital-facing side
+            # gets partner words.
+            "onboarding_state": hs_states.state_of(hs),
+            "state_changed_at": hs.get("state_changed_at"),
+            "application": _hs_application_summary(store, hs["hs_id"]),
+            "agreement": _hs_agreement_chip(store, hs["hs_id"]),
         })
     return {"health_systems": out}
 
@@ -1918,6 +2133,30 @@ class AllocateBody(BaseModel):
     user_ids: Optional[List[str]] = None
     specialty: Optional[str] = None
     to_all: bool = False
+
+    # ═══ PRD ADMIN-TASKS §4.3 — per-doctor role ══════════════════════════════
+    # {user_id: 'label' | 'review'}. Sparse and optional: a name absent from this
+    # map is a LABELER, which is what every explicit send meant before this field
+    # existed, so an old client's payload keeps its exact meaning.
+    #
+    # ``assignments.role`` already carries both values and the review path already
+    # reads it — the gap was that the explicit-send builder hardcoded 'label', so
+    # the Batches screen could name a reviewer and silently assign them labeling.
+    roles: Optional[Dict[str, str]] = None
+
+    @model_validator(mode="after")
+    def _roles_are_a_known_vocabulary(self):
+        """Refuse an unknown role at the door.
+
+        ``allocate`` and the review path both compare ``role`` against the exact
+        strings 'label' and 'review'. A third value would write a row that no
+        query matches: not an error, just an assignment that never appears in
+        anyone's queue and cannot be explained by looking at the screen."""
+        for uid, role in (self.roles or {}).items():
+            if role not in ("label", "review"):
+                raise ValueError(
+                    f"role for {uid!r} must be 'label' or 'review', got {role!r}")
+        return self
 
     @model_validator(mode="after")
     def _one_targeting_mode(self):
@@ -2319,6 +2558,27 @@ def _resolve_send_targets(store: Any, body: "AllocateBody") -> Optional[List[Dic
                         "cases, so an assignment to them could never be served."),
             "user_ids": [u["id"] for u in blocked],
             "emails": [u.get("email") for u in blocked]})
+
+    # ═══ PRD ADMIN-TASKS §4.3 — the same rule, for the review role ═══════════
+    # Naming a labeler as a REVIEWER writes a row the review queue never returns:
+    # ``review.can_review`` gates that surface on an explicit reviewer/advisor
+    # tier, so the assignment would sit in a queue the doctor cannot open. That is
+    # precisely the failure the V4 wall check above exists to prevent, one field
+    # over, and it reads to everyone as the product being broken rather than as a
+    # tier that was never granted. Refuse at send, naming who and why.
+    from asclepius import review as _review
+
+    wrong_tier = [u for u in people
+                  if (body.roles or {}).get(u["id"]) == "review"
+                  and not _review.can_review(u)]
+    if wrong_tier:
+        raise HTTPException(status_code=400, detail={
+            "error": "not_a_reviewer",
+            "message": ("These accounts do not carry the reviewer tier, so a "
+                        "review assignment to them could never be served. Grant "
+                        "the tier on Physicians, or send them the case to label."),
+            "user_ids": [u["id"] for u in wrong_tier],
+            "emails": [u.get("email") for u in wrong_tier]})
     return people
 
 
@@ -2335,8 +2595,15 @@ def _explicit_proposal(cases: List[Dict[str, Any]], people: List[Dict[str, Any]]
     """
     from asclepius import allocation as asc_allocation
 
-    assignments = [{"task_id": c.task_id, "user_id": u["id"], "role": "label",
-                    "reason": "named by admin"}
+    # §4.3 — the admin's per-doctor role, defaulting to 'label' for anyone the map
+    # does not name. That default is the compatibility contract: every explicit
+    # send that predates this field meant "these people label these cases".
+    roles = body.roles or {}
+    assignments = [{"task_id": c.task_id, "user_id": u["id"],
+                    "role": roles.get(u["id"], "label"),
+                    "reason": ("named by admin as "
+                               + ("reviewer" if roles.get(u["id"]) == "review"
+                                  else "labeler"))}
                    for c in cases for u in people]
     # Same nested shape ``allocate()`` produces ({label, review, total} per user),
     # because the admin screen and the response contract read one of these without
@@ -2344,12 +2611,16 @@ def _explicit_proposal(cases: List[Dict[str, Any]], people: List[Dict[str, Any]]
     per_physician: Dict[str, Dict[str, int]] = {}
     for a in assignments:
         c = per_physician.setdefault(a["user_id"], {"label": 0, "review": 0, "total": 0})
-        c["label"] += 1
+        c[a["role"]] += 1
         c["total"] += 1
     notes = []
-    if len(people) > body.labels_per_case:
+    # Counted over LABELERS only. ``labels_per_case`` bounds labeling, and a note
+    # that counted a named reviewer toward it would warn about contention that
+    # does not exist — reviewers do not race labelers for a case.
+    n_labelers = sum(1 for u in people if roles.get(u["id"], "label") == "label")
+    if n_labelers > body.labels_per_case:
         notes.append(
-            f"{len(people)} doctors named for {body.labels_per_case} label(s) per "
+            f"{n_labelers} doctors named for {body.labels_per_case} label(s) per "
             f"case: whoever opens a case first takes it, and the rest see it drop "
             f"out of their queue.")
     return asc_allocation.Proposal(
@@ -2601,6 +2872,7 @@ async def list_pending_health_systems(
         hs_id = account["hs_id"]
         collisions = store.health_systems_named_like(
             account.get("hs_name") or "", exclude_hs_id=hs_id)
+        hs = store.get_health_system(hs_id) or {}
         out.append({
             "hs_id": hs_id,
             "organization": account.get("hs_name"),
@@ -2609,6 +2881,20 @@ async def list_pending_health_systems(
             "email": account.get("email"),
             "created_at": account.get("created_at"),
             "signup_source": account.get("signup_source"),
+            # Which decision this row actually needs. An organization carrying
+            # an onboarding state is decided at the ORGANIZATION level -- one
+            # Approve for everyone on it, then a signature -- while a row whose
+            # state is NULL predates the state machine and still takes the
+            # per-account decision it was built for. The queue renders whichever
+            # applies rather than offering both and letting the operator guess.
+            "onboarding_state": hs_states.state_of(hs),
+            "org_level": hs.get("onboarding_state") is not None,
+            "applications": [_hs_application_admin_view(r)
+                             for r in store.list_hs_applications(hs_id)],
+            "members": [{"username": u["username"], "email": u.get("email"),
+                         "full_name": u.get("full_name")}
+                        for u in store.list_hs_portal_users(hs_id)
+                        if u.get("active")],
             "intake": [
                 {"submitted_at": r["submitted_at"], "answers": r["answers"]}
                 for r in store.list_hs_intake(hs_id)
@@ -2765,3 +3051,384 @@ async def void_health_system_payout(
                     event_type="payout_voided", actor=admin["email"],
                     payload={"payout_id": payout_id, "reason": reason})
     return row
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  HEALTH-SYSTEM ONBOARDING — the application, the decision, the agreement
+#
+#  The operator half of the state machine in asclepius/hs_states.py. Two
+#  buttons on one card: Approve moves an organization to the signature, Decline
+#  closes it with a reason on the row.
+#
+#  ORGANIZATION-LEVEL, unlike the older
+#  /health-systems/{hs_id}/accounts/{username}/approve beside it. That endpoint
+#  decides about one LOGIN and still exists for the partner it was built for;
+#  this one decides about the ORGANIZATION, because the agreement binds the
+#  organization and every member of it has to end up on the same side of that
+#  decision.
+# ═══════════════════════════════════════════════════════════════════════════
+
+#: The words a partner saw, keyed by the value we stored. Duplicated from the
+#: provider router's question list ON PURPOSE: that module is provider-reachable
+#: and this one is not, and importing across that boundary to save eight lines
+#: would be the first crack in a separation the whole isolation test suite rests
+#: on. A test asserts the two stay in step.
+_HS_ANSWER_WORDS: Dict[str, Dict[str, str]] = {
+    "authority": {"yes": "Yes", "no": "No", "not_sure": "Not sure"},
+    "deid_capability": {"in_our_environment": "De-identified in our environment",
+                        "needs_baa": "We would need a BAA",
+                        "not_sure": "Not sure"},
+    "export_scope": {"notes_and_structured": "Notes and structured",
+                     "structured_only": "Structured only",
+                     "varies": "Depends by system"},
+    "scale_patients": {"under_10k": "Under 10,000", "10k_50k": "10,000 to 50,000",
+                       "50k_250k": "50,000 to 250,000",
+                       "250k_1m": "250,000 to 1 million",
+                       "over_1m": "Over 1 million", "not_sure": "Not sure"},
+    "scale_years": {"under_2": "Under 2 years", "2_5": "2 to 5 years",
+                    "5_10": "5 to 10 years", "10_20": "10 to 20 years",
+                    "over_20": "Over 20 years", "not_sure": "Not sure"},
+}
+
+#: The label an operator reads on the card, per question, in the PRD's order.
+_HS_ANSWER_TITLES: List[Tuple[str, str]] = [
+    ("authority", "Authority to license"),
+    ("deid_capability", "De-identification"),
+    ("export_scope", "Export contents"),
+    ("scale_patients", "Patients"),
+    ("scale_years", "Years of history"),
+]
+
+
+def _hs_words(key: str, value: Optional[str]) -> str:
+    return _HS_ANSWER_WORDS.get(key, {}).get((value or "").strip(), (value or ""))
+
+
+def _hs_application_admin_view(row: Dict[str, Any]) -> Dict[str, Any]:
+    """One submission, as both stored values and the words they were chosen by."""
+    answers = []
+    for key, title in _HS_ANSWER_TITLES:
+        answers.append({"key": key, "title": title,
+                        "value": row.get(key) or "",
+                        "words": _hs_words(key, row.get(key))})
+    return {
+        "application_id": row.get("application_id"),
+        "submitted_at": row.get("submitted_at"),
+        "username": row.get("username"),
+        "answers": answers,
+        "specialties": list(row.get("scale_specialties") or []),
+        # The one answer an operator must not miss: it decides whether a byte
+        # may move before a BAA exists.
+        "needs_baa": (row.get("deid_capability") or "") == "needs_baa",
+        "authority_unclear": (row.get("authority") or "") in ("no", "not_sure"),
+    }
+
+
+def _hs_application_summary(store: Any, hs_id: str) -> Optional[Dict[str, Any]]:
+    """Just enough for a row in the list: when, and the two flags worth a chip."""
+    row = store.latest_hs_application(hs_id)
+    if not row:
+        return None
+    return {
+        "submitted_at": row.get("submitted_at"),
+        "needs_baa": (row.get("deid_capability") or "") == "needs_baa",
+        "authority_unclear": (row.get("authority") or "") in ("no", "not_sure"),
+    }
+
+
+def _hs_agreement_admin_view(row: Dict[str, Any]) -> Dict[str, Any]:
+    """A signature row, whole. The admin side DOES get the network address and
+    the client string -- they are the attribution leg of the E-SIGN record and
+    the only reader who ever needs them is the one defending it."""
+    return {
+        "agreement_id": row.get("agreement_id"),
+        "doc_version": row.get("doc_version"),
+        "doc_sha256": row.get("doc_sha256"),
+        "pdf_sha256": row.get("pdf_sha256"),
+        "signer_user_id": row.get("signer_user_id"),
+        "signer_email": row.get("signer_email"),
+        "typed_name": row.get("typed_name"),
+        "typed_title": row.get("typed_title"),
+        "ip": row.get("ip"),
+        "user_agent": row.get("user_agent"),
+        "signed_at": row.get("signed_at"),
+        "consent_esign": bool(row.get("consent_esign")),
+        "authority_affirmed": bool(row.get("authority_affirmed")),
+        "download_url": f"/api/asclepius/admin/agreements/{row.get('agreement_id')}/document",
+    }
+
+
+def _hs_agreement_chip(store: Any, hs_id: str) -> Optional[Dict[str, Any]]:
+    row = store.latest_signed_agreement(hs_id)
+    if not row:
+        return None
+    return {"doc_version": row.get("doc_version"),
+            "signed_by": row.get("typed_name"),
+            "signed_at": row.get("signed_at"),
+            "agreement_id": row.get("agreement_id")}
+
+
+class HsOrgApproveRequest(BaseModel):
+    #: OPTIONAL, and it is the only field. Leaving it out is the DEFAULT and the
+    #: PRD's instruction: a health-system account is minted with this unset so
+    #: every upload it sends is resolved deliberately, one at a time, on the
+    #: admin's own per-upload control. Supplying it here sets the account
+    #: default for an organization whose answer is already settled.
+    purpose: Optional[str] = None
+
+
+class HsOrgDeclineRequest(BaseModel):
+    #: REQUIRED. A refusal nobody wrote a reason for is a refusal nobody can
+    #: explain when the hospital calls, and somebody always calls.
+    reason: str
+
+
+@router.post("/health-systems/{hs_id}/approve", include_in_schema=False)
+async def approve_health_system(
+    hs_id: str, body: HsOrgApproveRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Approve the ORGANIZATION and ask it for a signature.
+
+    Three writes, in this order:
+      1. every active account on the organization is approved, so the members
+         who were provisional become full;
+      2. the organization moves to `approved_awaiting_dla`, which is what opens
+         the signing surface;
+      3. every member is emailed the agreement request.
+
+    Notification to all, signature by one (§0.1.2). The email goes to everybody
+    because we cannot tell from here which of them has signing authority, and a
+    letter that reaches only the person who happened to sign up is a letter that
+    sits unread while the person who could sign never hears about it.
+    """
+    store = _store()
+    hs = store.get_health_system(hs_id)
+    if not hs:
+        raise HTTPException(status_code=404, detail="Health system not found")
+    current = hs_states.state_of(hs)
+    try:
+        hs_states.check_transition(current, hs_states.AWAITING_DLA)
+    except hs_states.TransitionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    purpose = (body.purpose or "").strip().lower()
+    if purpose and purpose not in asc_ingestion.PURPOSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"purpose must be one of {', '.join(asc_ingestion.PURPOSES)}.")
+
+    accounts = [u for u in store.list_hs_portal_users(hs_id) if u.get("active")]
+    for account in accounts:
+        # Only rows that were actually waiting. An account provisioned before
+        # approval existed carries NULL and already reaches everything; stamping
+        # it here would rewrite a decision nobody made.
+        if (account.get("approval_status") or "").strip().lower() == "pending":
+            store.set_hs_approval(account["username"], "approved", by=admin["email"])
+        if purpose:
+            store.set_hs_portal_purpose(account["username"], purpose)
+    store.set_hs_onboarding_state(hs_id, hs_states.AWAITING_DLA)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="onboarding_approved", actor=admin["email"],
+                    payload={"accounts": [a["username"] for a in accounts],
+                             "purpose": purpose or None})
+
+    notified = await _mail_dla_request(store, hs, accounts)
+    return {"ok": True, "hs_id": hs_id,
+            "onboarding_state": hs_states.AWAITING_DLA,
+            "accounts_approved": len(accounts), "emailed": notified}
+
+
+async def _mail_dla_request(store: Any, hs: Dict[str, Any],
+                            accounts: List[Dict[str, Any]]) -> int:
+    """One letter per member. Awaited rather than backgrounded: this is an admin
+    route with no time budget, and the operator clicking Approve needs to know
+    whether the thing that unblocks the deal actually went out."""
+    if not is_email_transport_configured():
+        return 0
+    from onboarding_emails import build_hs_dla_request_email
+
+    body = build_hs_dla_request_email(organization=hs["name"],
+                                      portal_url=_portal_url())
+    sent = 0
+    for account in accounts:
+        to = (account.get("email") or "").strip()
+        if not to:
+            continue
+        ok = await send_html_email(
+            to, "One signature away: your data licensing agreement", body,
+            importance_headers=True)
+        sent += 1 if ok else 0
+    return sent
+
+
+@router.post("/health-systems/{hs_id}/decline", include_in_schema=False)
+async def decline_health_system(
+    hs_id: str, body: HsOrgDeclineRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Turn an organization down, with the reason on the row.
+
+    Sends NO email, deliberately, and for the reason the per-account rejection
+    already gives: at this deal size a refusal is a conversation somebody has,
+    and an automated "you were rejected" to a hospital CIO is a relationship we
+    do not get back. The reason is recorded so whoever picks up the phone knows
+    what was decided and why.
+    """
+    store = _store()
+    hs = store.get_health_system(hs_id)
+    if not hs:
+        raise HTTPException(status_code=404, detail="Health system not found")
+    reason = " ".join((body.reason or "").split())
+    if not reason:
+        raise HTTPException(status_code=400,
+                            detail="A reason is required to decline.")
+    try:
+        hs_states.check_transition(hs_states.state_of(hs), hs_states.DECLINED)
+    except hs_states.TransitionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    accounts = [u for u in store.list_hs_portal_users(hs_id) if u.get("active")]
+    for account in accounts:
+        store.set_hs_approval(account["username"], "rejected",
+                              by=admin["email"], reason=reason)
+        store.set_hs_portal_active(account["username"], False)
+    store.set_hs_onboarding_state(hs_id, hs_states.DECLINED)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="onboarding_declined", actor=admin["email"],
+                    payload={"reason": reason,
+                             "accounts": [a["username"] for a in accounts]})
+    return {"ok": True, "hs_id": hs_id, "onboarding_state": hs_states.DECLINED,
+            "accounts_closed": len(accounts)}
+
+
+@router.get("/agreements/{agreement_id}/document", include_in_schema=False)
+async def download_signed_agreement(
+    agreement_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The countersigned PDF, by agreement id.
+
+    Reads the blob the signature row points at and re-verifies its hash on the
+    way out. A contract that has silently rotted in storage must fail loudly
+    here rather than be handed to counsel as if it were intact.
+    """
+    from fastapi.responses import Response as _RawResponse
+
+    store = _store()
+    row = store.get_signed_agreement(agreement_id)
+    if not row or not row.get("pdf_sha256"):
+        raise HTTPException(status_code=404, detail="No such signed agreement.")
+    hs = store.get_health_system(row["hs_id"]) or {"name": "licensor"}
+    rebuilt = False
+    try:
+        from asclepius import assets as asc_assets
+        data, _mime = asc_assets.load_asset(str(row["pdf_sha256"]), verify=True)
+    except Exception:
+        # Same fallback the partner's own download takes, and for the same
+        # reason: the row is the record and the document is reproducible from
+        # it. The header below says which one this is, because handing counsel a
+        # rebuild while letting them believe it is the stored artifact is the
+        # one thing worse than the 503 this used to raise.
+        log.exception("signed agreement blob is unreadable; rebuilding from the row")
+        try:
+            data = asc_dla.pdf_from_row(organization=hs.get("name") or "licensor",
+                                        row=row)
+            rebuilt = True
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"The stored PDF could not be read and could not be "
+                       f"rebuilt ({exc}). The signature row is intact; the "
+                       "blob is not.")
+    filename = asc_dla.pdf_filename(organization=hs.get("name") or "licensor",
+                                    version=str(row.get("doc_version") or ""))
+    headers = {"content-disposition": f'attachment; filename="{filename}"'}
+    if rebuilt:
+        headers["x-agreement-source"] = "rebuilt-from-row"
+    return _RawResponse(content=data, media_type="application/pdf", headers=headers)
+
+
+# ─── Invoices (architecture now, Stripe later) ───────────────────────────────
+#
+# THE DISBURSEMENT SEAM, verbatim from the payments work: this module records
+# what is owed and what an operator says has happened. It does not move money.
+# No call to Stripe, no webhook, no key read, no balance queried. When the rail
+# is wired, it is wired HERE, behind these three endpoints, and every caller
+# above them is already written against the shape it will have.
+
+class HsInvoiceRequest(BaseModel):
+    period: str
+    amount_cents: int
+    description: Optional[str] = None
+
+
+class HsInvoiceStatusRequest(BaseModel):
+    status: str
+
+
+@router.get("/health-systems/{hs_id}/invoices", include_in_schema=False)
+async def list_health_system_invoices(
+    hs_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    return {"invoices": store.list_hs_invoices(hs_id)}
+
+
+@router.post("/health-systems/{hs_id}/invoices", include_in_schema=False)
+async def create_health_system_invoice(
+    hs_id: str, body: HsInvoiceRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Draft one invoice for one period. One per (organization, period).
+
+    A repeat submission of the same period is refused rather than silently
+    creating a second invoice -- the double-billing guard, the analogue of
+    UNIQUE(hs_id, external_ref) on payouts."""
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    period = " ".join((body.period or "").split())
+    if not period:
+        raise HTTPException(status_code=400, detail="A period is required.")
+    if int(body.amount_cents) <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive.")
+    row = store.create_hs_invoice(hs_id=hs_id, period=period,
+                                  amount_cents=int(body.amount_cents),
+                                  created_by=admin["email"],
+                                  description=(body.description or None))
+    if row is None:
+        raise HTTPException(status_code=409,
+                            detail=f"An invoice already exists for {period}.")
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="invoice_created", actor=admin["email"],
+                    payload={"invoice_id": row["invoice_id"], "period": period,
+                             "amount_cents": row["amount_cents"]})
+    return {"invoice": row}
+
+
+@router.post("/health-systems/{hs_id}/invoices/{invoice_id}/status",
+             include_in_schema=False)
+async def set_health_system_invoice_status(
+    hs_id: str, invoice_id: str, body: HsInvoiceStatusRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Move an invoice along. An OPERATOR statement of fact, not a payment.
+
+    'paid' here means a person confirmed the money arrived. Nothing in this
+    repository can observe that; when something can, this is the endpoint it
+    calls, and the meaning of the column does not change."""
+    store = _store()
+    row = store.get_hs_invoice(invoice_id)
+    if not row or row.get("hs_id") != hs_id:
+        raise HTTPException(status_code=404, detail="No such invoice.")
+    status = (body.status or "").strip().lower()
+    if status not in ("draft", "sent", "paid"):
+        raise HTTPException(status_code=400,
+                            detail="status must be draft, sent or paid.")
+    updated = store.set_hs_invoice_status(invoice_id, status)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="invoice_status_set", actor=admin["email"],
+                    payload={"invoice_id": invoice_id, "status": status})
+    return {"invoice": updated}
