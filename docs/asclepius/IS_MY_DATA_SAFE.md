@@ -51,7 +51,7 @@ there is no volume at all.
 Railway → your service → **Settings** → **Volumes** → **New Volume**.
 Mount path: `/data`. (Anything except `/app`, which is the code.)
 
-### 2. Point the four stores into it
+### 2. Point the stores into it
 
 Service → **Variables**:
 
@@ -60,10 +60,20 @@ Service → **Variables**:
 | `ASCLEPIUS_DB_PATH` | `/data/asclepius.db` | Every physician account, task, submission, review, earning and payout row |
 | `TEAM_DB_PATH` | `/data/team.db` | Every patient episode, intake form, care-team message, audit record, and every physician mid-onboarding |
 | `ASCLEPIUS_DATA_DIR` | `/data` | V4 case images (the asset store lands at `/data/assets`) |
+| `ASCLEPIUS_EXPORT_DIR` | `/data/asclepius-exports` | Built export bundles (see below) |
 
 The raw-ingest directory needs no variable — it defaults to sitting beside
 `ASCLEPIUS_DB_PATH`, so setting that carries partner uploads onto the volume
 too.
+
+`ASCLEPIUS_EXPORT_DIR` is the quiet one. It defaults to `/tmp/asclepius-exports`,
+and the failure is not a missing file: the `exports` ROW lives in the database
+and survives, so Export history keeps listing the batch — and its Download
+button then hands over an archive containing only `batch.json`, because there is
+nothing else left on disk. **A buyer following the link in the email we sent
+them downloads a dataset with no data in it.** The console reports this as
+*recoverable* rather than as data loss, because it is: records are permanent and
+export is non-destructive, so the batch can simply be cut again.
 
 > **Saving these triggers a redeploy, and that redeploy is what destroys the
 > current container's data.** Anything already written to the old ephemeral
@@ -73,7 +83,7 @@ too.
 > `railway ssh`, then `cp /app/backend/asclepius.db /app/backend/team.db /tmp/`
 > and download them — before you save the variables.
 
-### 3. Confirm all four are green
+### 3. Confirm every store is green
 
 Reload the admin console. **The banner should be gone.** In the deploy log:
 
@@ -117,7 +127,10 @@ guarantee, and the banner is asking you to convert one into the other.
 
 **Covers:** the volume being absent, unmounted, mounted read-only, or pointed at
 by the wrong variable — checked live, at boot and on every admin page load, for
-all four stores.
+all five stores. Four are *critical* (their loss is unrecoverable); export
+bundles are *recoverable* and reported separately, because a screen that cannot
+tell "your database is being deleted" from "re-cut that bundle" teaches an
+operator to ignore both.
 
 **Does not cover:** an actual backup. A volume is one copy on one disk. It
 survives redeploys; it does not survive the volume being deleted, a bad

@@ -56,6 +56,7 @@ Mount path: `/data`. (Any path works except `/app`, which is the code.)
 | `TEAM_DB_PATH` | `/data/team.db` | Every patient episode, intake form, care-team message, audit sign-in record, health system, and physician mid-onboarding (Admin › Physicians › **Signups**) |
 | `ASCLEPIUS_DB_PATH` | `/data/asclepius.db` | Every physician account, task, submission, review and payout row |
 | `ASCLEPIUS_DATA_DIR` | `/data` | V4 case images (asset store lands at `/data/assets`) |
+| `ASCLEPIUS_EXPORT_DIR` | `/data/asclepius-exports` | Built export bundles. Without it they land in `/tmp`; history still lists the batch and its download becomes an empty archive — including for a buyer following the link we emailed |
 
 The raw-ingest directory needs no variable: it defaults to sitting beside
 `ASCLEPIUS_DB_PATH`, so setting that puts partner uploads on the volume too.

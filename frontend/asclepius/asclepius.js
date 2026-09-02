@@ -8888,12 +8888,13 @@
     if (s.all_durable && s.gate_armed) return;
 
     const broken = (s.stores || []).filter((x) => !x.durable);
-    if (broken.length) {
+    const critical = broken.filter((x) => x.severity !== 'recoverable');
+    if (critical.length) {
       host.appendChild(h('div', { class: 'asc-card', style: 'margin-bottom:14px' },
         h('div', { class: 'asc-card-pad' },
           h('div', { class: 'asc-inline-error' },
             'THIS DEPLOYMENT IS DESTROYING ITS DATA ON EVERY REDEPLOY. '
-            + broken.length + ' of ' + (s.stores || []).length
+            + critical.length + ' of ' + (s.stores || []).length
             + ' stores are not on a persistent volume — every account, task, '
             + 'submission and payout row written since the last deploy is lost '
             + 'at the next one, silently.'),
@@ -8903,17 +8904,24 @@
             s.remedy) : null)));
       return;
     }
-    // Durable, but nothing is stopping it from stopping being durable.
+    // Nothing irreplaceable is at risk. Two lesser problems still get said —
+    // separately, because conflating "your database is being deleted" with
+    // "re-cut that bundle" is how an operator learns to ignore both.
+    const notes = [];
+    broken.forEach((x) => notes.push(x.detail));
+    if (!s.gate_armed) {
+      notes.push('The fail-closed boot gate is OFF (ENV is not "production"), '
+        + 'so nothing would stop this app from booting onto ephemeral storage '
+        + 'after a future variable change — it would accept data and destroy '
+        + 'it, with no warning. Set ENV=production and it refuses to start '
+        + 'instead.');
+    }
+    if (!notes.length) return;
     host.appendChild(h('div', { class: 'asc-card', style: 'margin-bottom:14px' },
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-inline-warn' },
-          'Storage is durable right now, but the fail-closed boot gate is OFF '
-          + '(ENV is not "production"). Nothing would stop this app from booting '
-          + 'onto ephemeral storage after a future variable change — it would '
-          + 'accept data and destroy it, exactly as before, with no warning.'),
-        h('div', { class: 'asc-card-sub', style: 'margin-top:8px' },
-          'Set ENV=production. The app will then refuse to start rather than '
-          + 'run on storage a redeploy erases.'))));
+          'Nothing irreplaceable is at risk — but this is not fully safe yet.'),
+        h('ul', {}, notes.map((n) => h('li', {}, n))))));
   }
 
   // Sub-tab strip shared by the three restructured sections.

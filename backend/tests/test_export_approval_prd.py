@@ -1113,10 +1113,11 @@ def test_the_durability_endpoint_covers_all_four_stores():
     body = r.json()
     names = {s["store"] for s in body["stores"]}
     assert names == {"Asclepius database", "raw ingest", "asset store",
-                     "tenant database"}
+                     "tenant database", "export bundles"}
     for s in body["stores"]:
         assert isinstance(s["durable"], bool)
         assert s["detail"]
+        assert s["severity"] in ("critical", "recoverable")
 
 
 def test_an_unarmed_gate_is_reported_even_when_storage_is_fine(monkeypatch):
@@ -1144,6 +1145,7 @@ def test_an_armed_gate_over_durable_storage_reports_no_remedy(monkeypatch):
     monkeypatch.setattr(asc_ingestion_mod, "ingest_storage_durable", lambda: (True, "ok"))
     monkeypatch.setattr(asc_assets, "asset_storage_durable", lambda: (True, "ok"))
     monkeypatch.setenv("TEAM_DB_PATH", "/data/team.db")
+    monkeypatch.setenv("ASCLEPIUS_EXPORT_DIR", "/data/asclepius-exports")
     monkeypatch.setenv("RAILWAY_VOLUME_MOUNT_PATH", "/data")
 
     body = client.get("/api/asclepius/admin/storage/durability",
@@ -1167,6 +1169,57 @@ def test_a_durability_check_that_raises_counts_as_a_failure(monkeypatch):
     assert body["all_durable"] is False
     bad = [s for s in body["stores"] if s["store"] == "asset store"][0]
     assert bad["durable"] is False and "volume gone" in bad["detail"]
+
+
+def test_an_unset_export_dir_is_reported_but_is_not_critical(monkeypatch):
+    """A lost bundle is RECOVERABLE — records are permanent and export is
+    non-destructive, so the batch is re-cut. But it is not nothing: the export
+    row survives the redeploy, so history keeps listing a batch whose Download
+    button now hands a buyer an archive with no data in it."""
+    from asclepius import assets as asc_assets
+    from asclepius import ingestion as asc_ingestion_mod
+    from asclepius import store as asc_store_mod
+
+    # Pin the CRITICAL stores green so the assertion below is about the export
+    # directory and nothing else — a test suite runs on temp paths, so they are
+    # non-durable here for reasons that have nothing to do with this check.
+    monkeypatch.setattr(asc_store_mod, "_db_storage_durable", lambda: (True, "ok"))
+    monkeypatch.setattr(asc_ingestion_mod, "ingest_storage_durable", lambda: (True, "ok"))
+    monkeypatch.setattr(asc_assets, "asset_storage_durable", lambda: (True, "ok"))
+    monkeypatch.setenv("TEAM_DB_PATH", "/data/team.db")
+    monkeypatch.setenv("RAILWAY_VOLUME_MOUNT_PATH", "/data")
+    monkeypatch.delenv("ASCLEPIUS_EXPORT_DIR", raising=False)
+
+    body = client.get("/api/asclepius/admin/storage/durability",
+                      headers=_admin_h()).json()
+    row = [s for s in body["stores"] if s["store"] == "export bundles"][0]
+    assert row["durable"] is False
+    assert row["severity"] == "recoverable"
+    assert "ASCLEPIUS_EXPORT_DIR is not set" in row["detail"]
+    assert body["all_durable"] is False
+    # …and it does NOT trip the alarm reserved for unrecoverable loss.
+    assert body["critical_durable"] is True
+
+
+def test_an_export_dir_on_the_volume_is_durable(monkeypatch):
+    monkeypatch.setenv("ASCLEPIUS_EXPORT_DIR", "/data/asclepius-exports")
+    monkeypatch.setenv("RAILWAY_VOLUME_MOUNT_PATH", "/data")
+    body = client.get("/api/asclepius/admin/storage/durability",
+                      headers=_admin_h()).json()
+    row = [s for s in body["stores"] if s["store"] == "export bundles"][0]
+    assert row["durable"] is True, row["detail"]
+
+
+def test_the_banner_does_not_cry_data_loss_over_a_recreatable_bundle():
+    """Conflating "your database is being deleted" with "re-cut that bundle" is
+    how an operator learns to ignore both."""
+    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    banner = src.split("async function refreshStorageBanner()")[1].split("\n  }")[0]
+    # The red alarm is gated on CRITICAL failures only…
+    assert "critical = broken.filter((x) => x.severity !== 'recoverable')" in banner
+    assert "if (critical.length) {" in banner
+    # …and the recoverable ones are still said, just not as data loss.
+    assert "Nothing irreplaceable is at risk" in banner
 
 
 def test_the_durability_endpoint_needs_an_admin():

@@ -815,18 +815,29 @@ async def storage_durability(_admin: Dict[str, Any] = Depends(asc_auth.require_a
     reported as a problem even when today's verdict is green.
     """
     from asclepius import assets as asc_assets
+    from asclepius import export as asc_export
     from asclepius.store import _db_storage_durable
     from http_security import is_production
 
+    # ``severity`` separates the two questions an operator is really asking.
+    # CRITICAL: this data cannot be recreated — losing it is losing the company's
+    # record of work done and money owed. RECOVERABLE: an export bundle is a
+    # rendering of records that are themselves permanent, so a lost one is
+    # re-cut, not gone. Both are worth a banner; only one is worth panicking
+    # about, and a screen that cannot tell them apart teaches an operator to
+    # ignore both.
     stores = []
-    for name, fn in (("Asclepius database", _db_storage_durable),
-                     ("raw ingest", asc_ingestion.ingest_storage_durable),
-                     ("asset store", asc_assets.asset_storage_durable)):
+    for name, fn, severity in (
+            ("Asclepius database", _db_storage_durable, "critical"),
+            ("raw ingest", asc_ingestion.ingest_storage_durable, "critical"),
+            ("asset store", asc_assets.asset_storage_durable, "critical"),
+            ("export bundles", asc_export.export_storage_durable, "recoverable")):
         try:
             ok, why = fn()
         except Exception as exc:  # a check that cannot run is a failed check
             ok, why = False, f"durability check raised: {exc}"
-        stores.append({"store": name, "durable": bool(ok), "detail": why})
+        stores.append({"store": name, "durable": bool(ok), "detail": why,
+                       "severity": severity})
 
     # The tenant database is the fourth store and is in none of the three checks
     # above — they cover the Asclepius plane only. It holds every onboarding in
@@ -850,15 +861,22 @@ async def storage_durability(_admin: Dict[str, Any] = Depends(asc_auth.require_a
                               "on every redeploy")
         else:
             ok, why = True, f"tenant database durable ({team_db})"
-        stores.append({"store": "tenant database", "durable": ok, "detail": why})
+        stores.append({"store": "tenant database", "durable": ok, "detail": why,
+                       "severity": "critical"})
     except Exception as exc:  # noqa: BLE001 — never 500 the health banner
         stores.append({"store": "tenant database", "durable": False,
+                       "severity": "critical",
                        "detail": f"durability check raised: {exc}"})
 
     all_durable = all(s["durable"] for s in stores)
+    critical_durable = all(s["durable"] for s in stores
+                           if s["severity"] == "critical")
     armed = is_production()
     return {
         "all_durable": all_durable,
+        # The four stores whose loss is unrecoverable. This is the one the
+        # fail-closed boot gate refuses to start over.
+        "critical_durable": critical_durable,
         "gate_armed": armed,
         "volume_mount": os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "") or None,
         "stores": stores,
@@ -867,10 +885,10 @@ async def storage_durability(_admin: Dict[str, Any] = Depends(asc_auth.require_a
         "remedy": (
             None if (all_durable and armed) else
             ("Attach a volume mounted at /data, point TEAM_DB_PATH, "
-             "ASCLEPIUS_DB_PATH and ASCLEPIUS_DATA_DIR into it, redeploy until "
-             "every store reads durable, and only then set ENV=production so the "
-             "app refuses to boot onto ephemeral storage. "
-             "See docs/DEPLOY_BACKEND_RAILWAY.md.")),
+             "ASCLEPIUS_DB_PATH, ASCLEPIUS_DATA_DIR and ASCLEPIUS_EXPORT_DIR "
+             "into it, redeploy until every store reads durable, and only then "
+             "set ENV=production so the app refuses to boot onto ephemeral "
+             "storage. See docs/asclepius/IS_MY_DATA_SAFE.md.")),
     }
 
 

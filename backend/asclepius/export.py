@@ -75,6 +75,44 @@ def export_root() -> Path:
     return root
 
 
+def export_storage_durable() -> tuple:
+    """(ok, detail) — will built bundles survive a redeploy?
+
+    ``ASCLEPIUS_EXPORT_DIR`` defaults to ``/tmp/asclepius-exports``, which is
+    erased on every deploy. The ``exports`` ROW survives (it is in the database),
+    so history keeps listing the batch — and its Download button then hands the
+    buyer an archive containing only ``batch.json``, because ``zip_export``
+    rebuilds what it can from the stored manifest and there is nothing else left.
+    A delivered buyer, following the link in the email we sent them, downloads a
+    dataset with no data in it.
+
+    **Reported, never fail-closed** — deliberately, unlike the database. A lost
+    bundle is RECOVERABLE: records are permanent and export is non-destructive,
+    so the batch can simply be cut again. Refusing to boot over something a
+    re-export fixes would trade a real outage for a recoverable inconvenience.
+    """
+    from asclepius.constants import (
+        path_is_ephemeral, path_under_declared_volume,
+    )
+
+    configured = (os.getenv("ASCLEPIUS_EXPORT_DIR") or "").strip()
+    path = str(export_root())
+    if not configured:
+        return False, (
+            f"ASCLEPIUS_EXPORT_DIR is not set, so built bundles land in {path} "
+            "and are erased on every redeploy. Past exports stay listed in "
+            "history but download as an empty archive — including for a buyer "
+            "following the link we emailed them. Set it to a path on the volume "
+            "(e.g. /data/asclepius-exports).")
+    if path_under_declared_volume(path) is False:
+        return False, (f"{path} is not under the volume this platform mounted; "
+                       "built bundles are erased on every redeploy.")
+    if path_is_ephemeral(path):
+        return False, (f"{path} is on ephemeral storage; built bundles are "
+                       "erased on every redeploy.")
+    return True, f"export bundles durable ({path})"
+
+
 def _new_export_id() -> str:
     return "exp-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")
 
