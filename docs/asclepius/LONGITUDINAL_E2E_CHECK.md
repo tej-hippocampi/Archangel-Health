@@ -26,14 +26,14 @@ recorded below; the defect is fixed.
 
 | # | Step | Result | Enforced at |
 |---|---|---|---|
-| 1 | Batch counts | **PASS** | `store.batch_overview` (`store.py:5469`) |
+| 1 | Batch counts | **PASS** | `store.batch_overview` |
 | 2 | Preview | **PASS** | `real_cases.build_encounter_case` + `assert_temporal_split` |
-| 3 | Solo send | **FIXED** — see below | `store._PRD_CB_DISTRIBUTION` (`store.py:330`) + `routers/asclepius._require_distribution` (`asclepius.py:2645`) |
-| 4 | Relay send | **PASS**, with a wording note | `routers/asclepius_admin.admin_send_relay` (`asclepius_admin.py:2444`) |
-| 5 | Unlock ping | **PASS** | `route_notify.notify_relay_unlock` (`route_notify.py:317`) |
-| 6 | Reveal | **PASS** | `GET /tasks/{id}/trajectory-outcome` (`asclepius.py:3047`) |
-| 7 | Stall / reassign | **PASS** | `POST /batches/relay/{id}/reassign` (`asclepius_admin.py:2559`) |
-| 8 | Retired point | **PASS** | `store._PRD_2_RETIRED_SQL` (`store.py:479`) |
+| 3 | Solo send | **FIXED** — see below | `store._PRD_CB_DISTRIBUTION` + `routers/asclepius._require_distribution` |
+| 4 | Relay send | **PASS**, with a wording note | `routers/asclepius_admin.admin_send_relay` |
+| 5 | Unlock ping | **PASS** | `route_notify.notify_relay_unlock` |
+| 6 | Reveal | **PASS** | `GET /tasks/{id}/trajectory-outcome` |
+| 7 | Stall / reassign | **PASS** | `POST /batches/relay/{id}/reassign` |
+| 8 | Retired point | **PASS** | `store._PRD_2_RETIRED_SQL` |
 
 ### 1 · Batch counts
 
@@ -59,7 +59,7 @@ The assignee sees point 0 only; nobody else sees anything in the queue. That hal
 always held.
 
 **The by-ID half did not.** The distribution gate lived only in the queue SQL
-(`_PRD_CB_DISTRIBUTION`, `store.py:330`). So an `assigned_only` trajectory point
+(`store._PRD_CB_DISTRIBUTION`). So an `assigned_only` trajectory point
 that had been generated and **not yet sent** was:
 
 * invisible in every queue — correct, and the reason nobody noticed;
@@ -82,9 +82,14 @@ one label**: the walk an admin was about to send is silently taken, the intended
 physician is then blocked by capacity, and the Batches screen still shows the
 walk as unrouted.
 
-**Fixed** by `_require_distribution` (`routers/asclepius.py:2645`), applied to the
-same by-ID paths the sequence gate covers — fetch (`:2810`), reveal (`:2839`),
-answers (`:2978`) and submit (`:3292`). It returns **403**, not the sequence
+**Fixed** by `routers/asclepius._require_distribution`, applied to the same
+by-ID paths the sequence gate covers — `get_task`, `reveal_task_answers`,
+`get_task_answers` and `submit`.
+
+*(Cited by SYMBOL, not by `file:line`. The first version of this document used
+line numbers and five of the eight were stale one merge later — a citation that
+rots on every merge is worse than none, because it sends a reader to the wrong
+code with confidence.)* It returns **403**, not the sequence
 gate's 409: this is an authorization failure in the ordinary sense, and telling a
 physician to "complete the earlier points" would be false. Admins and QA are
 exempt, as on the V4 wall.
@@ -193,10 +198,13 @@ Every code site now carries longitudinal meaning. **Six sites still mention `v5`
 next to the environments tier, and they are deliberate**, not a missed rename:
 
 * `constants.ENV_LEGACY_PORTAL_VERSION` and `is_env_portal_version(allow_legacy=)`
-  (`constants.py:200-214`);
-* the two env-route guards that opt into it (`asclepius_env.py:157`, `:192`);
-* the §5.2 migration and its boot log (`store.py:6857`, `main.py:6346`), which
-  cannot describe an env→`env` re-stamp without naming the old literal.
+  (`constants.ENV_LEGACY_PORTAL_VERSION`, `constants.is_env_portal_version`);
+* the two env-route guards that opt into it (`asclepius_env.annotation_queue`,
+  `asclepius_env.annotate_environment`);
+* the §5.2 migration and its boot log
+  (`store.migrate_portal_versions_for_longitudinal`, and its caller in
+  `main.startup_team_scheduler`), which cannot describe an env→`env` re-stamp
+  without naming the old literal.
 
 The first four are one release of back-compat: a page cached before the rename
 still posts `portal_version: 'v5'`, and refusing it would 400 an annotation a
