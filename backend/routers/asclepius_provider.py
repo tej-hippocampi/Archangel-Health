@@ -27,7 +27,8 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Coroutine, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
+                     Request, UploadFile)
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
@@ -890,19 +891,26 @@ async def hs_upload(
     request: Request,
     background: BackgroundTasks,
     files: List[UploadFile] = File(...),
+    request_id: str = Form(default=""),
     portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
 ):
     """Accept the health system's file(s) — a .zip or bare .json/.csv/.hl7/.txt —
     bundle via the SHARED ``wrap_loose_files`` packer, and hand off to the shared
     ingestion pipeline. The upload is stamped with the health_system_id so it
     appears under that system in the admin. Specialty is NOT collected here — it
-    is a property of the data, determined at ingest."""
+    is a property of the data, determined at ingest.
+
+    ``request_id`` is optional and names the data request this answers, when it
+    answers one."""
     store = _store()
     hs_id = portal_user["hs_id"]
     # Approval, forced reset, and the production fail-closed checks, in one
     # place shared with the chunked door. This block used to be duplicated here
     # verbatim, which held right up until a gate was added to only one copy.
     _hs_upload_preconditions(store, portal_user)
+    # After the gates, not before: a partner who may not upload at all should be
+    # told that, not told their request id is stale.
+    answers_request = _resolve_upload_request(store, request_id)
 
     # Cumulative quota per health system (FIX-C C-2.6). The per-request cap and
     # the per-IP limiter together still allow unbounded total volume from one
@@ -969,6 +977,8 @@ async def hs_upload(
         source_ip=(request.client.host if request.client else None),
     )
     store.set_upload_health_system(upload["upload_id"], hs_id)
+    if answers_request:
+        store.set_upload_request(upload["upload_id"], answers_request)
     # Same two server-side stamps as the chunked door (PRD-I §1.1). The single-
     # request path verifies by construction — the digest is computed over the exact
     # bytes just written — so it is verified at the moment it is stored, and its
@@ -1085,6 +1095,10 @@ class HsUploadDeclareRequest(BaseModel):
     size: int = _Field(gt=0)
     sha256: str
     content_type: Optional[str] = None
+    #: The data request this answers, when it answers one. Optional and defaulted
+    #: so an old client that does not know about requests declares exactly as
+    #: before.
+    request_id: str = _Field(default="", max_length=64)
 
 
 def _upload_session_or_404(store: Any, session_id: str,
@@ -1155,6 +1169,33 @@ def _hs_upload_preconditions(store: Any, portal_user: Dict[str, Any]) -> None:
                                 detail="Uploads are temporarily disabled. Please try again later.")
 
 
+def _resolve_upload_request(store: Any, raw: Optional[str]) -> Optional[str]:
+    """Validate the OPTIONAL data request an upload answers.
+
+    Absence changes nothing and always will: most uploads predate or ignore
+    every request, and a partner who just sends us data must not meet a new
+    precondition because a broadcast feature shipped.
+
+    An id that is present and wrong is a 400 rather than a silent drop. A
+    partner who answered a request and had the tag quietly discarded would
+    believe they had responded to something we would have no record of them
+    responding to, and the whole value of the tag is that record.
+    """
+    rid = (raw or "").strip()
+    if not rid:
+        return None
+    row = store.get_hs_data_request(rid)
+    if not row:
+        raise HTTPException(status_code=400,
+                            detail="We do not recognise that data request.")
+    if (row.get("status") or "") != "open":
+        raise HTTPException(
+            status_code=400,
+            detail="That data request is closed. You can still send this data "
+                   "without it and we will take a look.")
+    return rid
+
+
 def _hs_quota_remaining(store: Any, hs_id: str) -> int:
     """Bytes this health system may still send in the current window, counting
     bytes already committed to OPEN sessions. Counting only completed uploads
@@ -1184,6 +1225,7 @@ async def hs_upload_declare(
     store = _store()
     hs_id = portal_user["hs_id"]
     _hs_upload_preconditions(store, portal_user)
+    answers_request = _resolve_upload_request(store, body.request_id)
 
     remaining = _hs_quota_remaining(store, hs_id)
     if remaining <= 0 or body.size > remaining:
@@ -1209,6 +1251,12 @@ async def hs_upload_declare(
             portal_username=portal_user["username"])
     except asc_uploads.UploadSessionError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc))
+    # Parked on the SESSION rather than carried to complete by the client. The
+    # upload row is created minutes later, and a value re-declared at that point
+    # would be a second chance to name it; this way the tag is fixed at the
+    # moment the partner said what they were answering.
+    if answers_request:
+        store.set_upload_session_request(session["session_id"], answers_request)
     if created:
         store.log_event(entity_type="ingest_upload_session",
                         entity_id=session["session_id"],
@@ -1330,6 +1378,10 @@ async def hs_upload_complete(
         raw_path=result["raw_path"],
         source_ip=(request.client.host if request.client else None))
     store.set_upload_health_system(upload["upload_id"], hs_id)
+    # Copied off the session the partner declared, not off this request: what an
+    # upload answers was decided at declare and cannot be renamed at complete.
+    if session.get("request_id"):
+        store.set_upload_request(upload["upload_id"], session["request_id"])
     # (sha256, byte_size, verified_at) — the chain-of-custody triple. Stamped only
     # after the digest was recomputed over the assembled bytes and matched.
     store.mark_upload_verified(upload["upload_id"], verified_at=result["verified_at"])
@@ -1880,6 +1932,70 @@ async def hs_payouts(
         "invoices": invoices,
         "how_we_pay": _HS_PAYOUT_NOTE,
         "empty_note": _HS_PAYOUT_EMPTY,
+    }
+
+
+# ─── Open data requests ──────────────────────────────────────────────────────
+#: The one thing every request has to say, and the reason it says it: a partner
+#: who reads a request as exclusive treats a reply as a claim, and the second
+#: partner to see it does not bother. Neither is true. Several are asked, we
+#: confirm what we take.
+_HS_REQUEST_NOTE = (
+    "We ask several partner organizations for the same data. More than one may "
+    "send cases, nothing is reserved, and our team confirms what we accept "
+    "after it arrives. If you have nothing that fits, no reply is needed."
+)
+
+_HS_REQUEST_EMPTY = (
+    "Nothing open right now. When we need a specific kind of case we will email "
+    "everyone on your team and it will appear here."
+)
+
+
+def _hs_request_view(row: Dict[str, Any]) -> Dict[str, Any]:
+    """One open request, in partner words. An explicit field list, like every
+    other provider serializer in this file: a column added to the table later
+    must not ship to a hospital because somebody splatted a row."""
+    return {
+        "request_id": row["id"],
+        "title": row["title"],
+        "specialty": row["specialty"],
+        "case_count": row["case_count"],
+        "due_date": row.get("due_date") or "",
+        "details": row.get("details") or "",
+        "asked_at": row.get("created_at"),
+    }
+
+
+@portal_router.get("/hs/requests")
+async def hs_requests(
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
+):
+    """The data requests this organization can answer right now.
+
+    NO identifier, in the path, the query or a body. The organization comes off
+    the session, which is the property ``/hs/payouts`` holds and for the same
+    reason. There is deliberately no ``/hs/requests/{hs_id}``.
+
+    Gated on the ORGANIZATION's state as well as the account's surface, because
+    a request is an ask to upload and an organization that has not signed the
+    agreement may not. A partner in intake, in review, or holding an unsigned
+    agreement is told what it is told at every other upload door rather than
+    handed a list of things it cannot act on.
+
+    Closed requests are gone from here the moment they close. A request we have
+    stopped asking for still sitting on the portal is how a partner spends a
+    week assembling cases nobody is waiting for.
+    """
+    store = _store()
+    if not hs_states.can_upload(portal_user.get("health_system")):
+        raise HTTPException(status_code=403, detail=_hs_locked_message(
+            portal_user.get("health_system")))
+    rows = store.list_hs_data_requests(status="open")
+    return {
+        "requests": [_hs_request_view(r) for r in rows],
+        "how_it_works": _HS_REQUEST_NOTE,
+        "empty_note": _HS_REQUEST_EMPTY,
     }
 
 

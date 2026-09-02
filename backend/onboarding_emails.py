@@ -2113,6 +2113,47 @@ def build_hs_uploads_open_email(*, organization: str, portal_url: str,
     return _shell(subject=f"Uploads are open for {organization}", body_html=body)
 
 
+def build_hs_data_request_email(*, title: str, specialty_label: str,
+                                case_count: int, due_date: str, details: str,
+                                portal_url: str) -> str:
+    """A data request, to every member of every partner who may upload.
+
+    A plain what-we-need letter and nothing more: the specialty, the number, the
+    date, and whatever the operator typed. It says outright that several partners
+    are being asked and that we confirm what we take, because a request that
+    reads as exclusive turns an invitation into a race, and the first partner to
+    reply would be the only one who ever answered a second one.
+    """
+    noun = "case" if case_count == 1 else "cases"
+    rows = [
+        ("Specialty", specialty_label, False),
+        ("How many", f"{case_count} {noun}", False),
+    ]
+    if (due_date or "").strip():
+        rows.append(("Useful by", due_date.strip()[:10], True))
+    detail_block = ""
+    if (details or "").strip():
+        detail_block = _p(html.escape(details.strip()).replace("\n", "<br>"))
+    body = (
+        _eyebrow("Data request")
+        + _h1(html.escape(title))
+        + _p("We are looking for de-identified cases from our partner health "
+             "systems, and this is what we need right now.")
+        + _inset_card(_detail_rows(rows))
+        + detail_block
+        + _cta(portal_url, "Upload in your portal →")
+        + _p("Several partners are being asked for this, and more than one may "
+             "send cases. Nothing is reserved and nothing is first come first "
+             "served: our team reviews what arrives and confirms what we accept. "
+             "If you have nothing that fits, no reply is needed.",
+             muted=True, small=True)
+        + _p("Please make sure data is de-identified and date-shifted before it "
+             "reaches us.", muted=True, small=True)
+        + _SIGNED_OFF
+    )
+    return _shell(subject=f"Data request: {title}", body_html=body)
+
+
 def build_hs_application_alert(*, organization: str, hs_id: str, full_name: str,
                                email: str, answers: "list",
                                members: "list" = None) -> str:
