@@ -140,6 +140,40 @@ proves the check can fail.
 The CRM endpoints and screen are removed; the tables stay. See
 [BUYER_CRM_RETIRED.md](BUYER_CRM_RETIRED.md).
 
+## How you know nothing was lost
+
+Three layers, none of which need you to run anything.
+
+**1. It cannot happen.** The migration path has no statement that can remove a
+row. `test_the_migration_cannot_delete_anything` parses the SQL out of every
+function the boot sweep can reach — the sweep itself, the inventory, the two
+payments writers, and the six store methods they call — and fails the build if
+any of them can execute `DELETE FROM`, `DROP TABLE`, `DROP COLUMN`, `TRUNCATE`
+or `REPLACE INTO`. The sweep moves a `status` column and appends an event row;
+that is its entire vocabulary. Two canary tests keep the check honest: one
+proves it fires on a real `DELETE`, the other proves it does not fire on the
+prose that *describes* the rule.
+
+**2. It did not happen, this time.** The sweep takes an id-set snapshot of
+`submissions`, `records`, `earnings`, `tasks`, `exports`, `buyers` and
+`buyer_requests` immediately before its first write, repeats it after, and
+compares SHA-256 digests of the sorted ids. Identical digests mean the same
+rows were there before and after — a status may move, a row may not.
+
+**3. You are told, rather than having to ask.** The Export tab renders the
+verdict itself, once, at the top:
+
+> **Export migration** — 12 cases that had already been approved or paid for
+> could not ship, and now can. 3 voided earnings still have live records — a
+> void may have been a payment decision, not a quality one, so they were left
+> for you rather than rejected. No rows were lost: every id set is identical
+> across the migration.
+
+If the check ever fails, that line becomes a red banner telling you to restore
+the volume from a backup before touching anything. If the migration found
+nothing to recover and lost nothing, it renders **nothing at all** — a
+permanent green "all clear" badge is a badge people stop seeing.
+
 ## Deploy checklist
 
 **You do not need to run anything.** Deploy, then open

@@ -15,6 +15,7 @@ buyers.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -853,6 +854,134 @@ def test_a_dry_run_writes_nothing():
     assert _statuses(sid)["records"] == {"qa_checked"}
 
 
+# ── The structural guarantee ──────────────────────────────────────────────
+# The runtime check (id digests taken around the sweep) proves no row was lost
+# on ONE run. These prove it cannot happen on ANY run, by asserting the
+# migration path has no way to express it — and they keep proving it on every
+# CI run, which is the only guarantee that costs an operator nothing at all.
+
+_DESTRUCTIVE_SQL = re.compile(
+    r"\b(DELETE\s+FROM|DROP\s+TABLE|DROP\s+COLUMN|TRUNCATE|REPLACE\s+INTO)\b",
+    re.IGNORECASE)
+
+
+def _sql_literals(fn) -> list:
+    """Every string constant in a function's body except its docstring.
+
+    Parsed, not grepped. This file and the modules it checks discuss deletion at
+    length in prose — "no row is ever deleted" is the rule, not a violation of
+    it — and a grep that cannot tell an explanation from a statement is a test
+    that gets deleted the first time somebody documents the rule. An AST walk
+    sees only the strings that could actually reach a cursor.
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    tree = ast.parse(textwrap.dedent(inspect.getsource(fn)))
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef,
+                             ast.Module)):
+            doc = ast.get_docstring(node, clean=False)
+            if doc is not None:
+                docstrings.add(doc)
+    return [n.value for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and n.value not in docstrings]
+
+
+#: Every function the boot migration can reach that touches the database. If the
+#: sweep grows a new call, add it here — a write path absent from this list is a
+#: write path nobody proved is non-destructive.
+def _migration_write_path() -> dict:
+    from asclepius.store import AsclepiusStore
+
+    return {
+        "export_backfill.backfill_records_from_ledger":
+            export_backfill.backfill_records_from_ledger,
+        "export_backfill.run_once_at_boot": export_backfill.run_once_at_boot,
+        "export_inventory.inventory": export_inventory.inventory,
+        "payments.apply_ledger_decision_to_records":
+            asc_payments.apply_ledger_decision_to_records,
+        "payments.approve_earning": asc_payments.approve_earning,
+        "store.ledger_approved_but_unshippable":
+            AsclepiusStore.ledger_approved_but_unshippable,
+        "store.voided_with_live_records": AsclepiusStore.voided_with_live_records,
+        "store.update_submission": AsclepiusStore.update_submission,
+        "store.update_records_status_for_submission":
+            AsclepiusStore.update_records_status_for_submission,
+        "store.resolve_earning": AsclepiusStore.resolve_earning,
+        "store.log_event": AsclepiusStore.log_event,
+        "store.set_export_scope": AsclepiusStore.set_export_scope,
+    }
+
+
+def test_the_migration_cannot_delete_anything():
+    """§0 — "No DELETE, no DROP, no ALTER ... DROP COLUMN."
+
+    Asserted against the SQL of every function the boot migration can reach,
+    rather than trusted. The sweep moves a `status` column and writes an event
+    row; nothing in its reach can remove a submission, a record, an earning, a
+    task or an export, so the id sets cannot change no matter what the data
+    looks like.
+
+    This is the half of the no-data-loss promise that needs nobody to check it:
+    the runtime digest comparison proves one run was clean, and this proves
+    every run must be.
+    """
+    for name, fn in _migration_write_path().items():
+        for sql in _sql_literals(fn):
+            hit = _DESTRUCTIVE_SQL.search(sql)
+            assert hit is None, f"{name} can execute {hit.group(0)!r}: {sql!r}"
+
+
+def test_the_migration_only_ever_moves_a_status():
+    """The one UPDATE the sweep performs on `records` sets `status` and nothing
+    else — so even a bug in it cannot corrupt a payload, an export id, or a
+    record's link to its submission."""
+    from asclepius.store import AsclepiusStore
+
+    sql = " ".join(_sql_literals(
+        AsclepiusStore.update_records_status_for_submission))
+    assert "UPDATE records SET status = ?" in sql
+    # No second assignment smuggled into the same statement.
+    assert sql.count("SET") == 1
+
+
+def test_the_approve_path_cannot_delete_anything_either():
+    """The same proof for the button an operator presses all day. Approve and
+    Void move statuses; neither is a way to remove work."""
+    from routers import asclepius_payments as _pay
+
+    for fn in (_pay.admin_approve_earning, _pay.admin_void_earning,
+               admin_router.export_approve_unapproved):
+        for sql in _sql_literals(fn):
+            assert _DESTRUCTIVE_SQL.search(sql) is None, sql
+
+
+def test_the_no_deletion_check_can_actually_fail():
+    """A guarantee that cannot fail proves nothing. This is the canary."""
+    def _hypothetical_bad_migration(conn):
+        conn.execute("DELETE FROM records WHERE status = 'submitted'")
+
+    assert any(_DESTRUCTIVE_SQL.search(sql)
+               for sql in _sql_literals(_hypothetical_bad_migration))
+
+
+def test_the_no_deletion_check_does_not_trip_on_prose():
+    """…and one that fires on its own documentation gets deleted. The modules
+    under test say "no row is ever deleted" out loud; that is the rule, not a
+    breach of it."""
+    def _well_documented(conn):
+        """Never DELETE FROM records — see PRD §0. DROP TABLE is forbidden too."""
+        # DELETE FROM submissions would be a bug.
+        conn.execute("UPDATE records SET status = ?", ("export_ready",))
+
+    assert not any(_DESTRUCTIVE_SQL.search(sql)
+                   for sql in _sql_literals(_well_documented))
+
+
 def test_the_boot_sweep_takes_the_contract_snapshot_itself():
     """§0's before-snapshot cannot be taken by hand.
 
@@ -1267,6 +1396,7 @@ def _render_export(preview: dict, extra: dict = None) -> dict:
                             "specialty": "nephrology", "cases": 7, "submissions": 9}]},
         "/admin/buyer-deliveries": {"deliveries": [], "buyers": []},
     }
+    responses.setdefault("/admin/export/migration-report", {"ran": False})
     responses.update(extra or {})
     responses["/admin/export/case-preview?scope=all"] = preview
     script = (_HARNESS % {
@@ -1328,6 +1458,57 @@ def test_the_export_button_is_disabled_when_nothing_ships():
     })
     assert "0 cases" in out["text"]
     assert "Approve all 1" in out["buttons"]
+
+
+def test_the_export_tab_shows_the_migration_verdict_without_being_asked():
+    """"Did the migration lose anything?" should not require reading a deploy
+    log. The answer renders on the screen the operator is already on."""
+    out = _render_export({
+        "scope": "all", "cases": 1, "labeler_submissions": 1, "reviews": 0,
+        "specialty_count": 1, "estimated_bytes": 4096, "exportable": True,
+        "note": None,
+        "excluded": {"unapproved_count": 0, "approvable_count": 0, "dropped": 0,
+                     "mock": 0, "unapproved": []},
+    }, {"/admin/export/migration-report": {
+        "ran": True, "cases_stranded": 12, "cases_now_exportable": 12,
+        "voided_left_untouched": 3,
+        "no_data_loss": {"checked": True, "ok": True, "problems": []}}})
+    assert "12 cases" in out["text"]
+    assert "could not ship, and now can" in out["text"]
+    assert "3 voided earnings" in out["text"]
+    assert "No rows were lost" in out["text"]
+
+
+def test_a_failed_no_data_loss_check_is_impossible_to_miss():
+    out = _render_export({
+        "scope": "all", "cases": 1, "labeler_submissions": 1, "reviews": 0,
+        "specialty_count": 1, "estimated_bytes": 4096, "exportable": True,
+        "note": None,
+        "excluded": {"unapproved_count": 0, "approvable_count": 0, "dropped": 0,
+                     "mock": 0, "unapproved": []},
+    }, {"/admin/export/migration-report": {
+        "ran": True, "cases_stranded": 1, "cases_now_exportable": 1,
+        "voided_left_untouched": 0,
+        "no_data_loss": {"checked": True, "ok": False,
+                         "problems": ["records: 40 rows before, 39 after"]}}})
+    assert "NO-DATA-LOSS CHECK FAILED" in out["text"]
+    assert "restore from a backup" in out["text"]
+    assert "records: 40 rows before, 39 after" in out["text"]
+
+
+def test_a_quiet_migration_says_nothing():
+    """A permanent green "all clear" badge is a badge people stop seeing."""
+    out = _render_export({
+        "scope": "all", "cases": 1, "labeler_submissions": 1, "reviews": 0,
+        "specialty_count": 1, "estimated_bytes": 4096, "exportable": True,
+        "note": None,
+        "excluded": {"unapproved_count": 0, "approvable_count": 0, "dropped": 0,
+                     "mock": 0, "unapproved": []},
+    }, {"/admin/export/migration-report": {
+        "ran": True, "cases_stranded": 0, "cases_now_exportable": 0,
+        "voided_left_untouched": 0,
+        "no_data_loss": {"checked": True, "ok": True, "problems": []}}})
+    assert "Export migration" not in out["text"]
 
 
 def test_the_export_source_has_no_subnav_and_no_buyer_crm():

@@ -60,8 +60,15 @@ disagree about what ships. The buyer CRM is retired and its tables are kept
 A boot sweep (`asclepius/export_backfill.py`) makes already-paid-but-unshippable
 cases exportable. It is idempotent and additive, and it takes the §0
 no-data-loss snapshot around ITSELF (a by-hand before/after cannot work — the
-script ships with the change). Read the result at
-`GET /api/asclepius/admin/export/migration-report` or in the deploy log.
+script ships with the change). The verdict renders at the top of the Export tab,
+and is also at `GET /api/asclepius/admin/export/migration-report`.
+
+**Nothing on the migration or approval path may delete.**
+`test_the_migration_cannot_delete_anything` parses the SQL out of every function
+those paths reach and fails on `DELETE FROM` / `DROP TABLE` / `DROP COLUMN` /
+`TRUNCATE` / `REPLACE INTO`. If you add a store call to that path, add it to
+`_migration_write_path()` — a writer absent from that list is a writer nobody
+proved is non-destructive.
 
 ### The onboarding demo video
 

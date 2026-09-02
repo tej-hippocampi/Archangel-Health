@@ -51,6 +51,7 @@
     scope: 'case', case_ids: '', specialty: '', version: '',
     annotator_id_hashed: '',
   };
+  var migration = null;      // /admin/export/migration-report, fetched once
   var options = null;        // /admin/export/case-options, fetched once
   var buyers = null;         // buyer accounts for "Export + send to"
   var preview = null;        // null | 'loading' | slice | {error}
@@ -112,6 +113,7 @@
 
     ui = {
       ctx: ctx,
+      migration: h('div', {}),
       scopeRow: h('div', { class: 'asc-scope-row' }),
       picker: h('div', {}),
       preview: h('div', { class: 'asc-export-preview', style: 'margin-top:14px' }),
@@ -120,6 +122,7 @@
       history: h('div', { class: 'asc-card', id: 'ascExportHistory' }),
     };
 
+    body.appendChild(ui.migration);
     body.appendChild(h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Export'),
@@ -148,8 +151,84 @@
     drawPicker();
     drawPreview();
     drawActions();
+    drawMigration();
     if (!options) loadOptions();
+    loadMigration();
     refreshPreview();
+  }
+
+  /* ── The migration verdict, shown rather than looked up ───────────────────
+   *
+   * "Did the migration lose anything?" should not require reading a deploy log
+   * or calling an endpoint by hand. The boot sweep already takes an id-set
+   * snapshot around itself; this puts its answer on the screen an operator is
+   * already on, once, in one line — and turns it into something impossible to
+   * miss if it ever says no.
+   *
+   * Nothing renders when the sweep found nothing to recover and lost nothing:
+   * a permanent green badge saying "all clear" is a badge people stop seeing,
+   * and there is no news in it. */
+  function loadMigration() {
+    var ctx = ui.ctx;
+    ctx.api('/admin/export/migration-report').then(function (res) {
+      migration = res || null;
+      drawMigration();
+    }).catch(function () {
+      // A missing report is not a failure to report: an older build, or a
+      // process that has not finished booting. Say nothing rather than alarm.
+      migration = null;
+      drawMigration();
+    });
+  }
+
+  function drawMigration() {
+    var ctx = ui.ctx, h = ctx.h;
+    ctx.clear(ui.migration);
+    var m = migration;
+    if (!m || !m.ran) return;
+    var loss = m.no_data_loss || {};
+
+    if (loss.checked && loss.ok === false) {
+      // The one thing on this page that must never be missed.
+      ui.migration.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-inline-error' },
+            'THE NO-DATA-LOSS CHECK FAILED during the export migration. Rows '
+            + 'that existed before it do not exist now. Do not export or delete '
+            + 'anything — restore from a backup of the volume first.'),
+          h('ul', {}, (loss.problems || []).map(function (p) {
+            return h('li', {}, p);
+          })))));
+      return;
+    }
+
+    var recovered = m.cases_now_exportable || 0;
+    var stranded = m.cases_stranded || 0;
+    if (!stranded && !m.voided_left_untouched) return;   // no news
+
+    var bits = [];
+    if (recovered) {
+      bits.push(plural(recovered, 'case') + ' that had already been approved or '
+        + 'paid for could not ship, and now can.');
+    } else if (stranded) {
+      bits.push(plural(stranded, 'case')
+        + ' were approved or paid but could not ship; none could be recovered '
+        + 'automatically.');
+    }
+    if (m.voided_left_untouched) {
+      bits.push(plural(m.voided_left_untouched, 'voided earning')
+        + ' still ' + (m.voided_left_untouched === 1 ? 'has' : 'have')
+        + ' live records — a void may have been a payment decision, not a '
+        + 'quality one, so they were left for you rather than rejected.');
+    }
+    if (loss.checked && loss.ok) {
+      bits.push('No rows were lost: every id set is identical across the '
+        + 'migration.');
+    }
+    ui.migration.appendChild(h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-card-sub' }, 'Export migration'),
+        h('div', {}, bits.join(' ')))));
   }
 
   function loadHistory() {
