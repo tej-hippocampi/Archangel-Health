@@ -91,3 +91,28 @@ date; no general rule can.
 `ASCLEPIUS_PATIENT_FIXTURE_DIR` points the loader at a different root — a mounted
 volume, for bundles too large or too sensitive to commit. Same shape: one
 directory per bundle.
+
+## What is in the archive, and what is not
+
+`patient_fixtures.pack_bundle` packs each `patient-N/` tree into the exact bytes a
+partner would have posted — **except this file and the per-bundle READMEs**, which
+are excluded by name (`patient_fixtures._NOT_CLINICAL_DATA`).
+
+Two reasons, either sufficient:
+
+* `ingestion._classify` reads `.md` as `note_text` — a clinical note. Packed in,
+  `patient-1/README.md` was ingested as that chart's 369th note, and its *Clinical
+  synopsis* paragraph names the outcome. It never reached a physician
+  (`real_cases._visible` fails closed on an undated item, so it was dropped from
+  every decision point), but a documentation file should not be one timestamp rule
+  away from a decision point, and it should not be counted as a dropped clinical
+  note in the "omitted for unknown timing" number an admin reads.
+* `.dockerignore` strips `*.md` from the build context, so the deployed image and
+  a developer's checkout packed **different bytes** — and that sha256 is the
+  idempotency key in `ingest_committed_bundles`. Excluding the documentation makes
+  the archive reproducible across environments, not just across two calls on one
+  disk.
+
+Measured both ways: the encounter counts are identical (22 / 16 / 5 / 12 = 55), so
+no yield number in this file moves. Pinned by
+`test_longitudinal_front_door.test_the_bytes_are_the_same_in_the_deployed_image`.

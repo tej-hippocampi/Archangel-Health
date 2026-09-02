@@ -213,6 +213,39 @@ It is accepted only on env routes, never on anything that decides what is
 written, and the value stored is always `env`. **Delete after one deploy cycle**,
 and the grep is then clean.
 
+## One more, found by asking how it runs in the image
+
+The eight rows above run against a checkout. The deployed artefact is a Docker
+image, and `.dockerignore` strips `*.md` from the build context — so the tree the
+image packs is not the tree a checkout packs.
+
+Every fixture bundle packed to **different bytes** inside the image. That sha256 is
+the idempotency key in `patient_fixtures.ingest_committed_bundles`, and
+`pack_bundle`'s docstring promises the bytes are reproducible — a promise that was
+true on a developer's disk and quietly false in production.
+
+Pulling on it found the cause was worse than the symptom: `ingestion._classify`
+reads `.md` as `note_text`, so `patient-1/README.md` was being **ingested as a
+clinical note** — including its *Clinical synopsis* paragraph, which names the
+chart's outcome ("later ICU admission for septic shock secondary to cholangitis").
+For a longitudinal walk, outcome text is the one thing a physician at point 0 must
+not have.
+
+It never reached one. `real_cases._visible` fails closed on an item with no
+offset, and a README has no timestamp, so it was dropped from all 22 points and
+surfaced only as a +1 in the "omitted for unknown timing" count. The existing gate
+held. **Fixed anyway**, at the packing step
+(`patient_fixtures._NOT_CLINICAL_DATA`): outcome text should not be one rule about
+timestamps away from a decision point, and the fix makes the archive reproducible
+across environments as a side effect.
+
+Measured both ways before and after — 22 / 16 / 5 / 12 = 55 encounters either way,
+so no published yield number moves. Pinned by
+`test_longitudinal_front_door.test_the_bytes_are_the_same_in_the_deployed_image`
+(which simulates the image by stripping `.md` from a copy of the tree, so a second
+documentation file added later fails it) and
+`...test_the_readme_is_not_ingested_as_a_clinical_note`.
+
 ## The suite, after all of this
 
 Run as CI runs it — four shards, `python3 scripts/ci_shard.py <n> 4`:

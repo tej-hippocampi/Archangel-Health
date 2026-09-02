@@ -65,6 +65,29 @@ FIXTURE_PARTNER_LABEL = "Archangel (fixture)"
 #: zip epoch (1980-01-01), which is what a zip writes when it has no date at all.
 _ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
 
+#: Bundle documentation, excluded from the archive by NAME. Two separate reasons,
+#: either one sufficient:
+#:
+#:   * ``ingestion._classify`` reads ``.md`` as ``note_text`` — a clinical note. A
+#:     bundle README is not one. Left in, ``patient-1/README.md`` is ingested as
+#:     the chart's 369th note, and its "Clinical synopsis" paragraph names the
+#:     outcome ("later ICU admission for septic shock"). It never reaches a
+#:     physician — ``real_cases._visible`` fails closed on an undated item, so the
+#:     README is dropped from every point and only shows up as a +1 in the
+#:     "omitted for unknown timing" count an admin reads — but a documentation
+#:     file has no business being counted as a dropped clinical note, and the one
+#:     thing standing between it and a decision point should not be a rule about
+#:     timestamps.
+#:   * ``.dockerignore`` strips ``*.md`` from the build context, so the deployed
+#:     image packs a DIFFERENT archive from the one a checkout packs. The sha256
+#:     of these bytes is the idempotency key in ``ingest_committed_bundles``, and
+#:     the docstring above promises the bytes are reproducible. Excluding the
+#:     documentation here makes that promise true in the image as well as on a
+#:     developer's disk, rather than true in one place and quietly false in the
+#:     other. (Measured: encounter counts are identical either way — 22/16/5/12 —
+#:     so no published yield number moves.)
+_NOT_CLINICAL_DATA = frozenset({"README.md"})
+
 #: The authorizing link row for a fixture ingest is born expired — see the note at
 #: its ``create_upload_link`` call. A fixed past timestamp rather than "now", so
 #: the comparison in ``_validate_upload_token`` is unambiguous rather than a
@@ -104,6 +127,10 @@ def pack_bundle(bundle: str, *, root: Optional[Path] = None) -> bytes:
     Deterministic: sorted names, fixed timestamps, stored (uncompressed). Two
     calls on an unchanged tree return identical bytes, which is what makes the
     sha256 idempotency key in ``ingest_committed_bundles`` mean anything.
+
+    Bundle documentation (``_NOT_CLINICAL_DATA``) is excluded — see the note
+    there. That is also what makes "identical bytes" hold across ENVIRONMENTS and
+    not just across two calls on one disk.
     """
     base = (root or bundles_root()) / bundle
     if not base.is_dir():
@@ -119,7 +146,8 @@ def pack_bundle(bundle: str, *, root: Optional[Path] = None) -> bytes:
             "before ingesting it: without a manifest specialty, ingestion resolves the "
             "chart to 'general' and it routes to the wrong pool.")
 
-    files = sorted((p for p in base.rglob("*") if p.is_file()),
+    files = sorted((p for p in base.rglob("*")
+                    if p.is_file() and p.name not in _NOT_CLINICAL_DATA),
                    key=lambda p: str(p.relative_to(base)).replace(os.sep, "/"))
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:

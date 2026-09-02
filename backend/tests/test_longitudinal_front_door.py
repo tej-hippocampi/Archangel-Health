@@ -21,6 +21,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import io
+import shutil
+import zipfile
+
 from tests import _asclepius as A  # noqa: E402
 
 from asclepius import patient_fixtures as PF  # noqa: E402
@@ -77,6 +81,45 @@ def test_packing_is_deterministic():
     """The sha256 idempotency key is only a key if the same tree packs to the same
     bytes. ZIP_STORED + fixed timestamps is what buys that."""
     assert PF.pack_bundle("patient-1") == PF.pack_bundle("patient-1")
+
+
+@pytest.mark.parametrize("bundle", ["patient-1", "patient-2", "patient-3", "patient-4"])
+def test_the_bytes_are_the_same_in_the_deployed_image(tmp_path, bundle):
+    """Determinism across CALLS is not enough — it has to hold across ENVIRONMENTS.
+
+    ``.dockerignore`` strips ``*.md`` from the build context, so the tree inside
+    the deployed image is not the tree in a checkout. If any ``.md`` reached the
+    archive, the image would pack different bytes, and the sha256 that
+    ``ingest_committed_bundles`` uses as its idempotency key would be a property
+    of where the code happens to be running. It caught exactly that: every bundle
+    packed differently once the READMEs were stripped.
+
+    Simulated rather than asserted about ``_NOT_CLINICAL_DATA`` directly, because
+    the property that matters is "the image and the checkout agree", not "one
+    filename is on a list" — a second documentation file added later fails this
+    test and passes that one.
+    """
+    stripped = tmp_path / "patient_bundles"
+    shutil.copytree(PF.bundles_root(), stripped)
+    md = list(stripped.rglob("*.md"))
+    assert md, "the fixture tree has no .md at all — this test is no longer measuring anything"
+    for p in md:
+        p.unlink()
+    assert PF.pack_bundle(bundle) == PF.pack_bundle(bundle, root=stripped)
+
+
+def test_the_readme_is_not_ingested_as_a_clinical_note():
+    """``ingestion._classify`` reads ``.md`` as ``note_text``. A bundle README is
+    documentation, and its "Clinical synopsis" names the chart's OUTCOME — so it
+    must not be in the archive at all. (It never reached a physician even when it
+    was: ``real_cases._visible`` fails closed on an undated item. Defence in depth
+    is the point — the outcome text should not be relying on a rule about
+    timestamps.)"""
+    names = zipfile.ZipFile(io.BytesIO(PF.pack_bundle("patient-1"))).namelist()
+    assert not [n for n in names if n.lower().endswith(".md")], names
+    # and the archive is still the chart, not an empty zip
+    assert len(names) > 100
+    assert any(n.endswith(".hl7") for n in names)
 
 
 def test_an_unmapped_bundle_is_refused_not_defaulted(tmp_path):
