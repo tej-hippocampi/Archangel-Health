@@ -3098,6 +3098,70 @@ class AsclepiusStore:
                 """
             )
 
+            # ═══ PAYMENTS RAIL §E: Stripe Connect Express ═══════════════════
+            # THE RULE THIS BLOCK IS WRITTEN AGAINST: we store exactly two
+            # Stripe facts about a physician, an account id and a status word.
+            # No bank account number, no routing number, no SSN, no EIN, no TIN,
+            # not now and not later. Stripe collects tax identity during Express
+            # onboarding and files the 1099-NECs, which is only defensible while
+            # we hold nothing worth breaching. A column here that wanted any of
+            # those fields would be the signal that the change belongs behind
+            # Connect instead, and tests/test_stripe_webhooks.py greps for them.
+            #
+            # Anything richer than id + status (requirements due, payout
+            # schedule, balances) is read from Stripe when an admin asks and
+            # never cached: a cached copy of compliance state is a stale copy
+            # from the moment Stripe updates it.
+            if "stripe_account_id" not in cols("users"):
+                conn.execute("ALTER TABLE users ADD COLUMN stripe_account_id TEXT")
+            conn.execute(
+                """
+                -- Every webhook Stripe has delivered, keyed on ITS event id, and
+                -- written BEFORE the event is processed. Stripe redelivers on any
+                -- non-2xx and can deliver out of order, so at-most-once processing
+                -- has to come from a durable row rather than from in-process
+                -- memory that a restart forgets. Same reasoning as the notify
+                -- outboxes: a crash mid-handler leaves a row with a NULL
+                -- processed_at, which is a work item, not a lost event.
+                CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+                    event_id     TEXT PRIMARY KEY,
+                    type         TEXT,
+                    payload_json TEXT,
+                    received_at  TEXT,
+                    processed_at TEXT,
+                    outcome      TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                -- One row per ledger row we have tried to transfer, so a failed
+                -- payout is a QUEUE rather than an exception nobody sees. The
+                -- ledger is the record of our decision to pay; this is the record
+                -- of Stripe executing it, and the two are allowed to disagree
+                -- while a failure is being worked.
+                CREATE TABLE IF NOT EXISTS stripe_transfers (
+                    earning_id      TEXT NOT NULL,
+                    transfer_id     TEXT,
+                    status          TEXT NOT NULL,
+                    failure_reason  TEXT,
+                    payout_batch_id TEXT,
+                    created_at      TEXT NOT NULL,
+                    updated_at      TEXT NOT NULL
+                )
+                """
+            )
+            # One transfer per ledger row is the whole reconciliation story
+            # (Stripe's ledger maps 1:1 onto ours), and the unique index is what
+            # makes a retry update the attempt rather than stack a second one.
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_stripe_transfers_earning "
+                "ON stripe_transfers(earning_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_stripe_transfers_batch "
+                "ON stripe_transfers(payout_batch_id)")
+            # ═══ END PAYMENTS RAIL §E ═══════════════════════════════════════
+
     # ─── Platform media (Onboarding v2 §0.1) ──────────────────────────────────
     def set_platform_media(
         self,
@@ -4858,6 +4922,153 @@ class AsclepiusStore:
             conn.execute(
                 "UPDATE users SET bank_link_status = ? WHERE id = ?", (status, user_id)
             )
+
+    # ─── Payments Rail §E: the two Stripe facts, and nothing else ────────────
+    # These accessors exist so that the set of columns the rail can write is
+    # visible in one place and stays two wide. Read the block in ``_migrate``
+    # for why that number is load-bearing.
+    def set_stripe_account_id(self, user_id: str, account_id: str) -> None:
+        """Bind a physician to their Connect Express account, once.
+
+        Guarded on ``stripe_account_id IS NULL`` rather than written blind: two
+        concurrent taps of "Link your bank account" would otherwise leave the
+        second account id in the row and the first one orphaned, holding a bank
+        account we can no longer transfer to.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET stripe_account_id = ? "
+                "WHERE id = ? AND stripe_account_id IS NULL",
+                (account_id, user_id))
+
+    def get_user_by_stripe_account(self, account_id: str) -> Optional[Dict[str, Any]]:
+        """The physician behind an ``account.updated`` webhook, or None.
+
+        None is a normal answer, not an error: Stripe delivers events for every
+        account on the platform, including ones this database has never heard of
+        (a test-mode account, an account created by a different environment
+        pointed at the same webhook)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE stripe_account_id = ?", (account_id,)).fetchone()
+        return dict(row) if row else None
+
+    def record_stripe_webhook_event(
+        self, *, event_id: str, event_type: Optional[str], payload_json: str,
+    ) -> bool:
+        """Store a delivered event before processing it. True if it is new.
+
+        False means Stripe has delivered this event id before, which is the
+        redelivery case and must not run the handler a second time. The claim is
+        the INSERT itself rather than a read-then-write, so two workers racing
+        the same redelivery cannot both decide they are first.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO stripe_webhook_events "
+                "(event_id, type, payload_json, received_at) VALUES (?, ?, ?, ?)",
+                (event_id, event_type, payload_json, _utcnow_iso()))
+            return bool(cur.rowcount)
+
+    def stamp_stripe_webhook_event(self, event_id: str, *, outcome: str) -> None:
+        """Mark a stored event handled, with what the handler decided."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE stripe_webhook_events SET processed_at = ?, outcome = ? "
+                "WHERE event_id = ?", (_utcnow_iso(), outcome, event_id))
+
+    def get_stripe_webhook_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM stripe_webhook_events WHERE event_id = ?",
+                (event_id,)).fetchone()
+        return dict(row) if row else None
+
+    def record_stripe_transfer(
+        self, *, earning_id: str, status: str, transfer_id: Optional[str] = None,
+        failure_reason: Optional[str] = None, payout_batch_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Upsert the transfer attempt for one ledger row.
+
+        Upsert rather than insert because a retried transfer is the SAME attempt
+        reaching a new outcome, not a second payment: the unique index on
+        ``earning_id`` and Stripe's ``earning:{id}`` idempotency key are the two
+        halves of the same guarantee, and a row per attempt would let a console
+        show two transfers where one dollar moved.
+        """
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO stripe_transfers
+                    (earning_id, transfer_id, status, failure_reason,
+                     payout_batch_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(earning_id) DO UPDATE SET
+                    transfer_id     = COALESCE(excluded.transfer_id, stripe_transfers.transfer_id),
+                    status          = excluded.status,
+                    failure_reason  = excluded.failure_reason,
+                    payout_batch_id = COALESCE(excluded.payout_batch_id,
+                                               stripe_transfers.payout_batch_id),
+                    updated_at      = excluded.updated_at
+                """,
+                (earning_id, transfer_id, status, failure_reason,
+                 payout_batch_id, now, now))
+            row = conn.execute(
+                "SELECT * FROM stripe_transfers WHERE earning_id = ?",
+                (earning_id,)).fetchone()
+        return dict(row)
+
+    def get_stripe_transfer(self, earning_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM stripe_transfers WHERE earning_id = ?",
+                (earning_id,)).fetchone()
+        return dict(row) if row else None
+
+    def stripe_transfer_by_transfer_id(self, transfer_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM stripe_transfers WHERE transfer_id = ?",
+                (transfer_id,)).fetchone()
+        return dict(row) if row else None
+
+    def stamp_stripe_transfer_status(
+        self, transfer_id: str, *, status: str, failure_reason: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Move an existing attempt to a status Stripe reported by webhook.
+
+        Keyed on ``transfer_id`` because that is all a transfer event carries
+        that we can trust; an event for a transfer this database never created
+        updates nothing and returns None rather than inventing a row.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE stripe_transfers SET status = ?, failure_reason = ?, "
+                "updated_at = ? WHERE transfer_id = ?",
+                (status, failure_reason, _utcnow_iso(), transfer_id))
+            row = conn.execute(
+                "SELECT * FROM stripe_transfers WHERE transfer_id = ?",
+                (transfer_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_stripe_transfers(
+        self, *, payout_batch_id: Optional[str] = None, status: Optional[str] = None,
+        limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM stripe_transfers WHERE 1 = 1"
+        params: List[Any] = []
+        if payout_batch_id:
+            sql += " AND payout_batch_id = ?"
+            params.append(payout_batch_id)
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        sql += " ORDER BY updated_at DESC LIMIT ?"
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
     # ─── Onboarding v2 §0.1: the temporary password ───────────────────────────
     def set_temp_password(self, user_id: str, password: str) -> None:
