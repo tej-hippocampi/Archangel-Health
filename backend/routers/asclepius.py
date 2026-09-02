@@ -22,7 +22,7 @@ import secrets
 import time
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Query, Request,
@@ -730,6 +730,90 @@ async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
     return asc_auth.public_user(user)
 
 
+#: What the physician's own profile may show back from the credential blob.
+#:
+#: A WHITELIST, and that is the whole design. The blob also carries the keys in
+#: tiering.FORBIDDEN_CREDENTIAL_KEYS, and those are absent from this product on
+#: purpose: medical school, graduation year, date of birth, sex, IMG status.
+#: They are not collected, not scored, and not displayed, because a pedigree
+#: field on a physician's profile becomes a pedigree field in somebody's
+#: judgment of them. Whitelisting means a future key added to the blob is
+#: invisible here until somebody decides it should be visible, rather than
+#: appearing the moment it is collected.
+_PROFILE_DETAIL_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("languages", "languages"),
+    ("subspecialties", "subspecialties"),
+    ("boardCertifications", "board_certifications"),
+    ("residency", "residency"),
+    ("fellowship", "fellowship"),
+    ("practiceSettings", "practice_settings"),
+    ("yearsInActivePractice", "years_in_active_practice"),
+    ("clinicalHalfDaysPerMonth", "clinical_half_days_per_month"),
+    ("structuredReviewExperience", "structured_review_experience"),
+    ("currentlyActive", "currently_active"),
+)
+
+
+def _credentials_detail(creds: Dict[str, Any]) -> Dict[str, Any]:
+    """The training and practice the physician told us about, read back.
+
+    Absent stays absent. A key with no value is omitted rather than returned as
+    an empty list, so the client renders nothing rather than a row that looks
+    like data somebody entered.
+    """
+    out: Dict[str, Any] = {}
+    for src, dest in _PROFILE_DETAIL_KEYS:
+        val = creds.get(src)
+        if val in (None, "", [], {}):
+            continue
+        out[dest] = val
+    return out
+
+
+#: The completeness prompt, in the order we would ask.
+#:
+#: Ordered by what actually improves routing: languages and subspecialties
+#: decide which cases can reach somebody, so they come first. Nothing here is
+#: required, and none of it gates anything.
+_COMPLETENESS_FIELDS: Tuple[Tuple[str, str], ...] = (
+    ("languages", "the languages you practise in"),
+    ("subspecialties", "your subspecialties"),
+    ("practice_settings", "the settings you practise in"),
+    ("years_in_active_practice", "your years in active practice"),
+    ("avatar", "a profile photo"),
+    ("specialty_niche", "your particular focus within your specialty"),
+    ("linkedin_url", "your LinkedIn"),
+)
+
+
+def _profile_completeness(row: Dict[str, Any], creds: Dict[str, Any]) -> Dict[str, Any]:
+    """A percentage and what is missing, in the order we would ask for it.
+
+    Deliberately a quiet meter and not a demand. Everything in here is optional,
+    it exists because a fuller profile routes better work to somebody, and a
+    product that nags a busy clinician about an optional field is one they stop
+    opening.
+    """
+    detail = _credentials_detail(creds)
+    present: Dict[str, bool] = {
+        "languages": bool(detail.get("languages")),
+        "subspecialties": bool(detail.get("subspecialties")),
+        "practice_settings": bool(detail.get("practice_settings")),
+        "years_in_active_practice": detail.get("years_in_active_practice") is not None,
+        "avatar": bool(row.get("avatar_asset_sha")),
+        "specialty_niche": bool((row.get("specialty_niche") or "").strip()),
+        "linkedin_url": bool((row.get("linkedin_url") or "").strip()),
+    }
+    missing = [{"field": f, "label": label}
+               for f, label in _COMPLETENESS_FIELDS if not present.get(f)]
+    total = len(_COMPLETENESS_FIELDS)
+    return {
+        "percent": round(100 * (total - len(missing)) / total) if total else 100,
+        "missing": missing,
+        "complete": not missing,
+    }
+
+
 @router.get("/me/profile")
 async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE))):
     """Everything the portal shows a physician about their own account.
@@ -779,6 +863,14 @@ async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc
             "signed_initials": (json.loads(row.get("attestations_json") or "{}") or {}).get(
                 "signedInitials") if row.get("attestations_json") else None,
         },
+        # Training and practice. Every one of these was already collected at
+        # signup and shown to the ADMIN reviewing the application, while the
+        # physician who typed them could not see them back. That asymmetry is
+        # the actual bug: a doctor should be able to read what we hold about
+        # them, and it is also what makes a completeness prompt honest rather
+        # than a demand for information they cannot check.
+        "training_and_practice": _credentials_detail(creds),
+        "completeness": _profile_completeness(row, creds),
         # No `score`, and no `band`.
         #
         # This endpoint's contract is "everything the portal shows a physician
@@ -2799,9 +2891,24 @@ async def my_stats(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     total cases completed, how many in the last 7 days, and their last
     submission timestamp. Every ``submissions`` row is already a completed
     case (drafts live client-side, never written here), so no status filter
-    is needed."""
+    is needed.
+
+    Counts and dates only, and that is a rule rather than a current limitation.
+    This is the one work-history surface the physician themselves reads, so the
+    moment a field here derives from grading, agreement or the contributor
+    score it becomes the internal number wearing a chart. What somebody sees
+    about their own record is what they did, not how we rate it.
+    """
     store = _store()
-    return store.evaluator_self_stats(user["id"])
+    stats = dict(store.evaluator_self_stats(user["id"]) or {})
+    try:
+        stats["monthly"] = store.monthly_submission_counts(user["id"])
+    except Exception:
+        # The widget that already works is still the truth. A history panel
+        # that cannot be built costs the panel, never the dashboard.
+        log.exception("[asclepius] monthly submission counts failed for %s", user["id"])
+        stats["monthly"] = []
+    return stats
 
 
 def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> None:
