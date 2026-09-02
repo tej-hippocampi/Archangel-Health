@@ -267,6 +267,17 @@ def notify_person(store: Any, *, kind: str, to: str, subject: str, body_html: st
         return 0
 
 
+def _password_is_unset(store: Any, user: Dict[str, Any]) -> bool:
+    """True when this account has no way to sign in yet (Onboarding v2)."""
+    try:
+        from asclepius import store as _store_mod  # noqa: PLC0415
+        return bool(_store_mod.password_is_unset(user))
+    except Exception:
+        # Unknown reads as "has a password", so the worst case is a notice that
+        # points at a door rather than no notice at all.
+        return False
+
+
 def _person_key(kind: str, dedupe_key: str, addr: str) -> str:
     return _alert_keys(kind, dedupe_key, [addr], False)[0][1]
 
@@ -302,8 +313,27 @@ def on_verification_decision(store: Any, *, user: Optional[Dict[str, Any]],
         full_name = (user.get("full_name") or "").strip()
 
         if status == "approved":
-            # A WORD, never a token. Resolving it at the boundary is what stops
-            # "labeler" reaching a physician from some future call site.
+            # Onboarding v2 made approval the moment credentials come into
+            # existence: the wizard has no password step, so the console mints a
+            # temporary password and sends a welcome carrying it, synchronously,
+            # and tells the admin when that send failed. That design is right and
+            # this does not replace it.
+            #
+            # What it covers is the two paths that still send nothing: the
+            # verification agent's auto-approval and /admin/physicians/restore.
+            # Under v2 those leave a physician with no mail AND no credential, so
+            # they cannot sign in at all, and nothing anywhere says so.
+            #
+            # `mint_credentials` is the seam. When the account already has a
+            # password there is nothing to issue and the plain approval notice is
+            # the whole job; when it does not, the caller has to have issued one
+            # before this runs, because a queued "your temporary password is ..."
+            # with no password in it is worse than silence.
+            if _password_is_unset(store, user):
+                log.warning(
+                    "notifications: %s approved with no credential; not queuing a "
+                    "welcome it cannot carry", user.get("id"))
+                return
             tier_word = _caps.tier_word(tier) if tier else ""
             notify_person(
                 store, kind="physician_approved", to=email,

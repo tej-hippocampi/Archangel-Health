@@ -31,13 +31,14 @@ Three properties are load-bearing. Change them only on purpose.
 from __future__ import annotations
 
 import asyncio
+import secrets
 import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
 
 from asclepius import capabilities as caps
-from asclepius import credentialing, tiering
+from asclepius import credentialing, onboarding_nudge, tiering
 
 log = logging.getLogger("asclepius.verification_agent")
 
@@ -286,6 +287,34 @@ def _run_registry_check(store: Any, user: Dict[str, Any]) -> Optional[Dict[str, 
     return result
 
 
+async def _issue_credentials_if_needed(store: Any, user: Dict[str, Any]) -> Optional[str]:
+    """Mint a temporary password when this account has none. Never raises.
+
+    Same shape and same reasoning as the console's mint (asclepius_verify.py):
+    twelve characters of token_urlsafe, rotated at first sign-in, and the
+    password itself never enters the event payload -- the row exists so an
+    auditor can see that a credential was minted, which is the opposite of a
+    place to write it down.
+    """
+    from asclepius import store as _store_mod  # noqa: PLC0415
+
+    try:
+        if not _store_mod.password_is_unset(user):
+            return None
+        temp = secrets.token_urlsafe(9)
+        await asyncio.to_thread(store.set_temp_password, user["id"], temp)
+        store.log_event(
+            entity_type="user", entity_id=user["id"],
+            event_type="temp_password_issued", actor=ACTOR,
+            payload={"reason": "auto_approval"},
+        )
+        return temp
+    except Exception:
+        log.exception("[verify-agent] could not mint a temporary password "
+                      "(approval stands; the physician has no credential yet)")
+        return None
+
+
 async def run_one(store: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     """Process one claimed job. Returns the dossier, decision folded in."""
     user = await asyncio.to_thread(store.get_user_by_id, job["user_id"])
@@ -317,6 +346,18 @@ async def run_one(store: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     if verdict["decision"] == "auto_approve" and auto_approve_enabled():
+        # Credentials BEFORE the decision is recorded, because recording it is
+        # what queues the physician's mail and that mail has to be able to carry
+        # them. Onboarding v2 made approval the moment an account becomes usable
+        # at all: the wizard has no password step, so without this an
+        # agent-approved physician has no password, is never told they were
+        # approved, and cannot sign in. The console path mints one; this is the
+        # same thing on the path nobody was watching.
+        #
+        # Nothing here can fail the approval. A mint that throws leaves the
+        # account approved and credential-less, which is what happens today, and
+        # the notification layer declines to send a welcome it cannot fill in.
+        await _issue_credentials_if_needed(store, user)
         store.record_verification_decision(
             user["id"], status="approved", decided_by=ACTOR,
             tier=verdict["tier"], note=verdict["recommendation"],
@@ -369,9 +410,25 @@ async def run_agent_loop() -> None:
     # touch a database, and a task created during startup begins running at the
     # first await.
     await asyncio.sleep(_INTERVAL)
+    # Onboarding v2 §3 rides this loop rather than owning a timer of its own: it
+    # already polls, already keeps its sqlite work off the event loop, and
+    # already survives a failing iteration. Its own, much slower cadence though —
+    # this loop's interval is tuned for verification jobs (30s), and re-running
+    # two nudge queries twice a minute forever is pointless work.
+    next_nudge_sweep = 0.0
     while True:
         try:
             store = get_store()
+            now = asyncio.get_running_loop().time()
+            if now >= next_nudge_sweep:
+                next_nudge_sweep = now + onboarding_nudge.SWEEP_INTERVAL_SECONDS
+                try:
+                    await onboarding_nudge.sweep()
+                except Exception:
+                    # sweep() does not raise, but a scheduler that CAN stop is a
+                    # scheduler that eventually does. The verification jobs below
+                    # are not the nudges' business to break.
+                    log.exception("[verify-agent] nudge sweep failed (loop continues)")
             # Every store call here is synchronous sqlite. Running it directly
             # would put it ON THE EVENT LOOP, where one lock-wait stalls every
             # request in the process rather than just this loop. Same rule the

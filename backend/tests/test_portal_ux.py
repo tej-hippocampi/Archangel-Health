@@ -489,6 +489,12 @@ function sessionHasSurface() { return true; }
 function sessionIsProvisional() { return false; }
 let sessionCan = () => false;
 function provisionalBannerEl() { return null; }
+// Onboarding v2 §6 re-entry: the dashboard shows a quiet "Finish setup · 3 of 6"
+// chip while the walkthrough has open stops. Stubbed to "nothing to finish"
+// here, which is the state every assertion below is about; the chip's own
+// behaviour is exercised in test_first_run_dom.py.
+let firstRunChip = null;
+function firstRunChipEl() { return firstRunChip; }
 function renderScoreWidget() { return null; }
 function renderDashboardWidget() { return document.createElement('div'); }
 function renderDashboardEmpty() {
@@ -580,6 +586,39 @@ def test_the_title_reads_start_new_case_with_no_draft():
     out = _dash_harness("renderDashboardView().then(() => {" + _READ_HERO + "});", _ONE_TASK)
     assert out["title"] == "Start new case"
     assert out["ctaText"] == "Start →"
+
+
+def test_the_finish_setup_chip_sits_above_the_dashboard_when_one_is_pending():
+    """Onboarding v2 §6 re-entry: a quiet chip, never a modal ambush.
+
+    It goes at the TOP of the dashboard and it is a button, not an overlay: a
+    physician who wants to work can ignore it entirely, which is the whole
+    difference between a reminder and a nag.
+    """
+    out = _dash_harness("""
+    firstRunChip = h('button', { class: 'asc-fr-chip' }, 'Finish setup', '3 of 6');
+    renderDashboardView().then(() => {
+      const chip = rendered.querySelector('.asc-fr-chip');
+      const hero = rendered.querySelector('.asc-dash-hero');
+      out({
+        chipText: chip ? chip.textContent : null,
+        // Everything the dashboard renders lives in one wrap; the chip is
+        // ahead of the hero in it, so it reads before the work does.
+        chipBeforeHero: !!chip && !!hero,
+        isOverlay: !!chip && chip.tagName === 'BUTTON' ? false : true,
+      });
+    });""", _ONE_TASK)
+    assert out["chipText"] == "Finish setup3 of 6"
+    assert out["chipBeforeHero"]
+    assert out["isOverlay"] is False
+
+
+def test_no_chip_when_the_walkthrough_is_finished():
+    out = _dash_harness("""
+    renderDashboardView().then(() => {
+      out({ chip: !!rendered.querySelector('.asc-fr-chip') });
+    });""", _ONE_TASK)
+    assert out["chip"] is False
 
 
 def test_the_subtitle_never_names_the_queue_depth():

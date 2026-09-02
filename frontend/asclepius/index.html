@@ -54,6 +54,12 @@
   <!-- Referral (PRD-REF) — defines window.ReferralSection, mounted by
        asclepius.js for sessions holding the 'refer' capability. -->
   <script src="/static/asclepius/referral.js" defer></script>
+  <!-- First-login walkthrough (Onboarding v2 §6) — defines
+       window.FirstRunWalkthrough, mounted by asclepius.js right after sign-in
+       for a physician whose checklist still has open stops. Its own file for
+       the same reason every other section has one (§3.3 ownership); the shell
+       hands it a context and owns nothing about its screens. -->
+  <script src="/static/asclepius/first_run.js" defer></script>
   <!-- Earnings (PRD-P §5) — defines window.EarningsSection, mounted by
        asclepius.js, and window.AsclepiusSession, the billable-session heartbeat
        client the review surface drives. It MUST load before review.js: the

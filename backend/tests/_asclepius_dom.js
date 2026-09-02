@@ -83,13 +83,24 @@ class Element extends Node {
     if (node.parentNode) node.parentNode.removeChild(node);
     node.parentNode = this;
     this.childNodes.push(node);
+    // A browser makes an element with an id findable by getElementById as soon
+    // as it is in the document, and code that PORTALS a node to <body> and then
+    // looks it up by id (a modal, an overlay) depends on exactly that. The shim
+    // used to require an explicit document.register(), which meant such code
+    // silently found nothing here and its tests could only assert around the
+    // gap. Registering on insert is what the browser does.
+    _registerTree(node);
     return node;
   }
   removeChild(node) {
     const i = this.childNodes.indexOf(node);
-    if (i !== -1) { this.childNodes.splice(i, 1); node.parentNode = null; }
+    if (i !== -1) { this.childNodes.splice(i, 1); node.parentNode = null; _unregisterTree(node); }
     return node;
   }
+  /** ``el.remove()``. The portal's overlays tear themselves down with it —
+      without it a "close" handler throws and the overlay stays on screen, which
+      is both the browser behaviour and the thing worth testing. */
+  remove() { if (this.parentNode) this.parentNode.removeChild(this); return this; }
   replaceChild(fresh, stale) {
     const i = this.childNodes.indexOf(stale);
     if (i === -1) throw new Error('replaceChild: node is not a child');
@@ -164,6 +175,25 @@ class Element extends Node {
     for (let n = other; n; n = n.parentNode) if (n === this) return true;
     return false;
   }
+}
+
+/** Index (or drop) every id in a subtree as it enters (or leaves) the document.
+ *  Defined before ``document`` so both are hoisted together; the guard on
+ *  ``document`` covers the one call that happens while it is still being built.
+ */
+function _registerTree(node) {
+  if (!(node instanceof Element) || typeof document === 'undefined' || !document._byId) return;
+  if (node.id) document._byId.set(node.id, node);
+  node.childNodes.forEach(_registerTree);
+}
+
+function _unregisterTree(node) {
+  if (!(node instanceof Element) || typeof document === 'undefined' || !document._byId) return;
+  // Only drop the entry if it still points at THIS node: a re-render that
+  // replaces a node with a new one carrying the same id registers the new one
+  // first, and dropping it on the old node's removal would un-find the live one.
+  if (node.id && document._byId.get(node.id) === node) document._byId.delete(node.id);
+  node.childNodes.forEach(_unregisterTree);
 }
 
 const document = {

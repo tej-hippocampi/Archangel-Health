@@ -1,13 +1,17 @@
 import asyncio
 import json
 import os
+import re
 import time
 import hashlib
 from typing import Any, Optional
 
 from anthropic import Anthropic, AsyncAnthropic
 
-from ai.model_config import APP_AI_CONFIG_VERSION, resolve, resolve_provider, api_model_id, UnknownProvider
+from ai.model_config import (
+    APP_AI_CONFIG_VERSION, SAMPLING_PARAMS, accepts_sampling_params, api_model_id,
+    emits_thinking, resolve, resolve_provider, UnknownProvider,
+)
 from team_store import TeamStore
 
 _async_client: Optional[AsyncAnthropic] = None
@@ -219,6 +223,13 @@ def _build_kwargs(role: str, system: str, messages: list[dict[str, Any]], overri
     if temp is not None:
         kwargs["temperature"] = temp
     kwargs.update(overrides)
+    # Some frontier models accept DEFAULT sampling only and 400 on a pinned
+    # ``temperature``/``top_p`` (see model_config.accepts_sampling_params). Drop
+    # them rather than send a value the API refuses — the OpenAI leg already does
+    # the same thing for reasoning models a few functions down.
+    if not accepts_sampling_params(kwargs["model"]):
+        for _p in SAMPLING_PARAMS:
+            kwargs.pop(_p, None)
     return kwargs, cfg
 
 
@@ -333,9 +344,76 @@ async def _openai_create_async(model: str, system: str, messages: list[dict[str,
                           getattr(resp, "id", None))
 
 
+#: The API's wording when a model refuses a pinned sampling parameter:
+#: ``\`temperature\` is deprecated for this model.``
+_DEPRECATED_PARAM_RE = re.compile(r"`(\w+)` is deprecated for this model", re.I)
+
+
+def _retry_without_deprecated_param(kwargs: dict[str, Any], exc: Exception) -> Optional[dict[str, Any]]:
+    """Kwargs with the one parameter the API just rejected removed, or None.
+
+    THE BACKSTOP for a model nobody has listed yet. ``model_config`` carries the
+    ids known to accept default sampling only, and that list is exact rather than
+    a prefix — which means the day a new frontier model ships with the same
+    constraint, every role pinned to it starts 400ing, including the case judge
+    that fails closed and the frontier baseline. That is a silent outage of the
+    whole premium generation path, and the error text names neither the model nor
+    the fix.
+
+    So the 400 is read rather than just re-raised: if the API names a parameter as
+    deprecated, drop that one and try once more. Scoped deliberately tight — only
+    a parameter the API itself named, only one retry (the caller's own retry loop
+    treats 400 as permanent, correctly, so this cannot loop), and only when the
+    parameter was actually being sent.
+    """
+    m = _DEPRECATED_PARAM_RE.search(str(exc))
+    if not m:
+        return None
+    param = m.group(1)
+    if param not in kwargs:
+        return None
+    trimmed = {k: v for k, v in kwargs.items() if k != param}
+    import sys
+    print(f"[llm_client] {kwargs.get('model')} rejected {param!r}; retrying without it. "
+          f"Add it to model_config._FIXED_SAMPLING_MODELS (or MODEL_FIXED_SAMPLING) "
+          f"to skip this round-trip.", file=sys.stderr)
+    return trimmed
+
+
+def _anthropic_output_cap(model: str, max_tokens: Optional[int]) -> int:
+    """Effective ``max_tokens`` for Anthropic — the mirror of ``_openai_output_cap``.
+
+    A thinking block is drawn from the SAME output budget as the visible answer,
+    so a role sized for a non-thinking model (candidate generation asks for 2000)
+    is routinely consumed ENTIRELY by thinking on a hard multi-panel clinical
+    case. The API then returns ``stop_reason="max_tokens"`` with the JSON cut off
+    mid-sentence, the parse yields nothing, and the whole generation reports a
+    missing API key.
+
+    So a model that can think gets a reserve ON TOP of the answer budget, exactly
+    as the OpenAI reasoning models already do. Env-overridable via
+    ``LLM_ANTHROPIC_THINKING_RESERVE``; models that cannot think are unchanged.
+    """
+    base = int(max_tokens or 0) or 2000
+    if not emits_thinking(model):
+        return base
+    try:
+        reserve = int(os.getenv("LLM_ANTHROPIC_THINKING_RESERVE", "8000"))
+    except (TypeError, ValueError):
+        reserve = 8000
+    return base + max(0, reserve)
+
+
 async def _anthropic_create_async(kwargs: dict[str, Any]) -> Any:
     kwargs = {**kwargs, "model": api_model_id(kwargs.get("model", ""))}
-    return await _aclient().messages.create(**kwargs)
+    kwargs["max_tokens"] = _anthropic_output_cap(kwargs["model"], kwargs.get("max_tokens"))
+    try:
+        return await _aclient().messages.create(**kwargs)
+    except Exception as exc:  # noqa: BLE001 — narrowed immediately below
+        retry = _retry_without_deprecated_param(kwargs, exc)
+        if retry is None:
+            raise
+        return await _aclient().messages.create(**retry)
 
 
 async def call_llm(
@@ -450,7 +528,17 @@ def call_llm_sync(
         resp = _openai_create_sync(cfg["model"], system, messages,
                                    kwargs.get("max_tokens"), kwargs.get("temperature"))
     else:
-        resp = _sclient().messages.create(**{**kwargs, "model": api_model_id(kwargs.get("model", ""))})
+        # Same backstop as the async leg — a model that refuses a pinned sampling
+        # parameter must not take the sync callers down either.
+        _kw = {**kwargs, "model": api_model_id(kwargs.get("model", ""))}
+        _kw["max_tokens"] = _anthropic_output_cap(_kw["model"], _kw.get("max_tokens"))
+        try:
+            resp = _sclient().messages.create(**_kw)
+        except Exception as exc:  # noqa: BLE001 — re-raised unless the API named a param
+            _retry = _retry_without_deprecated_param(_kw, exc)
+            if _retry is None:
+                raise
+            resp = _sclient().messages.create(**_retry)
     try:
         rec = _record(role, cfg, prompt_id, purpose, system, messages, resp, t0, provider=provider)
         _log(rec, patient_id, system, messages, resp)

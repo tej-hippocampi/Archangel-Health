@@ -41,6 +41,29 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 - **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
 - **CORS for the deployed landing**: the backend allowlists origins from `ALLOWED_ORIGINS` (or `BASE_URL`+`LANDING_URL`), plus a baked-in regex for `https://archangelhealth.ai` and its subdomains (`ALLOWED_ORIGIN_REGEX` to override — see `backend/http_security.py`). If sign-in from a new landing domain fails with a "Cannot reach the backend API" error, add that origin to `ALLOWED_ORIGINS` on the backend host (Railway).
 
+### The onboarding demo video
+
+The ~73 MB demo is **not in the repo** and must not be added to it. It lives in
+the content-addressed asset store (`ASCLEPIUS_ASSET_STORE`), which in production
+must be a **persistent volume** — on Railway, add a Volume and point that
+variable at its mount path. A container filesystem is wiped on redeploy, so
+without a volume the video disappears the next time you ship; the upload
+endpoint refuses outright rather than accepting bytes it knows will vanish.
+
+Upload (or replace, after a re-record) from your laptop:
+
+```
+python3 backend/scripts/upload_onboarding_demo.py \
+    --base-url https://<api-host> --email <an admin account> --file demo.mp4
+```
+
+It is served by `GET /api/asclepius/assets/onboarding-demo` with HTTP Range
+support, so the player's timeline actually scrubs. The `<video>` element
+authenticates with a 30-minute **media ticket** (`POST …/onboarding-demo/ticket`)
+rather than the session token, because a `<video src>` cannot send an
+Authorization header and a session token in a query string ends up in access
+logs. MP4 (H.264 + AAC) plays everywhere; .mov is accepted but warns.
+
 ### Claude Code healthcare plugins
 `.claude/settings.json` enables two Agent Skills from Anthropic's [`anthropics/healthcare`](https://github.com/anthropics/healthcare) marketplace for everyone working on this repo in Claude Code (you'll be prompted to trust/install them on first launch):
 - **`fhir-developer@healthcare`** — FHIR R4 reference (resource structures, LOINC/SNOMED/RxNorm coding, SMART-on-FHIR auth) for EHR interop work.
@@ -69,4 +92,6 @@ These are **dev-time references only** — they are not wired into the product r
 | `/api/eligibility-batches` | POST | Group upload with identity fan-out |
 | `/api/eligibility-batches/{id}/stream` | GET | SSE for batch progress |
 | `/admin/audit/eligibility` | GET | TEAM audit log viewer |
+| `/api/asclepius/assets/onboarding-demo` | GET | Onboarding demo video (Range/206, auth or media ticket) |
+| `/api/asclepius/admin/assets/onboarding-demo` | POST | Admin: upload/replace the demo video |
 | `/docs` | GET | Swagger UI |

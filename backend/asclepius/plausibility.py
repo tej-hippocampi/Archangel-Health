@@ -324,8 +324,58 @@ def flags(
     # ── Timeline ─────────────────────────────────────────────────────────
     out.extend(_timeline_flags(user, creds))
 
+    # ── What this application did NOT bring (Onboarding v2 §2) ───────────
+    out.extend(_missing_evidence_flags(user, creds))
+
     order = {SEVERITY_HIGH: 0, SEVERITY_MEDIUM: 1, SEVERITY_LOW: 2}
     out.sort(key=lambda f: order.get(f["severity"], 3))
+    return out
+
+
+def _missing_evidence_flags(
+    user: Dict[str, Any], creds: Dict[str, Any]
+) -> List[Dict[str, str]]:
+    """Onboarding v2 §2 — the fields the wizard no longer insists on.
+
+    v2 asks for name, email and specialty and lets a physician submit without an
+    NPI, without a CV and without a certification. That is deliberate: a
+    consultant on a ward round should be able to finish the form in two minutes,
+    and everything else is evidence we can ask for later.
+
+    But "not required" must not mean "unnoticed". These are LOW-severity notes,
+    which is exactly the right level and not a hedge: ``propose_tier`` suppresses
+    its proposal only on HIGH findings, so a low note reaches the reviewer's
+    dossier without turning a two-minute application into an automatic manual
+    hold. Absence is pending, never penalized — the same rule the tier weights
+    already follow, said out loud where an admin can read it.
+    """
+    out: List[Dict[str, str]] = []
+    country = (creds.get("countryOfLicensure") or user.get("country_of_licensure") or "US").upper()
+
+    identifier = str(creds.get("npi") or user.get("npi") or "").strip() if country == "US" \
+        else str(creds.get("registrationNumber") or user.get("registry_id") or "").strip()
+    if not identifier:
+        label = "NPI" if country == "US" else "registration number"
+        out.append(_flag(
+            f"{'npi' if country == 'US' else 'registration_number'}", "not_provided",
+            SEVERITY_LOW,
+            f"no {label} on the application; identity is unverified until one arrives",
+        ))
+
+    cv = user.get("cv_asset_sha") or creds.get("cvAssetSha")
+    if not cv:
+        out.append(_flag("cv", "not_provided", SEVERITY_LOW,
+                         "no CV uploaded; nothing to corroborate the typed record"))
+
+    board = (user.get("board_cert") or "").strip()
+    if not board:
+        certs = creds.get("boardCertifications") or []
+        board = ", ".join(
+            str(c.get("board") or "") for c in certs if isinstance(c, dict)
+        ).strip(", ")
+    if not board:
+        out.append(_flag("board_cert", "not_provided", SEVERITY_LOW,
+                         "no board certification claimed"))
     return out
 
 

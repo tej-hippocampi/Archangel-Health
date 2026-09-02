@@ -9,6 +9,17 @@ So the partition property is asserted here, in the suite itself, on every run �
 which means the guard travels with the thing it guards. Add a test file and this
 test proves it reached a shard; change the packing and this test proves the
 partition survived.
+
+A SECOND property lives here for the same reason: **which shard a file lands in
+must not change whether it passes.** The packer is a bin-packer, so adding one
+test file anywhere reshuffles most of the suite — measured: two new files moved
+130 of 208. That is fine as long as no file depends on a sibling having run
+first, and it is not fine the moment one does. Two files did, both on a
+process-wide ``EMAIL_DEV_MODE`` that fourteen other files happened to set at
+import; both went red the first time the shards were repacked. The suite-wide
+defaults that close that hole live in ``tests/conftest.py``, and the test below
+asserts they are still there — because deleting one of those lines produces a
+failure that looks like an unrelated flake in an unrelated file, weeks later.
 """
 
 from __future__ import annotations
@@ -140,3 +151,52 @@ def test_the_workflow_matrix_matches_the_configured_width():
     declared = [int(x) for x in matrix_line.split("[", 1)[1].split("]")[0].split(",")]
     assert declared == list(range(1, CI_SHARDS + 1)), (
         f"matrix declares shards {declared}, expected 1..{CI_SHARDS}")
+
+
+# ─── Order independence ───────────────────────────────────────────────────────
+#: Behaviour-changing flags that ``tests/conftest.py`` must establish for the
+#: WHOLE suite. Each one is a switch some endpoint reads at request time, so a
+#: file that needs it and does not set it passes only when a sibling set it
+#: first — and the CI packer decides who the siblings are.
+#:
+#: This is deliberately NOT every env var conftest sets. Temp paths
+#: (ASCLEPIUS_DB_PATH and friends) are about not writing into the repo; these are
+#: about the suite giving the same answer regardless of collection order.
+SUITE_WIDE_BEHAVIOUR_FLAGS = {
+    # Application rate limiting off: the suite fires many requests from one
+    # TestClient IP and would otherwise trip the brute-force throttles.
+    "RATE_LIMIT_ENABLED": "0",
+    # Outgoing email "configured" but printed, never sent. Endpoints that mail
+    # someone 503 without a transport; tests asserting THAT path monkeypatch the
+    # predicate directly, so they are unaffected by this default.
+    "EMAIL_DEV_MODE": "1",
+}
+
+
+@pytest.mark.parametrize("flag,expected", sorted(SUITE_WIDE_BEHAVIOUR_FLAGS.items()))
+def test_conftest_sets_the_suite_wide_behaviour_flags(flag, expected):
+    """Asserted on the LIVE environment, not by reading conftest's source.
+
+    Reading the file would pass for a line that is present but unreachable — a
+    setdefault after an early return, a typo in the var name. What matters is
+    that the flag is actually in effect for every test in this process, which is
+    what any other test file would be relying on.
+    """
+    assert os.environ.get(flag) == expected, (
+        f"{flag} is not set suite-wide. tests/conftest.py must setdefault it: "
+        "without it, files that need it pass only when some sibling happens to "
+        "set it first, and the CI shard packer decides which siblings run "
+        "alongside which — so adding one unrelated test file turns them red.")
+
+
+def test_conftest_does_not_hard_assign_the_behaviour_flags():
+    """``setdefault``, never ``=``. A file that deliberately wants the other
+    behaviour sets the var before conftest imports, or monkeypatches the
+    predicate; a hard assignment here would silently overrule both."""
+    text = (Path(BACKEND) / "tests" / "conftest.py").read_text(encoding="utf-8")
+    for flag in SUITE_WIDE_BEHAVIOUR_FLAGS:
+        assert f'os.environ.setdefault("{flag}"' in text, (
+            f"{flag} must be set with setdefault in tests/conftest.py")
+        assert f'os.environ["{flag}"]' not in text, (
+            f"{flag} is hard-assigned in tests/conftest.py; use setdefault so a "
+            "test module that needs the other behaviour can still choose it")

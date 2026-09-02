@@ -23,6 +23,24 @@ import os
 import random
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+# The κ-pool exclusion vocabulary and the trajectory-point predicate live in
+# ``trajectory`` (the pure module that produces the excluded observations) and are
+# imported here rather than re-declared, so the token this module filters on and
+# the token the store writes are the same string by construction. ``trajectory``
+# imports nothing from the package, so this cannot cycle.
+from asclepius import trajectory as asc_trajectory
+
+KAPPA_EXCLUSION_SEQUENTIAL = asc_trajectory.KAPPA_EXCLUSION_SEQUENTIAL
+KAPPA_EXCLUSION_RATIONALE = asc_trajectory.KAPPA_EXCLUSION_RATIONALE
+# §8.1 — relay points are excluded too, but on the single-label floor rather than
+# the sequential-dependence rule. Two reasons, reported separately, because they
+# are fixed by different things: a second walk fixes one and nothing fixes the
+# other. Imported rather than re-spelled so the writer and the reporter cannot
+# drift (the same discipline the sequential token already follows).
+KAPPA_EXCLUSION_RELAY_SINGLE = asc_trajectory.KAPPA_EXCLUSION_RELAY_SINGLE
+KAPPA_EXCLUSION_RELAY_RATIONALE = asc_trajectory.KAPPA_EXCLUSION_RELAY_RATIONALE
+_TRAJECTORY_EXCLUSIONS = (KAPPA_EXCLUSION_SEQUENTIAL, KAPPA_EXCLUSION_RELAY_SINGLE)
+
 try:  # pydantic is a hard dep; the model is optional sugar for the routing layer
     from pydantic import BaseModel, Field
 
@@ -119,6 +137,8 @@ def should_double_label(task: Dict[str, Any], *, current_rate: float,
       * V4 real_deid cases (the premium tier)
       * any case whose first annotator flagged low confidence
       * every case in a NEW specialty until 30 observations exist
+
+    NEVER double-label by default: a longitudinal trajectory point (PRD 2 §9.6).
     """
     t = task or {}
     case = t.get("case") or {}
@@ -126,6 +146,21 @@ def should_double_label(task: Dict[str, Any], *, current_rate: float,
     # per-specialty one, which is what made lowering the rate oscillate instead
     # of shedding load. See ``double_label_halted``.
     if double_label_halted():
+        return False
+    # PRD 2 §9.6 — ahead of the unconditional rules, and specifically ahead of the
+    # real_deid one two lines below, which every trajectory point would otherwise
+    # match: they ARE real de-identified cases.
+    #
+    # This is the SECOND of the two paths that lift a task's capacity. ``routing.
+    # wants_second_label`` guards the labeler draw; ``review.sweep_double_label_
+    # routing`` reaches this function directly, so a guard placed only in ``routing``
+    # would be silently undone by the background sweep a minute later. The rule
+    # belongs here because the reason for it is a κ-pool fact: these points are
+    # excluded from κ by construction (§4.2.4), so a second label buys no agreement
+    # statistic — only a second $75 walk of the same chart. An admin who wants that
+    # sets ``max_labels=2`` explicitly at insert, which ``routing.target_labels``
+    # honours without consulting this predicate at all.
+    if asc_trajectory.is_trajectory_point(t):
         return False
     if (t.get("declared_difficulty") or case.get("declared_difficulty")) == "frontier-hard":
         return True
@@ -197,6 +232,22 @@ def _blinded_only(observations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     unverifiable observations is worth less than one reporting a smaller honest n.
     Matches ``True`` and the SQLite int ``1`` only — never a NULL or a falsy 0."""
     return [o for o in observations if o.get("blinded") in (True, 1)]
+
+
+def _pool_eligible(observations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Drop observations carrying a stored κ-pool exclusion (PRD 2 §4.2.4).
+
+    A SECOND, INDEPENDENT AXIS FROM BLINDING, and it has to be, because the case
+    it exists for passes the blinding gate cleanly. A physician who labels
+    encounter *k* and then *k+1* of the same chart is blinded on both; what the two
+    observations share is not a co-labeler but their own model of that patient,
+    formed at *k* and carried into *k+1*. Aggregating them measures within-physician
+    consistency and reports it as between-physician agreement — on the one number a
+    buyer audits.
+
+    The rows stay in the table with their reason stamped on them; only the pool
+    drops them, and ``aggregate_kappa`` counts them out loud."""
+    return [o for o in observations if not o.get("kappa_excluded_reason")]
 
 
 def jaccard(a: Sequence[str], b: Sequence[str]) -> float:
@@ -288,13 +339,30 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
     ``observed_agreement``) plus ``reason``, ``ci``, and ``min_n``.
     """
     min_n = min_n or kappa_min_n()
-    blinded = _blinded_only(observations)
-    # Report the two exclusion reasons SEPARATELY (Audit §H2): an explicit unblinded
-    # observation (measured anchoring) is a different, honest exclusion from a legacy
-    # row whose blinding was never verified. Collapsing them hides how much of the
-    # dropped n is unverifiable rather than genuinely unblinded.
-    excluded_unblinded = sum(1 for o in observations if o.get("blinded") in (False, 0))
-    excluded_unverified = sum(1 for o in observations if o.get("blinded") is None)
+    # PRD 2 §4.2.4 — the sequential-labels exclusion runs FIRST, before blinding,
+    # because it is the one a blinded observation passes. See ``_pool_eligible``.
+    eligible = _pool_eligible(observations)
+    blinded = _blinded_only(eligible)
+    # Report the exclusion reasons SEPARATELY (Audit §H2; PRD 2 §4.2.4): an
+    # explicit unblinded observation (measured anchoring) is a different, honest
+    # exclusion from a legacy row whose blinding was never verified, and both are
+    # different again from a trajectory point that was blinded and still cannot
+    # enter the pool. Collapsing them hides how much of the dropped n is
+    # unverifiable rather than genuinely unblinded — or, now, methodologically
+    # excluded.
+    excluded_unblinded = sum(1 for o in eligible if o.get("blinded") in (False, 0))
+    excluded_unverified = sum(1 for o in eligible if o.get("blinded") is None)
+    excluded_sequential = sum(
+        1 for o in observations
+        if o.get("kappa_excluded_reason") == KAPPA_EXCLUSION_SEQUENTIAL)
+    excluded_relay_single = sum(
+        1 for o in observations
+        if o.get("kappa_excluded_reason") == KAPPA_EXCLUSION_RELAY_SINGLE)
+    excluded_trajectory = excluded_sequential + excluded_relay_single
+    excluded_other = sum(
+        1 for o in observations
+        if o.get("kappa_excluded_reason")
+        and o.get("kappa_excluded_reason") not in _TRAJECTORY_EXCLUSIONS)
     pairs = [(o.get("verdict_a"), o.get("verdict_b")) for o in blinded]
     usable = [p for p in pairs if p[0] is not None and p[1] is not None]
     n = len(usable)
@@ -341,6 +409,21 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
         "n": n,
         "excluded_unblinded": excluded_unblinded,
         "excluded_unverified": excluded_unverified,
+        # PRD 2 §4.2.4. Named for what it is and shipped with its rationale, so a
+        # buyer reading a smaller n can see it is smaller on purpose. These points
+        # carry outcome verification instead — reported under its own name by
+        # ``trajectory.outcome_verification``, never folded in here.
+        "excluded_trajectory": excluded_trajectory,
+        # Broken out, because "we judged these dependent" and "we only have one
+        # rater for these" are different facts about the same smaller n, and only
+        # the second is fixable by buying a second walk.
+        "excluded_trajectory_sequential": excluded_sequential,
+        "excluded_trajectory_relay_single": excluded_relay_single,
+        "excluded_other": excluded_other,
+        "exclusion_rationale": (KAPPA_EXCLUSION_RATIONALE
+                                if excluded_sequential else None),
+        "exclusion_rationale_relay": (KAPPA_EXCLUSION_RELAY_RATIONALE
+                                      if excluded_relay_single else None),
         "observed_agreement": observed,
     }
 

@@ -105,11 +105,6 @@ def _cases() -> list[tuple[str, str, str, str]]:
                 specialty="Nephrology"),
         ),
         (
-            "12-self-serve-link", "Onboarding link (self-serve)",
-            "The FIRST thing a self-serve physician ever receives from us.",
-            oe.build_self_serve_link_email(onboarding_url=ONBOARD, expires_days=7),
-        ),
-        (
             "13-approved", "You're approved",
             "Credential verification passed; the account opens for real work.",
             oe.build_asclepius_approved_email(
@@ -221,6 +216,41 @@ def _cases() -> list[tuple[str, str, str, str]]:
                 lede="dr-chen has completed 5 in the last few minutes.",
                 rows=[("Event", "submission_completed", True), ("How many", "5", True)],
                 note="Queued automatically when this happened on the product."),
+        ),
+        # ─── Onboarding v2 §4 — the four application emails, in send order ───
+        (
+            "26-application-start", "Application: start / resume",
+            "§4.1 — sent the moment a physician starts. In v2 the landing drops "
+            "them straight into the wizard, so this is the way BACK in.",
+            oe.build_application_start_email(
+                first_name="Amara", onboarding_url=ONBOARD, expires_days=7),
+        ),
+        (
+            "27-application-nudge", "Application: the 24h nudge",
+            "§4.2 — sent once, 24 hours into an unfinished application. Never twice.",
+            oe.build_application_nudge_email(
+                first_name="Amara", onboarding_url=ONBOARD),
+        ),
+        (
+            "28-application-expiring", "Application: link expires tomorrow",
+            "§3 — the day-6 note, so a 7-day link dies with warning rather than "
+            "silently. Also sent exactly once.",
+            oe.build_application_expiring_email(
+                first_name="Amara", onboarding_url=ONBOARD),
+        ),
+        (
+            "29-application-submitted", "Application: we've got it",
+            "§4.3 — sent on submit. Sets the 24–48h expectation and says why "
+            "review is human.",
+            oe.build_application_submitted_email(full_name="Amara Okafor"),
+        ),
+        (
+            "30-application-welcome", "Application: approved (credentials)",
+            "§4.4 — sent on admin approval. Carries the TEMPORARY password that "
+            "is rotated at first sign-in, the mission block, and the founder intro.",
+            oe.build_application_welcome_email(
+                full_name="Amara Okafor", email="a.okafor@riverside.example.org",
+                temp_password="Kf3-tQ92mXbW7p", sign_in_url=WORKSPACE),
         ),
     ]
 

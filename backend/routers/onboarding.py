@@ -18,13 +18,15 @@ from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
 from email_utils import is_email_transport_configured, send_html_email
 from asclepius import passwords as asc_passwords
+from asclepius import store as asc_store_mod
 from onboarding_emails import (
+    build_application_start_email,
+    build_application_submitted_email,
     build_asclepius_complete_email,
     build_asclepius_invite_email,
     build_complete_email,
     build_internal_signup_alert,
     build_invite_email,
-    build_self_serve_link_email,
     build_verification_email,
 )
 from tenant_utils import generate_secure_password
@@ -283,8 +285,19 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
         ]
         director = next((p for p in people if p.get("is_director")), None)
         if director:
-            out["director_credentials"] = director.get("credentials") or {}
+            creds = director.get("credentials") or {}
+            out["director_credentials"] = creds
             out["director_attestations"] = director.get("attestations") or {}
+            # Onboarding v2 §3: the Review screen prefills from the parse, so a
+            # physician who resumes from the emailed link must find their CV
+            # suggestions still there rather than an empty form and a CV they
+            # already uploaded. Server-owned keys only — see _SERVER_CV_KEYS.
+            out["director_cv"] = {
+                "uploaded": bool(creds.get("cvAssetSha")),
+                "filename": creds.get("cvFilename"),
+                "stage": creds.get("cvParseStage"),
+                "parsed": creds.get("cvParsed"),
+            }
     return out
 
 
@@ -351,6 +364,20 @@ async def onboarding_session(token: str, request: Request):
             existing = _asclepius_store(request).get_user_by_email(director_email)
         except Exception:
             existing = None
+        # Onboarding v2 §2: a v2 application creates the account row at SUBMIT,
+        # with no password (NO_PASSWORD_HASH). That is not "you already have an
+        # account, go and sign in" — there is nothing to sign in with. It is
+        # "your application is in review", which is a different screen and a
+        # different sentence.
+        if existing and asc_store_mod.password_is_unset(existing):
+            return {
+                "status": "application_pending",
+                "health_system_id": row["id"],
+                "slug": row.get("slug"),
+                "step": int(row.get("onboarding_step") or 0),
+                "verification_status": existing.get("verification_status"),
+                **_hydrate_session_fields(ts, row),
+            }
         if existing and (existing.get("password_hash") or "").strip():
             return {
                 "status": "account_exists",
@@ -465,10 +492,16 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         pass
     if _email_configured():
         try:
+            # §4.1. In v2 this is the RESUME path, not the entry path: the
+            # landing page redirects straight into the wizard with the fresh
+            # token, and this arrives so the physician can stop and come back.
+            # The card's promise — "we will email you the same link so you can
+            # pause and resume any time" — is now literally true end to end.
             await send_html_email(
                 email,
-                "Your Archangel Health onboarding link",
-                build_self_serve_link_email(
+                "Your Archangel Health application — pick up any time",
+                build_application_start_email(
+                    first_name=(body.first_name or "").strip(),
                     onboarding_url=invite["onboarding_url"],
                     expires_days=_SELF_SERVE_EXPIRES_DAYS,
                 ),
@@ -776,6 +809,36 @@ class MemberCredentialsBody(OnboardTokenBody):
 
 class MemberAttestationsBody(OnboardTokenBody):
     attestations: Dict[str, Any]
+
+
+def _ensure_director_person(ts: Any, row: Dict[str, Any]) -> Optional[str]:
+    """Make sure the director's ``asclepius_people`` row exists. Returns their email.
+
+    Every screen that saves onto that row (the CV upload, the credentials POST)
+    used to depend on the INSTITUTION screen having run first, because that is
+    where the row was seeded. Onboarding v2 §2 drops the institution screen from
+    the physician flow, which would leave the CV upload and the Review screen
+    both 400-ing with "Complete your institution details first" — an instruction
+    pointing at a screen that no longer exists.
+
+    So the seed moves to where it is actually needed. Idempotent (the same upsert
+    the institution screen calls), and it writes nothing but identity: the org
+    name and specialty still arrive from the form.
+    """
+    email = (row.get("director_email") or "").strip()
+    if not email:
+        return None
+    if ts.get_asclepius_person(row["id"], email):
+        return email
+    name = " ".join(p for p in [
+        (row.get("director_first_name") or "").strip(),
+        (row.get("director_last_name") or "").strip(),
+    ] if p).strip()
+    ts.upsert_asclepius_person(
+        row["id"], email=email, full_name=name,
+        clinical_role="director", is_director=True,
+    )
+    return email
 
 
 def _require_asclepius(row: Dict[str, Any]) -> None:
@@ -1174,12 +1237,38 @@ async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
     row = ts.get_health_system_by_id(row["id"]) or row
     _require_asclepius(row)
-    director_email = (row.get("director_email") or "").strip()
-    if not director_email or not ts.get_asclepius_person(row["id"], director_email):
-        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+    # v2 §2: the Review screen is the first thing that writes here, and the
+    # institution screen it used to depend on is gone from this path.
+    director_email = _ensure_director_person(ts, row)
+    if not director_email:
+        raise HTTPException(status_code=400, detail="Start your application first.")
     ts.save_asclepius_credentials(
         row["id"], director_email,
         _preserve_server_cv_fields(ts, row["id"], director_email, body.credentials))
+    # The physician's specialty lives on the health_systems row too — the tier
+    # scorer and the task router both read it from there — and v2 has no
+    # institution screen to put it there. Mirror it from the one field the Review
+    # screen requires, so the account that gets provisioned is routable.
+    creds_in = body.credentials or {}
+    specialty = str(creds_in.get("primarySpecialty") or "").strip()
+    if specialty and not (row.get("specialty") or "").strip():
+        # A physician signing up for themselves has no institution to name, so
+        # the workspace is named after them — same fallback the institution
+        # screen used when its org field was left blank.
+        org_name = ((row.get("name") or "").strip()
+                    or str(creds_in.get("fullLegalName") or "").strip()
+                    or " ".join(p for p in [
+                        (row.get("director_first_name") or "").strip(),
+                        (row.get("director_last_name") or "").strip()] if p).strip()
+                    or "My workspace")
+        try:
+            ts.update_asclepius_institution(
+                row["id"], name=org_name, specialty=specialty,
+                phone=str(creds_in.get("phone") or row.get("phone") or "").strip(),
+            )
+            ts.maybe_update_slug_from_name(row["id"], org_name)
+        except Exception:
+            log.exception("[onboarding] could not mirror specialty onto the invite row")
     return {"ok": True}
 
 
@@ -1192,9 +1281,9 @@ async def asclepius_attestations(body: AsclepiusAttestationsBody, request: Reque
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
     row = ts.get_health_system_by_id(row["id"]) or row
     _require_asclepius(row)
-    director_email = (row.get("director_email") or "").strip()
-    if not director_email or not ts.get_asclepius_person(row["id"], director_email):
-        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+    director_email = _ensure_director_person(ts, row)
+    if not director_email:
+        raise HTTPException(status_code=400, detail="Start your application first.")
     ts.save_asclepius_attestations(row["id"], director_email, body.attestations)
     return {"ok": True}
 
@@ -1308,12 +1397,13 @@ async def asclepius_cv_upload(
     try:
         row = _load_hs(request, token)
         row = ts.get_health_system_by_id(row["id"]) or row
-        hs_id, person_email = row["id"], (row.get("director_email") or "").strip()
+        # v2 §2: the CV screen comes BEFORE anything that used to seed this row.
+        hs_id, person_email = row["id"], _ensure_director_person(ts, row)
     except HTTPException:
         _ts_m, person, hs = _load_asclepius_member(request, token)  # 404s if invalid
         hs_id, person_email = hs["id"], person["email"]
     if not hs_id or not person_email:
-        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+        raise HTTPException(status_code=400, detail="Start your application first.")
 
     data = await _read_capped(file, credentialing.CV_MAX_BYTES, request)
     try:
@@ -1328,11 +1418,53 @@ async def asclepius_cv_upload(
                             detail="Could not store the CV right now — you can "
                                    "finish signup without it.")
 
-    _record_cv_on_person(ts, hs_id, person_email, sha=meta["sha256"], mime=meta["mime"])
+    # 'reading' is stamped HERE, before the response, so the wizard's first poll
+    # can never land in the window between "upload returned" and "background task
+    # started" and read a stage of None as "nothing is happening".
+    _record_cv_on_person(ts, hs_id, person_email, sha=meta["sha256"], mime=meta["mime"],
+                         stage="reading", filename=(file.filename or None))
     # Sync function -> FastAPI runs it in a threadpool after the response.
     background.add_task(_parse_cv_into_person, ts, hs_id, person_email,
                         meta["sha256"], meta["mime"])
-    return {"ok": True, "filename": file.filename, "byte_size": meta["byte_size"]}
+    return {"ok": True, "filename": file.filename, "byte_size": meta["byte_size"],
+            "stage": "reading"}
+
+
+@router.get("/asclepius/cv/status")
+async def asclepius_cv_status(token: str, request: Request):
+    """Where the CV parse has got to, and what it found (§2 screen 3).
+
+    Polled by the wizard between the upload and the Review screen. Returns the
+    parse SUGGESTIONS, not a decision: the Review screen prefills from them and
+    the physician edits anything that is wrong, so nothing here is authoritative
+    and nothing here can fail the application.
+    """
+    ts = _ts(request)
+    hs_id = person_email = None
+    try:
+        row = _load_hs(request, token)
+        row = ts.get_health_system_by_id(row["id"]) or row
+        hs_id, person_email = row["id"], (row.get("director_email") or "").strip()
+    except HTTPException:
+        _ts_m, person, hs = _load_asclepius_member(request, token)  # 404s if invalid
+        hs_id, person_email = hs["id"], person["email"]
+    person = ts.get_asclepius_person(hs_id, person_email) if hs_id and person_email else None
+    creds = (person or {}).get("credentials") or {}
+    if not creds.get("cvAssetSha"):
+        return {"uploaded": False, "stage": None, "parsed": None}
+    stage = creds.get("cvParseStage") or "reading"
+    parsed = creds.get("cvParsed")
+    return {
+        "uploaded": True,
+        "filename": creds.get("cvFilename"),
+        "stage": stage,
+        # 'done' and 'failed' are the two terminal stages; the client stops
+        # polling on either. Handing back a boolean instead would make the
+        # caller re-derive the terminal set, which is how a poll loops forever.
+        "finished": stage in ("done", "failed"),
+        "ok": bool((parsed or {}).get("ok")),
+        "parsed": parsed if stage in ("done", "failed") else None,
+    }
 
 
 async def _read_capped(file: UploadFile, max_bytes: int, request: Request) -> bytes:
@@ -1362,12 +1494,18 @@ async def _read_capped(file: UploadFile, max_bytes: int, request: Request) -> by
 
 
 def _record_cv_on_person(ts: Any, hs_id: str, email: str, *, sha: str, mime: str,
-                         parsed: Optional[Dict[str, Any]] = None) -> None:
+                         parsed: Optional[Dict[str, Any]] = None,
+                         stage: Optional[str] = None,
+                         filename: Optional[str] = None) -> None:
     """Merge CV facts into the person's stored credentials, server-side."""
     person = ts.get_asclepius_person(hs_id, email) or {}
     creds = dict(person.get("credentials") or {})
     creds["cvAssetSha"] = sha
     creds["cvMime"] = mime
+    if filename is not None:
+        creds["cvFilename"] = filename
+    if stage is not None:
+        creds["cvParseStage"] = stage
     if parsed is not None:
         creds["cvParsed"] = parsed
     ts.save_asclepius_credentials(hs_id, email, creds)
@@ -1375,13 +1513,37 @@ def _record_cv_on_person(ts: Any, hs_id: str, email: str, *, sha: str, mime: str
 
 def _parse_cv_into_person(ts: Any, hs_id: str, email: str, sha: str, mime: str) -> None:
     """Background CV parse. Best-effort by construction: a CV that cannot be
-    parsed leaves the suggestions empty and the admin reads the raw file."""
+    parsed leaves the suggestions empty and the admin reads the raw file.
+
+    Each stage is written as it BEGINS, so ``GET /asclepius/cv/status`` reports
+    where the work actually is and the wizard's three captions track real
+    progress rather than a timer (§2 screen 3, §7).
+    """
     from asclepius import credentialing
+
+    def _stage(name: str) -> None:
+        _record_cv_on_person(ts, hs_id, email, sha=sha, mime=mime, stage=name)
+
     try:
-        parsed = credentialing.parse_cv(sha, mime=mime)
-        _record_cv_on_person(ts, hs_id, email, sha=sha, mime=mime, parsed=parsed)
+        parsed = credentialing.parse_cv(sha, mime=mime, on_stage=_stage)
+        _record_cv_on_person(ts, hs_id, email, sha=sha, mime=mime, parsed=parsed,
+                             stage="done" if parsed.get("ok") else "failed")
     except Exception:
         log.exception("[credentialing] background CV parse failed (non-fatal)")
+        # The screen must never hang on a spinner. A parse that died still
+        # resolves the poll, and the Review screen it feeds shows empty states
+        # rather than an error (§2: nothing on that page is an error).
+        try:
+            _record_cv_on_person(ts, hs_id, email, sha=sha, mime=mime, stage="failed")
+        except Exception:
+            log.exception("[credentialing] could not record the CV parse failure")
+
+
+#: CV keys the SERVER owns. A client may not set any of them — ``credentials``
+#: is a free-form dict, so a client-set sha would be an unvalidated reference
+#: into the shared asset store, and a client-set parse or stage would let a
+#: signup dictate what the admin dossier says about its own CV.
+_SERVER_CV_KEYS = ("cvAssetSha", "cvMime", "cvParsed", "cvParseStage", "cvFilename")
 
 
 def _preserve_server_cv_fields(ts: Any, hs_id: str, email: str,
@@ -1394,11 +1556,10 @@ def _preserve_server_cv_fields(ts: Any, hs_id: str, email: str,
     wrote it at upload time. This also stops the credentials POST — which the
     form sends after the upload — from erasing the recorded CV.
     """
-    creds = {k: v for k, v in (incoming or {}).items()
-             if k not in ("cvAssetSha", "cvMime", "cvParsed")}
+    creds = {k: v for k, v in (incoming or {}).items() if k not in _SERVER_CV_KEYS}
     person = ts.get_asclepius_person(hs_id, email) or {}
     stored = person.get("credentials") or {}
-    for key in ("cvAssetSha", "cvMime", "cvParsed"):
+    for key in _SERVER_CV_KEYS:
         if stored.get(key) is not None:
             creds[key] = stored[key]
     return creds
@@ -1487,7 +1648,11 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     director_email = (row.get("director_email") or "").strip()
     director = ts.get_asclepius_person(row["id"], director_email) if director_email else None
     if not director:
-        raise HTTPException(status_code=400, detail="Complete your institution details first.")
+        # v2 §2 deleted the institution screen from the physician flow, so the old
+        # copy here pointed at a screen that no longer exists. Every screen that
+        # writes onto this row seeds it (``_ensure_director_person``), which means
+        # reaching finish without one is "you have not filled anything in yet".
+        raise HTTPException(status_code=400, detail="Start your application first.")
     # Which door this link came from. An advisor and a referral partner walk a
     # four-screen signup that never shows the credential or attestation screens,
     # so demanding them here is demanding something the wizard never offered.
@@ -1498,16 +1663,42 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         (row.get("signup_flavor") or "").strip().lower())
     is_clinical = account_kind is None
     if is_clinical:
-        if not director.get("credentials"):
+        # v2 §2: name, email and specialty are the WHOLE requirement.
+        #
+        # A non-empty credentials blob still has to be here, because it is the
+        # proof that the physician reached and submitted the Review screen at
+        # all — but nothing INSIDE it is mandatory any more. A missing NPI, CV or
+        # board certification becomes a low-severity review flag
+        # (``plausibility._missing_evidence_flags``), never a wall in front of a
+        # doctor filling this in between patients. The Submit button on that
+        # screen is always live, and this is what makes that true rather than a
+        # promise the server breaks.
+        creds_blob = director.get("credentials") or {}
+        if not creds_blob:
             raise HTTPException(status_code=400, detail="Add your credentials before finishing.")
         if not director.get("attestations"):
             raise HTTPException(status_code=400, detail="Sign the attestations before finishing.")
+        missing = []
+        if not (creds_blob.get("fullLegalName") or director.get("full_name") or "").strip():
+            missing.append("your name")
+        if not (creds_blob.get("primarySpecialty") or row.get("specialty") or "").strip():
+            missing.append("your specialty")
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"We still need {' and '.join(missing)} before we can send this in.")
 
-    # The physician chose this several steps ago (POST /asclepius/password).
-    # Nothing is generated here any more, and nothing is mailed to them.
-    director_hash = (director.get("password_hash") or "").strip()
-    if not director_hash:
-        raise HTTPException(status_code=400, detail="Choose a password before finishing.")
+    # Onboarding v2 §2: the physician wizard has NO password step. The account is
+    # created here, `pending`, with no credential of any kind — credentials only
+    # exist after a human approves the application (§5), and they arrive by email.
+    #
+    # The member and short-signup doors still choose their own password at
+    # /asclepius/password, and a hash on the row is therefore honoured: this is
+    # "we were not given one", never "we are erasing the one you have"
+    # (``provision_user`` enforces the same rule a second time).
+    director_hash = (director.get("password_hash") or "").strip() \
+        or asc_store_mod.NO_PASSWORD_HASH
+    credentials_deferred = director_hash == asc_store_mod.NO_PASSWORD_HASH
     org_name = (row.get("name") or "").strip()
     specialty = (row.get("specialty") or "").strip()
     # B-1.1: _provision_asclepius_user is synchronous and reaches a synchronous
@@ -1575,32 +1766,54 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     # success screen with no session. Look up the row we just provisioned instead
     # -- the onboarding token and the mailbox OTP already proved who this is, so
     # re-checking a password we do not have proves nothing extra.
+    #
+    # v2 §2: a physician who has no credential yet gets NO session. There is
+    # nothing behind the door — their queue opens on approval — and handing them
+    # a token would drop them into a portal that 403s every call with the
+    # verification gate. The success screen for them is the one in §2 screen 6:
+    # a warm confirmation and an expectation, not a workspace.
     session_token = None
-    try:
-        from asclepius import auth as asc_auth
-        asc_user = _asclepius_store(request).get_user_by_email(director_email)
-        if asc_user:
-            session_token = asc_auth.create_token(asc_user)
-    except Exception:
-        session_token = None
+    if not credentials_deferred:
+        try:
+            from asclepius import auth as asc_auth
+            asc_user = _asclepius_store(request).get_user_by_email(director_email)
+            if asc_user:
+                session_token = asc_auth.create_token(asc_user)
+        except Exception:
+            session_token = None
 
     invited = [p for p in ts.list_asclepius_people(row["id"]) if not p.get("is_director")]
     workspace_url = _asclepius_workspace_url()
-    html_body = build_asclepius_complete_email(
-        email=director_email,
-        full_name=director.get("full_name") or "",
-        role_label=_ASCLEPIUS_DIRECTOR_ROLE_LABEL,
-        org_name=org_name,
-        specialty=specialty,
-        workspace_url=workspace_url,
-        is_director=True,
-        team_count=len(invited),
-        verification_notice=True,
-    )
-    await send_html_email(
-        director_email, "Your Asclepius workspace is ready", html_body, importance_headers=True
-    )
-    return {"ok": True, "workspace_url": workspace_url, "token": session_token}
+    if credentials_deferred:
+        # §4.3. Deliberately NOT the "your workspace is ready" email: nothing is
+        # ready, and telling a physician it is would be the first thing we got
+        # wrong. Credentials arrive on approval (§4.4).
+        await send_html_email(
+            director_email, "We've got your application",
+            build_application_submitted_email(full_name=director.get("full_name") or ""),
+            importance_headers=True,
+        )
+    else:
+        html_body = build_asclepius_complete_email(
+            email=director_email,
+            full_name=director.get("full_name") or "",
+            role_label=_ASCLEPIUS_DIRECTOR_ROLE_LABEL,
+            org_name=org_name,
+            specialty=specialty,
+            workspace_url=workspace_url,
+            is_director=True,
+            team_count=len(invited),
+            verification_notice=True,
+        )
+        await send_html_email(
+            director_email, "Your Asclepius workspace is ready", html_body,
+            importance_headers=True
+        )
+    return {"ok": True, "workspace_url": workspace_url, "token": session_token,
+            # The wizard's success screen branches on this: an application that
+            # is awaiting review says so, rather than offering a workspace link
+            # that leads to a locked door.
+            "awaiting_review": credentials_deferred}
 
 
 # ─── Invited-member flow (link → credentials → attestations → workspace) ──────

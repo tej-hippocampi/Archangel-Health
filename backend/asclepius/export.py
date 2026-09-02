@@ -35,6 +35,7 @@ from asclepius import agreement as asc_agreement
 from asclepius import credentials as asc_credentials
 from asclepius import packaging as asc_packaging
 from asclepius import profiles
+from asclepius import trajectory as asc_trajectory
 from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
     ASCLEPIUS_TAXONOMY_VERSION,
@@ -327,12 +328,69 @@ indistinguishable from a leak.
 | `review.reviews[].step_divergence` | process-level supervision from the reviewer: `[{{index, judged}}]` — the reasoning-step positions where the two independent labels diverged, and which side (`A` / `B` / `neither`, in CANONICAL oldest-first terms, or `null` for undecided) the reviewer judged correct at each. **Absent — never `[]` — when the two labels were not comparable**, i.e. one of them carried no reasoning steps and nothing was measured; `[]` means both carried steps and they agreed at every one. Present only on paired adjudications |
 | `review.accepted_without_edits` | true only when every review was a plain `accept` |
 | `supervision.labeler_id_hashed` | stable hashed id of the labeler (no PII) |
-| `supervision.independent_second_label` | `true` only for the double-labeled slice whose second observation was explicitly blinded — the slice a real Cohen's κ is computed on |
+| `supervision.independent_second_label` | `true` only for the double-labeled slice whose second observation was explicitly blinded **and not excluded from the κ pool** — the slice a real Cohen's κ is computed on |
+| `supervision.kappa_excluded_reason` | why this case's agreement observation is outside the κ pool, when it is. `trajectory_sequential` — see the longitudinal annex below. `null` otherwise |
 
 **Expert review is NOT inter-rater agreement.** The reviewer sees the labeler's
 answer, so the two observations are not independent and κ does not apply. The
 review acceptance rate and Cohen's κ are reported as two separately named
 figures in `{QUALITY_NAME}`; κ covers only the independently double-labeled slice.
+
+## Longitudinal decision points — the `trajectory` annex
+
+A **longitudinal case** is a real chart truncated at one encounter. The physician
+answers with the record sealed at that moment, and the chart's own next encounter
+is what checks the answer. Where a single-shot case ships a preference, one of
+these ships a **trajectory**: state → action → observed outcome.
+
+`trajectory` is attached to any record that belongs to a chart walk or carries a
+sealed prediction. Like `review` and `supervision` it is an **annex** — outside
+the buyer profile's schema, and documented here because it ships.
+
+| field | meaning |
+| --- | --- |
+| `trajectory.trajectory_id` | **the reassembly key.** Every decision point taken from one chart walk shares it. `records.jsonl` is one line per record, so without this a thirteen-point chart arrives as thirteen unrelated rows |
+| `trajectory.sequence_index` | 0-based position in the walk. **Ordering is the point** — point *n*'s visible chart is the state before point *n*'s decision, and point *n+1*'s chart contains what happened after it. Sort on this, never on `captured_at` |
+| `trajectory.expected_trajectory.expectations[]` | what the physician said should happen next if their assessment was right, each with an optional `horizon_days` |
+| `trajectory.expected_trajectory.falsifiers[]` | **what would tell them they were wrong.** Specialist-authored, written before the next encounter was revealed, attached to a real chart. This is the falsifier corpus |
+| `trajectory.expected_trajectory.falsifiable` | `true` when at least one falsifier was named. Filter on it rather than assuming — a physician who could not name one for a given decision is allowed to say so, and a fabricated falsifier is worth less than none |
+| `trajectory.self_score.marks[]` | per expectation: `held` · `did_not_hold` · `not_assessable`. **`not_assessable` is its own state**, never folded into either of the others: the next encounter frequently does not contain the observation the prediction was about |
+| `trajectory.self_score.falsifier_fired` | the physician's assertion that their own stated falsifier fired in the revealed encounter |
+| `trajectory.outcome_verified` | `true` only when at least one expectation was actually assessable against the record. A point where everything was `not_assessable` produced **no** outcome verification |
+
+**What the outcome check does and does not establish.** Marks are scored against
+the trajectory the record actually contains, which reflects the treatment actually
+given — not the plan this physician proposed. Where they proposed something
+different, the outcome does not test their plan; it tests the one that was
+followed. Nothing here scores counterfactual outcomes, and no figure in this
+bundle should be read as doing so.
+
+**Sicker patients get more aggressive treatment.** A model trained naively on
+chart trajectories learns the treatment pattern, not the reasoning. The scored
+object is the stated reasoning and expectation, never the plan's similarity to
+what was done.
+
+**Survivorship.** These charts continue because the patient continued. Encounters
+ending in death or transfer are absent by construction — and that is exactly where
+the interesting failures live.
+
+**Yield per chart is not predictable.** One five-year chart yields thirteen
+decision points; one twenty-year chart yields two. Count decision points, not
+records and not charts.
+
+**`study_findings_policy` varies within a single walk.** It is computed per
+truncation: a window carrying no imaging is `visible`, a later one carrying a
+study asset is `hidden`. The same patient therefore presents under two policies
+across one trajectory. That is the policy reflecting what each window actually
+contains, not an inconsistency.
+
+**These points are excluded from Cohen's κ, deliberately.** Blinding means the
+labeler did not see a co-labeler's identity; it says nothing about temporal
+independence. A physician who labels encounter *k* and then *k+1* is blinded on
+both, and what the two observations share is their own model of that patient,
+formed at *k*. Aggregating them would measure within-physician consistency and
+report it as between-physician agreement. They carry outcome verification instead
+— reported in `{QUALITY_NAME}` under its own name, never folded into κ.
 
 ## `{CASES_NAME}` — the case-keyed companion
 
@@ -351,7 +409,9 @@ annex — not covered by the profile schema.
 | `consensus.verdicts` | verdict histogram across labelers |
 | `consensus.majority_verdict` | `null` on a tie — a tie is not a majority |
 | `consensus.unanimous` | all labelers agreed. Read it together with `n_labelers`: unanimity across one label is not agreement |
-| `consensus.agreement_observation` | the stored double-label observation (`verdict_a`, `verdict_b`, `verdict_agree`, `blinded`), or `null` when the case was not double-labeled |
+| `consensus.agreement_observation` | the stored double-label observation (`verdict_a`, `verdict_b`, `verdict_agree`, `blinded`, `kappa_excluded_reason`), or `null` when the case was not double-labeled |
+| `trajectory_id` / `sequence_index` | the chart walk this case belongs to and its position in it — the case-level reassembly key. `null` on a single-shot case |
+| `labels[].trajectory` | that physician's sealed prediction and their own grading of it. Per LABEL, not per case: two physicians on one decision point write two different falsifiers |
 """
 
 
@@ -579,6 +639,44 @@ Training / evaluating medical LLMs (reward modeling, SFT, process supervision).
 """
 
 
+def _outcome_verification_md(ov: Dict[str, Any]) -> str:
+    """The longitudinal outcome-verification section, or "" when there is nothing
+    to report (PRD 2 §3.4 signal 3).
+
+    Empty rather than a row of zeros: a batch with no trajectory points has not
+    measured anticipation badly, it has not measured it at all, and a table of
+    zeros under a heading reads as the former.
+
+    Placed immediately after κ and headed with what it is NOT, because these two
+    numbers describe adjacent slices and the whole methodological claim rests on
+    keeping them apart.
+    """
+    if not ov or not int(ov.get("n_points") or 0):
+        return ""
+    rate = ov.get("anticipation_rate")
+    return f"""
+## Outcome verification (longitudinal decision points — NOT κ)
+
+The chart's own next encounter checking the physician's stated expectation. A
+different statistic over a different pool: κ above is between-physician agreement;
+this is one physician's anticipation checked against what the record recorded next.
+Neither is ever reported under the other's name.
+
+- Decision points in this corpus: **{ov.get('n_points')}**
+- Points whose outcome was actually checkable: **{ov.get('n_points_verified')}**
+- Points carrying a specialist-written falsifier: **{ov.get('n_points_with_falsifier')}**
+- Expectations that held / did not hold: **{ov.get('n_expectations_held')} / {ov.get('n_expectations_did_not_hold')}**
+- Expectations not assessable from the next encounter: {ov.get('n_expectations_not_assessable')}
+- Physician's own falsifier fired: {ov.get('n_falsifiers_fired')}
+- Anticipation rate (over assessable expectations only): **{rate if rate is not None else 'n/a — nothing was assessable'}**
+
+Scored against the trajectory the record actually contains, which reflects the
+treatment actually given rather than the plan the physician proposed. Where they
+proposed something different, this does not test their plan. No figure here is a
+counterfactual outcome.
+"""
+
+
 def _multimodal_quality_md(records: List[Dict[str, Any]], counts: Dict[str, Any]) -> str:
     """Quality-report block for the multimodal case judge (Multimodal PRD §5): the
     mean case-judge dimensions over the shipped multimodal records, so a buyer can
@@ -639,6 +737,7 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
     kappa = stats.get("kappa") or {}
     by_spec = kappa.get("by_specialty") or {}
     kappa_spec_lines = "\n".join(f"- {sp}: {v}" for sp, v in sorted(by_spec.items())) or "- n/a"
+    outcome_section = _outcome_verification_md(stats.get("outcome_verification") or {})
     # Expert review vs κ: two statistics, two names (PRD A §0 / Phase 4). The
     # review rate is adjudication (reviewer SAW the labeler's answer); κ below is
     # the independent, blinded, double-labeled slice. They are never merged.
@@ -721,8 +820,10 @@ more than by an hourly rate. The count is stated so the pool is fully described.
 - Observed agreement: {kappa.get('observed_agreement')}
 - κ threshold for substantial agreement: {KAPPA_THRESHOLD}
 - Minimum-n gate: {kappa.get('min_n')} · unblinded observations excluded: {kappa.get('excluded_unblinded')}
+- Excluded as sequential (longitudinal decision points): {kappa.get('excluded_trajectory')}
 - By specialty:
 {kappa_spec_lines}
+{outcome_section}
 
 ## Confidence distribution
 {conf_lines}
@@ -1190,13 +1291,18 @@ def _case_bundle(
             # faintly alarming in a delivered artifact (FIX A A-5.4). Whether the
             # case was reviewed is already stated by ``review.reviewed``.
             "submitted_at": sub.get("created_at"),
+            # PRD 2 §4.2.3 — the falsifier is PER PHYSICIAN, so it sits on the
+            # label rather than on the case: two physicians walking the same
+            # decision point write two different predictions, and folding them to
+            # case level would lose whose was whose.
+            "trajectory": asc_packaging.trajectory_block(tasks[tid], sub),
             "records": [],
         })
         # The case-level ``review``/``supervision`` blocks are authoritative;
         # carrying them again on every embedded record repeated the same review
         # payload at three nesting levels per case (FIX A A-5.5).
         label["records"].append({k: v for k, v in mapped.items()
-                                 if k not in ("review", "supervision")})
+                                 if k not in ("review", "supervision", "trajectory")})
 
     cases: List[Dict[str, Any]] = []
     for tid in sorted(by_case):
@@ -1208,9 +1314,18 @@ def _case_bundle(
             if l.get("verdict"):
                 tally[l["verdict"]] = tally.get(l["verdict"], 0) + 1
         obs = obs_by_tid.get(tid)
-        blinded_obs = bool(obs) and (obs or {}).get("blinded") in (True, 1)
+        # PRD 2 §4.2.4: a κ-excluded observation is not the independent-second-label
+        # slice, blinded or not. Same rule as ``packaging.supervision_block`` —
+        # written once here rather than re-derived, so the case bundle and the
+        # per-record annex cannot disagree about the same observation.
+        blinded_obs = (bool(obs) and (obs or {}).get("blinded") in (True, 1)
+                       and not (obs or {}).get("kappa_excluded_reason"))
         cases.append({
             "case_id": tid,
+            # PRD 2 §4.2.5 — the reassembly key at case level too, so a buyer can
+            # group cases.jsonl by chart walk without joining through records.
+            "trajectory_id": task.get("trajectory_id"),
+            "sequence_index": task.get("sequence_index"),
             "specialty": task.get("specialty"),
             "difficulty": task.get("difficulty"),
             "prompt": task.get("prompt"),
@@ -1237,6 +1352,12 @@ def _case_bundle(
                     "verdict_b": (obs or {}).get("verdict_b"),
                     "verdict_agree": bool((obs or {}).get("verdict_agree")),
                     "blinded": blinded_obs,
+                    # PRD 2 §4.2.4 — why this observation is out of the κ pool,
+                    # when it is. Shipped rather than silently dropped: a buyer
+                    # comparing the κ denominator to the number of double-labelled
+                    # cases is entitled to see which ones were excluded and why,
+                    # instead of finding an unexplained gap.
+                    "kappa_excluded_reason": (obs or {}).get("kappa_excluded_reason"),
                 } if obs else None,
             },
         })
@@ -1405,6 +1526,11 @@ def build_export(
     # with many records per submission does one lookup each.
     _reviews_by_sid: Dict[Any, List[Dict[str, Any]]] = {}
     _obs_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {}
+    # Same caching discipline for the longitudinal annex (PRD 2 §4.2.5): the task
+    # carries the walk identity, the submission carries the falsifier, and a
+    # thirteen-point chart would otherwise re-read both on every record.
+    _tasks_by_tid: Dict[Any, Optional[Dict[str, Any]]] = {}
+    _subs_by_sid: Dict[Any, Optional[Dict[str, Any]]] = {}
     # Related-party disclosure on records packaged before the field existed
     # (audit H3). Packaging runs once, at submit, so the entire back catalogue
     # has no key — and the data dictionary now documents one. Filled HERE, at
@@ -1462,6 +1588,26 @@ def build_export(
             labeler_id_hashed=payload.get("annotator_id_hashed"),
             observation=_obs_by_tid[tid],
         )
+        # Longitudinal annex (PRD 2 §4.2.5): the reassembly key + the falsifier.
+        # The bundle is PER-RECORD, so without ``trajectory_id`` and
+        # ``sequence_index`` on the line itself, thirteen decision points from one
+        # chart arrive as thirteen disconnected rows — thirteen single-shot cases
+        # sold at a trajectory price. Same seam as ``review``/``supervision``:
+        # after schema validation, before the leak gate, so the gate scans it.
+        if tid not in _tasks_by_tid:
+            _t = store.get_task(tid) if tid else None
+            # §8.7 provenance, resolved once per task rather than per record: a
+            # point that changed hands mid-walk puts a substitution in the handoff
+            # chain, which is a fact about the data a buyer is entitled to.
+            if _t and _t.get("trajectory_id"):
+                _t = dict(_t)
+                _t["_reassigned"] = store.point_was_reassigned(tid)
+            _tasks_by_tid[tid] = _t
+        if sid not in _subs_by_sid:
+            _subs_by_sid[sid] = store.get_submission(sid) if sid else None
+        _traj = asc_packaging.trajectory_block(_tasks_by_tid[tid], _subs_by_sid[sid])
+        if _traj:
+            mapped["trajectory"] = _traj
         # THE CORE RULE (spec §4, §5): buyer-facing records carry credential
         # ATTRIBUTES only. Reject the whole batch loudly if ANY Tier B
         # (identifying / locating) field appears in ANY record.
@@ -1533,6 +1679,18 @@ def build_export(
     except Exception:
         ext_pairs = []
     external_adjudication = asc_agreement.external_adjudication_agreement(ext_pairs)
+    # Outcome verification (PRD 2 §3.4 signal 3). A THIRD separately named
+    # statistic, for the same reason review acceptance is the second: it measures a
+    # different thing over a different pool. κ is between-physician agreement on the
+    # blinded double-labelled slice; this is one physician's anticipation checked
+    # against what the chart actually recorded next. Trajectory points are absent
+    # from the κ denominator by construction (§4.2.4) and present here; neither
+    # number is ever reported under the other's label.
+    try:
+        outcome_verification = asc_trajectory.outcome_verification(
+            store.trajectory_verification_points())
+    except Exception:   # pragma: no cover - a store without the columns yet
+        outcome_verification = asc_trajectory.outcome_verification([])
     # Two statistics, named correctly (PRD A Phase 4). ``kappa`` above IS the
     # independent κ (blinded double-labeled slice, min-n gated). Review
     # acceptance is a DIFFERENT statistic — expert adjudication over this
@@ -1547,6 +1705,7 @@ def build_export(
         "kappa": kappa,
         "review_acceptance": review_acceptance,
         "external_adjudication_agreement": external_adjudication,
+        "outcome_verification": outcome_verification,
         "flag_counts": _flag_counts(store),
         "contributors": contributors,
     }

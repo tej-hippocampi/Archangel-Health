@@ -1096,10 +1096,20 @@ def _dm_or_404(dm_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
 
 def _dm_summary(dm: Dict[str, Any], user_id: str,
                 members: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    from community.system_posts import SYSTEM_MEMBER, SYSTEM_USER_ID  # noqa: PLC0415
+
     peer_id = dm["user_b"] if dm["user_a"] == user_id else dm["user_a"]
+    # The Archangel bot is a virtual author: never a users row, never in
+    # member_map. ``_serialize_messages`` has always special-cased it for the
+    # message AUTHOR; this is the same case one level up, for the conversation
+    # PEER, and it was missing only because nothing had ever DM'd from the bot.
+    # Without it a system DM lands in the doctor's inbox attributed to a ghost —
+    # an anonymous, deleted-looking conversation telling them to go do work.
+    peer = (dict(SYSTEM_MEMBER) if peer_id == SYSTEM_USER_ID
+            else members.get(peer_id))
     return {
         "id": dm["id"],
-        "peer": public_member(members.get(peer_id)) or dict(_GHOST_MEMBER),
+        "peer": public_member(peer) or dict(_GHOST_MEMBER),
         "last_message_id": dm.get("last_message_id"),
         "last_message_at": dm.get("last_message_at"),
         "unread": int(dm.get("unread") or 0),
