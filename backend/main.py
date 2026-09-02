@@ -6570,12 +6570,25 @@ async def startup_community():
         except Exception:
             _auth_logger.warning("[community] country channel seeding failed", exc_info=True)
         _cnotify.start_digest_loop(resolve_member=_resolve_member)
+        # Every gated loop below states which way its gate resolved, at INFO
+        # for on and WARNING for off. An unset variable disabling a whole
+        # pipeline used to produce no log line at all, which is how the news
+        # and morning routines stayed off in production for weeks while
+        # looking exactly like a working deployment on a quiet day. A disabled
+        # routine has to be as visible as a broken one.
+        #
         # Community v2: the #medical-ai-news content loop is OPT-IN
         # (COMMUNITY_NEWS_ENABLED=1); the internal trigger endpoint below
         # fires a run on demand either way.
         from community import digest as _cdigest
         if _cdigest.news_enabled():
             _cdigest.start_content_loop()
+            _auth_logger.info(
+                "[community] news digest loop STARTED (COMMUNITY_NEWS_ENABLED=1)")
+        else:
+            _auth_logger.warning(
+                "[community] news digest loop NOT STARTED: COMMUNITY_NEWS_ENABLED "
+                "is unset or 0. #medical-ai-news will receive no automated posts.")
         # Community v2.1: the event-reminder loop (emails interested members
         # before an event starts). No-ops without email transport.
         from community import events as _cevents
@@ -6587,6 +6600,28 @@ async def startup_community():
         from community import morning as _cmorning
         if _cmorning.enabled():
             _cmorning.start_morning_loop()
+            _auth_logger.info(
+                "[community] morning routine loop STARTED (COMMUNITY_MORNING_ENABLED=1)")
+        else:
+            _auth_logger.warning(
+                "[community] morning routine loop NOT STARTED: COMMUNITY_MORNING_ENABLED "
+                "is unset or 0. #events, #research-and-opportunities and the "
+                "per-doctor morning email are all inactive.")
+        # The two dependencies whose absence is silent rather than loud: without
+        # a model key the morning routine records a *successful* run with zero
+        # items, and without email transport every send returns 0 sent.
+        if not (os.getenv("ANTHROPIC_API_KEY") or "").strip():
+            _auth_logger.warning(
+                "[community] ANTHROPIC_API_KEY is unset: digest curation fails and "
+                "morning sourcing returns nothing, recorded as a quiet day.")
+        try:
+            from email_utils import is_email_transport_configured as _email_ok
+            if not _email_ok():
+                _auth_logger.warning(
+                    "[community] no email transport configured: the morning email, "
+                    "digest email and event reminders will send 0 and report ok.")
+        except Exception:
+            _auth_logger.warning("[community] email transport probe failed", exc_info=True)
         _start_asclepius_task_notify_loop()
     except Exception:
         _auth_logger.warning("[community] startup init failed; community disabled", exc_info=True)
@@ -6764,6 +6799,76 @@ async def internal_run_event_reminders(authorization: Optional[str] = Header(Non
     from community.router import resolve_member_for_notify as _resolve_member
     sent = await _cevents.send_due_reminders(resolve_member=_resolve_member)
     return {"ok": True, "reminders_sent": sent, "ran_at": _utcnow_iso()}
+
+
+@app.get("/internal/community/status", include_in_schema=False)
+async def internal_community_status(authorization: Optional[str] = Header(None)):
+    """Is the community actually automated right now, and when did it last act?
+
+    Exists because every way this subsystem switches itself off is silent. An
+    unset ``COMMUNITY_NEWS_ENABLED`` posts nothing, an absent model key records
+    a *successful* empty run, missing email transport reports 0 sent, and an
+    ephemeral ``COMMUNITY_DB_PATH`` resets the ledger on each deploy. All four
+    look identical from outside: a community that simply has nothing to say.
+
+    ``gate`` is what the environment asked for; ``loop_running`` is what the
+    process is doing. Reporting them separately is the point: they diverge
+    when startup raised after the gate passed.
+
+    Returns booleans and timestamps only, never a secret's value.
+    """
+    _check_internal_auth(authorization)
+    from community import digest as _cdigest
+    from community import morning as _cmorning
+    from community.store import get_community_store as _cstore
+
+    store = _cstore()
+    runs: Dict[str, Any] = {}
+    for kind in ("news", "papers"):
+        try:
+            runs[kind] = {
+                "last_success_at": store.last_successful_run_at(kind),
+                "last_attempt_at": store.last_run_attempt_at(kind),
+                "consecutive_failures": store.consecutive_digest_failures(kind),
+            }
+        except Exception as exc:  # the ledger itself can be the fault
+            runs[kind] = {"error": str(exc)[:200]}
+
+    db_path = (os.getenv("COMMUNITY_DB_PATH") or "").strip()
+    try:
+        from email_utils import (
+            active_email_vendor as _vendor,
+            is_email_transport_configured as _email_ok,
+        )
+        email = {"configured": _email_ok(), "vendor": _vendor()}
+    except Exception as exc:
+        email = {"error": str(exc)[:200]}
+
+    return {
+        "news_digest": {
+            "gate": _cdigest.news_enabled(),
+            "gate_var": "COMMUNITY_NEWS_ENABLED",
+            "loop_running": _cdigest.loop_running(),
+        },
+        "morning_routine": {
+            "gate": _cmorning.enabled(),
+            "gate_var": "COMMUNITY_MORNING_ENABLED",
+            "loop_running": _cmorning.loop_running(),
+            "fire_hour_local": _cmorning.fire_hour(),
+        },
+        "runs": runs,
+        "dependencies": {
+            "anthropic_api_key_set": bool((os.getenv("ANTHROPIC_API_KEY") or "").strip()),
+            "public_base_url": (os.getenv("PUBLIC_BASE_URL") or os.getenv("BASE_URL") or ""),
+            "email": email,
+            # Default path lives inside the container; on RAILPACK that is
+            # ephemeral, so the dedup and run ledgers reset on every deploy and
+            # the digest reposts what it already posted.
+            "community_db_path": db_path or "(default: backend/community.db, ephemeral on Railway)",
+            "community_db_path_explicit": bool(db_path),
+        },
+        "checked_at": _utcnow_iso(),
+    }
 
 
 @app.post("/internal/team/run-task-notifications", include_in_schema=False)

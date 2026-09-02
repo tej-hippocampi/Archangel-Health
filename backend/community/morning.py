@@ -549,6 +549,17 @@ def start_morning_loop() -> None:
              fire_hour())
 
 
+def loop_running() -> bool:
+    """True when the in-process morning tick is alive.
+
+    Distinct from ``enabled()``, which only reports what the environment asked
+    for. The external GitHub Actions trigger drives the same code, so this
+    being False is not on its own a fault, but both being False, with no cron
+    installed, means no channel ever gets a brief.
+    """
+    return _loop_task is not None and not _loop_task.done()
+
+
 def stop_morning_loop() -> None:
     global _loop_task
     task, _loop_task = _loop_task, None
