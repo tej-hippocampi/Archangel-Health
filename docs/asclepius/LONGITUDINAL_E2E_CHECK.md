@@ -12,8 +12,10 @@ produced by the real generation route (`POST /ingestion/cases/{id}/generate` wit
 
 ```
 cd backend && python3 -m pytest tests/test_longitudinal_e2e_routing.py -q
-8 passed
+10 passed
 ```
+
+(Eight rows, plus the two edges of the row-3 fix — see below.)
 
 **Running them found one real defect and one wording ambiguity.** Both are
 recorded below; the defect is fixed.
@@ -89,6 +91,27 @@ exempt, as on the V4 wall.
 
 This is the same lesson the sequence gate already had a comment about — *"a
 queue-only fix is not a fix"* — applied to the one gate that had not learned it.
+
+**Three things the fix itself had to get right**, each of which would have been a
+new defect:
+
+* **Order.** The sequence gate runs FIRST on all four paths. Run the other way
+  round, a relay doctor opening a point that is somebody else's turn is told
+  "this case was not sent to you" — false, because the walk *was* sent to them,
+  just not that point. `test_asclepius_relay` has asserted the accurate message
+  since before either gate existed. The ordering closes the same set either way:
+  point 0 of an unrouted walk clears the sequence gate by construction and is
+  caught by the distribution gate; every later point is caught by the sequence
+  gate anyway. Only the message differs, and the more specific one should win.
+* **Roles.** Reads admit `label` or `review` — a reviewer opens the case to review
+  it. Writes admit `label` only, matching `store._PRD_ASSIGN_MINE` exactly.
+  Otherwise a reviewer could bank a label on a case the queue would never have
+  offered them, consuming a single-labelled point's one slot.
+* **Work in flight.** Routing a case to specific doctors flips it to
+  `assigned_only`, and an admin may do that while somebody is halfway through it.
+  Holding an independent commit is a carve-out, so their blind capture is not
+  lost. It cannot be abused: a commit exists only by passing through `/reveal`,
+  which is itself behind this gate.
 
 ### 4 · Relay send
 
@@ -181,6 +204,32 @@ physician has already typed, over a string their browser stops sending on reload
 It is accepted only on env routes, never on anything that decides what is
 written, and the value stored is always `env`. **Delete after one deploy cycle**,
 and the grep is then clean.
+
+## The suite, after all of this
+
+Run as CI runs it — four shards, `python3 scripts/ci_shard.py <n> 4`:
+
+```
+shard1: 5 failed, 1164 passed
+shard2: 1489 passed
+shard3:  925 passed, 1 skipped
+shard4: 1213 passed, 1 skipped
+```
+
+**4791 passed, 2 skipped, 5 failed.** All five failures are pre-existing and
+unrelated to this work, and both claims were checked rather than assumed:
+
+* `test_llm_model_constraints` (2) — reproduce on `origin/main`, where that file
+  fails far more broadly. Nothing here touches the model-constraints table.
+* `test_triage_demo` (3) — pass in isolation, repeatedly; they fail only under a
+  four-way parallel run. They exercise `triage_demo_seed`, a subsystem no file in
+  this branch touches, and they assert on seed staleness, which is time-sensitive
+  by construction.
+
+An earlier run of the same four shards caught four failures that WERE this
+branch's — two in `test_asclepius_relay` (the gate ordering, above) and two DOM
+tests that clicked Send without previewing. Both are fixed; that is what the
+second run confirms.
 
 ## Related
 
