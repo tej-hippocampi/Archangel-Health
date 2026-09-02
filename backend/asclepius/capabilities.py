@@ -133,26 +133,35 @@ REFERRAL = "referral"                # a referral link, invites, and what they e
 SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
             EARNINGS, REFERRAL)
 
-#: A physician awaiting verification gets the product, minus real patient data.
-#: They have already cleared an OTP on their institutional mailbox, submitted a
-#: registration number, and signed the confidentiality and independent-judgment
-#: attestations, which is why they are trusted to post among colleagues. DMs and
-#: attachments still wait: those are the unsolicited-contact and PHI vectors,
-#: and they are worth waiting a day for.
+#: An applicant awaiting review reaches exactly two things: the practice case,
+#: and a view-only dashboard that shows them where their application stands.
 #:
-#: EARNINGS and REFERRAL are open to them, which is a change of mind. Hiding
-#: the money surfaces from someone who has just signed up makes the product
-#: look empty at the exact moment we are trying to show them what they joined,
-#: and hiding referrals costs us the referral. Nothing is payable without
-#: verification either way -- the ledger a provisional physician sees reads
-#: zero, honestly, because they have not done any work yet. Referring a
-#: colleague is not work: the introduction is just as good made the day they
-#: sign up, and the bounty still only pays when the person they brought is
-#: verified and their first case is accepted.
+#: This REVERSES an earlier widening, and the reason is worth keeping. The old
+#: set also granted community read and write, earnings and referral, arguing
+#: that an applicant who had cleared a mailbox OTP and signed the attestations
+#: was trusted enough to post among colleagues, and that hiding the money
+#: surfaces made the product look empty on the day we most wanted it to look
+#: full. Both halves were decided before the product had a vetting decision to
+#: make and before the practice case existed to occupy that wait.
+#:
+#: What changed: vetting is now the point of this state. An unvetted account
+#: posting under a physician identity, in rooms whose whole value is that
+#: everyone in them is a verified clinician, is precisely the exposure the
+#: review queue exists to prevent, and it is not recoverable by rejecting the
+#: application afterwards. The colleagues have already read the post.
+#:
+#: What replaces the "empty product" worry is the practice case: an applicant
+#: now has something real to do, one piece of actual work that teaches what the
+#: job is and that feeds the decision about them. That is a better answer to
+#: the same problem than a ledger reading zero and a referral link.
+#:
+#: Nothing here is a hardship for a genuine applicant. Review is measured in a
+#: day, and every surface opens on approval. The bounty for a colleague they
+#: refer is unchanged either way: it has never paid until the person they
+#: brought is verified and their first case is accepted.
 _BY_ACCESS: Dict[str, FrozenSet[str]] = {
     FULL: frozenset(SURFACES),
-    PROVISIONAL: frozenset({TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE,
-                            EARNINGS, REFERRAL}),
+    PROVISIONAL: frozenset({TUTORIAL, BROWSE}),
     NONE: frozenset(),
 }
 

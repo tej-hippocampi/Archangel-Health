@@ -129,11 +129,32 @@ def test_the_refusal_says_view_only_rather_than_unverified():
     assert "view-only" in r.json()["detail"]
 
 
-def test_a_provisional_physician_still_posts():
-    """The one regression that would matter most: a doctor under review has
-    always been able to post, and none of this may change that."""
+def test_an_applicant_under_review_cannot_post_to_the_community():
+    """This REVERSES an earlier decision, so it is worth saying why rather than
+    just flipping the expected status code.
+
+    An applicant used to be able to post here, on the reasoning that they had
+    cleared a mailbox OTP and signed the attestations. But the rooms' whole
+    value is that everyone in them is a verified clinician, and a post from an
+    unvetted account under a physician identity is exactly what the review
+    queue exists to prevent. Rejecting the application afterwards does not
+    unsend the post: the colleagues have already read it.
+
+    What an applicant gets instead is the practice case, which is real work
+    and is the thing the wait is now for."""
     store = fresh_store()
     doctor = _account(store, status="pending", tier=None)
+    r = client.post("/api/community/channels/general/messages",
+                    json={"body": "Anyone else seeing this pattern in CKD staging?"},
+                    headers=headers_for(doctor))
+    assert r.status_code == 403, r.text
+
+
+def test_an_approved_physician_still_posts():
+    """The guard on the change above: narrowing the applicant state must not
+    touch the state everyone actually works in."""
+    store = fresh_store()
+    doctor = _account(store, status="approved", tier="labeler")
     r = client.post("/api/community/channels/general/messages",
                     json={"body": "Anyone else seeing this pattern in CKD staging?"},
                     headers=headers_for(doctor))

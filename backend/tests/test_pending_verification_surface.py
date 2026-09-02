@@ -135,18 +135,34 @@ def test_the_real_work_surface_is_still_shut_for_the_same_physician(client):
         assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending", path
 
 
-def test_the_money_surfaces_open_and_read_zero(client):
-    """Money is protected by there being none, not by hiding the page.
+def test_the_money_surfaces_are_closed_until_the_application_is_decided(client):
+    """These two used to be open, on the argument that money is protected by
+    there being none and that locking the tabs made the product look empty on
+    the applicant's first day.
 
-    A physician awaiting verification cannot draw a case, so cannot earn from
-    one; their ledger reads zero because zero is true. Locking the tab as well
-    made the product look empty at the exact moment we were trying to show
-    them what they had joined -- and locking Referral cost us the referral,
-    since the bounty pays on the referred doctor's first accepted case no
-    matter when the introduction was made."""
+    The applicant state is now scoped to the decision being made about them:
+    the practice case and a dashboard that says where they stand, and nothing
+    else. That answers the "looks empty" problem with real work rather than
+    with a ledger reading zero, and it keeps the pre-approval surface small
+    enough to reason about. Both tabs open on approval, and the referral
+    bounty is unaffected either way, since it has always paid on the referred
+    doctor's first accepted case no matter when the introduction was made."""
     store = fresh_store()
     user = make_user(store, role="evaluator")
     store.set_verification_status(user["id"], "pending")
+
+    for path in ("/api/asclepius/earnings", "/api/asclepius/referrals"):
+        res = client.get(path, headers=headers_for(user))
+        assert res.status_code == 403, path
+        assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending", path
+
+
+def test_the_money_surfaces_open_on_approval(client):
+    """The other half of the change above: what an applicant waits for must
+    actually arrive, or the narrowing is just a removal."""
+    store = fresh_store()
+    user = make_user(store, role="evaluator")
+    store.set_verification_status(user["id"], "approved")
 
     earnings = client.get("/api/asclepius/earnings", headers=headers_for(user))
     assert earnings.status_code == 200

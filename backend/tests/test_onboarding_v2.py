@@ -932,8 +932,10 @@ def test_a_media_ticket_plays_the_demo_and_can_do_nothing_else(client: TestClien
               headers={"Range": "bytes=0-9"})
     assert r.status_code == 206 and r.content == data[:10]
 
-    # Not an API credential.
-    assert c.get("/api/asclepius/score",
+    # Not an API credential. Points at a live session-gated route on purpose:
+    # against a route that no longer exists this would pass on the 404 and
+    # stop testing that a media ticket is refused as a bearer token.
+    assert c.get("/api/asclepius/me/profile",
                  headers={"Authorization": f"Bearer {ticket}"}).status_code == 401
     # And a session token is not a ticket.
     assert c.get(f"/api/asclepius/assets/onboarding-demo?t={token_for(u)}").status_code == 401
