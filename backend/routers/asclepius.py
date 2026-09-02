@@ -2838,8 +2838,8 @@ async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_cur
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
-    _require_distribution(store, task, user, roles=_READ_ROLES)
     _require_trajectory_sequence(store, task, user)
+    _require_distribution(store, task, user, roles=_READ_ROLES)
     # The flow this task is actually graded in, derived from the TASK on the same
     # rule the submit path enforces. Opening a case from the dashboard list skips
     # /tasks/next, so without this the client stamped the draft from whatever
@@ -2867,8 +2867,8 @@ async def reveal_task_answers(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
-    _require_distribution(store, task, user)
     _require_trajectory_sequence(store, task, user)
+    _require_distribution(store, task, user)
     text = (body.text or "").strip()
     if not text:
         raise HTTPException(
@@ -3006,8 +3006,8 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on answer-describing surfaces
-    _require_distribution(store, task, user, roles=_READ_ROLES)  # CASE-BATCHES §1
     _require_trajectory_sequence(store, task, user)  # PRD 2 §9.1 sealed future
+    _require_distribution(store, task, user, roles=_READ_ROLES)  # CASE-BATCHES §1
     if not store.get_independent_commit(task_id, user["id"]):
         raise HTTPException(
             status_code=403,
@@ -3320,12 +3320,16 @@ async def submit(
     # most: a trajectory point is single-labelled, so a submission from somebody
     # it was never routed to consumes the point's one label and blocks the
     # physician the admin actually chose.
-    _require_distribution(store, task, user)
     # PRD 2 §9.1 on the submit path too. Not belt-and-braces: a client that
     # obtained the case some other way (a stale tab, a hand-written POST) must not
     # be able to bank a label on an out-of-order point, because that submission is
     # what the NEXT point's gate reads to decide the walk has advanced.
     _require_trajectory_sequence(store, task, user)
+    # CASE-BATCHES §1 on the submit path too, and this is the one that matters
+    # most: a trajectory point is single-labelled, so a submission from somebody
+    # it was never routed to consumes the point's one label and blocks the
+    # physician the admin actually chose.
+    _require_distribution(store, task, user)
 
     # Stage-1 prompt validation gate (Eval Flow Upgrade §2): a clinician who
     # flagged the prompt as invalid never judged answers. Capture the flag for

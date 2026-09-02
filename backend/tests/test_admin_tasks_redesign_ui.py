@@ -510,6 +510,14 @@ def test_a_solo_walk_sends_to_the_named_doctors_and_never_to_everyone():
           var docs = findAll(body, 'asc-route-doc');
           var cb = checkboxes(docs[0])[0];
           cb.checked = true; cb.dispatch('change');
+          // Longitudinal E2E §3 — Send is disabled until a human has opened
+          // one of these cases this session. Auto-generation removed the click
+          // that used to force somebody past a preview on the way to creating
+          // tasks, so this is now the only point at which a person is guaranteed
+          // to have read the case they are about to route. Clicking it here is
+          // not test scaffolding: it IS the required flow.
+          findAll(body, 'asc-btn')
+            .filter(function (b) { return tidy(b) === 'Preview'; })[0].dispatch('click');
           setTimeout(function () {
             var btns = [];
             (function walk(el) {
@@ -538,6 +546,14 @@ def test_an_explicit_send_with_nobody_named_is_refused_not_posted():
       findAll(body, 'asc-route-rail-btn')[0].dispatch('click');
       setTimeout(function () {
         checkboxes(body).forEach(function (cb) { cb.checked = true; cb.dispatch('change'); });
+          // Longitudinal E2E §3 — Send is disabled until a human has opened
+          // one of these cases this session. Auto-generation removed the click
+          // that used to force somebody past a preview on the way to creating
+          // tasks, so this is now the only point at which a person is guaranteed
+          // to have read the case they are about to route. Clicking it here is
+          // not test scaffolding: it IS the required flow.
+          findAll(body, 'asc-btn')
+            .filter(function (b) { return tidy(b) === 'Preview'; })[0].dispatch('click');
         setTimeout(function () {
           var btns = [];
           (function walk(el) {
