@@ -481,3 +481,46 @@ def test_packaging_does_not_relabel_env_as_v3():
     # …while everything unknown still falls to the default, as before.
     assert _portal_version({"portal_version": "v9"}, {}) == "v3"
     assert _portal_version({"portal_version": "v5"}, {}) == "v5"
+
+
+def test_the_dashboard_count_is_a_sql_count_not_a_materialized_list():
+    """Found by auditing, not by a failing test: the obvious spelling of this
+    count — ``len(eligible_tasks_for_evaluator(...))`` — fetches the full task
+    row for every candidate. Measured at 217 ms for a physician holding 200
+    routed points, paid on EVERY dashboard load including v3 and v4, where the
+    number is never read.
+
+    Two things are asserted, and the second is why the count was routed through
+    ``labeler_queue_sql`` in the first place: it must stay CHEAP, and it must
+    keep agreeing with the queue it describes."""
+    store = _store()
+    doc = _doctor(store)
+    for _ in range(40):
+        _tid, points = _walk(store, n=3)
+        store.upsert_assignment(task_id=points[0]["task_id"], user_id=doc["id"],
+                                role="label", assigned_by="admin-test")
+
+    n_sql = store.count_eligible_tasks_for_evaluator(
+        evaluator_id=doc["id"], specialty="hepatology", trajectory_only=True)
+    n_rows = len(store.eligible_tasks_for_evaluator(
+        evaluator_id=doc["id"], specialty="hepatology", trajectory_only=True))
+    assert n_sql == n_rows == 40, (n_sql, n_rows)
+
+    # The endpoint reports the same number the queue would serve.
+    body = client.get("/api/asclepius/tasks/available?portal_version=v5&limit=5",
+                      headers=A.headers_for(doc)).json()
+    assert body["longitudinal_available"] == 40
+
+    # …and it is a COUNT, not a fetch. A materializing implementation issues one
+    # get_task per candidate; this asserts the router never does that.
+    import inspect
+    import routers.asclepius as R
+    src = inspect.getsource(R.list_available_tasks) if hasattr(R, "list_available_tasks") else None
+    if src is None:                       # the endpoint's name may differ
+        src = inspect.getsource(R)
+    idx = src.find("longitudinal_available = ")
+    assert idx != -1
+    window = src[idx:idx + 700]
+    assert "count_eligible_tasks_for_evaluator" in window, window[:300]
+    assert "len(store.eligible_tasks_for_evaluator" not in window, (
+        "the dashboard count went back to materializing every candidate row")

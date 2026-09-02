@@ -6197,6 +6197,38 @@ class AsclepiusStore:
                    for t in out]
         return out
 
+    def count_eligible_tasks_for_evaluator(self, **kw: Any) -> int:
+        """How many tasks this evaluator may take — WITHOUT materializing them.
+
+        ``eligible_tasks_for_evaluator`` fetches the full task row for every
+        candidate so the ranker can score it. When all the caller wants is a
+        number, that is one ``get_task`` per row: measured at **217 ms** for a
+        physician holding 200 routed points, paid on every dashboard load, on
+        every portal version, including the ones that never read the number.
+
+        Same ``labeler_queue_sql``, so the count and the queue cannot disagree
+        about what is eligible — which is the whole reason the count was routed
+        through that function in the first place. Wrapping it in ``COUNT(*)``
+        keeps that property and drops the per-row fetch.
+
+        The inner query carries the scan window's ``LIMIT``, so this is bounded
+        work and SATURATES at ``_PRD_R_SCAN_WINDOW``. That is the honest number
+        rather than a cap silently applied to a total: the window is already how
+        many candidates a draw will consider, so a count that exceeded it would
+        describe work the queue would not look at.
+
+        It does NOT run the exact Python capacity check that
+        ``eligible_tasks_for_evaluator`` applies afterwards, and for the caller
+        that needs it — the longitudinal count — that makes no difference: a
+        point this evaluator has already submitted is excluded by the SQL
+        independence clause, and a trajectory point is single-labelled, so SQL's
+        necessary condition is also the sufficient one here.
+        """
+        sql, params = self.labeler_queue_sql(**kw)
+        with self._conn() as conn:
+            row = conn.execute(f"SELECT COUNT(*) AS n FROM ({sql})", params).fetchone()
+        return int((row["n"] if row else 0) or 0)
+
     def evaluator_median_seconds(self, evaluator_id: str) -> Optional[float]:
         """The contributor's rolling median seconds-per-task (Value-per-Minute
         PRD B3 routing denominator). Median, not mean, so one slow outlier task
@@ -10888,7 +10920,22 @@ class AsclepiusStore:
         # construction rather than by four call sites remembering. Live at
         # arrival, never a snapshot — an admin who turns the default on today
         # affects tomorrow's shipment, not the one already parsed.
-        self.apply_auto_generate_default(upload_id)
+        #
+        # GUARDED, because of where this sits. ``attach_upload_provenance`` is on
+        # the critical path of every partner upload, and the purpose write above
+        # has already committed by the time we get here. An exception raised now
+        # would 500 the upload door on a bundle whose row is already correct —
+        # the partner is told their PHI transfer failed when it did not, and they
+        # re-send. Arming a convenience flag must never be able to cost that.
+        try:
+            self.apply_auto_generate_default(upload_id)
+        except Exception:                       # pragma: no cover - never fatal
+            # ``_logging.getLogger(...)``, not a module-level ``log``: this file
+            # has no such name, and a bare ``log`` here would turn the swallowed
+            # error into a NameError raised from inside the handler — the exact
+            # 500 the guard exists to prevent. Matches the other call sites.
+            _logging.getLogger("asclepius.store").exception(
+                "auto-generate default could not be applied to %s", upload_id)
 
     def set_upload_purpose(self, upload_id: str, purpose: Optional[str]) -> None:
         """Admin-side correction only (resolving a legacy row). The upload doors

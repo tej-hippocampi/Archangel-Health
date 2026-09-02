@@ -2101,7 +2101,14 @@
     // Home page: the evaluator picks their experience (V3 seamless (the
     // recommended default) / V2 assisted / V1 classic) before any labeling. Shown
     // on entry until a choice is made this session (and again on "Change experience").
-    if (!state.portalChosen) { renderVersionHome(); return; }
+    // AWAITED. ``renderVersionHome`` became async when the V5 card started
+    // asking the server whether this physician has a chart walk routed to them.
+    // Called without await, a throw inside it stops propagating to this
+    // function's caller and becomes an unobserved promise rejection instead —
+    // the physician gets a blank screen and the console gets nothing anyone is
+    // watching. Awaiting restores exactly the error path it had when it was
+    // synchronous.
+    if (!state.portalChosen) { await renderVersionHome(); return; }
     // V3/V4 are the specialty-scoped flows: pick the specialty before the case
     // loads (PRD §1). V1/V2 are text prompts and skip the picker.
     const ver = getPortalVersion();
@@ -8923,7 +8930,22 @@
 
   function renderAdminBatches(body) {
     clear(body);
-    const view = state.batches || (state.batches = {
+    /* The shape of this view, in ONE place.
+     *
+     * ``state.batches`` is not always built here. ``openBatchesFor(physician)``
+     * — "route cases to this doctor", entered from their row in Physicians —
+     * constructs a PARTIAL object and then hands control to this function, which
+     * finds ``state.batches`` already truthy and keeps it as-is. Every key that
+     * caller omits is therefore ``undefined`` at read time, and the two that are
+     * read as maps (``view.roles[id]``, ``view.previewed[id]``) throw a
+     * TypeError that takes the whole send panel down.
+     *
+     * So the defaults are named once and BACKFILLED onto whatever arrives,
+     * rather than only used when the object is absent. Existing values win, so a
+     * pre-selected physician still survives the trip; missing ones stop being a
+     * crash. Adding a key here now covers both entry points by construction.
+     */
+    const BATCH_VIEW_DEFAULTS = {
       overview: null, batch: null, rows: null, selected: {}, busy: false,
       err: null, mode: 'all', userIds: [], specialty: '', doctors: null, proposal: null,
       resolved: null, relay: false, relayWalk: null, relaySeed: null,
@@ -8938,6 +8960,10 @@
       // (distribution, sequence, capacity) are the enforcement; this is the one
       // thing they cannot check, which is whether a person looked.
       previewed: {},
+    };
+    const view = state.batches || (state.batches = {});
+    Object.keys(BATCH_VIEW_DEFAULTS).forEach(function (k) {
+      if (view[k] === undefined) view[k] = BATCH_VIEW_DEFAULTS[k];
     });
     const host = h('div', {});
     body.appendChild(host);

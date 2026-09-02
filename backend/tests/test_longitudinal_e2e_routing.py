@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tests import _asclepius as A  # noqa: E402
 from tests.test_asclepius_longitudinal_e2e import (  # noqa: E402
-    SPECIALTY, _admin_headers, _approved_physician, _generate, _ingest_chart,
+    _admin_headers, _approved_physician, _generate, _ingest_chart,
     _stub_model_legs, build_chart,
 )
 

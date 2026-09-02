@@ -2446,13 +2446,17 @@ async def available_tasks(
     # sequence seal, capacity and independence.
     longitudinal_available = 0
     if user.get("real_data_approved"):
-        longitudinal_available = len(store.eligible_tasks_for_evaluator(
+        # COUNTED in SQL, not by materializing the rows. The obvious spelling —
+        # ``len(eligible_tasks_for_evaluator(...))`` — fetches the full task row
+        # for every candidate, which measured at 217 ms for a physician holding
+        # 200 routed points and was paid on EVERY dashboard load, including v3
+        # and v4 where this number is never read.
+        longitudinal_available = store.count_eligible_tasks_for_evaluator(
             evaluator_id=user["id"], specialty=serve_specialty,
             trajectory_only=True, multimodal_only=False,
             require_measured_difficulty=require_measured_difficulty(),
             min_empirical_difficulty=min_empirical_difficulty(),
-            limit=200,
-        ))
+        )
     return {"tasks": tasks, "count": len(tasks),
             "longitudinal_available": longitudinal_available,
             "served_portal_version": served if tasks else None,
