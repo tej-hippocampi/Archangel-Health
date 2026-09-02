@@ -606,7 +606,16 @@ def test_approving_an_account_that_already_has_a_password_does_not_rotate_it(cli
     fresh = store.get_user_by_id(member["id"])
     assert fresh["password_hash"] == original
     assert not fresh["must_change_password"]
-    assert sent == ["You're approved for Asclepius"]
+    # The notice is QUEUED by the hook on record_verification_decision, not
+    # sent inline: only the credentials welcome stays inline, because it
+    # carries a secret the approving request minted. One sender for the plain
+    # notice means this branch must not also fire it.
+    assert sent == []
+    with store._conn() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT subject FROM admin_notify_outbox WHERE recipient_email = ? "
+            "AND kind = 'physician_approved'", (member["email"],))]
+    assert [r["subject"] for r in rows] == ["You're approved for Asclepius"]
 
 
 def test_first_login_forces_a_password_change_and_the_second_does_not(client: TestClient):
@@ -732,12 +741,15 @@ def test_practice_case_completion_checks_the_checklist_via_the_tutorial_event(cl
     assert r.status_code == 200, r.text
     assert r.json()["first_run"]["stops"]["practice"] == "done"
 
-    # And a skipped practice case closes the stop too, as 'skipped': §6 says a
-    # skip never nags again, and leaving the box open would be nagging.
+    # Skip is retired: the practice case is a hard gate on real work, so a
+    # skip grants nothing and is refused as a no-op. The checklist box stays
+    # OPEN — it points at work the physician still owes.
     u2 = make_user(store)
     r = c.patch("/api/asclepius/me/tutorial", json={"action": "skip"},
                 headers=headers_for(u2))
-    assert r.json()["first_run"]["stops"]["practice"] == "skipped"
+    assert r.status_code == 200
+    assert "practice" not in (r.json()["first_run"].get("stops") or {})
+    assert r.json()["tutorial"]["status"] != "skipped"
 
 
 def test_bank_link_interest_is_recorded_once(client: TestClient):

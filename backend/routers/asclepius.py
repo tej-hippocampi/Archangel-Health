@@ -973,11 +973,12 @@ async def update_my_tutorial(
     # fact drift: a doctor who finishes the practice case from the help menu, or
     # on another device, or after a reload, must still find the box ticked.
     #
-    # A skip closes the stop too. §6 says a skip never nags again, and leaving
-    # the box open after a deliberate skip is exactly nagging.
-    if action in ("complete", "skip"):
-        _close_first_run_stop(store, user["id"], "practice",
-                              "done" if action == "complete" else "skipped")
+    # A skip cannot reach here: the practice case is a hard gate, so skip is
+    # refused above with an early return, and the checklist box stays open —
+    # it points at work the physician still owes, which is the opposite of a
+    # nag about work they declined.
+    if action == "complete":
+        _close_first_run_stop(store, user["id"], "practice", "done")
     return asc_auth.public_user(store.get_user_by_id(user["id"]))
 
 
