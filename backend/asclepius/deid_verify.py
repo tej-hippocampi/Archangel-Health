@@ -42,6 +42,9 @@ log = logging.getLogger("asclepius.deid_verify")
 _SPAN_PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = list(PHI_SPAN_PATTERNS)
 
 
+_HEX_ONLY = re.compile(r"[0-9a-fA-F]+")
+
+
 def _mask(s: str) -> str:
     return re.sub(r"[A-Za-z0-9]", "•", s)
 
@@ -55,7 +58,13 @@ def _walk_strings(node: Any, segs: Tuple = ()) -> List[Tuple[Tuple, str]]:
     which made string-path parsing crash or silently no-op (review finding)."""
     out: List[Tuple[Tuple, str]] = []
     if isinstance(node, str):
-        out.append((segs, node))
+        # A pure-hex string of 32+ characters is a machine-made digest or UID
+        # (asset sha256, id_hashed), never free text, and never PHI. Scanning
+        # them is worse than useless: whether a digest happens to contain a
+        # 10-digit run is a property of the hash draw, so the same bundle
+        # quarantines on one ingest and passes on the next.
+        if not (len(node) >= 32 and _HEX_ONLY.fullmatch(node)):
+            out.append((segs, node))
     elif isinstance(node, dict):
         for k, v in node.items():
             out.extend(_walk_strings(v, segs + (k,)))

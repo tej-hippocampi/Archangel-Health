@@ -345,7 +345,12 @@
     }
 
     clear(container);
-    container.appendChild(tabStrip(ctx, approved.length, pendingRows.length,
+    // The DECIDABLE count, not the union. This chip is the one number an admin
+    // reads before deciding whether to open the tab at all, and counting
+    // mid-wizard signups in it made it say "7 waiting" when two accounts could
+    // actually be decided: false urgency on the only signal there is.
+    const decidableCount = pendingRows.filter((r) => r.kind === 'queued').length;
+    container.appendChild(tabStrip(ctx, approved.length, decidableCount,
                                    approvedErr, pendingErr));
     // Above the tabs on purpose: an account in here is invisible in BOTH of
     // them, so a banner inside a tab would be hidden by the same bug it reports.
@@ -583,7 +588,19 @@
       user_id: q.user_id,
       name: q.full_name || q.email || q.user_id,
       specialty: q.specialty || null,
+      created_at: q.created_at || null,
+      proposed_tier_word: q.proposed_tier_word || null,
+      // One merged number. An admin triaging needs to know this row is not a
+      // skim, not which KIND of not-a-skim it is; that is on the decision
+      // screen, where they are already looking at it.
+      look: (q.blockers || []).length + (q.flag_count || 0),
     }));
+    /* Oldest first. The store returns created_at DESC because that ordering is
+       shared with the approved roster, and newest-first is exactly wrong for a
+       queue whose promise is "within 24 hours": it puts the person who has
+       waited longest at the bottom. Sorted here rather than in the store, so
+       the roster is untouched. */
+    rows.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     // Mid-wizard physicians, after the decidable ones: the queue is the job,
     // the funnel is the chase list.
     signups.forEach((s) => {
@@ -793,12 +810,53 @@
           + 'mid-onboarding.'))));
       return;
     }
-    const card = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {},
-          h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, ''))),
-        h('tbody', {}, rows.map((r) => pendingRow(ctx, r))))));
-    container.appendChild(card);
+    /* Two headed tables, one tab. They are two different jobs -- a decision and
+       a chase -- and they were interleaved in one list distinguished only by a
+       chip. A third TAB would have buried the chase list behind a tab nobody
+       opens and split one operator loop across three screens, which is what
+       this file's header comment says was removed once already. */
+    const decidable = rows.filter((r) => r.kind === 'queued');
+    const signups = rows.filter((r) => r.kind !== 'queued');
+
+    if (decidable.length) {
+      container.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-head' },
+          h('div', { class: 'asc-card-title' },
+            'Waiting on your decision (' + decidable.length + ')')),
+        h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+          h('thead', {}, h('tr', {},
+            h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, 'Waiting'),
+            h('th', {}, 'Proposed'), h('th', {}, 'Look'), h('th', {}, ''))),
+          h('tbody', {}, decidable.map((r) => pendingRow(ctx, r)))))));
+    } else {
+      container.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-empty' }, 'Nobody is waiting on a decision.'))));
+    }
+
+    if (signups.length) {
+      container.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-head' },
+          h('div', { class: 'asc-card-title' },
+            'Still filling in the wizard (' + signups.length + ')')),
+        h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+          h('thead', {}, h('tr', {},
+            h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, ''))),
+          h('tbody', {}, signups.map((r) => pendingRow(ctx, r)))))));
+    }
+  }
+
+  /* How long they have been waiting, against the promise the workspace-ready
+     email makes ("within 24 hours"). Amber past a day, because the number is
+     only useful if the overdue ones are visible without reading every row. */
+  function waitingCell(h, iso) {
+    if (!iso) return h('td', {}, '—');
+    const then = new Date(String(iso).endsWith('Z') || String(iso).includes('+')
+      ? iso : iso + 'Z');
+    const days = Math.floor((Date.now() - then.getTime()) / 86400000);
+    if (!isFinite(days) || days < 0) return h('td', {}, '—');
+    const text = days < 1 ? 'today' : days + 'd';
+    if (days < 1) return h('td', {}, text);
+    return h('td', {}, h('span', { class: 'asc-badge asc-badge-amber' }, text));
   }
 
   function pendingRow(ctx, r) {
@@ -824,6 +882,15 @@
     const tr = h('tr', { class: 'asc-row-click' },
       h('td', {}, h('strong', {}, r.name)),
       h('td', {}, r.specialty || '—'),
+      waitingCell(h, r.created_at),
+      // The proposal, not the score. A number in a queue invites deciding on
+      // the number; the tier word says which rows need real thought.
+      h('td', {}, r.proposed_tier_word || '—'),
+      // Rendered only when non-zero: an always-present count makes every row
+      // look flagged, which is the same as none of them being flagged.
+      h('td', {}, r.look
+        ? h('span', { class: 'asc-badge asc-badge-amber' }, String(r.look))
+        : ''),
       h('td', {}, '→'));
     tr.addEventListener('click', () => { pendingId = r.user_id; rerender(); });
     return tr;
@@ -893,19 +960,60 @@
         h('div', { class: 'asc-card-title' }, d.full_name || d.email || userId),
         h('div', { class: 'asc-card-sub' }, d.specialty || 'No specialty declared')))));
 
-    // ── WHAT THEY SUBMITTED ──
-    slot.appendChild(sectionCard(ctx, 'What they submitted',
-      kvBlock(h, '', [
-        ['Email', d.email],
-        ['Phone', d.phone],
-        ['NPI', npiLineText(d)],
-        ['Specialty', d.specialty],
-        ['Clinical role', (d.clinical_role || '').replace(/_/g, ' ') || null],
-        ['Organisation', d.org_name],
-        ['LinkedIn', d.linkedin_url],
-        ['Submitted', d.created_at ? fmtDate(d.created_at) : null],
-      ]),
-      d.has_cv ? cvLink(ctx, userId, d) : h('div', { class: 'asc-dim' }, 'No CV uploaded')));
+    /* The order below follows what an admin actually does, and the rule is:
+     * facts that can change the decision are OPEN, raw material you consult
+     * when a fact looks wrong is COLLAPSED, and anything whose text the
+     * applicant controls is collapsed, below the buttons, and labelled.
+     *
+     * The buttons therefore sit below the evidence rather than above it, so a
+     * decision is a longer scroll than it used to be. That is deliberate and it
+     * is the point of this screen: the failure being fixed is deciding without
+     * looking. If per-decision speed becomes the complaint, the answer is
+     * queue-level triage, not moving the buttons back above the evidence.
+     *
+     * Every renderer here is the one the approved-physician profile already
+     * used. They were written, and then this screen kept its own smaller
+     * version, which is how a non-US doctor's card came to show a blank where
+     * their registration number belongs. */
+
+    // ── WORTH A LOOK — first, open, and only when there is something ──
+    const flags = d.flags || [];
+    if (flags.length) slot.appendChild(flagsCard(h, flags));
+
+    // ── IDENTITY ──
+    const idRows = identityRows(dossierIdentity(d));
+    idRows.push(['Specialty', d.specialty]);
+    idRows.push(['Clinical role', (d.clinical_role || '').replace(/_/g, ' ') || null]);
+    idRows.push(['Organisation', d.org_name]);
+    idRows.push(['Submitted', d.created_at ? fmtDate(d.created_at) : null]);
+    const idCard = sectionCard(ctx, 'Identity', kvBlock(h, '', idRows));
+    const reg = d.registry || {};
+    if (reg.note) {
+      // The instruction for a regulator we cannot query by API. Computed,
+      // serialized, and rendered nowhere until now.
+      idCard.querySelector('.asc-card-pad').appendChild(
+        h('div', { class: 'asc-dim' }, reg.note));
+    }
+    const dupes = d.duplicate_claims || [];
+    if (dupes.length) {
+      // Two accounts on one NPI is decision-changing, and it was invisible here.
+      const pad = idCard.querySelector('.asc-card-pad');
+      pad.appendChild(h('div', { class: 'vq-section-label' },
+        'Also claiming this number (' + dupes.length + ')'));
+      dupes.forEach((c) => {
+        pad.appendChild(h('div', { class: 'asc-badge asc-badge-amber' },
+          (c.email || 'unknown') + ' · ' + (c.verification_status || 'no decision')));
+      });
+    }
+    slot.appendChild(idCard);
+
+    // ── CREDENTIALS AS TYPED — the thing the decision is nominally about ──
+    const creds = credentialsAsTyped(h, d.credentials || {}, d.attestations || {}, {
+      years_experience: d.years_experience,
+      board_cert: d.board_cert,
+      cv_conflicts: d.cv_conflicts || [],
+    });
+    if (creds) slot.appendChild(creds);
 
     // ── RECOMMENDATION ──
     slot.appendChild(recommendationCard(ctx, d, proposed, words));
@@ -913,9 +1021,67 @@
     // ── YOUR DECISION ──
     slot.appendChild(decisionCard(ctx, userId, d, proposed, words));
 
+    // ── Raw material, collapsed, below the decision ──
+    slot.appendChild(cvCard(ctx, userId, d));
+    if (d.npi_payload) slot.appendChild(npiPayloadCard(h, d.npi_payload));
+
     // ── Background research, BELOW the buttons and never in the reasons ──
     const research = d.agent_research || [];
     if (research.length) slot.appendChild(researchCard(ctx, research));
+  }
+
+  /* The dossier and the profile carry the same identity facts in two shapes.
+     ONE renderer reads them, because the reason a non-US doctor's card was
+     blank on this screen is that this screen had its own. */
+  function dossierIdentity(d) {
+    const reg = d.registry || {};
+    const npi = d.npi || {};
+    const out = {
+      email: d.email,
+      phone: d.phone,
+      linkedin_url: d.linkedin_url,
+      cv_on_file: !!d.has_cv,
+      country_of_practice: d.country_of_practice,
+    };
+    if (reg && reg.is_us === false) {
+      out.country_of_licensure = reg.country;
+      out.registry_name = reg.registry_name || reg.id_label;
+      out.registry_id = reg.identifier;
+      out.registry_verified = reg.verified;
+      out.registry_lookup_url = reg.lookup_url;
+    } else {
+      out.npi = npi.npi;
+      out.npi_verified = npi.result;
+      /* Deliberately NOT collapsed through npiWord's tri-state. The result has
+         five values, and folding UNAVAILABLE into NOT_FOUND has already
+         shipped and been caught once in this codebase. identityRows renders
+         this string when it is present and falls back to npiWord otherwise, so
+         the profile screen is untouched and this one keeps the richer answer. */
+      out.npi_check_text = npiLineText(d);
+    }
+    return out;
+  }
+
+  /* The parsed CV, collapsed. The typed record is primary and the parse is a
+     cross-check; where they DISAGREE is already open, in the credentials card. */
+  function cvCard(ctx, userId, d) {
+    const { h } = ctx;
+    const det = h('details', { class: 'asc-card' });
+    det.appendChild(h('summary', { class: 'asc-card-head' },
+      h('div', { class: 'asc-card-title' }, 'CV')));
+    const pad = h('div', { class: 'asc-card-pad' });
+    if (d.has_cv) {
+      pad.appendChild(cvLink(ctx, userId, d));
+      const parsed = d.cv_parsed || {};
+      const rows = Object.keys(parsed)
+        .filter((k) => k !== 'ok' && typeof parsed[k] !== 'object')
+        .map((k) => [k.replace(/_/g, ' '), String(parsed[k])]);
+      if (rows.length) pad.appendChild(kvBlock(h, '', rows));
+    } else {
+      pad.appendChild(h('div', { class: 'asc-dim' }, 'No CV uploaded'));
+    }
+    det.appendChild(pad);
+    return det;
   }
 
   function backBar(ctx, tab) {
@@ -1342,14 +1508,7 @@
     } catch (e) { /* score endpoint unavailable: the profile stands alone */ }
 
     // NPPES payload (raw registry answer) — shown when the NPI was checked.
-    if (data.npi_payload) {
-      const pre = h('pre', { class: 'asc-mono', style: 'font-size:12px;overflow:auto;max-height:280px' });
-      pre.textContent = JSON.stringify(data.npi_payload, null, 2);
-      container.appendChild(h('div', { class: 'asc-card' },
-        h('div', { class: 'asc-card-head' }, h('div', {},
-          h('div', { class: 'asc-card-title' }, 'NPPES registry payload'))),
-        h('div', { class: 'asc-card-pad' }, pre)));
-    }
+    if (data.npi_payload) container.appendChild(npiPayloadCard(h, data.npi_payload));
 
     // Task history + review history (when a reviewer).
     container.appendChild(historyCard(ctx, 'Task history',
@@ -1363,6 +1522,18 @@
         (data.review_history || []).map((r) => [
           r.created_at ? fmtDate(r.created_at) : '—', r.submission_id || '—', r.verdict || '—'])));
     }
+  }
+
+  /* The raw registry answer. Collapsed on the decision screen and open on the
+     profile, because on the decision screen it is what you consult when a fact
+     looks wrong rather than a fact you read. */
+  function npiPayloadCard(h, payload) {
+    const pre = h('pre', { class: 'asc-mono', style: 'font-size:12px;overflow:auto;max-height:280px' });
+    pre.textContent = JSON.stringify(payload, null, 2);
+    return h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'NPPES registry payload'))),
+      h('div', { class: 'asc-card-pad' }, pre));
   }
 
   function npiWord(v) {
@@ -1397,7 +1568,11 @@
     const rows = [['Email', p.email], ['Phone', p.phone]];
     const licensure = (p.country_of_licensure || '').toUpperCase();
     if (!licensure || licensure === 'US') {
-      rows.push(['NPI', p.npi], ['NPI check', npiWord(p.npi_verified)]);
+      // npi_check_text carries the five-state answer when the caller has it
+      // (the decision screen does). npiWord's tri-state is the fallback, and
+      // folding UNAVAILABLE into NOT_FOUND has shipped once already.
+      rows.push(['NPI', p.npi],
+                ['NPI check', p.npi_check_text || npiWord(p.npi_verified)]);
     } else {
       rows.push([p.registry_name || 'Registration', p.registry_id]);
       rows.push(['Registry check', npiWord(p.registry_verified)]);
@@ -1462,7 +1637,13 @@
     return names.length ? names.join(', ') : null;
   }
 
-  function credentialsAsTyped(h, c, a) {
+  /* `extra` is optional and defaults to {} so the profile's two-argument call is
+     byte-identical. It carries the three things the DECISION screen needs that
+     the credentials blob does not hold: years in practice, a board-cert
+     fallback for legacy accounts whose blob predates the array, and where the
+     CV disagrees with what was typed. */
+  function credentialsAsTyped(h, c, a, extra) {
+    extra = extra || {};
     const rows = [];
     const push = (k, v) => { if (v != null && v !== '') rows.push([k, String(v)]); };
     push('Full legal name', c.fullLegalName);
@@ -1481,20 +1662,38 @@
     push('Practice status', c.practiceStatus);
     push('Clinical half-days / month', c.clinicalHalfDaysPerMonth);
     push('Languages', (c.languages || []).join(', '));
-    (c.boardCertifications || []).forEach((b, i) => {
-      if (!b || !b.board) return;
+    push('Years in practice', extra.years_experience);
+    const certs = (c.boardCertifications || []).filter((b) => b && b.board);
+    certs.forEach((b, i) => {
       push('Board certification' + (i ? ' ' + (i + 1) : ''),
            [b.board, b.specialty, b.subspecialty].filter(Boolean).join(', '));
     });
+    // A legacy account whose blob predates the array would otherwise render
+    // blank on the one line the decision is nominally about.
+    if (!certs.length) push('Board certification', extra.board_cert);
     // The signature. Collected since the first version of this form and shown
     // to nobody, including the person who signed it.
     push('Signed with', a.signedInitials);
     push('Terms signed', signedTerms(a));
-    if (!rows.length) return null;
+    const conflicts = extra.cv_conflicts || [];
+    if (!rows.length && !conflicts.length) return null;
+    const pad = h('div', { class: 'asc-card-pad' }, kvBlock(h, '', rows));
+    if (conflicts.length) {
+      // Open and amber, not buried in the collapsed CV card. "The CV says a
+      // different residency year than the form" is decision-changing, and it
+      // is about the typed record, so it belongs beside it.
+      pad.appendChild(h('div', { class: 'vq-section-label' },
+        'The CV disagrees (' + conflicts.length + ')'));
+      conflicts.forEach((cf) => {
+        pad.appendChild(h('div', { class: 'asc-badge asc-badge-amber' },
+          String(cf.field || 'Field') + ': CV says ' + String(cf.cv || 'nothing')
+          + ', the form says ' + String(cf.stated || 'nothing')));
+      });
+    }
     return h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' },
         h('div', { class: 'asc-card-title' }, 'Credentials as typed')),
-      h('div', { class: 'asc-card-pad' }, kvBlock(h, '', rows)));
+      pad);
   }
 
   function historyCard(ctx, title, headers, rows) {

@@ -1511,6 +1511,7 @@ class AsclepiusStore:
                 "AND (verification_status IS NULL OR verification_status = 'approved')",
                 (_utcnow_iso(),),
             )
+            self._backfill_practice_gate(conn)
             # ═══ END PRD-B ═══
             # ═══ PRD-A REVIEW SCHEMA — owned by Agent 1, do not edit from other PRDs ═══
             # Two-tier review product (PRD A §1): senior reviewers grade a labeler's
@@ -3536,6 +3537,26 @@ class AsclepiusStore:
             )
             return cur.rowcount > 0
 
+    def void_pending_admin_notification(self, idempotency_key: str) -> bool:
+        """Drop a queued mail that has not gone out yet.
+
+        Returns True only when THIS call claimed it. The guarded UPDATE is the
+        arbiter, the same shape as mark_community_welcomed, so a concurrent
+        drain and a void cannot both win.
+
+        Exists for exactly one case: a rejection queued behind a grace window,
+        and an admin who then approves inside that window. Once status is no
+        longer 'pending' the mail is gone and this is a no-op, which is the
+        honest answer rather than a pretend one.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE admin_notify_outbox SET status = 'void' "
+                "WHERE idempotency_key = ? AND status = 'pending'",
+                (idempotency_key,),
+            )
+            return cur.rowcount > 0
+
     def due_admin_notifications(self, limit: int = 50) -> List[Dict[str, Any]]:
         now = _utcnow_iso()
         with self._conn() as conn:
@@ -4724,6 +4745,69 @@ class AsclepiusStore:
                 (json.dumps(state), user_id),
             )
 
+    def _backfill_practice_gate(self, conn) -> int:
+        """Grandfather every physician who is already doing real work.
+
+        The practice-case gate is new and mandatory. Switching it on without
+        this would lock out every approved, tiered, actively-labeling physician
+        overnight: a data-supply outage dressed as a quality fix, which is the
+        exact failure the tier backfill above was written to avoid.
+
+        The rule is ONE predicate, ``has at least one real submission``, and it
+        is deliberately not any of the obvious alternatives. The gate exists to
+        guarantee a physician saw the standard BEFORE their first real case.
+        Someone already submitting has had that case; the gate cannot un-happen
+        it, and their calibration is now measured by contributor_score and the
+        review pipeline, which are better instruments than a four-minute
+        practice case. Grandfathering on ``verification_status='approved'``
+        would exempt people who have never labeled, which defeats the change.
+        Grandfathering on ``tutorial.status='completed'`` would certify the
+        0-of-4 completions this change exists to stop.
+
+        ``gate IS ABSENT`` is the load-bearing clause, because THIS RUNS ON
+        EVERY BOOT. Every real write to ``gate`` stamps it (a pass, an admin
+        revoke), so an absent gate means nobody has ever decided about this
+        account. Without the clause, a gate an admin deliberately relocked
+        would be handed back on the next redeploy, and a migration that
+        silently re-grants a revoked capability is worse than the gap it
+        closes.
+
+        ``status`` is left ALONE. A 'skipped' row stays 'skipped': that is what
+        the physician did, and reporting must keep saying so. The gate is a
+        different question and gets a different field.
+        """
+        rows = conn.execute(
+            "SELECT u.id, u.tutorial_json, COUNT(s.submission_id) AS n "
+            "FROM users u JOIN submissions s ON s.evaluator_id = u.id "
+            "WHERE u.role IN ('evaluator', 'qa_reviewer') "
+            "GROUP BY u.id HAVING n >= 1"
+        ).fetchall()
+
+        stamped = 0
+        for row in rows:
+            # Per-user isolation: one unparseable blob must not abort the boot
+            # migration and take the whole app down with it.
+            try:
+                raw = row["tutorial_json"]
+                blob = json.loads(raw) if raw else {}
+                if not isinstance(blob, dict):
+                    blob = {}
+                if isinstance(blob.get("gate"), dict):
+                    continue  # already decided, by anybody, ever
+                blob.setdefault("status", "not_started")
+                blob["gate"] = {
+                    "state": "grandfathered",
+                    "source": "migration:practice_gate_backfill",
+                    "at": _utcnow_iso(),
+                    "prior_submissions": int(row["n"]),
+                }
+                conn.execute("UPDATE users SET tutorial_json = ? WHERE id = ?",
+                             (json.dumps(blob), row["id"]))
+                stamped += 1
+            except Exception:  # pragma: no cover - defensive, per-row
+                _logging.getLogger("asclepius.store").exception(
+                    "[practice-gate] backfill skipped user %s", row["id"])
+        return stamped
     # ─── Onboarding v2 §6: the first-login walkthrough ────────────────────────
     #: Bumping this retires every stored checklist: a physician who finished the
     #: old walkthrough is shown the new one once. Only bump for a real change in
@@ -8165,6 +8249,10 @@ class AsclepiusStore:
         a decision, not a computation, so it arrives only from this method."""
         now = _utcnow_iso()
         with self._conn() as conn:
+            was = conn.execute(
+                "SELECT verification_status FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            prior = was["verification_status"] if was else None
             if status == "approved":
                 conn.execute(
                     "UPDATE users SET verification_status = 'approved', "
@@ -8180,7 +8268,36 @@ class AsclepiusStore:
                     "verified_by = ?, verified_at = ? WHERE id = ?",
                     (status, note, decided_by, now, user_id),
                 )
-        return self.get_user_by_id(user_id)
+        updated = self.get_user_by_id(user_id)
+
+        # Tell the physician, from the WRITE rather than from the handler.
+        #
+        # This is the only production writer of verification_status='approved'
+        # and the only writer of the tier columns, so hooking it here covers the
+        # admin console, the verification agent's auto-approval and
+        # /admin/physicians/restore at once. Two of those three sent nothing: a
+        # physician the agent approved was never told, and neither was one an
+        # operator repaired. Adding a send to each handler would have been three
+        # call sites, three try/excepts, and a fourth the day somebody writes
+        # another one.
+        #
+        # Outside the connection block on purpose: the hook queues a row through
+        # this same store, and re-entering an open connection is the C-5.5 bug.
+        # It queues and never sends -- the existing 60s drainer sends -- so no
+        # request pays for a network round trip and a transport blip becomes a
+        # retry instead of a physician who is never told.
+        #
+        # Gated on the TRANSITION, not the final state: restore_physician
+        # re-stamps an already-approved account to change a tier, and "you're
+        # approved" months after the fact is not news.
+        if status != prior:
+            try:
+                import notifications  # noqa: PLC0415 - avoid an import cycle at boot
+                notifications.on_verification_decision(
+                    self, user=updated, status=status, tier=tier, prior=prior)
+            except Exception:  # pragma: no cover - a notification must never break a write
+                pass
+        return updated
 
     def mark_community_welcomed(self, user_id: str) -> bool:
         """Community v2: idempotency flag for the one-time community welcome

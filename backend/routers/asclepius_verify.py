@@ -255,6 +255,10 @@ def _queue_row(store: Any, user: Dict[str, Any],
         "specialty": user.get("specialty"),
         "clinical_role": user.get("clinical_role"),
         "org_name": user.get("org_name"),
+        # Without this the shared identity renderer's "Practising in" line
+        # silently never appears on the decision screen, which is exactly the
+        # class of bug that left a non-US physician's card blank.
+        "country_of_practice": user.get("country_of_practice"),
         "created_at": user.get("created_at"),
         "verification_status": user.get("verification_status"),
         "email_domain_class": user.get("email_domain_class"),
@@ -267,10 +271,26 @@ def _queue_row(store: Any, user: Dict[str, Any],
         "proposed_tier": prop["proposed_tier"],
         "reasons": prop["reasons"],
         "blockers": prop["blockers"],
+        # A COUNT, not the flags. The queue only has to answer "is this row a
+        # skim or not"; the flags themselves are read on the decision screen.
+        # A column read, so no per-row query is added to the queue.
+        "flag_count": len(_json_list(user.get("flags_json"))),
         "tier": user.get("tier"),
         "verified_by": user.get("verified_by"),
         "verified_at": user.get("verified_at"),
     }
+
+
+def _cv_conflicts_safe(user: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Never raises. A conflict list that cannot be computed costs the card, not
+    the page: an admin working a queue must not lose a physician because one
+    diff threw."""
+    try:
+        from asclepius.verification_agent import _cv_conflicts  # noqa: PLC0415
+        return list(_cv_conflicts(user) or [])
+    except Exception:
+        log.exception("[verify] cv conflict diff failed for %s", user.get("id"))
+        return []
 
 
 def _load_user_or_404(user_id: str) -> Dict[str, Any]:
@@ -353,6 +373,12 @@ async def verification_dossier(
         "verification_notes": user.get("verification_notes"),
         "years_experience": user.get("years_experience"),
         "board_cert": user.get("board_cert"),
+        # Where the CV and the typed form disagree. Deterministic Python diffing
+        # two stored blobs, already written for the agent, reproducible at audit
+        # time, and the single highest-value signal on this screen that was
+        # computed and rendered nowhere: it is what "the CV says a different
+        # residency year" looks like.
+        "cv_conflicts": _cv_conflicts_safe(user),
         "tier_words": {t: asc_caps.tier_word(t) for t in _TIERS},
         # Which registry answers for this doctor, what it said, and where an
         # admin goes to check by hand when there is no API to ask.
@@ -654,15 +680,17 @@ async def approve_signup(
             elif not needs_credentials:
                 # An account that already HAS a password — an invited member, or
                 # a pre-v2 signup — is not being given credentials, so it gets
-                # the notice it always got. Sending them a "your temporary
-                # password is …" email with no password in it would be worse than
-                # sending nothing.
-                welcome_sent = bool(await send_html_email(
-                    user["email"], "You're approved for Asclepius",
-                    build_asclepius_approved_email(
-                        full_name=(user.get('full_name') or '').strip(),
-                        workspace_url=_portal_base() + '/asclepius',
-                    ), importance_headers=True))
+                # the plain notice rather than a "your temporary password is …"
+                # email with no password in it.
+                #
+                # That notice is QUEUED, not sent here, by the hook on
+                # record_verification_decision above. One sender for it, so the
+                # console and the two paths that used to say nothing produce one
+                # mail between them rather than this branch and the queue both
+                # firing. It also means the tier is named, which this branch
+                # never did. Only the credentials welcome stays inline, because
+                # it carries a secret this request minted and nothing else can.
+                welcome_sent = True
             # The remaining case — credentials were NEEDED and the mint failed —
             # sends nothing on purpose. "You're approved, open your workspace"
             # pointing at a door this physician has no key to is worse than

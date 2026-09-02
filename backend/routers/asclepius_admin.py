@@ -1272,6 +1272,17 @@ async def restore_physician(
         # came back a labeler, demoted by an operator doing the obvious thing.
         # Carry the current tier forward when the caller did not name one.
         keep = tier or target.get("tier")
+        # Credentials BEFORE the decision, for the same reason the console does
+        # it and on the same seam: Onboarding v2's wizard has no password step,
+        # so approval is when an account becomes usable at all. Repairing a
+        # misfiled physician and leaving them unable to sign in is the repair
+        # not finishing, and recording the decision is what queues their mail.
+        from asclepius.verification_agent import (  # noqa: PLC0415
+            _issue_credentials_if_needed,
+        )
+        issued = await _issue_credentials_if_needed(store, target)
+        if issued:
+            did.append("temporary password issued")
         store.record_verification_decision(
             user_id=target["id"], status="approved",
             decided_by=admin.get("email") or admin["id"],

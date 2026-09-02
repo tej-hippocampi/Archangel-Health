@@ -1100,9 +1100,37 @@ def build_application_welcome_email(
     return _shell(subject=subject, body_html=body)
 
 
-def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str:
-    """Credential verification passed and the account is open for real work."""
+def build_asclepius_approved_email(*, full_name: str, workspace_url: str,
+                                   tier_word: str = "", can_review: bool = False) -> str:
+    """Credential verification passed and the account is open for real work.
+
+    Names the tier, framed as what work opens rather than as a rank. It is the
+    decision, it is written in the same transaction, and it decides which queue
+    is populated: a Labeler who expected Reviewer used to find out from an empty
+    review queue, which reads as a broken product rather than as a decision
+    somebody made.
+
+    There is deliberately NO promotion sentence. The only writers of users.tier
+    are approval-time and the restore backfill; there is no promotion mechanism
+    in the product, and an email implying one is a promise the codebase cannot
+    keep. If a promotion flow is ever built, this is where it gets a sentence.
+
+    ``tier_word`` is a WORD, resolved by the caller. Empty means the paragraph
+    is omitted entirely rather than rendering "Unassigned" at a physician:
+    restore_physician can approve carrying no tier, and a placeholder in a
+    congratulations email is worse than silence about it.
+    """
     first = (full_name or "").strip() or "Doctor"
+    tier_para = ""
+    if (tier_word or "").strip():
+        tier_para = _p(
+            f"You are approved as a {_strong(tier_word)}. "
+            + ("That opens both queues. You can label cases in your specialty, and "
+               "you can review the work other physicians have filed."
+               if can_review else
+               "Cases in your specialty are in your queue now. You read each one and "
+               "record your clinical judgment, and every case you file is graded.")
+        )
     body = (
         _eyebrow("Verified · Asclepius")
         + _h1("You&rsquo;re approved.")
@@ -1110,6 +1138,7 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str
             f"{_strong(first)}, your credentials have been verified and your Asclepius "
             "account is now open for evaluation work."
         )
+        + tier_para
         + _cta(workspace_url, "Open your workspace →")
         + _p(
             "Your seat in the "
@@ -1121,6 +1150,50 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str
         + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
     )
     return _shell(subject="You're approved for Asclepius", body_html=body)
+
+
+def build_asclepius_rejected_email(*, full_name: str) -> str:
+    """Credential verification did not pass.
+
+    We send one, unlike the health-system refusal above, and the reasoning does
+    not transfer: that one argues from deal size, where an automated rejection
+    to a CIO costs a relationship a person could have kept. A rejected physician
+    is an individual who was told they would hear from us within 24 hours, and
+    who otherwise hears nothing while their account 403s forever with a message
+    about being pending. We already made them a promise; silence breaks it, and
+    the limbo is worse than the no.
+
+    It gives NO reason, deliberately. The rejection note is mandatory and is
+    written by an admin for an audit trail: it may carry an accusation, a
+    suspicion, or a third party's name, none of which was drafted to be read by
+    its subject. And a rejection that names the check that failed is a rejection
+    an adversarial applicant tunes the next attempt against. The note stays in
+    verification_notes; the door back is a reply to a person.
+    """
+    first = (full_name or "").strip() or "Doctor"
+    body = (
+        _eyebrow("Asclepius")
+        + _h1("About your application.")
+        + _p(
+            f"{_strong(first)}, thank you for applying to contribute to Asclepius. Our "
+            "clinical team has reviewed the credentials you submitted, and we are not "
+            "able to open your account for evaluation work."
+        )
+        + _p(
+            "If you believe that is wrong, reply to this email. Tell us which licence or "
+            "registration you would like us to check, and a person will look again. We "
+            "keep the record of every decision, so a second look starts from what we "
+            "already hold."
+        )
+        + _p(
+            "Your account will not receive case work. We will not email you again about "
+            "this unless you reply.",
+            muted=True, small=True,
+        )
+    )
+    # Not "You were rejected". That is the line they read on a phone in a
+    # corridor, and the subject is not where the decision has to land.
+    return _shell(subject="About your Asclepius application", body_html=body)
 
 
 def build_enterprise_note_email(

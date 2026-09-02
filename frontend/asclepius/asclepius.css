@@ -107,22 +107,6 @@
   align-items: center;
   gap: 14px;
 }
-.asc-user-badge {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.3;
-}
-.asc-user-email { font-size: 13px; font-weight: 500; color: var(--asc-text); }
-.asc-user-role {
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--ink-faint);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 /* ─── Main / layout ───────────────────────────────────────── */
 .asc-main { padding: 28px 16px 80px; }
 .asc-wrap {
@@ -612,27 +596,6 @@
   background: var(--card); border: 1px solid var(--asc-line); border-radius: var(--r-lg);
 }
 
-/* ── The contributor-score widget (PRD-SCORE). The one Doto numeral outside
-   money: the rating is the number a physician watches. ── */
-.asc-score-widget { gap: 8px; }
-.asc-score-line { display: flex; align-items: baseline; gap: 10px; }
-.asc-score-value {
-  font-family: var(--doto);
-  font-size: 34px; font-weight: 700; color: var(--ink);
-}
-.asc-score-band {
-  font-family: var(--mono); font-size: 11px;
-  letter-spacing: 0.09em; text-transform: uppercase;
-  color: var(--green-deep);
-}
-.asc-score-review {
-  font-size: 12.5px; line-height: 1.55; color: var(--ink);
-  background: var(--orange-wash, var(--card-in));
-  border: 1px solid var(--orange-line, var(--hairline));
-  border-radius: 10px; padding: 8px 10px;
-}
-.asc-score-note { font-size: 12.5px; line-height: 1.55; color: var(--ink-faint); }
-.asc-score-more { align-self: flex-start; }
 /* ── The review card on the Tasks surface (PRD-R via PRD-SCORE build):
    one surface for every kind of work, so a reviewer's queue is a distinct
    card here instead of a nav tab. Pink accent = the review console's own
@@ -2327,6 +2290,42 @@ body.asc-sheet-open { overflow: hidden; }
   border-radius: var(--r-sm); background: var(--orange-wash);
 }
 .asc-tour-planted-title { font-weight: 600; font-size: 14px; color: var(--orange-deep); }
+/* What the physician actually wrote where the answer key looked. Quoted back
+   in their own words, in the mono face the rest of the product uses for
+   captured input, so it reads as evidence rather than as more of our prose. */
+.asc-tour-finding-yours {
+  font-family: var(--mono); font-size: 12px; color: var(--ink);
+  margin-top: 8px; padding: 8px 10px; border-radius: var(--r-sm);
+  background: var(--card); border: 1px solid var(--hairline);
+  line-height: 1.5;
+}
+/* A miss folded shut. The primary button waits on it being opened, so it has
+   to look like something with more behind it. */
+.asc-tour-finding-ack { display: block; cursor: pointer; }
+.asc-tour-finding-ack > summary {
+  display: flex; gap: 12px; align-items: center; list-style: none;
+}
+.asc-tour-finding-ack > summary::-webkit-details-marker { display: none; }
+.asc-tour-finding-ack > summary::after {
+  content: 'read it'; margin-left: auto; font-family: var(--mono);
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.asc-tour-finding-ack[open] > summary::after { content: ''; }
+.asc-tour-finding-ack[open] { border-color: var(--hairline-strong); }
+/* Why the trap works. Blinded until the answer is committed, so it opens on
+   the reveal and nowhere earlier. */
+.asc-tour-teaching {
+  margin-top: 14px; padding: 12px 14px; border: 1px solid var(--hairline);
+  border-radius: var(--r-sm); background: var(--card-in);
+}
+.asc-tour-teaching > summary {
+  cursor: pointer; font-weight: 600; font-size: 14px;
+}
+.asc-tour-keydata {
+  margin: 10px 0 6px; padding-left: 18px; font-size: 13px;
+  color: var(--ink-soft); line-height: 1.6;
+}
 
 /* Help menu + instruction drawer */
 .asc-help-menu {
@@ -2586,17 +2585,13 @@ body.asc-sheet-open { overflow: hidden; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.asc-rail-spec {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-.asc-rail-spec > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Profile and Sign out, side by side. Two one-word controls stacked would read
+   as a menu; on one row they read as what they are. */
+/* The Profile page's own Sign out. Same card vocabulary as the panels above
+   it, so it reads as part of the page rather than an afterthought pinned to
+   the bottom. */
+.asc-me-signout { padding: 14px 16px; display: flex; justify-content: flex-start; }
+.asc-rail-footlinks { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .asc-rail-signout {
   align-self: flex-start;
   padding: 5px 12px;
@@ -2653,7 +2648,14 @@ body.asc-has-rail .asc-main {
   body.asc-rail-compact .asc-rail-item { justify-content: center; gap: 0; padding: 12px 0; }
   body.asc-rail-compact .asc-rail-label { display: none; }
   body.asc-rail-compact .asc-rail-item.active::before { top: 24%; bottom: 24%; }
-  body.asc-rail-compact .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  /* The foot SURVIVES here now. It used to be display:none in every narrow
+     rail, with a comment pointing at the header chip -- and that chip is gone,
+     so hiding it would take Profile and Sign out with it. The identity
+     collapses to the avatar instead, and the two controls stay reachable. */
+  body.asc-rail-compact .asc-rail-usertext { display: none; }
+  body.asc-rail-compact .asc-rail-user { justify-content: center; }
+  body.asc-rail-compact .asc-rail-footlinks { flex-direction: column; align-items: center; gap: 2px; }
+  body.asc-rail-compact .asc-rail-signout { font-size: 10px; padding: 4px 2px; }
   /* Collapsing to icons is only safe if the icons still carry what the labels
      did. A count with no label is noise; a dot still says something happened. */
   body.asc-rail-compact .asc-rail-badge {
@@ -2728,7 +2730,10 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   .asc-rail-item { justify-content: center; gap: 0; padding: 12px 10px; }
   .asc-rail-label { display: none; }
   .asc-rail-item.active::before { top: 24%; bottom: 24%; }
-  .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  .asc-rail-usertext { display: none; }
+  .asc-rail-user { justify-content: center; }
+  .asc-rail-footlinks { flex-direction: column; align-items: center; gap: 2px; }
+  .asc-rail-signout { font-size: 10px; padding: 4px 2px; }
   /* Collapse the badge to a corner dot (no count) over the icon. */
   .asc-rail-badge { position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; gap: 0; background: none; border: none; }
   .asc-rail-badge-n { display: none; }
@@ -2769,7 +2774,17 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   .asc-rail-item.active { background: transparent; box-shadow: none; border-color: transparent; color: var(--ink); border-radius: 0; }
   .asc-rail-item.active::before { left: 22%; right: 22%; top: 0; bottom: auto; width: auto; height: 2px; border-radius: 0 0 2px 2px; }
   .asc-rail-label { display: block; flex: none; }
-  .asc-rail-foot { display: none; }   /* sign out remains in the header */
+  /* The bottom tab bar is a row of destinations and the identity is not one,
+     so the foot collapses to the avatar and rides at the end of the row: the
+     avatar IS the Profile button here. Sign out is on the Profile page, which
+     is the reason that button exists at every width and not only this one. */
+  .asc-rail-foot {
+    margin: 0; padding: 0; border: 0; flex-direction: row; align-items: center;
+    flex: none; gap: 0;
+  }
+  .asc-rail-usertext { display: none; }
+  .asc-rail-footlinks { display: none; }
+  .asc-rail-user { padding: 0 10px; }
   .asc-rail-badge { position: absolute; top: 6px; right: calc(50% - 20px); margin: 0; padding: 0 5px; }
   body.asc-has-rail .asc-main { padding-left: 16px; padding-bottom: 84px; }
   /* Lift toasts clear of the bottom tab bar so they never sit under it. */
@@ -4409,18 +4424,24 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   padding: var(--sp-3) 0;
   border-top: 1px solid var(--hairline);
 }
-.asc-verif-open {
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-4);
-  border-top: 1px solid var(--hairline);
-}
-.asc-verif-open ul { margin: var(--sp-2) 0 0; padding-left: 1.1rem; }
-.asc-verif-open li { margin: var(--sp-1) 0; color: var(--ink-soft); }
 .asc-dash-cta { display: flex; gap: var(--sp-2); margin-top: var(--sp-4); flex-wrap: wrap; }
 
 /* Recovery affordance on the portal login. A button, not an anchor: it performs
    an action (mails a reset) rather than navigating anywhere. */
 .asc-login-forgot { margin-top: var(--sp-2); text-align: center; }
+
+/* "New to Archangel Health? Apply to contribute." Sits between the recovery
+   link and the access hint, so the two routes off this screen (I forgot my
+   password / I don't have an account) read as a pair, above the sentence that
+   used to be the only thing resembling an answer for a new physician. */
+.asc-login-signup {
+  margin: var(--sp-3) 0 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--asc-border, rgba(255,255,255,.08));
+  font-size: 13px;
+  text-align: center;
+  color: var(--asc-muted);
+}
 .asc-linkish {
   background: none; border: 0; padding: 0; font: inherit;
   font-size: var(--t-sm);

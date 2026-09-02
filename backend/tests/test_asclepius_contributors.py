@@ -96,11 +96,17 @@ def _approve_as_labeler(store, user):
     the moment of approval, and LABEL (enforced at /tasks/next and /submissions)
     comes from the tier. These tests are about EXPORT behaviour and need a
     physician who can actually submit, so they walk the same last step approval
-    does instead of asserting on an account that could not exist in production."""
+    does instead of asserting on an account that could not exist in production.
+
+    There are now two last steps, not one: the practice case gates /tasks/next
+    and /submissions on a separate axis from the tier, and a real physician
+    clears both before their first case. Same reasoning as above, so it is done
+    here rather than left for each test to rediscover as a 403."""
     store.record_verification_decision(
         user["id"], status="approved", decided_by="test@asclepius.example.com",
         tier="labeler", tier_score=1.0, note=None,
     )
+    A.pass_practice_case(store, user["id"])
     return store.get_user_by_id(user["id"])
 
 
