@@ -312,6 +312,8 @@ function isAdvisor() { return false; }
 function openInstructionDrawer() {}
 function renderDashboardView() { calls.push('dashboard'); }
 function startTutorial(o) { calls.push('replay:' + !!(o && o.replay)); }
+function firstRunPending() { return false; }
+function resumeFirstRun() { calls.push('first-run'); }
 const calls = [];
 const state = { user: {}, tutorial: null };
 %(payload)s
