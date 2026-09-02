@@ -1124,3 +1124,64 @@ def test_the_uploads_summary_carries_all_four_states_even_at_zero():
     summary = client.get(f"{API}/hs/uploads").json()["summary"]
     assert summary == {"received": 0, "processing": 0, "accepted": 0,
                        "needs_attention": 0, "total": 0, "accepted_bytes": 0}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  §12, the member added while the agreement is still unsigned
+# ════════════════════════════════════════════════════════════════════════════
+def test_a_member_added_before_the_signature_is_told_about_the_agreement(mail):
+    """The agreement letter goes to every member at APPROVAL time. Somebody added
+    after that moment never existed when it was sent, so without this line they
+    arrive holding credentials and no idea a contract is sitting unsigned. The
+    portal rail rescues them; the email trail was one letter short."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    store.set_hs_onboarding_state(org["hs_id"], "approved_awaiting_dla")
+
+    r = client.post(f"{API}/hs/members", json={"emails": ["late@example.org"]})
+    assert r.status_code == 200, r.text
+    letter = next(m for m in mail if m["to"] == "late@example.org")
+    body = letter["body"]
+    # The same words the agreement letter uses, because two descriptions of one
+    # contract is how a signer decides they are being asked for two things.
+    assert "data licensing agreement" in body
+    assert "Read and sign" in body
+    assert "signing authority" in body
+    # Added TO, not replaced: the letter still does its original job of naming
+    # the colleague and carrying the credential.
+    assert "added you" in body
+    assert "Open your portal" in body
+
+
+def test_a_member_added_after_the_signature_hears_nothing_about_signing(mail):
+    """The line is conditional and must stay that way. Telling an ACTIVE
+    organization's new hire that a contract is waiting sends them looking for a
+    signature page that will refuse them."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    store.set_hs_onboarding_state(org["hs_id"], "active")
+
+    assert client.post(f"{API}/hs/members",
+                       json={"emails": ["ontime@example.org"]}).status_code == 200
+    body = next(m for m in mail if m["to"] == "ontime@example.org")["body"]
+    assert "data licensing agreement" not in body
+    assert "Read and sign" not in body
+
+
+@pytest.mark.parametrize("state", ["intake", "submitted", "active", "declined"])
+def test_only_awaiting_signature_adds_the_agreement_line(state, mail):
+    """One state earns the line, and it is the only one where a signature is
+    actually possible. In intake and submitted there is no agreement to sign
+    yet; in active and declined there is nothing left to sign."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    store.set_hs_onboarding_state(org["hs_id"], state)
+    addr = f"m{uuid.uuid4().hex[:6]}@example.org"
+    assert client.post(f"{API}/hs/members", json={"emails": [addr]}).status_code == 200
+    assert "Read and sign" not in next(m for m in mail if m["to"] == addr)["body"]

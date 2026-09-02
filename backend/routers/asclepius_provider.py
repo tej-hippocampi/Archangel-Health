@@ -2473,7 +2473,12 @@ async def hs_members_post(
                       "passphrase": minted["passphrase"]})
 
     inviter = (portal_user.get("full_name") or "").strip() or "A colleague"
-    background.add_task(_notify_hs_members_added, hs["name"], inviter, added)
+    # Read here, on the row this request already holds, rather than inside the
+    # background task: the task runs after the response and a refetch there would
+    # be a second read of a row that could have moved under it, which would mail
+    # a member the wrong story about their own organization.
+    background.add_task(_notify_hs_members_added, hs["name"], inviter, added,
+                        hs_states.state_of(hs) == hs_states.AWAITING_DLA)
     fresh = [u for u in store.list_hs_portal_users(hs["hs_id"]) if u.get("active")]
     return {
         # The passphrases are NOT echoed. They go to the address they belong to
@@ -2486,8 +2491,15 @@ async def hs_members_post(
 
 
 def _notify_hs_members_added(organization: str, inviter: str,
-                             added: List[Dict[str, Any]]) -> None:
-    """One letter per new member, each carrying only its own credential."""
+                             added: List[Dict[str, Any]],
+                             awaiting_dla: bool = False) -> None:
+    """One letter per new member, each carrying only its own credential.
+
+    ``awaiting_dla`` is passed in rather than looked up. This runs after the
+    response has gone out, so there is no request row to read and no session to
+    read it from; the caller resolved the organization's state while it still
+    had both.
+    """
     if not is_email_transport_configured():
         return
     try:
@@ -2500,7 +2512,7 @@ def _notify_hs_members_added(organization: str, inviter: str,
                 build_hs_member_added_email(
                     organization=organization, added_by=inviter,
                     username=member["username"], temp_password=member["passphrase"],
-                    portal_url=_hs_portal_url())))
+                    portal_url=_hs_portal_url(), awaiting_dla=awaiting_dla)))
     except Exception:
         log.exception("hs members: invite email failed")
 
