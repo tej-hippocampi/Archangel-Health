@@ -113,7 +113,11 @@ def test_a_scheduling_failure_releases_the_claim():
 def test_arming_an_already_run_bundle_is_refused_by_the_endpoint():
     """Re-arming would bill the whole chart a second time, so it is a 409 rather
     than a silent no-op — an admin who clicks it needs to know why nothing
-    happened."""
+    happened.
+
+    This asserts the RULE (refused, and the flag is not flipped). Which of the
+    two sentences comes back — finished, or started-and-never-recorded — is the
+    companion test's business."""
     from fastapi.testclient import TestClient
 
     store = _store()
@@ -121,6 +125,40 @@ def test_arming_an_already_run_bundle_is_refused_by_the_endpoint():
     AG.maybe_start(store, uid, actor="admin", schedule=_Scheduler())
     client = TestClient(A.app)
     admin_h = A.headers_for(A.make_user(store, role="admin"))
+    r = client.post(f"/api/asclepius/admin/uploads/{uid}/auto-generate",
+                    json={"enabled": True}, headers=admin_h)
+    assert r.status_code == 409
+    assert "bill the whole chart" in r.text or "billed twice" in r.text
+    # Refused means refused: the flag must not have been flipped on the way out.
+    assert AG.has_run(store.get_ingest_upload(uid))
+
+
+def test_a_run_killed_by_a_deploy_says_so_rather_than_claiming_it_finished():
+    """Two situations reach the same 409, and naming the wrong one wastes an
+    operator's time.
+
+    A run that FINISHED wrote a report. A run claimed and never finished — the
+    process was redeployed mid-flight, an ordinary event — did not. The second
+    reads as "nothing happened and the button is refusing me", so it says that
+    and names the recovery. Neither re-arms: the claim is what stops a
+    25-encounter chart being billed twice, and the manual path does the whole job.
+    """
+    from fastapi.testclient import TestClient
+
+    store = _store()
+    uid = _upload(store, purpose="task_creation", mode="static", armed=True)
+    AG.maybe_start(store, uid, actor="admin", schedule=_Scheduler())
+    client = TestClient(A.app)
+    admin_h = A.headers_for(A.make_user(store, role="admin"))
+
+    r = client.post(f"/api/asclepius/admin/uploads/{uid}/auto-generate",
+                    json={"enabled": True}, headers=admin_h)
+    assert r.status_code == 409
+    assert "never recorded an outcome" in r.text, r.text
+    assert "nothing about them is blocked" in r.text.lower()
+
+    # …and once a run HAS recorded an outcome, the message is the other one.
+    store.set_upload_auto_generate_report(uid, {"generated": 5, "cases": []})
     r = client.post(f"/api/asclepius/admin/uploads/{uid}/auto-generate",
                     json={"enabled": True}, headers=admin_h)
     assert r.status_code == 409

@@ -871,11 +871,30 @@ async def set_upload_auto_generate(
             detail="This upload came in on a brokering link, so it never becomes "
                    "tasks and cannot auto-generate.")
     if body.enabled and asc_auto_generate.has_run(upload):
+        # Two different situations reach here, and telling an operator the wrong
+        # one wastes their time. A run that FINISHED wrote a report; a run that
+        # was claimed and never finished — the process was redeployed mid-flight,
+        # which is an ordinary event — did not. The second reads as "nothing
+        # happened and the button is refusing me", so it says so and names the
+        # recovery instead of implying the work was done.
+        #
+        # Neither case re-arms. The claim is what stops a 25-encounter chart
+        # being billed twice, and a heuristic that guessed "this one looks dead,
+        # let it run again" would be exactly the thing that double-bills when it
+        # guesses wrong. The manual path in Task creation is unaffected and does
+        # the whole job.
+        finished = bool((upload.get("auto_generate_report") or {}))
         raise HTTPException(
             status_code=409,
-            detail="This bundle has already had its automatic run. Promote what is "
-                   "left from Task creation — re-arming would bill the whole chart "
-                   "a second time.")
+            detail=("This bundle has already had its automatic run. Promote what is "
+                    "left from Task creation — re-arming would bill the whole chart "
+                    "a second time."
+                    if finished else
+                    "This bundle's automatic run was started but never recorded an "
+                    "outcome — usually a deploy while it was in flight. It will not "
+                    "start again, because re-arming could bill the whole chart twice. "
+                    "Promote the remaining cases from Task creation; nothing about "
+                    "them is blocked."))
     store.set_upload_auto_generate(upload_id, body.enabled)
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="auto_generate_set", actor=admin["id"],
