@@ -708,6 +708,59 @@ def _misfiled_physicians(store: Any) -> List[Dict[str, Any]]:
     return out
 
 
+#: The two verification states the Physicians console has a tab for. Anything
+#: else is on NEITHER, which is the whole point of ``_unfiled_physicians``.
+_TABBED_VERIFICATION = ("approved", "pending")
+
+
+def _unfiled_physicians(store: Any) -> List[Dict[str, Any]]:
+    """Physicians the console cannot show, because no tab claims their state.
+
+    The roster tab is ``verification_status == 'approved'`` and the queue tab is
+    ``status=pending`` plus mid-wizard signups. An evaluator whose verification
+    was never decided — NULL — is therefore in NEITHER, and an account nobody can
+    see is an account nobody can approve, tier, or route a real case to. It is
+    the same invisibility ``_misfiled_physicians`` was written for, one column
+    over: that one catches a doctor filed under an operator ROLE, and missed this
+    because the role here is correct and it is the STATUS that has no home.
+
+    It is not hypothetical. An account provisioned directly (the director
+    onboarding mails an access key and creates a working evaluator) never enters
+    the verification queue, so it logs in, draws synthetic cases and labels them
+    perfectly — while being absent from the roster the operator is looking at.
+    The physician sees a working product; the admin sees an empty screen; nothing
+    errors anywhere.
+
+    ``rejected`` is included deliberately. A decided-and-rejected account is also
+    invisible today, and "we decided no" is a thing an operator should be able to
+    see and reconsider — the row carries its status so the two cases are never
+    confused.
+    """
+    out: List[Dict[str, Any]] = []
+    for u in _physician_users(store):
+        if (u.get("verification_status") or None) in _TABBED_VERIFICATION:
+            continue
+        out.append({
+            "id": u["id"],
+            "name": _display_name(u),
+            "email": u.get("email"),
+            "specialty": u.get("specialty"),
+            "tier": u.get("tier"),
+            "verification_status": u.get("verification_status"),
+            "real_data_approved": bool(u.get("real_data_approved")),
+            "active": bool(u.get("active", 1)),
+            "created_at": u.get("created_at"),
+            # Whether they have been WORKING while invisible. An operator
+            # reading this card needs to know they are looking at a live
+            # contributor, not a dormant row — a doctor who has labelled
+            # thirty cases nobody can see is a different problem from an
+            # account that was created and never used.
+            "submissions_total": (
+                store.evaluator_self_stats(u["id"]) or {}).get("submissions_total", 0),
+        })
+    return out
+
+
 def _hs_name_map(store: Any) -> Dict[str, str]:
     return {hs["hs_id"]: hs["name"] for hs in store.list_health_systems()}
 
@@ -781,8 +834,13 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     # ``physicians`` or ``counts`` — they are not supply until someone decides
     # they are — but never again invisible.
     misfiled = _misfiled_physicians(store)
+    # Correctly filed as physicians, but in a verification state no tab renders.
+    # Separate from ``misfiled`` because the repair is different: those need a
+    # role change, these need a verification decision.
+    unfiled = _unfiled_physicians(store)
     return {"physicians": out, "counts": counts,
-            "misfiled_physicians": misfiled, "misfiled_count": len(misfiled)}
+            "misfiled_physicians": misfiled, "misfiled_count": len(misfiled),
+            "unfiled_physicians": unfiled, "unfiled_count": len(unfiled)}
 
 
 @router.get("/physicians/{user_id}")
