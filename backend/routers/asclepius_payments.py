@@ -27,7 +27,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from asclepius import auth as asc_auth
@@ -594,12 +594,354 @@ async def mark_paid(
     ``user_id`` appears here and nowhere else on this router. That is the point of
     the split: every doctor-facing route scopes from the session and cannot name
     another physician, and the one route that must name one is admin-gated."""
+    store = _store()
+    _rail_preflight(store, user_id=body.user_id, earning_ids=body.earning_ids)
     try:
-        return asc_payments.mark_paid(
-            _store(), payout_batch_id=body.payout_batch_id, actor_id=admin["id"],
+        result = asc_payments.mark_paid(
+            store, payout_batch_id=body.payout_batch_id, actor_id=admin["id"],
             earning_ids=body.earning_ids, user_id=body.user_id)
     except asc_payments.PaymentsDenied as denied:
         raise HTTPException(status_code=422, detail=denied.detail)
+    return _with_transfers(store, result, actor=admin)
+
+
+# ═══ PAYMENTS RAIL §C, §D: the seam where money actually moves ═══════════════
+#
+# Everything below sits next to mark-paid on purpose. The header at the top of
+# this file has said for two releases that the rail would be Stripe Connect
+# Express and that nothing here may ever store a bank account number or a tax
+# id; this is that commitment, and it is readable in one place beside the ledger
+# write it hangs off.
+#
+# THE ORDERING IS THE DESIGN (G2). ``mark_paid`` stays the source of truth: its
+# batch-id idempotency and guarded compare-and-set already make a retried
+# disbursement safe, and a second write path would be a second chance to pay
+# twice. The transfer is created AFTER the compare-and-set succeeds, as a
+# consequence of the ledger row changing state, never as a precondition. So a
+# transfer failure cannot un-settle the ledger. It becomes a visible
+# reconciliation item instead, which is the honest split: the ledger records our
+# decision to pay, Stripe records the execution, and the one thing that must
+# never happen is the ledger saying settled for a physician we provably cannot
+# pay. That case is refused BEFORE mark_paid runs, not detected after.
+#
+# WITH THE FLAG OFF EVERY FUNCTION HERE IS A NO-OP and the two routes above
+# behave exactly as they did before this file learned the word Stripe.
+
+#: Transfer attempt states written to ``stripe_transfers``. ``blocked`` is not a
+#: Stripe outcome: it is us refusing to call Stripe for a row whose physician has
+#: no connected account, recorded so the queue shows why nothing was attempted.
+TRANSFER_OK = "transferred"
+TRANSFER_FAILED = "failed"
+TRANSFER_BLOCKED = "blocked"
+
+
+def _rail():
+    """The rail module, imported inside the flag (G6).
+
+    Module scope would make ``asclepius.stripe_rail`` load on every import of
+    this router, which is harmless today and exactly the kind of thing that
+    stops being harmless the first time that module grows a top-level SDK
+    import.
+    """
+    from asclepius import stripe_rail                      # noqa: PLC0415
+    return stripe_rail
+
+
+def _target_user_ids(
+    store: Any, *, user_id: Optional[str], earning_ids: Optional[List[str]],
+) -> List[str]:
+    """Whose money this call is about, resolved the same way mark_paid resolves
+    it: a named physician, or the owners of the named rows."""
+    if user_id:
+        return [user_id]
+    out: List[str] = []
+    for earning_id in earning_ids or []:
+        row = store.get_earning_by_id(earning_id)
+        if row and row.get("user_id") and row["user_id"] not in out:
+            out.append(row["user_id"])
+    return out
+
+
+def _rail_preflight(
+    store: Any, *, user_id: Optional[str] = None,
+    earning_ids: Optional[List[str]] = None,
+) -> None:
+    """Refuse, BEFORE the ledger write, to settle rows we cannot transfer (C2).
+
+    Two refusals, and they are different kinds of problem told apart on purpose:
+
+    * a misconfigured rail (flag on, key or package missing) is an operator
+      incident and 503s loudly. A payout run that quietly moved no money would
+      look identical to one that worked.
+    * a physician with no ``active`` bank link is a 409 naming them. Settling a
+      row for someone Stripe will not pay creates a ledger that says we paid and
+      a bank account that never saw it, and no later reconciliation makes that
+      row honest again.
+
+    Flag off: returns immediately, so this function does not exist as far as
+    today's behavior is concerned.
+    """
+    rail = _rail()
+    if not rail.enabled():
+        return
+    try:
+        rail.sdk()
+    except rail.RailUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    for uid in _target_user_ids(store, user_id=user_id, earning_ids=earning_ids):
+        user = store.get_user_by_id(uid) or {}
+        status = (user.get("bank_link_status") or "").strip()
+        if status == rail.ACTIVE and (user.get("stripe_account_id") or "").strip():
+            continue
+        raise HTTPException(
+            status_code=409,
+            detail=(f"{user.get('email') or uid} has not finished linking a bank "
+                    f"account (status: {status or 'never started'}), so these rows "
+                    "cannot be paid. Nothing was marked paid."))
+
+
+def _transfer_one(
+    store: Any, earning: Dict[str, Any], *, actor: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """One ledger row, one transfer, one ``stripe_transfers`` row (G3, G4).
+
+    Never raises. A failure here is a queue item, not an exception that
+    unwinds a ledger write that has already committed.
+    """
+    rail = _rail()
+    earning_id = earning["earning_id"]
+    batch = earning.get("payout_batch_id")
+    user = store.get_user_by_id(earning.get("user_id")) or {}
+    destination = (user.get("stripe_account_id") or "").strip()
+    if not destination:
+        row = store.record_stripe_transfer(
+            earning_id=earning_id, status=TRANSFER_BLOCKED, payout_batch_id=batch,
+            failure_reason="This physician has no connected Stripe account.")
+        log.error("asclepius.payments: earning %s settled with no transfer "
+                  "destination", earning_id)
+        return _transfer_outcome(row)
+
+    try:
+        created = rail.create_transfer(
+            earning_id=earning_id,
+            amount_cents=int(earning.get("amount_cents") or 0),
+            destination=destination,
+            payout_batch_id=batch,
+            user_id=user.get("id"))
+    except Exception as exc:
+        reason = getattr(exc, "reason", None) or str(exc) or exc.__class__.__name__
+        row = store.record_stripe_transfer(
+            earning_id=earning_id, status=TRANSFER_FAILED, payout_batch_id=batch,
+            failure_reason=reason)
+        store.log_event(
+            entity_type="earning", entity_id=earning_id,
+            event_type="earning_transfer_failed",
+            actor=(actor or {}).get("id"),
+            payload={"payout_batch_id": batch, "reason": reason,
+                     "amount_cents": int(earning.get("amount_cents") or 0)})
+        log.error("asclepius.payments: transfer failed for earning %s: %s",
+                  earning_id, reason)
+        return _transfer_outcome(row)
+
+    row = store.record_stripe_transfer(
+        earning_id=earning_id, status=TRANSFER_OK, payout_batch_id=batch,
+        transfer_id=created["transfer_id"], failure_reason=None)
+    store.log_event(
+        entity_type="earning", entity_id=earning_id,
+        event_type="earning_transfer_created", actor=(actor or {}).get("id"),
+        payload={"payout_batch_id": batch, "transfer_id": created["transfer_id"],
+                 "amount_cents": created.get("amount_cents")})
+    return _transfer_outcome(row)
+
+
+def _transfer_outcome(row: Dict[str, Any]) -> Dict[str, Any]:
+    """What the console renders per row: what happened, not what was intended."""
+    return {"earning_id": row["earning_id"], "status": row["status"],
+            "transfer_id": row.get("transfer_id"),
+            "failure_reason": row.get("failure_reason")}
+
+
+def _with_transfers(
+    store: Any, result: Dict[str, Any], *, actor: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Transfer every settled row in the batch, and report row by row (C1, C3).
+
+    Scoped to the BATCH rather than to the rows this particular call changed,
+    which makes a replayed batch retry its failures instead of reporting a bare
+    ``marked: 0``. That is safe precisely because the idempotency key is
+    ``earning:{id}``: a row that already transferred is skipped here and would
+    be a no-op at Stripe even if it were not.
+
+    Flag off: returns ``result`` unchanged, same object, same keys.
+    """
+    rail = _rail()
+    if not rail.enabled():
+        return result
+    batch = result.get("payout_batch_id")
+    outcomes: List[Dict[str, Any]] = []
+    for earning in store.list_earnings(payout_batch_id=batch, status="paid", limit=2000):
+        existing = store.get_stripe_transfer(earning["earning_id"])
+        if existing and existing.get("status") == TRANSFER_OK:
+            continue
+        outcomes.append(_transfer_one(store, earning, actor=actor))
+    return {**result, "transfers": outcomes}
+
+
+@router.post(
+    "/api/asclepius/admin/earnings/{earning_id}/retry-transfer",
+    dependencies=[Depends(rate_limiter("asclepius_retry_transfer", 60, 600))],
+)
+async def admin_retry_transfer(
+    earning_id: str,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Retry the Stripe transfer for one settled row (C4).
+
+    The gate is deliberately narrow: settled, and not already transferred. A
+    row still in review has no decision to execute, and a row that transferred
+    is done. Note what the gate is NOT protecting against: a double-clicked
+    retry cannot double-pay whatever the gate says, because the idempotency key
+    is derived from the ledger row and Stripe returns the first transfer for the
+    second call. The gate exists so the console can say what it refused and why,
+    not because correctness rests on it.
+    """
+    rail = _rail()
+    if not rail.enabled():
+        # Admin-facing, so this says what is wrong rather than 404ing the way the
+        # webhook does. There is no signature oracle to hide behind an
+        # admin-gated route, and "the rail is off" is the answer an operator
+        # needs.
+        raise HTTPException(
+            status_code=409,
+            detail="The Stripe payout rail is off, so there is no transfer to retry.")
+    store = _store()
+    earning = store.get_earning_by_id(earning_id)
+    if earning is None:
+        raise HTTPException(status_code=404, detail="No such ledger row.")
+    if earning.get("status") != asc_payments.PAID:
+        raise HTTPException(
+            status_code=409,
+            detail="That row is not settled, so nothing was ever meant to transfer "
+                   "for it. Mark it paid first.")
+    existing = store.get_stripe_transfer(earning_id)
+    if existing and existing.get("status") == TRANSFER_OK:
+        raise HTTPException(
+            status_code=409,
+            detail="That row has already transferred. Reversals are a Stripe "
+                   "treasury operation and are not handled here.")
+    _rail_preflight(store, user_id=earning.get("user_id"))
+    outcome = _transfer_one(store, earning, actor=admin)
+    return {"ok": outcome["status"] == TRANSFER_OK, "earning_id": earning_id,
+            "transfer": outcome}
+
+
+# ═══ PAYMENTS RAIL §D: webhooks ══════════════════════════════════════════════
+#
+# On the payments router rather than in main.py because everything it writes is
+# payments state, and the router is already mounted. Nothing about the route is
+# session-scoped: Stripe is the caller, the signature is the authentication, and
+# a request that fails verification never reaches a handler.
+def _handle_account_updated(store: Any, obj: Dict[str, Any]) -> str:
+    """B3/D2: recompute ``bank_link_status`` from what Stripe now says."""
+    rail = _rail()
+    account_id = obj.get("id")
+    if not account_id:
+        return "ignored: no account id"
+    user = store.get_user_by_stripe_account(str(account_id))
+    if user is None:
+        # Stripe delivers events for every account on the platform, including
+        # ones this database has never seen. Not an error, and not a 500.
+        return "ignored: unknown account"
+    was = (user.get("bank_link_status") or "").strip()
+    now = rail.status_for_account(obj)
+    if now == was:
+        return f"unchanged: {now}"
+    store.set_bank_link_status(user["id"], now)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="bank_link_status_changed", actor=None,
+        payload={"from": was or None, "to": now, "source": "webhook"})
+    log.warning("asclepius.payments: bank link for %s moved %s -> %s",
+                user["id"], was or "none", now)
+    return f"status: {was or 'none'} -> {now}"
+
+
+def _handle_transfer_event(store: Any, event_type: str, obj: Dict[str, Any]) -> str:
+    """D3: stamp the matching attempt row. A reversal is visibility only (G7).
+
+    A reversal deliberately writes no ledger row. The void endpoint already 409s
+    on a paid row because money has left, and a ledger that auto-mutated on
+    reversal would contradict the attributed, human-decided shape of every other
+    money action in this system.
+    """
+    rail = _rail()
+    transfer_id = obj.get("id")
+    if not transfer_id:
+        return "ignored: no transfer id"
+    status = rail.transfer_status_from_event(event_type, obj)
+    failure = obj.get("failure_message") or None
+    row = store.stamp_stripe_transfer_status(
+        str(transfer_id), status=status, failure_reason=failure)
+    if row is None:
+        return "ignored: unknown transfer"
+    return f"transfer {transfer_id}: {status}"
+
+
+@router.post("/api/asclepius/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Stripe's callback. Signature-verified, stored, then processed (D1, G5).
+
+    The order matters and is the whole reason this is a table rather than a
+    handler. The event lands in ``stripe_webhook_events`` BEFORE anything acts
+    on it, and the duplicate test is ``processed_at IS NOT NULL`` rather than
+    "have I seen this id": a crash between the insert and the handler must leave
+    a work item that Stripe's redelivery picks up, not a row that makes the
+    redelivery look like a duplicate and drop it.
+
+    404 while dark, so the route is not observable and does not offer a
+    signature oracle to anyone probing for one.
+    """
+    rail = _rail()
+    if not rail.enabled():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    payload = await request.body()
+    try:
+        event = rail.construct_event(payload, request.headers.get("stripe-signature"))
+    except rail.SignatureInvalid as bad:
+        # 400, never 200. An unverified body is an unauthenticated write path
+        # into a money surface, and accepting it quietly would be worse than
+        # letting Stripe retry.
+        log.warning("asclepius.payments: rejected unsigned Stripe webhook: %s", bad)
+        raise HTTPException(status_code=400, detail="Signature verification failed.")
+    except rail.RailUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    event_id = event.get("id")
+    if not event_id:
+        raise HTTPException(status_code=400, detail="Event has no id.")
+
+    import json as _json                                   # noqa: PLC0415
+    store = _store()
+    store.record_stripe_webhook_event(
+        event_id=str(event_id), event_type=event.get("type"),
+        payload_json=_json.dumps(event.get("object") or {}, default=str))
+    stored = store.get_stripe_webhook_event(str(event_id)) or {}
+    if stored.get("processed_at"):
+        return {"ok": True, "duplicate": True}
+
+    event_type = (event.get("type") or "").strip()
+    obj = event.get("object") or {}
+    if event_type == "account.updated":
+        outcome = _handle_account_updated(store, obj)
+    elif event_type in rail.TRANSFER_EVENTS:
+        outcome = _handle_transfer_event(store, event_type, obj)
+    else:
+        # D4. Stripe adds event types, and a webhook that 500s on novelty gets
+        # disabled by its own retry policy. Stored, stamped, and no action.
+        outcome = "ignored: unhandled type"
+    store.stamp_stripe_webhook_event(str(event_id), outcome=outcome)
+    return {"ok": True, "received": True}
 
 
 # ═══ Admin Launch PRD §4 — one physician, one case ════════════════════════════
@@ -943,11 +1285,13 @@ async def admin_pay_earnings(
             status_code=409,
             detail="This contributor is on the equity-only model: they hold equity "
                    "and are not paid per case. Nothing was marked paid.")
+    _rail_preflight(store, user_id=body.user_id, earning_ids=body.earning_ids)
     try:
         result = asc_payments.mark_paid(
             store, payout_batch_id=body.payout_batch_id, actor_id=admin["id"],
             earning_ids=body.earning_ids, user_id=body.user_id)
     except asc_payments.PaymentsDenied as denied:
         raise HTTPException(status_code=422, detail=denied.detail)
+    result = _with_transfers(store, result, actor=admin)
     return {"ok": True, "user_id": body.user_id, **result,
             "totals": store.earnings_payable_for_user(body.user_id)}
