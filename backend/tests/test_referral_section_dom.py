@@ -135,6 +135,14 @@ _FUNNEL = {
     "bounty_cents": 5000,
     "referral_code": "ABCD2345",
     "invite_url": "https://example.com/join?ref=ABCD2345",
+    "partner_url": "https://example.com/partner?ref=ABCD2345",
+    "health_systems": [
+        {"hs_referral_id": "hsref-1", "hs_name": "Meridian Health",
+         "contact_display": "James Okoye", "contact_role": "COO",
+         "status": "booked", "status_sentence": "They booked a call with us.",
+         "invited_at": "2026-08-11T09:00:00", "email_sent_at": "2026-08-11T09:01:00",
+         "resolved_at": None},
+    ],
     "referrals": [
         {"referral_id": "ref-1", "invitee_display": "Dr A. Whitfield",
          "status": "approved", "status_sentence": "Completed first case",
@@ -154,8 +162,12 @@ _FUNNEL = {
     ],
     "total": 3, "earned_count": 1, "earned_cents": 5000,
     "pending_count": 2, "pending_cents": 10000,
-    "payout_structure": {"referrer_bounty_cents": 5000,
-                         "referee_bonus_cents": 2500,
+    # $25 referrer / $50 referred, per PRD-PHYS D6. The referral rows above are
+    # deliberately left stamped at the old $50 bounty: that is what a real
+    # funnel looks like after a rate change, because the amount is written onto
+    # the ledger row at accrual and history does not get restated.
+    "payout_structure": {"referrer_bounty_cents": 2500,
+                         "referee_bonus_cents": 5000,
                          "cap_cents": 520000},
     "cap_cents": 520000,
     "capped": False,
@@ -227,8 +239,10 @@ def test_the_hero_quotes_the_wire_structure_not_a_hardcoded_dollar():
   }));
 """)
     assert "Earn thousands" in out["heroes"][0]
-    assert "$50 to you" in out["text"]
-    assert "$25 to them" in out["text"]
+    # $25 referrer / $50 referred, the split the meeting pinned: the larger
+    # half goes to the side that has to verify and finish a case.
+    assert "$25 to you" in out["text"]
+    assert "$50 to them" in out["text"]
 
 
 def test_the_hero_never_advertises_a_ceiling_again():
@@ -236,13 +250,60 @@ def test_the_hero_never_advertises_a_ceiling_again():
     on the page, in front of the one physician we most want introducing us to
     a hundred colleagues. There is no cap in the backend any more
     (payments.referral_cap_cents defaults to 0) and there must not be one in
-    the copy either."""
+    the copy either.
+
+    The "No ceiling" term that once said so out loud is gone with the rest of
+    the prose: a page that has to announce the absence of a limit has put the
+    idea of a limit in the reader's head. Absence is now the default and the
+    assertion is simply that no bound appears anywhere."""
     out = _render_and("console.log(JSON.stringify({text: textOf(body)}));")
     text = out["text"].lower()
     assert "5,200" not in text
-    assert "ceiling" not in text or "no ceiling" in text
+    assert "ceiling" not in text
     assert "up to" not in text
-    assert "no ceiling" in text
+    assert "limit" not in text
+
+
+def test_above_the_fold_is_one_line_two_terms_and_the_link():
+    """PRD-PHYS R10. Six prose blocks used to stand between a physician who had
+    already decided to refer someone and the button that gives them the link.
+    What survives above the fold is the hero line, the two terms, and the copy
+    row: the hero carries no paragraph, and the physician column opens on the
+    link rather than on a sentence explaining that a link credits whoever
+    shared it."""
+    out = _render_and("""
+  var heroes = find(body, 'asc-ref-hero');
+  var cols = find(body, 'asc-ref-col');
+  console.log(JSON.stringify({
+    subs: find(body, 'asc-ref-hero-sub').length,
+    terms: find(heroes[0], 'asc-ref-term').length,
+    paras: tagsOf(heroes[0], 'P').length,
+    physKids: (cols[0].childNodes || []).map(function (c) { return c.className || ''; }),
+  }));
+""")
+    assert out["subs"] == 0
+    assert out["terms"] == 2
+    # No paragraph survived: the hero is the line, the two terms, nothing else.
+    assert out["paras"] == 0
+    assert out["physKids"][0] == "asc-ref-title"
+    assert out["physKids"][1] == "asc-ref-linkrow"
+
+
+def test_the_equity_footnote_survives_the_trim():
+    """The one block of small print the trim may not take. An equity-compensated
+    account still refers and the funnel already blanks their amounts, so without
+    this line the two terms above read as a promise of cash to an account that
+    accrues none. One line is enough; silence is not."""
+    funnel = dict(_FUNNEL, earns_bounty=False)
+    out = _render_and("""
+  console.log(JSON.stringify({ feet: find(body, 'asc-ref-foot').map(textOf) }));
+""", funnel)
+    assert out["feet"], "the equity footnote disappeared"
+    foot = out["feet"][0]
+    assert "equity" in foot.lower()
+    assert "no bounty accrues" in foot.lower()
+    # Collapsed, not merely reworded.
+    assert len(foot) < 160, foot
 
 
 def test_a_changed_env_rate_changes_the_page_with_no_frontend_edit():
@@ -315,24 +376,87 @@ def test_sending_an_invite_posts_and_refetches_the_funnel():
     assert len(gets) >= 2  # initial load + post-send refetch
 
 
-# ─── The enterprise note ──────────────────────────────────────────────────────
-def test_the_enterprise_note_posts_to_its_endpoint():
+# ─── The health-system introduction ───────────────────────────────────────────
+_FILL_HS = """
+  var inputs = tagsOf(body, 'INPUT');
+  function byPlaceholder(p) {
+    for (var i = 0; i < inputs.length; i++) {
+      if ((inputs[i].attributes.placeholder || '').indexOf(p) !== -1) return inputs[i];
+    }
+    return null;
+  }
+  byPlaceholder('James Okoye').value = 'James Okoye';
+  byPlaceholder('j.okoye@').value = 'j.okoye@meridianhealth.org';
+  byPlaceholder('Meridian Health').value = 'Meridian Health';
+  byPlaceholder('We were at college').value = 'We were at college together';
+  inputs.forEach(function (i) { i.dispatch('input'); });
+"""
+
+
+def test_the_health_system_form_posts_a_named_contact():
+    """The card used to collect a paragraph and email a founder; the person the
+    physician actually wanted us to meet never heard from anyone. It now posts a
+    named contact to its own endpoint."""
     routes = {"/api/asclepius/referrals": _FUNNEL,
-              "/api/asclepius/referrals/enterprise-note": {"ok": True, "message": "Sent."}}
-    out = _run_node(_script(routes, _RENDER + """
-  var ta = tagsOf(body, 'TEXTAREA')[0];
-  ta.value = 'Our CMIO wants to talk about a data partnership.';
+              "/api/asclepius/referrals/health-system": {"ok": True, "message": "Recorded."}}
+    out = _run_node(_script(routes, _RENDER + _FILL_HS + """
+  var checks = tagsOf(body, 'INPUT').filter(function (i) {
+    return (i.attributes.type || '') === 'checkbox'; });
+  checks[0].checked = true;
+  checks[0].dispatch('change');
   var buttons = tagsOf(body, 'BUTTON').filter(function (b) {
-    return textOf(b).indexOf('Send the note') !== -1; });
+    return textOf(b).indexOf('Send the introduction') !== -1; });
   buttons[0].dispatch('click');
   done(function () {
-    console.log(JSON.stringify({calls: apiCalls, msgs: find(body, 'asc-ref-msg').map(textOf)}));
+    console.log(JSON.stringify({calls: apiCalls, errs: find(body, 'asc-ref-error').map(textOf)}));
   });
 });
 """))
     posts = [c for c in out["calls"] if c["method"] == "POST"]
-    assert posts and posts[0]["path"] == "/referrals/enterprise-note"
-    assert "CMIO" in posts[0]["body"]["note"]
+    assert posts, out["errs"]
+    assert posts[0]["path"] == "/referrals/health-system"
+    body = posts[0]["body"]
+    assert body["contact_name"] == "James Okoye"
+    assert body["contact_email"] == "j.okoye@meridianhealth.org"
+    assert body["hs_name"] == "Meridian Health"
+    assert body["consent"] is True
+    # And it refetches, so the new row appears with the status the SERVER gave
+    # it rather than one the page invented.
+    assert len([c for c in out["calls"] if c["method"] != "POST"]) >= 2
+
+
+def test_an_introduction_without_consent_never_leaves_the_browser():
+    """We send this in the physician's name with their address on the reply-to.
+    Unticked, the claim the email makes is one nobody actually made."""
+    routes = {"/api/asclepius/referrals": _FUNNEL,
+              "/api/asclepius/referrals/health-system": {"ok": True}}
+    out = _run_node(_script(routes, _RENDER + _FILL_HS + """
+  var buttons = tagsOf(body, 'BUTTON').filter(function (b) {
+    return textOf(b).indexOf('Send the introduction') !== -1; });
+  buttons[0].dispatch('click');
+  done(function () {
+    console.log(JSON.stringify({calls: apiCalls, errs: find(body, 'asc-ref-error').map(textOf)}));
+  });
+});
+"""))
+    assert not [c for c in out["calls"] if c["method"] == "POST"]
+    assert any("OK hearing from us" in e for e in out["errs"]), out["errs"]
+
+
+def test_the_health_system_funnel_renders_sentences_and_no_amount():
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  var sys = cols[cols.length - 1];
+  console.log(JSON.stringify({
+    rows: find(sys, 'asc-ref-row').map(textOf),
+    amounts: find(sys, 'asc-ref-amount').length,
+  }));
+""")
+    assert any("Meridian Health" in r for r in out["rows"])
+    assert any("booked a call" in r for r in out["rows"])
+    # The physician column renders an amount per row. This one must not, and
+    # must not render an empty amount slot either.
+    assert out["amounts"] == 0
 
 
 def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
@@ -343,8 +467,11 @@ def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
     was paid a fraction of it would be right to feel misled, and right that we
     named the number first.
 
-    So: no dollar sign and no percentage anywhere in this column. It asks for
-    a note and says a person will read it."""
+    That rule SURVIVES the card learning to send email. What changed is that we
+    now capture a contact and write to them; what did not change is that no
+    figure for an institutional introduction appears anywhere on this column --
+    including in the copyable blurb, which is the new way a number could escape
+    into a group chat."""
     out = _render_and("""
   var cols = find(body, 'asc-ref-col');
   console.log(JSON.stringify({ system: textOf(cols[cols.length - 1]) }));
@@ -353,20 +480,24 @@ def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
     assert "health system" in text.lower()
     assert "$" not in text, text
     assert "%" not in text and "percent" not in text.lower(), text
-    assert "send us a note" in text.lower()
-    assert "meeting" in text.lower()
+    # The "a founder reads every one of these" footer went with the R10 trim,
+    # but the column still has to say what it does with what it collects: the
+    # consent line is the load-bearing sentence, because we send the email in
+    # the physician's name.
+    assert "write in your name" in text.lower()
+    assert "introduction" in text.lower()
 
 
-def test_the_note_placeholder_sounds_like_a_person_wrote_it():
-    """The old placeholder was "Who you are connected to, and what might be
-    possible", which asks for a pitch. The example is what somebody would
-    actually type."""
+def test_the_optional_note_asks_for_help_not_a_pitch():
+    """The structured fields now carry who and where, so the free-text box is
+    only for what a form cannot ask. Its placeholder should invite context, not
+    a pitch -- the old one asked the physician to make our case for us."""
     out = _render_and("""
   var t = tagsOf(body, 'TEXTAREA')[0];
   console.log(JSON.stringify({ ph: t ? (t.attributes.placeholder || '') : '' }));
 """)
-    assert "oncology division" in out["ph"]
-    assert "de-identified records" in out["ph"]
+    assert "Anything that would help" in out["ph"]
+    assert "$" not in out["ph"]
 
 
 def test_the_note_field_surfaces_no_character_limit():

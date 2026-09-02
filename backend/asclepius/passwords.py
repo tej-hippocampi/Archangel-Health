@@ -89,3 +89,40 @@ def reset_expires_at(now: datetime | None = None) -> str:
 def reset_url(raw_token: str) -> str:
     base = (os.getenv("LANDING_URL") or os.getenv("BASE_URL") or "http://localhost:5173").rstrip("/")
     return f"{base}/reset-password?token={raw_token}"
+
+
+# ─── Pre-approval sign-in links ───────────────────────────────────────────────
+# An applicant has no password: Onboarding v2 removed that step, and approval is
+# where a credential comes into existence. They still need to get back in before
+# a decision, to finish the practice case, so this is the door.
+#
+# It is deliberately the weakest door that works. Fifteen minutes rather than the
+# reset link's sixty, because this one is requested and used in the same sitting,
+# and single-use, because the thing it opens is an account nobody has yet decided
+# to trust. It grants the PROVISIONAL surface set and nothing else, so even a
+# leaked link reaches a practice case and a status page.
+
+SIGNIN_TTL_MINUTES = 15
+
+
+def new_signin_token() -> Tuple[str, str]:
+    """Return ``(raw, hashed)``. The raw token exists only in the email."""
+    raw = secrets.token_urlsafe(32)
+    return raw, hash_reset_token(raw)
+
+
+def signin_expires_at(now: datetime | None = None) -> str:
+    base = now or datetime.utcnow()
+    return (base + timedelta(minutes=SIGNIN_TTL_MINUTES)).replace(microsecond=0).isoformat()
+
+
+def signin_url(raw_token: str) -> str:
+    """Land in the portal itself, not on the landing site.
+
+    The portal is what an applicant is being sent back to, and it is served by
+    this backend, so BASE_URL is the right root here even though the reset link
+    above prefers LANDING_URL. The token rides as a query parameter that the
+    portal exchanges for a session and then strips from the address bar.
+    """
+    base = (os.getenv("BASE_URL") or "http://localhost:8000").rstrip("/")
+    return f"{base}/asclepius?signin={raw_token}"

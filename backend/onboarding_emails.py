@@ -1100,9 +1100,41 @@ def build_application_welcome_email(
     return _shell(subject=subject, body_html=body)
 
 
-def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str:
-    """Credential verification passed and the account is open for real work."""
+def build_asclepius_approved_email(*, full_name: str, workspace_url: str,
+                                   tier_word: str = "", can_review: bool = False) -> str:
+    """Credential verification passed and the account is open for real work.
+
+    Names the tier, framed as what work opens rather than as a rank. It is the
+    decision, it is written in the same transaction, and it decides which queue
+    is populated: a Labeler who expected Reviewer used to find out from an empty
+    review queue, which reads as a broken product rather than as a decision
+    somebody made.
+
+    There is deliberately no promotion sentence HERE, and that is now a
+    different decision than it used to be. It used to mean there was no
+    promotion mechanism at all, so implying one was a promise the codebase
+    could not keep. A promotion flow exists now
+    (``build_asclepius_promoted_email`` below), and this email still does not
+    mention it: on the day somebody is approved, what work opens today is the
+    useful thing to say, and a sentence about a rung above the one they just
+    reached reads as a hint that this one is not enough.
+
+    ``tier_word`` is a WORD, resolved by the caller. Empty means the paragraph
+    is omitted entirely rather than rendering "Unassigned" at a physician:
+    restore_physician can approve carrying no tier, and a placeholder in a
+    congratulations email is worse than silence about it.
+    """
     first = (full_name or "").strip() or "Doctor"
+    tier_para = ""
+    if (tier_word or "").strip():
+        tier_para = _p(
+            f"You are approved as a {_strong(tier_word)}. "
+            + ("That opens both queues. You can label cases in your specialty, and "
+               "you can review the work other physicians have filed."
+               if can_review else
+               "Cases in your specialty are in your queue now. You read each one and "
+               "record your clinical judgment, and every case you file is graded.")
+        )
     body = (
         _eyebrow("Verified · Asclepius")
         + _h1("You&rsquo;re approved.")
@@ -1110,6 +1142,7 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str
             f"{_strong(first)}, your credentials have been verified and your Asclepius "
             "account is now open for evaluation work."
         )
+        + tier_para
         + _cta(workspace_url, "Open your workspace →")
         + _p(
             "Your seat in the "
@@ -1121,6 +1154,82 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str) -> str
         + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
     )
     return _shell(subject="You're approved for Asclepius", body_html=body)
+
+
+def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
+                                   tier_word: str) -> str:
+    """A physician's tier moved up after they were already approved.
+
+    Sent on promotion only. A demotion gets no automated mail, deliberately:
+    the reasons are specific to the work and belong in a conversation somebody
+    has, not in a template that tells a physician their standing dropped and
+    offers them nobody to ask about it.
+
+    Says what opens and what it was earned by, and nothing about a score. The
+    number that drove the decision is internal, and quoting it would both leak
+    it and invite an argument about a figure the physician cannot inspect.
+    """
+    first = (full_name or "").strip() or "Doctor"
+    body = (
+        _eyebrow("Asclepius")
+        + _h1("You&rsquo;re now a reviewer.")
+        + _p(
+            f"{_strong(first)}, on the strength of the cases you have filed, your "
+            f"account has been moved up to {_strong(tier_word)}."
+        )
+        + _p(
+            "That opens the review queue. Alongside labeling cases in your specialty, "
+            "you will now grade work other physicians have filed, which is the part of "
+            "this that decides what we are able to ship."
+        )
+        + _cta(workspace_url, "Open your workspace →")
+        + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
+    )
+    return _shell(subject="You're now a reviewer on Asclepius", body_html=body)
+
+
+def build_asclepius_rejected_email(*, full_name: str) -> str:
+    """Credential verification did not pass.
+
+    We send one, unlike the health-system refusal above, and the reasoning does
+    not transfer: that one argues from deal size, where an automated rejection
+    to a CIO costs a relationship a person could have kept. A rejected physician
+    is an individual who was told they would hear from us within 24 hours, and
+    who otherwise hears nothing while their account 403s forever with a message
+    about being pending. We already made them a promise; silence breaks it, and
+    the limbo is worse than the no.
+
+    It gives NO reason, deliberately. The rejection note is mandatory and is
+    written by an admin for an audit trail: it may carry an accusation, a
+    suspicion, or a third party's name, none of which was drafted to be read by
+    its subject. And a rejection that names the check that failed is a rejection
+    an adversarial applicant tunes the next attempt against. The note stays in
+    verification_notes; the door back is a reply to a person.
+    """
+    first = (full_name or "").strip() or "Doctor"
+    body = (
+        _eyebrow("Asclepius")
+        + _h1("About your application.")
+        + _p(
+            f"{_strong(first)}, thank you for applying to contribute to Asclepius. Our "
+            "clinical team has reviewed the credentials you submitted, and we are not "
+            "able to open your account for evaluation work."
+        )
+        + _p(
+            "If you believe that is wrong, reply to this email. Tell us which licence or "
+            "registration you would like us to check, and a person will look again. We "
+            "keep the record of every decision, so a second look starts from what we "
+            "already hold."
+        )
+        + _p(
+            "Your account will not receive case work. We will not email you again about "
+            "this unless you reply.",
+            muted=True, small=True,
+        )
+    )
+    # Not "You were rejected". That is the line they read on a phone in a
+    # corridor, and the subject is not where the decision has to land.
+    return _shell(subject="About your Asclepius application", body_html=body)
 
 
 def build_enterprise_note_email(
@@ -1153,6 +1262,192 @@ def build_enterprise_note_email(
         )
     )
     return _shell(subject="Enterprise note", body_html=body)
+
+
+def build_hs_referral_intro_email(
+    *,
+    contact_first_name: str,
+    contact_role: str,
+    hs_name: str,
+    referrer_name: str,
+    referrer_specialty: str,
+    relationship: str,
+    partner_url: str,
+    enrichment_sentence: str = "",
+) -> str:
+    """The introduction a referred health-system contact actually receives.
+
+    ─── Why this is not the physician invite with the nouns swapped ─────────
+    ``build_asclepius_invite_email`` above sells paid evaluation work to a
+    clinician: an hourly rate, async hours, your own schedule. Sent to a COO or a
+    chief medical officer, every one of those sentences is aimed at the wrong
+    person, they are not looking for shift work, and quoting an hourly rate to
+    the executive who would be authorising their physicians' participation makes
+    us look like we misread who we were writing to. So the offer here is
+    institutional and two-pronged: license properly de-identified data, and
+    separately, their physicians can earn on expert evaluation work. One leads,
+    the other is the door left open.
+
+    ─── No figure appears in this email, and that is a rule ────────────────
+    ``docs/asclepius/REFERRALS.md`` records why the Referral tab prints no
+    percentage for a health-system introduction: institutional terms are
+    negotiated one deal at a time, so a number stated first and unprompted
+    becomes a promise the negotiation then has to keep. Adding outreach to that
+    flow does not change the reasoning. There is no rate, no introducer share,
+    and no worked example in this body, and ``test_hs_referral_email`` asserts
+    the absence rather than trusting this docstring.
+
+    ``enrichment_sentence`` arrives already gated by
+    ``hs_enrich.may_personalize`` and is dropped in verbatim as ONE sentence, or
+    is empty. This function does not decide whether the research was good enough;
+    it only decides where a sentence goes if there is one.
+    """
+    safe_org = html.escape(hs_name or "your health system")
+    referrer = (referrer_name or "").strip()
+    who = html.escape(contact_first_name or "there")
+
+    # The referrer's name is the entire mechanism, exactly as on the physician
+    # invite. With no name on file this degrades to neutral copy rather than
+    # disclosing the referrer's address to a third party (referrals.py defect 3).
+    if referrer:
+        safe_referrer = html.escape(referrer)
+        spec = html.escape((referrer_specialty or "").strip())
+        who_line = safe_referrer + (f" ({spec})" if spec else "")
+        opener = _p(
+            _strong(who_line)
+            + " suggested we get in touch, and mentioned "
+            + html.escape((relationship or "you know each other").strip())
+            + "."
+        )
+        subject = f"{referrer} suggested I reach out"
+        exit_line = _p(
+            f"{safe_referrer} asked us to reach out. If this isn&rsquo;t the right "
+            "conversation for you, ignore this and we won&rsquo;t follow up.",
+            muted=True, small=True,
+        )
+    else:
+        opener = _p("A physician we work with suggested we get in touch.")
+        subject = "An introduction to Archangel Health"
+        exit_line = _p(
+            "A colleague of yours asked us to reach out. If this isn&rsquo;t the "
+            "right conversation for you, ignore this and we won&rsquo;t follow up.",
+            muted=True, small=True,
+        )
+
+    role_line = ""
+    if (contact_role or "").strip():
+        role_line = _p(
+            "We understand you&rsquo;re " + html.escape(contact_role.strip())
+            + " at " + _strong(hs_name or "your health system") + "."
+        )
+
+    fact_line = ""
+    if (enrichment_sentence or "").strip():
+        fact_line = _p(html.escape(_scrub_dashes(enrichment_sentence.strip())))
+
+    body = (
+        _eyebrow("Introduction · Archangel Health")
+        + _h1("Two ways health systems work with us.")
+        + opener
+        + role_line
+        + fact_line
+        + _p(
+            "We&rsquo;re Archangel Health. We build the physician-graded data that "
+            "frontier AI labs use to evaluate medical models, and we work with "
+            "health systems in two directions."
+        )
+        + _inset_card(
+            _p(
+                _strong("License de-identified records.")
+                + " Expert Determination de-identification, no PHI touches our "
+                "systems, and we are DUA and BAA ready. The temporal structure "
+                "clinicians actually reason over is preserved rather than stripped."
+            )
+            + _p(
+                _strong("Your physicians can earn on evaluation work.")
+                + " Flexible, remote, async review of medical-AI output in their "
+                "own specialty, around clinic. Named credit on what we publish."
+            )
+        )
+        + _p(
+            "Either one is a reasonable place to start, and neither commits you to "
+            "the other. Worth a short call to see whether one of them fits?"
+        )
+        + _cta(partner_url, "Tell us about your system →")
+        + _p(
+            "Five quick questions so the call starts from something real, then "
+            "pick a time that works. Happy to loop in your compliance lead early.",
+            muted=True, small=True,
+        )
+        + exit_line
+    )
+    return _shell(subject=subject, body_html=body)
+
+
+def hs_referral_subject(referrer_name: str) -> str:
+    """The subject line for :func:`build_hs_referral_intro_email`.
+
+    Lives beside the builder rather than in the router so the two can never
+    drift: the referrer's name carries the open, and a subject that stopped
+    matching the first line of the body would quietly break the mechanism. The
+    caller still runs it through ``header_safe`` before it reaches a header.
+    """
+    name = (referrer_name or "").strip()
+    return f"{name} suggested I reach out" if name else "An introduction to Archangel Health"
+
+
+def build_hs_referral_alert_email(
+    *,
+    referrer_name: str,
+    referrer_email: str,
+    contact_name: str,
+    contact_email: str,
+    contact_role: str,
+    hs_name: str,
+    relationship: str,
+    note: str,
+    enrich_state: str,
+    enrich_summary: str,
+    outcome: str,
+) -> str:
+    """Internal: a physician introduced a named health-system contact.
+
+    Distinct from ``build_enterprise_note_email``, which stays exactly as it was
+    for the no-contact-details note path. This one exists because the founder
+    reading it now needs to know something that note never carried: an email
+    went out to a third party, or deliberately did not, and which body they saw.
+    Folding both into one template would mean the reader has to work out which
+    kind of alert they are looking at.
+
+    Every field is untrusted physician input and is escaped by the primitives.
+    """
+    rows = [
+        ("Contact", contact_name or "Not given", False),
+        ("Their email", contact_email or "Not given", True),
+        ("Their role", contact_role or "Not given", False),
+        ("Health system", hs_name or "Not given", False),
+        ("Referred by", referrer_name or "Not given", False),
+        ("Referrer email", referrer_email or "Not given", True),
+        ("Relationship", relationship or "Not given", False),
+    ]
+    body = (
+        _eyebrow("Internal · Health-system referral")
+        + _h1("A physician introduced a health system.")
+        + _inset_card(_detail_rows(rows))
+        + _p(_strong("What we sent: ") + html.escape(outcome or "unknown"))
+        + _p(
+            _strong("Enrichment: ") + html.escape(enrich_state or "unknown")
+            + (". " + html.escape(_scrub_dashes(enrich_summary)) if enrich_summary else "")
+        )
+        + (_p(_strong("Their note: ") + html.escape(_scrub_dashes(note))) if note else "")
+        + _p(
+            "Sent from the Referral tab&rsquo;s health-system card. The contact "
+            "above was emailed on the physician&rsquo;s behalf with reply-to set "
+            "to the physician, so a reply lands with them, not with you.",
+            muted=True, small=True,
+        )
+    )
+    return _shell(subject="Health-system referral", body_html=body)
 
 
 def build_community_digest_email(
@@ -1281,6 +1576,40 @@ def build_asclepius_password_reset_email(*, email: str, reset_url: str, expires_
         )
     )
     return _shell(subject="Reset your Archangel Health password", body_html=body)
+
+
+def build_asclepius_signin_link_email(*, signin_url: str, expires_minutes: int) -> str:
+    """A way back in for an applicant who has no password yet.
+
+    Names no account detail at all, not even the address it was sent to. This
+    is mailed on request from anyone who can type an email address, and the
+    fact worth protecting here is not "does this account exist" but "is this
+    named physician waiting on a decision from us", which is a statement about
+    their professional standing. So the body reads the same whether it reached
+    an applicant, an approved physician, or nobody at all."""
+    safe_url = html.escape(signin_url, quote=True)
+    body = (
+        _eyebrow("Sign in · Archangel Health")
+        + _h1("Pick up where you left off.")
+        + _p(
+            "Use the button below to get back into your application. This link "
+            f"works once and expires in {_strong(str(expires_minutes) + ' minutes')}."
+        )
+        + _cta(signin_url, "Sign in →")
+        + _p(
+            f'If the button does not work, paste this into your browser:<br>'
+            f'<a href="{safe_url}" style="color:{_GREEN_DEEP};">{html.escape(signin_url)}</a>',
+            muted=True,
+            small=True,
+        )
+        + _p(
+            "If you did not ask for this, ignore this email. Nobody has been "
+            "given access to anything.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Your Archangel Health sign in link", body_html=body)
 
 
 def build_asclepius_password_changed_email(*, email: str) -> str:

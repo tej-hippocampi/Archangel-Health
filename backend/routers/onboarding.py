@@ -16,7 +16,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ratelimit import client_ip, global_rate_limiter, rate_limiter
 
-from email_utils import is_email_transport_configured, send_html_email
+from email_utils import is_email_dev_mode, is_email_transport_configured, send_html_email
 from asclepius import passwords as asc_passwords
 from asclepius import store as asc_store_mod
 from onboarding_emails import (
@@ -421,7 +421,29 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
     # Honeypot: accept silently with a decoy link so a bot can't tell it was
     # caught. The token is random garbage — the wizard 404s it. Shape matches
     # the real success exactly (ok / onboarding_url / expires_at).
+    #
+    # The response stays silent to the CALLER, but it is no longer silent to us.
+    # A false positive here is indistinguishable, from the physician's side, from
+    # a broken product: they get a 200, a link, and then "Invalid or expired
+    # onboarding link" with no way forward. That is exactly what happened when
+    # the field was named `company_website` with a "Company website" label —
+    # Chrome and Safari autofill address-profile fields on those signals and
+    # ignore autocomplete="off" for them, so real doctors with a saved profile
+    # were being classified as bots. Nothing was written and nothing was logged,
+    # which is why it took a manual walkthrough to find. Log it.
     if body.company_website.strip():
+        # Local import: `asc_referrals` is imported further down in this same
+        # function for the referral path, which makes the name function-local
+        # for the whole body. A module-level import would be shadowed and this
+        # line would raise UnboundLocalError before it ever logged anything.
+        from asclepius import referrals as asc_referrals  # noqa: PLC0415
+
+        log.warning(
+            "[self-serve] honeypot tripped for %s from %s — decoy link returned, "
+            "no invite created. If this fires for real signups, the honeypot "
+            "field is being autofilled; check its name/label/id.",
+            asc_referrals.mask_email(email), client_ip(request),
+        )
         decoy_expires = (
             (datetime.utcnow() + timedelta(days=_SELF_SERVE_EXPIRES_DAYS))
             .replace(microsecond=0)
@@ -575,6 +597,16 @@ async def request_otp(body: OnboardTokenBody, request: Request):
     if dev_bypass:
         log.warning("DEV ONBOARDING OTP (no email transport configured) for %s: %s", email, code)
         return {"ok": True}
+    # EMAIL_DEV_MODE is NOT dev_bypass. `_email_configured()` returns True in dev
+    # mode (that is the point — onboarding must not 503 without SendGrid), so the
+    # branch above never runs locally and the code leaves only inside the printed
+    # email body. That reads as though the OTP is logged when it is not, and it
+    # makes local onboarding untestable without scraping stdout for the right
+    # block. Log it here too, on the same marker, so one grep finds it either way.
+    # Guarded on dev mode AND non-production: an OTP in a production log is a
+    # credential in a log.
+    if is_email_dev_mode() and not _is_production():
+        log.warning("DEV ONBOARDING OTP (EMAIL_DEV_MODE) for %s: %s", email, code)
     subj = "Your Archangel Health verification code"
     html_body = build_verification_email(code=code)
     ok = await send_html_email(email, subj, html_body)
@@ -1767,20 +1799,34 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     # -- the onboarding token and the mailbox OTP already proved who this is, so
     # re-checking a password we do not have proves nothing extra.
     #
-    # v2 §2: a physician who has no credential yet gets NO session. There is
-    # nothing behind the door — their queue opens on approval — and handing them
-    # a token would drop them into a portal that 403s every call with the
-    # verification gate. The success screen for them is the one in §2 screen 6:
-    # a warm confirmation and an expectation, not a workspace.
+    # An applicant now gets a session too, which REVERSES v2 §2.
+    #
+    # That rule was right for the product it was written against: there was
+    # genuinely nothing behind the door, the queue opened on approval, and a
+    # token would have dropped a physician into a portal that 403s every call.
+    # Handing someone a key to an empty room is worse than asking them to wait.
+    #
+    # The room is no longer empty. The practice case is now a real piece of
+    # work that an applicant does BEFORE we decide about them: it teaches what
+    # the job actually is, and how they do it feeds the decision. That is the
+    # thing the wait is for, and it cannot happen behind a door they cannot
+    # open. The PROVISIONAL surface set is scoped to exactly it plus a
+    # dashboard that says where they stand, so the portal they land in is one
+    # we meant to show them rather than a wall of denials.
+    #
+    # This does not create a durable credential. There is still no password on
+    # the account: approval remains the moment one comes into existence, so the
+    # security reasoning at approval time is untouched. Coming BACK before a
+    # decision goes through a single-use emailed sign-in link, which is the
+    # weakest door that works.
     session_token = None
-    if not credentials_deferred:
-        try:
-            from asclepius import auth as asc_auth
-            asc_user = _asclepius_store(request).get_user_by_email(director_email)
-            if asc_user:
-                session_token = asc_auth.create_token(asc_user)
-        except Exception:
-            session_token = None
+    try:
+        from asclepius import auth as asc_auth
+        asc_user = _asclepius_store(request).get_user_by_email(director_email)
+        if asc_user:
+            session_token = asc_auth.create_token(asc_user)
+    except Exception:
+        session_token = None
 
     invited = [p for p in ts.list_asclepius_people(row["id"]) if not p.get("is_director")]
     workspace_url = _asclepius_workspace_url()

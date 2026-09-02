@@ -75,10 +75,13 @@
   // Everything about cadence comes from the SERVER (the open_session
   // response's `params`). These are only the values used before the
   // first response lands, and they must never be the ones that win.
+  // No rate here. Nothing on this page renders one any more, and a hardcoded
+  // 10000 sitting in a payments module is the exact hazard test_admin_earnings_dom
+  // was written about: the day the real rate moves, the stale literal is what a
+  // physician reads while the server says something else.
   var FALLBACK = {
     beat_interval_seconds: 15,
     min_seconds: 1200,
-    rate_cents: 10000,
   };
 
   var API_BASE = '/api/asclepius';
@@ -156,7 +159,6 @@
       qualified: !!s.qualified,
       ended: !!s.ended,
       paused: session.paused,
-      rate_cents: session.params.rate_cents,
       error: session.error,
       beating: !!session.timer,
     };
@@ -582,18 +584,35 @@
     return wrap;
   }
 
+  /* What decides what you are paid, in the order a physician asks it.
+   *
+   *  Every sentence is true with ASCLEPIUS_PAYOUT_QUALITY_ENABLED off, which is
+   *  how it ships (payout.py::enabled). The second sentence is borrowed from
+   *  that module's FIRST commitment rather than from its multiplier: pay takes
+   *  no physician attribute as input. That is true today and stays true the day
+   *  the multiplier is armed, because the multiplier is about the case. A
+   *  sentence that has to be rewritten when a flag flips is a sentence that
+   *  will not be.
+   *
+   *  What a review session pays is stated once, in the reviewer manual, which
+   *  is where somebody looks BEFORE committing twenty minutes to one. It is
+   *  deliberately not restated here. */
   function ruleCard(h) {
     var p = data.params || {};
     var min = clock(p.min_seconds || 1200);
     return h('div', { class: 'asc-pay-rule' },
-      h('div', { class: 'asc-pay-rule-title' }, 'How review sessions are paid'),
+      h('div', { class: 'asc-pay-rule-title' }, 'How this is paid'),
       h('div', { class: 'asc-pay-rule-body' },
-        'A review session pays ' + money(p.rate_cents || 10000) + ' once you have '
-        + 'reviewed for ' + min + ' continuously. The clock is measured by the '
-        + 'server and shown in the review page header while you work. '),
+        'Your credentials decide what work you can draw. What a piece of work '
+        + 'pays is set by the kind of work it is, and does not change with who '
+        + 'you are.'),
       h('div', { class: 'asc-pay-rule-body' },
-        'Leaving before ' + min + ' ends the session unpaid. Time below '
-        + min + ' is still recorded — it is just not payable.'));
+        'Submitted work is pending until a reviewer signs it off. Work a '
+        + 'reviewer does not approve is not paid, and the reason is on the row.'),
+      h('div', { class: 'asc-pay-rule-body' },
+        'A review session has to run ' + min + ' continuously to be payable. '
+        + 'Leaving before ' + min + ' ends the session unpaid. Time below '
+        + min + ' is still recorded.'));
   }
 
   function lines(h) {
@@ -606,8 +625,11 @@
         class: 'asc-pay-line' + (l.kind === 'referral' ? ' asc-pay-line-referral' : ''),
       },
         h('span', { class: 'asc-pay-line-label' }, l.label),
-        h('span', { class: 'asc-pay-line-count' },
-          String(l.count) + ' × ' + money(l.rate_cents)),
+        // The count only. This used to read "33 × $75", which is a
+        // forward-looking price on a page whose job is to report what was
+        // actually earned. The totals beside it are facts; a posted rate is a
+        // promise, and this is not where promises are made.
+        h('span', { class: 'asc-pay-line-count' }, String(l.count)),
         h('span', { class: 'asc-pay-line-total' }, money(l.cents))));
       // Submitted work awaiting review is real and countable, and it is what
       // the pending total above is made of. Without this row a labeler's first
@@ -724,8 +746,7 @@
     // discovering the rule by losing $100.
     card.appendChild(h('div', { class: 'asc-pay-session-warning' },
       qualified
-        ? 'This session has passed ' + clock(min) + ' and is worth '
-          + money(s.rate_cents || (data.params && data.params.rate_cents) || 10000) + '.'
+        ? 'This session has passed ' + clock(min) + ' and is payable.'
         : 'Leaving before ' + clock(min) + ' ends the session unpaid.'));
     return card;
   }

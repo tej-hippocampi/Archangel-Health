@@ -35,6 +35,7 @@ guard); multi-file bundle assembly is orchestrated by ``ingestion.py``.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import ValidationError
@@ -80,6 +81,9 @@ def age_to_band(age: Optional[int]) -> Optional[str]:
     return f"{lo}-{lo + 9}"
 
 
+_HEX_ONLY = re.compile(r"[0-9a-fA-F]+")
+
+
 def _case_text_fields(case: Any) -> List[str]:
     """EVERY string a residual identifier could hide in, collected by walking the
     whole case recursively. Drift-proof by construction: any field the case model
@@ -95,6 +99,15 @@ def _case_text_fields(case: Any) -> List[str]:
 
     def _walk(node: Any) -> None:
         if isinstance(node, str):
+            # One carve-out from "every string": a pure-hex string of 32+
+            # characters is a machine-made digest or UID (an asset sha256,
+            # an id_hashed), never free text and never PHI. Scanning them
+            # makes the guard nondeterministic: whether a digest contains a
+            # 10-digit run is a property of the hash draw, so the same
+            # bundle rejects on one ingest and passes on the next.
+            # deid_verify._walk_strings applies the same carve-out.
+            if len(node) >= 32 and _HEX_ONLY.fullmatch(node):
+                return
             out.append(node)
         elif isinstance(node, dict):
             for k, v in node.items():

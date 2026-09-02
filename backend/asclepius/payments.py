@@ -136,6 +136,17 @@ KIND_REFERRAL = "referral"
 # the referred physician when the referrer's bounty settles. Same ref_id (the
 # referral row), so the same UNIQUE guard covers it.
 KIND_REFEREE_BONUS = "referee_first_case"
+# A health-system introduction that a founder decided to pay for. ADMIN-ENTRY
+# ONLY, and that is the entire design.
+#
+# There is no accrual path from ``hs_referrals`` to this kind: no sweep, no
+# trigger, no rate constant. An institutional deal settles on negotiated terms
+# over months, so there is no figure to compute and nothing that could compute
+# it, which is exactly why the Referral tab prints no percentage for one (see
+# docs/asclepius/REFERRALS.md). ``hs_payouts`` is admin-entry for the same
+# reason, and the ledger's UNIQUE(kind, ref_id) still guards the row, with
+# ``ref_id`` being the hs_referral_id.
+KIND_HS_REFERRAL = "hs_referral"
 SESSION_KIND_REVIEW = "review"
 
 # ─── Ledger states ────────────────────────────────────────────────────────────
@@ -212,32 +223,44 @@ def tr_min_seconds() -> int:
 
 
 def referral_bounty_cents() -> int:
-    """$50 when a physician you referred is verified and completes their first
-    accepted case.
+    """$25 to the REFERRER when a physician they referred is verified and
+    completes their first accepted case.
+
+    The smaller half of a $25/$50 split, with the larger half going to the
+    person being referred (see referee_bonus_cents). The referrer forwards a
+    link in seconds; the colleague has to verify, take a case and get it
+    accepted, and that is the step the whole program is buying. Weighting the
+    money toward the harder side buys the outcome rather than the gesture, and
+    it keeps the referrer's payment small enough that nobody has to argue about
+    physicians being paid to recruit physicians.
 
     A ONE-TIME BOUNTY, not a percentage of the colleague's ongoing work, and the
     reasoning is worth keeping next to the number. A revenue share creates an
     indefinite liability against every future task; it is a compliance question
-    the moment anyone asks whether physicians are being paid to recruit
-    physicians; and — the practical objection — it is unexplainable on a
-    dashboard. *"$50 when your colleague completes their first case"* is a
-    sentence a doctor can hold in their head. A trailing percentage is a
-    spreadsheet.
+    the moment anyone asks the recruiting question above; and, the practical
+    objection, it is unexplainable on a dashboard. *"$25 when your colleague
+    completes their first case"* is a sentence a doctor can hold in their head.
+    A trailing percentage is a spreadsheet.
 
-    Like every other rate here it lives in env and is STAMPED ON THE LEDGER ROW
-    at accrual, so changing it can never restate a bounty already earned.
+    Moving this rate is safe. Like every other rate here it lives in env and is
+    STAMPED ON THE LEDGER ROW at accrual, so a bounty already earned keeps the
+    rate it was earned at and only future accruals move.
     """
-    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 5000)
+    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 2500)
 
 
 def referee_bonus_cents() -> int:
-    """$25 to the REFERRED physician after their first accepted case.
+    """$50 to the REFERRED physician after their first accepted case.
 
-    Small on purpose: their real incentive is the case pay itself, and this is
-    framed as a first-case bonus so it doubles as activation. Paid only when a
-    referrer's bounty settles, which inherits every guard that settlement runs
-    (QA-accepted work, no self-referral, verified account)."""
-    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 2500)
+    The larger half of the split on purpose: this is the activation payment, and
+    the first accepted case is where a new physician either stays or is never
+    seen again. Paid only when a referrer's bounty settles, which inherits every
+    guard that settlement runs (QA-accepted work, no self-referral, verified
+    account).
+
+    Stamped on the ledger row at accrual exactly like the bounty, so raising or
+    lowering it later cannot restate a bonus already paid."""
+    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 5000)
 
 
 def referral_cap_cents() -> int:
@@ -1937,7 +1960,8 @@ def mark_paid(
 # ═══ The Earnings read model ══════════════════════════════════════════════════
 _KIND_LABELS = {KIND_TASK: "Task", KIND_REVIEW_SESSION: "Review session",
                 KIND_REFERRAL: "Referral",
-                KIND_REFEREE_BONUS: "First case bonus"}
+                KIND_REFEREE_BONUS: "First case bonus",
+                KIND_HS_REFERRAL: "Health system introduction"}
 # Words, not tokens — a raw status string never reaches a human.
 STATUS_WORDS = {
     ACCRUED: "Pending review",

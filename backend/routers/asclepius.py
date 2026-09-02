@@ -22,7 +22,7 @@ import secrets
 import time
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, Query, Request,
@@ -129,6 +129,8 @@ from asclepius.schemas import (
     FirstRunUpdate,
     FIRST_RUN_STOPS as _FIRST_RUN_STOPS,
     ForgotPasswordRequest,
+    SigninLinkExchange,
+    SigninLinkRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
     GenerateRealCasesRequest,
@@ -158,8 +160,10 @@ from asclepius.schemas import (
     TutorialStateUpdate,
 )
 from asclepius.tutorial_case import (
+    TUTORIAL_PASS_MIN_VERSION,
     TUTORIAL_TASK_ID,
     TUTORIAL_VERSION,
+    case_for_attempt,
     grade_tutorial_submission,
     tutorial_raw_task,
 )
@@ -169,6 +173,7 @@ from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
     build_asclepius_password_changed_email,
     build_asclepius_password_reset_email,
+    build_asclepius_signin_link_email,
 )
 from ratelimit import rate_limiter
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
@@ -422,6 +427,105 @@ async def forgot_password(
     return _FORGOT_ANSWER
 
 
+# ─── Pre-approval sign-in links ──────────────────────────────────────────────
+# An applicant has no password, so "sign in again" cannot mean what it means
+# everywhere else. It means: prove you still hold the mailbox we already sent an
+# OTP to, and we will let you back into the practice case.
+#
+# Same anti-enumeration discipline as the forgot door above, and for a sharper
+# reason: the interesting question an attacker could ask here is not "does this
+# address exist" but "is this physician still under review", which is a fact
+# about a named person's professional standing. So the answer, the latency and
+# the log shape are all identical in every branch.
+
+_SIGNIN_LINK_ANSWER = {
+    "ok": True,
+    "message": (
+        "If that email has an application with us, we've sent a sign in link. "
+        "It expires in 15 minutes."
+    ),
+}
+
+
+async def _mail_signin_link(email: str, raw_token: str) -> None:
+    if not is_email_transport_configured():
+        return
+    try:
+        await send_html_email(
+            email,
+            "Your Archangel Health sign in link",
+            build_asclepius_signin_link_email(
+                signin_url=asc_passwords.signin_url(raw_token),
+                expires_minutes=asc_passwords.SIGNIN_TTL_MINUTES,
+            ),
+        )
+    except Exception:
+        log.exception("[asclepius] sign in link email failed")
+
+
+@router.post(
+    "/auth/signin-link",
+    dependencies=[Depends(rate_limiter("asclepius_signin_link", 5, 600))],
+)
+async def request_signin_link(
+    body: SigninLinkRequest, request: Request, background: BackgroundTasks,
+):
+    store = _store()
+    email = (body.email or "").strip().lower()
+    user = store.get_user_by_email(email) if email else None
+
+    # Offered only to accounts that have no password. An account WITH one has a
+    # door already, and quietly mailing a second way in would be a downgrade
+    # attack on the stronger credential.
+    if user and user.get("active") and asc_store.password_is_unset(user):
+        raw, hashed = asc_passwords.new_signin_token()
+        store.create_signin_link(
+            user_id=user["id"], token_hash=hashed,
+            expires_at=asc_passwords.signin_expires_at(),
+        )
+        store.log_event(
+            entity_type="user", entity_id=user["id"],
+            event_type="signin_link_requested", actor=user["id"],
+        )
+        background.add_task(_mail_signin_link, user["email"], raw)
+    else:
+        store.log_event(
+            entity_type="user", entity_id=None,
+            event_type="signin_link_requested_unusable", actor=None,
+            payload={"domain": email.split("@")[-1] if "@" in email else ""},
+        )
+    return _SIGNIN_LINK_ANSWER
+
+
+@router.post(
+    "/auth/signin-link/exchange",
+    dependencies=[Depends(rate_limiter("asclepius_signin_exchange", 10, 600))],
+)
+async def exchange_signin_link(body: SigninLinkExchange):
+    """Trade the emailed token for a session, once.
+
+    Expired, already used and never-existed collapse to one sentence, the same
+    way the reset door collapses them: the holder of a bad link learns nothing
+    about which it was."""
+    store = _store()
+    token = (body.token or "").strip()
+    dead = "This sign in link is no longer valid. Request a new one."
+    if not token:
+        raise HTTPException(status_code=400, detail=dead)
+
+    user_id = store.consume_signin_link(asc_passwords.hash_reset_token(token))
+    user = store.get_user_by_id(user_id) if user_id else None
+    if not user or not user.get("active"):
+        raise HTTPException(status_code=400, detail=dead)
+
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="signin_link_used", actor=user["id"],
+    )
+    return {"ok": True, "token": asc_auth.create_token(user),
+            "user": asc_auth.public_user(user)}
+
+
 @router.post(
     "/auth/password/reset",
     dependencies=[Depends(rate_limiter("asclepius_pw_reset", 10, 900))],
@@ -621,6 +725,90 @@ async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
     return asc_auth.public_user(user)
 
 
+#: What the physician's own profile may show back from the credential blob.
+#:
+#: A WHITELIST, and that is the whole design. The blob also carries the keys in
+#: tiering.FORBIDDEN_CREDENTIAL_KEYS, and those are absent from this product on
+#: purpose: medical school, graduation year, date of birth, sex, IMG status.
+#: They are not collected, not scored, and not displayed, because a pedigree
+#: field on a physician's profile becomes a pedigree field in somebody's
+#: judgment of them. Whitelisting means a future key added to the blob is
+#: invisible here until somebody decides it should be visible, rather than
+#: appearing the moment it is collected.
+_PROFILE_DETAIL_KEYS: Tuple[Tuple[str, str], ...] = (
+    ("languages", "languages"),
+    ("subspecialties", "subspecialties"),
+    ("boardCertifications", "board_certifications"),
+    ("residency", "residency"),
+    ("fellowship", "fellowship"),
+    ("practiceSettings", "practice_settings"),
+    ("yearsInActivePractice", "years_in_active_practice"),
+    ("clinicalHalfDaysPerMonth", "clinical_half_days_per_month"),
+    ("structuredReviewExperience", "structured_review_experience"),
+    ("currentlyActive", "currently_active"),
+)
+
+
+def _credentials_detail(creds: Dict[str, Any]) -> Dict[str, Any]:
+    """The training and practice the physician told us about, read back.
+
+    Absent stays absent. A key with no value is omitted rather than returned as
+    an empty list, so the client renders nothing rather than a row that looks
+    like data somebody entered.
+    """
+    out: Dict[str, Any] = {}
+    for src, dest in _PROFILE_DETAIL_KEYS:
+        val = creds.get(src)
+        if val in (None, "", [], {}):
+            continue
+        out[dest] = val
+    return out
+
+
+#: The completeness prompt, in the order we would ask.
+#:
+#: Ordered by what actually improves routing: languages and subspecialties
+#: decide which cases can reach somebody, so they come first. Nothing here is
+#: required, and none of it gates anything.
+_COMPLETENESS_FIELDS: Tuple[Tuple[str, str], ...] = (
+    ("languages", "the languages you practise in"),
+    ("subspecialties", "your subspecialties"),
+    ("practice_settings", "the settings you practise in"),
+    ("years_in_active_practice", "your years in active practice"),
+    ("avatar", "a profile photo"),
+    ("specialty_niche", "your particular focus within your specialty"),
+    ("linkedin_url", "your LinkedIn"),
+)
+
+
+def _profile_completeness(row: Dict[str, Any], creds: Dict[str, Any]) -> Dict[str, Any]:
+    """A percentage and what is missing, in the order we would ask for it.
+
+    Deliberately a quiet meter and not a demand. Everything in here is optional,
+    it exists because a fuller profile routes better work to somebody, and a
+    product that nags a busy clinician about an optional field is one they stop
+    opening.
+    """
+    detail = _credentials_detail(creds)
+    present: Dict[str, bool] = {
+        "languages": bool(detail.get("languages")),
+        "subspecialties": bool(detail.get("subspecialties")),
+        "practice_settings": bool(detail.get("practice_settings")),
+        "years_in_active_practice": detail.get("years_in_active_practice") is not None,
+        "avatar": bool(row.get("avatar_asset_sha")),
+        "specialty_niche": bool((row.get("specialty_niche") or "").strip()),
+        "linkedin_url": bool((row.get("linkedin_url") or "").strip()),
+    }
+    missing = [{"field": f, "label": label}
+               for f, label in _COMPLETENESS_FIELDS if not present.get(f)]
+    total = len(_COMPLETENESS_FIELDS)
+    return {
+        "percent": round(100 * (total - len(missing)) / total) if total else 100,
+        "missing": missing,
+        "complete": not missing,
+    }
+
+
 @router.get("/me/profile")
 async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE))):
     """Everything the portal shows a physician about their own account.
@@ -646,12 +834,6 @@ async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc
 
         registry_name = registry_config.for_country(country).registry_name
 
-    score = None
-    try:
-        score = store.get_contributor_score(user["id"])
-    except Exception:
-        score = None
-
     return {
         "editable": {
             "full_name": row.get("full_name"),
@@ -676,17 +858,29 @@ async def my_profile(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc
             "signed_initials": (json.loads(row.get("attestations_json") or "{}") or {}).get(
                 "signedInitials") if row.get("attestations_json") else None,
         },
+        # Training and practice. Every one of these was already collected at
+        # signup and shown to the ADMIN reviewing the application, while the
+        # physician who typed them could not see them back. That asymmetry is
+        # the actual bug: a doctor should be able to read what we hold about
+        # them, and it is also what makes a completeness prompt honest rather
+        # than a demand for information they cannot check.
+        "training_and_practice": _credentials_detail(creds),
+        "completeness": _profile_completeness(row, creds),
+        # No `score`, and no `band`.
+        #
+        # This endpoint's contract is "everything the portal shows a physician
+        # about their own account", so shipping a rating the portal no longer
+        # renders would be dead payload on the one endpoint whose whole job is
+        # to be that list. The contributor score is an internal instrument for
+        # routing and for pay; the admin reads it through /admin/scores, and
+        # nothing about how it is computed changes.
+        #
+        # `tier`/`tier_word` stay. They are capability vocabulary rather than a
+        # rating, and other things read them.
         "standing": {
             "verification_status": row.get("verification_status"),
             "tier": row.get("tier"),
             "tier_word": asc_caps.tier_word(row.get("tier")),
-            "score": (score or {}).get("score"),
-            # Derived, not read off the row: contributor_scores has no `band`
-            # column, so `(score or {}).get("band")` was None for every
-            # physician who ever loaded this page, and the profile rendered a
-            # bare number with nothing saying what it meant.
-            "band": asc_contributor_score.band_word((score or {}).get("score"))
-                    if (score or {}).get("score") is not None else None,
             "referral_code": row.get("referral_code"),
         },
         # Absent until they upload one. The initials and the accent come from
@@ -894,9 +1088,12 @@ async def update_my_tutorial(
     action = body.action
 
     if action == "start":
-        if status in ("completed", "skipped"):
+        # `skipped` is deliberately NOT terminal any more. It used to suppress
+        # relaunch, which under a hard gate would strand a legacy skipper on a
+        # dashboard of 403s with no way back into the one thing that unlocks it.
+        if status == "completed":
             return asc_auth.public_user(store.get_user_by_id(user["id"]))
-        if status == "not_started":
+        if status in ("not_started", "skipped"):
             current = {
                 "status": "in_progress",
                 "step": body.step,
@@ -904,21 +1101,37 @@ async def update_my_tutorial(
                 "started_at": now,
                 "completed_at": None,
                 "skipped_at": None,
+                # Carried, never rebuilt. `gate` is the ACCESS answer and this
+                # branch only restates PROGRESS; dropping it here would let a
+                # physician clear their own grandfathering by reopening the
+                # tour, which reads as the product locking them out at random.
+                "gate": current.get("gate"),
             }
         # already in_progress: keep position, refresh nothing
     elif action == "advance":
-        if status in ("completed", "skipped"):
+        if status == "completed":
             return asc_auth.public_user(store.get_user_by_id(user["id"]))
-        if status == "not_started":
+        if status in ("not_started", "skipped"):
             current = {"status": "in_progress", "version": body.version or TUTORIAL_VERSION,
-                       "started_at": now, "completed_at": None, "skipped_at": None}
+                       "started_at": now, "completed_at": None, "skipped_at": None,
+                       "gate": current.get("gate")}
         current["step"] = body.step
     elif action == "skip":
-        if status != "completed" and not current.get("skipped_at"):
-            current["status"] = "skipped"
-            current["skipped_at"] = now
-            if not current.get("version"):
-                current["version"] = body.version or TUTORIAL_VERSION
+        # Retired. The practice case is a hard gate on all real work, so a skip
+        # grants nothing, and a control that appears to work while granting
+        # nothing is worse than no control: `skipped` was TERMINAL and
+        # suppressed relaunch, so honouring it now would strand the physician
+        # on a dashboard where every button 403s.
+        #
+        # Kept in the schema Literal for one release so a cached client gets a
+        # no-op instead of a 422; the literal leaves next release. The buttons
+        # that sent this are already gone from the portal.
+        log.info("[practice-gate] skip refused for user=%s", user["id"])
+        store.log_event(
+            entity_type="user", entity_id=user["id"],
+            event_type="tutorial_skip_refused", actor=user["id"],
+        )
+        return asc_auth.public_user(store.get_user_by_id(user["id"]))
     elif action == "complete":
         if not current.get("completed_at"):
             current["status"] = "completed"
@@ -928,7 +1141,12 @@ async def update_my_tutorial(
                 current["version"] = body.version or TUTORIAL_VERSION
             current.pop("step", None)
     elif action == "reset":
-        current = {"status": "not_started", "version": None}
+        # Self-service, and it resets PROGRESS only. The gate survives: reset
+        # exists so somebody can retake the tour, not so they can hand
+        # themselves a different access answer, and clearing a grandfathered
+        # stamp here would lock a working physician out of their own queue.
+        current = {"status": "not_started", "version": None,
+                   "gate": current.get("gate")}
 
     store.set_tutorial_state(user["id"], current)
     store.log_event(
@@ -944,11 +1162,12 @@ async def update_my_tutorial(
     # fact drift: a doctor who finishes the practice case from the help menu, or
     # on another device, or after a reload, must still find the box ticked.
     #
-    # A skip closes the stop too. §6 says a skip never nags again, and leaving
-    # the box open after a deliberate skip is exactly nagging.
-    if action in ("complete", "skip"):
-        _close_first_run_stop(store, user["id"], "practice",
-                              "done" if action == "complete" else "skipped")
+    # A skip cannot reach here: the practice case is a hard gate, so skip is
+    # refused above with an early return, and the checklist box stays open —
+    # it points at work the physician still owes, which is the opposite of a
+    # nag about work they declined.
+    if action == "complete":
+        _close_first_run_stop(store, user["id"], "practice", "done")
     return asc_auth.public_user(store.get_user_by_id(user["id"]))
 
 
@@ -1074,32 +1293,78 @@ async def tutorial_reveal(
 async def tutorial_submit(
     body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))
 ):
-    """Grade the practice submission against the answer key and stamp the
-    caller's tutorial state completed. Never touches the real submit pipeline —
-    no ``submissions`` row, no ``records``, no QA routing."""
+    """Grade the practice submission, and DECIDE whether it passed.
+
+    This is the pass decision, not just feedback. The practice case gates all
+    real work, so "completed" had to stop meaning "clicked through": before
+    this, a 0-of-4 stamped ``completed`` and that was the only thing between a
+    new physician and a paid case.
+
+    Never touches the real submit pipeline: no ``submissions`` row, no
+    ``records``, no QA routing.
+    """
     if body.task_id != TUTORIAL_TASK_ID:
         raise HTTPException(status_code=400, detail="Not the tutorial task.")
     payload = body.model_dump()
-    result = grade_tutorial_submission(payload)
     store = _store()
     current = store.get_tutorial_state(user["id"])
+    gate = current.get("gate")
+    gate = dict(gate) if isinstance(gate, dict) else {}
+    try:
+        attempts = int(gate.get("attempts") or 0) + 1
+    except (TypeError, ValueError):
+        attempts = 1
+
+    result = grade_tutorial_submission(payload, case_for_attempt(attempts))
+    passed = bool(result.get("passed"))
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     already_done = bool(current.get("completed_at"))
-    if not already_done:
-        now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
-        current.update({
-            "status": "completed",
-            "completed_at": now,
-            "skipped_at": None,
-            "score": {"matched": result["matched"], "total": result["total"]},
-        })
-        if not current.get("version"):
-            current["version"] = TUTORIAL_VERSION
+
+    gate["attempts"] = attempts
+    gate["last_attempt_at"] = now
+    if passed:
+        # A grandfathered physician who replays for practice and fumbles it
+        # must never lose access, so the state only ever moves UP here. The
+        # migration's grandfathering is not something a bad afternoon undoes.
+        if gate.get("state") != asc_caps.GATE_GRANDFATHERED:
+            gate["state"] = asc_caps.GATE_PASSED
+            gate["passed_at"] = gate.get("passed_at") or now
+            gate["passed_version"] = TUTORIAL_VERSION
+            gate["source"] = "tutorial_submit"
+        # Stamped at the moment of the FIRST pass and never rewritten, because
+        # `attempts` keeps climbing on replays: a physician who passed first
+        # time and later reopened the case for practice would otherwise stop
+        # reading as a first-time pass. This is the vetting signal, so it has to
+        # mean what it meant on the day.
+        if "first_attempt_pass" not in gate:
+            gate["first_attempt_pass"] = (attempts == 1)
+        current["status"] = "completed"
+        if not already_done:
+            current["completed_at"] = now
+        current["skipped_at"] = None
         current.pop("step", None)
-        store.set_tutorial_state(user["id"], current)
+    else:
+        # Explicitly NOT "completed". A failed attempt leaves them mid-flow,
+        # which is the truth and is also what relaunches the tour on next login.
+        if gate.get("state") not in (asc_caps.GATE_PASSED,
+                                     asc_caps.GATE_GRANDFATHERED):
+            gate["state"] = asc_caps.GATE_LOCKED
+            current["status"] = "in_progress"
+
+    # Kept for the admin and for events, never shipped to the physician:
+    # public_user projects it out (asclepius/auth.py::_parse_tutorial).
+    current["score"] = {"matched": result["matched"], "total": result["total"]}
+    current["gate"] = gate
+    if not current.get("version"):
+        current["version"] = TUTORIAL_VERSION
+    store.set_tutorial_state(user["id"], current)
+
     store.log_event(
         entity_type="user", entity_id=user["id"],
         event_type="tutorial_submitted", actor=user["id"],
         payload={"matched": result["matched"], "total": result["total"],
+                 "passed": passed, "attempts": attempts,
+                 "assisted": len(result.get("assisted_steps") or []),
                  "replay": already_done},
     )
     return {"result": result,
@@ -2217,6 +2482,52 @@ def require_label(
     return user
 
 
+#: Machine-readable companion to the practice-case 403, same shape as
+#: AUTH_GATE_HEADER: the client picks a screen from this rather than by matching
+#: prose, so rewording the message can never break the routing.
+PRACTICE_GATE_HEADER = "X-Asclepius-Practice-Gate"
+
+
+def require_practice_case(
+    user: Dict[str, Any] = Depends(require_label),
+) -> Dict[str, Any]:
+    """The third gate: has this physician been shown the standard yet.
+
+    Separate from require_label on purpose. The tier says what KIND of work
+    they may do and the access level says whether real patient data is
+    reachable; neither answers whether anybody has ever shown them how a record
+    is supposed to look. Before this existed the practice case was a frontend
+    launch preference, which is not a gate: skipTutorial() wrote a field nothing
+    read, and typing #tasks walked straight past it.
+
+    The refusal is structured rather than prose. It carries an ``action`` so the
+    client renders "Open the practice case" instead of an error, because a
+    physician meeting this has done nothing wrong and there is exactly one thing
+    for them to do next.
+    """
+    reason = asc_caps.practice_gate_reason(
+        user, required_version=TUTORIAL_PASS_MIN_VERSION)
+    if reason is None:
+        return user
+    # Logged because a 403 nobody expected is a mystery otherwise, and the
+    # reason is the whole diagnosis.
+    log.info("[practice-gate] denied user=%s reason=%s", user.get("id"), reason)
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "error": "practice_case_required",
+            "reason": reason,
+            "message": (
+                "Finish the practice case before your first real one. It takes "
+                "about four minutes, you can retake it as many times as you "
+                "like, and nothing in it is recorded."),
+            "action": {"kind": "start_practice_case",
+                       "label": "Open the practice case"},
+        },
+        headers={PRACTICE_GATE_HEADER: reason},
+    )
+
+
 @router.get("/tasks/next")
 async def next_task(
     portal_version: Optional[str] = Query(
@@ -2231,7 +2542,7 @@ async def next_task(
         "oncology). Drives which specialty's cases are served/generated; an unknown "
         "or disabled value falls back to the evaluator's own specialty.",
     ),
-    user: Dict[str, Any] = Depends(require_label),
+    user: Dict[str, Any] = Depends(require_practice_case),
 ):
     store = _store()
     # Normalize the picker's specialty to an enabled one, else ignore it (never
@@ -2326,7 +2637,7 @@ async def available_tasks(
     # the list would have the dashboard advertise cases the very next click
     # refuses — the product knowing something and not saying it, which is the
     # class of defect this round exists to remove.
-    user: Dict[str, Any] = Depends(require_label),
+    user: Dict[str, Any] = Depends(require_practice_case),
 ):
     """The tasks THIS evaluator can pick right now — the dashboard list.
 
@@ -2575,9 +2886,24 @@ async def my_stats(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     total cases completed, how many in the last 7 days, and their last
     submission timestamp. Every ``submissions`` row is already a completed
     case (drafts live client-side, never written here), so no status filter
-    is needed."""
+    is needed.
+
+    Counts and dates only, and that is a rule rather than a current limitation.
+    This is the one work-history surface the physician themselves reads, so the
+    moment a field here derives from grading, agreement or the contributor
+    score it becomes the internal number wearing a chart. What somebody sees
+    about their own record is what they did, not how we rate it.
+    """
     store = _store()
-    return store.evaluator_self_stats(user["id"])
+    stats = dict(store.evaluator_self_stats(user["id"]) or {})
+    try:
+        stats["monthly"] = store.monthly_submission_counts(user["id"])
+    except Exception:
+        # The widget that already works is still the truth. A history panel
+        # that cannot be built costs the panel, never the dashboard.
+        log.exception("[asclepius] monthly submission counts failed for %s", user["id"])
+        stats["monthly"] = []
+    return stats
 
 
 def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> None:
@@ -2710,7 +3036,8 @@ def _attach_relay_handoff(store: Any, task: Dict[str, Any], out: Dict[str, Any])
 
 
 @router.get("/tasks/{task_id}")
-async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
+async def get_task(task_id: str,
+                   user: Dict[str, Any] = Depends(require_practice_case)):
     store = _store()
     task = store.get_task(task_id)
     if not task:
@@ -2731,7 +3058,8 @@ async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_cur
 
 @router.post("/tasks/{task_id}/reveal")
 async def reveal_task_answers(
-    task_id: str, body: IndependentAnswer, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    task_id: str, body: IndependentAnswer,
+    user: Dict[str, Any] = Depends(require_practice_case),
 ):
     """Commit the evaluator's blind independent answer and reveal the candidate
     answers in one step (Eval Flow Upgrade §1, v2 anti-peeking). This is the ONLY
@@ -3121,7 +3449,7 @@ async def submit(
         "GET /submissions/{id}/status for backend-stamped phases. Default false "
         "keeps the synchronous 200 + result behavior.",
     ),
-    user: Dict[str, Any] = Depends(require_label),
+    user: Dict[str, Any] = Depends(require_practice_case),
 ):
     store = _store()
     sid = body.submission_id or f"s-{uuid.uuid4().hex[:12]}"
@@ -3791,7 +4119,7 @@ async def reasoning_pregrade(
 # ─── Rubric capture (FEAT-2) ──────────────────────────────────────────────────
 @router.post("/rubric/suggest")
 async def rubric_suggest(
-    body: SubmissionIn, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: SubmissionIn, user: Dict[str, Any] = Depends(require_practice_case)
 ):
     """Auto-seed proposed rubric criteria from the doctor's already-captured tags
     (FEAT-2). The client sends the in-progress draft (error tags + reasons,
@@ -3814,7 +4142,7 @@ async def rubric_suggest(
 # ─── Model-assisted pre-labeling (Speed Optimization §2) ─────────────────────
 @router.post("/assist/prelabel")
 async def assist_prelabel(
-    body: PrelabelRequest, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: PrelabelRequest, user: Dict[str, Any] = Depends(require_practice_case)
 ):
     """Suggest the weaker answer + error tags + a draft rationale for a task the
     evaluator is grading — VERIFY, don't author. Guardrails:

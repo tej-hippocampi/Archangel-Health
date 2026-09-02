@@ -290,14 +290,45 @@ def _first_run_public(user: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _parse_tutorial(raw: Any) -> Dict[str, Any]:
+    """The practice-case state, PROJECTED to what the physician may see.
+
+    The stored blob carries ``score`` ({matched, total} against the four-item
+    answer key) and the tour's saved ``step``. Neither belongs in a session
+    payload: a physician sees no grade for their own work anywhere in this
+    product, and shipping one here would put it in every /auth/me response
+    whether or not a screen renders it. The admin reads the raw blob through
+    the store.
+
+    ``gate_state`` is lifted out of the nested gate object because the client
+    launches the practice case off it, and a nested read in the boot path is
+    one more thing to get wrong on a cached payload.
+    """
+    parsed: Dict[str, Any] = {}
     if raw:
         try:
-            parsed = json.loads(raw) if isinstance(raw, str) else raw
-            if isinstance(parsed, dict) and parsed.get("status"):
-                return parsed
+            candidate = json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(candidate, dict) and candidate.get("status"):
+                parsed = candidate
         except (ValueError, TypeError):
-            pass
-    return {"status": "not_started", "version": None}
+            parsed = {}
+    if not parsed:
+        return {"status": "not_started", "version": None,
+                "gate_state": _caps.GATE_LOCKED, "attempts": 0}
+
+    gate = parsed.get("gate")
+    gate = gate if isinstance(gate, dict) else {}
+    try:
+        attempts = int(gate.get("attempts") or 0)
+    except (TypeError, ValueError):
+        attempts = 0
+    return {
+        "status": parsed.get("status"),
+        "version": parsed.get("version"),
+        "started_at": parsed.get("started_at"),
+        "completed_at": parsed.get("completed_at"),
+        "gate_state": _caps.practice_gate_state({"tutorial_json": parsed}),
+        "attempts": attempts,
+    }
 
 
 # ─── FastAPI dependencies ─────────────────────────────────────────────────────

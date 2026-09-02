@@ -25,10 +25,12 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, EmailStr, Field
+from fastapi import (APIRouter, BackgroundTasks, Depends, HTTPException,
+                     Query, Response)
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
@@ -90,11 +92,23 @@ async def my_referrals(user: Dict[str, Any] = Depends(_require_referrer)):
         # The funnel that already exists is still the truth. Never a 500 on the
         # surface whose entire job is to prove the referral did not vanish.
         log.exception("asclepius.payments: referral reconcile failed for %s", user["id"])
-    return asc_referrals.funnel(
-        store, referrer=store.get_user_by_id(user["id"]) or user,
+    referrer = store.get_user_by_id(user["id"]) or user
+    payload = asc_referrals.funnel(
+        store, referrer=referrer,
         bounty_cents=asc_payments.referral_bounty_cents(),
         referee_bonus_cents=asc_payments.referee_bonus_cents(),
         cap_cents=asc_payments.referral_cap_cents())
+    # Both funnels in ONE response. The tab renders two columns from a single
+    # fetch, so a health-system row cannot appear a beat after the physician
+    # rows and read as a glitch. Degrades to an empty list rather than a 500:
+    # this surface exists to prove a referral did not vanish, and it must not be
+    # the thing that vanishes.
+    try:
+        payload["health_systems"] = asc_referrals.hs_funnel(store, referrer=referrer)
+    except Exception:
+        log.exception("asclepius.payments: hs funnel failed for %s", user["id"])
+        payload["health_systems"] = []
+    return payload
 
 
 class ReferralBody(BaseModel):
@@ -220,6 +234,11 @@ async def enterprise_note(
     on enterprise labeling. Free text straight to a founder inbox: at this
     deal size a human reads every word, so no form fields, no CRM.
 
+    Reachable by a physician still under review, which matters because of who
+    sends these: the person who can open an institutional door is very often
+    the one who just walked through it, and the week they join is the week they
+    are most willing to make the introduction.
+
     Bounded and throttled per user (3/day) because it is an outbound email a
     signed-in physician can trigger; the note is plain text in the builder so
     nothing in it can inject markup or headers.
@@ -269,6 +288,324 @@ async def enterprise_note(
             detail="We could not send your note just now. Please try again shortly.")
     return {"ok": True,
             "message": "Sent. A founder reads every one of these personally."}
+
+
+# ─── Health-system referrals (HS-REF) ─────────────────────────────────────────
+class HealthSystemReferralBody(BaseModel):
+    contact_name: str = Field(min_length=1, max_length=120)
+    contact_email: EmailStr
+    hs_name: str = Field(min_length=1, max_length=160)
+    relationship: str = Field(min_length=1, max_length=400)
+    contact_role: str = Field(default="", max_length=120)
+    note: str = Field(default="", max_length=2000)
+
+    @field_validator("contact_name", "hs_name", "relationship", mode="after")
+    @classmethod
+    def _must_carry_content(cls, v: str) -> str:
+        """Collapse whitespace, then require something is left.
+
+        ``min_length=1`` alone counts ``"   "`` as three characters, so a form
+        submitted with a spacebar in the name field validated cleanly, and the
+        row it wrote had a blank contact name that reached a founder's alert as
+        "Not given" and greeted the recipient as "there". Validate the content,
+        not the length of the string.
+        """
+        collapsed = " ".join((v or "").split())
+        if not collapsed:
+            raise ValueError("This field cannot be blank.")
+        return collapsed
+    #: Not a formality. We send this email in the physician's name, with their
+    #: address on the reply-to, so the claim being made to the recipient is that
+    #: a person they know asked us to write. A checkbox is the cheapest place to
+    #: make the physician assert that is true before we say it on their behalf.
+    consent: bool = False
+
+
+def _hs_referral_send_enabled() -> bool:
+    """Kill switch for the outbound leg.
+
+    Set ``ASCLEPIUS_HS_REFERRAL_SEND_ENABLED=0`` and referrals are still
+    recorded and still alert a founder, only the mail to the third party stops.
+    Deliberately a degrade rather than a 503: if something is wrong with what we
+    are sending, the lead a physician just handed us is the last thing that
+    should be lost while it gets fixed.
+    """
+    return (os.getenv("ASCLEPIUS_HS_REFERRAL_SEND_ENABLED") or "1").strip() not in ("0", "false", "no")
+
+
+async def _deliver_hs_referral(hs_referral_id: str, referrer_id: str) -> None:
+    """Enrich, then send, then tell a founder. Runs AFTER the response.
+
+    Everything here is best-effort by construction. The row is already written
+    and the landing token already minted before this is scheduled, so a failure
+    anywhere below costs the introduction its email, never its record, a
+    founder can still pick it up out of the alert or the admin list. This
+    function never raises into the background-task runner.
+    """
+    from asclepius import hs_enrich
+    from email_utils import is_email_transport_configured, send_html_email
+    from onboarding_emails import (
+        build_hs_referral_alert_email, build_hs_referral_intro_email,
+        hs_referral_subject,
+    )
+
+    store = _store()
+    row = store.get_hs_referral(hs_referral_id)
+    if not row:
+        return
+    referrer = store.get_user_by_id(referrer_id) or {}
+    referrer_name = asc_referrals.referrer_display_name(referrer)
+
+    enrichment: Dict[str, Any] = {"state": "skipped", "data": None, "reason": "not_run"}
+    try:
+        enrichment = await hs_enrich.enrich_health_system(
+            contact_name=row.get("contact_name") or "",
+            contact_role=row.get("contact_role") or "",
+            hs_name=row.get("hs_name") or "",
+        )
+    except Exception:  # noqa: BLE001, enrichment must never cost the send
+        log.exception("hs-referral: enrichment raised for %s", hs_referral_id)
+
+    data = enrichment.get("data")
+    try:
+        store.set_hs_referral_enrichment(
+            hs_referral_id, state=enrichment.get("state") or "skipped",
+            payload=hs_enrich.to_json(data))
+    except Exception:
+        log.exception("hs-referral: could not stamp enrichment for %s", hs_referral_id)
+
+    blocked = enrichment.get("state") == "blocked"
+
+    # Already ours. Checked here rather than at capture so the referrer is told
+    # nothing about who we work with (see ``hs_contact_is_known``), while the
+    # partner is spared an introduction to a company they already have a login
+    # for. Treated as a block: nothing sends, a founder picks it up.
+    known = False
+    if not blocked:
+        try:
+            known = store.hs_contact_is_known(row.get("contact_email") or "")
+        except Exception:
+            log.exception("hs-referral: known-contact check failed for %s", hs_referral_id)
+    blocked = blocked or known
+
+    personalized = (not blocked) and hs_enrich.may_personalize(data)
+    fact = (data or {}).get("one_public_fact") if personalized else ""
+
+    outcome = ("nothing (already a partner)" if known
+               else "nothing (blocked)" if blocked
+               else "personalized introduction" if personalized
+               else "clean introduction")
+    sent = False
+    if not blocked and _hs_referral_send_enabled() and is_email_transport_configured():
+        try:
+            html_body = build_hs_referral_intro_email(
+                contact_first_name=(row.get("contact_name") or "").split(" ")[0],
+                contact_role=row.get("contact_role") or "",
+                hs_name=row.get("hs_name") or "",
+                referrer_name=referrer_name,
+                referrer_specialty=(referrer.get("specialty") or "").strip(),
+                relationship=row.get("relationship") or "",
+                partner_url=asc_referrals.partner_url(
+                    row.get("referral_code"), row.get("landing_token")),
+                enrichment_sentence=fact or "",
+            )
+            sent = bool(await send_html_email(
+                row.get("contact_email") or "",
+                # Collapsed through header_safe: this string is assembled from a
+                # user-controlled display name and goes into a MIME header, where
+                # a CR/LF is header injection on the SMTP fallback.
+                asc_referrals.header_safe(hs_referral_subject(referrer_name)),
+                html_body,
+                reply_to=(referrer.get("email") or "").strip() or None,
+            ))
+        except Exception:
+            log.exception("hs-referral: intro email failed for %s", hs_referral_id)
+    elif not blocked and not _hs_referral_send_enabled():
+        outcome = "nothing (sending disabled)"
+
+    if sent:
+        store.stamp_hs_referral_sent(hs_referral_id)
+    if blocked:
+        try:
+            store.set_hs_referral_fraud_flag(
+                hs_referral_id,
+                ("already_a_partner" if known
+                 else (enrichment.get("reason") or "blocked"))[:300])
+        except Exception:
+            log.exception("hs-referral: could not flag %s", hs_referral_id)
+
+    # The founder alert goes last and is sent whatever happened above. The two
+    # cases a human most needs to see are the blocked one and the failed send,
+    # and both of those are exactly when the earlier steps did not complete.
+    if is_email_transport_configured():
+        try:
+            summary = ""
+            if data:
+                summary = (f"confidence {data.get('confidence')}, "
+                           f"role_confirmed {data.get('role_confirmed')}, "
+                           f"org {data.get('org_type') or 'unknown'}")
+            if known:
+                summary = ("This address already belongs to a health system we work "
+                           "with, so nothing was sent. " + summary).strip()
+            elif blocked:
+                summary = (enrichment.get("reason") or "") + (f" ({summary})" if summary else "")
+            await send_html_email(
+                (os.getenv("ENTERPRISE_NOTE_EMAIL") or "aryaabhatia@berkeley.edu").strip(),
+                asc_referrals.header_safe(
+                    f"Health-system referral: {row.get('hs_name') or 'unknown'}"),
+                build_hs_referral_alert_email(
+                    referrer_name=referrer_name or "Not given",
+                    referrer_email=(referrer.get("email") or "").strip(),
+                    contact_name=row.get("contact_name") or "",
+                    contact_email=row.get("contact_email") or "",
+                    contact_role=row.get("contact_role") or "",
+                    hs_name=row.get("hs_name") or "",
+                    relationship=row.get("relationship") or "",
+                    note=row.get("note") or "",
+                    enrich_state=enrichment.get("state") or "skipped",
+                    enrich_summary=summary,
+                    outcome=outcome + (" (delivered)" if sent else " (not delivered)"),
+                ))
+        except Exception:
+            log.exception("hs-referral: founder alert failed for %s", hs_referral_id)
+
+    try:
+        store.log_event(
+            entity_type="user", entity_id=referrer_id,
+            event_type="hs_referral_delivered", actor=referrer.get("email"),
+            payload={"hs_referral_id": hs_referral_id, "enrich_state": enrichment.get("state"),
+                     "personalized": personalized, "blocked": blocked, "email_sent": sent})
+    except Exception:
+        log.exception("hs-referral: event log failed for %s", hs_referral_id)
+
+
+@router.post(
+    "/api/asclepius/referrals/health-system",
+    dependencies=[Depends(rate_limiter("asclepius_hs_referral_ip", 20, 3600))],
+)
+async def create_hs_referral(
+    body: HealthSystemReferralBody,
+    background: BackgroundTasks,
+    user: Dict[str, Any] = Depends(_require_referrer),
+):
+    """Introduce a named person at a health system.
+
+    **Why this endpoint returns before the email is sent.** Enrichment is a
+    model call with a web search inside it, and the physician who just pressed a
+    button should not watch a spinner for however long that takes. The row and
+    its landing token are written synchronously, so the introduction exists and
+    is attributable the moment this returns, and delivery is scheduled after.
+
+    **The response does not disclose whether we already know this organization.**
+    Same rule as ``create_referral`` above: the message is the same either way,
+    and the physician's own funnel reports the real outcome a request later.
+    """
+    _throttle_referral(user)
+
+    if not body.consent:
+        raise HTTPException(
+            status_code=422,
+            detail="Please confirm you know this person and they're OK hearing from us.")
+
+    contact_email = str(body.contact_email).lower().strip()
+    store = _store()
+    referrer = store.get_user_by_id(user["id"]) or user
+
+    # Self-referral. Not a fraud control so much as a coherence one: an email
+    # telling you that you suggested we reach out to yourself is nonsense, and
+    # the physician path already refuses the same shape.
+    if contact_email and contact_email == (referrer.get("email") or "").lower().strip():
+        raise HTTPException(
+            status_code=422, detail="That's your own address.")
+
+    # Per-CONTACT cap, across all referrers. Without it one inbox can be mailed
+    # without bound by rotating who submits it. That is the reasoning behind
+    # REFERRALS_PER_INVITEE_24H on the physician path, and it matters more here
+    # because this address belongs to somebody senior at a company we want to
+    # do business with.
+    from ratelimit import is_enabled
+    if is_enabled():
+        since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        if store.count_hs_referrals_for_contact(contact_email, since_iso=since) >= 2:
+            raise HTTPException(
+                status_code=429,
+                detail="Someone has already introduced this contact recently. "
+                       "We'll be in touch with them shortly.")
+
+    row = store.insert_hs_referral(
+        referrer_id=referrer["id"],
+        referral_code=referrer.get("referral_code"),
+        contact_name=body.contact_name,
+        contact_email=contact_email,
+        contact_role=body.contact_role,
+        hs_name=body.hs_name,
+        relationship=body.relationship,
+        note=" ".join((body.note or "").split()) or None,
+    )
+
+    store.log_event(
+        entity_type="user", entity_id=referrer["id"], event_type="hs_referral_created",
+        actor=referrer.get("email"),
+        payload={"hs_referral_id": row["hs_referral_id"], "hs_name": row["hs_name"]})
+
+    background.add_task(_deliver_hs_referral, row["hs_referral_id"], referrer["id"])
+
+    return {
+        "ok": True,
+        "message": "Introduction recorded. We'll reach out and you'll see it below.",
+    }
+
+
+@router.get(
+    "/api/asclepius/hs-referral/{token}",
+    dependencies=[Depends(rate_limiter("asclepius_hs_referral_lookup", 60, 3600))],
+)
+async def hs_referral_prefill(token: str):
+    """What the /partner page needs to prefill itself. PUBLIC and unauthenticated.
+
+    **This endpoint returns nothing the holder of the token was not already
+    sent.** The token arrives in the link inside their own introduction email,
+    and everything below, their name, their address, their organization, their
+    role, and the first name of the physician who introduced them, was in that
+    email's body. The whole point is to save a CIO from retyping four fields we
+    already know; it is not a lookup service.
+
+    Specifically NOT returned: the referrer's email address, their note, our
+    enrichment, and every other row on ``hs_referrals``. Built by whitelist.
+
+    **An unknown token is a 200 with ``found: false``, not a 404.** A 404 makes
+    this a membership oracle, feed it tokens and the status code tells you
+    which ones are live. The page renders an ordinary empty form either way,
+    which is exactly what it should do when someone follows a stale link.
+
+    ``status`` is advanced to ``opened`` as a side effect, which is what makes
+    the referring physician's funnel row move on its own.
+    """
+    store = _store()
+    row = store.get_hs_referral_by_token(token)
+    if not row:
+        return {"found": False}
+
+    try:
+        store.advance_hs_referral(row["hs_referral_id"], "opened")
+    except Exception:
+        # A funnel stamp is not worth failing the prefill the recipient is
+        # waiting on.
+        log.exception("hs-referral: could not stamp opened for %s", row.get("hs_referral_id"))
+
+    referrer = store.get_user_by_id(row.get("referrer_id") or "") or {}
+    referrer_name = asc_referrals.referrer_display_name(referrer)
+    return {
+        "found": True,
+        "contact_name": row.get("contact_name") or "",
+        "contact_email": row.get("contact_email") or "",
+        "contact_role": row.get("contact_role") or "",
+        "hs_name": row.get("hs_name") or "",
+        # First name only. The full display name was in the email; a surname is
+        # not needed to say who sent you, and this response is reachable by
+        # anyone holding the link.
+        "referrer_first_name": (referrer_name or "").split(" ")[0],
+    }
 
 
 # ─── Sessions ─────────────────────────────────────────────────────────────────

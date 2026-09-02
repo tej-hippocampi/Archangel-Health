@@ -133,26 +133,33 @@ REFERRAL = "referral"                # a referral link, invites, and what they e
 SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
             EARNINGS, REFERRAL)
 
-#: A physician awaiting verification gets the product, minus real patient data.
-#: They have already cleared an OTP on their institutional mailbox, submitted a
-#: registration number, and signed the confidentiality and independent-judgment
-#: attestations, which is why they are trusted to post among colleagues. DMs and
-#: attachments still wait: those are the unsolicited-contact and PHI vectors,
-#: and they are worth waiting a day for.
+#: An applicant awaiting review reaches the practice case, a view-only
+#: dashboard showing where their application stands, and the referral surface.
 #:
-#: EARNINGS and REFERRAL are open to them, which is a change of mind. Hiding
-#: the money surfaces from someone who has just signed up makes the product
-#: look empty at the exact moment we are trying to show them what they joined,
-#: and hiding referrals costs us the referral. Nothing is payable without
-#: verification either way -- the ledger a provisional physician sees reads
-#: zero, honestly, because they have not done any work yet. Referring a
-#: colleague is not work: the introduction is just as good made the day they
-#: sign up, and the bounty still only pays when the person they brought is
-#: verified and their first case is accepted.
+#: The community and the money surfaces were REMOVED from this set, and the
+#: distinction is worth stating because it is not "less access is safer".
+#:
+#: Community read and write are gone because an unvetted account posting under
+#: a physician identity, in rooms whose entire value is that everyone in them
+#: is a verified clinician, is exactly the exposure the review queue exists to
+#: prevent, and rejecting the application afterwards does not undo it: the
+#: colleagues have already read the post. Earnings are gone because there is
+#: nothing in that ledger for somebody who cannot yet draw a case, and the old
+#: argument for showing it, that the product otherwise looked empty on their
+#: first day, is now answered by the practice case, which is real work rather
+#: than a zero.
+#:
+#: Referral STAYS, and an earlier draft of this narrowing removed it, which was
+#: wrong. Nothing is paid any earlier for allowing it: the bounty has always
+#: waited on the person they brought being verified with a case accepted. What
+#: removing it costs is the introduction itself, made in the most enthusiastic
+#: hour somebody will ever have about this place, from the physician best
+#: placed to open a door for us. A colleague who receives that invitation still
+#: faces the same vetting everybody else does, so the failure mode is an email
+#: we would have been glad to send anyway.
 _BY_ACCESS: Dict[str, FrozenSet[str]] = {
     FULL: frozenset(SURFACES),
-    PROVISIONAL: frozenset({TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE,
-                            EARNINGS, REFERRAL}),
+    PROVISIONAL: frozenset({TUTORIAL, BROWSE, REFERRAL}),
     NONE: frozenset(),
 }
 
@@ -221,15 +228,157 @@ def surfaces(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
     """Which product surfaces this user may reach. An admin reaches all."""
     if (user or {}).get("role") == "admin":
         return frozenset(SURFACES)
-    granted_by_access = _BY_ACCESS.get(access_level(user), frozenset())
+    level = access_level(user)
+    granted_by_access = _BY_ACCESS.get(level, frozenset())
     # A non-physician account is capped no matter how its verification lands:
     # approving one does not turn the person who introduced us to a hospital
     # into someone who grades cases.
     cap = _BY_ACCOUNT_KIND.get(account_kind(user) or "")
     if cap is not None:
-        return granted_by_access & cap
+        # The cap is the ANSWER for these kinds, not merely a ceiling on the
+        # access level, and the difference started mattering when PROVISIONAL
+        # narrowed to the practice case.
+        #
+        # Intersecting was right while PROVISIONAL was wide, and became wrong
+        # the moment it was not: a referral-only account sat at 'pending'
+        # forever, because the clinical verification that would move it is
+        # never run for somebody who is not claiming to be a physician. So the
+        # intersection quietly deleted REFERRAL from an account whose entire
+        # and only purpose is a referral link.
+        #
+        # The narrowing was aimed at applicants who ARE claiming to be
+        # physicians, where the exposure is an unvetted account acting like a
+        # colleague among verified clinicians. None of that reasoning reaches
+        # an advisor or a referrer, who are appointed rather than vetted and
+        # who never appear as clinicians anywhere.
+        #
+        # NONE still means none: refused and deactivated close every door, and
+        # that is the check this branch must not skip.
+        return frozenset() if level == NONE else cap
     return granted_by_access
 
 
 def can_surface(user: Optional[Dict[str, Any]], surface: str) -> bool:
     return surface in surfaces(user)
+
+
+# ─── The practice-case gate (third axis) ──────────────────────────────────────
+# Tier says what KIND of work; access level says whether real patient data is
+# reachable at all; this says whether this physician has been shown the standard
+# before their first real case. Three questions, three predicates, none implying
+# the others, for the same reason ACCESS_LEVELS was split out of TIERS.
+#
+# It is deliberately NOT folded into surfaces(). Dropping REAL_WORK would render
+# the "this is where the work happens" card instead of "finish the practice
+# case", and would gate every require_surface(REAL_WORK) endpoint with a message
+# about credential verification, which is unintelligible to someone whose
+# credentials are fine.
+#
+# Mirrors the verification_status / access_level split above: tutorial_json
+# ["status"] stays REPORTING truth (what the physician did) and
+# tutorial_json["gate"] is the ACCESS answer. Overloading one field with both is
+# exactly how "skipped" would come to mean "allowed".
+GATE_LOCKED = "locked"
+GATE_PASSED = "passed"
+GATE_GRANDFATHERED = "grandfathered"
+GATE_STATES = (GATE_LOCKED, GATE_PASSED, GATE_GRANDFATHERED)
+
+#: Gate states that open real work. Deny by default: anything else, including
+#: an absent gate and an unrecognised string, is locked.
+_GATE_OPEN = frozenset({GATE_PASSED, GATE_GRANDFATHERED})
+
+
+def _tutorial_blob(user: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """The parsed tutorial_json off a user row, however it arrived.
+
+    Store getters hand back a dict; a raw sqlite row hands back TEXT. Accepting
+    both keeps this readable from either, and a blob we cannot parse reads as
+    absent, which denies.
+    """
+    raw = (user or {}).get("tutorial_json")
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        import json  # noqa: PLC0415 - keeps this module import-light at boot
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+        except (ValueError, TypeError):
+            return {}
+    return {}
+
+
+def practice_gate(user: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """This physician's practice-case gate sub-object, or {} when never decided."""
+    gate = _tutorial_blob(user).get("gate")
+    return gate if isinstance(gate, dict) else {}
+
+
+def practice_gate_state(user: Optional[Dict[str, Any]]) -> str:
+    state = str(practice_gate(user).get("state") or "").strip().lower()
+    return state if state in GATE_STATES else GATE_LOCKED
+
+
+def practice_first_pass(user: Optional[Dict[str, Any]]) -> bool:
+    """True when this physician passed the practice case on their first attempt.
+
+    Reads the stamp written at the moment of the first pass rather than
+    comparing attempt counts now, because attempts keep climbing on replays.
+
+    A grandfathered account returns False, and that is correct rather than
+    unkind: those accounts predate the practice case, so there is no first
+    attempt to have passed. False here means "no positive signal", which is
+    also what it means for someone who has not sat the case yet."""
+    return practice_gate(user).get("first_attempt_pass") is True
+
+
+def practice_gate_reason(user: Optional[Dict[str, Any]], *,
+                         required_version: int) -> Optional[str]:
+    """None when real work is open. Otherwise WHY it is not, as a short token.
+
+    ``required_version`` is passed in rather than imported so this module keeps
+    its zero-dependency posture: importing tutorial_case would pull the whole
+    case-rendering stack into the policy table.
+
+    Exemptions, both narrow. An admin is not a contributor and does not draw
+    from the queue. The mock contributor is the demo account, provisioned on
+    every boot, and gating it would break the walkthrough the sales motion runs
+    on. is_mock is written only by the mock provisioning path, never by a user.
+    """
+    u = user or {}
+    if u.get("role") == "admin" or u.get("is_mock"):
+        return None
+
+    gate = practice_gate(u)
+    state = practice_gate_state(u)
+
+    if state == GATE_GRANDFATHERED:
+        # Never version-checked. These physicians were never asked to take the
+        # practice case, so re-gating them on a version bump would silently
+        # undo the migration that let them keep working.
+        return None
+
+    if state == GATE_PASSED:
+        try:
+            passed_version = int(gate.get("passed_version") or 0)
+        except (TypeError, ValueError):
+            passed_version = 0
+        if passed_version < int(required_version):
+            return "stale_version"
+        return None
+
+    # Locked. Say which flavour, so the client can pick a screen: "you have not
+    # started" and "you tried and it did not pass" are different conversations.
+    try:
+        attempts = int(gate.get("attempts") or 0)
+    except (TypeError, ValueError):
+        attempts = 0
+    if attempts:
+        return "failed"
+    status = str(_tutorial_blob(u).get("status") or "").strip().lower()
+    return "in_progress" if status == "in_progress" else "not_started"
+
+
+def practice_gate_open(user: Optional[Dict[str, Any]], *,
+                       required_version: int) -> bool:
+    return practice_gate_reason(user, required_version=required_version) is None
