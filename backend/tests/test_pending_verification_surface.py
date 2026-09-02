@@ -135,26 +135,42 @@ def test_the_real_work_surface_is_still_shut_for_the_same_physician(client):
         assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending", path
 
 
-def test_the_money_surfaces_are_closed_until_the_application_is_decided(client):
-    """These two used to be open, on the argument that money is protected by
-    there being none and that locking the tabs made the product look empty on
+def test_earnings_are_closed_until_the_application_is_decided(client):
+    """Earnings used to be open, on the argument that money is protected by
+    there being none and that locking the tab made the product look empty on
     the applicant's first day.
 
-    The applicant state is now scoped to the decision being made about them:
-    the practice case and a dashboard that says where they stand, and nothing
-    else. That answers the "looks empty" problem with real work rather than
-    with a ledger reading zero, and it keeps the pre-approval surface small
-    enough to reason about. Both tabs open on approval, and the referral
-    bounty is unaffected either way, since it has always paid on the referred
-    doctor's first accepted case no matter when the introduction was made."""
+    The second half of that is now answered by the practice case, which is real
+    work rather than a ledger reading zero, so the tab closes until there is
+    something in it. It opens on approval.
+
+    Referral is deliberately NOT in here: see the test below."""
     store = fresh_store()
     user = make_user(store, role="evaluator")
     store.set_verification_status(user["id"], "pending")
 
-    for path in ("/api/asclepius/earnings", "/api/asclepius/referrals"):
-        res = client.get(path, headers=headers_for(user))
-        assert res.status_code == 403, path
-        assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending", path
+    res = client.get("/api/asclepius/earnings", headers=headers_for(user))
+    assert res.status_code == 403
+    assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending"
+
+
+def test_referral_stays_open_while_an_application_is_under_review(client):
+    """Narrowing the applicant surface is not "less is safer", and this is the
+    line.
+
+    Nothing is paid any earlier for allowing it: the bounty has always waited
+    on the person they brought being verified with a case accepted. What
+    closing it costs is the introduction itself, made in the most enthusiastic
+    hour somebody will ever have about this place, by the physician best placed
+    to open a door for us. A colleague who gets that invitation still faces the
+    same vetting, so the failure mode is an email we would have been glad to
+    send."""
+    store = fresh_store()
+    user = make_user(store, role="evaluator")
+    store.set_verification_status(user["id"], "pending")
+
+    res = client.get("/api/asclepius/referrals", headers=headers_for(user))
+    assert res.status_code == 200, res.text
 
 
 def test_the_money_surfaces_open_on_approval(client):

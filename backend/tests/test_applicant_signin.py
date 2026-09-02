@@ -168,9 +168,11 @@ def test_the_session_reaches_the_practice_case_and_not_a_colleague(client):
 
     assert client.get("/api/asclepius/tutorial/task", headers=auth).status_code == 200
 
-    for shut in ("/api/asclepius/tasks/next",
-                 "/api/asclepius/earnings",
-                 "/api/asclepius/referrals"):
+    # Real case work and the money ledger wait for the decision. Referral does
+    # not, deliberately: it pays nothing until the person they brought is
+    # verified with a case accepted, so allowing it costs nothing and closing
+    # it would lose the introduction rather than delay it.
+    for shut in ("/api/asclepius/tasks/next", "/api/asclepius/earnings"):
         assert client.get(shut, headers=auth).status_code == 403, shut
 
 

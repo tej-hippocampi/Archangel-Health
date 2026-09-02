@@ -228,26 +228,16 @@ class EnterpriseNoteBody(BaseModel):
 )
 async def enterprise_note(
     body: EnterpriseNoteBody,
-    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+    user: Dict[str, Any] = Depends(_require_referrer),
 ):
     """A physician flags that their health system might sell data or partner
     on enterprise labeling. Free text straight to a founder inbox: at this
     deal size a human reads every word, so no form fields, no CRM.
 
-    Gated on BROWSE rather than REFERRAL, which is the one thing on this
-    router an applicant awaiting review can still do. The REFERRAL gate exists,
-    by its own docstring, at the boundary that sends mail to a THIRD PARTY in
-    a physician's name, and that is the thing worth withholding from an account
-    nobody has vetted: an invitation carrying our branding and their
-    endorsement. This note sends mail to us. It names no third party, acts in
-    nobody's name, and exposes no colleague.
-
-    Keeping it open matters because of who sends it. The physician who can open
-    an institutional door is very often the one who just walked through it, and
-    the week they join is the week they are most willing to make the
-    introduction. Waiting for a credential check before letting them say so
-    loses the introduction rather than delaying it, and a founder reads it
-    either way.
+    Reachable by a physician still under review, which matters because of who
+    sends these: the person who can open an institutional door is very often
+    the one who just walked through it, and the week they join is the week they
+    are most willing to make the introduction.
 
     Bounded and throttled per user (3/day) because it is an outbound email a
     signed-in physician can trigger; the note is plain text in the builder so

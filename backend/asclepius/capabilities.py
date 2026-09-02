@@ -133,35 +133,33 @@ REFERRAL = "referral"                # a referral link, invites, and what they e
 SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
             EARNINGS, REFERRAL)
 
-#: An applicant awaiting review reaches exactly two things: the practice case,
-#: and a view-only dashboard that shows them where their application stands.
+#: An applicant awaiting review reaches the practice case, a view-only
+#: dashboard showing where their application stands, and the referral surface.
 #:
-#: This REVERSES an earlier widening, and the reason is worth keeping. The old
-#: set also granted community read and write, earnings and referral, arguing
-#: that an applicant who had cleared a mailbox OTP and signed the attestations
-#: was trusted enough to post among colleagues, and that hiding the money
-#: surfaces made the product look empty on the day we most wanted it to look
-#: full. Both halves were decided before the product had a vetting decision to
-#: make and before the practice case existed to occupy that wait.
+#: The community and the money surfaces were REMOVED from this set, and the
+#: distinction is worth stating because it is not "less access is safer".
 #:
-#: What changed: vetting is now the point of this state. An unvetted account
-#: posting under a physician identity, in rooms whose whole value is that
-#: everyone in them is a verified clinician, is precisely the exposure the
-#: review queue exists to prevent, and it is not recoverable by rejecting the
-#: application afterwards. The colleagues have already read the post.
+#: Community read and write are gone because an unvetted account posting under
+#: a physician identity, in rooms whose entire value is that everyone in them
+#: is a verified clinician, is exactly the exposure the review queue exists to
+#: prevent, and rejecting the application afterwards does not undo it: the
+#: colleagues have already read the post. Earnings are gone because there is
+#: nothing in that ledger for somebody who cannot yet draw a case, and the old
+#: argument for showing it, that the product otherwise looked empty on their
+#: first day, is now answered by the practice case, which is real work rather
+#: than a zero.
 #:
-#: What replaces the "empty product" worry is the practice case: an applicant
-#: now has something real to do, one piece of actual work that teaches what the
-#: job is and that feeds the decision about them. That is a better answer to
-#: the same problem than a ledger reading zero and a referral link.
-#:
-#: Nothing here is a hardship for a genuine applicant. Review is measured in a
-#: day, and every surface opens on approval. The bounty for a colleague they
-#: refer is unchanged either way: it has never paid until the person they
-#: brought is verified and their first case is accepted.
+#: Referral STAYS, and an earlier draft of this narrowing removed it, which was
+#: wrong. Nothing is paid any earlier for allowing it: the bounty has always
+#: waited on the person they brought being verified with a case accepted. What
+#: removing it costs is the introduction itself, made in the most enthusiastic
+#: hour somebody will ever have about this place, from the physician best
+#: placed to open a door for us. A colleague who receives that invitation still
+#: faces the same vetting everybody else does, so the failure mode is an email
+#: we would have been glad to send anyway.
 _BY_ACCESS: Dict[str, FrozenSet[str]] = {
     FULL: frozenset(SURFACES),
-    PROVISIONAL: frozenset({TUTORIAL, BROWSE}),
+    PROVISIONAL: frozenset({TUTORIAL, BROWSE, REFERRAL}),
     NONE: frozenset(),
 }
 
@@ -230,13 +228,33 @@ def surfaces(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
     """Which product surfaces this user may reach. An admin reaches all."""
     if (user or {}).get("role") == "admin":
         return frozenset(SURFACES)
-    granted_by_access = _BY_ACCESS.get(access_level(user), frozenset())
+    level = access_level(user)
+    granted_by_access = _BY_ACCESS.get(level, frozenset())
     # A non-physician account is capped no matter how its verification lands:
     # approving one does not turn the person who introduced us to a hospital
     # into someone who grades cases.
     cap = _BY_ACCOUNT_KIND.get(account_kind(user) or "")
     if cap is not None:
-        return granted_by_access & cap
+        # The cap is the ANSWER for these kinds, not merely a ceiling on the
+        # access level, and the difference started mattering when PROVISIONAL
+        # narrowed to the practice case.
+        #
+        # Intersecting was right while PROVISIONAL was wide, and became wrong
+        # the moment it was not: a referral-only account sat at 'pending'
+        # forever, because the clinical verification that would move it is
+        # never run for somebody who is not claiming to be a physician. So the
+        # intersection quietly deleted REFERRAL from an account whose entire
+        # and only purpose is a referral link.
+        #
+        # The narrowing was aimed at applicants who ARE claiming to be
+        # physicians, where the exposure is an unvetted account acting like a
+        # colleague among verified clinicians. None of that reasoning reaches
+        # an advisor or a referrer, who are appointed rather than vetted and
+        # who never appear as clinicians anywhere.
+        #
+        # NONE still means none: refused and deactivated close every door, and
+        # that is the check this branch must not skip.
+        return frozenset() if level == NONE else cap
     return granted_by_access
 
 
