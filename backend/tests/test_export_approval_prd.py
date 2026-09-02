@@ -1102,6 +1102,94 @@ def test_the_contract_catches_a_deleted_row():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  storage durability — the failure that makes every other guarantee moot
+# ═══════════════════════════════════════════════════════════════════════════
+def test_the_durability_endpoint_covers_all_four_stores():
+    """The three Asclepius stores AND the tenant database. The tenant db holds
+    every onboarding in flight and was in none of the boot checks, which is how
+    a green banner could sit above a signup funnel being erased each deploy."""
+    r = client.get("/api/asclepius/admin/storage/durability", headers=_admin_h())
+    assert r.status_code == 200, r.text
+    body = r.json()
+    names = {s["store"] for s in body["stores"]}
+    assert names == {"Asclepius database", "raw ingest", "asset store",
+                     "tenant database"}
+    for s in body["stores"]:
+        assert isinstance(s["durable"], bool)
+        assert s["detail"]
+
+
+def test_an_unarmed_gate_is_reported_even_when_storage_is_fine(monkeypatch):
+    """Durable today is not a guarantee. Without ENV=production nothing stops a
+    future variable change from putting the database back on ephemeral disk."""
+    from routers import asclepius_admin as _admin
+
+    monkeypatch.setenv("ENV", "")
+    r = client.get("/api/asclepius/admin/storage/durability", headers=_admin_h())
+    body = r.json()
+    assert body["gate_armed"] is False
+    # A remedy always accompanies a problem — an operator reading this at 2am
+    # should not also have to go find the runbook.
+    assert body["remedy"] and "ENV=production" in body["remedy"]
+
+
+def test_an_armed_gate_over_durable_storage_reports_no_remedy(monkeypatch):
+    monkeypatch.setenv("ENV", "production")
+    from asclepius import assets as asc_assets
+    from asclepius import ingestion as asc_ingestion_mod
+    from asclepius import store as asc_store_mod
+    from routers import asclepius_admin as _admin
+
+    monkeypatch.setattr(asc_store_mod, "_db_storage_durable", lambda: (True, "ok"))
+    monkeypatch.setattr(asc_ingestion_mod, "ingest_storage_durable", lambda: (True, "ok"))
+    monkeypatch.setattr(asc_assets, "asset_storage_durable", lambda: (True, "ok"))
+    monkeypatch.setenv("TEAM_DB_PATH", "/data/team.db")
+    monkeypatch.setenv("RAILWAY_VOLUME_MOUNT_PATH", "/data")
+
+    body = client.get("/api/asclepius/admin/storage/durability",
+                      headers=_admin_h()).json()
+    assert body["all_durable"] is True
+    assert body["gate_armed"] is True
+    assert body["remedy"] is None
+
+
+def test_a_durability_check_that_raises_counts_as_a_failure(monkeypatch):
+    """A check that cannot run has not passed. Reporting it as durable is the
+    one answer that is worse than no answer."""
+    from asclepius import assets as asc_assets
+
+    def _boom():
+        raise RuntimeError("volume gone")
+
+    monkeypatch.setattr(asc_assets, "asset_storage_durable", _boom)
+    body = client.get("/api/asclepius/admin/storage/durability",
+                      headers=_admin_h()).json()
+    assert body["all_durable"] is False
+    bad = [s for s in body["stores"] if s["store"] == "asset store"][0]
+    assert bad["durable"] is False and "volume gone" in bad["detail"]
+
+
+def test_the_durability_endpoint_needs_an_admin():
+    assert client.get("/api/asclepius/admin/storage/durability").status_code in (401, 403)
+
+
+def test_the_console_shows_the_storage_banner_on_every_admin_tab():
+    """A log line is read only by someone who already suspects a problem — the
+    wrong medium for a failure whose whole signature is that nobody suspects
+    anything."""
+    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    view = src.split("function renderAdminView() {")[1].split("\n  }")[0]
+    # Mounted in the shell, above the per-tab body, so it is not something a
+    # section can forget to render.
+    assert "ascStorageBanner" in view
+    assert "refreshStorageBanner()" in view
+    assert "/admin/storage/durability" in src
+    # Silent when there is genuinely nothing to say.
+    banner = src.split("async function refreshStorageBanner()")[1].split("\n  }")[0]
+    assert "if (s.all_durable && s.gate_armed) return;" in banner
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  buyers
 # ═══════════════════════════════════════════════════════════════════════════
 @pytest.mark.parametrize("path,method", [

@@ -8845,13 +8845,75 @@
       }));
 
     const body = h('div', { id: 'ascAdminBody' });
-    setRoot(h('div', { class: 'asc-wrap' }, subnav, body));
+    // Above everything, on every admin tab (see refreshStorageBanner).
+    const storageBanner = h('div', { id: 'ascStorageBanner' });
+    setRoot(h('div', { class: 'asc-wrap' }, subnav, storageBanner, body));
     refreshQaBadge();
+    refreshStorageBanner();
 
     if (state.adminTab === 'physicians') renderAdminPhysiciansSection(body);
     else if (state.adminTab === 'work') renderAdminWorkSection(body);
     else if (state.adminTab === 'money') renderAdminMoneySection(body);
     else if (state.adminTab === 'data') renderAdminDataSection(body);
+  }
+
+  /* ═══ Is this deployment going to keep the data? ══════════════════════════
+   *
+   * If the volume is not attached, NOTHING ELSE ON THIS CONSOLE MATTERS. Every
+   * physician account, task, submission, review and payout row is erased on the
+   * next redeploy, and the screens go quiet rather than erroring — which reads
+   * as "nobody signed up", not as "the database was deleted". That is the
+   * failure this banner exists to make impossible to miss.
+   *
+   * The server has checked this at boot for a long time and said so in a log
+   * line. A log line is only read by someone who already suspects a problem, so
+   * it is exactly the wrong medium for a failure whose whole signature is that
+   * nobody suspects anything. This puts the same verdict where an operator
+   * already is, on every admin tab, and says what to change.
+   *
+   * Two states are worth shouting about:
+   *   NOT DURABLE   — data is being destroyed on each deploy, right now.
+   *   GATE UNARMED  — durable today, but ENV is not 'production', so the app
+   *                   will happily boot onto ephemeral storage after any future
+   *                   variable change. Today's green is luck, not a guarantee.
+   * Fully durable AND armed renders nothing: a banner that is always there is a
+   * banner nobody reads. */
+  async function refreshStorageBanner() {
+    const host = document.getElementById('ascStorageBanner');
+    if (!host) return;
+    let s;
+    try { s = await api('/admin/storage/durability'); } catch (e) { return; }
+    if (!host.isConnected && !document.getElementById('ascStorageBanner')) return;
+    clear(host);
+    if (s.all_durable && s.gate_armed) return;
+
+    const broken = (s.stores || []).filter((x) => !x.durable);
+    if (broken.length) {
+      host.appendChild(h('div', { class: 'asc-card', style: 'margin-bottom:14px' },
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-inline-error' },
+            'THIS DEPLOYMENT IS DESTROYING ITS DATA ON EVERY REDEPLOY. '
+            + broken.length + ' of ' + (s.stores || []).length
+            + ' stores are not on a persistent volume — every account, task, '
+            + 'submission and payout row written since the last deploy is lost '
+            + 'at the next one, silently.'),
+          h('ul', {}, broken.map((x) => h('li', {},
+            h('strong', {}, x.store), ' — ', x.detail))),
+          s.remedy ? h('div', { class: 'asc-card-sub', style: 'margin-top:8px' },
+            s.remedy) : null)));
+      return;
+    }
+    // Durable, but nothing is stopping it from stopping being durable.
+    host.appendChild(h('div', { class: 'asc-card', style: 'margin-bottom:14px' },
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-warn' },
+          'Storage is durable right now, but the fail-closed boot gate is OFF '
+          + '(ENV is not "production"). Nothing would stop this app from booting '
+          + 'onto ephemeral storage after a future variable change — it would '
+          + 'accept data and destroy it, exactly as before, with no warning.'),
+        h('div', { class: 'asc-card-sub', style: 'margin-top:8px' },
+          'Set ENV=production. The app will then refuse to start rather than '
+          + 'run on storage a redeploy erases.'))));
   }
 
   // Sub-tab strip shared by the three restructured sections.

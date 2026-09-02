@@ -795,6 +795,85 @@ _RECONCILE_CACHE: Dict[str, Any] = {}
 _RECONCILE_TTL_SEC = 900
 
 
+@router.get("/storage/durability")
+async def storage_durability(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Will this deployment survive its next redeploy? Three cheap syscalls.
+
+    Split out of ``/storage/reconcile`` deliberately. That endpoint walks every
+    case row and stats the whole blob tree, so it is cached for fifteen minutes
+    and far too heavy to call on a page load — which meant the ONE question an
+    operator needs answered constantly ("is my data on the volume?") was locked
+    behind the one query that could not be asked constantly. This is three
+    ``stat`` calls and a write probe, never cached, safe to call on every admin
+    render.
+
+    ``gate_armed`` is the part that outlives any single answer. With
+    ``ENV=production`` the app REFUSES TO BOOT on non-durable storage, so the
+    question stops needing to be asked. Without it, storage can silently become
+    ephemeral again on any future variable change and nothing will stop the
+    container from accepting data it is going to destroy — so an unarmed gate is
+    reported as a problem even when today's verdict is green.
+    """
+    from asclepius import assets as asc_assets
+    from asclepius.store import _db_storage_durable
+    from http_security import is_production
+
+    stores = []
+    for name, fn in (("Asclepius database", _db_storage_durable),
+                     ("raw ingest", asc_ingestion.ingest_storage_durable),
+                     ("asset store", asc_assets.asset_storage_durable)):
+        try:
+            ok, why = fn()
+        except Exception as exc:  # a check that cannot run is a failed check
+            ok, why = False, f"durability check raised: {exc}"
+        stores.append({"store": name, "durable": bool(ok), "detail": why})
+
+    # The tenant database is the fourth store and is in none of the three checks
+    # above — they cover the Asclepius plane only. It holds every onboarding in
+    # flight, so leaving it out of the answer is how a green banner sits above a
+    # signup funnel being erased on every deploy.
+    try:
+        from asclepius.constants import path_is_ephemeral, path_under_declared_volume
+        from team_store import get_team_store
+
+        team_db = os.getenv("TEAM_DB_PATH") or getattr(get_team_store(), "db_path", "")
+        team_dir = os.path.dirname(os.path.abspath(team_db)) or "/"
+        under = path_under_declared_volume(team_dir)
+        if under is False:
+            ok, why = False, (f"{team_db} is not under the volume this platform "
+                              "mounted; set TEAM_DB_PATH into it")
+        elif path_is_ephemeral(team_dir):
+            ok, why = False, f"{team_db} is on ephemeral storage; set TEAM_DB_PATH"
+        elif not (os.getenv("TEAM_DB_PATH") or "").strip():
+            ok, why = False, (f"TEAM_DB_PATH is not set, so the tenant database "
+                              f"lives beside the code at {team_db} and is replaced "
+                              "on every redeploy")
+        else:
+            ok, why = True, f"tenant database durable ({team_db})"
+        stores.append({"store": "tenant database", "durable": ok, "detail": why})
+    except Exception as exc:  # noqa: BLE001 — never 500 the health banner
+        stores.append({"store": "tenant database", "durable": False,
+                       "detail": f"durability check raised: {exc}"})
+
+    all_durable = all(s["durable"] for s in stores)
+    armed = is_production()
+    return {
+        "all_durable": all_durable,
+        "gate_armed": armed,
+        "volume_mount": os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "") or None,
+        "stores": stores,
+        # What to do, on the same payload as the diagnosis. An operator reading
+        # "not durable" at 2am should not also have to find the runbook.
+        "remedy": (
+            None if (all_durable and armed) else
+            ("Attach a volume mounted at /data, point TEAM_DB_PATH, "
+             "ASCLEPIUS_DB_PATH and ASCLEPIUS_DATA_DIR into it, redeploy until "
+             "every store reads durable, and only then set ENV=production so the "
+             "app refuses to boot onto ephemeral storage. "
+             "See docs/DEPLOY_BACKEND_RAILWAY.md.")),
+    }
+
+
 @router.get("/storage/reconcile")
 async def storage_reconcile(
     refresh: bool = False,

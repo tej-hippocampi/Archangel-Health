@@ -41,6 +41,22 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 - **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
 - **CORS for the deployed landing**: the backend allowlists origins from `ALLOWED_ORIGINS` (or `BASE_URL`+`LANDING_URL`), plus a baked-in regex for `https://archangelhealth.ai` and its subdomains (`ALLOWED_ORIGIN_REGEX` to override — see `backend/http_security.py`). If sign-in from a new landing domain fails with a "Cannot reach the backend API" error, add that origin to `ALLOWED_ORIGINS` on the backend host (Railway).
 
+### Is the data actually going to survive? (`docs/asclepius/IS_MY_DATA_SAFE.md`)
+
+The failure that makes every other guarantee moot: no volume attached, so a
+redeploy erases every account, task, submission and payout row — silently. Four
+stores must be on the volume (`ASCLEPIUS_DB_PATH`, `TEAM_DB_PATH`,
+`ASCLEPIUS_DATA_DIR`, and raw ingest, which follows the first). `ENV=production`
+then makes the app REFUSE TO BOOT on non-durable storage, which is the actual
+fix rather than a check.
+
+`GET /api/asclepius/admin/storage/durability` answers this live and cheaply
+(three syscalls, never cached), and the admin console renders a banner on every
+tab when a store is not durable **or** when the gate is unarmed. Do not make
+that endpoint expensive — `/storage/reconcile` is the heavy one, cached for 15
+minutes, and the split exists because the question "is my data safe?" has to be
+askable on every page load.
+
 ### Export & approval (the three-status split)
 
 A submission used to carry three statuses that never talked to each other —

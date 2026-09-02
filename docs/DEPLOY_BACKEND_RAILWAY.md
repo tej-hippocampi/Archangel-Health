@@ -31,6 +31,11 @@ Optional (add when you have them): `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `A
 
 ## 4. Attach a volume — REQUIRED, or every deploy wipes your data
 
+> **Checking this afterwards:** the admin console shows a banner on every tab
+> when any store is not on the volume, or when `ENV=production` is not set to
+> keep it that way. `docs/asclepius/IS_MY_DATA_SAFE.md` is the short runbook.
+
+
 **Skip this and the app still works perfectly, right up until your first
 redeploy erases every account, patient episode, audit record and in-flight
 physician signup.** Nothing errors. The screens just go quiet, which reads like
