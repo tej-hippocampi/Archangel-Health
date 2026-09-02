@@ -27,7 +27,6 @@ from asclepius import calibration as asc_calibration
 from asclepius import capabilities as asc_caps
 from asclepius import credentialing
 from asclepius import specialties as asc_specialties
-from asclepius import contributor_score as cscore
 from asclepius import tiering as asc_tiering
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
@@ -35,7 +34,6 @@ from onboarding_emails import (
     application_welcome_subject,
     build_application_welcome_email,
     build_asclepius_approved_email,
-    build_asclepius_promoted_email,
 )
 
 log = logging.getLogger("asclepius.verify")
@@ -229,57 +227,6 @@ def _tiering_proposal(
     return out
 
 
-def _practice_case_block(user: Dict[str, Any]) -> Dict[str, Any]:
-    """What this applicant did with the practice case, for the decision screen.
-
-    The one piece of clinical judgment we observe before deciding about
-    somebody, so it belongs next to the buttons rather than a click away. The
-    matched count is here because an admin is entitled to it; it is projected
-    out of everything a physician can reach.
-    """
-    gate = asc_caps.practice_gate(user)
-    blob = asc_caps._tutorial_blob(user)
-    score = blob.get("score") if isinstance(blob.get("score"), dict) else {}
-    try:
-        attempts = int(gate.get("attempts") or 0)
-    except (TypeError, ValueError):
-        attempts = 0
-    return {
-        "state": asc_caps.practice_gate_state(user),
-        "attempts": attempts,
-        "first_attempt_pass": asc_caps.practice_first_pass(user),
-        "matched": score.get("matched"),
-        "total": score.get("total"),
-        "passed_at": gate.get("passed_at"),
-        "passed_version": gate.get("passed_version"),
-        "last_attempt_at": gate.get("last_attempt_at"),
-    }
-
-
-def _has_credential_evidence(user: Dict[str, Any]) -> bool:
-    """Enough to check somebody against a registry: a CV, or a number.
-
-    Deliberately generous. This drives a queue FILTER, not a decision, and a
-    filter that hides a real applicant is worse than one that shows an
-    incomplete row."""
-    if user.get("cv_asset_sha"):
-        return True
-    if str(user.get("npi") or "").strip():
-        return True
-    creds = credentialing._json_field(user, "credentials_json") or {}
-    return bool(str(creds.get("registrationNumber") or "").strip()
-                or str(creds.get("licenseNumber") or "").strip())
-
-
-def _is_ready_for_review(user: Dict[str, Any]) -> bool:
-    """Both things the applicant owes us: something to verify, and the practice
-    case done. Advisory only, per the PRD: founders keep the ability to reject
-    an obviously bad application, or approve a known colleague, without waiting
-    on a grading ledger that the client declares."""
-    return (_has_credential_evidence(user)
-            and asc_caps.practice_gate_state(user) != asc_caps.GATE_LOCKED)
-
-
 def _queue_row(store: Any, user: Dict[str, Any],
                dupe_counts: Optional[Dict[str, int]] = None,
                mq_map: Optional[Dict[str, float]] = None,
@@ -331,11 +278,6 @@ def _queue_row(store: Any, user: Dict[str, Any],
         "tier": user.get("tier"),
         "verified_by": user.get("verified_by"),
         "verified_at": user.get("verified_at"),
-        # The practice case, on the row rather than only on the decision
-        # screen: it is half of what an applicant owes us, so "who is actually
-        # ready to look at" has to be answerable while skimming.
-        "practice_case": _practice_case_block(user),
-        "ready_for_review": _is_ready_for_review(user),
     }
 
 
@@ -364,7 +306,6 @@ async def verification_queue(
     status: str = "pending",
     limit: int = 100,
     offset: int = 0,
-    ready: bool = False,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """The admin queue.
@@ -381,20 +322,6 @@ async def verification_queue(
     offset = max(0, offset)
     store = _store()
     all_rows = store.list_verification_queue(status)
-
-    # "Ready" means the applicant has done their half: something we can verify
-    # them against, and the practice case sat. Filtered BEFORE the page is cut,
-    # or the counts describe a different set than the rows.
-    #
-    # A filter and not a wall. The grading ledger is client-declared, a
-    # pedagogy gate rather than an authz boundary, so hard-blocking the
-    # decision buttons on it would hand the client a veto over an admin. It
-    # would also stop a founder rejecting an obviously bad application, or
-    # approving a colleague they know, until that person happens to finish a
-    # tutorial.
-    total_before_filter = len(all_rows)
-    if ready:
-        all_rows = [u for u in all_rows if _is_ready_for_review(u)]
     page = all_rows[offset:offset + limit]
     dupe_counts = store.npi_claim_counts()
     # Both computed once for the whole page, not once per row (see _measured_quality_map).
@@ -410,11 +337,6 @@ async def verification_queue(
         "offset": offset,
         "limit": limit,
         "has_more": offset + len(rows) < len(all_rows),
-        # Both numbers, always, so the toggle can say what it is hiding. A
-        # filter that silently shrinks a queue is how an applicant waits a week
-        # because nobody noticed the count had changed.
-        "ready": ready,
-        "total_unfiltered": total_before_filter,
         "queue": rows,
     }
 
@@ -1273,164 +1195,6 @@ async def tr_readiness(admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
                  "reviewer. They are separate operational loops with separate owners — see "
                  "docs/PRD_C_LAUNCH_CHECKLIST.md."),
     }
-
-
-# ─── Promotion ───────────────────────────────────────────────────────────────
-# Until now the only writers of users.tier were approval-time and the restore
-# backfill, so a physician's role was decided once, from credentials, before
-# anybody had seen a single case they filed. The contributor score moved with
-# their work and changed nothing. That is the wrong way round: a work record is
-# better evidence about a reviewer than a CV is, and it was the evidence we were
-# throwing away.
-#
-# An admin still decides. This endpoint surfaces candidates and records the
-# decision; it does not promote anybody on a threshold. A score crossing 70 is a
-# reason to look, not a reason to act, and automating it would make the number a
-# target the moment somebody noticed it existed.
-
-class RetierBody(BaseModel):
-    tier: str
-    note: str
-
-
-@router.get("/retier-candidates")
-async def retier_candidates(admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    """Approved labelers whose filed work reads like a reviewer's.
-
-    Two conditions, both necessary. The score is the judgment; the case count is
-    what makes the score mean anything, since a blended score over three cases
-    is mostly the credential prior wearing a number.
-    """
-    store = _store()
-    out: List[Dict[str, Any]] = []
-    for u in store.list_verification_queue("approved"):
-        if (u.get("tier") or "") != asc_caps.LABELER:
-            continue
-        stored = store.get_contributor_score(u["id"])
-        if not stored:
-            continue
-        score, n_cases = stored.get("score"), int(stored.get("n_cases") or 0)
-        if score is None or score < cscore.REVIEWER_BAND_MIN:
-            continue
-        if n_cases < asc_tiering.MEASURED_QUALITY_MIN_TASKS:
-            continue
-        out.append({
-            "user_id": u["id"],
-            "email": u["email"],
-            "full_name": u.get("full_name"),
-            "specialty": u.get("specialty"),
-            "tier": u.get("tier"),
-            "tier_word": asc_caps.tier_word(u.get("tier")),
-            "n_cases": n_cases,
-            # The score IS shown here, because this is an admin surface and the
-            # figure is the whole reason the row is on the list. It never
-            # crosses to anything a physician can reach.
-            "score": score,
-            "band": cscore.band_word(score),
-        })
-    out.sort(key=lambda r: (r["score"] or 0), reverse=True)
-    return {
-        "candidates": out,
-        "criteria": {
-            "min_score": cscore.REVIEWER_BAND_MIN,
-            "min_cases": asc_tiering.MEASURED_QUALITY_MIN_TASKS,
-        },
-        "note": ("Candidates, not decisions. Promotion is a judgment an admin "
-                 "makes; nothing here promotes anyone."),
-    }
-
-
-@router.post("/retier/{user_id}")
-async def retier_physician(
-    user_id: str, body: RetierBody,
-    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
-):
-    """Move an already-approved physician between labeler and reviewer.
-
-    Deliberately not part of the approval endpoint. Approval decides whether
-    somebody works here at all and carries a first tier as one of its outputs;
-    this is the smaller, later thing, and keeping them separate means a
-    promotion cannot accidentally re-run the side effects of an approval
-    (credentials minted, welcome mail, community post).
-
-    A note is required for the same reason a rejection requires one: in six
-    months the only person who can explain a role change is whoever wrote it
-    down at the time.
-    """
-    store = _store()
-    user = _load_user_or_404(user_id)
-    tier = (body.tier or "").strip().lower()
-    note = " ".join((body.note or "").split())
-
-    if tier not in _TIERS:
-        raise HTTPException(status_code=400,
-                            detail=f"tier must be one of {', '.join(_TIERS)}")
-    if not note:
-        raise HTTPException(status_code=400,
-                            detail="Say why. A tier change with no reason cannot be reviewed later.")
-    if (user.get("verification_status") or "") != "approved":
-        raise HTTPException(
-            status_code=422,
-            detail=("This account has not been approved. A tier is part of the approval "
-                    "decision; use approve for an undecided application."))
-
-    previous = user.get("tier")
-    if previous == tier:
-        return {"ok": True, "unchanged": True, "user_id": user_id, "tier": tier,
-                "tier_word": asc_caps.tier_word(tier)}
-
-    # Promotion to reviewer re-checks the hard gates. The contributor score is
-    # evidence about judgment; it is not evidence that somebody holds a licence,
-    # and a work record can never buy past an exclusion or a failed identity
-    # check. Demotion is never blocked: nothing about the gates should stop us
-    # narrowing what an account can do.
-    if tier == asc_caps.REVIEWER:
-        gates = asc_tiering.hard_gates(user, leie_status=store.leie_status(user.get("npi")))
-        if gates.get("failed"):
-            raise HTTPException(
-                status_code=422,
-                detail=("Blocked by credential gates: "
-                        + ", ".join(gates["failed"])
-                        + ". A work record cannot substitute for these."))
-
-    if not store.set_user_tier(user_id, tier):
-        raise HTTPException(status_code=409, detail="The tier did not change. Reload and try again.")
-
-    stored = store.get_contributor_score(user_id) or {}
-    store.log_event(
-        entity_type="user", entity_id=user_id, event_type="tier_changed",
-        actor=admin["email"],
-        payload={
-            "from": previous, "to": tier, "note": note,
-            # The evidence AS IT WAS at the moment of the decision. Recomputing
-            # it later would answer a different question than the one the admin
-            # actually acted on.
-            "score_at_decision": stored.get("score"),
-            "n_cases_at_decision": stored.get("n_cases"),
-        },
-    )
-
-    # Promotion tells them. Demotion does not: those reasons are specific to the
-    # work and belong in a conversation, not in a template that reports a drop
-    # in standing and offers nobody to ask about it.
-    emailed = False
-    promoted = (previous == asc_caps.LABELER and tier == asc_caps.REVIEWER)
-    if promoted and is_email_transport_configured():
-        try:
-            emailed = bool(await send_html_email(
-                user["email"],
-                "You're now a reviewer on Asclepius",
-                build_asclepius_promoted_email(
-                    full_name=(user.get("full_name") or "").strip(),
-                    workspace_url=_portal_base() + "/asclepius",
-                    tier_word=asc_caps.tier_word(tier),
-                )))
-        except Exception:
-            log.exception("[verify] promotion email failed (the tier change stands)")
-
-    return {"ok": True, "user_id": user_id, "from": previous, "tier": tier,
-            "tier_word": asc_caps.tier_word(tier), "promoted": promoted,
-            "email_sent": emailed}
 
 
 @router.get("/leie/status")

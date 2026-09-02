@@ -1799,34 +1799,20 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     # -- the onboarding token and the mailbox OTP already proved who this is, so
     # re-checking a password we do not have proves nothing extra.
     #
-    # An applicant now gets a session too, which REVERSES v2 §2.
-    #
-    # That rule was right for the product it was written against: there was
-    # genuinely nothing behind the door, the queue opened on approval, and a
-    # token would have dropped a physician into a portal that 403s every call.
-    # Handing someone a key to an empty room is worse than asking them to wait.
-    #
-    # The room is no longer empty. The practice case is now a real piece of
-    # work that an applicant does BEFORE we decide about them: it teaches what
-    # the job actually is, and how they do it feeds the decision. That is the
-    # thing the wait is for, and it cannot happen behind a door they cannot
-    # open. The PROVISIONAL surface set is scoped to exactly it plus a
-    # dashboard that says where they stand, so the portal they land in is one
-    # we meant to show them rather than a wall of denials.
-    #
-    # This does not create a durable credential. There is still no password on
-    # the account: approval remains the moment one comes into existence, so the
-    # security reasoning at approval time is untouched. Coming BACK before a
-    # decision goes through a single-use emailed sign-in link, which is the
-    # weakest door that works.
+    # v2 §2: a physician who has no credential yet gets NO session. There is
+    # nothing behind the door — their queue opens on approval — and handing them
+    # a token would drop them into a portal that 403s every call with the
+    # verification gate. The success screen for them is the one in §2 screen 6:
+    # a warm confirmation and an expectation, not a workspace.
     session_token = None
-    try:
-        from asclepius import auth as asc_auth
-        asc_user = _asclepius_store(request).get_user_by_email(director_email)
-        if asc_user:
-            session_token = asc_auth.create_token(asc_user)
-    except Exception:
-        session_token = None
+    if not credentials_deferred:
+        try:
+            from asclepius import auth as asc_auth
+            asc_user = _asclepius_store(request).get_user_by_email(director_email)
+            if asc_user:
+                session_token = asc_auth.create_token(asc_user)
+        except Exception:
+            session_token = None
 
     invited = [p for p in ts.list_asclepius_people(row["id"]) if not p.get("is_director")]
     workspace_url = _asclepius_workspace_url()

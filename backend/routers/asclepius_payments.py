@@ -234,11 +234,6 @@ async def enterprise_note(
     on enterprise labeling. Free text straight to a founder inbox: at this
     deal size a human reads every word, so no form fields, no CRM.
 
-    Reachable by a physician still under review, which matters because of who
-    sends these: the person who can open an institutional door is very often
-    the one who just walked through it, and the week they join is the week they
-    are most willing to make the introduction.
-
     Bounded and throttled per user (3/day) because it is an outbound email a
     signed-in physician can trigger; the note is plain text in the builder so
     nothing in it can inject markup or headers.

@@ -133,33 +133,26 @@ REFERRAL = "referral"                # a referral link, invites, and what they e
 SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
             EARNINGS, REFERRAL)
 
-#: An applicant awaiting review reaches the practice case, a view-only
-#: dashboard showing where their application stands, and the referral surface.
+#: A physician awaiting verification gets the product, minus real patient data.
+#: They have already cleared an OTP on their institutional mailbox, submitted a
+#: registration number, and signed the confidentiality and independent-judgment
+#: attestations, which is why they are trusted to post among colleagues. DMs and
+#: attachments still wait: those are the unsolicited-contact and PHI vectors,
+#: and they are worth waiting a day for.
 #:
-#: The community and the money surfaces were REMOVED from this set, and the
-#: distinction is worth stating because it is not "less access is safer".
-#:
-#: Community read and write are gone because an unvetted account posting under
-#: a physician identity, in rooms whose entire value is that everyone in them
-#: is a verified clinician, is exactly the exposure the review queue exists to
-#: prevent, and rejecting the application afterwards does not undo it: the
-#: colleagues have already read the post. Earnings are gone because there is
-#: nothing in that ledger for somebody who cannot yet draw a case, and the old
-#: argument for showing it, that the product otherwise looked empty on their
-#: first day, is now answered by the practice case, which is real work rather
-#: than a zero.
-#:
-#: Referral STAYS, and an earlier draft of this narrowing removed it, which was
-#: wrong. Nothing is paid any earlier for allowing it: the bounty has always
-#: waited on the person they brought being verified with a case accepted. What
-#: removing it costs is the introduction itself, made in the most enthusiastic
-#: hour somebody will ever have about this place, from the physician best
-#: placed to open a door for us. A colleague who receives that invitation still
-#: faces the same vetting everybody else does, so the failure mode is an email
-#: we would have been glad to send anyway.
+#: EARNINGS and REFERRAL are open to them, which is a change of mind. Hiding
+#: the money surfaces from someone who has just signed up makes the product
+#: look empty at the exact moment we are trying to show them what they joined,
+#: and hiding referrals costs us the referral. Nothing is payable without
+#: verification either way -- the ledger a provisional physician sees reads
+#: zero, honestly, because they have not done any work yet. Referring a
+#: colleague is not work: the introduction is just as good made the day they
+#: sign up, and the bounty still only pays when the person they brought is
+#: verified and their first case is accepted.
 _BY_ACCESS: Dict[str, FrozenSet[str]] = {
     FULL: frozenset(SURFACES),
-    PROVISIONAL: frozenset({TUTORIAL, BROWSE, REFERRAL}),
+    PROVISIONAL: frozenset({TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE,
+                            EARNINGS, REFERRAL}),
     NONE: frozenset(),
 }
 
@@ -228,33 +221,13 @@ def surfaces(user: Optional[Dict[str, Any]]) -> FrozenSet[str]:
     """Which product surfaces this user may reach. An admin reaches all."""
     if (user or {}).get("role") == "admin":
         return frozenset(SURFACES)
-    level = access_level(user)
-    granted_by_access = _BY_ACCESS.get(level, frozenset())
+    granted_by_access = _BY_ACCESS.get(access_level(user), frozenset())
     # A non-physician account is capped no matter how its verification lands:
     # approving one does not turn the person who introduced us to a hospital
     # into someone who grades cases.
     cap = _BY_ACCOUNT_KIND.get(account_kind(user) or "")
     if cap is not None:
-        # The cap is the ANSWER for these kinds, not merely a ceiling on the
-        # access level, and the difference started mattering when PROVISIONAL
-        # narrowed to the practice case.
-        #
-        # Intersecting was right while PROVISIONAL was wide, and became wrong
-        # the moment it was not: a referral-only account sat at 'pending'
-        # forever, because the clinical verification that would move it is
-        # never run for somebody who is not claiming to be a physician. So the
-        # intersection quietly deleted REFERRAL from an account whose entire
-        # and only purpose is a referral link.
-        #
-        # The narrowing was aimed at applicants who ARE claiming to be
-        # physicians, where the exposure is an unvetted account acting like a
-        # colleague among verified clinicians. None of that reasoning reaches
-        # an advisor or a referrer, who are appointed rather than vetted and
-        # who never appear as clinicians anywhere.
-        #
-        # NONE still means none: refused and deactivated close every door, and
-        # that is the check this branch must not skip.
-        return frozenset() if level == NONE else cap
+        return granted_by_access & cap
     return granted_by_access
 
 
@@ -317,19 +290,6 @@ def practice_gate(user: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 def practice_gate_state(user: Optional[Dict[str, Any]]) -> str:
     state = str(practice_gate(user).get("state") or "").strip().lower()
     return state if state in GATE_STATES else GATE_LOCKED
-
-
-def practice_first_pass(user: Optional[Dict[str, Any]]) -> bool:
-    """True when this physician passed the practice case on their first attempt.
-
-    Reads the stamp written at the moment of the first pass rather than
-    comparing attempt counts now, because attempts keep climbing on replays.
-
-    A grandfathered account returns False, and that is correct rather than
-    unkind: those accounts predate the practice case, so there is no first
-    attempt to have passed. False here means "no positive signal", which is
-    also what it means for someone who has not sat the case yet."""
-    return practice_gate(user).get("first_attempt_pass") is True
 
 
 def practice_gate_reason(user: Optional[Dict[str, Any]], *,

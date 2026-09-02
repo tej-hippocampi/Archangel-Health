@@ -3613,13 +3613,19 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   max-width: 34ch;
   line-height: 1.5;
 }
-/* The terms side by side, so the whole arrangement is one glance. Not a
-   numbered list: a list reads as steps, and these are simultaneous facts.
-   Two columns now rather than three: the "no ceiling" term went with the
-   trim, because a ceiling nobody imposes does not need announcing. */
+.asc-ref-hero-sub {
+  margin: 0 0 var(--sp-4);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 68ch;
+}
+
+/* Three terms side by side, so the whole arrangement is one glance. Not a
+   numbered list: a list reads as steps, and these are simultaneous facts. */
 .asc-ref-terms {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-4);
   padding-top: var(--sp-4);
   border-top: 1px solid var(--hairline);
@@ -3970,42 +3976,6 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-me-hint.is-warn { color: var(--orange-deep); }
 .asc-me-actions { justify-content: flex-end; margin-top: var(--sp-4); }
 .asc-me-locked { color: var(--ink-soft); font-size: 12.5px; }
-/* Completeness reads as a quiet meter rather than a progress bar with a goal:
-   nothing it counts is required, so it must not look like something unfinished. */
-.asc-me-meter {
-  height: 4px;
-  border-radius: 999px;
-  background: var(--card-in);
-  overflow: hidden;
-  margin: var(--sp-3) 0 var(--sp-2);
-}
-.asc-me-meter-fill {
-  height: 100%;
-  background: var(--asc-accent, var(--ink-soft));
-  border-radius: 999px;
-}
-.asc-me-missing {
-  padding: 7px 0;
-  font-size: 13.5px;
-  color: var(--ink-soft);
-  border-top: 1px solid var(--hairline);
-}
-/* Twelve months of counts. Bars rather than a line: the months with no work
-   should read as nothing done, which a line chart smooths over. */
-.asc-me-spark {
-  display: flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 44px;
-  margin-top: 12px;
-}
-.asc-me-spark-bar {
-  flex: 1 1 0;
-  min-width: 0;
-  background: var(--asc-accent, var(--ink-soft));
-  border-radius: 2px 2px 0 0;
-  opacity: 0.75;
-}
 .asc-me-rows { margin-top: var(--sp-3); border-top: 1px solid var(--asc-line); }
 .asc-me-rows > .asc-prof-row:first-child { padding-top: 12px; }
 .asc-me-code {

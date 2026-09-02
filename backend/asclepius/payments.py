@@ -223,44 +223,32 @@ def tr_min_seconds() -> int:
 
 
 def referral_bounty_cents() -> int:
-    """$25 to the REFERRER when a physician they referred is verified and
-    completes their first accepted case.
-
-    The smaller half of a $25/$50 split, with the larger half going to the
-    person being referred (see referee_bonus_cents). The referrer forwards a
-    link in seconds; the colleague has to verify, take a case and get it
-    accepted, and that is the step the whole program is buying. Weighting the
-    money toward the harder side buys the outcome rather than the gesture, and
-    it keeps the referrer's payment small enough that nobody has to argue about
-    physicians being paid to recruit physicians.
+    """$50 when a physician you referred is verified and completes their first
+    accepted case.
 
     A ONE-TIME BOUNTY, not a percentage of the colleague's ongoing work, and the
     reasoning is worth keeping next to the number. A revenue share creates an
     indefinite liability against every future task; it is a compliance question
-    the moment anyone asks the recruiting question above; and, the practical
-    objection, it is unexplainable on a dashboard. *"$25 when your colleague
-    completes their first case"* is a sentence a doctor can hold in their head.
-    A trailing percentage is a spreadsheet.
+    the moment anyone asks whether physicians are being paid to recruit
+    physicians; and — the practical objection — it is unexplainable on a
+    dashboard. *"$50 when your colleague completes their first case"* is a
+    sentence a doctor can hold in their head. A trailing percentage is a
+    spreadsheet.
 
-    Moving this rate is safe. Like every other rate here it lives in env and is
-    STAMPED ON THE LEDGER ROW at accrual, so a bounty already earned keeps the
-    rate it was earned at and only future accruals move.
+    Like every other rate here it lives in env and is STAMPED ON THE LEDGER ROW
+    at accrual, so changing it can never restate a bounty already earned.
     """
-    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 2500)
+    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 5000)
 
 
 def referee_bonus_cents() -> int:
-    """$50 to the REFERRED physician after their first accepted case.
+    """$25 to the REFERRED physician after their first accepted case.
 
-    The larger half of the split on purpose: this is the activation payment, and
-    the first accepted case is where a new physician either stays or is never
-    seen again. Paid only when a referrer's bounty settles, which inherits every
-    guard that settlement runs (QA-accepted work, no self-referral, verified
-    account).
-
-    Stamped on the ledger row at accrual exactly like the bounty, so raising or
-    lowering it later cannot restate a bonus already paid."""
-    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 5000)
+    Small on purpose: their real incentive is the case pay itself, and this is
+    framed as a first-case bonus so it doubles as activation. Paid only when a
+    referrer's bounty settles, which inherits every guard that settlement runs
+    (QA-accepted work, no self-referral, verified account)."""
+    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 2500)
 
 
 def referral_cap_cents() -> int:

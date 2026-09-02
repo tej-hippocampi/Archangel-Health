@@ -80,12 +80,9 @@ TR = caps.REVIEWER     # task reviewer — grades what two TLs produced
 # are guessing at gets low precision and is corrected fast by the data. That single idea is
 # what makes this a learning system rather than a weights table someone edits by feel.
 #
-# Nine scored features plus an intercept. The budget is not arbitrary: with ~100 admin
-# decisions, eight was ~12 events per variable, the edge of what a logistic model can fit
-# without inventing structure. Spending the ninth on ``practice_first_pass`` is a deliberate
-# purchase, made for the same reason ``calibration_z`` was: it is a WORK SAMPLE rather than a
-# credential, and every other term in here is a proxy for the thing this one measures
-# directly. Every applicant now produces it, so unlike the calibration exam it is dense.
+# Exactly eight scored features plus an intercept. Eight is not arbitrary: with ~100 admin
+# decisions that is ~12 events per variable, the edge of what a logistic model can fit without
+# inventing structure.
 FEATURES: Dict[str, Tuple[float, float]] = {
     "intercept":              (-2.5, 1.00),   # TR is the minority role, deliberately
     "board_certified_active": ( 1.2, 6.25),
@@ -97,21 +94,7 @@ FEATURES: Dict[str, Tuple[float, float]] = {
     "structured_review_exp":  ( 0.7, 6.25),   # CEC/DSMB, journal peer review, board item
                                               # writing, guideline panel, core faculty or PD
     "calibration_z":          ( 1.1, 4.00),
-    "practice_first_pass":    ( 0.4, 4.00),   # capped binary — first attempt only (see below)
 }
-
-# ``practice_first_pass`` is 1.0 only when the applicant passed the practice case on their
-# FIRST attempt, and 0.0 otherwise. Two things follow from that shape, both deliberate.
-#
-# It is not continuous in attempts. Retry count measures interruption, a browser reload and
-# how familiar somebody is with the interface at least as much as it measures judgment, and
-# the gate forces an eventual pass regardless, so counting attempts would mostly encode who
-# had a quiet afternoon.
-#
-# The prior is modest (0.4) and the precision low-ish (4.00), which says: we believe a clean
-# first pass is mild evidence of a good reviewer, and we are ready to be corrected quickly if
-# the admin decisions disagree. It cannot open a hard gate, and it is not a substitute for
-# board certification or domain match, both of which carry far more weight.
 
 # Outside the eight-feature budget, so it does not consume events-per-variable. Late-binding:
 # it is structurally zero until a physician has enough completed work to estimate accuracy
@@ -644,7 +627,6 @@ def feature_vector(
     *,
     case_domain: Optional[str] = None,
     calibration_z: Optional[float] = None,
-    practice_first_pass: Optional[bool] = None,
     measured_quality_z: Optional[float] = None,
     n_tasks: int = 0,
 ) -> Dict[str, float]:
@@ -706,13 +688,6 @@ def feature_vector(
         "continuing_cert": cont_cert,
         "structured_review_exp": struct,
         "calibration_z": float(calibration_z or 0.0),
-        # Read from the tutorial record, never from the credential blob. An
-        # applicant who has not sat the practice case encodes 0.0, which is the
-        # same value as a failed first attempt: absence of evidence and
-        # evidence of a miss are both "no positive signal here", and inventing
-        # a third state would give the model something to fit that we cannot
-        # actually observe.
-        "practice_first_pass": 1.0 if practice_first_pass else 0.0,
     }
 
     # §5.4 — the hand-off. Measured quality is structurally unavailable below 20 tasks and
@@ -876,7 +851,6 @@ def propose(
 
     vec = feature_vector(
         user, case_domain=case_domain, calibration_z=cal_z,
-        practice_first_pass=caps.practice_first_pass(user),
         measured_quality_z=measured_quality_z, n_tasks=n_tasks,
     )
     w = weights or default_weights()
@@ -959,7 +933,6 @@ _FEATURE_WORDS = {
     "continuing_cert": "participating in continuing certification",
     "structured_review_exp": "has structured review experience (CEC/DSMB, peer review, boards)",
     "calibration_z": "calibration exam performance",
-    "practice_first_pass": "passed the practice case first time",
     MEASURED_QUALITY_FEATURE: "measured agreement on completed work",
 }
 

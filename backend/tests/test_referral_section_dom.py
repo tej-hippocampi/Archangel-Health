@@ -162,12 +162,8 @@ _FUNNEL = {
     ],
     "total": 3, "earned_count": 1, "earned_cents": 5000,
     "pending_count": 2, "pending_cents": 10000,
-    # $25 referrer / $50 referred, per PRD-PHYS D6. The referral rows above are
-    # deliberately left stamped at the old $50 bounty: that is what a real
-    # funnel looks like after a rate change, because the amount is written onto
-    # the ledger row at accrual and history does not get restated.
-    "payout_structure": {"referrer_bounty_cents": 2500,
-                         "referee_bonus_cents": 5000,
+    "payout_structure": {"referrer_bounty_cents": 5000,
+                         "referee_bonus_cents": 2500,
                          "cap_cents": 520000},
     "cap_cents": 520000,
     "capped": False,
@@ -239,10 +235,8 @@ def test_the_hero_quotes_the_wire_structure_not_a_hardcoded_dollar():
   }));
 """)
     assert "Earn thousands" in out["heroes"][0]
-    # $25 referrer / $50 referred, the split the meeting pinned: the larger
-    # half goes to the side that has to verify and finish a case.
-    assert "$25 to you" in out["text"]
-    assert "$50 to them" in out["text"]
+    assert "$50 to you" in out["text"]
+    assert "$25 to them" in out["text"]
 
 
 def test_the_hero_never_advertises_a_ceiling_again():
@@ -250,60 +244,13 @@ def test_the_hero_never_advertises_a_ceiling_again():
     on the page, in front of the one physician we most want introducing us to
     a hundred colleagues. There is no cap in the backend any more
     (payments.referral_cap_cents defaults to 0) and there must not be one in
-    the copy either.
-
-    The "No ceiling" term that once said so out loud is gone with the rest of
-    the prose: a page that has to announce the absence of a limit has put the
-    idea of a limit in the reader's head. Absence is now the default and the
-    assertion is simply that no bound appears anywhere."""
+    the copy either."""
     out = _render_and("console.log(JSON.stringify({text: textOf(body)}));")
     text = out["text"].lower()
     assert "5,200" not in text
-    assert "ceiling" not in text
+    assert "ceiling" not in text or "no ceiling" in text
     assert "up to" not in text
-    assert "limit" not in text
-
-
-def test_above_the_fold_is_one_line_two_terms_and_the_link():
-    """PRD-PHYS R10. Six prose blocks used to stand between a physician who had
-    already decided to refer someone and the button that gives them the link.
-    What survives above the fold is the hero line, the two terms, and the copy
-    row: the hero carries no paragraph, and the physician column opens on the
-    link rather than on a sentence explaining that a link credits whoever
-    shared it."""
-    out = _render_and("""
-  var heroes = find(body, 'asc-ref-hero');
-  var cols = find(body, 'asc-ref-col');
-  console.log(JSON.stringify({
-    subs: find(body, 'asc-ref-hero-sub').length,
-    terms: find(heroes[0], 'asc-ref-term').length,
-    paras: tagsOf(heroes[0], 'P').length,
-    physKids: (cols[0].childNodes || []).map(function (c) { return c.className || ''; }),
-  }));
-""")
-    assert out["subs"] == 0
-    assert out["terms"] == 2
-    # No paragraph survived: the hero is the line, the two terms, nothing else.
-    assert out["paras"] == 0
-    assert out["physKids"][0] == "asc-ref-title"
-    assert out["physKids"][1] == "asc-ref-linkrow"
-
-
-def test_the_equity_footnote_survives_the_trim():
-    """The one block of small print the trim may not take. An equity-compensated
-    account still refers and the funnel already blanks their amounts, so without
-    this line the two terms above read as a promise of cash to an account that
-    accrues none. One line is enough; silence is not."""
-    funnel = dict(_FUNNEL, earns_bounty=False)
-    out = _render_and("""
-  console.log(JSON.stringify({ feet: find(body, 'asc-ref-foot').map(textOf) }));
-""", funnel)
-    assert out["feet"], "the equity footnote disappeared"
-    foot = out["feet"][0]
-    assert "equity" in foot.lower()
-    assert "no bounty accrues" in foot.lower()
-    # Collapsed, not merely reworded.
-    assert len(foot) < 160, foot
+    assert "no ceiling" in text
 
 
 def test_a_changed_env_rate_changes_the_page_with_no_frontend_edit():
@@ -480,11 +427,8 @@ def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
     assert "health system" in text.lower()
     assert "$" not in text, text
     assert "%" not in text and "percent" not in text.lower(), text
-    # The "a founder reads every one of these" footer went with the R10 trim,
-    # but the column still has to say what it does with what it collects: the
-    # consent line is the load-bearing sentence, because we send the email in
-    # the physician's name.
-    assert "write in your name" in text.lower()
+    # It still says a person reads it, and it still asks for an introduction.
+    assert "founder reads every one" in text.lower()
     assert "introduction" in text.lower()
 
 

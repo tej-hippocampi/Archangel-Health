@@ -886,21 +886,6 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailLike
 
 
-class SigninLinkRequest(BaseModel):
-    """POST /auth/signin-link — mail an applicant a way back in.
-
-    Answers identically whether or not the address has an account, for the
-    same reason the forgot-password door does."""
-
-    email: EmailLike
-
-
-class SigninLinkExchange(BaseModel):
-    """POST /auth/signin-link/exchange — trade the emailed token for a session."""
-
-    token: str
-
-
 class ResetPasswordRequest(BaseModel):
     """POST /auth/password/reset — redeem a mailed token for a new password."""
 
