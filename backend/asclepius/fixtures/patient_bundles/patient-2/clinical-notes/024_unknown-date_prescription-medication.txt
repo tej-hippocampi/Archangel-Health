@@ -1,0 +1,19 @@
+Document index: 24
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No patient/provider/facility names, dates, or IDs visible on this page.
+
+CONTENT
+----------------------------------------
+Prescription (Rx form; dosing columns Morning / Noon / Night; after/before meal columns present)
+
+Medications:
+- Tab Proglox 500 mg: 1 morning, 1 night
+- Tab Nospa forte: 1 morning, 1 noon, 1 night
+- Cap Ulvent 40 mg: 1 morning
+- Tab Panadol: 2 morning, 2 noon, 2 night
+
+Follow-up / advice:
+- CT scan chest
+- Precaution / avoid (Urdu instruction noted)

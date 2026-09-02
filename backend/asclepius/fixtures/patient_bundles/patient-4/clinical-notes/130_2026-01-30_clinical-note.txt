@@ -1,0 +1,40 @@
+Document index: 130
+Document type: clinical note
+Service date: 2026-01-30
+Age on report: 46Y    Sex: M
+De-identification: Omitted identifier field# (green-redacted); facility on C/S line omitted
+
+CONTENT
+----------------------------------------
+Form: ICU ROUTINE DOCUMENT
+Time: blank
+Date of Admission: 28-01-2026
+ICU Day: Day 02
+Intubation / Extubation / Post-op day: —
+Code status: Full CODE
+Header vitals box: blank
+
+Presenting complain:
+- 46 years old male
+- k/c HTN, DM, IHD S/P PCI (2024)
+- Alcoholic
+- Presented with ALOC for 1 day + vomiting
+
+Events:
+- In ER: ↑ BP, ↓ GCS, ↑ RR, ↓ sats — O2 inhalation + nebs + CPAP + Perfalgan/Botalgan
+- In ICU: ↑ BP, ↑ HR, fever 101°F, ↓ GCS — Perfalgan + sponging
+- 1 episode of fits — benzodiazepine + Neuro on board + meds
+- Cardio on board — BB + antiplatelet + CCB + ARB
+
+Investigations:
+- CT/MRI: CT brain plain done (report awaited)
+- ECHO: EF 55%; IVC (N) collapsing
+- CXR: Done
+- USG: Normal U/S Abd
+- Urine R/E: Glucose +3, Ketone +2, Pus cells 1-2, Bacteria few
+- C/S: Awaited (Blood + Urine + Tracheal C/S) [facility omitted]
+
+Medications:
+- Analgesic: Perfalgan/Botalgan 1 g I/V x SOS
+- Sedation: —
+- Antibiotics: Inj Tanzo

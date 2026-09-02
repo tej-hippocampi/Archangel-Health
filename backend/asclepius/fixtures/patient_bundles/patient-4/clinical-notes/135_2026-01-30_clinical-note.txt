@@ -1,0 +1,42 @@
+Document index: 135
+Document type: clinical note
+Service date: 2026-01-30
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted provider names (psychiatrist and ICU consultant), signatures/stamps; facility identifiers not transcribed
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 5:42 pm
+E.F.U. (evening follow-up)
+
+G/C: Static
+A/I: Delirium / psychoses for now under Dormicum effect
+GCS: E3 M5 V2–3 (10–11/15)
+
+Vitals:
+- BP: 160/90 (manual)
+- P/R: 86 bpm
+- Temp: Afebrile
+- R/R: 20 br/min
+- SpO2: 97% on room air
+- RBS: 137 mg/dl
+- I/O: 840 / 340 ml (morning shift)
+
+History / problems:
+- Drug-induced delirium tremens?
+- Alcoholic since 24 yrs
+- DM, HTN, IHD; PCI in 2024
+- On admission: ↓ GCS; apparent GTC seizure observed 28/01/2026 in ICU
+
+Plan:
+1. Cont IVF / hr
+2. LP done → CSF D/R
+3. Psychiatric R/v done — confirm with [psychiatrist redacted]; follow advice
+4. MRI Brain in plan (hold for now)
+5. GCS x 1 hourly
+6. I/O charting
+
+Medication query:
+- Re Lorazepam & Rivotril: message sent to ICU consultant & [provider redacted]
+- Both are BZD — which one to continue, or both?

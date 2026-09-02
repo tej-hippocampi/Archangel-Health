@@ -1,0 +1,10 @@
+Document index: 125
+Document type: radiology report
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: partial facility/name text at top edge ignored; no identifiers transcribed. No printed exam date visible.
+
+CONTENT
+----------------------------------------
+Ultrasound abdomen images (grayscale, dual-panel). Gray Map 5, uScan 3.
+Findings labeled on images: biliary STENT visualized; gallbladder (GB) with echogenic focus labeled "Stone". No narrative report text on this image (images only).

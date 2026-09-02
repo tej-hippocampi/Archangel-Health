@@ -1,0 +1,15 @@
+Document index: 81
+Document type: other lab
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Chemical Pathology
+Booking: 23/01/2025 11:52:50
+Collection: 23/01/2025 11:53:18
+Reporting: 23/01/2025 17:42:01
+
+LIPASE (SERUM):
+Lipase: 1221 U/L (13-60) [H]

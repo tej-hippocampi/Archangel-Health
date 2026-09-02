@@ -1,0 +1,25 @@
+Document index: 32
+Document type: CBC/hematology
+Service date: 2023-04-17
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name/ward identifiers redacted with green marker and omitted.
+
+CONTENT
+----------------------------------------
+CBC ESR Profile (Haematology)
+Haemoglobin: 13.3 gm/dl (12.0-16.0)
+Haematocrit: 40.4 % (42-52) [L]
+R.B.C: 4.92 10^6/L (4.3-5.9)
+M.C.V: 82.2 FL (76-96)
+M.C.H: 27.1 PG (27-32)
+M.C.H.C: 32.9 g/dL (32-36)
+W.B.C: 6.4 10^3/UL (4.0-10.0)
+Neutrophils: 84.6 % (40-80) [H]
+Lymphocytes: 10.8 % (20-40) [L]
+Monocytes: 3.9 % (2-10)
+Eosinophils: 0.2 % (1-6) [L]
+Basophils: 0.5 % (<1)
+Platelet Count: 70 x10^9L (150-450) [L]
+ESR: 10 mm/1Hr (0-25)
+Remarks: Normocytic, Normochromic. Left shift Neutrophils. ? Bacterial infection
+Prothrombine Time - Patient: 14 sec; Control: 12 sec; INR: 1.16

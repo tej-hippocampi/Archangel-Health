@@ -1,0 +1,19 @@
+Document index: 127
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility logo, patient ID, communicated-with name, signatures; footer address/phones/email omitted
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 2:30 pm
+Communication Note:
+
+Communicated with [provider redacted] regarding cardiac meds.
+He advised:
+- Tab Ascard 75 x OD
+- Tab Extor 5/160 x OD
+- Tab Nebil 2.5 mg x OD
+
+Note: year on form appears written as 24 (as printed/handwritten).

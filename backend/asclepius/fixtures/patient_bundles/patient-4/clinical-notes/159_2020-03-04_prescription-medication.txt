@@ -1,0 +1,20 @@
+Document index: 159
+Document type: prescription/medication
+Service date: 2020-03-04
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted administration initials/signatures
+
+CONTENT
+----------------------------------------
+Form: Medication Form (continuation)
+Date column: 04/03/2020
+
+Drugs & dosage / times / admin:
+- Tab Lerace 500 mg (1+0+1) — 1000, 2200 — administered both
+- Tab Kempro 5 mg (0+0+1) — 2200 — administered
+- Tab Risp 2 mg 1/2 (1+0+1) — 1000, 2200 — administered both
+- Neb c̄ Atem 8 hourly — 0600, 1400, 2200 — administered all
+- Neb c̄ Clenil 6 hourly — 0600, 1200, 1800, 2400 — administered all
+- Tab Ascard 75 mg (1+0+0) — 1000 — administered
+
+Footer begins STAT DOSE section

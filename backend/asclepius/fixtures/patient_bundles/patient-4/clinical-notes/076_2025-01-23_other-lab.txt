@@ -1,0 +1,15 @@
+Document index: 76
+Document type: other lab
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+Booking: 23/01/2025 18:31:12
+Collection: 23/01/2025 18:31:27
+Reporting: 23/01/2025 20:56:41
+
+SERUM LACTATE
+- Serum Lactate: 2.77 mmol/L (0.25-08-2021) — elevated

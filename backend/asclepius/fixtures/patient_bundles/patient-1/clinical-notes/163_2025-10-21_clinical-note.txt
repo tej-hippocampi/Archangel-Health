@@ -1,0 +1,14 @@
+Document index: 163
+Document type: clinical note
+Service date: 2025-10-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: handwritten staff names/signatures not transcribed
+
+CONTENT
+----------------------------------------
+Handwritten Nurses Notes; largely illegible cursive. Legible fragments:
+- Receiving note: patient received/shifted; complaints noted; kept on CBR (complete bed rest).
+- GCS / general condition, SpO2 monitored.
+- References to noradrenaline / inotropic support and NS (normal saline).
+- Vitals / shift handover documentation; blood c/s (culture/sensitivity) referenced.
+(Full narrative not legible.)

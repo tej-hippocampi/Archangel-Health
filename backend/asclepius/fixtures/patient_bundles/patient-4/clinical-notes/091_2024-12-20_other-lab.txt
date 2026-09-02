@@ -1,0 +1,15 @@
+Document index: 91
+Document type: other lab
+Service date: 2024-12-20
+Age on report: 45Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Booking: 20/12/2024 11:02:48
+Collection: 20/12/2024 11:03:43
+Reporting: 20/12/2024 12:25:58
+
+AMYLASE (SERUM):
+Amylase: 146 U/L (28-100) [H]

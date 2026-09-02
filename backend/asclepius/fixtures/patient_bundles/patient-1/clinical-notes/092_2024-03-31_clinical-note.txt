@@ -1,0 +1,17 @@
+Document index: 92
+Document type: clinical note
+Service date: 2024-03-31
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: Name, Address, identifier field # fields blank/omitted; multiple green-marker redactions ignored; handwritten identifiers not transcribed.
+
+CONTENT
+----------------------------------------
+Handwritten clinical note (VITAL sheet).
+Vitals: BP 100/70; Wt 64 kg.
+Impression: Cavernoma ... S/P ERCP + stent.
+Medications (handwritten):
+  T. Mofest 1 tab
+  Cap Ursode(oxycholic acid) 1 tab
+  T. Liv-52 1 tab
+  T. Carvide(carvedilol) 6.25 1 tab
+Plan: Refer to Hepatobiliary for shunt surgery.

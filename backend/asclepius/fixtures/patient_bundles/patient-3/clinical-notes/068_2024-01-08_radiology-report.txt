@@ -1,0 +1,15 @@
+Document index: 68
+Document type: radiology report
+Service date: 2024-01-08
+Age on report: 77Y    Sex: F
+De-identification: Omitted patient name, ID/identifier field, facility, Ref. By, sonologist (green redaction / blank fields)
+
+CONTENT
+----------------------------------------
+Modality: X-RAY THORACIC SPINE AP/LAT VIEW
+Timestamp: 08/01/2024 17:09:37
+
+Findings:
+- Partial compression of T11 and T12 with anterior wedging of T11 and narrowing of disc space
+- Traumatic collapse? (old)
+- Reduced bone density is seen

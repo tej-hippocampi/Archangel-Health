@@ -1,0 +1,52 @@
+Document index: 132
+Document type: prescription/medication
+Service date: 2026-04-27
+Age on report: 65Y    Sex: UNKNOWN
+De-identification: Same de-ID as 131; duplicate filename (1); identifiers omitted.
+
+CONTENT
+----------------------------------------
+Duplicate/near-duplicate of index 131.
+Handwritten clinical note / prescription (combined).
+Date: 27-04-2026
+Age: 65
+
+Findings / exam:
+- Palmar erythema since 4 months
+
+Diagnosis (Δ):
+- Anti HCV + CLD
+
+Problem list:
+1. Fever (low grade)
+2. Abdominal pain
+3. Dyspnea
+4. Pedal paresthesia
+5. Weakness
+6. Malaise
+7. Constipation
+
+History:
+- Addiction: cigarettes (30 years)
+- S/H: N/S
+- F/H: HCV+ (no relative named)
+
+Vitals:
+- BP: 100/70 mmHg
+- Temp: 98.2 °F
+- Weight: 69.2 kg
+- RBS: 125
+- HT: 181 cm
+
+Medications:
+- Tab Carveda 6.25: 1/2 — 1/2
+- Cap Ezomor 40: 1 - 0 - 0
+- Tab Ganaton 150: 1 - 0 - 0
+- Tab Vitrum: 0 - 0 - 1
+- Delish milk: 4 + 4 + 4
+- Syp Domel: 2 + 2 + 2
+
+Advice:
+- HCV PCR
+- EGD R/O varices
+- Follow-up ~6 days (circled 6)

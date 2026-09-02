@@ -1,0 +1,13 @@
+Document index: 45
+Document type: prescription/medication
+Service date: 2026-06-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility name/city in header omitted. No patient name, identifier field, DOB, or provider names visible. Date year digit ambiguous on photo; aligned to surrounding 12/7/26 med forms.
+
+CONTENT
+----------------------------------------
+MEDICATION FORM. Date grid header ~21/06/2026. STAT DOSE section blank.
+1. Inj Lasix (furosemide) 20 mg IV stat
+2. I/O charting (monitoring order)
+3. BiPAP <16/8 x SOS for WOB (work of breathing)
+4. Neb with Atem q4h — times 06:00, 10:00, 14:00, 18:00, 22:00, 02:00

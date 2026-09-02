@@ -1,0 +1,29 @@
+Document index: 12
+Document type: CBC/hematology
+Service date: 2026-01-30
+Age on report: 46Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Hematology
+Booking: 30/01/2026 04:49:11
+Collection: 30/01/2026 04:51:12
+Reporting: 30/01/2026 11:05:15
+
+CBC & ESR:
+Hemoglobin: 11.1 g/dl (12 - 16.5) [L]
+R.B.Cs: 3.87 10^12/L (4.0-5.2) [L]
+Hematocrit: 33.8 % (35.0-50.0) [L]
+M.C.V: 87.3 fl (76 - 96)
+M.C.H: 28.7 pg (24 - 29)
+M.C.H.C: 32.8 g/dl (32 - 36)
+RDW-CV: 15.6 % (11.0-16.0)
+Total Leucocytes Count/TLC: 7.56 x 10^3/l (4 - 10)
+Neutrophils: 78.3 % (40-75) [H]
+Lymphocytes: 14.0 % (20-45) [L]
+Monocytes: 4.2 % (2 - 10)
+Eosinophils: 2.8 % (1 - 6)
+Basophils: 0.7 % (<1)
+Platelets: 150 x 10^9/l (150 - 400)
+ESR: 05 mm/Hour (Male 0 - 10, Female 0 - 18)

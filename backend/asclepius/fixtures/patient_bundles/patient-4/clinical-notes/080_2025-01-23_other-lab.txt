@@ -1,0 +1,15 @@
+Document index: 80
+Document type: other lab
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+Booking: 23/01/2025 11:52:50
+Collection: 23/01/2025 11:53:18
+Reporting: 23/01/2025 12:55:01
+
+AMYLASE (SERUM)
+- Amylase: 359 U/L (28-100) — elevated

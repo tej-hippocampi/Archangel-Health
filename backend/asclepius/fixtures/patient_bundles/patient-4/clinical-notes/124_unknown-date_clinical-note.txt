@@ -1,0 +1,49 @@
+Document index: 124
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No name/identifier field/facility on photographed page body; form revision footer only
+
+CONTENT
+----------------------------------------
+Form: ICU ROUTINE DOCUMENT (Page 2 of 2; Rev # 00, September 2025)
+Continuation systems exam / plan (pairs with index 123)
+
+Problem list (triangle): Aspiration Pneumonia; Seizures
+Medical history: k/c DM, HTN, IHD, Alcoholic
+
+NEURO:
+- GCS 10/15 (E4 V2 M4)
+- Pupils B/L equal, reactive to light
+- Plantars B/L mute
+- ↑ Tone
+
+CARDIO:
+- S1 + S2 audible
+- BP 140/90
+- Pulse 102 bpm
+
+RESP:
+- RR 20 br/min
+- Chest B/L crepts
+- SpO2 99%
+- CPAP @ 10 cm H2O with 2 L O2/min
+
+ABDO: Soft, NT; stool not passed
+RENAL: Input 980 ml; Output 890 ml
+MUSCULO-SKELETAL: No bed sores
+ENDO: RBS 260 mg/dl @ 6 AM; 4 units Humulin-R given
+HAEM: No active bleeding
+ID: 3 fever spikes of 100°F in last 12 hrs
+LINE/DRAINS: 20G (L) arm; 18G (R) foot
+NUTRITION: NG passed; NPO
+
+Plan:
+- IVF @ 40 ml/hr
+- Monitor RBS
+- w/f fits
+- Temp monitoring q4h
+- Cont. CPAP
+- Suction x SOS
+- Neurophysician R/v
+- Cardio opinion to continue cardiac meds

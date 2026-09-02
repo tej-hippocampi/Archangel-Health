@@ -1,0 +1,18 @@
+Document index: 50
+Document type: other lab
+Service date: 2025-04-26
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name/identifier field/facility (green redaction); kept age, sex, service dates, clinical results
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+
+Booking: 26/04/2025 13:10:30
+Collection: 26/04/2025 13:10:51
+Reporting: 26/04/2025 14:27:41
+
+CREATININE (SERUM):
+- Creatinine Serum: 0.54 mg/dL
+- Normal ranges: Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4
+(Result below male reference range.)

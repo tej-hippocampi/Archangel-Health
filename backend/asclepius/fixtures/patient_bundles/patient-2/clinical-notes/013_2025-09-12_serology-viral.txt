@@ -1,0 +1,23 @@
+Document index: 13
+Document type: serology/viral
+Service date: 2025-09-12
+Age on report: 65Y    Sex: M
+De-identification: Omitted patient name, relative name, consultant name, laboratory number, identifier field; facility code in lab number prefix omitted
+
+CONTENT
+----------------------------------------
+Department of Virology
+Patient location: OPD
+Booking: 12/09/2025 10:44:15
+Collection: 12/09/2025 10:44:41
+Reporting: 12/09/2025 12:49:25
+
+ANTI HCV ANTIBODY (ELISA)
+Anti HCV Antibody: Test Value 47.9; Cut Off 1.00; Result Reactive [hand-underlined]
+
+HbsAg (Australian Antigen)
+HbsAg: Test Value 0.215; Cut Off 1.00; Result Non-Reactive [hand-underlined]
+
+Remarks: Advice — Correlate clinically with patient history. Anti HCV Antibody Reactive.
+Interpretation: anti-HCV method is a screening test (ECLIA) for quantitative detection of antibody to Hepatitis C in human serum and plasma.
+Suggestions: Borderline tests repeat with fresh sample; Reactive results follow with confirmatory Core HCV, NAT, or PCR; Non-reactive usually no further action unless recent exposure/suspicion then HCV RNA/NAT/PCR advised.

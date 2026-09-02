@@ -1,0 +1,14 @@
+Document index: 110
+Document type: radiology report
+Service date: 2024-12-16
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: physician name on image header omitted; no patient identifiers transcribed.
+
+CONTENT
+----------------------------------------
+Ultrasound abdomen printed images (ABD, 3C-A probe, MI 0.8, TIS 0.1).
+Labeled views:
+  - Image with on-screen label "STENT" (biliary stent visualized) and an adjacent view with label "...ONE" (echogenic focus / stone).
+  - View labeled "Liver".
+  - View labeled "Spleen".
+No narrative findings text printed on the film beyond the anatomical labels.

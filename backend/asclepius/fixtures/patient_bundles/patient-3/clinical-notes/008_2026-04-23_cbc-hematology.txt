@@ -1,0 +1,33 @@
+Document index: 8
+Document type: CBC/hematology
+Service date: 2026-04-23
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility/patient identifiers under green redaction
+
+CONTENT
+----------------------------------------
+Department: Hematology
+Panel: CBC & ESR
+
+Booking: 23/04/2026 13:42:30
+Collection: 23/04/2026 13:42:52
+Reporting: 23/04/2026 16:24:22
+
+Hemoglobin: 7.6 g/dl (11.5 - 15.5) [L]
+R.B.Cs: 2.56 10^12/L (4.0-5.2) [L]
+Hematocrit: 23.1 % (35.0-50.0) [L]
+M.C.V: 90.2 fl (76 - 96)
+M.C.H: 29.7 pg (24 - 29) [H]
+M.C.H.C: 32.9 g/dl (32 - 36)
+RDW-CV: 15.7 % (11.0-16.0)
+Total Leucocytes Count/TLC: 3.09 x 10^3/l (4 - 10) [L]
+Neutrophils: 60.0 % (40-75)
+Lymphocytes: 25.2 % (20-45)
+Monocytes: 12.9 % (2 - 10) [H]
+Eosinophils: 1.3 % (1 - 6)
+Basophils: 0.6 % (<1)
+Platelets: 75 x 10^9/l (150 - 400) [L]
+ESR: 110 mm/Hour (Female 0 - 18) [H]
+
+Morphology: NORMOCYTIC, NORMOCHROMIC, ANISOCYTOSIS, ANEMIA; LEUCOPENIA; PLATELETS LOW ON SMEAR
+Remarks: ? PANCYTOPENIA, ? CAUSE; CLINICAL CORRELATION IS ADVISED.

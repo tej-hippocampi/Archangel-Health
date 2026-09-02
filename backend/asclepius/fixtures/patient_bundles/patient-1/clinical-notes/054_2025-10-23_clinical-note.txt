@@ -1,0 +1,21 @@
+Document index: 54
+Document type: clinical note
+Service date: 2025-10-23
+Age on report: 42Y    Sex: M
+De-identification: hospital name/address/phone/email omitted; patient name and identifier field# redacted
+
+CONTENT
+----------------------------------------
+ICU ROUTINE DOCUMENT (FULL CODE)
+Presenting complaint: A 42 years old male, known case of HTN, cholangitis, multiple H/O ERCPs, presented with C/O:
+- Vomiting (01 episode) 5 days back
+- Fever (2-3 days back)
+- SOB (since 01 day)
+Events: In ER -> low BP 80/40 -> Nor-epinephrine support started, SpO2 94, O2 inhalation. In ICU -> low BP, Nor-epinephrine continued + CVP line passed in (L) femoral + raised R/R -> NIV applied.
+Echo: EF 55%, raised LA, LVDD (mild), Mild-Mod MR, Mod PAH, Mod TR, IVC with collapse
+CXR: Done
+USG: Not done
+Urine R/E: Awaited
+C/S: Blood C/S sent
+Analgesic: Inj Bofalgan 1gm IV x SOS
+Antibiotics: Inj Meronem

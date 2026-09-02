@@ -1,0 +1,16 @@
+Document index: 146
+Document type: clinical note
+Service date: 2026-02-01
+Age on report: 46Y    Sex: UNKNOWN
+De-identification: Omitted identifier field#; omitted primary consultant name; omitted department/facility identifiers beyond form type
+
+CONTENT
+----------------------------------------
+Department form: Nutrition & Food Service
+Time: 11:30 am
+Diagnosis: DM, HTN, IHD, ALD, Alcoholic
+Findings / Height / Calories: blank
+
+Notes:
+- Patient has been visited
+- On NG feed

@@ -1,0 +1,11 @@
+Document index: 133
+Document type: serology/viral
+Service date: 2024-01-12
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name/lab/branch redacted (green marker); facility name in footer omitted
+
+CONTENT
+----------------------------------------
+Serology
+Dengue NS1 Antigen: Negative
+Ref By: SELF

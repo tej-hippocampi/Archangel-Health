@@ -1,0 +1,23 @@
+Document index: 124
+Document type: radiology report
+Service date: 2025-11-07
+Age on report: 65Y    Sex: M
+De-identification: Same de-ID as 123; duplicate filename (1); identifiers omitted.
+
+CONTENT
+----------------------------------------
+Duplicate/near-duplicate of index 123.
+Continuation of CT abdomen with contrast report (same study date/time 07/11/2025 13:35:36).
+
+FINDINGS (continued):
+Fecal loaded large bowel loops are seen. Small bowel loops appear grossly unremarkable.
+
+No ascites is seen.
+
+Few subcentimeter sized abdominopelvic lymph nodes are seen likely nonspecific.
+
+On appropriate lung window settings, visualized lung bases show diffuse emphysematous changes.
+
+On appropriate bony window setting, degenerative changes are seen in spine.
+
+(Impression section not visible on this frame.)

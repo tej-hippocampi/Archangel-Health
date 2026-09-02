@@ -1,0 +1,13 @@
+Document index: 3
+Document type: electrolytes
+Service date: 2023-03-17
+Age on report: 39Y    Sex: M
+De-identification: name redacted (green marker), referring physician name omitted
+
+CONTENT
+----------------------------------------
+ELECTROLYTES
+SODIUM: 141 mEq/l (136-146)
+POTASSIUM: 3.6 mEq/l (3.5-5.1)
+CHLORIDE: 105 mEq/l (98-107)
+BICARBONATE: 22 mEq/L (23-29) [L]

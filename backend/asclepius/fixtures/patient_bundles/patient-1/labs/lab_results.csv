@@ -1,0 +1,721 @@
+service_date,panel,test_name,loinc,value,unit,reference_range,flag,source_image_index
+2021-08-25,serology/viral,AMA (Anti-Mitochondrial antibodies),,Negative,,,,67
+2021-08-25,serology/viral,ANA (Antinuclear antibodies),,Negative,,,,67
+2021-08-25,serology/viral,"ANA PROFILE (ANA, AMA, ASMA) - Method",,Immunofluorescence,,,,67
+2021-08-25,serology/viral,ASMA (Anti-Smooth Muscle antibodies),,Negative,,,,67
+2021-08-25,serology/viral,GPCA (Anti-Gastric parietal cell antibodies),,Negative,,,,67
+2021-08-25,other lab,(Reference by age group,,Birth-4 Days 1.0-39; 2 weeks-20 weeks 1.7-9.1; 21 weeks-20 years 0.7-6.4; Adult 21-54 years 0.4-4.2; Adult 55-87 years 0.5-8.9),,,,70
+2021-08-25,other lab,Albumin,1751-7,4.8,,ref 3.5 - 5.2,,70
+2021-08-25,other lab,Serum TSH,3016-3,2.3552,uIU/ml,,,70
+2021-08-26,other lab,Anti-HBc II,,Non-Reactive,,ref: Non-Reactive,,69
+2021-08-26,other lab,Anti-HBc IgM (HBc IgM),,Non-Reactive,,ref: Non-Reactive,,69
+2021-08-26,other lab,INR,6301-6,1.01,,Normal: 0.8 - 1.2; Patient on Warfarin: 2.0 - 3.0,,69
+2021-08-26,other lab,PT (Prothrombin Time),5902-2,10.9,seconds,ref 9.1 - 13.1 seconds,,69
+2021-08-26,other lab,PT Control,5902-2,10.8,seconds,,,69
+2023-03-16,CBC/hematology,Basophils,706-2,0.2,%,<1,,2
+2023-03-16,CBC/hematology,ESR,30341-2,05,mm/1Hr,0-25,,2
+2023-03-16,CBC/hematology,Eosinophils,713-8,2.5,%,1-6,,2
+2023-03-16,CBC/hematology,Haematocrit,4544-3,36.9,%,42-52,L,2
+2023-03-16,CBC/hematology,Haemoglobin,718-7,12.0,gm/dl,12.0-16.0,,2
+2023-03-16,CBC/hematology,Lymphocytes,736-9,37.0,%,20-40,,2
+2023-03-16,CBC/hematology,M.C.H,785-6,25.1,PG,27-32,L,2
+2023-03-16,CBC/hematology,M.C.H.C,786-4,32.5,g/dL,32-36,,2
+2023-03-16,CBC/hematology,M.C.V,787-2,77.2,FL,76-96,,2
+2023-03-16,CBC/hematology,Monocytes,5905-5,7.2,%,2-10,,2
+2023-03-16,CBC/hematology,Neutrophils,770-8,53.1,%,40-80,,2
+2023-03-16,CBC/hematology,Platelet Count,777-3,48,x10^9L,150-450,L,2
+2023-03-16,CBC/hematology,R.B.C,789-8,4.78,10^6/L,4.3-5.9,,2
+2023-03-16,CBC/hematology,W.B.C,6690-2,5.1,10^3/UL,4.0-10.0,,2
+2023-03-16,LFT,Alkaline phosphatase,6768-6,666,U/L,42-129,H,13
+2023-03-16,LFT,Gamma GT,2324-2,1358,U/L,8-61,H,13
+2023-03-16,LFT,SGPT (ALT),1742-6,237,U/L,<45,H,13
+2023-03-16,LFT,Serum Bilirubin (Direct),1968-7,8.17,mg/dl,<=0.30,H,13
+2023-03-16,LFT,Serum Bilirubin (Indirect),1971-1,6.87,mg/dl,0.25-0.9,H,13
+2023-03-16,LFT,Serum Bilirubin (Total),1975-2,15.04,mg/dl,0.25-04-1999,H,13
+2023-03-17,CBC/hematology,BASOPHILS,706-2,1,%,0-1,,1
+2023-03-17,CBC/hematology,EOSINOPHILS,713-8,2,%,01-06,,1
+2023-03-17,CBC/hematology,HB,718-7,12.9,gm/dL,13.0-17.0,L,1
+2023-03-17,CBC/hematology,HCT,4544-3,41,%,40-50,,1
+2023-03-17,CBC/hematology,LYMPHOCYTES,736-9,18,%,20-40,L,1
+2023-03-17,CBC/hematology,MCH,785-6,25,pg,27-32,L,1
+2023-03-17,CBC/hematology,MCHC,786-4,31,gm/dL,13-09-2033.5,L,1
+2023-03-17,CBC/hematology,MCV,787-2,80,fL,80-100,,1
+2023-03-17,CBC/hematology,MONOCYTES,5905-5,8,%,2-10,,1
+2023-03-17,CBC/hematology,NEUTROPHILS,770-8,71,%,40-80,,1
+2023-03-17,CBC/hematology,PLATELETS,777-3,61,x10^9/L,150-400,L,1
+2023-03-17,CBC/hematology,RBC,789-8,5.1,x10^12/L,4.5-5.5,,1
+2023-03-17,CBC/hematology,WBC,6690-2,5.4,x10e9/L,4.0-10.0,,1
+2023-03-17,electrolytes,BICARBONATE,1963-8,22,mEq/L,23-29,L,3
+2023-03-17,electrolytes,CHLORIDE,2075-0,105,mEq/l,98-107,,3
+2023-03-17,electrolytes,POTASSIUM,2823-3,3.6,mEq/l,3.5-5.1,,3
+2023-03-17,electrolytes,SODIUM,2951-2,141,mEq/l,136-146,,3
+2023-03-17,LFT,Alkaline Phosphatase,6768-6,659,U/l,53-128,,24
+2023-03-17,LFT,Gamma GT,2324-2,1361,U/l,<55,,24
+2023-03-17,LFT,S. Direct Bilirubin,1968-7,7.1,mg/dl,0-0.3,,24
+2023-03-17,LFT,S. Indirect Bilirubin,1971-1,2.00,mg/dl,0.25-0.9,,24
+2023-03-17,LFT,S. Total Bilirubin,1975-2,9.1,mg/dl,0.2-1.2,,24
+2023-03-17,LFT,SGOT (AST),1920-8,146,U/l,<35,,24
+2023-03-17,LFT,SGPT (ALT),1742-6,253,U/L,<45,,24
+2023-03-17,coagulation,INR,6301-6,0.79,,Normal: 0.8-1.2; Patient on Warfarin: 2.0-3.0,,35
+2023-03-17,coagulation,PT,5902-2,8.7,seconds,24-04-2012.1 seconds,L,35
+2023-03-17,coagulation,PT Control,5902-2,10.8,seconds,,,35
+2023-03-17,RFT/renal,Creatinine,2160-0,0.83,mg/dl,0.9-1.3,L,46
+2023-03-17,RFT/renal,Urea,3094-0,16.9,mg/dl,17-49,L,46
+2023-03-17,serology/viral,HBsAg,5196-1,0.14,(S/cutoff value <=1.0: Non-reactive; >1.0: Reactive) -> Non-reactive,,,57
+2023-03-17,serology/viral,Dengue IgG (ICT),23968-6,Negative,,ref: Negative,,62
+2023-03-17,serology/viral,Dengue IgM (ICT),23969-4,Negative,,ref: Negative,,62
+2023-03-17,coagulation,APTT,3173-2,25.8,seconds,ref: 05-01-2034.5 seconds,,63
+2023-03-17,coagulation,APTT Control,3173-2,32.1,seconds,,,63
+2023-03-17,serology/viral,ANTI-HCV,16128-1,0.16,(S/cutoff value <=1.0: Non-reactive; >1.0: Reactive) -> Non-reactive,,,64
+2023-03-17,serology/viral,ANTI-HCV,16128-1,0.16,(S/cutoff value <=1.0: Non-reactive; >1.0: Reactive) -> Non-reactive,,,66
+2023-03-20,CBC/hematology,BASOPHILS,706-2,1,%,0-1,,4
+2023-03-20,CBC/hematology,EOSINOPHILS,713-8,1,%,01-06,,4
+2023-03-20,CBC/hematology,HB,718-7,12.9,gm/dL,13.0-17.0,L,4
+2023-03-20,CBC/hematology,HCT,4544-3,41,%,40-50,,4
+2023-03-20,CBC/hematology,LYMPHOCYTES,736-9,13,%,20-40,L,4
+2023-03-20,CBC/hematology,MCH,785-6,25,pg,27-32,L,4
+2023-03-20,CBC/hematology,MCHC,786-4,31,gm/dL,13-09-2033.5,L,4
+2023-03-20,CBC/hematology,MCV,787-2,81,fL,80-100,,4
+2023-03-20,CBC/hematology,MONOCYTES,5905-5,7,%,2-10,,4
+2023-03-20,CBC/hematology,NEUTROPHILS,770-8,78,%,40-80,,4
+2023-03-20,CBC/hematology,PLATELETS,777-3,60,x10^9/L,150-400,L,4
+2023-03-20,CBC/hematology,RBC,789-8,5.1,x10^12/L,4.5-5.5,,4
+2023-03-20,CBC/hematology,WBC,6690-2,7.9,x10e9/L,4.0-10.0,,4
+2023-03-20,coagulation,Control,,12,sec,,,6
+2023-03-20,coagulation,INR,6301-6,1.0,,,,6
+2023-03-20,coagulation,Patient,,12,sec,,,6
+2023-03-20,other lab,Serum Albumin,1751-7,4.7,g/dL,3.40-4.80,,7
+2023-03-20,other lab,Serum Amylase,1798-8,106,U/l,28-100,H,7
+2023-03-22,serology/viral,Coombs Test (Direct),1007-5,Negative,,,,12
+2023-03-23,RFT/renal,Blood Urea Nitrogen (BUN),3094-0,11.6,mg/dL,6-20,,15
+2023-03-23,RFT/renal,Creatinine (Serum),2160-0,0.8,mg/dL,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,15
+2023-03-23,RFT/renal,Creatinine Serum,2160-0,0.8,mg/dL,"Male 0.7 - 1.2, Female 0.5 - 0.9, Children 0.3 - 0.8, Infant 0.2 - 0.4",,132
+2023-03-23,RFT/renal,BUN,3094-0,11.6,mg/dL,6 - 20,,135
+2023-03-31,CBC/hematology,Basophils,706-2,0.6,%,<1,,25
+2023-03-31,CBC/hematology,ESR,30341-2,02,mm/1Hr,0-25,,25
+2023-03-31,CBC/hematology,Eosinophils,713-8,2.4,%,1-6,,25
+2023-03-31,CBC/hematology,Haematocrit,4544-3,37.7,%,42-52,L,25
+2023-03-31,CBC/hematology,Haemoglobin,718-7,12.2,gm/dl,12.0-16.0,,25
+2023-03-31,CBC/hematology,Lymphocytes,736-9,16.5,%,20-40,L,25
+2023-03-31,CBC/hematology,M.C.H,785-6,25.9,PG,27-32,L,25
+2023-03-31,CBC/hematology,M.C.H.C,786-4,32.5,g/dL,32-36,,25
+2023-03-31,CBC/hematology,M.C.V,787-2,79.8,FL,76-96,,25
+2023-03-31,CBC/hematology,Monocytes,5905-5,2.7,%,2-10,,25
+2023-03-31,CBC/hematology,Neutrophils,770-8,77.8,%,40-80,,25
+2023-03-31,CBC/hematology,Platelet Count,777-3,83,x10^9L,150-450,L,25
+2023-03-31,CBC/hematology,R.B.C,789-8,4.73,10^6/L,4.3-5.9,,25
+2023-03-31,CBC/hematology,W.B.C,6690-2,4.8,10^3/UL,4.0-10.0,,25
+2023-03-31,LFT,Alkaline phosphatase,6768-6,259,U/L,42-129,H,27
+2023-03-31,LFT,Gamma GT,2324-2,237,U/L,8-61,H,27
+2023-03-31,LFT,SGPT (ALT),1742-6,56,U/L,< 45,H,27
+2023-03-31,LFT,Serum Bilirubin (Direct),1968-7,14.77,mg/dl,<= 0.30,H,27
+2023-03-31,LFT,Serum Bilirubin (Indirect),1971-1,2.66,mg/dl,0.25-0.9,H,27
+2023-03-31,LFT,Serum Bilirubin (Total),1975-2,17.43,mg/dl,0.25-04-1999,H,27
+2023-04-04,CBC/hematology,Basophils,706-2,0.1,%,<1,,26
+2023-04-04,CBC/hematology,ESR,30341-2,06,mm/1Hr,0-25,,26
+2023-04-04,CBC/hematology,Eosinophils,713-8,1.5,%,1-6,,26
+2023-04-04,CBC/hematology,Haematocrit,4544-3,40.9,%,42-52,L,26
+2023-04-04,CBC/hematology,Haemoglobin,718-7,12.9,gm/dl,12.0-16.0,,26
+2023-04-04,CBC/hematology,Lymphocytes,736-9,51.4,%,20-40,H,26
+2023-04-04,CBC/hematology,M.C.H,785-6,25.1,PG,27-32,L,26
+2023-04-04,CBC/hematology,M.C.H.C,786-4,31.5,g/dL,32-36,L,26
+2023-04-04,CBC/hematology,M.C.V,787-2,79.7,FL,76-96,,26
+2023-04-04,CBC/hematology,Monocytes,5905-5,6.1,%,2-10,,26
+2023-04-04,CBC/hematology,Neutrophils,770-8,40.9,%,40-80,,26
+2023-04-04,CBC/hematology,Platelet Count,777-3,100,x10^9L,150-450,L,26
+2023-04-04,CBC/hematology,R.B.C,789-8,5.14,10^6/L,4.3-5.9,,26
+2023-04-04,CBC/hematology,W.B.C,6690-2,7.0,10^3/UL,4.0-10.0,,26
+2023-04-04,LFT,(Vitamin D deficiency,,<20,ng/ml; insufficiency: 21-29; sufficiency: >=30; intoxication: >150),,,29
+2023-04-04,LFT,Alkaline phosphatase,6768-6,289,U/L,42-129,H,29
+2023-04-04,LFT,Gamma GT,2324-2,123,U/L,8-61,H,29
+2023-04-04,LFT,SGPT (ALT),1742-6,32,U/L,< 45,,29
+2023-04-04,LFT,Serum Bilirubin (Direct),1968-7,14.66,mg/dl,<= 0.30,H,29
+2023-04-04,LFT,Serum Bilirubin (Indirect),1971-1,3.11,mg/dl,0.25-0.9,H,29
+2023-04-04,LFT,Serum Bilirubin (Total),1975-2,17.77,mg/dl,0.25-04-1999,H,29
+2023-04-04,LFT,Vitamin D3 Level,1989-3,14.3,ng/ml,30-40,L,29
+2023-04-10,LFT,(Vitamin D deficiency,,<20,ng/ml; insufficiency: 21-29; sufficiency: >=30; intoxication: >150),,,28
+2023-04-10,LFT,Alkaline phosphatase,6768-6,224,U/L,42-129,H,28
+2023-04-10,LFT,Gamma GT,2324-2,62,U/L,8-61,H,28
+2023-04-10,LFT,SGPT (ALT),1742-6,24,U/L,< 45,,28
+2023-04-10,LFT,Serum Bilirubin (Direct),1968-7,14.14,mg/dl,<= 0.30,H,28
+2023-04-10,LFT,Serum Bilirubin (Indirect),1971-1,3.20,mg/dl,0.25-0.9,H,28
+2023-04-10,LFT,Serum Bilirubin (Total),1975-2,17.34,mg/dl,0.25-04-1999,H,28
+2023-04-10,LFT,Vitamin D3 Level,1989-3,10.8,ng/ml,30-40,L,28
+2023-04-10,CBC/hematology,Basophils,706-2,0.8,%,<1,,30
+2023-04-10,CBC/hematology,ESR,30341-2,10,mm/1Hr,0-25,,30
+2023-04-10,CBC/hematology,Eosinophils,713-8,1.8,%,1-6,,30
+2023-04-10,CBC/hematology,Haematocrit,4544-3,40.6,%,42-52,L,30
+2023-04-10,CBC/hematology,Haemoglobin,718-7,13.4,gm/dl,12.0-16.0,,30
+2023-04-10,CBC/hematology,Lymphocytes,736-9,38.9,%,20-40,,30
+2023-04-10,CBC/hematology,M.C.H,785-6,26.8,PG,27-32,L,30
+2023-04-10,CBC/hematology,M.C.H.C,786-4,33.0,g/dL,32-36,,30
+2023-04-10,CBC/hematology,M.C.V,787-2,81.1,FL,76-96,,30
+2023-04-10,CBC/hematology,Monocytes,5905-5,8.2,%,2-10,,30
+2023-04-10,CBC/hematology,Neutrophils,770-8,50.3,%,40-80,,30
+2023-04-10,CBC/hematology,Platelet Count,777-3,71,x10^9L,150-450,L,30
+2023-04-10,CBC/hematology,R.B.C,789-8,5.01,10^6/L,4.3-5.9,,30
+2023-04-10,CBC/hematology,W.B.C,6690-2,6.6,10^3/UL,4.0-10.0,,30
+2023-04-17,CBC/hematology,Basophils,706-2,0.5,%,<1,,32
+2023-04-17,CBC/hematology,ESR,30341-2,10,mm/1Hr,0-25,,32
+2023-04-17,CBC/hematology,Eosinophils,713-8,0.2,%,1-6,L,32
+2023-04-17,CBC/hematology,Haematocrit,4544-3,40.4,%,42-52,L,32
+2023-04-17,CBC/hematology,Haemoglobin,718-7,13.3,gm/dl,12.0-16.0,,32
+2023-04-17,CBC/hematology,Lymphocytes,736-9,10.8,%,20-40,L,32
+2023-04-17,CBC/hematology,M.C.H,785-6,27.1,PG,27-32,,32
+2023-04-17,CBC/hematology,M.C.H.C,786-4,32.9,g/dL,32-36,,32
+2023-04-17,CBC/hematology,M.C.V,787-2,82.2,FL,76-96,,32
+2023-04-17,CBC/hematology,Monocytes,5905-5,3.9,%,2-10,,32
+2023-04-17,CBC/hematology,Neutrophils,770-8,84.6,%,40-80,H,32
+2023-04-17,CBC/hematology,Platelet Count,777-3,70,x10^9L,150-450,L,32
+2023-04-17,CBC/hematology,Prothrombine Time - Patient,,14,sec; Control: 12 sec; INR: 1.16,,,32
+2023-04-17,CBC/hematology,R.B.C,789-8,4.92,10^6/L,4.3-5.9,,32
+2023-04-17,CBC/hematology,W.B.C,6690-2,6.4,10^3/UL,4.0-10.0,,32
+2023-04-17,LFT,Alkaline phosphatase,6768-6,164,U/L,42-129,H,33
+2023-04-17,LFT,Gamma GT,2324-2,51,U/L,8-61,,33
+2023-04-17,LFT,SGPT (ALT),1742-6,32,U/L,< 45,,33
+2023-04-17,LFT,Serum Bilirubin (Direct),1968-7,13.43,mg/dl,<= 0.30,H,33
+2023-04-17,LFT,Serum Bilirubin (Indirect),1971-1,2.44,mg/dl,0.25-0.9,H,33
+2023-04-17,LFT,Serum Bilirubin (Total),1975-2,15.87,mg/dl,0.25-04-1999,H,33
+2023-04-20,CBC/hematology,Eosinophils,713-8,01,%,01-06,,16
+2023-04-20,CBC/hematology,Hematocrit,4544-3,42.6,Vol %,Male 40-50; Female 35-47,,16
+2023-04-20,CBC/hematology,Hemoglobin,718-7,13.4,g/dl,Male 13.0-17.0; Female 24-08-2014.4,,16
+2023-04-20,CBC/hematology,Lymphocytes,736-9,08,%,20-40,L,16
+2023-04-20,CBC/hematology,MCH,785-6,26.6,pg,27-32,L,16
+2023-04-20,CBC/hematology,MCHC,786-4,31.5,g/dl,31-34,,16
+2023-04-20,CBC/hematology,MCV,787-2,84.5,fl,76-100,,16
+2023-04-20,CBC/hematology,Monocytes,5905-5,02,%,02-10,,16
+2023-04-20,CBC/hematology,Neutrophils,770-8,89,%,40-80,H,16
+2023-04-20,CBC/hematology,Platelet Count,777-3,110,x10^9/l,150-450,L,16
+2023-04-20,CBC/hematology,RBC,789-8,5.04,x10^12/l,Male 4.5-5.5; Female 3.8-5.2,,16
+2023-04-20,CBC/hematology,WBC,6690-2,9.9,x10^9/l,4.0-11.0,,16
+2023-06-03,CBC/hematology,Basophils,706-2,0.5,%,<1,,37
+2023-06-03,CBC/hematology,ESR,30341-2,45,mm/1Hr,0-25,H,37
+2023-06-03,CBC/hematology,Eosinophils,713-8,3.7,%,1-6,,37
+2023-06-03,CBC/hematology,Haematocrit,4544-3,36.1,%,42-52,L,37
+2023-06-03,CBC/hematology,Haemoglobin,718-7,12.0,gm/dl,12.0-16.0,,37
+2023-06-03,CBC/hematology,Lymphocytes,736-9,20.2,%,20-40,,37
+2023-06-03,CBC/hematology,M.C.H,785-6,28.7,PG,27-32,,37
+2023-06-03,CBC/hematology,M.C.H.C,786-4,33.1,g/dL,32-36,,37
+2023-06-03,CBC/hematology,M.C.V,787-2,86.7,FL,76-96,,37
+2023-06-03,CBC/hematology,Monocytes,5905-5,9.1,%,2-10,,37
+2023-06-03,CBC/hematology,Neutrophils,770-8,66.5,%,40-80,,37
+2023-06-03,CBC/hematology,Platelet Count,777-3,135,x10^9L,150-450,L,37
+2023-06-03,CBC/hematology,R.B.C,789-8,4.17,10^6/L,4.3-5.9,L,37
+2023-06-03,CBC/hematology,W.B.C,6690-2,5.2,10^3/UL,4.0-10.0,,37
+2023-06-03,LFT,Alkaline phosphatase,6768-6,723,U/L,42-129,H,42
+2023-06-03,LFT,Gamma GT,2324-2,983,U/L,8-61,H,42
+2023-06-03,LFT,SGPT (ALT),1742-6,79,U/L,< 45,H,42
+2023-06-03,LFT,Serum Amylase,1798-8,116,U/l,28-100,H,42
+2023-06-03,LFT,Serum Bilirubin (Direct),1968-7,5.38,mg/dl,<= 0.30,H,42
+2023-06-03,LFT,Serum Bilirubin (Indirect),1971-1,0.12,mg/dl,0.25-0.9,L,42
+2023-06-03,LFT,Serum Bilirubin (Total),1975-2,5.50,mg/dl,0.25-04-1999,H,42
+2023-07-11,CBC/hematology,Basophils,706-2,0.2,%,<1,,11
+2023-07-11,CBC/hematology,ESR,30341-2,40,mm/1Hr,0-25,H,11
+2023-07-11,CBC/hematology,Eosinophils,713-8,1.2,%,1-6,,11
+2023-07-11,CBC/hematology,Haematocrit,4544-3,37.7,%,40-50,L,11
+2023-07-11,CBC/hematology,Haemoglobin,718-7,11.7,gm/dl,12.0-16.0,L,11
+2023-07-11,CBC/hematology,Lymphocytes,736-9,18.3,%,20-40,L,11
+2023-07-11,CBC/hematology,M.C.H,785-6,27.6,PG,27-34,,11
+2023-07-11,CBC/hematology,M.C.H.C,786-4,31.0,g/dL,31-36,,11
+2023-07-11,CBC/hematology,M.C.V,787-2,89.0,FL,80-100,,11
+2023-07-11,CBC/hematology,Monocytes,5905-5,8.3,%,2-10,,11
+2023-07-11,CBC/hematology,Neutrophils,770-8,72.0,%,40-80,,11
+2023-07-11,CBC/hematology,Platelet Count,777-3,72,x10^9L,150-450,L,11
+2023-07-11,CBC/hematology,R.B.C,789-8,4.23,10^6/L,4.3-5.9,L,11
+2023-07-11,CBC/hematology,W.B.C,6690-2,6.5,10^3/UL,4.0-10.0,,11
+2023-07-12,LFT,Alkaline phosphatase,6768-6,802,U/L,42-129,H,10
+2023-07-12,LFT,Gamma GT,2324-2,1008,U/L,8-61,H,10
+2023-07-12,LFT,SGPT (ALT),1742-6,142,U/L,<45,H,10
+2023-07-12,LFT,Serum Bilirubin (Direct),1968-7,6.49,mg/dl,<=0.30,H,10
+2023-07-12,LFT,Serum Bilirubin (Indirect),1971-1,2.91,mg/dl,0.25-0.9,H,10
+2023-07-12,LFT,Serum Bilirubin (Total),1975-2,9.40,mg/dl,0.25-04-1999,H,10
+2023-08-10,CBC/hematology,Basophils,706-2,0.3,%,<1,,45
+2023-08-10,CBC/hematology,ESR,30341-2,57,mm/1Hr,0-25,H,45
+2023-08-10,CBC/hematology,Eosinophils,713-8,1.7,%,1-6,,45
+2023-08-10,CBC/hematology,Haematocrit,4544-3,33.1,%,40-50,L,45
+2023-08-10,CBC/hematology,Haemoglobin,718-7,9.9,gm/dl,12.0-16.0,L,45
+2023-08-10,CBC/hematology,Lymphocytes,736-9,12.7,%,20-40,L,45
+2023-08-10,CBC/hematology,M.C.H,785-6,26.3,PG,27-34,L,45
+2023-08-10,CBC/hematology,M.C.H.C,786-4,29.9,g/dL,31-36,L,45
+2023-08-10,CBC/hematology,M.C.V,787-2,87.9,FL,80-100,,45
+2023-08-10,CBC/hematology,Monocytes,5905-5,8.0,%,2-10,,45
+2023-08-10,CBC/hematology,Neutrophils,770-8,77.3,%,40-80,,45
+2023-08-10,CBC/hematology,Platelet Count,777-3,86,x10^9/L,150-450,L,45
+2023-08-10,CBC/hematology,R.B.C,789-8,3.76,10^6/L,4.3-5.9,L,45
+2023-08-10,CBC/hematology,W.B.C,6690-2,5.6,10^3/UL,4.0-10.0,,45
+2023-08-10,LFT,Alkaline phosphatase,6768-6,695,U/L,42-129,H,48
+2023-08-10,LFT,Gamma GT,2324-2,490,U/L,8-61,H,48
+2023-08-10,LFT,SGPT(ALT),1742-6,83,U/L,<45,H,48
+2023-08-10,LFT,Serum Bilirubin (Direct),1968-7,2.36,mg/dl,<=0.30,H,48
+2023-08-10,LFT,Serum Bilirubin (Indirect),1971-1,0.85,mg/dl,0.25-0.9,,48
+2023-08-10,LFT,Serum Bilirubin (Total),1975-2,3.21,mg/dl,0.25-04-1999,H,48
+2023-09-13,LFT,Alkaline phosphatase,6768-6,178,U/L,42-129,H,39
+2023-09-13,LFT,Gamma GT,2324-2,96,U/L,8-61,H,39
+2023-09-13,LFT,SGPT (ALT),1742-6,17,U/L,< 45,,39
+2023-09-13,LFT,Serum Amylase,1798-8,119,U/l,28-100,H,39
+2023-09-13,LFT,Serum Bilirubin (Direct),1968-7,0.75,mg/dl,<= 0.30,H,39
+2023-09-13,LFT,Serum Bilirubin (Indirect),1971-1,1.00,mg/dl,0.25-0.9,H,39
+2023-09-13,LFT,Serum Bilirubin (Total),1975-2,1.75,mg/dl,0.25-04-1999,H,39
+2023-09-13,LFT,Serum Lipase,3040-3,131.1,U/L,13-60,H,39
+2023-09-13,CBC/hematology,Basophils,706-2,0.8,%,<1,,41
+2023-09-13,CBC/hematology,ESR,30341-2,10,mm/1Hr,0-25,,41
+2023-09-13,CBC/hematology,Eosinophils,713-8,4.6,%,1-6,,41
+2023-09-13,CBC/hematology,Haematocrit,4544-3,34.8,%,40-50,L,41
+2023-09-13,CBC/hematology,Haemoglobin,718-7,12.0,gm/dl,12.0-16.0,,41
+2023-09-13,CBC/hematology,Lymphocytes,736-9,19.8,%,20-40,L,41
+2023-09-13,CBC/hematology,M.C.H,785-6,27.8,PG,27-34,,41
+2023-09-13,CBC/hematology,M.C.H.C,786-4,34.3,g/dL,31-36,,41
+2023-09-13,CBC/hematology,M.C.V,787-2,81.0,FL,80-100,,41
+2023-09-13,CBC/hematology,Monocytes,5905-5,9.3,%,2-10,,41
+2023-09-13,CBC/hematology,Neutrophils,770-8,65.5,%,40-80,,41
+2023-09-13,CBC/hematology,Platelet Count,777-3,83,x10^9L,150-450,L,41
+2023-09-13,CBC/hematology,R.B.C,789-8,4.30,10^6/L,4.3-5.9,,41
+2023-09-13,CBC/hematology,W.B.C,6690-2,4.7,10^3/UL,4.0-10.0,,41
+2023-12-27,LFT,Alkaline phosphatase,6768-6,366,U/L,42 - 129,H,71
+2023-12-27,LFT,Gamma GT,2324-2,601,U/L,8 - 61,H,71
+2023-12-27,LFT,SGPT(ALT),1742-6,53,U/L,< 45,H,71
+2023-12-27,LFT,Serum Bilirubin (Direct),1968-7,0.68,mg/dl,<= 0.30,H,71
+2023-12-27,LFT,Serum Bilirubin (Indirect),1971-1,0.75,mg/dl,0.25 - 0.9,,71
+2023-12-27,LFT,Serum Bilirubin (Total),1975-2,1.43,mg/dl,0.10 - 1.00,H,71
+2023-12-27,CBC/hematology,Basophils,706-2,0.6,%,<1,,100
+2023-12-27,CBC/hematology,ESR,30341-2,09,mm/1Hr,0 - 25,,100
+2023-12-27,CBC/hematology,Eosinophils,713-8,3.1,%,1 - 6,,100
+2023-12-27,CBC/hematology,Haematocrit,4544-3,36.3,%,40 - 50,L,100
+2023-12-27,CBC/hematology,Haemoglobin,718-7,11.9,gm/dl,12.0 - 16.0,L,100
+2023-12-27,CBC/hematology,Lymphocytes,736-9,22.9,%,20 - 40,,100
+2023-12-27,CBC/hematology,M.C.H,785-6,26.5,PG,27 - 34,L,100
+2023-12-27,CBC/hematology,M.C.H.C,786-4,32.6,g/dL,31 - 36,,100
+2023-12-27,CBC/hematology,M.C.V,787-2,81.3,FL,80 - 100,,100
+2023-12-27,CBC/hematology,Monocytes,5905-5,7.5,%,2 - 10,,100
+2023-12-27,CBC/hematology,Neutrophils,770-8,65.9,%,40 - 80,,100
+2023-12-27,CBC/hematology,Platelet Count,777-3,72,x10^9L,150 - 450,L,100
+2023-12-27,CBC/hematology,R.B.C,789-8,4.47,10^6/L,4.3 - 5.9,,100
+2023-12-27,CBC/hematology,W.B.C,6690-2,5.2,10^3/UL,4.0 - 10.0,,100
+2024-01-12,CBC/hematology,Basophils,706-2,0.5,%,<1,,73
+2024-01-12,CBC/hematology,ESR,30341-2,30,mm/1Hr,0 - 25,H,73
+2024-01-12,CBC/hematology,Eosinophils,713-8,0.4,%,1 - 6,L,73
+2024-01-12,CBC/hematology,Haematocrit,4544-3,30.8,%,40 - 50,L,73
+2024-01-12,CBC/hematology,Haemoglobin,718-7,8.8,gm/dl,12.0 - 16.0,L,73
+2024-01-12,CBC/hematology,Lymphocytes,736-9,9.8,%,20 - 40,L,73
+2024-01-12,CBC/hematology,M.C.H,785-6,23.5,PG,27 - 34,L,73
+2024-01-12,CBC/hematology,M.C.H.C,786-4,28.4,g/dL,31 - 36,L,73
+2024-01-12,CBC/hematology,M.C.V,787-2,82.6,FL,80 - 100,,73
+2024-01-12,CBC/hematology,Monocytes,5905-5,7.9,%,2 - 10,,73
+2024-01-12,CBC/hematology,Neutrophils,770-8,81.4,%,40 - 80,H,73
+2024-01-12,CBC/hematology,Platelet Count,777-3,55,x10^9L,150 - 450,L,73
+2024-01-12,CBC/hematology,R.B.C,789-8,3.73,10^6/L,4.3 - 5.9,L,73
+2024-01-12,CBC/hematology,W.B.C,6690-2,4.7,10^3/UL,4.0 - 10.0,,73
+2024-01-12,CBC/hematology,Basophils,706-2,0.5,%,<1,,122
+2024-01-12,CBC/hematology,ESR,30341-2,30,mm/1Hr,0 - 25,H,122
+2024-01-12,CBC/hematology,Eosinophils,713-8,0.4,%,1 - 6,L,122
+2024-01-12,CBC/hematology,Haematocrit,4544-3,30.8,%,40 - 50,L,122
+2024-01-12,CBC/hematology,Haemoglobin,718-7,8.8,gm/dl,12.0 - 16.0,L,122
+2024-01-12,CBC/hematology,Lymphocytes,736-9,9.8,%,20 - 40,L,122
+2024-01-12,CBC/hematology,M.C.H,785-6,23.5,PG,27 - 34,L,122
+2024-01-12,CBC/hematology,M.C.H.C,786-4,28.4,g/dL,31 - 36,L,122
+2024-01-12,CBC/hematology,M.C.V,787-2,82.6,FL,80 - 100,,122
+2024-01-12,CBC/hematology,Monocytes,5905-5,7.9,%,2 - 10,,122
+2024-01-12,CBC/hematology,Neutrophils,770-8,81.4,%,40 - 80,H,122
+2024-01-12,CBC/hematology,Platelet Count,777-3,55,x10^9/L,150 - 450,L,122
+2024-01-12,CBC/hematology,R.B.C,789-8,3.73,10^6/L,4.3 - 5.9,L,122
+2024-01-12,CBC/hematology,W.B.C,6690-2,4.7,10^3/UL,4.0 - 10.0,,122
+2024-01-12,serology/viral,Dengue NS1 Antigen,41499-5,Negative,,,,133
+2024-01-12,LFT,Alkaline phosphatase,6768-6,454,U/L,42 - 129,H,144
+2024-01-12,LFT,Gamma GT,2324-2,1010,U/L,8 - 61,H,144
+2024-01-12,LFT,SGPT (ALT),1742-6,83,U/L,< 45,H,144
+2024-01-12,LFT,Serum Bilirubin (Direct),1968-7,0.76,mg/dl,<= 0.30,H,144
+2024-01-12,LFT,Serum Bilirubin (Indirect),1971-1,0.77,mg/dl,0.25 - 0.9,,144
+2024-01-12,LFT,Serum Bilirubin (Total),1975-2,1.53,mg/dl,0.10 - 1.00,H,144
+2024-01-19,CBC/hematology,Basophils,706-2,0.2,%,<1,,49
+2024-01-19,CBC/hematology,ESR,30341-2,10,mm/1Hr,0-25,,49
+2024-01-19,CBC/hematology,Eosinophils,713-8,0.6,%,1-6,L,49
+2024-01-19,CBC/hematology,Haematocrit,4544-3,36.3,%,40-50,L,49
+2024-01-19,CBC/hematology,Haemoglobin,718-7,12.1,gm/dl,12.0-16.0,,49
+2024-01-19,CBC/hematology,Lymphocytes,736-9,12.8,%,20-40,L,49
+2024-01-19,CBC/hematology,M.C.H,785-6,28.4,PG,27-34,,49
+2024-01-19,CBC/hematology,M.C.H.C,786-4,35.5,g/dL,31-36,,49
+2024-01-19,CBC/hematology,M.C.V,787-2,80.0,FL,80-100,,49
+2024-01-19,CBC/hematology,Monocytes,5905-5,5.9,%,2-10,,49
+2024-01-19,CBC/hematology,Neutrophils,770-8,80.5,%,40-80,H,49
+2024-01-19,CBC/hematology,Platelet Count,777-3,79,x10^9/L,150-450,L,49
+2024-01-19,CBC/hematology,R.B.C,789-8,4.53,10^6/L,4.3-5.9,,49
+2024-01-19,CBC/hematology,W.B.C,6690-2,6.2,10^3/UL,4.0-10.0,,49
+2024-01-19,LFT,Alkaline phosphatase,6768-6,595,U/L,42 - 129,H,82
+2024-01-19,LFT,Gamma GT,2324-2,989,U/L,8 - 61,H,82
+2024-01-19,LFT,SGPT(ALT),1742-6,94,U/L,< 45,H,82
+2024-01-19,LFT,Serum Bilirubin (Direct),1968-7,1.17,mg/dl,<= 0.30,H,82
+2024-01-19,LFT,Serum Bilirubin (Indirect),1971-1,1.03,mg/dl,0.25 - 0.9,H,82
+2024-01-19,LFT,Serum Bilirubin (Total),1975-2,2.20,mg/dl,0.10 - 1.00,H,82
+2024-01-19,LFT,- Alkaline phosphatase,,595,U/L,42 - 129,H,166
+2024-01-19,LFT,- Gamma GT,,989,U/L,8 - 61,H,166
+2024-01-19,LFT,- SGPT (ALT),,94,U/L,< 45,H,166
+2024-01-19,LFT,- Serum Bilirubin (Direct),,1.17,mg/dl,<= 0.30,H,166
+2024-01-19,LFT,- Serum Bilirubin (Indirect),,1.03,mg/dl,0.25 - 0.9,H,166
+2024-01-19,LFT,- Serum Bilirubin (Total),,2.20,mg/dl,0.10 - 1.00,H,166
+2024-01-19,LFT,Chemical Pathology. Ref By,,SELF.,,,,166
+2024-02-04,CBC/hematology,Basophils,706-2,0.5,%,<1,,80
+2024-02-04,CBC/hematology,ESR,30341-2,20,mm/1Hr,0 - 25,,80
+2024-02-04,CBC/hematology,Eosinophils,713-8,3.3,%,1 - 6,,80
+2024-02-04,CBC/hematology,Haematocrit,4544-3,37.8,%,40 - 50,L,80
+2024-02-04,CBC/hematology,Haemoglobin,718-7,11.9,gm/dl,12.0 - 16.0,L,80
+2024-02-04,CBC/hematology,Lymphocytes,736-9,25.2,%,20 - 40,,80
+2024-02-04,CBC/hematology,M.C.H,785-6,26.0,PG,27 - 34,L,80
+2024-02-04,CBC/hematology,M.C.H.C,786-4,31.4,g/dL,31 - 36,,80
+2024-02-04,CBC/hematology,M.C.V,787-2,82.7,FL,80 - 100,,80
+2024-02-04,CBC/hematology,Monocytes,5905-5,8.1,%,2 - 10,,80
+2024-02-04,CBC/hematology,Neutrophils,770-8,62.9,%,40 - 80,,80
+2024-02-04,CBC/hematology,Platelet Count,777-3,120,x10^9L,150 - 450,L,80
+2024-02-04,CBC/hematology,R.B.C,789-8,4.58,10^6/L,4.3 - 5.9,,80
+2024-02-04,CBC/hematology,W.B.C,6690-2,5.1,10^3/UL,4.0 - 10.0,,80
+2024-02-04,LFT,Alkaline phosphatase,6768-6,704,U/L,42 - 129,H,81
+2024-02-04,LFT,Gamma GT,2324-2,701,U/L,8 - 61,H,81
+2024-02-04,LFT,SGPT(ALT),1742-6,117,U/L,< 45,H,81
+2024-02-04,LFT,Serum Bilirubin (Direct),1968-7,1.39,mg/dl,<= 0.30,H,81
+2024-02-04,LFT,Serum Bilirubin (Indirect),1971-1,1.29,mg/dl,0.25 - 0.9,H,81
+2024-02-04,LFT,Serum Bilirubin (Total),1975-2,2.68,mg/dl,0.10 - 1.00,H,81
+2024-03-27,CBC/hematology,Basophils,706-2,0.3,%,<1,,86
+2024-03-27,CBC/hematology,ESR,30341-2,20,mm/1Hr,0 - 25,,86
+2024-03-27,CBC/hematology,Eosinophils,713-8,2.9,%,1 - 6,,86
+2024-03-27,CBC/hematology,Haematocrit,4544-3,35.6,%,40 - 50,L,86
+2024-03-27,CBC/hematology,Haemoglobin,718-7,11.3,gm/dl,12.0 - 16.0,L,86
+2024-03-27,CBC/hematology,Lymphocytes,736-9,13.7,%,20 - 40,L,86
+2024-03-27,CBC/hematology,M.C.H,785-6,25.3,PG,27 - 34,L,86
+2024-03-27,CBC/hematology,M.C.H.C,786-4,31.8,g/dL,31 - 36,,86
+2024-03-27,CBC/hematology,M.C.V,787-2,79.4,FL,80 - 100,L,86
+2024-03-27,CBC/hematology,Monocytes,5905-5,9.2,%,2 - 10,,86
+2024-03-27,CBC/hematology,Neutrophils,770-8,73.9,%,40 - 80,,86
+2024-03-27,CBC/hematology,Platelet Count,777-3,75,x10^9L,150 - 450,L,86
+2024-03-27,CBC/hematology,R.B.C,789-8,4.48,10^6/L,4.3 - 5.9,,86
+2024-03-27,CBC/hematology,W.B.C,6690-2,5.3,10^3/UL,4.0 - 10.0,,86
+2024-03-27,LFT,Alkaline phosphatase,6768-6,381,U/L,42 - 129,H,88
+2024-03-27,LFT,Gamma GT,2324-2,459,U/L,8 - 61,H,88
+2024-03-27,LFT,SGPT(ALT),1742-6,74,U/L,< 45,H,88
+2024-03-27,LFT,Serum Bilirubin (Direct),1968-7,0.79,mg/dl,<= 0.30,H,88
+2024-03-27,LFT,Serum Bilirubin (Indirect),1971-1,1.25,mg/dl,0.25 - 0.9,H,88
+2024-03-27,LFT,Serum Bilirubin (Total),1975-2,2.04,mg/dl,0.10 - 1.00,H,88
+2024-04-14,CBC/hematology,Basophils,706-2,0.5,%,<1,,91
+2024-04-14,CBC/hematology,ESR,30341-2,10,mm/1Hr,0 - 25,,91
+2024-04-14,CBC/hematology,Eosinophils,713-8,1.9,%,1 - 6,,91
+2024-04-14,CBC/hematology,Haematocrit,4544-3,38.1,%,40 - 50,L,91
+2024-04-14,CBC/hematology,Haemoglobin,718-7,12.8,gm/dl,12.0 - 16.0,,91
+2024-04-14,CBC/hematology,Lymphocytes,736-9,17.7,%,20 - 40,L,91
+2024-04-14,CBC/hematology,M.C.H,785-6,26.0,PG,27 - 34,L,91
+2024-04-14,CBC/hematology,M.C.H.C,786-4,33.5,g/dL,31 - 36,,91
+2024-04-14,CBC/hematology,M.C.V,787-2,77.7,FL,80 - 100,L,91
+2024-04-14,CBC/hematology,Monocytes,5905-5,7.5,%,2 - 10,,91
+2024-04-14,CBC/hematology,Neutrophils,770-8,72.4,%,40 - 80,,91
+2024-04-14,CBC/hematology,Platelet Count,777-3,150,x10^9L,150 - 450,,91
+2024-04-14,CBC/hematology,R.B.C,789-8,4.90,10^6/L,4.3 - 5.9,,91
+2024-04-14,CBC/hematology,W.B.C,6690-2,5.5,10^3/UL,4.0 - 10.0,,91
+2024-04-14,LFT,Alkaline phosphatase,6768-6,380,U/L,42 - 129,H,94
+2024-04-14,LFT,Gamma GT,2324-2,202,U/L,8 - 61,H,94
+2024-04-14,LFT,SGPT(ALT),1742-6,70,U/L,< 45,H,94
+2024-04-14,LFT,Serum Bilirubin (Direct),1968-7,8.46,mg/dl,<= 0.30,H,94
+2024-04-14,LFT,Serum Bilirubin (Indirect),1971-1,3.53,mg/dl,0.25 - 0.9,H,94
+2024-04-14,LFT,Serum Bilirubin (Total),1975-2,11.99,mg/dl,0.10 - 1.00,H,94
+2024-05-05,LFT,Alkaline phosphatase,6768-6,199,U/L,42 - 129,H,85
+2024-05-05,LFT,Gamma GT,2324-2,60,U/L,8 - 61,,85
+2024-05-05,LFT,SGPT(ALT),1742-6,26,U/L,< 45,,85
+2024-05-05,LFT,Serum Bilirubin (Direct),1968-7,6.36,mg/dl,<= 0.30,H,85
+2024-05-05,LFT,Serum Bilirubin (Indirect),1971-1,2.03,mg/dl,0.25 - 0.9,H,85
+2024-05-05,LFT,Serum Bilirubin (Total),1975-2,8.39,mg/dl,0.10 - 1.00,H,85
+2024-05-05,CBC/hematology,Basophils,706-2,0.3,%,<1,,93
+2024-05-05,CBC/hematology,ESR,30341-2,18,mm/1Hr,0 - 25,,93
+2024-05-05,CBC/hematology,Eosinophils,713-8,0.7,%,1 - 6,L,93
+2024-05-05,CBC/hematology,Haematocrit,4544-3,36.9,%,40 - 50,L,93
+2024-05-05,CBC/hematology,Haemoglobin,718-7,12.8,gm/dl,12.0 - 16.0,,93
+2024-05-05,CBC/hematology,Lymphocytes,736-9,6.7,%,20 - 40,L,93
+2024-05-05,CBC/hematology,M.C.H,785-6,26.6,PG,27 - 34,L,93
+2024-05-05,CBC/hematology,M.C.H.C,786-4,34.7,g/dL,31 - 36,,93
+2024-05-05,CBC/hematology,M.C.V,787-2,76.6,FL,80 - 100,L,93
+2024-05-05,CBC/hematology,Monocytes,5905-5,4.8,%,2 - 10,,93
+2024-05-05,CBC/hematology,Neutrophils,770-8,87.5,%,40 - 80,H,93
+2024-05-05,CBC/hematology,Platelet Count,777-3,137,x10^9L,150 - 450,L,93
+2024-05-05,CBC/hematology,R.B.C,789-8,4.81,10^6/L,4.3 - 5.9,,93
+2024-05-05,CBC/hematology,W.B.C,6690-2,10.5,10^3/UL,4.0 - 10.0,H,93
+2024-05-05,other lab,Serum Amylase,1798-8,155,U/I,28 - 100,H,95
+2024-05-06,RFT/renal,Serum Creatinine,2160-0,0.78,mg/dl,0.70 - 1.20,,96
+2024-10-16,LFT,Alkaline phosphatase,6768-6,173,U/L,42 - 129,H,98
+2024-10-16,LFT,Gamma GT,2324-2,183,U/L,8 - 61,H,98
+2024-10-16,LFT,SGPT(ALT),1742-6,24,U/L,< 45,,98
+2024-10-16,LFT,Serum Bilirubin (Direct),1968-7,0.57,mg/dl,<= 0.30,H,98
+2024-10-16,LFT,Serum Bilirubin (Indirect),1971-1,0.67,mg/dl,0.25 - 0.9,,98
+2024-10-16,LFT,Serum Bilirubin (Total),1975-2,1.24,mg/dl,0.10 - 1.00,H,98
+2024-10-16,CBC/hematology,Basophils,706-2,0.2,%,<1,,102
+2024-10-16,CBC/hematology,ESR,30341-2,07,mm/1Hr,0 - 25,,102
+2024-10-16,CBC/hematology,Eosinophils,713-8,1.9,%,1 - 6,,102
+2024-10-16,CBC/hematology,Haematocrit,4544-3,36.9,%,40 - 50,L,102
+2024-10-16,CBC/hematology,Haemoglobin,718-7,12.4,gm/dl,12.0 - 16.0,,102
+2024-10-16,CBC/hematology,Lymphocytes,736-9,21.3,%,20 - 40,,102
+2024-10-16,CBC/hematology,M.C.H,785-6,27.4,PG,27 - 34,,102
+2024-10-16,CBC/hematology,M.C.H.C,786-4,33.6,g/dL,31 - 36,,102
+2024-10-16,CBC/hematology,M.C.V,787-2,81.6,FL,80 - 100,,102
+2024-10-16,CBC/hematology,Monocytes,5905-5,6.1,%,2 - 10,,102
+2024-10-16,CBC/hematology,Neutrophils,770-8,70.5,%,40 - 80,,102
+2024-10-16,CBC/hematology,Platelet Count,777-3,64,x10^9L,150 - 450,L,102
+2024-10-16,CBC/hematology,R.B.C,789-8,4.52,10^6/L,4.3 - 5.9,,102
+2024-10-16,CBC/hematology,W.B.C,6690-2,5.9,10^3/UL,4.0 - 10.0,,102
+2024-12-13,CBC/hematology,Basophils,706-2,0.5,%,<1,,105
+2024-12-13,CBC/hematology,ESR,30341-2,18,mm/1Hr,0 - 25,,105
+2024-12-13,CBC/hematology,Eosinophils,713-8,3.1,%,1 - 6,,105
+2024-12-13,CBC/hematology,Haematocrit,4544-3,38.4,%,40 - 50,L,105
+2024-12-13,CBC/hematology,Haemoglobin,718-7,12.7,gm/dl,12.0 - 16.0,,105
+2024-12-13,CBC/hematology,Lymphocytes,736-9,18.5,%,20 - 40,L,105
+2024-12-13,CBC/hematology,M.C.H,785-6,27.4,PG,27 - 34,,105
+2024-12-13,CBC/hematology,M.C.H.C,786-4,33.0,g/dL,31 - 36,,105
+2024-12-13,CBC/hematology,M.C.V,787-2,83.0,FL,80 - 100,,105
+2024-12-13,CBC/hematology,Monocytes,5905-5,6.6,%,2 - 10,,105
+2024-12-13,CBC/hematology,Neutrophils,770-8,71.3,%,40 - 80,,105
+2024-12-13,CBC/hematology,Platelet Count,777-3,66,x10^9L,150 - 450,L,105
+2024-12-13,CBC/hematology,R.B.C,789-8,4.63,10^6/L,4.3 - 5.9,,105
+2024-12-13,CBC/hematology,W.B.C,6690-2,4.9,10^3/UL,4.0 - 10.0,,105
+2024-12-13,LFT,Alkaline phosphatase,6768-6,840,U/L,42 - 129,H,108
+2024-12-13,LFT,Gamma GT,2324-2,1033,U/L,8 - 61,H,108
+2024-12-13,LFT,SGPT(ALT),1742-6,167,U/L,< 45,H,108
+2024-12-13,LFT,Serum Bilirubin (Direct),1968-7,2.38,mg/dl,<= 0.30,H,108
+2024-12-13,LFT,Serum Bilirubin (Indirect),1971-1,0.56,mg/dl,0.25 - 0.9,,108
+2024-12-13,LFT,Serum Bilirubin (Total),1975-2,2.94,mg/dl,0.10 - 1.00,H,108
+2025-01-26,LFT,Alkaline phosphatase,6768-6,790,U/L,42 - 129,H,109
+2025-01-26,LFT,Gamma GT,2324-2,783,U/L,8 - 61,H,109
+2025-01-26,LFT,SGPT(ALT),1742-6,140,U/L,< 45,H,109
+2025-01-26,LFT,Serum Bilirubin (Direct),1968-7,3.15,mg/dl,<= 0.30,H,109
+2025-01-26,LFT,Serum Bilirubin (Indirect),1971-1,1.22,mg/dl,0.25 - 0.9,H,109
+2025-01-26,LFT,Serum Bilirubin (Total),1975-2,4.37,mg/dl,0.10 - 1.00,H,109
+2025-07-22,CBC/hematology,Basophils,706-2,0.7,%,<1,,113
+2025-07-22,CBC/hematology,ESR,30341-2,11,mm/1Hr,0 - 25,,113
+2025-07-22,CBC/hematology,Eosinophils,713-8,2.4,%,1 - 6,,113
+2025-07-22,CBC/hematology,Haematocrit,4544-3,39.4,%,40 - 50,L,113
+2025-07-22,CBC/hematology,Haemoglobin,718-7,12.6,gm/dl,12.0 - 16.0,,113
+2025-07-22,CBC/hematology,Lymphocytes,736-9,23.8,%,20 - 40,,113
+2025-07-22,CBC/hematology,M.C.H,785-6,27.7,PG,27 - 34,,113
+2025-07-22,CBC/hematology,M.C.H.C,786-4,32.1,g/dL,31 - 36,,113
+2025-07-22,CBC/hematology,M.C.V,787-2,86.2,FL,80 - 100,,113
+2025-07-22,CBC/hematology,Monocytes,5905-5,6.8,%,2 - 10,,113
+2025-07-22,CBC/hematology,Neutrophils,770-8,66.3,%,40 - 80,,113
+2025-07-22,CBC/hematology,Platelet Count,777-3,53,x10^9/L,150 - 450,L,113
+2025-07-22,CBC/hematology,R.B.C,789-8,4.57,10^6/uL,4.3 - 5.9,,113
+2025-07-22,CBC/hematology,RDW-CV,788-0,19.7,%,14.1 - 17.3,H,113
+2025-07-22,CBC/hematology,W.B.C,6690-2,4.6,10^3/UL,4.0 - 10.0,,113
+2025-07-22,LFT,Alkaline phosphatase,6768-6,439,U/L,42 - 129,H,114
+2025-07-22,LFT,Gamma GT,2324-2,930,U/L,8 - 61,H,114
+2025-07-22,LFT,SGPT(ALT),1742-6,101,U/L,< 45,H,114
+2025-07-22,LFT,Serum Bilirubin (Direct),1968-7,0.88,mg/dl,<= 0.30,H,114
+2025-07-22,LFT,Serum Bilirubin (Indirect),1971-1,2.09,mg/dl,0.25 - 0.9,H,114
+2025-07-22,LFT,Serum Bilirubin (Total),1975-2,2.97,mg/dl,0.10 - 1.00,H,114
+2025-08-07,CBC/hematology,Basophils,706-2,0.2,%,<1,,115
+2025-08-07,CBC/hematology,ESR,30341-2,10,mm/1Hr,0 - 25,,115
+2025-08-07,CBC/hematology,Eosinophils,713-8,3.9,%,1 - 6,,115
+2025-08-07,CBC/hematology,Haematocrit,4544-3,36.2,%,40 - 50,L,115
+2025-08-07,CBC/hematology,Haemoglobin,718-7,11.8,gm/dl,12.0 - 16.0,L,115
+2025-08-07,CBC/hematology,Lymphocytes,736-9,23.1,%,20 - 40,,115
+2025-08-07,CBC/hematology,M.C.H,785-6,27.9,PG,27 - 34,,115
+2025-08-07,CBC/hematology,M.C.H.C,786-4,32.5,g/dL,31 - 36,,115
+2025-08-07,CBC/hematology,M.C.V,787-2,85.8,FL,80 - 100,,115
+2025-08-07,CBC/hematology,Monocytes,5905-5,8.4,%,2 - 10,,115
+2025-08-07,CBC/hematology,Neutrophils,770-8,64.4,%,40 - 80,,115
+2025-08-07,CBC/hematology,Platelet Count,777-3,65,x10^9/L,150 - 450,L,115
+2025-08-07,CBC/hematology,R.B.C,789-8,4.23,10^6/uL,4.3 - 5.9,L,115
+2025-08-07,CBC/hematology,RDW-CV,788-0,18.0,%,14.1 - 17.3,H,115
+2025-08-07,CBC/hematology,W.B.C,6690-2,3.9,10^3/UL,4.0 - 10.0,L,115
+2025-08-07,LFT,Alkaline phosphatase,6768-6,412,U/L,42 - 129,H,117
+2025-08-07,LFT,Gamma GT,2324-2,698,U/L,8 - 61,H,117
+2025-08-07,LFT,SGPT(ALT),1742-6,145,U/L,< 45,H,117
+2025-08-07,LFT,Serum Bilirubin (Direct),1968-7,2.05,mg/dl,<= 0.30,H,117
+2025-08-07,LFT,Serum Bilirubin (Indirect),1971-1,1.95,mg/dl,0.25 - 0.9,H,117
+2025-08-07,LFT,Serum Bilirubin (Total),1975-2,4.00,mg/dl,0.10 - 1.00,H,117
+2025-10-22,CBC/hematology,Basophils,706-2,0.2,%,<1,,128
+2025-10-22,CBC/hematology,ESR,30341-2,90,mm/Hour,"Male 0 - 10, Female 0 - 18",H,128
+2025-10-22,CBC/hematology,Eosinophils,713-8,0.0,%,1 - 6,L,128
+2025-10-22,CBC/hematology,Hematocrit,4544-3,32.3,%,35.0 - 50.0,L,128
+2025-10-22,CBC/hematology,Hemoglobin,718-7,10.8,g/dl,12 - 16.5,L,128
+2025-10-22,CBC/hematology,Lymphocytes,736-9,4.2,%,20 - 45,L,128
+2025-10-22,CBC/hematology,M.C.H,785-6,27.1,pg,24 - 29,,128
+2025-10-22,CBC/hematology,M.C.H.C,786-4,33.4,g/dl,32 - 36,,128
+2025-10-22,CBC/hematology,M.C.V,787-2,81.2,fl,76 - 96,,128
+2025-10-22,CBC/hematology,Monocytes,5905-5,3.7,%,2 - 10,,128
+2025-10-22,CBC/hematology,Neutrophils,770-8,91.9,%,40 - 75,H,128
+2025-10-22,CBC/hematology,Platelets,777-3,45,x10^9/l,150 - 400,L,128
+2025-10-22,CBC/hematology,R.B.Cs,789-8,3.98,10^12/L,4.0 - 5.2,L,128
+2025-10-22,CBC/hematology,RDW-CV,788-0,15.6,%,11.0 - 16.0,,128
+2025-10-22,CBC/hematology,Total Leucocytes Count/TLC,6690-2,17.7,x10^3/l,4 - 10,H,128
+2025-10-22,other lab,ABG's measured at,,37.0,C,,,129
+2025-10-22,other lab,Base Excess,1925-7,-7.9 mmol/L,,-2 to -3,L,129
+2025-10-22,other lab,Bicarbonate,1963-8,15.3,mmol/L,19 - 24,L,129
+2025-10-22,other lab,O2 Saturation,2708-6,95.8,%,94 - 98,,129
+2025-10-22,other lab,pCO2,2019-8,20.3,mmHg,35 - 48,L,129
+2025-10-22,other lab,pH,2744-1,7.49,,7.35 - 7.45,H,129
+2025-10-22,other lab,pO2,2703-7,73.8,mmHg,83 - 108,L,129
+2025-10-22,LFT,Alkaline Phosphate,6768-6,229,U/L,"Male 270, Female 240",,130
+2025-10-22,LFT,Bilirubin Direct,1968-7,2.59,mg/dL,up to 0.4,H,130
+2025-10-22,LFT,Bilirubin Indirect,1971-1,1.04,mg/dL,0.0 - 0.80,H,130
+2025-10-22,LFT,Bilirubin Total,1975-2,3.63,mg/dL,adult up to 0.1 - 1.0,H,130
+2025-10-22,LFT,GAMMA GT,2324-2,343,U/L,"Male < 55, Female < 38",H,130
+2025-10-22,LFT,SGOT/AST (Plain),1920-8,62.9,U/L,"Male 50, Female 50",H,130
+2025-10-22,LFT,SGPT/ALT,1742-6,52.0,U/L,"Male 65, Female 65",,130
+2025-10-22,coagulation,Control,,12.0,Sec,,,131
+2025-10-22,coagulation,INR,6301-6,1.2,,0.9 - 1.5,,131
+2025-10-22,coagulation,Prothrombin Time,5902-2,14.6,Sec,10 - 15,,131
+2025-10-22,coagulation,APTT,3173-2,31.8,Sec,25 - 45,,137
+2025-10-22,RFT/renal,Creatinine Serum,2160-0,1.22,mg/dL,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,H,138
+2025-10-22,other lab,Troponin I,10839-9,<0.100,ng/mL,< 0.30,,139
+2025-10-22,other lab,PCT (ICU) [Procalcitonin],33959-8,52.1,ng/mL,,,140
+2025-10-22,other lab,Reference note,,Procalcitonin levels < 0.5 represent a low risk of severe sepsis and/or septic shock. Procalcitonin levels > 2.0 represent a high risk of severe sepsis and/or septic shock.,,,,140
+2025-10-23,CBC/hematology,Basophils,706-2,0.0,%,1 - 6,,134
+2025-10-23,CBC/hematology,ESR,30341-2,66,mm/Hour,Male 0 - 10,H,134
+2025-10-23,CBC/hematology,Eosinophils,713-8,0.0,%,2 - 10,L,134
+2025-10-23,CBC/hematology,Hematocrit,4544-3,35.6,%,35.0-50.0,,134
+2025-10-23,CBC/hematology,Hemoglobin,718-7,11.8,g/dl,12 - 16.5,L,134
+2025-10-23,CBC/hematology,Lymphocytes,736-9,4.1,%,20-45,L,134
+2025-10-23,CBC/hematology,M.C.H,785-6,26.8,pg,24 - 29,,134
+2025-10-23,CBC/hematology,M.C.H.C,786-4,33.1,g/dl,32 - 36,,134
+2025-10-23,CBC/hematology,M.C.V,787-2,80.7,fl,76 - 96,,134
+2025-10-23,CBC/hematology,Monocytes,5905-5,4.4,%,20-45,,134
+2025-10-23,CBC/hematology,Neutrophils,770-8,91.5,%,40-75,H,134
+2025-10-23,CBC/hematology,Platelets,777-3,48,x10^9/l,150 - 400,L,134
+2025-10-23,CBC/hematology,R.B.Cs,789-8,4.41,10^12/L,4.0-5.2,,134
+2025-10-23,CBC/hematology,RDW-CV,788-0,15.8,%,11.0-16.0,,134
+2025-10-23,CBC/hematology,Total Leucocytes Count/TLC,6690-2,23.02,x10^3/l,4 - 10,H,134
+2025-10-23,other lab,ABG's Measure at,,37,C,,,136
+2025-10-23,other lab,Base Excess,1925-7,-8.5 mmol/L,,-2 - -3,L,136
+2025-10-23,other lab,Bicarbonate,1963-8,15.1,mmol/L,19 - 24,L,136
+2025-10-23,other lab,O2 Saturation,2708-6,97.9,%,94-98,,136
+2025-10-23,other lab,pCO2,2019-8,21.3,mmHg,35-48,L,136
+2025-10-23,other lab,pH,2744-1,7.470,,7.35-7.45,H,136
+2025-10-23,other lab,pO2,2703-7,97.8,mmHg,83-108,,136
+2025-10-23,electrolytes,Bicarbonate,1963-8,13.8,mmol/L,20.0-29.0,L,142
+2025-10-23,electrolytes,Chloride,2075-0,102,mmol/L,96 - 106,,142
+2025-10-23,electrolytes,Potassium,2823-3,3.7,mmol/L,3.5 - 5.5,,142
+2025-10-23,electrolytes,Sodium,2951-2,133,mmol/L,135 - 145,L,142
+2025-10-23,other lab,ABG's Measure at,,37,C,,,143
+2025-10-23,other lab,Base Excess,1925-7,-7.7 mmol/L,,-2 - -3,L,143
+2025-10-23,other lab,Bicarbonate,1963-8,17.4,mmol/L,19 - 24,L,143
+2025-10-23,other lab,O2 Saturation,2708-6,68.9,%,94-98,L,143
+2025-10-23,other lab,pCO2,2019-8,29.6,mmHg,35-48,L,143
+2025-10-23,other lab,pH,2744-1,7.38,,7.35-7.45,,143
+2025-10-23,other lab,pO2,2703-7,37.2,mmHg,83-108,L,143
+2025-10-23,urinalysis,Bacteria,,Few /HPF,,,,145
+2025-10-23,urinalysis,Bilirubin,1975-2,+1,,ref Negative,,145
+2025-10-23,urinalysis,Blood,3094-0,+4 Ery/ul,,ref Negative,,145
+2025-10-23,urinalysis,Casts,,Granular Cast 02 /HPF,,,,145
+2025-10-23,urinalysis,Crystals,,NIL,,,,145
+2025-10-23,urinalysis,Epithelial Cells,,NIL,,,,145
+2025-10-23,urinalysis,Glucose,,Negative,,ref Negative,,145
+2025-10-23,urinalysis,Ketone Bodies,,Negative,,ref Negative,,145
+2025-10-23,urinalysis,Nitrite,,Negative,,ref Negative,,145
+2025-10-23,urinalysis,Protein,,+2 mg/dl,,ref Negative,,145
+2025-10-23,urinalysis,Pus Cells,,4,-6 /HPF,0-4,,145
+2025-10-23,urinalysis,Reaction pH,,6.0,,5-8,,145
+2025-10-23,urinalysis,Red Blood Cells,789-8,14,-16 /HPF,0 - 2,,145
+2025-10-23,urinalysis,Specific Gravity,,1.020,,1.005 - 1.025,,145
+2025-10-23,urinalysis,Urobilinogen,,+1 mg/dl,,ref Negative,,145
+2025-10-23,RFT/renal,Urea,3094-0,45.1,mg/dL,10 - 50,,146
+2025-10-24,RFT/renal,Urea,3094-0,42.4,mg/dL,10 - 50,,141
+2025-10-24,CBC/hematology,Basophils,706-2,0.2,%,<1,,148
+2025-10-24,CBC/hematology,ESR,30341-2,39,mm/Hour,Male 0 - 10,H,148
+2025-10-24,CBC/hematology,Eosinophils,713-8,0.0,%,1 - 6,L,148
+2025-10-24,CBC/hematology,Hematocrit,4544-3,43.5,%,35.0-50.0,,148
+2025-10-24,CBC/hematology,Hemoglobin,718-7,14.3,g/dl,12 - 16.5,,148
+2025-10-24,CBC/hematology,Lymphocytes,736-9,6.4,%,20-45,L,148
+2025-10-24,CBC/hematology,M.C.H,785-6,26.5,pg,24 - 29,,148
+2025-10-24,CBC/hematology,M.C.H.C,786-4,32.9,g/dl,32 - 36,,148
+2025-10-24,CBC/hematology,M.C.V,787-2,80.6,fl,76 - 96,,148
+2025-10-24,CBC/hematology,Monocytes,5905-5,3.6,%,2 - 10,,148
+2025-10-24,CBC/hematology,Neutrophils,770-8,89.8,%,40-75,H,148
+2025-10-24,CBC/hematology,Platelets,777-3,65,x10^9/l,150 - 400,L,148
+2025-10-24,CBC/hematology,R.B.Cs,789-8,5.40,10^12/L,4.0-5.2,,148
+2025-10-24,CBC/hematology,RDW-CV,788-0,16.2,%,11.0-16.0,H,148
+2025-10-24,CBC/hematology,Total Leucocytes Count/TLC,6690-2,17.40,x10^3/l,4 - 10,H,148
+2025-10-24,LFT,Alkaline Phosphate,6768-6,258,U/L,Male 270; Female 240,,149
+2025-10-24,LFT,Bilirubin Direct,1968-7,1.9,mg/dL,Up to 0.4,H,149
+2025-10-24,LFT,Bilirubin Indirect,1971-1,1.2,mg/dL,0.0 - 0.80,H,149
+2025-10-24,LFT,Bilirubin Total,1975-2,3.1,mg/dL,Adult up to 0.1-1.0,H,149
+2025-10-24,LFT,Gamma GT,2324-2,303,U/L,Male < 55; Female < 38,H,149
+2025-10-24,LFT,SGOT/AST (Plain),1920-8,36,U/L,Male 50; Female 50,,149
+2025-10-24,LFT,SGPT/ALT,1742-6,45,U/L,Male 65; Female 65; Infant 65,,149
+2025-10-24,CBC/hematology,Basophils,706-2,0.2,%,<1,,151
+2025-10-24,CBC/hematology,ESR,30341-2,39,mm/Hour,Male 0 - 10,H,151
+2025-10-24,CBC/hematology,Eosinophils,713-8,0.0,%,1 - 6,L,151
+2025-10-24,CBC/hematology,Hematocrit,4544-3,43.5,%,35.0-50.0,,151
+2025-10-24,CBC/hematology,Hemoglobin,718-7,14.3,g/dl,12 - 16.5,,151
+2025-10-24,CBC/hematology,Lymphocytes,736-9,6.4,%,20-45,L,151
+2025-10-24,CBC/hematology,M.C.H,785-6,26.5,pg,24 - 29,,151
+2025-10-24,CBC/hematology,M.C.H.C,786-4,32.9,g/dl,32 - 36,,151
+2025-10-24,CBC/hematology,M.C.V,787-2,80.6,fl,76 - 96,,151
+2025-10-24,CBC/hematology,Monocytes,5905-5,3.6,%,2 - 10,,151
+2025-10-24,CBC/hematology,Neutrophils,770-8,89.8,%,40-75,H,151
+2025-10-24,CBC/hematology,Platelets,777-3,65,x10^9/l,150 - 400,L,151
+2025-10-24,CBC/hematology,R.B.Cs,789-8,5.40,10^12/L,4.0-5.2,,151
+2025-10-24,CBC/hematology,RDW-CV,788-0,16.2,%,11.0-16.0,H,151
+2025-10-24,CBC/hematology,Total Leucocytes Count/TLC,6690-2,17.40,x10^3/l,4 - 10,H,151
+2025-10-24,other lab,PCT (ICU) / Procalcitonin,33959-8,25.3,ng/mL,,,157
+2025-10-24,other lab,Ref,,Procalcitonin levels < 0.5 represent a low risk of severe sepsis and/or septic shock. Procalcitonin levels > 2.0 represent a high risk of severe sepsis and/or septic shock.,,Result markedly elevated,,157
+2025-10-25,CBC/hematology,Basophils,706-2,0.3,%,<1,,147
+2025-10-25,CBC/hematology,Eosinophils,713-8,0.0,%,1 - 6,L,147
+2025-10-25,CBC/hematology,Hematocrit,4544-3,41.3,%,35.0-50.0,,147
+2025-10-25,CBC/hematology,Hemoglobin,718-7,13.6,g/dl,12 - 16.5,,147
+2025-10-25,CBC/hematology,Lymphocytes,736-9,11.5,%,20-45,L,147
+2025-10-25,CBC/hematology,M.C.H,785-6,26.6,pg,24 - 29,,147
+2025-10-25,CBC/hematology,M.C.H.C,786-4,32.9,g/dl,32 - 36,,147
+2025-10-25,CBC/hematology,M.C.V,787-2,80.7,fl,76 - 96,,147
+2025-10-25,CBC/hematology,Monocytes,5905-5,8.1,%,2 - 10,,147
+2025-10-25,CBC/hematology,Neutrophils,770-8,80.1,%,40-75,H,147
+2025-10-25,CBC/hematology,Platelets,777-3,85,x10^9/l,150 - 400,L,147
+2025-10-25,CBC/hematology,R.B.Cs,789-8,5.12,10^12/L,4.0-5.2,,147
+2025-10-25,CBC/hematology,RDW-CV,788-0,16.0,%,11.0-16.0,,147
+2025-10-25,CBC/hematology,Total Leucocytes Count/TLC,6690-2,14.64,x10^3/l,4 - 10,H,147
+2025-10-25,RFT/renal,Creatinine Serum,2160-0,0.59,mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4) [L vs male range],,,152
+2025-10-25,electrolytes,Bicarbonate,1963-8,17.4,mmol/L,20.0-29.0,L,153
+2025-10-25,electrolytes,Chloride,2075-0,100,mmol/L,96 - 106,,153
+2025-10-25,electrolytes,Potassium,2823-3,4.0,mmol/L,3.5 - 5.5,,153
+2025-10-25,electrolytes,Sodium,2951-2,133,mmol/L,135 - 145,L,153
+2025-10-25,RFT/renal,Urea (Blood),3094-0,41.6,mg/dL,10 - 50,,156
+,LFT,Alkaline Phosphatase,6768-6,239,U/L,180-1200 Children; 100-290 Adults,,17
+,LFT,Bilirubin (Direct),1968-7,7.12,mg/dl,<0.32,H,17
+,LFT,Bilirubin (Indirect),1971-1,2.27,mg/dl,<0.95,H,17
+,LFT,Bilirubin (Total),1975-2,9.39,mg/dl,0.3-1.2,H,17
+,LFT,Gamma GT,2324-2,40,U/L,12-64 Male; 9-36 Female,,17
+,LFT,SGPT (ALT),1742-6,20,U/L,<40,,17
+,other lab,Amylase,1798-8,2252,U/L,Upto 90,H,18
+,other lab,Lipase,3040-3,2727,U/L,13-60,H,18
+,LFT,Alkaline Phosphatase,6768-6,208,U/L,180-1200 Children; 100-290 Adults,,34
+,LFT,Bilirubin (Direct),1968-7,5.72,mg/dl,<0.32,H,34
+,LFT,Bilirubin (Indirect),1971-1,1.50,mg/dl,<0.95,H,34
+,LFT,Bilirubin (Total),1975-2,7.22,mg/dl,0.3-1.2,H,34
+,LFT,Gamma GT,2324-2,70,U/L,12-64 Male; 9-36 Female,H,34
+,LFT,SGPT (ALT),1742-6,29,U/L,< 40,,34
+,CBC/hematology,Eosinophils,713-8,02,%,01-06,,36
+,CBC/hematology,Hematocrit,4544-3,37.7,Vol %,Male 40-50; Female 35-47,L,36
+,CBC/hematology,Hemoglobin,718-7,11.9,g/dl,Male 13.0-17.0; Female 24-08-2014.4,L,36
+,CBC/hematology,Lymphocytes,736-9,16,%,20-40,L,36
+,CBC/hematology,MCH,785-6,26.9,pg,27-32,L,36
+,CBC/hematology,MCHC,786-4,31.6,g/dl,31-34,,36
+,CBC/hematology,MCV,787-2,85.3,fl,76-100,,36
+,CBC/hematology,Monocytes,5905-5,02,%,02-10,,36
+,CBC/hematology,Neutrophils,770-8,80,%,40-80,,36
+,CBC/hematology,Platelet Count,777-3,120,x10^9/l,150-450,L,36
+,CBC/hematology,RBC,789-8,4.4,x10^12/l,Male 4.5-5.5; Female 3.8-5.2,L,36
+,CBC/hematology,WBC,6690-2,5.5,x10^9/l,4.0-11.0,,36
+,CBC/hematology,Differential,,Neutrophils 85 % (40 - 75) [H]; Lymphocytes 10 % (20 - 50) [L]; Eosinophils 02 % (1 - 6); Monocytes 03 % (2 - 6); Basophils 00 %,,0 - 1,,119
+,CBC/hematology,Hematocrit (PCV),4544-3,37.4,%,41 - 51,L,119
+,CBC/hematology,Hemoglobin,718-7,12.6,G/dl,13 - 18,L,119
+,CBC/hematology,M C H Concentration,786-4,33.7,G/dl,32 - 36,,119
+,CBC/hematology,M.C.H.,785-6,29.7,pg,27 - 32,,119
+,CBC/hematology,Mean Cell Volume (MCV),787-2,88.1,fl,76 - 96,,119
+,CBC/hematology,Platelet Count,777-3,56000,/c.mm,"150,000 - 450,000",L,119
+,CBC/hematology,Red Blood Cells,789-8,4.25,Millions/c.mm,4.1 - 5.9,,119
+,CBC/hematology,Total Leucocytes Count (White Blood Cells),6690-2,21200,cells/c.mm,"4,800 - 11,000",H,119
+,LFT,Al-T (SGPT),1742-6,90,U/L,"M = 9 - 40, F = 9 - 32",H,124
+,LFT,Alkaline Phosphatase (AlP),6768-6,1050,U/L,adult = 80 - 290,H,124
+,LFT,Gamma-GT (GGT),2324-2,665,U/L,"M = 08 - 61, F = 5 - 36",H,124
+,LFT,Serum Bilirubin Direct,1968-7,2.5,mg/dl,0 - 0.3,H,124
+,LFT,Serum Bilirubin Indirect,1971-1,4.2,mg/dl,0.1 - 0.7,H,124
+,LFT,Serum Bilirubin Total,1975-2,6.7,mg/dl,adult 0.2 - 1.0,H,124
+,RFT/renal,Control,,14,Seconds,,,126
+,RFT/renal,Creatinine,2160-0,1.5,mg/dl,"M = 0.9 - 1.3, F = 0.6 - 1.1",H,126
+,RFT/renal,INR,6301-6,1.07,,,,126
+,RFT/renal,Patient,,15,Seconds,10 - 14,H,126
+,RFT/renal,Serum Bicarbonate,1963-8,21.6,m.mol/L,adults 22 - 29,L,126
+,RFT/renal,Serum Chloride,2075-0,105.7,m.mol/L,98 - 107,,126
+,RFT/renal,Serum Potassium,2823-3,4.91,m.mol/L,3.5 - 5.3,,126
+,RFT/renal,Serum Sodium,2951-2,140.2,m.mol/L,135 - 148,,126
+,RFT/renal,Urea (Serum),3094-0,55,mg/dl,10 - 50,H,126

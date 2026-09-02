@@ -1,0 +1,15 @@
+Document index: 74
+Document type: clinical note
+Service date: 2025-04-27
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: signature/name region redacted and omitted
+
+CONTENT
+----------------------------------------
+Handwritten clinical note (best-effort transcription):
+- Patient has been reviewed
+- Comorbids asked
+- Counselling done
+- Orally allowed
+- On 1 pint (IV fluid)
+- Stay withheld

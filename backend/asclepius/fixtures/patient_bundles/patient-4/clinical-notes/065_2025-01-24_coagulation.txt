@@ -1,0 +1,19 @@
+Document index: 65
+Document type: coagulation
+Service date: 2025-01-24
+Age on report: 45Y    Sex: M
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF HEMATOLOGY
+Booking: 24/01/2025 12:21:13
+Collection: 24/01/2025 12:22:02
+Reporting: 24/01/2025 12:52:02
+
+PROTHROMBIN TIME (PT/INR)
+- Prothrombin Time: 12.6 Sec (10 - 15)
+- INR: 0.96 (0.9 - 1.5)
+- Control: 13.0 Sec
+
+Note: Near-duplicate capture of same PT/INR report as index 64.

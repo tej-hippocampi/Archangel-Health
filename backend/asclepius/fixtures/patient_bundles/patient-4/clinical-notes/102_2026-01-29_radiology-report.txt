@@ -1,0 +1,23 @@
+Document index: 102
+Document type: radiology report
+Service date: 2026-01-29
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header; kept age, sex, service date, full structural findings.
+
+CONTENT
+----------------------------------------
+STRUCTURAL INTERPRETATION (same study timestamp as index 101).
+
+Left Ventricle systolic function:
+Size and wall thickness is normal. Left ventricular global systolic function is preserved.
+Visually estimated ejection fraction is 50%.
+
+Left ventricle diastolic function: Can't comment on diastolic function due to E/A merged.
+
+Right Ventricle: Normal in size with normal systolic function.
+Left Atrium: Normal in size.
+Right Atrium: Normal in size.
+Aorta: Aortic root is normal in size and appearance.
+Systemic Veins: Inferior vena cava is normal in size and collapses normally with inspiration.
+
+There is no pericardial effusion, LV clot, vegetation or shunt seen.

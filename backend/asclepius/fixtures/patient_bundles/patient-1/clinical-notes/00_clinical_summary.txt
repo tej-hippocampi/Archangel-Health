@@ -1,0 +1,200 @@
+DE-IDENTIFIED CLINICAL SUMMARY — Patient ehr-1
+============================================================
+Anonymous patient ID: ehr-1-patient
+Sex: male
+Age (masked): 39Y  (exact DOB omitted; ages >89 reported as 89+)
+
+PRIMARY DIAGNOSES (consolidated across documents):
+  - Noncirrhotic portal hypertension / chronic portal vein thrombosis
+  - Cavernous transformation of the portal vein
+  - Portal biliopathy with recurrent obstructive jaundice
+  - Cholelithiasis / choledocholithiasis; CBD stricture; serial ERCP stenting
+  - Splenomegaly with calcific foci / granulomas (hypersplenism / thrombocytopenia)
+  - Esophageal varices (EVBL performed)
+  - Post-ERCP pancreatitis
+  - Septic shock secondary to cholangitis
+
+Viral markers: HBsAg non-reactive; Anti-HCV non-reactive; Dengue IgG/IgM/NS1 negative
+Fibroscan: F0–F1 (avg SWM 1.47 m/s)
+
+NOTE: All names, phones, MRNs, facility/provider identifiers omitted.
+Source images: 176 (tracked in _progress_seen_images.txt).
+
+DOCUMENT INDEX
+------------------------------------------------------------
+  [001] 2023-03-17  CBC/hematology
+  [002] 2023-03-16  CBC/hematology
+  [003] 2023-03-17  electrolytes
+  [004] 2023-03-20  CBC/hematology
+  [005] 2023-03-20  radiology report
+  [006] 2023-03-20  coagulation
+  [007] 2023-03-20  other lab
+  [008] 2023-06-20  radiology report
+  [009] 2023-07-12  radiology report
+  [010] 2023-07-12  LFT
+  [011] 2023-07-11  CBC/hematology
+  [012] 2023-03-22  serology/viral
+  [013] 2023-03-16  LFT
+  [014] 2023-07-12  radiology report
+  [015] 2023-03-23  RFT/renal
+  [016] 2023-04-20  CBC/hematology
+  [017] UNKNOWN  LFT
+  [018] UNKNOWN  other lab
+  [019] 2023-06-04  clinical note
+  [020] 2023-03-29  clinical note
+  [021] 2023-06-18  prescription/medication
+  [022] 2023-04-25  prescription/medication
+  [023] 2023-04-19  clinical note
+  [024] 2023-03-17  LFT
+  [025] 2023-03-31  CBC/hematology
+  [026] 2023-04-04  CBC/hematology
+  [027] 2023-03-31  LFT
+  [028] 2023-04-10  LFT
+  [029] 2023-04-04  LFT
+  [030] 2023-04-10  CBC/hematology
+  [031] 2023-04-21  discharge summary
+  [032] 2023-04-17  CBC/hematology
+  [033] 2023-04-17  LFT
+  [034] UNKNOWN  LFT
+  [035] 2023-03-17  coagulation
+  [036] UNKNOWN  CBC/hematology
+  [037] 2023-06-03  CBC/hematology
+  [038] 2023-08-13  radiology report
+  [039] 2023-09-13  LFT
+  [040] 2023-08-17  other
+  [041] 2023-09-13  CBC/hematology
+  [042] 2023-06-03  LFT
+  [043] 2023-08-14  radiology report
+  [044] 2023-08-17  other
+  [045] 2023-08-10  CBC/hematology
+  [046] 2023-03-17  RFT/renal
+  [047] 2023-04-19  radiology report
+  [048] 2023-08-10  LFT
+  [049] 2024-01-19  CBC/hematology
+  [050] UNKNOWN  clinical note
+  [051] 2025-10-22  clinical note
+  [052] 2025-10-22  clinical note
+  [053] 2025-10-24  clinical note
+  [054] 2025-10-23  clinical note
+  [055] UNKNOWN  clinical note
+  [056] 2025-10-23  clinical note
+  [057] 2023-03-17  serology/viral
+  [058] UNKNOWN  clinical note
+  [059] UNKNOWN  clinical note
+  [060] 2025-10-22  clinical note
+  [061] UNKNOWN  clinical note
+  [062] 2023-03-17  serology/viral
+  [063] 2023-03-17  coagulation
+  [064] 2023-03-17  serology/viral
+  [065] 2023-03-24  radiology report
+  [066] 2023-03-17  serology/viral
+  [067] 2021-08-25  serology/viral
+  [068] UNKNOWN  radiology report
+  [069] 2021-08-26  other lab
+  [070] 2021-08-25  other lab
+  [071] 2023-12-27  LFT
+  [072] 2024-02-08  other
+  [073] 2024-01-12  CBC/hematology
+  [074] 2025-04-27  clinical note
+  [075] 2025-10-25  prescription/medication
+  [076] 2025-10-23  prescription/medication
+  [077] UNKNOWN  clinical note
+  [078] UNKNOWN  clinical note
+  [079] UNKNOWN  clinical note
+  [080] 2024-02-04  CBC/hematology
+  [081] 2024-02-04  LFT
+  [082] 2024-01-19  LFT
+  [083] 2024-03-31  radiology report
+  [084] 2024-03-31  radiology report
+  [085] 2024-05-05  LFT
+  [086] 2024-03-27  CBC/hematology
+  [087] 2024-04-25  other
+  [088] 2024-03-27  LFT
+  [089] 2024-01-24  radiology report
+  [090] 2024-04-18  radiology report
+  [091] 2024-04-14  CBC/hematology
+  [092] 2024-03-31  clinical note
+  [093] 2024-05-05  CBC/hematology
+  [094] 2024-04-14  LFT
+  [095] 2024-05-05  other lab
+  [096] 2024-05-06  RFT/renal
+  [097] 2024-01-08  clinical note
+  [098] 2024-10-16  LFT
+  [099] 2024-05-06  clinical note
+  [100] 2023-12-27  CBC/hematology
+  [101] 2024-12-16  clinical note
+  [102] 2024-10-16  CBC/hematology
+  [103] 2025-08-08  radiology report
+  [104] 2024-12-16  radiology report
+  [105] 2024-12-13  CBC/hematology
+  [106] 2025-01-31  radiology report
+  [107] 2024-12-31  radiology report
+  [108] 2024-12-13  LFT
+  [109] 2025-01-26  LFT
+  [110] 2024-12-16  radiology report
+  [111] 2023-08-31  radiology report
+  [112] 2025-08-08  radiology report
+  [113] 2025-07-22  CBC/hematology
+  [114] 2025-07-22  LFT
+  [115] 2025-08-07  CBC/hematology
+  [116] 2024-05-07  radiology report
+  [117] 2025-08-07  LFT
+  [118] 2025-10-20  radiology report
+  [119] UNKNOWN  CBC/hematology
+  [120] 2024-05-07  radiology report
+  [121] 2025-08-08  prescription/medication
+  [122] 2024-01-12  CBC/hematology
+  [123] 2025-10-21  prescription/medication
+  [124] UNKNOWN  LFT
+  [125] UNKNOWN  radiology report
+  [126] UNKNOWN  RFT/renal
+  [127] 2024-05-07  other
+  [128] 2025-10-22  CBC/hematology
+  [129] 2025-10-22  other lab
+  [130] 2025-10-22  LFT
+  [131] 2025-10-22  coagulation
+  [132] 2023-03-23  RFT/renal
+  [133] 2024-01-12  serology/viral
+  [134] 2025-10-23  CBC/hematology
+  [135] 2023-03-23  RFT/renal
+  [136] 2025-10-23  other lab
+  [137] 2025-10-22  coagulation
+  [138] 2025-10-22  RFT/renal
+  [139] 2025-10-22  other lab
+  [140] 2025-10-22  other lab
+  [141] 2025-10-24  RFT/renal
+  [142] 2025-10-23  electrolytes
+  [143] 2025-10-23  other lab
+  [144] 2024-01-12  LFT
+  [145] 2025-10-23  urinalysis
+  [146] 2025-10-23  RFT/renal
+  [147] 2025-10-25  CBC/hematology
+  [148] 2025-10-24  CBC/hematology
+  [149] 2025-10-24  LFT
+  [150] 2025-10-24  radiology report
+  [151] 2025-10-24  CBC/hematology
+  [152] 2025-10-25  RFT/renal
+  [153] 2025-10-25  electrolytes
+  [154] 2025-10-23  radiology report
+  [155] 2023-07-19  clinical note
+  [156] 2025-10-25  RFT/renal
+  [157] 2025-10-24  other lab
+  [158] 2025-10-23  radiology report
+  [159] 2025-10-21  clinical note
+  [160] UNKNOWN  vitals
+  [161] UNKNOWN  vitals
+  [162] 2025-10-22  vitals
+  [163] 2025-10-21  clinical note
+  [164] 2025-10-24  clinical note
+  [165] 2025-10-25  vitals
+  [166] 2024-01-19  LFT
+  [167] UNKNOWN  prescription/medication
+  [168] 2025-10-24  clinical note
+  [169] 2025-10-24  prescription/medication
+  [170] UNKNOWN  prescription/medication
+  [171] UNKNOWN  prescription/medication
+  [172] 2025-10-22  clinical note
+  [173] 2025-10-22  prescription/medication
+  [174] 2025-10-22  clinical note
+  [175] 2025-10-22  clinical note
+  [176] 2025-10-24  clinical note

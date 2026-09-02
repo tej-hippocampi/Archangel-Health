@@ -1,0 +1,15 @@
+Document index: 79
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: patient identification block and provider names redacted and omitted
+
+CONTENT
+----------------------------------------
+Patient Progress note.
+Seen by [provider name omitted].
+- Step down to Gastro HDU
+- Mobilize out of bed
+- Discuss with [name omitted] about step down & inotropic support
+- Continue Meropenem
+- Continue PLT (platelets)

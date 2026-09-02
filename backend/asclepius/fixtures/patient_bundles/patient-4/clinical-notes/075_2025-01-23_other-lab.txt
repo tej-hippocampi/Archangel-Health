@@ -1,0 +1,15 @@
+Document index: 75
+Document type: other lab
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+Booking: 23/01/2025 18:31:12
+Collection: 23/01/2025 18:31:27
+Reporting: 23/01/2025 20:56:41
+
+CRP (C- REACTIVE PROTEIN)
+- CRP: 169 mg/L (< 7.90) — elevated

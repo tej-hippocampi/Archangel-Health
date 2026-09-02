@@ -1,0 +1,34 @@
+Document index: 29
+Document type: other lab
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Green overlay already obscured name/facility/IDs in source photo; omitted residual header identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF MICROBIOLOGY
+
+Booking Date & Time: 28/01/2026 18:55:36
+Collection Date & Time: 28/01/2026 18:55:49
+Reporting Date & Time: 01/02/2026 16:08:51
+
+CULTURE & SENSITIVITY (TRACHEAL SECRETION)
+Specimen: Tracheal Secretion
+Gram Stain: Gram negative rods
+Organism-1: Aeromonas spp.
+
+Antibiotic susceptibilities (all S = Sensitive):
+- AMIKACIN: S
+- CEFTAZIDIME: S
+- CIPROFLOXACIN: S
+- CO-TRIMOXAZOLE: S
+- ERTAPENEM: S
+- GENTAMYCIN: S
+- IMIPENEM: S
+- LEVOFLOXACIN: S
+- MEROPENEM: S
+- PIPERACILLIN / TAZOBACTAM: S
+
+Remarks: Aeromonas spp. isolated, it is not a usual respiratory pathogen; however, it may cause lower respiratory tract infection in selected clinical settings, including aspiration, mechanical ventilation, exposure to contaminated water, or immunocompromised hosts. Clinical and radiological correlation is recommended before initiation of targeted antimicrobial therapy.
+
+Result KEYS: (key legend cut off / not fully visible)

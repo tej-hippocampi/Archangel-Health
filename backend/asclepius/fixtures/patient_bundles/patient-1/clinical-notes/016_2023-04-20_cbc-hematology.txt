@@ -1,0 +1,23 @@
+Document index: 16
+Document type: CBC/hematology
+Service date: 2023-04-20
+Age on report: 40Y    Sex: M
+De-identification: patient name partially visible and omitted; barcode/ISO details and Ref By retained only as SELF
+
+CONTENT
+----------------------------------------
+Hematology (CBC profile)
+Hemoglobin: 13.4 g/dl (Male 13.0-17.0; Female 24-08-2014.4)
+Hematocrit: 42.6 Vol % (Male 40-50; Female 35-47)
+RBC: 5.04 x10^12/l (Male 4.5-5.5; Female 3.8-5.2)
+MCV: 84.5 fl (76-100)
+MCH: 26.6 pg (27-32) [L]
+MCHC: 31.5 g/dl (31-34)
+WBC: 9.9 x10^9/l (4.0-11.0)
+Neutrophils: 89 % (40-80) [H]
+Lymphocytes: 08 % (20-40) [L]
+Eosinophils: 01 % (01-06)
+Monocytes: 02 % (02-10)
+Platelet Count: 110 x10^9/l (150-450) [L]
+Morphology: Normocytic Normochromic. Platelet anisocytosis.
+Remarks: Neutrophilia ? cause. Large platelet seen.

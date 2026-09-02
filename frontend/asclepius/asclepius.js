@@ -11149,7 +11149,10 @@
 
       // Box 1
       const b1 = h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('h3', {}, 'Incoming data'),
+        h('div', { class: 'asc-stage-actions' },
+          h('h3', {}, 'Incoming data'),
+          h('span', { class: 'asc-stage-spacer' }),
+          ingestFixturesBtn()),
         h('div', { class: 'asc-dim' },
           'Every bundle whose purpose has not been decided yet. Choosing '
           + '“Brokering” cannot be undone.'),
@@ -11170,6 +11173,44 @@
       host.appendChild(b2);
 
       host.appendChild(autoGenerateCard());
+    }
+
+    /* §2.1 — the front door for the records we already hold.
+     *
+     * The four de-identified patient charts the V4 static cases were written
+     * FROM had never been uploaded, so no ingest case existed for them and
+     * `generate` — the only path that creates trajectories — had nothing to run
+     * on. This sends them through the same door a hospital's bundle takes.
+     *
+     * Small and in the header, not a primary action: it is a one-time operator
+     * task, and it must not compete with the Upload button that hospitals'
+     * data actually arrives through. Idempotent server-side on the bundle
+     * sha256, so a second click reports "already ingested" rather than
+     * duplicating four charts.
+     */
+    function ingestFixturesBtn() {
+      const b = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+        'Ingest committed patient records');
+      b.addEventListener('click', () => {
+        b.setAttribute('disabled', '');
+        b.textContent = 'Sending through the ingest door…';
+        api('/admin/fixtures/ingest-patient-records', { method: 'POST', body: {} })
+          .then((res) => {
+            toast(res.message || 'Done.', (res.failed || 0) ? 'error' : 'success');
+            // Name the failures rather than only counting them: "1 failed" with
+            // no bundle name is a number an operator cannot act on.
+            (res.bundles || []).filter((r) => r.status === 'failed').forEach((r) => {
+              toast(r.bundle + ': ' + (r.error || 'failed'), 'error');
+            });
+            load();
+          })
+          .catch((e) => toast((e && e.detail) || e.message || 'Could not ingest the records.', 'error'))
+          .finally(() => {
+            b.removeAttribute('disabled');
+            b.textContent = 'Ingest committed patient records';
+          });
+      });
+      return b;
     }
 
     /* Finished bundles fold rather than disappear. A row that vanishes on

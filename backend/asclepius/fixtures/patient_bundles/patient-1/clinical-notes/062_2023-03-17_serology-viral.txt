@@ -1,0 +1,12 @@
+Document index: 62
+Document type: serology/viral
+Service date: 2023-03-17
+Age on report: 39Y    Sex: M
+De-identification: name redacted (green marker)
+
+CONTENT
+----------------------------------------
+DENGUE VIRUS (IGG/IGM)
+Dengue IgG (ICT): Negative (ref: Negative)
+Dengue IgM (ICT): Negative (ref: Negative)
+Note: Dengue IgG/IgM detected by immunochromatographic test (ICT); positive test should be confirmed by other tests. Primary dengue is characterised by presence of detectable IgM antibodies 3-5 days after onset of infection.

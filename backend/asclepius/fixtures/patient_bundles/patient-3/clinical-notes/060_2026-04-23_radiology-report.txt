@@ -1,0 +1,20 @@
+Document index: 60
+Document type: radiology report
+Service date: 2026-04-23
+Age on report: 77Y    Sex: F
+De-identification: Omitted patient name and facility header (green redaction); sonologist/Ref. By blank
+
+CONTENT
+----------------------------------------
+Modality: ULTRASOUND ABDOMEN
+Timestamp: 23/04/2026 14:21:41
+
+LIVER: Normal in size; coarse echotexture & irregular outlines. Hypoechoic area measuring 2.1 x 1.9 cm in right lobe — possibility of mass. Tiny simple cyst 0.5 x 0.5 cm in right lobe. Calcification 0.4 cm in right lobe. IHVs & ducts not dilated. P.V 0.9 cm; CBD not dilated.
+Bold impression line: Chronic Liver Disease with Possibility of Mass & Simple Hepatic Cyst
+G. BLADDER: Partially contracted; no focal mass or calculus.
+SPLEEN: Upper limit normal, 12 cm; no focal mass.
+PANCREAS: Normal; no focal mass.
+RIGHT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+LEFT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+U. BLADDER: Normal; no focal mass or calculus.
+Bowel loops not dilated. Ascites not seen. No pelvic pathology seen at time of scan.

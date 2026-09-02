@@ -1,0 +1,21 @@
+Document index: 150
+Document type: radiology report
+Service date: 2025-10-24
+Age on report: 42Y    Sex: M
+De-identification: name/identifier fieldredacted (green marker); sonologist name omitted
+
+CONTENT
+----------------------------------------
+Ultrasound Abdomen (Portable)
+LIVER: Normal in size, shows increased echotexture & regular outlines. No focal mass is seen. IHVs & ducts are not dilated. P.V = 1.2 cm.
+G. BLADDER: Partially contracted, shows sludge & few calculi, larger one measures 0.8 cm, however no focal mass is seen.
+Impression: Cholelithiasis.
+CBD measures 0.8 cm shows stent in it.
+SPLEEN: Enlarged in size measures 14.7 cm. Shows multiple echogenic foci.
+Impression: Splenomegaly.
+PANCREAS: Could not be visualized due to overlying gas filled bowel loops.
+RIGHT KIDNEY: Appears normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+LEFT KIDNEY: Appears normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+U. BLADDER: Empty (shows bulb of foley's catheter) at the time of scan.
+Bowel loops are not dilated.
+Mild amount of ascites is seen at the time of scan.

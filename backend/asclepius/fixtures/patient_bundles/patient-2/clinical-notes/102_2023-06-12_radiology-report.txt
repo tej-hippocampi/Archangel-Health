@@ -1,0 +1,12 @@
+Document index: 102
+Document type: radiology report
+Service date: 2023-06-12
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name; kept age, sex, service date.
+
+CONTENT
+----------------------------------------
+CT film (Aquilion ONE): ~18 axial slices of lower abdomen/pelvis.
+Labels: V-ABDOMEN / CONTRAST VENOUS PHASE; ~120kV 125mAs; ~0.5s / 1.0mm x 80; HP55.0.
+Anatomy: lower lumbar/iliac region and bowel (upper tiles); sacrum/pelvic cavity (mid); hip joints, partially filled bladder, rectum/anal canal area (lower).
+No written findings/impression on film.

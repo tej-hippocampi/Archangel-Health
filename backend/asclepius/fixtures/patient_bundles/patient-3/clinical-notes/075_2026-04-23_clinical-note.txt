@@ -1,0 +1,43 @@
+Document index: 75
+Document type: clinical note
+Service date: 2026-04-23
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted patient name, facility, provider signatures, consultants, and isolation room/unit identifiers (green redactions); age/sex not on photographed fields
+
+CONTENT
+----------------------------------------
+Form: PATIENT TRIAGE / ER ASSESSMENT (Page 1 of 2; form rev Aug 2024 Rev #01)
+Date: 23/04/2026  Time: 1pm
+Patient Referred From: With Family (checked)
+
+Complaint: Admitted to ER with abdominal pain and loose stool for 1 week.
+History: Fever on/off for 15 days; backache and cough for 1 month; K/c HTN, HCV, DCLD.
+
+Vitals:
+- RBS: 137 mg/dL
+- Pulse: 76 b/min
+- Temp: 100°F
+- BP: 100/60 mmHg
+- RR: 20 /min
+- SPO2: 100%
+- GCS: 15/15
+
+Investigations ordered: ECG, CBC, U/C/E, LFT, PT/INR, S-Albumin, MP ICT, Dengue NS1, CRP, CXR, U/S Abdomen.
+
+On Examination:
+- Chest: B/L wheeze
+- Abdomen: Soft, non-tender (SNT)
+- CVS: S1+S2+0
+- CNS: Intact
+- Obstetrics & Gynaecology: Not relevant
+
+ER Treatment & Procedure:
+- IV Cannulation
+- Nebulization with atem + clinil
+- Inj. Risek 40mg IV stat
+- Inj. Nospa IV stat
+- Inj. Flagyl 100ml IV stat
+- Inj. Bofalgan IV stat
+- Inj. R/L 500ml IV stat
+
+Disposition: Transfer to Isolation (unit/room number redacted)

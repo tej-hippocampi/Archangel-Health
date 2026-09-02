@@ -1,0 +1,21 @@
+Document index: 40
+Document type: coagulation
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Green overlay already obscured name/facility/IDs in source photo; omitted residual header identifiers. Kept clinical location (ICU bed). Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF HEMATOLOGY
+Location: Intensive Care Unit (ICU) -- 007
+
+Booking Date & Time: 28/01/2026 18:26:24
+Collection Date & Time: 28/01/2026 18:26:40
+Reporting Date & Time: 28/01/2026 18:58:47
+
+PROTHROMBIN TIME (PT/INR)
+Prothrombin Time: 11.6 Sec (10 - 15)
+INR: 0.96 (0.9 - 1.5)
+Control: 12.0 Sec
+
+Note: Same PT/INR values/reporting time as index 35; ward/bed location visible on this capture.

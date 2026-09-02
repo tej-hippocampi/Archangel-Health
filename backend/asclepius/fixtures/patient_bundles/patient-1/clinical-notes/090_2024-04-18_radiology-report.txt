@@ -1,0 +1,20 @@
+Document index: 90
+Document type: radiology report
+Service date: 2024-04-18
+Age on report: 39Y    Sex: M
+De-identification: patient name ("identifier field ...") omitted; "Referred By" left blank; bottom signature area redacted/omitted.
+
+CONTENT
+----------------------------------------
+UPPER GI ENDOSCOPY REPORT
+Anesthesia: Midazolam 2mg
+Indication for Procedure: Surveillance for Varices.
+Finding:
+Oral cavity: Looked normal.
+Vocal cords: Looked normal.
+Esophagus: There were three columns of grade 2-3 Esophageal varices with red wale markings, 04 band applied.
+Stomach: Moderate PHG, no Fundal varix.
+Duodenum: D1 and D2 looked normal.
+Diagnosis: Esophageal Varices/EVBL/PHG.
+RESCOPE AFTER 03 MONTHS.
+(Endoscopic images labeled: Esophageal varices, Fundus, Antrum, Band Ligation)

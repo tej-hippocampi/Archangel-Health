@@ -1,0 +1,36 @@
+Document index: 41
+Document type: CBC/hematology
+Service date: 2024-01-09
+Age on report: 75Y    Sex: F
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF HEMATOLOGY — CBC & ESR
+Booking: 09/01/2024 07:55:16
+Collection: 09/01/2024 07:55:30
+Reporting: 09/01/2024 10:33:03
+
+Hemoglobin: 10.2 g/dl (11.5 - 15.5)
+R.B.Cs: 4.37 10^12/L (4.0 - 5.2)
+Hematocrit: 32.3 % (35.0 - 50.0)
+M.C.V: 73.9 fl (76 - 96)
+M.C.H: 23.3 pg (24 - 29)
+M.C.H.C: 31.6 g/dl (32 - 36)
+Total Leucocytes Count/TLC: 4.06 x 10^3/l (4 - 10)
+Neutrophils: 84.5 % (40 - 75)
+Lymphocytes: 5.7 % (20 - 45)
+Monocytes: 9.6 % (2 - 10)
+Eosinophils: 0.0 % (1 - 6)
+Basophils: 0.2 % (<1)
+Platelets: 46 x 10^9/l (150 - 400)
+ESR: 30 mm/Hour (Male 0 - 10, Female 0 - 18)
+
+Morphology:
+- DIMORPHIC BLOOD PICTURE
+- ANISOCYTOSIS, HYPOCHROMIC, MICROCYTIC
+- POLYCHROMASIA
+- ? IRON DEFICIENCY
+- SUGGEST SERUM IRON TIBC & FERRITIN LEVEL
+- PLATELETS ARE LOW ON FILM
+- ? CAUSE

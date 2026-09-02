@@ -1,0 +1,21 @@
+Document index: 56
+Document type: other
+Service date: 2024-06-19
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility branding, patient ID, and shift signatures omitted. Date digits partially ambiguous.
+
+CONTENT
+----------------------------------------
+INTAKE / OUT-PUT RECORD SHEET. Date ~19/06/2024 (handwritten; digit ambiguous on photo).
+Intake:
+0800: H2O 100; urine Pass
+0900–1000: Tab 100 each; urine Pass
+1300: PO total ~250
+1800: Inj Onset/corset 100; Inj S/B LD or Half D 50
+1900: Inj Betalsin 100; Half D Hold; H2O 100
+2000: Inj Ceftriax 100; Half D Hold
+1900–2100: H2O 100; urine ~200 Pass at 2100; stool SM Pass ~2100–2200
+Night: PO H2O 250 at 0200; urine 250 Pass; parenteral ~50/hr 0000–0600; C/O ~400
+Vomitus/drainage/NG mostly No
+24h totals — Intake: Parenteral 750 ml, Oral 650 ml, Grand 1400 ml
+Output: Urine 750 ml, Drainage 100 ml, Grand 850 ml; Balance +550 ml

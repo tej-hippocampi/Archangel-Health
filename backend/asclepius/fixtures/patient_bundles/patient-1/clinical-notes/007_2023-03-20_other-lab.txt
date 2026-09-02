@@ -1,0 +1,11 @@
+Document index: 7
+Document type: other lab
+Service date: 2023-03-20
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name redacted (green marker), ward/unit and facility omitted
+
+CONTENT
+----------------------------------------
+Chemical Pathology
+Serum Albumin: 4.7 g/dL (3.40-4.80)
+Serum Amylase: 106 U/l (28-100) [H]

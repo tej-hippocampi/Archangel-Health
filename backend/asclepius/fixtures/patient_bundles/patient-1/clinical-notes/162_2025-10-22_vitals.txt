@@ -1,0 +1,27 @@
+Document index: 162
+Document type: vitals
+Service date: 2025-10-22
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: staff name/initial column not transcribed
+
+CONTENT
+----------------------------------------
+Vital Signs Sheet (Date, Time, B/P mmHg, Resp bpm, Pulse b/min, SpO2%, Temp F):
+- 22/10/2025 1850: BP 80/50, Resp 20, Pulse 117, SpO2 94%, Temp 98F
+- 22/10/2025 1920: BP 60/40, Resp 20, Pulse 108, SpO2 96% (O2 36), Temp 98F
+- 22/10/2025 2000: BP 60/40, Resp 20, Pulse 102, SpO2 97% (O2 32), Temp 98F
+- 22/10/2025 2030: BP 70/40, Resp 22, Pulse 101, SpO2 97% (O2 32), Temp 98F
+- 22/10/2025 2100: BP 80/60, Resp 22, Pulse 98, SpO2 97% (O2 32), Temp 98F
+- 22/10/2025 2135: BP 100/60, Resp 22, Pulse 102, SpO2 95% (O2 36), Temp 98F
+- 24/10/2025 1:00pm: BP 137/75, Resp 22, Pulse 88, SpO2 96%, Temp 98F
+- 24/10/2025 1600: BP 100/70, Resp 20, Pulse 81, SpO2 97%, Temp A/F
+- 24/10/2025 2200: BP 100/60, Resp 20, Pulse 85, SpO2 98%, Temp A/F
+- 24/10/2025 2300: BP 110/70, Resp 20, Pulse 84, SpO2 98%, Temp A/F
+- 25/10/2025 0300: BP 90/60, Resp 20, Pulse 86, SpO2 98%, Temp A/F
+- 25/10/2025 0500: BP 90/60, Resp 20, Pulse 86, SpO2 99%, Temp 98.8F
+- 25/10/2025 0700am: BP 100/60, Resp 20, Pulse 84, SpO2 98%, Temp A/F
+- 25/10/2025 9:00: BP 130/70, Resp 20, Pulse 85, SpO2 98%, Temp 98F
+- 25/10/2025 9:30: BP 80/60
+- 25/10/2025 10:00: BP 80/60
+- 25/10/2025 1600: BP 90/60, Resp 20, Pulse 70, SpO2 97%, Temp A/F
+- 25/10/2025 2200: (row started, values blank)

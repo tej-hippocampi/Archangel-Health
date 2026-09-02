@@ -1,0 +1,21 @@
+Document index: 41
+Document type: clinical note
+Service date: 2026-06-17
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No patient name, DOB, identifier field, provider names, or facility identifiers visible on this page.
+
+CONTENT
+----------------------------------------
+Head to Toe Assessment & Reassessment For Adult and Peads (Page 1 of 2).
+Columns: 17/06/2026 Morning, 17/06/2026 Evening, 18/06/2026 Morning, 18/06/2026 Evening.
+Findings consistent across all four shifts:
+Orientation (Time/Place/Person): *3
+GCS: 15/15
+Oral cavity (Mouth/Tongue): Normal
+Cardiac (S1/S2 clarity): S1/S2 normal
+Respiratory – air entry bilaterally: ↑↑; breath sounds: Normal
+GI – abdomen: soft; bowel sounds: normal
+GU – stool passed: Pass; spontaneous (not Foley); urine color: Amber
+MSK – weakness: NO; deformities: NO; activity: Mobilize / AAT / Both
+Vascular – radial pulse: Strong; capillary refill: 2–3 sec
+Skin – turgor: Normal; color: Pale; cyanotic: NO; temperature: Warm

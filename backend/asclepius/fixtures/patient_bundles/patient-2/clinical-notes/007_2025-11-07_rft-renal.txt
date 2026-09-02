@@ -1,0 +1,16 @@
+Document index: 7
+Document type: RFT/renal
+Service date: 2025-11-07
+Age on report: 65Y    Sex: M
+De-identification: Omitted patient name, relative name (S/o), consultant name, laboratory number, identifier field; omitted facility code embedded in lab number prefix
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Patient location: OPD
+Booking: 07/11/2025 11:36:28
+Collection: 07/11/2025 11:36:45
+Reporting: 07/11/2025 13:05:26
+
+CREATININE (SERUM)
+Creatinine Serum: 1.1 mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4)

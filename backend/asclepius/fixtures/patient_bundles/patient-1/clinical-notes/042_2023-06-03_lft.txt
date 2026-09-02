@@ -1,0 +1,16 @@
+Document index: 42
+Document type: LFT
+Service date: 2023-06-03
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name/ward identifiers redacted with green marker and omitted.
+
+CONTENT
+----------------------------------------
+L.F.Ts (6 Para) (Chemical Pathology)
+Serum Bilirubin (Total): 5.50 mg/dl (0.25-04-1999) [H]
+Serum Bilirubin (Direct): 5.38 mg/dl (<= 0.30) [H]
+Serum Bilirubin (Indirect): 0.12 mg/dl (0.25-0.9) [L]
+SGPT (ALT): 79 U/L (< 45) [H]
+Alkaline phosphatase: 723 U/L (42-129) [H]
+Gamma GT: 983 U/L (8-61) [H]
+Serum Amylase: 116 U/l (28-100) [H]

@@ -1,0 +1,21 @@
+Document index: 61
+Document type: clinical note
+Service date: 2026-06-16
+Age on report: 65Y    Sex: M
+De-identification: patient name, provider names, and staff signatures/designations omitted
+
+CONTENT
+----------------------------------------
+Progress / nursing receiving notes (handwritten form: DATE / TIME / NOTES).
+
+16/06/2026 15:30 — Receiving note: 65Y male, known case of HCV, admitted with abdominal pain, fever, loose motion. GCS 15/15. SpO2 98% on room air. Vitally stable. Mobilized. IV in situ. Taking oral medications. Soft diet allowed. H/o hepatic cyst on CT abdomen.
+
+16/06/2026 22:00 — Patient received from evening shift.
+
+17/06/2026 (morning) — Receiving notes: patient stable, no active complaint.
+
+17/06/2026 23:00 — Receiving note: 65Y male received from evening shift. GCS 15/15. Diagnosis: fever, abdominal pain, loose motion. On room air, vitally stable, no active complaint.
+
+18/06/2026 08:00 — Receiving notes: received from night shift. Vitally stable. GCS 15/15. No active complaint.
+
+18/06/2026 15:30 — Receiving note: 65Y male, known case of HCV, admitted with abdominal pain, fever, loose motion. GCS 15/15. SpO2 98% on room air. Vitally stable. Mobilized. IV in situ. Orally allowed.

@@ -1,0 +1,26 @@
+Document index: 110
+Document type: radiology report
+Service date: 2024-12-21
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header; kept age, sex, service date, full structural findings including EF and suspected clot.
+
+CONTENT
+----------------------------------------
+STRUCTURAL INTERPRETATION (same study timestamp as index 109).
+
+Left Ventricle systolic function:
+Size and wall thickness is normal. Apex, septum, mid lateral, mid inferior, mid anterior and mid posterior
+segments are akinetic. Rest of the segments are contracting normally.
+Left ventricular systolic function is moderate to severely reduced.
+Visually estimated ejection fraction is 30-35%.
+
+Left ventricle diastolic function: Cannot comment on diastolic function due to E/A merged.
+
+Right Ventricle: Normal in size with normal systolic function.
+Left Atrium: Normal in size.
+Right Atrium: Normal in size.
+Aorta: Aortic root is normal in size and appearance.
+Systemic Veins: Inferior vena cava is normal in size and collapses normally with inspiration.
+
+There is no pericardial effusion, vegetation or shunt seen.
+Suspected LV apical clot seen.

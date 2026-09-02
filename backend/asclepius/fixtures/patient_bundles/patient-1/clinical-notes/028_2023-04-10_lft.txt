@@ -1,0 +1,17 @@
+Document index: 28
+Document type: LFT
+Service date: 2023-04-10
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name/branch/ward identifiers redacted with green marker and omitted.
+
+CONTENT
+----------------------------------------
+L.F.Ts (6 Para) (Chemical Pathology)
+Serum Bilirubin (Total): 17.34 mg/dl (0.25-04-1999) [H]
+Serum Bilirubin (Direct): 14.14 mg/dl (<= 0.30) [H]
+Serum Bilirubin (Indirect): 3.20 mg/dl (0.25-0.9) [H]
+SGPT (ALT): 24 U/L (< 45)
+Alkaline phosphatase: 224 U/L (42-129) [H]
+Gamma GT: 62 U/L (8-61) [H]
+Vitamin D3 Level: 10.8 ng/ml (30-40) [L]
+(Vitamin D deficiency: <20 ng/ml; insufficiency: 21-29; sufficiency: >=30; intoxication: >150)

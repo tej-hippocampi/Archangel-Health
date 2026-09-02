@@ -1,0 +1,13 @@
+Document index: 107
+Document type: radiology report
+Service date: 2025-01-24
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility header, Ref. By, and footer/signature redactions; kept age, sex, service date, clinical text.
+
+CONTENT
+----------------------------------------
+X-RAY CHEST AP VIEW
+
+Findings/impression text:
+Bilateral lower lobe air space infiltrates likely infective in etiology.
+Adv clinical and laboratory correlation.

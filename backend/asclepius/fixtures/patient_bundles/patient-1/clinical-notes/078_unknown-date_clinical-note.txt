@@ -1,0 +1,12 @@
+Document index: 78
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: provider name/identification redacted and omitted
+
+CONTENT
+----------------------------------------
+Patient Progress note.
+Seen by [provider name omitted] (Gastro).
+- Shift to HDU
+- Get U/S abdomen

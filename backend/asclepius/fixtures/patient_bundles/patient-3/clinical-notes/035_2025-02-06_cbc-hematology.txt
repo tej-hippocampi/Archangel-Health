@@ -1,0 +1,33 @@
+Document index: 35
+Document type: CBC/hematology
+Service date: 2025-02-06
+Age on report: 76Y    Sex: F
+De-identification: Green overlay obscured name/facility/IDs; omitted residual identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF HEMATOLOGY
+
+Booking Date & Time: 06/02/2025 16:08:40
+Collection Date & Time: 06/02/2025 16:08:49
+Reporting Date & Time: 07/02/2025 13:42:28
+
+CBC & ESR
+Hemoglobin: 9.8 g/dl (11.5 - 15.5)
+R.B.Cs: 3.54 10^12/L (4.0 - 5.2)
+Hematocrit: 29.1 % (35.0 - 50.0)
+M.C.V: 82.2 fl (76 - 96)
+M.C.H: 27.7 pg (24 - 29)
+M.C.H.C: 33.7 g/dl (32 - 36)
+RDW-CV: 19.2 % (11.0 - 16.0)
+Total Leucocytes Count/TLC: 4.03 x 10^3/l (4 - 10)
+Neutrophils: 82.8 % (40 - 75)
+Lymphocytes: 11.7 % (20 - 45)
+Monocytes: 5.5 % (2 - 10)
+Eosinophils: 0.0 % (1 - 6)
+Basophils: 0.0 % (<1)
+Platelets: 40 x 10^9/l (150 - 400)
+ESR: 41 mm/Hour (Male 0-10; Female 0-18)
+
+Morphology: NORMOCHROMIC NORMOCYTIC ANEMIA; LEFT SHIFT; LARGE PLATELETS SEEN; PLATELETS LOW ON SMEAR; ?CAUSE
+Remarks: CLINICALLY CORRELATE

@@ -1,0 +1,10 @@
+Document index: 96
+Document type: RFT/renal
+Service date: 2024-05-06
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name ("identifier field ..."), "identifier field", Branch, and Ward/Unit redacted/omitted.
+
+CONTENT
+----------------------------------------
+Chemical Pathology
+Serum Creatinine: 0.78 mg/dl (0.70 - 1.20)

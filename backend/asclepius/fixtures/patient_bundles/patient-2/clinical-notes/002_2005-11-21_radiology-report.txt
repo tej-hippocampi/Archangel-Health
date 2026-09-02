@@ -1,0 +1,14 @@
+Document index: 2
+Document type: radiology report
+Service date: 2005-11-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility name from ultrasound machine header; machine brand noted only as context omitted from content
+
+CONTENT
+----------------------------------------
+Modality: Ultrasound
+Body region: Abdomen
+Timestamp on screen: 2005/12/12 05:44:33PM
+Two-panel cine review frames (no narrative findings/impression text on image).
+Technical notes visible: dual R/L views; probe/settings labels (6C3/4.2, 27fps, DR60).
+No typed measurements or written report text present — image-only capture (pixels not transcribed).

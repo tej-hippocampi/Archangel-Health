@@ -1,0 +1,9 @@
+Document index: 19
+Document type: clinical note
+Service date: 2023-06-04
+Age on report: UNKNOWN    Sex: M
+De-identification: sender/recipient names redacted (green marker)
+
+CONTENT
+----------------------------------------
+Referral note: Referring patient, known case of Noncirrhotic Portal Hypertension with Portal Biliopathy, S/P ERCP + plasty/stenting. Kindly evaluate him for Shunt Surgery.

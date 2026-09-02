@@ -1,0 +1,44 @@
+Document index: 23
+Document type: clinical note
+Service date: 2020-08-08
+Age on report: 65Y    Sex: UNKNOWN
+De-identification: Omitted patient name (green redaction); no provider/facility/identifier field visible.
+
+CONTENT
+----------------------------------------
+Outpatient / clinic assessment form
+
+Vitals:
+- BP: 140/90
+- Temp: recorded (checked)
+- Pulse: 109 / min
+- Resp rate: recorded (checked)
+- O2 sat: 98%
+- PEFR: not recorded
+- Weight: 74 kg
+
+History checkboxes:
+- DM: No
+- HTN: Yes (on tablet)
+- IHD: No
+- Pets: No
+- H/O TB: No
+- Contact with TB person: No
+- H/O COVID-19: No
+- COVID-19 vaccine status: No
+- Smoker: No
+- Occupation: Landlord
+- Other addiction: none indicated
+- Biomass fuel exposure: none indicated
+- Anti-HCV: negative
+- HBsAg: negative
+- Drug usage: blank
+
+Chief complaints:
+- Chest pain
+- Abdomen pain
+- Cough with sputum
+- Fever (low grade)
+
+Examination: blank
+Advice / provisional diagnosis: CXR advised; diagnosis field blank

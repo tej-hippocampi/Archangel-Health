@@ -1,0 +1,18 @@
+Document index: 90
+Document type: serology/viral
+Service date: 2025-09-12
+Age on report: 65Y    Sex: M
+De-identification: Name, lab/identifier fieldnumbers, facility header redacted (green) or omitted; booking/collection times not fully legible beyond same-day context.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF VIROLOGY
+Reporting: 12/09/2025 12:49:13
+HbsAg (Australian Antigen)
+HbsAg Test Value: 0.215
+Cut Off Value: 1.00
+Result: Non-Reactive
+Methodology: ECLIA (Electrochemiluminescence) Immunoassay
+Normal Range: Non-reactive
+Remarks: Reactive results suggested to correlate with clinical history; if strong clinical suspicion may repeat testing in 14 days.
+(Printed interpretation block on report appears mismatched/boilerplate relative to HBsAg panel text.)

@@ -1,0 +1,24 @@
+Document index: 80
+Document type: CBC/hematology
+Service date: 2024-02-04
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name/lab no redacted; branch/facility name omitted
+
+CONTENT
+----------------------------------------
+CBC ESR Profile
+Haemoglobin: 11.9 gm/dl (12.0 - 16.0) [L]
+Haematocrit: 37.8 % (40 - 50) [L]
+R.B.C: 4.58 10^6/L (4.3 - 5.9)
+M.C.V: 82.7 FL (80 - 100)
+M.C.H: 26.0 PG (27 - 34) [L]
+M.C.H.C: 31.4 g/dL (31 - 36)
+W.B.C: 5.1 10^3/UL (4.0 - 10.0)
+Neutrophils: 62.9 % (40 - 80)
+Lymphocytes: 25.2 % (20 - 40)
+Monocytes: 8.1 % (2 - 10)
+Eosinophils: 3.3 % (1 - 6)
+Basophils: 0.5 % (<1)
+Platelet Count: 120 x10^9L (150 - 450) [L]
+ESR: 20 mm/1Hr (0 - 25)
+Remarks: Normocytic, Normochromic. Platelets large in size seen. ? Cause.

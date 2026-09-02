@@ -1,0 +1,12 @@
+Document index: 101
+Document type: radiology report
+Service date: 2023-06-18
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name; kept age, sex, service date, technical/anatomic content.
+
+CONTENT
+----------------------------------------
+CT film (Aquilion ONE): grid of ~18 axial slices through lower abdomen/pelvis.
+Protocol labels/parameters visible on frames: ~120kV 125mAs; slice/reconstruction params ~0.5s / 7.5mm; helical pitch ~HP55.0.
+Anatomy: iliac bones, sacrum, bowel loops (gas/contrast), bladder region; lower rows show hip joints (acetabula/femoral heads).
+No written radiologist findings/impression on film (image tiles only).

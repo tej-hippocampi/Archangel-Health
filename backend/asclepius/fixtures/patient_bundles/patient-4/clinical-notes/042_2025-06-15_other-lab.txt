@@ -1,0 +1,23 @@
+Document index: 42
+Document type: other lab
+Service date: 2025-06-15
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name/identifier field/facility (green redaction); kept age, sex, service dates, clinical results
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+
+Booking: 15/06/2025 14:29:36
+Collection: 15/06/2025 14:30:02
+Reporting: 15/06/2025 16:07:48
+
+HBA1C (Glycosylated HB):
+- HBA1C: 11.46 %
+- Normal ranges: Non Diabetic 4.0-6.0; Pre Diabetic 6.5-7.0; Diabetic 7.0-8.0
+
+Notes (printed):
+1. Per ADA guidelines, HbA1c ≥ 6.5% is a criterion for diagnosis of Diabetes Mellitus.
+2. In known DM, HbA1c indicates overall glucose control over prior 2–3 months.
+3. Optimum target is individual; discuss with physician.
+Reference: American Diabetes Association (ADA).

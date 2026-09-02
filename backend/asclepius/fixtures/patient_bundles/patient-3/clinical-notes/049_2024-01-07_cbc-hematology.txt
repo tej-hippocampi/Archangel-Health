@@ -1,0 +1,38 @@
+Document index: 49
+Document type: CBC/hematology
+Service date: 2024-01-07
+Age on report: 75Y    Sex: F
+De-identification: Green redaction over name/identifier field/referring physician/facility; identifiers omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF HEMATOLOGY — CBC & ESR
+Booking: 07/01/2024 15:50:16
+Collection: 07/01/2024 15:50:23
+Reporting: 08/01/2024 12:34:28
+
+Hemoglobin: 7.6 g/dl (11.5 - 15.5)
+R.B.Cs: 3.58 10^12/L (4.0 - 5.2)
+Hematocrit: 24.7 % (35.0 - 50.0)
+M.C.V: 69.0 fl (76 - 96)
+M.C.H: 21.2 pg (24 - 29)
+M.C.H.C: 30.8 g/dl (32 - 36)
+RDW-CV: 30.9 % (11.0 - 16.0)
+Total Leucocytes Count/TLC: 3.56 x 10^3/l (4 - 10)
+Neutrophils: 85.4 % (40 - 75)
+Lymphocytes: 7.3 % (20 - 45)
+Monocytes: 5.9 % (2 - 10)
+Eosinophils: 1.4 % (1 - 6)
+Basophils: 0.1 % (<1)
+Platelets: 60 x 10^9/l (150 - 400)
+ESR: 31 mm/Hour (Male 0 - 10, Female 0 - 18)
+
+Morphology:
+- ANISOCYTOSIS, HYPOCHROMIC, MICROCYTIC
+- POLYCHROMASIA TEAR DROP ELLIPTICAL ON TARGET CELLS
+- ROULEAUX FORMATION
+- IRON DEFICIENCY ANEMIA
+- SUGGEST SERUM IRON TIBC & FERRITIN LEVEL
+- MILD LEUKOPENIA (NEUTROPENIA)
+- PLATELETS ARE REDUCED ON FILM
+- ? CAUSE

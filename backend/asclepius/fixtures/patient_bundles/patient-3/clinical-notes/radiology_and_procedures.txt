@@ -1,0 +1,181 @@
+RADIOLOGY & PROCEDURE REPORTS (de-identified)
+============================================================
+
+--- Image 57 | 2026-04-23 | radiology report ---
+Echocardiogram / Echo Report Summary
+Timestamp: 23/04/2026 14:27:37
+
+Aortic Valve: Thickened with normal mobility.
+Mitral Valve: Thickened calcified with normal mobility. Mild to moderate regurgitation.
+Pulmonic Valve: Normal in thickness and mobility.
+Tricuspid Valve: Normal in thickness and mobility. Mild regurgitation.
+Pulmonary artery systolic pressure: 35 mmHg.
+
+Summary:
+1. Mildly dilated left atrium.
+2. Normal left ventricular systolic function.
+3. Grade II left ventricular diastolic dysfunction.
+4. Normal right ventricular systolic function.
+5. Mild to moderate mitral regurgitation.
+6. Mild tricuspid regurgitation.
+7. Mild pulmonary artery hypertension.
+
+--- Image 58 | UNKNOWN | radiology report ---
+Modality: Echocardiogram — STRUCTURAL INTERPRETATION (continuation page)
+
+Left Ventricle systolic function: Size and wall thickness normal. Left ventricular global systolic function normal. Visually estimated ejection fraction 55%.
+Left ventricle diastolic function: Mitral inflow shows pseudonormal E/A pattern. E/E' 16.
+Right Ventricle: Normal in size with normal systolic function.
+Left Atrium: Mildly dilated.
+Right Atrium: Normal in size.
+Aorta: Aortic root normal in size and appearance.
+Systemic Veins: Inferior vena cava normal in size and collapses normally with inspiration.
+Additional Findings: No pericardial effusion, LV clot, vegetation or shunt seen.
+
+--- Image 59 | UNKNOWN | radiology report ---
+Modality: Echocardiogram — M-MODE/2-D MEASUREMENTS (continuation page)
+
+Columns labeled Normal / Normal.
+
+Systolic: 27 (ref <35 mm)
+Diastolic: 37 (ref <52 mm)
+Septal Thickness: 08 (ref <11 mm)
+Post Wall Thickness: 08 (ref <11 mm)
+Left Atrial volume index: 38 (ref <34 ml/m2) — elevated vs reference
+Ascending Aorta: 29 (ref <34 ± 3 mm)
+
+--- Image 60 | 2026-04-23 | radiology report ---
+Modality: ULTRASOUND ABDOMEN
+Timestamp: 23/04/2026 14:21:41
+
+LIVER: Normal in size; coarse echotexture & irregular outlines. Hypoechoic area measuring 2.1 x 1.9 cm in right lobe — possibility of mass. Tiny simple cyst 0.5 x 0.5 cm in right lobe. Calcification 0.4 cm in right lobe. IHVs & ducts not dilated. P.V 0.9 cm; CBD not dilated.
+Bold impression line: Chronic Liver Disease with Possibility of Mass & Simple Hepatic Cyst
+G. BLADDER: Partially contracted; no focal mass or calculus.
+SPLEEN: Upper limit normal, 12 cm; no focal mass.
+PANCREAS: Normal; no focal mass.
+RIGHT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+LEFT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+U. BLADDER: Normal; no focal mass or calculus.
+Bowel loops not dilated. Ascites not seen. No pelvic pathology seen at time of scan.
+
+--- Image 61 | 2025-06-29 | radiology report ---
+Modality: X-RAY CHEST PA VIEW
+Timestamp: 29/06/2025 14:32:24
+
+Findings:
+- Left upper lobe air space infiltrates likely infective in etiology
+- Adv clinical and laboratory correlation
+
+--- Image 62 | 2025-06-28 | radiology report ---
+Modality: ULTRASOUND ABDOMEN (PORTABLE)
+Timestamp: 28/06/2025 20:13:45
+
+LIVER: Normal in size; increased echotexture & irregular outlines. No focal mass. IHVs & ducts not dilated. P.V=1.1 cm; CBD not dilated.
+Impression: Chronic Liver Disease
+G. BLADDER: Normal; no focal mass or calculus.
+SPLEEN: Enlarged, 13.7 cm; no focal mass.
+Impression: Splenomegaly
+PANCREAS: Could not be visualized due to overlying gas-filled bowel loops.
+RIGHT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+LEFT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+U. BLADDER: Normal; no focal mass or calculus.
+Bowel loops not dilated. Mild ascites seen at time of scan.
+
+--- Image 63 | 2025-02-03 | radiology report ---
+Modality: X-RAY CHEST VIEW
+Timestamp: 03/02/2025 20:13:53
+
+Findings:
+- Bilateral obstructive bronchitic changes are seen
+- No active pulmonary kochs or consolidation is seen
+- Unfolding of aorta is seen with normal cardiac size
+
+--- Image 64 | 2025-02-03 | radiology report ---
+Modality: ULTRASOUND ABDOMEN (Portable)
+Timestamp: 03/02/2025 21:04:45
+
+LIVER: Normal in size; increased echopattern & slightly irregular outlines. No focal mass. IHVs & ducts not dilated. P.V=1.0 cm; CBD not dilated.
+Impression: Liver Parenchymal Disease
+G. BLADDER: Contracted at time of scan.
+SPLEEN: Upper limit normal, 12.0 cm; no focal mass.
+PANCREAS: Visualized part (body) appears normal; no focal mass.
+RIGHT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+LEFT KIDNEY: Small in size, 7.6 x 2.7 cm; no focal mass, calculus or hydronephrosis.
+Impression: Small Left Kidney
+U. BLADDER: Normal; no focal mass or calculus.
+Bowel loops not dilated. Ascites not seen.
+
+--- Image 65 | 2025-06-28 | radiology report ---
+Modality: X-RAY CHEST PA VIEW
+Timestamp: 28/06/2025 18:49:56
+
+Findings:
+- Bony cage normal
+- No active pulmonary lesion, consolidation, collapse
+- No mediastinal pathology seen
+- Hilum appears normal
+- Cardio and costophrenic angles clear
+- Both domes of diaphragm normally raised
+- Cardiac shadow within normal limit
+- Trachea centrally placed
+- Soft tissue appears normal
+
+CONCLUSION: Normal chest x-ray
+
+--- Image 66 | 2024-06-18 | radiology report ---
+Modality: X-RAY CHEST VIEW
+Timestamp: 18/06/2024 15:02:08
+
+Findings:
+- Bony cage normal
+- No active pulmonary lesion, consolidation, collapse
+- No mediastinal pathology seen
+- Hilum appears normal
+- Cardio and costophrenic angles clear
+- Both domes of diaphragm normally raised
+- Cardiac shadow within normal limit
+- Trachea centrally placed
+- Soft tissue appears normal
+
+CONCLUSION: Normal X-Ray Chest
+
+--- Image 67 | 2024-06-18 | radiology report ---
+Modality: ULTRASOUND ABDOMEN
+Timestamp: 18/06/2024 15:03:26
+
+LIVER: Normal in size; slightly coarse echo pattern & regular outlines. Tiny calcification in right lobe measuring 0.3 cm. No focal mass. IHVs & ducts not dilated. P.V 0.8 cm; CBD not dilated.
+G. BLADDER: Contracted at time of scan.
+SPLEEN: Normal, 11.8 cm; no focal mass.
+PANCREAS: Normal; no focal mass.
+BOTH KIDNEYS: Lower limit normal in size with normal echopattern; no focal mass, calculus or hydronephrosis.
+U. BLADDER: Empty at time of scan.
+Bowel loops not dilated. Ascites not seen.
+
+--- Image 68 | 2024-01-08 | radiology report ---
+Modality: X-RAY THORACIC SPINE AP/LAT VIEW
+Timestamp: 08/01/2024 17:09:37
+
+Findings:
+- Partial compression of T11 and T12 with anterior wedging of T11 and narrowing of disc space
+- Traumatic collapse? (old)
+- Reduced bone density is seen
+
+--- Image 69 | 2024-01-08 | radiology report ---
+Modality: X-RAY LUMBER SPINE AP/LAT VIEW (spelling as printed)
+Timestamp: 08/01/2024 14:47:37
+
+Findings:
+- Loss of normal curvature of spine is seen
+- Muscular spasm?
+- Partial compression of T11, T12 with anterior wedging of T11 and narrowing of disc space
+- Old traumatic collapse?
+- Reduced bone density is seen
+
+--- Image 70 | 2024-01-06 | radiology report ---
+Modality: X-RAY CHEST PA VIEW
+Timestamp: 06/01/2024 16:08:27
+
+Findings:
+- Bilateral asthmatic bronchitic changes are seen
+- No active pulmonary koch's or consolidation is seen
+- Normal cardiac size is seen

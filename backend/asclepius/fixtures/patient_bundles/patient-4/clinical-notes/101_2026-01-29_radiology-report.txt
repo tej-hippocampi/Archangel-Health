@@ -1,0 +1,24 @@
+Document index: 101
+Document type: radiology report
+Service date: 2026-01-29
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header (green redaction); Sonologist/Ref. By blank; kept age, sex, service date, clinical findings.
+
+CONTENT
+----------------------------------------
+Echo report — VALVES / SUMMARY section (header facility/patient fields redacted on image).
+
+VALVES:
+- Aortic Valve: Thickened with normal mobility.
+- Mitral Valve: Thickened with normal mobility. Mild regurgitation.
+- Pulmonic Valve: Normal in thickness and mobility.
+- Tricuspid Valve: Normal in thickness and mobility. Mild regurgitation.
+- Pulmonary artery systolic pressure is 35 mmHg.
+
+SUMMARY:
+1. Normal size cardiac chambers.
+2. Normal left ventricular systolic function.
+3. Normal right ventricular systolic function.
+4. Mild mitral regurgitation.
+5. Mild tricuspid regurgitation.
+6. Mild pulmonary artery hypertension.

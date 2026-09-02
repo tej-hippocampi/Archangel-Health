@@ -1,0 +1,26 @@
+Document index: 59
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: no direct identifiers transcribed
+
+CONTENT
+----------------------------------------
+ICU Progress Note (systems-based) - Page 2 of 2
+Known case of Portal Biliopathy + Portal HTN. Sepsis 2° to cholangitis?
+NEURO: GCS 15/15
+CARDIO: S1+S2 audible; BP 130/80 on Nor-epi @ 9 ml/hr; Pulse 73 bpm
+RESP: RR 28 br/min; CPAP @ 10 H2O = 2L O2
+ABDO: Soft, NT, stool not passed
+RENAL: Input 1420 - Output 1440 = -20 ml
+ENDO: RBS @ 7 AM = 106 mg/dl
+HAEM: No active bleeding
+ID: (R) femoral CVP; 2 fever spikes of 100° in night shift
+LINE/DRAINS: (R) femoral CVP
+Plan:
+- Taper Nor-epi
+- CPAP weaning trial
+- Update primary & discuss further plan
+- Send Urine DR
+- Send Blood C/S
+- Continue IVF

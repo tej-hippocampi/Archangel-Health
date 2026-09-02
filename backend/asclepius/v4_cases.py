@@ -864,6 +864,35 @@ def V4_HOLDS() -> Dict[str, str]:
 #: Independent labels per V4 case (V4 PRD §4): one labeller plus two independent
 #: for Cohen's kappa. NOT 60 — visibility and paid labels are different things,
 #: and at $75/case ``max_labels=60`` is $4,500 for one case.
+# ═══════════════════════════════════════════════════════════════════════════════
+# The partner bundles themselves (Longitudinal E2E PRD §2.2)
+# ═══════════════════════════════════════════════════════════════════════════════
+# The three cases above were hand-authored FROM patient-1, -3 and -4; the charts
+# they were read out of never entered the ingestion pipeline, which is why the
+# Longitudinal batch read ``0 trajectories · 0 points`` for as long as it did.
+# The bundles now live under ``asclepius/fixtures/patient_bundles/`` and go in
+# through the real partner door (``patient_fixtures.ingest_committed_bundles``).
+#
+# **The specialty map is here, not there, on purpose.** None of the four bundles
+# carries a ``manifest.json``, so ingestion would resolve every one of them to
+# ``general`` — a wrong specialty routes a case to the wrong pool and mislabels it
+# in the export, invisibly, which is the exact failure ``specialty not set`` exists
+# to prevent. The knowledge of what each chart IS was already encoded in this file
+# by the hand-authored cases; putting the map anywhere else would create a second
+# place to be wrong about it. ``patient-2`` has no authored case above and is named
+# here from its own README (serial tumour markers and serial radiology).
+#
+# For a HOSPITAL upload the fix is not this map — it is Box 1's inline specialty
+# editor (``POST /uploads/{id}/specialty``). This map covers exactly the four
+# committed fixtures and nothing else.
+FIXTURE_BUNDLE_SPECIALTIES: Dict[str, str] = {
+    "patient-1": "hepatology",
+    "patient-2": "oncology",
+    "patient-3": "nephrology",
+    "patient-4": "cardiology",
+}
+
+
 V4_DEFAULT_MAX_LABELS = 3
 
 

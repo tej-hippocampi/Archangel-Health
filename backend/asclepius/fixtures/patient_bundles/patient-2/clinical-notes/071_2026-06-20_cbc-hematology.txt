@@ -1,0 +1,32 @@
+Document index: 71
+Document type: CBC/hematology
+Service date: 2026-06-20
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/facility redacted and omitted
+
+CONTENT
+----------------------------------------
+Department of Hematology — CP (CBC)
+Booking: 20/06/2026 05:38 (approx)
+Reporting: 20/06/2026 10:48 (approx)
+
+Hemoglobin: 9.4 g/dl (12-16.5) [L]
+R.B.Cs: 4.13 10^12/L (4.0-5.2)
+Hematocrit: 29.4 % (35.0-50.0) [L]
+M.C.V: 71.2 fl (76-96) [L]
+M.C.H: 22.8 pg (24-29) [L]
+M.C.H.C: 32.0 g/dl (32-36)
+RDW-CV: 15.6 % (11.0-16.0)
+Total Leucocytes Count/TLC: 32.70 x 10^3/l (4-10) [H]
+Neutrophils: 87.0 % (40-75) [H]
+Lymphocytes: 3.8 % (20-45) [L]
+Monocytes: 8.9 % (2-10)
+Eosinophils: 0.2 % (1-6) [L]
+Basophils: 0.1 % (<1)
+Platelets: 72 x 10^9/l (150-400) [L]
+
+Morphology:
+Hypochromic, microcytic; polychromasia; elliptical cells seen.
+Hyper neutrophilic leukocytosis with left shift neutrophils — ? reactive ? other causes.
+Platelets low on smear — ? cause.
+Remarks: Advise clinical correlation.

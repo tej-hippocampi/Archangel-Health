@@ -1,0 +1,17 @@
+Document index: 75
+Document type: prescription/medication
+Service date: 2025-10-25
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: signature/name region redacted and omitted
+
+CONTENT
+----------------------------------------
+Physician orders (handwritten):
+- Inj Vancomycin 1 gm IV stat
+- Continue with Solucortef (steroid) [as written, uncertain]
+- BP monitoring
+- Taper off Norepinephrine (Norpine) support 0.1 every half hourly
+- I/O charting
+- Encourage orally
+- Fever charting
+- Continue with IV hydration

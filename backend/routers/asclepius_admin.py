@@ -19,7 +19,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -492,6 +492,76 @@ async def set_portal_account_purpose(
             "message": f"Future uploads from “{username}” are recorded as "
                        f"{purpose.replace('_', ' ')}. Uploads already received keep "
                        "the purpose they arrived with."}
+
+
+class IngestFixturesRequest(BaseModel):
+    """Which committed bundles to send through the door. Empty = all of them."""
+
+    bundles: Optional[List[str]] = None
+
+
+@router.post("/fixtures/ingest-patient-records", include_in_schema=False)
+async def ingest_committed_patient_records(
+    body: IngestFixturesRequest, background: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Send the committed de-identified patient records through the real ingest
+    door (Longitudinal E2E PRD §2.1).
+
+    This is the missing FRONT DOOR, and it is deliberately not a shortcut. The
+    four charts the V4 static cases were written from had never been uploaded, so
+    ``ingest_cases`` for them did not exist and ``generate`` — the only code path
+    that creates trajectories — had nothing to run on. The fix is to send them the
+    way a hospital sends one: mint an authorizing link, store the encrypted bytes,
+    insert the upload row, unpack in the background. **Not** a helper that inserts
+    trajectory rows from ``v4_cases.py``, because then the next hospital's upload
+    would still not work.
+
+    They land in Box 1 with purpose unset, exactly like a partner's bundle, and an
+    admin decides what they are for. Idempotent on the bundle sha256: click it
+    twice and the second call reports "already ingested" per bundle.
+    """
+    from asclepius import patient_fixtures as asc_fixtures
+
+    store = _store()
+    # Same fail-closed posture as ``POST /partner/uploads``: in production we
+    # refuse to accept a raw chart we cannot encrypt at rest or cannot keep. This
+    # door writes the same blobs to the same place, so it must refuse on the same
+    # conditions — a second entrance with weaker preconditions is how the unsafe
+    # path gets built by accident.
+    if (os.getenv("ENV") or "").strip().lower() == "production":
+        import field_crypto
+        if not field_crypto.is_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Ingestion is disabled: DATA_ENCRYPTION_KEY is not configured, "
+                       "so the bundle cannot be encrypted at rest.")
+        ok, why = asc_ingestion.ingest_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
+
+    try:
+        result = asc_fixtures.ingest_committed_bundles(
+            store, actor=admin["id"], bundles=body.bundles,
+            on_ingested=background.add_task)
+    except Exception as exc:  # pragma: no cover — surfaced, never swallowed
+        log.exception("committed-fixture ingest failed")
+        raise HTTPException(status_code=500, detail=f"Fixture ingest failed: {exc}")
+
+    store.log_event(entity_type="ingest_upload", entity_id="fixtures",
+                    event_type="committed_fixtures_ingested", actor=admin["id"],
+                    payload={k: result[k] for k in ("ingested", "skipped", "failed")})
+    n_new, n_old, n_bad = result["ingested"], result["skipped"], result["failed"]
+    if not result["available"]:
+        message = (f"No committed bundles found under {result['root']}. Each bundle is "
+                   "a directory of the partner's own files; add one and click again.")
+    else:
+        message = (f"{n_new} bundle(s) sent through the ingest door"
+                   + (f" · {n_old} already ingested" if n_old else "")
+                   + (f" · {n_bad} failed" if n_bad else "")
+                   + ". Parsing runs in the background; the rows appear in Incoming "
+                     "data as their cases land.")
+    return {**result, "message": message}
 
 
 @router.post("/uploads/{upload_id}/purpose", include_in_schema=False)

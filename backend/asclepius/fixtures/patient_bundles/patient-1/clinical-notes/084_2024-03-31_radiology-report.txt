@@ -1,0 +1,23 @@
+Document index: 84
+Document type: radiology report
+Service date: 2024-03-31
+Age on report: UNKNOWN    Sex: M
+De-identification: name redacted (green marker)
+
+CONTENT
+----------------------------------------
+Ultrasound Abdomen report.
+LIVER: Normal in size, shape, measures about 15.3 cm with uniform echopattern, regular outline. No evidence of any focal parenchymal abnormalities. IHD and IHV appear normal. Portal vein measures about 1.3 cm, shows multiple collaterals along portal vein representing cavernous transformation, no thrombus seen within it. IVC appears normal.
+G/BLADDER: Partially contracted, shows multiple calculi, largest one measures about 0.7 cm, with posterior shadowing. Stent seen appears to be in normal position. Visualized upper part of CBD measures about 0.5 cm.
+PANCREAS: Visualized head and body is normal in size and echopattern. No evidence of solid or cystic mass.
+SPLEEN: Enlarged in size, measures about 17.1 cm, normal shape and echopattern. Shows multiple calcific foci seen diffusely scattered. No focal mass or cyst seen. Splenic vein is not dilated.
+RIGHT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+LEFT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+Urinary bladder: Partially filled without calculus or mass.
+No lymphadenopathy seen.
+Bowel loops are not dilated, shows normal peristalsis. Gas loaded bowel loops seen in abdomen.
+No iliocecal lump / colonic mass seen at time of scan.
+No ascites seen.
+No pleural effusion seen.
+CONCLUSION: Cholelithiasis + Portal vein cavernous transformation + Splenomegaly with calcific foci.
+ADVISE: Liver profile + Clinical and lab correlation.

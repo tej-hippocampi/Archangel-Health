@@ -1,0 +1,27 @@
+Document index: 60
+Document type: clinical note
+Service date: 2026-06-18
+Age on report: 65Y    Sex: M
+De-identification: Patient name, physician names, nurse initials/signatures omitted. Age 65 and sex M retained. No facility/identifier field/DOB recorded.
+
+CONTENT
+----------------------------------------
+NURSES NOTE (DATE / TIME / NOTES).
+
+18/06/2026 2300 — Receiving note: 65-year-old male received from evening staff. Admitted with C/O
+abdominal pain, fever, loose stools; known case of HC (hepatic cirrhosis / hepatocellular disease —
+as written "HC"). On O2 support 2 L; vitals stable; no active complaint. Under physician care (name omitted).
+
+19/06/2026 08:00 — Receiving note: Received from night shift. Vitals stable; no active complaint.
+
+19/06/2026 1600 — Receiving note: 65-year-old male; GCS 15/15. Received from morning shift.
+On room air; vitals stable; no complaint. Under physician care (name omitted). Patient name omitted.
+
+19/06/2026 2400 — Receiving note: Vitals unstable; BP recorded including 90/60 mmHg. GCS 15/15.
+No bed sores; whole body clear. Under physician care (name omitted).
+
+20/06/2026 ~00:00 — Event note: Foley catheter inserted.
+
+20/06/2026 05:00 — Event note: Urine output decreased — 75 ml.
+
+20/06/2026 06:00 — Overnight urine output reviewed; plan to change Foley. Staff initials omitted.

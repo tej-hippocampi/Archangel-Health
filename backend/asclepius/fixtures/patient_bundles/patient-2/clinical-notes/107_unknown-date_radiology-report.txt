@@ -1,0 +1,13 @@
+Document index: 107
+Document type: radiology report
+Service date: unknown-date
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name; kept age/sex. Service date left UNKNOWN due to ambiguous overlay text.
+
+CONTENT
+----------------------------------------
+CT film: 24 coronal abdomen/pelvis slices (4x6 grid), contrast venous phase.
+Labels: WABDOMEN CONTRAST VENOUS PHASE Coronal; Aquilion ONE; R orientation markers.
+Anatomy from posterior to anterior: spine/back musculature; kidneys, liver, spleen, pelvic cavity; more anterior abdominal wall/liver/bowel.
+Date/time overlay on frames partially ambiguous/illegible in photo (not recorded as a confident service date).
+No written findings/impression on film.

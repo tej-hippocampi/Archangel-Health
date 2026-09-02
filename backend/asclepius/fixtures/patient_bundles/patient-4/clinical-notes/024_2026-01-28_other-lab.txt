@@ -1,0 +1,20 @@
+Document index: 24
+Document type: other lab
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Green overlay already obscured name/facility/IDs in source photo; omitted residual header identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+CHEMICAL PATHOLOGY
+
+Booking Date & Time: 28/01/2026 22:08:51
+Collection Date & Time: 28/01/2026 22:09:02
+Reporting Date & Time: 28/01/2026 22:47:04
+
+ProBNP: 70.1 pg/mL (Normal: < 125)
+
+Interpretive notes on report:
+- NT proBNP values < 125 pg/mL: Exclude cardiac dysfunction with a high level of certainty in patients with symptoms suggestive of congestive heart failure.
+- NT proBNP values > 125 pg/mL: May indicate heart failure.
+- Cutoff 125 pg/mL: negative predictive value 96.7%; positive predictive value 80.68.

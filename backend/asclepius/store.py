@@ -4307,6 +4307,26 @@ class AsclepiusStore:
         rec["files"] = json.loads(rec.pop("files_json") or "[]")
         return rec
 
+    def find_ingest_upload_by_sha256(self, sha256: str) -> Optional[Dict[str, Any]]:
+        """The oldest upload carrying these exact bytes, or None.
+
+        The idempotency key for the committed-fixture ingest (Longitudinal E2E
+        PRD §2.1): a second click must be a no-op with a notice, not four
+        duplicate charts. Oldest-first rather than newest, so re-running after a
+        failed retry points at the row that actually produced the ingest cases.
+
+        NOT a uniqueness constraint on ``sha256`` — two partners legitimately
+        sending the same public test bundle is not an error, and enforcing it in
+        the schema would reject the second hospital's upload.
+        """
+        if not sha256:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT upload_id FROM ingest_uploads WHERE sha256 = ? "
+                "ORDER BY created_at ASC, rowid ASC LIMIT 1", (sha256,)).fetchone()
+        return self.get_ingest_upload(row["upload_id"]) if row else None
+
     def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0,
                             status: Optional[str] = None) -> List[Dict[str, Any]]:
         where, params = "", []

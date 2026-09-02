@@ -1,0 +1,37 @@
+Document index: 123
+Document type: clinical note
+Service date: 2026-01-29
+Age on report: 46Y    Sex: M
+De-identification: Omitted identifier field#/patient ID (green-redacted); facility name on C/S line omitted; no provider/signature on this page
+
+CONTENT
+----------------------------------------
+Form: ICU ROUTINE DOCUMENT (Page 1 of 2)
+Time: 2:30 am
+Date of Admission: 28/01/2026
+ICU Day: 01
+Intubation / Extubation / Post-op day: —
+Header vitals box (BP, R/R, Pulse, Sat, Temp, Allergies, ABGs): blank
+
+Presenting complain:
+- 46-year-old alcoholic male
+- k/c HTN, DM2, IHD (hx of PCI in 2024)
+- Alcohol addict since 25 yr; hx of alcoholic abuse in morning
+- c/o ALOC (drowsiness) x 1 day + vomiting
+
+Events:
+- In ER: ALOC + ↓ sats ~84% + Temp 100°F + ↓ GCS 10/15 → NIV support CPAP @ 8 cm H2O + IV antibiotic, antiemetics + Nebs done
+- In ICU: continued ALOC (↓ GCS 10/15) + ↑ HR 151 bpm + fever → ECG done → 1 episode of fits → Inj Dormicum x stat → Neuro on board → CT brain done
+
+Investigations:
+- CT/MRI: Done → (C) report
+- ECHO: EF ~55%; IVC (N) collapsing
+- CXR: Requested
+- USG Abd: bowel loops not dilated; no ascites
+- Urine R/E: N/Done
+- C/S: Blood C/S + Tracheal C/S sent [facility omitted]
+
+Medications:
+- Analgesic: IV Perfalgan x SOS
+- Sedation: blank
+- Antibiotics: Inj Tanzo/Penzo 4.5 gm IV x TDS

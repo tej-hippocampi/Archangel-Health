@@ -1,0 +1,22 @@
+Document index: 18
+Document type: radiology report
+Service date: 2025-09-12
+Age on report: 65Y    Sex: M
+De-identification: Green-marker redactions ignored; omitted any residual name/registration fields covered by green marker
+
+CONTENT
+----------------------------------------
+ULTRASOUND ABDOMEN
+
+LIVER: Coarse echotexture and irregular margins. No focal lesion or dilated channels. Portal vein normal caliber.
+GALLBLADDER: Normal size and shape. Wall thickened due to adjacent liver inflammation. No mass or calculus. No fluid collection around it. Common duct normal caliber.
+PANCREAS: Normal echotexture. No mass/focal lesion. Pancreatic duct normal caliber.
+SPLEEN: Mildly enlarged; normal echotexture. No focal lesion.
+RIGHT KIDNEY: Normal size, shape, echotexture. No mass, cyst, calculus, or hydronephrosis.
+LEFT KIDNEY: Normal size, shape, echotexture. No mass, cyst, calculus, or hydronephrosis.
+URINARY BLADDER: Normal wall thickness. No stone or mass.
+Other: No ascites. No para-aortic lymphadenopathy.
+
+IMPRESSION:
+- Coarse echotexture of liver with irregular margins, PVD 1.0 cm, spleen 12.1 cm. No focal mass lesion in liver. [blue underline on first impression line]
+- No significant pancreato-biliary pathology seen.

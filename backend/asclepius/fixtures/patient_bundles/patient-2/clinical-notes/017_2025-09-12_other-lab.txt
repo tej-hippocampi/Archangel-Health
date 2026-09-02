@@ -1,0 +1,16 @@
+Document index: 17
+Document type: other lab
+Service date: 2025-09-12
+Age on report: 65Y    Sex: M
+De-identification: Omitted patient name, relative name, consultant name, laboratory number, identifier field; omitted initials near reporting time
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Patient location: OPD
+Booking: 12/09/2025 10:44:15
+Collection: 12/09/2025 10:44:41
+Reporting: 12/09/2025 12:15:32
+
+Albumin (Serum): 3.1 g/dL (Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6) [low vs >60Y range; hand-underlined with check]
+Creatinine Serum: 0.98 mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4) [hand-underlined with check]

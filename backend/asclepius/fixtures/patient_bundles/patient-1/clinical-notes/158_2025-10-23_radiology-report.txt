@@ -1,0 +1,22 @@
+Document index: 158
+Document type: radiology report
+Service date: 2025-10-23
+Age on report: 42Y    Sex: M
+De-identification: patient name, identifier fieldno., referring physician, cardiologist and sonographer names redacted (green marker); facility omitted
+
+CONTENT
+----------------------------------------
+Echocardiography report.
+VALVES:
+- Aortic Valve: Thickened with normal mobility.
+- Mitral Valve: Thickened with normal mobility. Mild to moderate regurgitation.
+- Pulmonic Valve: Normal in thickness and mobility.
+- Tricuspid Valve: Normal in thickness and mobility. Moderate regurgitation.
+- Pulmonary artery systolic pressure is 45 mmHg.
+SUMMARY:
+1. Mildly dilated left atrium.
+2. Preserved left ventricular systolic function.
+3. Normal right ventricular systolic function.
+4. Mild to moderate mitral regurgitation.
+5. Moderate tricuspid regurgitation.
+6. Moderate pulmonary artery hypertension.

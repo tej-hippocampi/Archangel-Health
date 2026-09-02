@@ -1,0 +1,14 @@
+Document index: 116
+Document type: radiology report
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No identifiers/date/age/sex visible; none recorded.
+
+CONTENT
+----------------------------------------
+Same printed CT triphasic abdomen report page as adjacent photo (alternate crop).
+Title: CT SCAN WHOLE ABDOMEN WITH CONTRAST (TRIPHASIC).
+Clinical data: known HCC; suspected CLD.
+Protocol: axial abdomen base of lung to symphysis pubis ± IV contrast; coronal/sagittal reconstructions; oral contrast.
+Findings (as visible): cirrhotic morphology with segment V ~2.2 x 2.1 cm atypical hypodense lesion with washout (likely atypical HCC); segment VI ~0.6 x 0.6 cm hypodense lesion with washout (likely regenerating/dysplastic nodule); portal vein ~1.7 cm without thrombosis; mildly thick-walled edematous gallbladder; perisplenic varices; normal pancreas/adrenals/kidneys as described on prior tile.
+Text cuts off near start of urinary bladder section.

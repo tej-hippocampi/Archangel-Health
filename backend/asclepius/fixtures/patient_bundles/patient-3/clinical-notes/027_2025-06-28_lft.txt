@@ -1,0 +1,17 @@
+Document index: 27
+Document type: LFT
+Service date: 2025-06-28
+Age on report: 76Y    Sex: F
+De-identification: Green overlay obscured name/facility/IDs; omitted residual identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+
+Booking Date & Time: 28/06/2025 16:01:44
+Collection Date & Time: 28/06/2025 16:02:09
+Reporting Date & Time: 28/06/2025 16:52:33
+
+Albumin (Serum)
+Albumin: 2.97 g/dL
+Normal Ranges: Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6

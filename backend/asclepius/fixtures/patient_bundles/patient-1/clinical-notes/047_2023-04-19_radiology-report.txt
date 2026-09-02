@@ -1,0 +1,14 @@
+Document index: 47
+Document type: radiology report
+Service date: 2023-04-19
+Age on report: 39Y    Sex: M
+De-identification: name and CR.NO redacted; facility name omitted
+
+CONTENT
+----------------------------------------
+ERCP REPORT (endoscopic images included)
+Unit: Medical V; Bed: OPD
+Indications: Cholelithiasis, portal vein thrombosis
+Medications: dormicum 2mg
+Procedure: ERCP
+Findings: stent in place

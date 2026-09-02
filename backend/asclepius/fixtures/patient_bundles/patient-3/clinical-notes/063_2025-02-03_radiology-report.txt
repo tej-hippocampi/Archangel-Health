@@ -1,0 +1,15 @@
+Document index: 63
+Document type: radiology report
+Service date: 2025-02-03
+Age on report: 77Y    Sex: F
+De-identification: Omitted patient name/facility header (green redaction) and consultant radiologist name/signature
+
+CONTENT
+----------------------------------------
+Modality: X-RAY CHEST VIEW
+Timestamp: 03/02/2025 20:13:53
+
+Findings:
+- Bilateral obstructive bronchitic changes are seen
+- No active pulmonary kochs or consolidation is seen
+- Unfolding of aorta is seen with normal cardiac size

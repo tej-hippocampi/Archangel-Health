@@ -1,0 +1,21 @@
+Document index: 49
+Document type: prescription/medication
+Service date: 2026-06-19
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Provider names (already green-redacted on photo) and signatures omitted. No patient name, facility, age, or sex visible.
+
+CONTENT
+----------------------------------------
+MEDICATION FORM. Date columns: 10/07, 11/7, 21/06/2026. Red diagonal across some admin cells.
+Scheduled:
+1. Syp Motilium 2+2+2 — times 0600, 1400, 2200 — marked given 10–12/7
+2. Nebs with Atum — times 0600, 1400, 2200 — "done" noted on 11/7
+3. Glycerine supp 2 x TDS SOS — times 0600, 1400, 2200 — marked 10/07 and 11/7
+4. Inj R/L D 1 L IV OD and Inj Frama/Metaclon — marked 10–12/7
+5. Inj Ceftro 2 g IV OD at 10:00 — marked 10–12/7
+6. Inj Ezium 40 mg IV OD at 10:00 — marked 10/07 and 11/7; STOP on 12/7
+STAT DOSE:
+01. Inj Onset (ondansetron) 8 mg x stat — date 19-06-2026
+02. Duphalac enema x stat — date blank
+03. Inj Labetalol 2 cc — date 19/06/2026, time 18:30
+Ordered-by names and signatures omitted.

@@ -1,0 +1,49 @@
+Document index: 119
+Document type: clinical note
+Service date: 2026-01-28
+Age on report: UNKNOWN    Sex: M
+De-identification: Omitted top-right ID/name redaction; omitted facility address, phones, and email in footer; omitted named receiving facility acronym; age blank on form; kept sex, date/time, clinical content.
+
+CONTENT
+----------------------------------------
+PART 1: TO BE FILLED BY DOCTOR
+Time: 8:00 pm
+Age field on form: blank
+
+Presenting Complaints:
+- (initial line crossed out / illegible)
+- Drowsiness (01 day)
+- H/o Alcohol abuse in morning
+
+Known Case Of: DM, HTN, IHD (PCI in 2024)
+
+History of Presenting Complaints:
+According to the attendant, patient was in usual state of health; had drink alcohol in morning at 8:00 am,
+then went for routine work as a farmer, then taken to hospital unconscious; also had 1 episode of fever (100°F),
+RBS 40 mg/dl. Then referred to another facility. Attendant said patient had nausea but did not vomit;
+patient had 2 episodes of vomiting yesterday.
+
+Past Medical History: Alcohol Intake (About 500ml/day)
+
+Review of Symptoms: Fever checked; other symptom boxes blank.
+
+Personal history: Normal sleep, Normal appetite. Alcohol addict (since 25 years of age), Smoker.
+
+Drug History (Currently Taking):
+- Tab Ascard 75mg
+- Entor 5/80
+- Tab Rivotril 2mg 1x HS
+- Mediap (Risperidone)
+- Citamed (name partially cut off at edge)
+
+Family History: DM (+), HTN (+), Cancer (-), TB (-), Asthma (-), Congenital Anomalies (-)
+Allergy: blank
+
+General Examination:
+- Pulse: 156 /Min
+- B.P.: 160/112 mm Hg
+- Temp: 100°F
+- R/R: 21 /Min
+- O2 SAT: 100
+- GCS: 10/15
+- Pallor/Jaundice/Cyanosis/Vol. Depletion/Clubbing/Koilonychia/Thyroid/Lymph nodes/Edema: marked negative/normal (vertical line through columns)

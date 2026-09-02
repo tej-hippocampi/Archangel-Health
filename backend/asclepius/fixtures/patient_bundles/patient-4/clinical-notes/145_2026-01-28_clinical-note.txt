@@ -1,0 +1,36 @@
+Document index: 145
+Document type: clinical note
+Service date: 2026-01-28
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted signature (green redaction); omitted facility address/phone/email footer
+
+CONTENT
+----------------------------------------
+Title: Neuro-Physician Note
+Time: 8:30 AM
+
+Clinical status:
+- Pt seen and examined
+- 1 episode of seizure in ICU
+- No H/O previous seizure / stroke
+- K/C DM, alcoholic, past e-
+- C/O ALOC since morning
+
+O/E:
+- GCS: M4 V1 E3 -> 9/15
+- Pupils: PERL
+- (R) gaze preference
+- Movement: L > R side of body on painful stimuli
+- Plantar: B/L mute
+
+A/P:
+- Seizure ? cause
+- Load e- Lerace 1 g stat followed by 500
+- Add T. Vita-6 1+0
+- Continue same treatment
+- I/V Dormicum / SOS
+- Monitor for seizure + GCS
+- Get CT-brain plain urgent
+- Send Ca, Mg
+
+Form: August 2024, Rev # 01, Page 1 of 1

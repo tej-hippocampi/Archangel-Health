@@ -1,0 +1,23 @@
+Document index: 114
+Document type: discharge summary
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Omitted admission no., consultant, patient name, ward, follow-up provider name; kept age, sex, dates, meds and status.
+
+CONTENT
+----------------------------------------
+DISCHARGE SUMMARY — medication on discharge / follow-up page (continuation of index 113).
+
+Medication on Discharge / instructions:
+- INJ MERONEUM 1GM IV TDS (THREE TIMES A DAY) --- FOR 5 DAYS
+- CAP EZIUM 40MG 1+0+0
+- TAB ONSET 8MG 1+0+1
+- MUST TAKE MEAL WITHIN HALF HOUR OF INSULIN
+- INJ HUMILIN R: 16 UNITS BEFORE BREAKFAST; 16 UNITS BEFORE LUNCH; 16 UNITS BEFORE DINNER
+- INJ LANTUS 10 UNITS AT 8PM
+- TAB ASCARD 75MG 1+0+0
+- TAB LIPIGET 0+0+1
+
+Follow-up: AFTER 1 WEEK WITH [provider omitted] — ALONG WITH RBS MONITORING CHART
+
+Discharge status: Improved

@@ -1,0 +1,12 @@
+Document index: 57
+Document type: serology/viral
+Service date: 2023-03-17
+Age on report: 39Y    Sex: M
+De-identification: name redacted; lab name omitted
+
+CONTENT
+----------------------------------------
+HBSAG
+HBsAg: 0.14 (S/cutoff value <=1.0: Non-reactive; >1.0: Reactive) -> Non-reactive
+Interpretation: Screening test; result should be interpreted with patient history and other hepatitis markers for diagnosis of acute and chronic infection; should be verified by other confirmatory test.
+Note: Test analyzed by chemiluminescence immunoassay.

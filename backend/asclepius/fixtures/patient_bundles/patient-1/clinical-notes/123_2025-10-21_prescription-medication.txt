@@ -1,0 +1,17 @@
+Document index: 123
+Document type: prescription/medication
+Service date: 2025-10-21
+Age on report: 38Y    Sex: UNKNOWN
+De-identification: patient name/address/identifier field# redacted (green marker); facility letterhead ignored; no identifiers transcribed.
+
+CONTENT
+----------------------------------------
+Handwritten clinical note / prescription.
+Vitals: BP 100/60; weight 61 kg.
+Diagnosis: Portal Biliopathy.
+Plan/Procedure: EVBL (endoscopic variceal band ligation); ERCP. LFT advised.
+Medications (handwritten, partly legible):
+- Inj. Mofest (in NG/dose)
+- Cap Urso 250 (1-0-1)
+- T. Mobitin (1-0-1)
+- T. Urdel 6.25 (1-0-1)

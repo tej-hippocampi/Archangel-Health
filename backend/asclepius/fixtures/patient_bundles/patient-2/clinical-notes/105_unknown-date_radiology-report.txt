@@ -1,0 +1,13 @@
+Document index: 105
+Document type: radiology report
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Green redaction already covers name/IDs/dates; omitted partially visible facility text; age/sex/date not legible.
+
+CONTENT
+----------------------------------------
+Monitor photograph: 12 axial CT slices in two rows of six (abdomen/lower thorax).
+Top row labeled WABD/OMEN CONTRAST VENOUS PHASE — mid-abdomen with lumbar vertebrae, kidneys, aorta, bowel.
+Bottom row labeled WABD/OMEN CONTRAST ARTERIAL PHASE — lower chest/upper abdomen with heart base, liver, stomach, spleen.
+Equipment label Aquilion ONE; window settings (e.g. WL/WW) visible on tiles.
+No written findings/impression; header identity band covered by green redaction.

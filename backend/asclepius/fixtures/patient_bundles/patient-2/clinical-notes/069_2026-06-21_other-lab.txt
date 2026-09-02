@@ -1,0 +1,18 @@
+Document index: 69
+Document type: other lab
+Service date: 2026-06-21
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/facility redacted and omitted
+
+CONTENT
+----------------------------------------
+Department of Chemical Pathology — Procalcitonin (PCT)
+Booking: 21/06/2026 10:43:46
+Collection: 21/06/2026 10:43:59
+Reporting: 21/06/2026 12:10:00
+
+PCT: 22.7 ng/mL
+Interpretation on report:
+- Procalcitonin < 0.5: low risk of severe sepsis and/or septic shock
+- Procalcitonin > 2.0: high risk of severe sepsis and/or septic shock
+Result above high-risk threshold [H]

@@ -1,0 +1,22 @@
+Document index: 31
+Document type: clinical note
+Service date: 2026-06-21
+Age on report: 65Y    Sex: UNKNOWN
+De-identification: Omitted hospital name, identifier fieldnumber, patient name, consultant name, and signature (green redactions).
+
+CONTENT
+----------------------------------------
+Nutrition & Food Service Department note
+Time: 4:00 pm
+Weight: 73 kg
+Diagnosis: CLD, HCV, Abd pain, Malaria, Dyspnea, loose stools
+
+- Patient has been visited
+- Comorbid asked
+- Counseling done
+- Orally allowed
+- Given soft diet in meal
+- Tolerating well
+- Advised protein rich + BRAT diet
+- 1800 kcal/day
+- Keep hydrated

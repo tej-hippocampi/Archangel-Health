@@ -1,0 +1,18 @@
+Document index: 9
+Document type: radiology report
+Service date: 2023-07-12
+Age on report: UNKNOWN    Sex: M
+De-identification: name and Ref by fields redacted/omitted; age (years) field blank on form
+
+CONTENT
+----------------------------------------
+Ultrasound Abdomen
+Liver: Normal in size, measuring 15.0cm with uniform echopattern & regular outlines. No focal mass seen. IHDs and IHVs are not dilated. Portal vein is normal.
+Gall bladder: shows multiple tiny calculi collectively measuring 2.3cm. CBD appears dilated measuring 0.8cm shows a tiny hyperechoic area measuring 0.3cm.
+Spleen: enlarged in size measuring 17.0cm. It shows multiple hypoechoic foci, suggestive of splenic granulomas.
+Pancreas: Appears normal. No focal mass seen. Pancreatic duct is normal.
+Right kidney: Normal in size & shape, measuring about 9.5 x 4.2 cm smooth outlines. No focal mass, calculus or hydronephrosis seen, renal parenchymal echogenicity is normal.
+Left kidney: Normal in size & shape, measuring about 9.8 x 4.0 cm smooth outlines. No focal mass, calculus or hydronephrosis seen, renal parenchymal echogenicity is normal.
+Urinary Bladder: Normal. No calculus or mass seen.
+No ascites is seen at the time of scan. Bowel loops are not dilated. No retro peritoneal lymphadenopathy is seen.
+Conclusion: Cholelithiasis. Splenic granulomas.

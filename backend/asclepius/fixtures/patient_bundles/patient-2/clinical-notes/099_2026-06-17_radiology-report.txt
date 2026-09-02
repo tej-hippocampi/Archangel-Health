@@ -1,0 +1,14 @@
+Document index: 99
+Document type: radiology report
+Service date: 2026-06-17
+Age on report: 65Y    Sex: M
+De-identification: Patient name, facility/hospital name, registration/accession/barcode-style IDs on film overlays omitted; service date aligned with film jacket 08/07/26 (overlay YYYY.MM.DD format).
+
+CONTENT
+----------------------------------------
+CT film sheet — axial abdomen/pelvis contrast CT (Aquilion ONE)
+Study: W/ABDOMEN CONTRAST; frames labeled CONTRAST ARTERIAL and VENOUS phases
+Layout: 24 frames (4x6 grid)
+Technical (visible on overlays): ~120 kV / 125 mAs; thin-slice acquisition parameters
+Visual content: sequential axial slices through upper abdomen to pelvis — liver, kidneys, bowel, spine/pelvis; contrast in vessels/organs
+(No formal written radiology impression on this film sheet)

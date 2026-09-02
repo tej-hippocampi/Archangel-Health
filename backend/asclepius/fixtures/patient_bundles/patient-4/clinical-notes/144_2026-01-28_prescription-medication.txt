@@ -1,0 +1,31 @@
+Document index: 144
+Document type: prescription/medication
+Service date: 2026-01-28
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted provider signature (green redaction)
+
+CONTENT
+----------------------------------------
+Form note: Please write all medication and IV fluid orders on the separate sheet designed for this purpose
+Time: 3:00 pm
+Header: Fresh Order
+
+Orders:
+- Keep on CPAP @ 8 cmH2O
+- Prop-up
+- Inj N/S IV @ 40 ml/hr + Neurobion (1 ampule)
+- Inj Tanzo 4.5 gm IV x TDS
+- Inj Onset 8 mg IV x TDS
+- Inj Bofalgan 1 gm IV x SOS
+- Inj Ezium 40 mg IV x OD
+- Inj Dormicum IV x SOS
+- Inj Lerace 500 mg IV x BD
+- Nebs c̄ Atem x 6 hourly
+- Nebs c̄ Clenil x BD
+- Get urgent CT brain done
+- Vital monitoring
+- RBS x TDS
+- Keep on S/C insulin sliding scale: 150(2), 200(4), 250(6), 300(8), 350(10), 400
+- Tab Vita-6 1+0+0
+
+Notation after signature area: (J.W)

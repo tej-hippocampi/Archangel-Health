@@ -1,0 +1,21 @@
+Document index: 96
+Document type: LFT
+Service date: 2024-12-19
+Age on report: 45Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Booking: 19/12/2024 16:55:24
+Collection: 19/12/2024 16:55:47
+Reporting: 19/12/2024 18:08:56
+
+LFT (LIVER FUNCTION TEST):
+Bilirubin Total: 0.7 mg/dL (Adult: Up to 0.1-1.0; Children 0-1 Days: 2.0-6.0; Children 1-2 Days: 6.0-10.0; Children 3-5 Days: 4.0-8.0)
+Bilirubin Direct: 0.2 mg/dL (Up to 0.4)
+Bilirubin Indirect: 0.5 mg/dL (0.0 - 0.80)
+SGOT/AST (Plain): 16 U/L (Male: 50; Female: 50)
+SGPT/ALT: 10 U/L (Male: 65; Female: 65; Infant: 65)
+Alkaline Phosphate: 122 U/L (Male: 270; Female: 240; Children < 5 Yr: 60-321; 5-10 Yrs: 110-360; 10-12 Yrs: 103-373; 6 Days - 1 Yrs: <462)
+GAMMA GT: 137 U/L (Male: < 55; Female: < 38) [H]

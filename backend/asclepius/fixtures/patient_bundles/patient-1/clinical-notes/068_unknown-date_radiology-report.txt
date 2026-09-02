@@ -1,0 +1,21 @@
+Document index: 68
+Document type: radiology report
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: no identifiers present on this page
+
+CONTENT
+----------------------------------------
+CT abdomen report (continuation page - findings/conclusion).
+Findings:
+There is no abdominal or pelvic lymphadenopathy in current scan.
+The rest of the major abdominal vessels are normally enhancing by IV contrast.
+Urinary bladder, prostate and rectum appear normal.
+No ascites or pneumoperitoneum is seen.
+Using appropriate lung window settings, the visualized lungs appear normal.
+No pleural effusion is seen on either side in imaged chest.
+Using appropriate bone window settings, the visualized bones are normal. No suspicious focal lytic bony lesion is seen in imaged bones.
+CONCLUSION:
+- Above described findings represent CAVERNOUS transformation of PORTAL VEIN (likely due to prior portal vein thrombosis or vascular pathology) with extensive tortuous VARICES causing PORTAL BILIOPATHY (mild biliary obstruction) and massive splenomegaly representing portal hypertension in non-cirrhotic liver.
+- Cholelithiasis without acute cholecystitis in current scan.
+- No HCC, acute PVT/SMV thrombosis, ascites, abdomino-pelvic lymphadenopathy or metastatic disease in liver, imaged lungs & bones in current scan.

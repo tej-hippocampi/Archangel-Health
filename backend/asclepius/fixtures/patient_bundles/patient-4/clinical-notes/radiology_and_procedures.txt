@@ -1,0 +1,236 @@
+RADIOLOGY & PROCEDURE REPORTS (de-identified)
+============================================================
+
+--- Image 1 | 2026-01-31 | radiology report ---
+Modality: MRI BRAIN WITH CONTRAST
+Clinical history: History of seizures.
+
+Technique: Multiplanar multisequential images obtained with contrast according to departmental protocol.
+
+Findings:
+- Brain parenchyma: No recent territorial ischemic infarction, intracranial hemorrhage, or mass lesion. Gray-white matter differentiation preserved.
+- Ventricles and CSF cisterns: Unremarkable.
+- Bilateral basal ganglia, thalami, brainstem, and cerebellum: Normal.
+- Sella and parasellar structures: Unremarkable.
+- Both vestibulocochlear nerve complexes: Normal.
+- Both eyeglobes, optic nerves, and optic chiasm: Unremarkable.
+- Marrow signal of calvarium: Normal.
+- No abnormal post-contrast brain parenchymal or meningeal enhancement.
+- Mucosal opacification of right maxillary sinus suggesting sinusitis.
+- Mild mucosal thickening of both ethmoid air cells suggesting sinusitis.
+- Remaining paranasal sinuses and bilateral mastoid air cells: Unremarkable.
+
+Conclusion:
+1. No recent territorial ischemic infarction, intracranial hemorrhage, or mass lesion seen.
+2. No abnormal post-contrast brain parenchymal or meningeal enhancement seen.
+3. Right maxillary and both ethmoid sinusitis.
+
+--- Image 101 | 2026-01-29 | radiology report ---
+Echo report — VALVES / SUMMARY section (header facility/patient fields redacted on image).
+
+VALVES:
+- Aortic Valve: Thickened with normal mobility.
+- Mitral Valve: Thickened with normal mobility. Mild regurgitation.
+- Pulmonic Valve: Normal in thickness and mobility.
+- Tricuspid Valve: Normal in thickness and mobility. Mild regurgitation.
+- Pulmonary artery systolic pressure is 35 mmHg.
+
+SUMMARY:
+1. Normal size cardiac chambers.
+2. Normal left ventricular systolic function.
+3. Normal right ventricular systolic function.
+4. Mild mitral regurgitation.
+5. Mild tricuspid regurgitation.
+6. Mild pulmonary artery hypertension.
+
+--- Image 102 | 2026-01-29 | radiology report ---
+STRUCTURAL INTERPRETATION (same study timestamp as index 101).
+
+Left Ventricle systolic function:
+Size and wall thickness is normal. Left ventricular global systolic function is preserved.
+Visually estimated ejection fraction is 50%.
+
+Left ventricle diastolic function: Can't comment on diastolic function due to E/A merged.
+
+Right Ventricle: Normal in size with normal systolic function.
+Left Atrium: Normal in size.
+Right Atrium: Normal in size.
+Aorta: Aortic root is normal in size and appearance.
+Systemic Veins: Inferior vena cava is normal in size and collapses normally with inspiration.
+
+There is no pericardial effusion, LV clot, vegetation or shunt seen.
+
+--- Image 103 | 2026-01-28 | radiology report ---
+CT BRAIN PLAIN
+
+HISTORY:
+- K/C of HTN, DM and IHD
+- H/O alcoholic abuse
+- C/O altered level of consciousness
+
+TECHNIQUE:
+Multiple axial images were acquired without contrast.
+
+FINDINGS:
+- No evidence of recent gross infarct, intracranial bleed or mass effect.
+- Normal gray-white matter differentiation.
+- Basal ganglia and thalami appear normal.
+- Normal cerebellum and brainstem.
+- Normal ventricular system.
+- No midline shift is seen.
+- Orbits appear normal.
+- Mucosal thickening is seen in right maxillary sinus.
+
+IMPRESSION:
+- No evidence of recent hemorrhage, territorial infarct or space occupying lesion seen.
+
+--- Image 104 | 2026-01-28 | radiology report ---
+ULTRASOUND ABDOMEN (PORTABLE)
+
+LIVER: Normal in size shows uniform echotexture & regular outlines. No focal mass is seen.
+IHVs & ducts are not dilated. P.V is 1.0 cm & CBD not dilated.
+
+G. BLADDER: Partially contracted, however no focal mass or calculus is seen.
+
+SPLEEN: Normal in size measures 6.9 cm. No focal mass is seen.
+
+PANCREAS: Could not visualized due to overlying gas filled bowel loops.
+
+RIGHT KIDNEY: Appear normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+
+LEFT KIDNEY: Appear normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+
+U. BLADDER: Empty (shows bulb of foley's catheter) at the time of scan.
+
+Bowel loops are not dilated.
+Ascites is not seen at the time of scan.
+
+--- Image 105 | 2025-12-29 | radiology report ---
+ULTRASOUND ABDOMEN
+
+LIVER: Normal in size measures 13.4 cm, shows slight increased echo pattern with regular margins.
+No focal mass seen in liver. Intra hepatic biliary duct are not dilated. Portal vein is normal. It measures 0.9 cm.
+
+GALL BLADDER: Partially contracted however no calculus or mass is seen. CBD normal caliber measures 0.3 cm.
+
+PANCREAS: Visualized part i.e. body appear normal. No focal mass is seen.
+
+SPLEEN: Is normal measuring 9.0 cm. Echotexture is uniform. No mass or cyst seen.
+
+RIGHT KIDNEY: Normal in size with regular outline. No parenchymal disease. No evidence of calculus, focal mass or hydronephrosis seen.
+
+LEFT KIDNEY: Normal in size with regular outline. No parenchymal disease.
+A cyst is seen at upper pole measuring 1.6 x 1.2 cm. No evidence of calculus or hydronephrosis seen.
+
+URINARY BLADDER: Empty at the time of scan.
+
+No ascites seen.
+No evidence of para-aortic lymphadenopathy.
+Bowel loops are not dilated.
+
+IMPRESSION:
+- Slightly increased echotexture of liver. Clinical correlation & LFTs are recommended.
+
+--- Image 106 | 2025-12-29 | radiology report ---
+ULTRASOUND ABDOMEN — impression/summary page (same timestamp as index 105).
+
+- Left renal cyst.
+- Rest of abdomen appear unremarkable.
+
+--- Image 107 | 2025-01-24 | radiology report ---
+X-RAY CHEST AP VIEW
+
+Findings/impression text:
+Bilateral lower lobe air space infiltrates likely infective in etiology.
+Adv clinical and laboratory correlation.
+
+--- Image 108 | 2025-01-23 | radiology report ---
+X-RAY CHEST PA/AP VIEW
+
+Findings:
+- Bony cage normal.
+- No active pulmonary lesion, consolidation, collapse.
+- No mediastinal pathology seen.
+- Hilum appears normal.
+- The cardio and costeopherenic angle are clear.
+- Both domes of diaphragm are normally raised.
+- Cardiac shadow is within normal limit.
+- Trachea is centrally placed.
+- Soft tissue appears normal.
+
+CONCLUSION:
+- Normal chest x-ray.
+
+--- Image 109 | 2024-12-21 | radiology report ---
+Echo report — VALVES / SUMMARY.
+
+VALVES:
+- Aortic Valve: Thickened with normal mobility. Trace regurgitation.
+- Mitral Valve: Thickened with normal mobility. Trace regurgitation.
+- Pulmonic Valve: Normal in thickness and mobility.
+- Tricuspid Valve: Normal in thickness and mobility.
+
+SUMMARY:
+1. Normal size cardiac chambers.
+2. Moderate to severe left ventricular systolic dysfunction.
+3. Normal right ventricular systolic function.
+
+Note: Note patient was in tachycardia at the time of scan.
+
+--- Image 110 | 2024-12-21 | radiology report ---
+STRUCTURAL INTERPRETATION (same study timestamp as index 109).
+
+Left Ventricle systolic function:
+Size and wall thickness is normal. Apex, septum, mid lateral, mid inferior, mid anterior and mid posterior
+segments are akinetic. Rest of the segments are contracting normally.
+Left ventricular systolic function is moderate to severely reduced.
+Visually estimated ejection fraction is 30-35%.
+
+Left ventricle diastolic function: Cannot comment on diastolic function due to E/A merged.
+
+Right Ventricle: Normal in size with normal systolic function.
+Left Atrium: Normal in size.
+Right Atrium: Normal in size.
+Aorta: Aortic root is normal in size and appearance.
+Systemic Veins: Inferior vena cava is normal in size and collapses normally with inspiration.
+
+There is no pericardial effusion, vegetation or shunt seen.
+Suspected LV apical clot seen.
+
+--- Image 111 | 2024-12-19 | radiology report ---
+X-RAY CHEST PA VIEW
+
+Findings:
+- Bony cage normal.
+- No active pulmonary lesion, consolidation, collapse.
+- No mediastinal pathology seen.
+- Hilum appears normal.
+- The cardio and costeopherenic angle are clear.
+- Both domes of diaphragm are normally raised.
+- Cardiac shadow is within normal limit.
+- Trachea is centrally placed.
+- Soft tissue appears normal.
+
+CONCLUSION:
+- Normal X-Ray Chest.
+
+--- Image 112 | 2024-12-19 | radiology report ---
+ULTRASOUND ABDOMEN
+
+LIVER: Normal in size shows increased echopattern & regular outlines. No focal mass is seen.
+IHVs & ducts are not dilated. P.V is 1.0 cm & CBD 0.4 cm not dilated.
+
+G. BLADDER: Partially contracted, however no definite focal mass or calculus is seen.
+
+SPLEEN: Normal in size measures 7.6 cm. No focal mass is seen.
+
+PANCREAS: Visualized part ie body measures 1.7 cm shows dilated pancreatic duct measuring 0.6 cm.
+
+RIGHT KIDNEY: Appear normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+
+LEFT KIDNEY: Appear normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+
+U. BLADDER: Partially filled, however no focal mass or calculus is seen.
+
+Bowel loops are not dilated.
+Ascites is not seen at the time of scan.

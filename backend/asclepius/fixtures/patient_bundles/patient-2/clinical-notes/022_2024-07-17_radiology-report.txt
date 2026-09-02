@@ -1,0 +1,38 @@
+Document index: 22
+Document type: radiology report
+Service date: 2024-07-17
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted patient name and referring provider (green redactions / Ref by); no facility name transcribed.
+
+CONTENT
+----------------------------------------
+Ultrasound Abdomen (typed template with handwritten corrections)
+
+LIVER:
+- Size 15.1 cm
+- Coarse echopattern; irregular outline (handwritten over typed normal/uniform/regular)
+- No evidence of focal parenchymal abnormalities
+- IHD and IHV appear normal
+- Portal vein dilated 1.4 cm (handwritten; typed "appear normal" crossed out); no thrombus seen within portal vein
+
+GALLBLADDER:
+- Thick wall; wall thickness 0.6 cm (handwritten; typed normal wall thickness crossed out)
+- Normal free lumen without calculus, mass, or polyp
+- CBD appears normal
+
+PANCREAS: Visualized head and body normal in size and echopattern; no solid or cystic mass
+
+SPLEEN: Size 13.5 cm (handwritten; typed Normal crossed out); normal shape and echopattern; no focal mass or cyst; splenic vein not dilated
+
+RIGHT KIDNEY: Normal size, shape, echopattern; intact corticomedullary distinction; regular outline; no calculus, hydronephrosis, or mass
+LEFT KIDNEY: Normal size, shape, echopattern; intact corticomedullary distinction; regular outline; no calculus, hydronephrosis, or mass
+
+URINARY BLADDER: Empty (handwritten); typed note on wall thickness/calculus/mass as printed on form
+
+Other:
+- No abdominal lymphadenopathy
+- Bowel loops not dilated; normal peristalsis
+- No ileocecal lump / colonic mass at time of scan
+- No ascites
+
+Impression (handwritten): CLD & Portal HTN

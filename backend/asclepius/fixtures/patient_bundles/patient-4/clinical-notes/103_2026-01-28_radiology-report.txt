@@ -1,0 +1,30 @@
+Document index: 103
+Document type: radiology report
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility header; Sonologist/Ref. By blank; kept age, sex, service date, clinical content.
+
+CONTENT
+----------------------------------------
+CT BRAIN PLAIN
+
+HISTORY:
+- K/C of HTN, DM and IHD
+- H/O alcoholic abuse
+- C/O altered level of consciousness
+
+TECHNIQUE:
+Multiple axial images were acquired without contrast.
+
+FINDINGS:
+- No evidence of recent gross infarct, intracranial bleed or mass effect.
+- Normal gray-white matter differentiation.
+- Basal ganglia and thalami appear normal.
+- Normal cerebellum and brainstem.
+- Normal ventricular system.
+- No midline shift is seen.
+- Orbits appear normal.
+- Mucosal thickening is seen in right maxillary sinus.
+
+IMPRESSION:
+- No evidence of recent hemorrhage, territorial infarct or space occupying lesion seen.

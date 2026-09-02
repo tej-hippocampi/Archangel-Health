@@ -1,0 +1,10 @@
+Document index: 156
+Document type: RFT/renal
+Service date: 2025-10-25
+Age on report: 42Y    Sex: M
+De-identification: name and other header identifiers redacted (green marker); bed no. omitted
+
+CONTENT
+----------------------------------------
+Department of Biochemistry. Patient location: IPD, Intensive Care Unit (ICU).
+Urea (Blood): 41.6 mg/dL (10 - 50)

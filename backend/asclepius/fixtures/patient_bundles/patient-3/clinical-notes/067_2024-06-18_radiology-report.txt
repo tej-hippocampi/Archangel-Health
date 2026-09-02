@@ -1,0 +1,18 @@
+Document index: 67
+Document type: radiology report
+Service date: 2024-06-18
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility header (green redaction); sonologist/Ref. By blank/illegible
+
+CONTENT
+----------------------------------------
+Modality: ULTRASOUND ABDOMEN
+Timestamp: 18/06/2024 15:03:26
+
+LIVER: Normal in size; slightly coarse echo pattern & regular outlines. Tiny calcification in right lobe measuring 0.3 cm. No focal mass. IHVs & ducts not dilated. P.V 0.8 cm; CBD not dilated.
+G. BLADDER: Contracted at time of scan.
+SPLEEN: Normal, 11.8 cm; no focal mass.
+PANCREAS: Normal; no focal mass.
+BOTH KIDNEYS: Lower limit normal in size with normal echopattern; no focal mass, calculus or hydronephrosis.
+U. BLADDER: Empty at time of scan.
+Bowel loops not dilated. Ascites not seen.

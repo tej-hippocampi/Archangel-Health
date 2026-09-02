@@ -1,0 +1,17 @@
+Document index: 134
+Document type: clinical note
+Service date: 2026-01-30
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted patient ID, staff/recipient name, lab/facility name, signature; footer address/phones/email omitted
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS (Page 2 of 2)
+Time: 3:40 pm
+
+LP done under all aseptic means.
+- Sample handed over to [staff name redacted]
+- 2 cc send for D/R to [lab/facility redacted]
+- 2 cc kept in fridge
+- RBS at time of procedure: 113
+- Pt vitally stable after procedure

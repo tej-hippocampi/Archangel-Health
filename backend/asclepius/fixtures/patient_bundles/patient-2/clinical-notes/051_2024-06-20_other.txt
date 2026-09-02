@@ -1,0 +1,17 @@
+Document index: 51
+Document type: other
+Service date: 2024-06-20
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility name/address/phone/email, patient ID block, and shift signatures omitted.
+
+CONTENT
+----------------------------------------
+INTAKE / OUT-PUT RECORD SHEET. Date 20/06/2024. Page 1 of 1. Rev #01 August 2024.
+Intake highlights:
+Parenteral1: C/O at 0700; IV med 100 at 0900–1100; morning total C/O 100
+Parenteral2: 100 ml hourly much of day; morning total ~800; evening total ~200
+PO/NG: juice ~400+50 (0800); H2O 100 (1300, 1500, 1700, 2100); Tea 100 (1900);
+  night PLW 100 at 0000/0300/0500; 0600 ~200
+Shift PO totals noted ~250 (AM), ~300 (PM)
+Output: Urine Pass at multiple hours (0800, 1000, 1400, 1600, 2100, 0000, 0300); stool SNP x2
+24h totals — Intake: Parenteral 1100 ml, Oral 750 ml, Grand 1850 ml; Output urine Pass, Grand Pass

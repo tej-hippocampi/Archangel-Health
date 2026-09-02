@@ -1,0 +1,11 @@
+Document index: 139
+Document type: other lab
+Service date: 2025-10-22
+Age on report: 42Y    Sex: M
+De-identification: name redacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Chemical Pathology - Troponin-I
+Troponin I: <0.100 ng/mL (< 0.30)
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU) -- 003

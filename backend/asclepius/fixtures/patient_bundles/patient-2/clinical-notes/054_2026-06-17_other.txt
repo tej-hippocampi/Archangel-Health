@@ -1,0 +1,20 @@
+Document index: 54
+Document type: other
+Service date: 2026-06-17
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility name/address/contacts, patient ID, and signatures omitted.
+
+CONTENT
+----------------------------------------
+INTAKE / OUT-PUT RECORD SHEET. Date 17/06/2026. Page 1 of 1. Rev #01 August 2024.
+Intake:
+0700: PO Rh 100 ml
+0900: PO Px 60 ml
+1100: PO Rh 100 ml
+1300: PO Rh 100 ml and 250 ml (dual entry)
+1500: H2O 100; 1700: H2O 50
+Diagonal line through parenteral columns 1500–2200
+2300: H2O 200; note C/O Heplock; urine Pass
+0500: H2O 300; stool SNP/SNH
+Output: urine Pass at 0800, 1000, 1200, 1500, 2300; stool Pass at 1100
+24h totals — Intake parenteral 500; Output urine Pass, Grand Pass

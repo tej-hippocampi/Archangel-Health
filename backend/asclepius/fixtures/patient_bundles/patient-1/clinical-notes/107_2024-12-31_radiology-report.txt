@@ -1,0 +1,26 @@
+Document index: 107
+Document type: radiology report
+Service date: 2024-12-31
+Age on report: 39Y    Sex: M
+De-identification: patient name and "Referred By" omitted; "Assistant name" and endoscopist signature block redacted/omitted.
+
+CONTENT
+----------------------------------------
+UPPER GI ENDOSCOPY REPORT
+Instrument: Olympus GIF 140.
+Time of Procedure: 7:30pm.
+Consent: Informed Consent Obtained.
+Sedation: 1.5cc Dormicum.
+Indication for Procedure: EVBL session.
+Extent of Examination: Up to D2.
+Vision Obtained: Good.
+Finding:
+  Oropharynx: Looked normal.
+  Esophagus: There were II columns of grade 2 Esophageal varices with red wale markings.
+  Stomach: Severe Portal Hypertensive gastropathy, No fundal varix seen.
+  Duodenum: D1 & D2 looked normal.
+Interventions Performed: Band ligation performed (02 bands applied).
+Complications: No any complication noted.
+Impression / Diagnosis: Esophageal Varices S/p EVBL / PHG.
+Plan / Recommendations: Rescope After 06 Months.
+(Endoscopic images labeled: Esophageal Varices, Fundus, Antrum, Band Ligation)

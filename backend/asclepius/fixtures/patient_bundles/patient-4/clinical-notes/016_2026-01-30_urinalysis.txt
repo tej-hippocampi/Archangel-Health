@@ -1,0 +1,17 @@
+Document index: 16
+Document type: urinalysis
+Service date: 2026-01-30
+Age on report: 46Y    Sex: M
+De-identification: Omitted patient name, facility, identifier field, registration no., referrer, ward/bed (green-redacted)
+
+CONTENT
+----------------------------------------
+Department of Microbiology
+Booking: 30/01/2026 03:11:49
+Collection: 30/01/2026 03:11:59
+Reporting: 01/02/2026 16:30:51
+Status stamp: APPROVED
+
+CULTURE & SENSITIVTY (URINE) [spelling as printed]:
+Specimen: Urine
+Culture: No growth after 48 hours' incubation.

@@ -1,0 +1,40 @@
+Document index: 129
+Document type: clinical note
+Service date: 2026-01-29
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted signature/name (green-redacted); initials "(JW)" under stamp area not treated as patient ID
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS
+Time: 5:00 pm
+Evening follow-up
+
+Problems (triangle):
+- k/c DM, HTN, IHD (H/o PCI in 2024)
+- Seizures
+- Aspiration Pneumonia
+
+G/C: Not satisfactory
+Currently: hemodynamically & vitally stable (GCS field blank)
+
+Vitals:
+- HR: 87
+- BP: 156/113
+- R/R: 21
+- RBS: 223 mg/dl
+
+O/E:
+- GCS: blank
+- CVS: S1 + S2
+- Chest: B/L clear
+- Abd: S.N.T.
+
+Plan:
+1. Continue IVF @ 40 ml/hr
+2. Continue Tazo / Tanzo
+3. Monitor GCS
+4. Give off CPAP trial
+5. CPK / CXR (items listed)
+6. Continue cardiac medications
+7. CST / CXR (as charted)

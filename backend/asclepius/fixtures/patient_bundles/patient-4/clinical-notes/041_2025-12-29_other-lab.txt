@@ -1,0 +1,16 @@
+Document index: 41
+Document type: other lab
+Service date: 2025-12-29
+Age on report: 46Y    Sex: M
+De-identification: Omitted patient name/identifier field/facility (green redaction over header); kept age, sex, service dates, clinical results
+
+CONTENT
+----------------------------------------
+Department: Virology
+
+Booking: 29/12/2025 12:23:23
+Collection: 29/12/2025 12:26:28
+Reporting: 29/12/2025 13:40:16
+
+HbsAg (Australian Antigen):
+- HbsAg: 0.412 (Cut Off 1.00) — Non-Reactive

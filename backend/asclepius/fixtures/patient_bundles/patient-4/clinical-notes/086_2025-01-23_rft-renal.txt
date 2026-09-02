@@ -1,0 +1,15 @@
+Document index: 86
+Document type: RFT/renal
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Booking: 23/01/2025 10:30:40
+Collection: 23/01/2025 10:30:54
+Reporting: 23/01/2025 11:33:42
+
+CREATININE (SERUM):
+Creatinine Serum: 1.2 mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4)

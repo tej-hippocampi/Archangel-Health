@@ -1,0 +1,26 @@
+Document index: 128
+Document type: CBC/hematology
+Service date: 2025-10-22
+Age on report: 42Y    Sex: M
+De-identification: name/consultant/identifier fieldNo. redacted (green marker). Ward/location noted on report not transcribed. No identifiers transcribed.
+
+CONTENT
+----------------------------------------
+CBC & ESR (Department of Hematology):
+Hemoglobin: 10.8 g/dl (12 - 16.5) [L]
+R.B.Cs: 3.98 10^12/L (4.0 - 5.2) [L]
+Hematocrit: 32.3 % (35.0 - 50.0) [L]
+M.C.V: 81.2 fl (76 - 96)
+M.C.H: 27.1 pg (24 - 29)
+M.C.H.C: 33.4 g/dl (32 - 36)
+RDW-CV: 15.6 % (11.0 - 16.0)
+Total Leucocytes Count/TLC: 17.7 x10^3/l (4 - 10) [H]
+Neutrophils: 91.9 % (40 - 75) [H]
+Lymphocytes: 4.2 % (20 - 45) [L]
+Monocytes: 3.7 % (2 - 10)
+Eosinophils: 0.0 % (1 - 6) [L]
+Basophils: 0.2 % (<1)
+Platelets: 45 x10^9/l (150 - 400) [L]
+ESR: 90 mm/Hour (Male 0 - 10, Female 0 - 18) [H]
+Morphology: Normocytic, Normochromic. Neutrophilic Leucocytosis. ? Bacterial infection. Platelets are low on smear, large platelets are seen. ? Cause.
+Remarks: Advise clinical correlation.

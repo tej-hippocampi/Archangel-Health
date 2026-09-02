@@ -1,0 +1,18 @@
+Document index: 28
+Document type: clinical note
+Service date: 2024-06-17
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted hospital name/location, patient identification block (green redaction), and provider initials/signature.
+
+CONTENT
+----------------------------------------
+Patient Progress form
+
+Follow-up / communication (17/06/2024):
+- SIP water
+- Procedure: Microwave ablation (MWA) of liver in right lobe of liver was done
+
+Consultant notes (17/06/2024, 1:30 pm):
+- (start of note green-redacted)
+- Get CT scan Abdomen with contrast (Triphasic) (Hepatoma protocol)
+- AFP & PIVKA raised

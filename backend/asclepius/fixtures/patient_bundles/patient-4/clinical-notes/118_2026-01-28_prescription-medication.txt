@@ -1,0 +1,25 @@
+Document index: 118
+Document type: prescription/medication
+Service date: 2026-01-28
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted patient name and signature redactions; age/sex not visible on this page; kept date and clinical orders.
+
+CONTENT
+----------------------------------------
+PHYSICIAN ORDERS (Page 2 of 2)
+
+Left margin: Aspiration Pneumonia; Admit in ICU
+
+Clinical notes / orders (handwritten):
+- c/o Dyspnea — SOB
+- Chest (R) crepts
+Plan:
+  1. CBC, U/E/E, LFTs, BSL
+  2. CXR, ECG, U/S whole Abd
+  3. Blood culture + Tracheal culture
+Treatment:
+- Inj N/S 500cc + Neurobion
+- Inj. Tazo 4.5g 8-hrly
+- Inj. Ezium 40mg (frequency partially illegible)
+- Additional inj. line partially illegible on image
+- Apply CPAP (timing noted as 8am / 8pm style schedule; suffix partially unclear)
