@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
+import { TEAM_INTRO_URL } from "../config";
 
 type FormValues = {
   hospitalType: "safety-net" | "rural" | "standard";
@@ -21,7 +22,11 @@ const TARGET_PRICE: Record<FormValues["procedure"], number> = {
   bowel: 20000,
 };
 
-const CALENDLY_URL = "https://calendly.com/tejxpatel23/archangel-health-intro";
+/* From the shared landing config (VITE_CALENDLY_TEAM_URL), falling back to the
+   account this file used to hardcode. A SEPARATE variable from /partner's,
+   because the two links point at two different founders' calendars and merging
+   them here would reroute one audience's meetings without anyone deciding to. */
+const CALENDLY_URL = TEAM_INTRO_URL;
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
