@@ -1978,6 +1978,22 @@
       },
     }, 'Forgot your password?');
 
+    // New here? Until this existed the sign-in screen was a closed door: a
+    // physician who had never signed up had no route anywhere from it, and the
+    // only hint was a sentence telling them to contact an administrator. The
+    // signup door is on the landing app, which is a different origin in
+    // production, so the URL is handed over in the shell (`asc-signup-url`).
+    const signupUrl = (function () {
+      const m = document.querySelector('meta[name="asc-signup-url"]');
+      const v = m && m.getAttribute('content');
+      return (v && v.trim()) || '';
+    }());
+    const signup = signupUrl
+      ? h('p', { class: 'asc-login-signup' },
+          document.createTextNode('New to Archangel Health? '),
+          h('a', { href: signupUrl, class: 'asc-linkish' }, 'Apply to contribute'))
+      : null;
+
     const body = h('div', { class: 'asc-login-body' },
       form,
       h('div', { class: 'asc-login-forgot' }, forgot),
@@ -1988,6 +2004,7 @@
       // review; the sign-in screen should not disagree with the wizard.
       h('p', { class: 'asc-login-hint' }, 'For credentialed physicians working with Archangel Health. Contact your program administrator if you need access.'),
     );
+    if (signup) body.insertBefore(signup, body.querySelector('.asc-login-hint'));
     // Escape hatch for clinicians who reach the portal from the doctor portal:
     // only shown when a doctor session exists, so signing out (which suppresses
     // the silent SSO) never traps an SSO-only user on a password form.

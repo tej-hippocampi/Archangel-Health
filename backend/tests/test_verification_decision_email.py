@@ -1,15 +1,20 @@
-"""Every path that approves a physician tells the physician.
+"""Every path that approves a physician tells the physician, exactly once.
 
 Three code paths set verification_status='approved': the admin console, the
 verification agent's auto-approval, and /admin/physicians/restore. Only the
-first sent an email. A physician the agent approved was never told, and neither
-was one an operator repaired, and nothing failed: a silent path fails nothing,
-which is why this file leans on a parametrized join rather than on three tests
-somebody has to remember to add a fourth to.
+console sent anything, and nothing failed: a silent path fails nothing.
 
-The mail is queued from store.record_verification_decision, which is the only
-production writer of that status and of the tier columns, so a fourth caller
-cannot be written that forgets.
+Onboarding v2 made that worse rather than moot. Its wizard has no password
+step, so approval is the moment an account becomes usable at all, and only the
+console minted a credential. An agent-approved or operator-repaired physician
+therefore had no mail AND no password: they could not sign in, and nobody was
+told.
+
+The split now is: the console keeps its inline, synchronous welcome when it
+MINTS credentials, because that mail carries a secret this request created and
+nothing else can. Every other approval, on any path, is queued by the hook on
+store.record_verification_decision, which is the only production writer of that
+status and of the tier columns. One mail per approval between them.
 """
 
 from __future__ import annotations
@@ -51,19 +56,20 @@ def _physician(store, **kw):
 
 
 # ─── The point of the whole change ───────────────────────────────────────────
-@pytest.mark.parametrize("path", ["console", "agent", "restore"])
-def test_every_path_that_approves_queues_the_physician_their_own_email(path):
+@pytest.mark.parametrize("path", ["agent", "restore"])
+def test_the_paths_that_used_to_say_nothing_now_tell_the_physician(path):
+    """Onboarding v2 made approval the moment credentials come into existence,
+    and only the admin console mints them. So under v2 an agent-approved or
+    operator-repaired physician had no mail AND no password: they could not sign
+    in at all, and nothing anywhere said so.
+
+    The console path is v2's and is left alone; it sends synchronously and warns
+    the admin when the send fails. These two are the ones nobody was watching.
+    """
     store = A.fresh_store()
     admin = A.make_user(store, role="admin", practice_case=False)
 
-    if path == "console":
-        user = _physician(store)
-        store.set_verification_status(user["id"], "pending")
-        r = client.post(f"/api/asclepius/verify/queue/{user['id']}/approve",
-                        json={"tier": "labeler", "note": "Credentials verified."},
-                        headers=A.headers_for(admin))
-        assert r.status_code == 200, r.text
-    elif path == "agent":
+    if path == "agent":
         # The agent writes through the same store method rather than its own
         # SQL, which is exactly why hooking the write covers it.
         user = _physician(store)
@@ -105,9 +111,11 @@ def test_a_restore_that_only_changes_a_tier_does_not_claim_they_are_newly_approv
     assert _outbox(store, email=user["email"]) == []
 
 
-def test_the_console_no_longer_sends_inline(monkeypatch):
-    """A transport blip used to lose the mail forever with a log line. It is a
-    retry now, because the drainer owns the send."""
+def test_an_account_that_already_has_a_password_is_told_once_not_twice(monkeypatch):
+    """The console used to send this notice inline. It is queued now, so the
+    console branch and the hook cannot both fire for the same approval, and a
+    transport blip becomes a retry rather than a mail lost forever with a log
+    line. The tier gets named on the way, which that branch never did."""
     import email_utils
 
     async def explode(*a, **kw):
@@ -232,3 +240,53 @@ def test_the_approval_keeps_its_high_importance_when_it_moved_to_the_outbox():
     drain = main_src[main_src.index("async def _drain_admin_notifications"):]
     drain = drain[:drain.index("\n\nasync def")]
     assert "IMPORTANT_KINDS" in drain
+
+
+def test_the_credentials_welcome_stays_inline_and_is_not_also_queued():
+    """A v2 account has no password until approval mints one, and that mail
+    carries the secret. It must go from the request that created it, and it must
+    not be doubled by a queued notice pointing at a door with no key."""
+    import tests._asclepius as _A
+    from asclepius import store as _sm
+
+    store = _A.fresh_store()
+    admin = _A.make_user(store, role="admin", practice_case=False)
+    user = _physician(store)
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                     (_sm.NO_PASSWORD_HASH, user["id"]))
+    store.set_verification_status(user["id"], "pending")
+
+    r = client.post(f"/api/asclepius/verify/queue/{user['id']}/approve",
+                    json={"tier": "labeler", "note": "ok"}, headers=A.headers_for(admin))
+    assert r.status_code == 200
+    assert r.json()["credentials_issued"] is True
+    assert _outbox(store, email=user["email"]) == [], (
+        "the queued notice would be a second mail, and one with no password in it"
+    )
+    assert not _sm.password_is_unset(store.get_user_by_id(user["id"]))
+
+
+def test_the_silent_paths_issue_a_credential_before_they_announce_one():
+    """Under v2 these two left the physician with no password at all. Telling
+    them they are approved without giving them a way in would be the same bug
+    wearing an email."""
+    import tests._asclepius as _A
+    from asclepius import store as _sm
+
+    store = _A.fresh_store()
+    admin = _A.make_user(store, role="admin", practice_case=False)
+    user = _physician(store, role="admin", specialty="nephrology",
+                      board_cert="board_certified_nephrology", years_experience=15)
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                     (_sm.NO_PASSWORD_HASH, user["id"]))
+
+    r = client.post(f"/api/asclepius/admin/physicians/restore?email={user['email']}",
+                    json={"approve_verification": True, "tier": "labeler"},
+                    headers=A.headers_for(admin))
+    assert r.status_code == 200, r.text
+    assert not _sm.password_is_unset(store.get_user_by_id(user["id"])), (
+        "restore approved them and left them unable to sign in"
+    )
+    assert len(_outbox(store, email=user["email"], kind="physician_approved")) == 1

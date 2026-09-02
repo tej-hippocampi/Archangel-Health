@@ -680,15 +680,17 @@ async def approve_signup(
             elif not needs_credentials:
                 # An account that already HAS a password — an invited member, or
                 # a pre-v2 signup — is not being given credentials, so it gets
-                # the notice it always got. Sending them a "your temporary
-                # password is …" email with no password in it would be worse than
-                # sending nothing.
-                welcome_sent = bool(await send_html_email(
-                    user["email"], "You're approved for Asclepius",
-                    build_asclepius_approved_email(
-                        full_name=(user.get('full_name') or '').strip(),
-                        workspace_url=_portal_base() + '/asclepius',
-                    ), importance_headers=True))
+                # the plain notice rather than a "your temporary password is …"
+                # email with no password in it.
+                #
+                # That notice is QUEUED, not sent here, by the hook on
+                # record_verification_decision above. One sender for it, so the
+                # console and the two paths that used to say nothing produce one
+                # mail between them rather than this branch and the queue both
+                # firing. It also means the tier is named, which this branch
+                # never did. Only the credentials welcome stays inline, because
+                # it carries a secret this request minted and nothing else can.
+                welcome_sent = True
             # The remaining case — credentials were NEEDED and the mint failed —
             # sends nothing on purpose. "You're approved, open your workspace"
             # pointing at a door this physician has no key to is worse than

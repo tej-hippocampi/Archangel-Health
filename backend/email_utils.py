@@ -25,6 +25,16 @@ def _is_dev_mode() -> bool:
     return (os.getenv("EMAIL_DEV_MODE") or "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def is_email_dev_mode() -> bool:
+    """Public alias for the dev-mode check.
+
+    Callers outside this module need to know that outgoing mail is being printed
+    rather than delivered — the onboarding router logs the OTP on that basis,
+    because in dev mode the code exists nowhere else a developer can reach it.
+    """
+    return _is_dev_mode()
+
+
 def is_email_transport_configured() -> bool:
     """True if SendGrid API key, full SMTP credentials, or dev-mode are present.
 

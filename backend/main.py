@@ -2751,7 +2751,19 @@ async def asclepius_portal():
     assets load from /static/asclepius/. No PHI."""
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/index.html")
     with open(html_path) as f:
-        return HTMLResponse(content=f.read())
+        shell = f.read()
+    # The sign-in screen needs somewhere to send a physician who does not have
+    # an account yet, and the signup door lives on the landing app, which is a
+    # different origin in production. The portal JS cannot derive it, so hand it
+    # over in the shell. Injected rather than hard-coded in the HTML because
+    # LANDING_URL is the only thing that knows where the landing actually is.
+    landing = (os.getenv("LANDING_URL") or "http://localhost:5173").strip().rstrip("/")
+    shell = shell.replace(
+        "</head>",
+        f'<meta name="asc-signup-url" content="{html_lib.escape(landing, quote=True)}/join">\n</head>',
+        1,
+    )
+    return HTMLResponse(content=shell)
 
 
 @app.get("/asclepius/v5/annotate", response_class=HTMLResponse)

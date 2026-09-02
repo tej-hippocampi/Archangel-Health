@@ -130,16 +130,27 @@ export default function JoinEntry() {
                 value={email}
                 onChange={setEmail}
               />
-              {/* Honeypot, mirrored from the contributor modal: never shown to
-                  a person, always filled by a naive bot. */}
+              {/* Honeypot: never shown to a person, always filled by a naive
+                  bot. The name is deliberately NOT "company_website", and the
+                  field carries no id, label or placeholder. Chrome and Safari
+                  match address-profile fields on exactly those signals and fill
+                  them regardless of autocomplete="off", which both browsers
+                  ignore for address data. A real physician with a saved profile
+                  was therefore tripping the honeypot, being handed the decoy
+                  link, and dead-ending on "Invalid or expired onboarding link"
+                  with a 200 OK and no row written. Only the browser-visible
+                  signals move here; the API field is still company_website. */}
               <input
                 type="text"
-                name="company_website"
+                name="jn_ref_tag"
                 value={honeypot}
                 onChange={(e) => setHoneypot(e.target.value)}
                 tabIndex={-1}
                 autoComplete="off"
                 aria-hidden="true"
+                data-lpignore="true"
+                data-1p-ignore=""
+                data-form-type="other"
                 style={{ position: "absolute", left: -9999, width: 1, height: 1, opacity: 0 }}
               />
               <div style={{ marginTop: 20 }}>

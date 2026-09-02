@@ -4426,6 +4426,19 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 /* Recovery affordance on the portal login. A button, not an anchor: it performs
    an action (mails a reset) rather than navigating anywhere. */
 .asc-login-forgot { margin-top: var(--sp-2); text-align: center; }
+
+/* "New to Archangel Health? Apply to contribute." Sits between the recovery
+   link and the access hint, so the two routes off this screen (I forgot my
+   password / I don't have an account) read as a pair, above the sentence that
+   used to be the only thing resembling an answer for a new physician. */
+.asc-login-signup {
+  margin: var(--sp-3) 0 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--asc-border, rgba(255,255,255,.08));
+  font-size: 13px;
+  text-align: center;
+  color: var(--asc-muted);
+}
 .asc-linkish {
   background: none; border: 0; padding: 0; font: inherit;
   font-size: var(--t-sm);
