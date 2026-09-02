@@ -223,22 +223,29 @@ def tr_min_seconds() -> int:
 
 
 def referral_bounty_cents() -> int:
-    """$25 to the REFERRER when a physician they referred is verified and
+    """$50 to the REFERRER when a physician they referred is verified and
     completes their first accepted case.
 
-    The smaller half of a $25/$50 split, with the larger half going to the
-    person being referred (see referee_bonus_cents). The referrer forwards a
-    link in seconds; the colleague has to verify, take a case and get it
-    accepted, and that is the step the whole program is buying. Weighting the
-    money toward the harder side buys the outcome rather than the gesture, and
-    it keeps the referrer's payment small enough that nobody has to argue about
-    physicians being paid to recruit physicians.
+    The larger half of a $50/$25 split, with the smaller half going to the
+    person being referred (see referee_bonus_cents). The referrer is the scarce
+    input: a well-connected physician who will actually spend their reputation
+    introducing colleagues is worth more to us than the marginal signup, and the
+    payment has to be large enough to be worth the ask.
+
+    The Sep 1 meeting was read as reversing this split. It is ambiguous on the
+    point: it says "the people who refer get a free $50" and closes by settling
+    the signing bonus at "$25 for completing the case", both of which match the
+    number here, against one line in the middle that says the reverse. Two
+    readings out of three, and the behavior already live in production, keep the
+    larger half with the referrer, so the tie breaks toward not silently
+    restating what physicians are already promised. Settle it deliberately
+    before moving it.
 
     A ONE-TIME BOUNTY, not a percentage of the colleague's ongoing work, and the
     reasoning is worth keeping next to the number. A revenue share creates an
     indefinite liability against every future task; it is a compliance question
     the moment anyone asks the recruiting question above; and, the practical
-    objection, it is unexplainable on a dashboard. *"$25 when your colleague
+    objection, it is unexplainable on a dashboard. *"$50 when your colleague
     completes their first case"* is a sentence a doctor can hold in their head.
     A trailing percentage is a spreadsheet.
 
@@ -246,21 +253,21 @@ def referral_bounty_cents() -> int:
     STAMPED ON THE LEDGER ROW at accrual, so a bounty already earned keeps the
     rate it was earned at and only future accruals move.
     """
-    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 2500)
+    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 5000)
 
 
 def referee_bonus_cents() -> int:
-    """$50 to the REFERRED physician after their first accepted case.
+    """$25 to the REFERRED physician after their first accepted case.
 
-    The larger half of the split on purpose: this is the activation payment, and
-    the first accepted case is where a new physician either stays or is never
-    seen again. Paid only when a referrer's bounty settles, which inherits every
-    guard that settlement runs (QA-accepted work, no self-referral, verified
-    account).
+    The activation half of the split: the first accepted case is where a new
+    physician either stays or is never seen again, and the meeting settled this
+    side explicitly at "$25 for completing the case". Paid only when a
+    referrer's bounty settles, which inherits every guard that settlement runs
+    (QA-accepted work, no self-referral, verified account).
 
     Stamped on the ledger row at accrual exactly like the bounty, so raising or
     lowering it later cannot restate a bonus already paid."""
-    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 5000)
+    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 2500)
 
 
 def referral_cap_cents() -> int:

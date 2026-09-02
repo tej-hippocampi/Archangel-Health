@@ -154,8 +154,8 @@
      predates the redesign. */
   function hero(h) {
     var ps = data.payout_structure || {};
-    var bounty = money(ps.referrer_bounty_cents || data.bounty_cents || 2500);
-    var bonus = money(ps.referee_bonus_cents || 5000);
+    var bounty = money(ps.referrer_bounty_cents || data.bounty_cents || 5000);
+    var bonus = money(ps.referee_bonus_cents || 2500);
     var earns = data.earns_bounty !== false;
 
     return h('div', { class: 'asc-ref-hero asc-card' },
