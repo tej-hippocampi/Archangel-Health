@@ -445,3 +445,39 @@ def _records_jsonl(res):
 def _datasheet(res):
     from pathlib import Path
     return (Path(res["dir_path"]) / "datasheet.md").read_text()
+
+
+def test_an_env_stamped_record_never_appears_under_any_portal_version_scope():
+    """§6 — "env rollouts stamp 'env'; never appear under any V1–V5 scope".
+
+    An agentic rollout lives in ``env_runs`` and produces no ``records`` row at
+    all, so in ordinary operation this is true by construction. What this asserts
+    is the case that is NOT by construction: a record carrying ``portal_version:
+    'env'`` — which the §5.2 migration can leave on a historical row — must be
+    invisible to every V1–V5 export scope rather than falling into one of them.
+
+    The failure this guards against is specific and silent. ``env`` is
+    deliberately outside ``PORTAL_VERSIONS``, so anything that normalizes it gets
+    the DEFAULT, ``v3`` — and the record would ship to a buyer as V3 synthetic
+    seamless work.
+    """
+    from asclepius import export as asc_export
+
+    store = _store()
+    task = _synthetic(store)
+    _mk_record(store, task, None, None, portal_version="env")
+
+    for version in ("v1", "v2", "v3", "v4", "v5"):
+        with pytest.raises(ValueError, match="No export-ready records"):
+            asc_export.export_by_case(store, created_by="admin",
+                                      case_id=task["task_id"], portal_version=version)
+
+
+def test_packaging_does_not_relabel_env_as_v3():
+    """The same fact one layer down, where the relabel would actually happen."""
+    from asclepius.packaging import _portal_version
+
+    assert _portal_version({"portal_version": "env"}, {}) == "env"
+    # …while everything unknown still falls to the default, as before.
+    assert _portal_version({"portal_version": "v9"}, {}) == "v3"
+    assert _portal_version({"portal_version": "v5"}, {}) == "v5"
