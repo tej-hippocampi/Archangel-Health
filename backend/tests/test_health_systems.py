@@ -719,13 +719,44 @@ def test_export_case_preview_filters_combine():
     assert p5["exportable"] is False
 
 
-def test_export_case_preview_v5_routes_to_environments():
+def test_export_case_preview_env_routes_to_environments():
+    """ENV, not V5. Since the relabel (Longitudinal E2E PRD §5.1) the environments
+    redirect is keyed on the ENV scope; keying it on V5 is what made the export tab
+    answer "ships via the environments pipeline" for the one product this whole
+    pipeline exists to sell."""
+    store = _store()
+    headers = _admin_headers(store)
+    p = client.get("/api/asclepius/admin/export/case-preview?version=ENV",
+                   headers=headers).json()
+    assert p["exportable"] is False
+    assert "environments pipeline" in (p["note"] or "")
+
+
+def test_export_case_preview_v5_resolves_records_like_v3_and_v4():
+    """The bug the relabel fixes. V5 must resolve through the ordinary record path
+    — a longitudinal submission is a record in ``records``, not an env run — so an
+    empty V5 slice reads as "nothing matches these filters", never as a redirect to
+    a pipeline that does not hold it."""
     store = _store()
     headers = _admin_headers(store)
     p = client.get("/api/asclepius/admin/export/case-preview?version=V5",
                    headers=headers).json()
-    assert p["exportable"] is False
-    assert "environments pipeline" in (p["note"] or "")
+    assert "environments pipeline" not in (p["note"] or "")
+
+
+def test_export_case_options_describes_every_version():
+    """An operator picking a slice to send a buyer sees what each one IS. "V4"
+    alone does not say "real static", and the wrong slice is not recoverable."""
+    store = _store()
+    headers = _admin_headers(store)
+    body = client.get("/api/asclepius/admin/export/case-options", headers=headers).json()
+    assert body["versions"] == ["V3", "V4", "V5"]
+    assert body["version_descriptions"] == {
+        "V3": "synthetic multimodal",
+        "V4": "real static",
+        "V5": "real longitudinal",
+    }
+    assert "ENV" not in body["versions"], "the agentic tier is not a portal version"
 
 
 def test_export_case_bundle_builds_one_bundle_and_409s_on_empty():

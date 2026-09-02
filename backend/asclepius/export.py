@@ -187,6 +187,33 @@ def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 # ─── Filtering (opt §2) ───────────────────────────────────────────────────────
+def _trajectory_sort_key(rec: Dict[str, Any]) -> tuple:
+    """Order a walk's points by their position in it, and leave everything else
+    where it was (Longitudinal E2E PRD §5.3).
+
+    ``(0, "", 0)`` for a record with no trajectory, so every non-longitudinal
+    record sorts equal and Python's stable sort preserves the order they were
+    selected in. A walk sorts after them, grouped by ``trajectory_id`` and then by
+    ``sequence_index`` — never by ``captured_at``, which is when the PHYSICIAN
+    worked, not when the patient did.
+    """
+    payload = rec.get("payload") or {}
+    block = payload.get("trajectory") or {}
+    tid = block.get("trajectory_id") or payload.get("trajectory_id")
+    if not tid:
+        return (0, "", 0)
+    idx = block.get("sequence_index")
+    if idx is None:
+        idx = payload.get("sequence_index")
+    try:
+        idx = int(idx)
+    except (TypeError, ValueError):
+        # A point with no readable position sorts FIRST within its walk, where it
+        # is conspicuous, rather than last where it reads as the terminal point.
+        idx = -1
+    return (1, str(tid), idx)
+
+
 def _passes_filters(
     rec: Dict[str, Any],
     *,
@@ -201,6 +228,7 @@ def _passes_filters(
     case_source: Optional[str] = None,
     submission_id: Optional[str] = None,
     case_id: Optional[str] = None,
+    case_ids: Optional[set] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
     # Single-task scoping (Exports rework): export exactly one submission's
@@ -210,7 +238,17 @@ def _passes_filters(
         return False
     # Case scoping (PRD A Phase 5): a case IS a task — one case_id bundles every
     # submission + review on it. Accept the column or the payload mirror.
-    if case_id and rec.get("task_id") != case_id and payload.get("task_id") != case_id:
+    #
+    # ``case_ids`` WIDENS that to a set, and it exists for exactly one caller:
+    # V5 scope, where selecting one point of a chart walk must export the WHOLE
+    # walk (Longitudinal E2E PRD §5.3). A fragment of a trajectory is not a
+    # cheaper trajectory — point 7 with no point 6 has no state to have been
+    # reasoned from, and the buyer cannot reassemble what they paid for.
+    if case_ids is not None:
+        if (rec.get("task_id") not in case_ids
+                and payload.get("task_id") not in case_ids):
+            return False
+    elif case_id and rec.get("task_id") != case_id and payload.get("task_id") != case_id:
         return False
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
         return False
@@ -496,6 +534,36 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
   credentialed specialist's work. Generated prompts are never auto-marked grounded."""
 
 
+def _longitudinal_scope_md(records: List[Dict[str, Any]]) -> str:
+    """The Composition line naming what a longitudinal batch actually contains
+    (Longitudinal E2E PRD §5.3): how many WALKS, and how many points across them.
+
+    Two numbers because they are never the same number and the pair is what the
+    artifact is priced on. "21 records" says nothing about whether that is two
+    complete chart walks or twenty-one unrelated fragments, and those are
+    different products at very different prices. Emitted only when the batch
+    carries a trajectory, so a V1–V4 datasheet is byte-for-byte unchanged.
+    """
+    walks: Dict[str, int] = {}
+    for rec in records:
+        payload = rec.get("payload") or {}
+        block = payload.get("trajectory") or {}
+        tid = block.get("trajectory_id") or payload.get("trajectory_id")
+        if tid:
+            walks[str(tid)] = walks.get(str(tid), 0) + 1
+    if not walks:
+        return ""
+    n_walks, n_points = len(walks), sum(walks.values())
+    return (
+        f"- Scope: **V5 longitudinal** · {n_walks} trajector"
+        f"{'y' if n_walks == 1 else 'ies'} · {n_points} point"
+        f"{'' if n_points == 1 else 's'}. Records are one line per POINT; the "
+        "reassembly key is `trajectory.trajectory_id` and the order is "
+        "`trajectory.sequence_index`. Never sort a walk on `captured_at` — that is "
+        "when the physician worked, not when the patient did."
+    )
+
+
 def _scope_section_md(scope: Optional[Dict[str, Any]]) -> str:
     """An auto-generated aggregate credential line for contributor/organization-
     scoped exports (spec §5), e.g. "All records labeled by an NPI-verified, board-
@@ -600,8 +668,9 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - Total records: **{counts['total']}**
 {type_lines}
 - Specialties: {", ".join(specialties) or "n/a"}
-- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 classic · V2 assisted · V3 seamless synthetic · **V4 REAL de-identified cases**)
+- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 classic · V2 assisted · V3 seamless synthetic · **V4 REAL de-identified static cases** · **V5 REAL longitudinal chart walks**)
 - By modality: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_modality', {}).items())) or "n/a"} (text vs structured-multimodal case)
+{_longitudinal_scope_md(records)}
 {_scope_section_md(scope)}
 {_multimodal_section_md(records, counts)}
 {_synthetic_provenance_md(records)}
@@ -1492,6 +1561,25 @@ def build_export(
             since=since,
             until=until,
         )
+    # ── V5 scope exports WHOLE trajectories (Longitudinal E2E PRD §5.3) ──────
+    # Selecting V5 with a case id means "the walk this point belongs to", not
+    # "this point". A thirteen-point chart sold as one artifact and delivered as
+    # point 7 alone is not a smaller delivery of the same thing: the value is the
+    # sequence, and a buyer cannot reassemble a walk they were given one link of.
+    #
+    # Scoped to the V5 selection deliberately. Widening every case-id export this
+    # way would change what V3 and V4 mean, and there a case IS a task.
+    case_ids = None
+    if portal_version == "v5" and case_id:
+        anchor = store.get_task(case_id) if hasattr(store, "get_task") else None
+        traj = (anchor or {}).get("trajectory_id")
+        if traj and hasattr(store, "trajectory_points"):
+            walk = store.trajectory_points(traj) or []
+            case_ids = {p.get("task_id") for p in walk} - {None}
+        # An anchor with no trajectory falls through to the ordinary single-case
+        # path rather than erroring: a V5 filter on a static case id is an empty
+        # slice, and "nothing matches these filters" is the honest answer.
+
     records = [
         r
         for r in candidates
@@ -1509,10 +1597,17 @@ def build_export(
             case_source=case_source,
             submission_id=submission_id,
             case_id=case_id,
+            case_ids=case_ids,
         )
     ]
     if not records:
         raise ValueError("No export-ready records match the selected filters.")
+    # ORDERED, and this is the product rather than tidiness. Point n's visible
+    # chart is the state before point n's decision and point n+1's contains what
+    # happened after it, so a walk delivered out of order reads as a contradictory
+    # patient. Records with no trajectory keep their existing relative order — the
+    # sort key is constant for them and Python's sort is stable.
+    records.sort(key=lambda r: _trajectory_sort_key(r))
 
     export_id = _new_export_id()
     exported_at = datetime.utcnow().isoformat()

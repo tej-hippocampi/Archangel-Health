@@ -29,11 +29,16 @@
 
     const caseInput = h('input', { class: 'asc-input', placeholder: 'e.g. t-4f2a91 (exact)', value: filters.case_id });
     const specSelect = h('select', { class: 'asc-input' }, h('option', { value: '' }, 'All specialties'));
+    // One line per scope. An operator picks a version and ships it to a buyer;
+    // "V4" on its own does not say whether that is real data, and the wrong slice
+    // is not recoverable once it has been sent. ENV (the agentic tier) is
+    // deliberately absent — it is not a portal version, its rollouts live in
+    // env_runs, and it ships from the environments section instead.
     const verSelect = h('select', { class: 'asc-input' },
       h('option', { value: '' }, 'All versions'),
-      h('option', { value: 'V3' }, 'V3'),
-      h('option', { value: 'V4' }, 'V4'),
-      h('option', { value: 'V5' }, 'V5'));
+      h('option', { value: 'V3' }, 'V3 · Synthetic multimodal'),
+      h('option', { value: 'V4' }, 'V4 · Real static'),
+      h('option', { value: 'V5' }, 'V5 · Longitudinal (real, sequential)'));
     verSelect.value = filters.version;
 
     const previewBox = h('div', { id: 'ascExportCasePreview' });

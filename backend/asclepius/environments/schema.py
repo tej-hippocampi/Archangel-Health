@@ -1,4 +1,4 @@
-"""V5 Clinical RL Environments — the trajectory / step / verification schema.
+"""ENV · Clinical RL Environments — the trajectory / step / verification schema.
 
 This is the Centaur contract (PRD §1). The top-level keys and the step ``type``
 vocabulary are frozen — a record must be drop-in for a frontier lab's pipeline
@@ -182,7 +182,7 @@ class TrajectoryPreference(BaseModel):
 
 
 class PhysicianAnnotation(BaseModel):
-    """The crown-jewel V5 data (PRD §7). Persisted to
+    """The crown-jewel ENV data (PRD §7). Persisted to
     ``env_runs.physician_annotation`` and shipped in ``expert`` mode."""
 
     model_config = ConfigDict(extra="allow")

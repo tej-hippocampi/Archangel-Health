@@ -134,7 +134,7 @@ def _verifier_spec() -> Dict[str, Any]:
 def build_datasheet(records: List[Dict[str, Any]], manifest: Dict[str, Any]) -> str:
     """A short human-readable datasheet (reuse ``export.py`` conventions)."""
     lines = [
-        "# Asclepius V5 — Clinical RL Environment Bundle",
+        "# Asclepius ENV — Clinical RL Environment Bundle",
         "",
         f"- Records: {manifest['n_records']}",
         f"- Mode: {manifest['mode']}",

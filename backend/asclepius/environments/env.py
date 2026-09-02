@@ -1,6 +1,6 @@
 """ClinicalEnv — the runnable Gymnasium-standard interface (PRD §4.5).
 
-This is what makes V5 a *gym*, not a dataset: a lab plugs their own agent into
+This is what makes ENV a *gym*, not a dataset: a lab plugs their own agent into
 ``reset``/``step``/``verify`` and trains against it live. Our ``rollout.py`` is
 just one consumer of the same interface.
 

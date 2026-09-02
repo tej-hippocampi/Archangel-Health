@@ -2748,17 +2748,34 @@ async def asclepius_portal():
         return HTMLResponse(content=f.read())
 
 
-@app.get("/asclepius/v5/annotate", response_class=HTMLResponse)
-async def asclepius_v5_annotate_page():
-    """Asclepius V5 — clinical RL trajectory annotation surface (Clinical RL
-    Environments PRD §7). A new content TYPE inside the same evaluator portal
-    design system (§7.6), not a new app. Served unauthenticated by design (like
-    /asclepius); the page JS gates on the Asclepius token. Optional ``?run_id=``
-    query param opens a specific trajectory; otherwise it pulls the next
-    unannotated one from the V5 queue. No PHI (de-identified context only)."""
-    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/v5/annotate.html")
+@app.get("/asclepius/env/annotate", response_class=HTMLResponse)
+async def asclepius_env_annotate_page():
+    """Asclepius ENV · Clinical RL Environment — trajectory annotation surface
+    (Clinical RL Environments PRD §7). A new content TYPE inside the same
+    evaluator portal design system (§7.6), not a new app. Served unauthenticated
+    by design (like /asclepius); the page JS gates on the Asclepius token.
+    Optional ``?run_id=`` query param opens a specific trajectory; otherwise it
+    pulls the next unannotated one from the ENV queue. No PHI (de-identified
+    context only)."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/env/annotate.html")
     with open(html_path) as f:
         return HTMLResponse(content=f.read())
+
+
+@app.get("/asclepius/v5/annotate", include_in_schema=False)
+async def asclepius_v5_annotate_redirect(request: Request):
+    """The pre-rename path (Longitudinal E2E PRD §5.4 Group C).
+
+    ``v5`` now means the LONGITUDINAL portal version, and this surface is the
+    agentic ENV tier — so the path moved. A 301 rather than a deletion because
+    the old URL is in browser histories, bookmarks and at least one onboarding
+    email, and a physician who follows one should land on the page rather than
+    on a 404 they cannot diagnose. The query string is preserved: ``?run_id=``
+    is how an admin sends someone a specific trajectory.
+    """
+    qs = request.url.query
+    return RedirectResponse(url="/asclepius/env/annotate" + (f"?{qs}" if qs else ""),
+                            status_code=301)
 
 
 @app.get("/community", response_class=HTMLResponse)
@@ -6312,6 +6329,33 @@ async def startup_team_scheduler():
         _auth_logger.exception("[asclepius] V4 real-case seeding failed")
         _V4_BOOT_SUMMARY.update(ran=False, error=str(_exc),
                                 at=datetime.now(timezone.utc).isoformat())
+    # The V5 relabel migration (Longitudinal E2E PRD §5.2). Idempotent and cheap —
+    # two indexed UPDATEs that match nothing in steady state — so it runs on every
+    # boot rather than once behind a flag nobody can confirm fired. Logged with the
+    # counts, because a migration whose effect you cannot read afterwards is
+    # indistinguishable from one that did not run.
+    try:
+        _mig = _get_store().migrate_portal_versions_for_longitudinal()
+        if _mig["env_stamped"] or _mig["longitudinal_backfilled"]:
+            _auth_logger.info(
+                "[asclepius] V5 relabel: %d env rollout(s) re-stamped 'env', "
+                "%d trajectory submission(s) backfilled v4 → v5 (%d rows before, "
+                "%d after)", _mig["env_stamped"], _mig["longitudinal_backfilled"],
+                _mig["total_before"], _mig["total_after"])
+        if _mig["ambiguous_v5_submission_ids"]:
+            # Never rewritten, always named. A 'v5' row on a task that is neither an
+            # env run nor a trajectory point has no fact saying which it was, and
+            # guessing would put an unattributable row in a buyer's provenance.
+            _auth_logger.warning(
+                "[asclepius] V5 relabel: %d submission(s) stamped 'v5' belong to no "
+                "trajectory and no env run; left untouched for review: %s",
+                len(_mig["ambiguous_v5_submission_ids"]),
+                ", ".join(_mig["ambiguous_v5_submission_ids"][:10]))
+    except Exception:
+        # A relabel that cannot run must not stop the app booting: the walls that
+        # matter are enforced at write time in ``_derive_portal_version``, and this
+        # only corrects rows written before them.
+        _auth_logger.exception("[asclepius] V5 relabel migration failed")
     # PRD-4: warn loudly if PHI email would go through a non-BAA transport.
     try:
         from email_utils import active_email_vendor, email_phi_allowed
@@ -6909,16 +6953,17 @@ app.include_router(asclepius_verify_router)
 app.include_router(asclepius_review_router)
 app.include_router(asclepius_payments_router)
 app.include_router(asclepius_score_router)
-# V5 Clinical RL Environments (agentic tier). Additive; mounted defensively so a
-# missing optional dependency disables V5 rather than crashing the app. V1–V4 are
-# unaffected (the environments live in their own env_runs table + /environments routes).
+# ENV · Clinical RL Environments (agentic tier). Additive; mounted defensively so
+# a missing optional dependency disables ENV rather than crashing the app. The
+# single-turn portal V1–V5 is unaffected (the environments live in their own
+# env_runs table + /environments routes, and 'env' is not a portal version).
 try:
     from routers.asclepius_env import router as asclepius_env_router
 
     app.include_router(asclepius_env_router)
 except Exception as _asc_env_exc:  # pragma: no cover
     __import__("logging").getLogger("asclepius.boot").warning(
-        "Asclepius V5 environments router not mounted: %s", _asc_env_exc
+        "Asclepius ENV environments router not mounted: %s", _asc_env_exc
     )
 app.include_router(community_router)
 app.include_router(community_page_router)
