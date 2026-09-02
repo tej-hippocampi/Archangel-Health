@@ -301,6 +301,19 @@ def practice_gate_state(user: Optional[Dict[str, Any]]) -> str:
     return state if state in GATE_STATES else GATE_LOCKED
 
 
+def practice_first_pass(user: Optional[Dict[str, Any]]) -> bool:
+    """True when this physician passed the practice case on their first attempt.
+
+    Reads the stamp written at the moment of the first pass rather than
+    comparing attempt counts now, because attempts keep climbing on replays.
+
+    A grandfathered account returns False, and that is correct rather than
+    unkind: those accounts predate the practice case, so there is no first
+    attempt to have passed. False here means "no positive signal", which is
+    also what it means for someone who has not sat the case yet."""
+    return practice_gate(user).get("first_attempt_pass") is True
+
+
 def practice_gate_reason(user: Optional[Dict[str, Any]], *,
                          required_version: int) -> Optional[str]:
     """None when real work is open. Otherwise WHY it is not, as a short token.

@@ -1244,6 +1244,13 @@ async def tutorial_submit(
             gate["passed_at"] = gate.get("passed_at") or now
             gate["passed_version"] = TUTORIAL_VERSION
             gate["source"] = "tutorial_submit"
+        # Stamped at the moment of the FIRST pass and never rewritten, because
+        # `attempts` keeps climbing on replays: a physician who passed first
+        # time and later reopened the case for practice would otherwise stop
+        # reading as a first-time pass. This is the vetting signal, so it has to
+        # mean what it meant on the day.
+        if "first_attempt_pass" not in gate:
+            gate["first_attempt_pass"] = (attempts == 1)
         current["status"] = "completed"
         if not already_done:
             current["completed_at"] = now
