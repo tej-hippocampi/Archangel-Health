@@ -114,6 +114,28 @@ def _send_after_for(kind: str, now: Optional[datetime] = None) -> Optional[str]:
     return (now + timedelta(seconds=window)).replace(microsecond=0, tzinfo=None).isoformat()
 
 
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _iso_in(seconds: int) -> Optional[str]:
+    """A send_after stamp `seconds` from now, in the shape the outbox stores."""
+    if seconds <= 0:
+        return None
+    return (datetime.now(timezone.utc) + timedelta(seconds=seconds)).replace(
+        microsecond=0, tzinfo=None).isoformat()
+
+
+def _portal_base() -> str:
+    """Same resolution order as routers/asclepius_verify.py, so a link in the
+    approval mail and a link anywhere else point at the same host."""
+    return (os.getenv("ASCLEPIUS_PORTAL_URL") or os.getenv("BASE_URL")
+            or "http://localhost:8000").strip().rstrip("/")
+
+
 def _alert_keys(kind: str, dedupe_key: str, addrs: List[str],
                 coalesce: bool) -> List[tuple]:
     """(recipient, idempotency_key) for one logical alert.
@@ -198,6 +220,149 @@ def notify_founders(
         # A failed notification must never be the reason a request fails.
         log.exception("notifications: could not queue kind=%s", kind)
         return 0
+
+
+# ─── The member-facing door ──────────────────────────────────────────────────
+# Two audiences, one outbox. ``admin_notify_outbox`` is a durable mailer with an
+# idempotency key and a retrying drainer; it is not an admin-only table.
+# ``notify_founders`` above is the internal front door and this is the member
+# one. The no-PHI rule applies to both, and a physician's own name in a mail
+# addressed to that physician is not PHI. What this must never carry is anything
+# about ANOTHER person.
+
+#: Kinds the drainer sends with high-importance headers. One physician-facing
+#: lifecycle mail, not a category: an outbox where everything is urgent has no
+#: urgency left in it.
+IMPORTANT_KINDS = frozenset({"physician_approved"})
+
+#: How long a rejection sits in the outbox before it goes. A rejection is
+#: irreversible in somebody's inbox; half an hour buys back a misclick, and an
+#: approval inside the window voids the pending row.
+_REJECT_GRACE_SECONDS = _env_int("ASCLEPIUS_REJECT_GRACE_SECONDS", 1800)
+
+
+def notify_person(store: Any, *, kind: str, to: str, subject: str, body_html: str,
+                  dedupe_key: str, send_after: Optional[str] = None) -> int:
+    """Queue ONE durable email to one member. Returns 1 when newly queued.
+
+    Keys derived through ``_alert_keys`` like everything else, so the enqueue
+    path and any later void cannot derive them differently by eye.
+    ``coalesce=False``: a lifecycle decision is never rolled up with another one.
+
+    Swallows everything. See the module docstring.
+    """
+    try:
+        addr = (to or "").strip()
+        if not addr:
+            return 0
+        for _, key in _alert_keys(kind, dedupe_key, [addr], False):
+            if store.enqueue_admin_notification(
+                idempotency_key=key, kind=kind, subject=subject,
+                body_html=body_html, recipient_email=addr, send_after=send_after,
+            ):
+                return 1
+        return 0
+    except Exception:
+        log.exception("notifications: could not queue member mail kind=%s", kind)
+        return 0
+
+
+def _password_is_unset(store: Any, user: Dict[str, Any]) -> bool:
+    """True when this account has no way to sign in yet (Onboarding v2)."""
+    try:
+        from asclepius import store as _store_mod  # noqa: PLC0415
+        return bool(_store_mod.password_is_unset(user))
+    except Exception:
+        # Unknown reads as "has a password", so the worst case is a notice that
+        # points at a door rather than no notice at all.
+        return False
+
+
+def _person_key(kind: str, dedupe_key: str, addr: str) -> str:
+    return _alert_keys(kind, dedupe_key, [addr], False)[0][1]
+
+
+def on_verification_decision(store: Any, *, user: Optional[Dict[str, Any]],
+                             status: str, tier: Optional[str] = None,
+                             prior: Optional[str] = None) -> None:
+    """Queue the physician's own copy of a verification decision.
+
+    Called from ``store.record_verification_decision``, so the console, the
+    agent's auto-approval and ``/admin/physicians/restore`` are all covered by
+    one hook rather than by three call sites that each have to remember.
+
+    Once-per-physician comes free from the UNIQUE idempotency key plus INSERT OR
+    IGNORE: a retried request, a double-click, a restore re-stamp and a
+    multi-worker race all produce one row. Documented consequence: an
+    approve -> reject -> re-approve sequence sends no second approval mail. That
+    is the right trade, because the alternative keys on a timestamp and loses
+    idempotency across retries, which is the failure that actually happens.
+
+    Never raises. Never sends: it queues.
+    """
+    try:
+        if not user or status not in ("approved", "rejected"):
+            return
+        email = (user.get("email") or "").strip()
+        if not email:
+            return
+        from asclepius import capabilities as _caps  # noqa: PLC0415
+        from onboarding_emails import (  # noqa: PLC0415
+            build_asclepius_approved_email, build_asclepius_rejected_email,
+        )
+        full_name = (user.get("full_name") or "").strip()
+
+        if status == "approved":
+            # Onboarding v2 made approval the moment credentials come into
+            # existence: the wizard has no password step, so the console mints a
+            # temporary password and sends a welcome carrying it, synchronously,
+            # and tells the admin when that send failed. That design is right and
+            # this does not replace it.
+            #
+            # What it covers is the two paths that still send nothing: the
+            # verification agent's auto-approval and /admin/physicians/restore.
+            # Under v2 those leave a physician with no mail AND no credential, so
+            # they cannot sign in at all, and nothing anywhere says so.
+            #
+            # `mint_credentials` is the seam. When the account already has a
+            # password there is nothing to issue and the plain approval notice is
+            # the whole job; when it does not, the caller has to have issued one
+            # before this runs, because a queued "your temporary password is ..."
+            # with no password in it is worse than silence.
+            if _password_is_unset(store, user):
+                log.warning(
+                    "notifications: %s approved with no credential; not queuing a "
+                    "welcome it cannot carry", user.get("id"))
+                return
+            tier_word = _caps.tier_word(tier) if tier else ""
+            notify_person(
+                store, kind="physician_approved", to=email,
+                subject="You're approved for Asclepius",
+                body_html=build_asclepius_approved_email(
+                    full_name=full_name, workspace_url=_portal_base() + "/asclepius",
+                    tier_word=tier_word,
+                    can_review=(tier == getattr(_caps, "REVIEWER", "reviewer")),
+                ),
+                dedupe_key=f"approved:{user.get('id')}",
+            )
+            # An admin who rejects and then approves inside the grace window
+            # must not deliver both.
+            try:
+                store.void_pending_admin_notification(
+                    _person_key("physician_rejected", f"rejected:{user.get('id')}", email))
+            except Exception:
+                log.exception("notifications: could not void a pending rejection")
+            return
+
+        notify_person(
+            store, kind="physician_rejected", to=email,
+            subject="About your Asclepius application",
+            body_html=build_asclepius_rejected_email(full_name=full_name),
+            dedupe_key=f"rejected:{user.get('id')}",
+            send_after=_iso_in(_REJECT_GRACE_SECONDS),
+        )
+    except Exception:
+        log.exception("notifications: verification decision mail failed")
 
 
 # ─── The event dispatch ──────────────────────────────────────────────────────

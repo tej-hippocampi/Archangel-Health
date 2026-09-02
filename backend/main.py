@@ -739,6 +739,7 @@ async def _drain_admin_notifications() -> None:
     """
     from asclepius.store import get_store as _asc_store  # noqa: PLC0415
     from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
+    from notifications import IMPORTANT_KINDS  # noqa: PLC0415
 
     if not is_email_transport_configured():
         return
@@ -747,6 +748,11 @@ async def _drain_admin_notifications() -> None:
         try:
             ok = await send_html_email(
                 row["recipient_email"], row["subject"], row["body_html"],
+                # Preserved from the inline send this outbox replaced. Moving
+                # the approval mail here would otherwise have quietly dropped
+                # the flag it was sent with, and a verification decision is the
+                # one queued mail its recipient is actually waiting on.
+                importance_headers=row["kind"] in IMPORTANT_KINDS,
             )
             store.mark_admin_notification_sent(row["id"], ok=bool(ok))
         except Exception as exc:
@@ -2745,7 +2751,19 @@ async def asclepius_portal():
     assets load from /static/asclepius/. No PHI."""
     html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/index.html")
     with open(html_path) as f:
-        return HTMLResponse(content=f.read())
+        shell = f.read()
+    # The sign-in screen needs somewhere to send a physician who does not have
+    # an account yet, and the signup door lives on the landing app, which is a
+    # different origin in production. The portal JS cannot derive it, so hand it
+    # over in the shell. Injected rather than hard-coded in the HTML because
+    # LANDING_URL is the only thing that knows where the landing actually is.
+    landing = (os.getenv("LANDING_URL") or "http://localhost:5173").strip().rstrip("/")
+    shell = shell.replace(
+        "</head>",
+        f'<meta name="asc-signup-url" content="{html_lib.escape(landing, quote=True)}/join">\n</head>',
+        1,
+    )
+    return HTMLResponse(content=shell)
 
 
 @app.get("/asclepius/env/annotate", response_class=HTMLResponse)

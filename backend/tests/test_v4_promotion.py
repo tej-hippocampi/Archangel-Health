@@ -1936,6 +1936,15 @@ def test_one_call_restores_a_misfiled_doctor_all_the_way_to_real_cases():
                              "real_data_approved": True}, body
     assert body["can_label_real_cases"] is True
 
+    # The repair restores the four things it is about: role, tier, verification
+    # and real-data approval. It deliberately does NOT clear the practice case,
+    # which is a fifth thing and a different question: nobody has shown this
+    # physician the standard, and an admin repairing a filing mistake is not a
+    # reason to skip that. A previously-working account would already be
+    # grandfathered by the boot migration on its own submissions; this fixture
+    # has none, so it clears the gate the way a real physician does.
+    A.pass_practice_case(st, doc["id"])
+
     headers = A.headers_for(st.get_user_by_id(doc["id"]))
     nxt = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
                      headers=headers).json()

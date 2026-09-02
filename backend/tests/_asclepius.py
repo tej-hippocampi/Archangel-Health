@@ -60,7 +60,8 @@ from main import app  # noqa: E402  (import after env is set)
 from asclepius import auth as asc_auth  # noqa: E402
 from asclepius import store as asc_store  # noqa: E402
 
-__all__ = ["app", "fresh_store", "make_user", "token_for", "headers_for", "TMP_DIR", "uniq"]
+__all__ = ["app", "fresh_store", "make_user", "pass_practice_case", "token_for",
+           "headers_for", "TMP_DIR", "uniq"]
 
 TMP_DIR = _TMP
 
@@ -102,7 +103,46 @@ def make_user(store, role: str = "evaluator", **kw):
     email = kw.pop("email", f"{role}-{uuid.uuid4().hex[:8]}@asclepius.example.com")
     if role in _TIERED_ROLES and "tier" not in kw:
         kw["tier"] = "labeler"
-    return store.create_user(email=email, password="pw-12345678", role=role, **kw)
+    practice_case = kw.pop("practice_case", None)
+    user = store.create_user(email=email, password="pw-12345678", role=role, **kw)
+    if practice_case is None:
+        practice_case = role in _TIERED_ROLES and kw.get("tier") is not None
+    if practice_case:
+        pass_practice_case(store, user["id"])
+        user = store.get_user_by_id(user["id"])
+    return user
+
+
+def pass_practice_case(store, user_id: str) -> None:
+    """Open the practice-case gate on a fixture physician.
+
+    The practice case is a hard gate on /tasks/next, /tasks/available and
+    /submissions, so without this every fixture that draws or submits would 403
+    and dozens of unrelated test files would go red at once, hiding whatever
+    they were actually written to catch.
+
+    Defaulted ON for tiered contributor roles for the same reason ``tier``
+    defaults to labeler above: that is what a real working account looks like.
+    A test that wants the gate SHUT passes ``practice_case=False`` explicitly,
+    so the gated state is always something a test asked for rather than
+    something it inherited.
+
+    Public, because a test that builds its physician through the real approval
+    flow rather than through make_user still has to open this gate: approval
+    and the practice case are two different axes, and passing one does not pass
+    the other.
+    """
+    from asclepius import tutorial_case as _tc  # noqa: PLC0415 - test-only
+
+    state = store.get_tutorial_state(user_id)
+    state["status"] = "completed"
+    state["gate"] = {
+        "state": "passed",
+        "passed_version": _tc.TUTORIAL_VERSION,
+        "attempts": 1,
+        "source": "fixture",
+    }
+    store.set_tutorial_state(user_id, state)
 
 
 def token_for(user) -> str:

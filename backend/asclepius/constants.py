@@ -8,7 +8,8 @@ unambiguous and easy to bump (mirrors ``APP_AI_CONFIG_VERSION`` in
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+import tempfile
+from typing import Any, Dict, Optional
 
 from ai.model_config import APP_AI_CONFIG_VERSION
 
@@ -1016,9 +1017,25 @@ EPHEMERAL_PREFIXES = ("/tmp", "/var/tmp", "/dev/shm", "/run")
 
 
 def path_is_ephemeral(path: str) -> bool:
-    """True when ``path`` sits on storage a redeploy erases."""
+    """True when ``path`` sits on storage a redeploy erases.
+
+    The platform's temp directory counts even when it is not on the well-known
+    list: macOS puts it under /var/folders/..., which is wiped on the same
+    schedule as /tmp, and a durability answer that differs by host OS lets a
+    gate pass on a laptop that would refuse in production.
+    """
     root = os.path.abspath((path or "").strip() or ".")
-    return any(root == p or root.startswith(p + "/") for p in EPHEMERAL_PREFIXES)
+    # realpath on BOTH sides: macOS reaches its tempdir through a /var →
+    # /private/var symlink, and a prefix match across that seam sees two
+    # different paths for one directory.
+    real_root = os.path.realpath(root)
+    tmp = os.path.realpath(tempfile.gettempdir())
+    prefixes = EPHEMERAL_PREFIXES + ((tmp,) if tmp not in EPHEMERAL_PREFIXES else ())
+    return any(
+        candidate == p or candidate.startswith(p + "/")
+        for candidate in (root, real_root)
+        for p in prefixes
+    )
 
 
 #: Railway injects this into every service that has a volume attached, set to the

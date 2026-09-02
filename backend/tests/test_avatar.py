@@ -301,14 +301,25 @@ def test_the_url_changes_when_the_picture_does(doctor):
     assert first and second and first != second
 
 
-def test_the_band_is_populated_whenever_a_score_is(doctor):
-    """`contributor_scores` has no band column, so this read `None` for every
-    physician who ever opened the page and the profile rendered a bare number
-    with nothing saying what it meant."""
+def test_the_self_profile_carries_no_rating_at_all(doctor):
+    """REVERSED. This used to assert the band was populated whenever a score
+    was, because the profile rendered a bare number with nothing saying what it
+    meant. The answer to that turned out to be that a physician should not be
+    reading their own contributor score in the first place: it is an instrument
+    for routing and for pay, and shown to the person it measures it became a
+    number they were managing.
+
+    Still computed, still stored, still read by the admin. Just not shipped on
+    the one endpoint whose contract is "everything the portal shows a physician
+    about their own account"."""
     store, user = doctor
     store.upsert_contributor_score(user_id=user["id"], score=74.2, n_cases=6,
                                    components={})
     standing = client.get("/api/asclepius/me/profile",
                           headers=headers_for(user)).json()["standing"]
-    assert standing["score"] is not None
-    assert standing["band"] and "band" in standing["band"].lower()
+    assert "score" not in standing
+    assert "band" not in standing
+    # Capability vocabulary stays: it is not a rating, and other things read it.
+    assert "tier_word" in standing
+    # And the score itself is untouched where it actually lives.
+    assert store.get_contributor_score(user["id"])["score"] == 74.2

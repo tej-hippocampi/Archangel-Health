@@ -571,6 +571,17 @@ class SubmissionIn(BaseModel):
     rubric: List[RubricCriterion] = Field(default_factory=list)
     confidence: str = "medium"
     time_spent_sec: int = 0
+    # PRACTICE CASE ONLY. Tour step ids the physician advanced with "Skip this
+    # step", which fills a clinically reasonable placeholder through the app's
+    # own handlers. Clinically reasonable is exactly what the practice case's
+    # answer key checks, so without this, fourteen clicks of Skip scored 4 of 4
+    # and would have unlocked every paid case once the gate went in.
+    #
+    # Client-declared, therefore a PEDAGOGY signal and not an authz boundary:
+    # ``tutorial_case.GRADED_STEP_IDS`` is the server's list of which steps
+    # matter, and the only other route to a pass is doing the case properly.
+    # Ignored entirely on the real submit path.
+    assisted: List[str] = Field(default_factory=list)
     # Which portal flow produced this submission ("v1" classic | "v2"
     # assisted) — stamped onto the submission row + every record so admin and
     # buyers can tell V1 data from V2 data.

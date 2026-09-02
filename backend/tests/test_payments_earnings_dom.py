@@ -298,8 +298,10 @@ done(function () {
     assert out["hero"] == ["$2,475"]
     assert "$150 pending review" in " ".join(out["sub"])
     assert "$75 not approved" in " ".join(out["sub"])
-    assert any("Tasks labeled" in l and "33 × $75" in l and "$2,475" in l for l in out["lines"])
-    assert any("Review sessions" in l and "0 × $100" in l for l in out["lines"])
+    # The COUNT and the total, not the rate. "33 × $75" was a forward-looking
+    # price on a page that reports what was actually earned.
+    assert any("Tasks labeled" in l and "33" in l and "$2,475" in l for l in out["lines"])
+    assert not any("×" in l for l in out["lines"]), out["lines"]
     assert out["rows"] == 3
     # Never a raw token — the doctor reads words.
     assert [s["word"] for s in out["statuses"]] == ["Approved", "Pending review", "Not approved"]
@@ -334,7 +336,12 @@ def test_the_twenty_minute_rule_is_visible_without_a_session_open():
     which renders nothing when there is no session. So a physician who had never
     started a review could not find the rule on the Earnings page at all — and
     once they DID have a session, the sentence was on a tab they were not looking
-    at. The rule has to be discoverable before it can cost anybody anything."""
+    at. The rule has to be discoverable before it can cost anybody anything.
+
+    The rule still has to be here. What left is the RATE: what a session pays is
+    stated once, in the reviewer manual, which is where somebody looks before
+    committing twenty minutes. The thing that can cost them money is the
+    threshold, and that stays on this page."""
     out = _run_node(_script({"/api/asclepius/earnings": _LEDGER}, """
 var body = document.createElement('div');
 window.EarningsSection.render(body, ctx);
@@ -350,7 +357,11 @@ done(function () {
     rule = out["rule"][0]
     assert "20:00" in rule
     assert "unpaid" in rule
-    assert "$100" in rule
+    assert "$" not in rule, "the Earnings dashboard stopped posting a rate"
+    # And it says what actually decides the money, which is the part a
+    # physician was previously left to infer from a bare number.
+    assert "credentials" in rule
+    assert "not paid" in rule
 
 
 def test_the_rule_card_is_not_shown_to_someone_it_does_not_apply_to():
@@ -530,7 +541,7 @@ done(function () {
   }));
 });
 """))
-    assert "has passed 20:00 and is worth $100" in out["warning"][0]
+    assert "has passed 20:00 and is payable" in out["warning"][0]
     assert "is-qualified" in out["qualified"][0]
 
 
