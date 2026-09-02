@@ -1110,10 +1110,14 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str,
     review queue, which reads as a broken product rather than as a decision
     somebody made.
 
-    There is deliberately NO promotion sentence. The only writers of users.tier
-    are approval-time and the restore backfill; there is no promotion mechanism
-    in the product, and an email implying one is a promise the codebase cannot
-    keep. If a promotion flow is ever built, this is where it gets a sentence.
+    There is deliberately no promotion sentence HERE, and that is now a
+    different decision than it used to be. It used to mean there was no
+    promotion mechanism at all, so implying one was a promise the codebase
+    could not keep. A promotion flow exists now
+    (``build_asclepius_promoted_email`` below), and this email still does not
+    mention it: on the day somebody is approved, what work opens today is the
+    useful thing to say, and a sentence about a rung above the one they just
+    reached reads as a hint that this one is not enough.
 
     ``tier_word`` is a WORD, resolved by the caller. Empty means the paragraph
     is omitted entirely rather than rendering "Unassigned" at a physician:
@@ -1150,6 +1154,38 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str,
         + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
     )
     return _shell(subject="You're approved for Asclepius", body_html=body)
+
+
+def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
+                                   tier_word: str) -> str:
+    """A physician's tier moved up after they were already approved.
+
+    Sent on promotion only. A demotion gets no automated mail, deliberately:
+    the reasons are specific to the work and belong in a conversation somebody
+    has, not in a template that tells a physician their standing dropped and
+    offers them nobody to ask about it.
+
+    Says what opens and what it was earned by, and nothing about a score. The
+    number that drove the decision is internal, and quoting it would both leak
+    it and invite an argument about a figure the physician cannot inspect.
+    """
+    first = (full_name or "").strip() or "Doctor"
+    body = (
+        _eyebrow("Asclepius")
+        + _h1("You&rsquo;re now a reviewer.")
+        + _p(
+            f"{_strong(first)}, on the strength of the cases you have filed, your "
+            f"account has been moved up to {_strong(tier_word)}."
+        )
+        + _p(
+            "That opens the review queue. Alongside labeling cases in your specialty, "
+            "you will now grade work other physicians have filed, which is the part of "
+            "this that decides what we are able to ship."
+        )
+        + _cta(workspace_url, "Open your workspace →")
+        + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
+    )
+    return _shell(subject="You're now a reviewer on Asclepius", body_html=body)
 
 
 def build_asclepius_rejected_email(*, full_name: str) -> str:
@@ -1540,6 +1576,40 @@ def build_asclepius_password_reset_email(*, email: str, reset_url: str, expires_
         )
     )
     return _shell(subject="Reset your Archangel Health password", body_html=body)
+
+
+def build_asclepius_signin_link_email(*, signin_url: str, expires_minutes: int) -> str:
+    """A way back in for an applicant who has no password yet.
+
+    Names no account detail at all, not even the address it was sent to. This
+    is mailed on request from anyone who can type an email address, and the
+    fact worth protecting here is not "does this account exist" but "is this
+    named physician waiting on a decision from us", which is a statement about
+    their professional standing. So the body reads the same whether it reached
+    an applicant, an approved physician, or nobody at all."""
+    safe_url = html.escape(signin_url, quote=True)
+    body = (
+        _eyebrow("Sign in · Archangel Health")
+        + _h1("Pick up where you left off.")
+        + _p(
+            "Use the button below to get back into your application. This link "
+            f"works once and expires in {_strong(str(expires_minutes) + ' minutes')}."
+        )
+        + _cta(signin_url, "Sign in →")
+        + _p(
+            f'If the button does not work, paste this into your browser:<br>'
+            f'<a href="{safe_url}" style="color:{_GREEN_DEEP};">{html.escape(signin_url)}</a>',
+            muted=True,
+            small=True,
+        )
+        + _p(
+            "If you did not ask for this, ignore this email. Nobody has been "
+            "given access to anything.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Your Archangel Health sign in link", body_html=body)
 
 
 def build_asclepius_password_changed_email(*, email: str) -> str:
