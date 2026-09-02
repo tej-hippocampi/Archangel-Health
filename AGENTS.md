@@ -41,6 +41,27 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 - **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
 - **CORS for the deployed landing**: the backend allowlists origins from `ALLOWED_ORIGINS` (or `BASE_URL`+`LANDING_URL`), plus a baked-in regex for `https://archangelhealth.ai` and its subdomains (`ALLOWED_ORIGIN_REGEX` to override — see `backend/http_security.py`). If sign-in from a new landing domain fails with a "Cannot reach the backend API" error, add that origin to `ALLOWED_ORIGINS` on the backend host (Railway).
 
+### Export & approval (the three-status split)
+
+A submission used to carry three statuses that never talked to each other —
+`earnings.status`, `submissions.status`, `records.status` — and export reads only
+the third. **A record ships iff `records.status ∈ {export_ready, exported}`, and
+exactly four events set it**: admin Approve, reviewer accept, the 14-day
+auto-approve, and the QA tab. All four go through
+`payments.apply_ledger_decision_to_records`, all four also resolve the ledger,
+and `tests/test_export_approval_prd.py` enumerates them. **Do not add a fifth
+path.** Full notes: `docs/asclepius/EXPORT_AND_APPROVAL.md`.
+
+`Data → Export` is one page with five scopes, all resolved by
+`_resolve_case_slice` — preview and bundle call the same function, so they cannot
+disagree about what ships. The buyer CRM is retired and its tables are kept
+(`docs/asclepius/BUYER_CRM_RETIRED.md`); the delivery rail is untouched.
+
+A boot sweep (`asclepius/export_backfill.py`) makes already-paid-but-unshippable
+cases exportable. It is idempotent and additive; run
+`backend/scripts/export_migration_inventory.py --label before/after` around a
+deploy to prove no row was lost.
+
 ### The onboarding demo video
 
 The ~73 MB demo is **not in the repo** and must not be added to it. It lives in
@@ -94,4 +115,8 @@ These are **dev-time references only** — they are not wired into the product r
 | `/admin/audit/eligibility` | GET | TEAM audit log viewer |
 | `/api/asclepius/assets/onboarding-demo` | GET | Onboarding demo video (Range/206, auth or media ticket) |
 | `/api/asclepius/admin/assets/onboarding-demo` | POST | Admin: upload/replace the demo video |
+| `/api/asclepius/admin/earnings/{id}/approve` | POST | Admin: approve one case — ledger **and** export gate together |
+| `/api/asclepius/admin/export/case-preview` | GET | Export slice preview, incl. what is EXCLUDED and why |
+| `/api/asclepius/admin/export/approve` | POST | Approve every unapproved submission the preview listed |
+| `/api/asclepius/admin/export/case-bundle` | POST | Build the bundle (optionally + send to a buyer) |
 | `/docs` | GET | Swagger UI |

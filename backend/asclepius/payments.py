@@ -1250,6 +1250,207 @@ def _quality_terms(store, submission_id: str, verdicts: Optional[str]) -> Dict[s
     return _payout.quality_multiplier(quality_score=quality, review_verdict=worst)
 
 
+# ═══ The one rule: approved money ⇔ exportable record ════════════════════════
+#
+# A physician's submission used to carry THREE statuses that never spoke to each
+# other: the ledger (`earnings.status`), the QA pipeline (`submissions.status`)
+# and the export gate (`records.status`). Export reads only the third. Payment
+# approval only ever wrote the first. So a case could be approved, paid, and
+# permanently unshippable — and nothing anywhere said so.
+#
+# After PRD §3 a record ships iff `records.status ∈ {export_ready, exported}`,
+# and exactly FOUR events set it: admin Approve, reviewer accept, the 14-day
+# auto-approve, and the QA tab. All four resolve the ledger too, and the first
+# three reach the records table through THIS function. (The QA tab writes both
+# in ``pipeline.apply_qa_decision``, which predates this and is the shape this
+# function copies.) A fifth path is a bug; ``test_export_approval_prd`` enumerates
+# the four and asserts each writes both tables.
+
+#: Where an approval may move a submission FROM. A whitelist, not a blacklist:
+#: ``exported`` must never be downgraded (it has already shipped), ``rejected``
+#: is Void's business, and the stage-1 side branches (``prompt_flagged``,
+#: ``not_hard``, ``case_inconsistent``) are deliberate refusals to package that
+#: an approval on the MONEY has no business overturning.
+APPROVABLE_SUBMISSION_STATES = ("submitted", "auto_validated", "qa_checked", "needs_qa")
+
+#: Where a void may move a submission FROM — everything the approve path covers,
+#: plus ``export_ready``: a case that is queued to ship but has not shipped can
+#: still be pulled. ``exported`` cannot (the bytes are with a buyer) and
+#: ``rejected`` is already there.
+REJECTABLE_SUBMISSION_STATES = APPROVABLE_SUBMISSION_STATES + ("export_ready",)
+
+
+def apply_ledger_decision_to_records(
+    store, *, submission_id: Optional[str], decision: str, reason: str,
+    actor: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Make the export gate agree with the ledger for ONE submission.
+
+    ``decision`` is ``"approve"`` (→ ``export_ready``) or ``"reject"``
+    (→ ``rejected``). Returns a small dict describing what happened:
+    ``{"moved": bool, "submission_id", "prior_status", "status", "outcome"}``.
+
+    **Never raises, and never returns an error to a caller who is settling
+    money.** Three of the four approval paths run inside a payment write, and a
+    records table that would not move must not roll back a physician's pay — the
+    ledger decision stands either way and the mismatch is visible in the export
+    preview's excluded list. Failures are logged loudly instead.
+
+    ``outcome`` distinguishes the cases the caller may want to report:
+      * ``moved``        — the submission and its records changed
+      * ``not_a_case``   — no submission id (a review session or a bounty)
+      * ``missing``      — the submission id does not resolve
+      * ``already``      — already in the target state; nothing to do
+      * ``terminal``     — a state this decision may not leave (exported/rejected/
+                           a stage-1 flag)
+      * ``error``        — the write failed; see the log
+    """
+    target = "export_ready" if decision == "approve" else "rejected"
+    allowed = (APPROVABLE_SUBMISSION_STATES if decision == "approve"
+               else REJECTABLE_SUBMISSION_STATES)
+    result = {"moved": False, "submission_id": submission_id, "prior_status": None,
+              "status": None, "outcome": "not_a_case"}
+    if not submission_id:
+        return result
+    try:
+        sub = store.get_submission(submission_id)
+    except Exception:  # noqa: BLE001 — a read failure must not fail a payment
+        log.warning("payments: could not read submission %s while applying a "
+                    "ledger decision", submission_id, exc_info=True)
+        result["outcome"] = "error"
+        return result
+    if not sub:
+        result["outcome"] = "missing"
+        return result
+    prior = sub.get("status")
+    result["prior_status"] = prior
+    result["status"] = prior
+    if prior == target:
+        result["outcome"] = "already"
+        return result
+    if prior not in allowed:
+        result["outcome"] = "terminal"
+        return result
+    try:
+        store.update_submission(submission_id, status=target, qa_reason=reason)
+        store.update_records_status_for_submission(submission_id, target)
+        store.log_event(
+            entity_type="submission", entity_id=submission_id,
+            event_type=("export_ready" if decision == "approve" else "records_rejected"),
+            actor=actor,
+            payload={"via": reason, "prior_status": prior, "status": target},
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("payments: could not move submission %s to %s (%s)",
+                      submission_id, target, reason)
+        result["outcome"] = "error"
+        return result
+    result["moved"] = True
+    result["status"] = target
+    result["outcome"] = "moved"
+    return result
+
+
+def submission_ref(kind: Optional[str], ref_id: Optional[str]) -> Optional[str]:
+    """The submission a ledger row is about, or None.
+
+    Only a TASK earning is one case: ``ref_id`` is the submission id (see
+    ``reconcile_task_accruals`` pass 1). A review session spans several cases and
+    a referral bounty is not casework at all — neither has a record to ship.
+    """
+    return ref_id if kind == KIND_TASK else None
+
+
+#: Why an approval was refused. Machine tokens for the router to map to HTTP and
+#: for tests to assert on; the sentences a human reads live in the router.
+APPROVE_REFUSALS = ("not_found", "already_paid", "already_approved", "voided",
+                    "quality_held", "raced")
+
+
+def approve_earning(
+    store, *, earning_id: str, actor: Optional[str], note: str = "",
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Admin approval of one case: the ledger AND the export gate, one action.
+
+    This is the policy half of ``POST /admin/earnings/{id}/approve``. It lives
+    here, beside ``_verdict_status`` and ``_auto_approve``, because it is the
+    THIRD path to the same decision and a second implementation of "what
+    approving a case means" is how the three of them drift apart again.
+
+    Returns ``{"ok": True, …}`` or ``{"ok": False, "refusal": <token>}`` — never
+    raises for a refusal, because every refusal here is a legitimate state the
+    console has to explain rather than an exception.
+
+    ``only_from=[ACCRUED]`` is a compare-and-set, so a double-click cannot
+    double-approve and a race with the auto-approve sweep resolves as ``raced``
+    rather than as two writes.
+    """
+    now = now or _now()
+    earning = store.get_earning_by_id(earning_id)
+    if earning is None:
+        return {"ok": False, "refusal": "not_found"}
+    status = earning.get("status")
+    if status == PAID:
+        return {"ok": False, "refusal": "already_paid", "earning": earning}
+    if status == APPROVED:
+        return {"ok": False, "refusal": "already_approved", "earning": earning}
+    if status == VOID:
+        return {"ok": False, "refusal": "voided", "earning": earning}
+    # A row the payout algorithm HELD is refused, on purpose. The hold is the
+    # promise that an automated pay cut never applies without a person deciding
+    # it; approving through here would apply the reduced amount while looking
+    # like a plain approval. `/release` is where that decision belongs.
+    if earning.get("quality_hold"):
+        return {"ok": False, "refusal": "quality_held", "earning": earning}
+
+    kind = earning.get("kind")
+    ref_id = earning.get("ref_id")
+    sub_id = submission_ref(kind, ref_id)
+    prior_qa = None
+    if sub_id:
+        try:
+            prior_qa = (store.get_submission(sub_id) or {}).get("status")
+        except Exception:  # noqa: BLE001 — a read must not block an approval
+            log.warning("payments: could not read submission %s before approval",
+                        sub_id, exc_info=True)
+
+    if not store.resolve_earning(
+            kind=kind, ref_id=ref_id, status=APPROVED, resolved_at=_ledger_ts(now),
+            note=(note or "").strip() or "Admin approved", only_from=[ACCRUED]):
+        return {"ok": False, "refusal": "raced", "earning": earning}
+
+    gate = apply_ledger_decision_to_records(
+        store, submission_id=sub_id, decision="approve", reason="admin_approved",
+        actor=actor)
+
+    store.log_event(
+        entity_type="earning", entity_id=earning_id,
+        event_type="earning_admin_approved", actor=actor,
+        payload={"kind": kind, "ref_id": ref_id, "submission_id": sub_id,
+                 "user_id": earning.get("user_id"),
+                 "amount_cents": int(earning.get("amount_cents") or 0),
+                 "prior_ledger": status, "prior_qa": prior_qa,
+                 "records_outcome": gate["outcome"],
+                 # Stated in the audit row because it is TRUE: this approval did
+                 # not go through QA sampling, and an audit that hides that is
+                 # not an audit.
+                 "bypassed_qa_sampling": True,
+                 "note": (note or "").strip() or None},
+    )
+    log.warning("asclepius.payments: earning %s approved by %s (records: %s)",
+                earning_id, actor or "unknown", gate["outcome"])
+    return {
+        "ok": True,
+        "earning_id": earning_id,
+        "user_id": earning.get("user_id"),
+        "prior_ledger": status,
+        "prior_qa": prior_qa,
+        "row": store.get_earning_by_id(earning_id),
+        "gate": gate,
+    }
+
+
 def reconcile_task_accruals(
     store, *, user_id: Optional[str] = None, limit: int = 2000,
     now: Optional[datetime] = None,
@@ -1320,6 +1521,13 @@ def reconcile_task_accruals(
             counts["accrued"] += 1
             if written["status"] == APPROVED:
                 touched.add(row["evaluator_id"])
+                # The verdict landed before this sweep noticed the submission, so
+                # the row is born APPROVED and pass 2 will never look at it again.
+                # Same rule as pass 2: approved money, exportable record.
+                if apply_ledger_decision_to_records(
+                        store, submission_id=ref, decision="approve",
+                        reason="reviewer_accepted")["moved"]:
+                    counts["records_exportable"] = counts.get("records_exportable", 0) + 1
             store.log_event(
                 entity_type="earning", entity_id=written["earning_id"],
                 event_type="earning_accrued", actor=row["evaluator_id"],
@@ -1360,6 +1568,14 @@ def reconcile_task_accruals(
                                      only_from=[ACCRUED, VOID]):
                 counts["approved"] += 1
                 touched.add(row.get("user_id") or user_id)
+                # A reviewer's accept approves the MONEY and, from here on, the
+                # EXPORT too. Before this line a reviewer-accepted case was paid
+                # and still unshippable, because nothing between the verdict and
+                # `records.status` existed (PRD §1.1, §3).
+                if apply_ledger_decision_to_records(
+                        store, submission_id=ref, decision="approve",
+                        reason="reviewer_accepted")["moved"]:
+                    counts["records_exportable"] = counts.get("records_exportable", 0) + 1
         elif implied == VOID and status == ACCRUED:
             if store.resolve_earning(kind=KIND_TASK, ref_id=ref, status=VOID,
                                      resolved_at=_ledger_ts(now),
@@ -1646,6 +1862,13 @@ def _auto_approve(store, *, now: datetime, user_id: Optional[str] = None,
             # and the bounty settles on the same event the labeler's money does.
             if touched is not None and row["kind"] == KIND_TASK and row.get("user_id"):
                 touched.add(row["user_id"])
+            # …and it is an approval for the EXPORT too. Before this, a
+            # timer-approved case paid the physician and then silently never
+            # shipped, because the 14-day sweep wrote the ledger and nothing else
+            # (PRD §1.1).
+            apply_ledger_decision_to_records(
+                store, submission_id=submission_ref(row["kind"], row.get("ref_id")),
+                decision="approve", reason="auto_approved")
             store.log_event(
                 entity_type="earning", entity_id=row["earning_id"],
                 event_type="earning_auto_approved", actor=None,

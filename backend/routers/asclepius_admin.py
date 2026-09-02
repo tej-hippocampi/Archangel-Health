@@ -24,10 +24,12 @@ from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from onboarding_emails import build_asclepius_invite_email
+from ratelimit import rate_limiter
 
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
+from asclepius import payments as asc_payments
 from asclepius import route_notify as asc_route_notify
 from asclepius import trajectory as asc_trajectory
 from asclepius import store as asc_store_mod
@@ -142,40 +144,150 @@ async def metrics_questions(_admin: Dict[str, Any] = Depends(asc_auth.require_ad
 _VERSION_TO_PORTAL = {"V3": "v3", "V4": "v4"}
 
 
+#: The five scopes of the single Export tab (PRD §2.1). Every one of them
+#: resolves through ``_resolve_case_slice`` — preview and bundle alike — so the
+#: preview and the bundle can never disagree about what ships.
+EXPORT_SCOPES = ("case", "specialty", "version", "physician", "all")
+
+#: Bounds on the Case scope's pasted id list and on the excluded list the
+#: preview renders. Both are about the same failure: an admin screen that
+#: happily binds ten thousand host parameters into one query, or ships ten
+#: thousand rows into one table, works fine on a demo database and falls over on
+#: the real one. The COUNT stays exact when the LIST is truncated.
+_MAX_CASE_IDS = 200
+_MAX_EXCLUDED_ROWS = 200
+
+
 class CaseBundleRequest(BaseModel):
+    scope: Optional[str] = None
     case_id: Optional[str] = None
+    case_ids: Optional[List[str]] = None
     specialty: Optional[str] = None
     version: Optional[str] = None
+    annotator_id_hashed: Optional[str] = None
     note: Optional[str] = None
+    # Optional delivery in the same action (PRD §5): build the bundle and drop it
+    # in a buyer's workspace. None = build and download only.
+    buyer_email: Optional[str] = None
 
 
-def _resolve_case_slice(store: Any, *, case_id: Optional[str], specialty: Optional[str],
-                        version: Optional[str]) -> Dict[str, Any]:
-    """The one place the three filters turn into concrete records — preview and
-    bundle both call this, so what you saw is what ships."""
+class ApproveForExportRequest(BaseModel):
+    # The submissions the operator saw in the preview's excluded list and chose
+    # to approve. Explicit ids rather than "approve everything in the scope":
+    # the list they were shown is the list that moves, even if the scope changed
+    # in another tab a second ago.
+    submission_ids: List[str] = Field(default_factory=list, max_length=500)
+
+
+def _normalize_scope(scope: Optional[str], *, case_id: Optional[str],
+                     case_ids: Optional[List[str]], specialty: Optional[str],
+                     version: Optional[str],
+                     annotator_id_hashed: Optional[str]) -> str:
+    """Which scope a request means, including for the callers that predate the
+    field. The old surface sent three combinable filters and no scope name;
+    those requests still resolve to the same records they always did."""
+    if scope in EXPORT_SCOPES:
+        return scope
+    if case_id or case_ids:
+        return "case"
+    if annotator_id_hashed:
+        return "physician"
+    if specialty:
+        return "specialty"
+    if version:
+        return "version"
+    return "all"
+
+
+def _resolve_case_slice(
+    store: Any, *, case_id: Optional[str] = None, specialty: Optional[str] = None,
+    version: Optional[str] = None, case_ids: Optional[List[str]] = None,
+    annotator_id_hashed: Optional[str] = None, scope: Optional[str] = None,
+) -> Dict[str, Any]:
+    """The one place a scope turns into concrete records.
+
+    Preview and bundle both call this, so what you saw is what ships. That
+    guarantee existed for three combinable filters; PRD §2.1 extends it to all
+    five scopes (case · specialty · version · physician · all) without adding a
+    second resolver — a second resolver is how a preview and a bundle drift.
+
+    It now also answers the question the old surface could not: **what is NOT
+    shipping, and why.** A slice that matched one export-ready case out of five
+    used to render as "1 case" with no hint that four submissions on the same
+    cases were sitting unapproved. ``excluded`` carries them, with the earning id
+    the Approve button needs.
+    """
     version = (version or "").upper() or None
+    # An EXPLICIT scope is the new radio-button surface (PRD §2.1): one scope,
+    # its own selector, the others ignored — so a stale value left in another
+    # picker cannot silently narrow a bundle.
+    #
+    # NO scope at all is the surface that predates it: three COMBINABLE filters
+    # (case · specialty · version), where `?case_id=x&specialty=y` means the
+    # intersection and legitimately matches nothing. That contract is preserved
+    # exactly, because it is a live API that other callers and tests depend on,
+    # and quietly turning an intersection into "case only" would widen somebody's
+    # export without telling them.
+    explicit_scope = scope in EXPORT_SCOPES
+    scope = _normalize_scope(scope, case_id=case_id, case_ids=case_ids,
+                             specialty=specialty, version=version,
+                             annotator_id_hashed=annotator_id_hashed)
+    if explicit_scope:
+        if scope != "case":
+            case_id, case_ids = None, None
+        if scope != "specialty":
+            specialty = None
+        if scope != "version":
+            version = None
+        if scope != "physician":
+            annotator_id_hashed = None
+
     if version == "V5":
         # V5 · Clinical RL Environment — trajectories live in env_runs, not the
         # records table, and ship through the environments pipeline.
         runs = store.env_annotation_records()
-        return {"records": [], "submission_ids": [], "task_ids": set(),
+        return {"scope": scope, "records": [], "submission_ids": [], "task_ids": set(),
                 "specialties": set(), "estimated_bytes": 0, "reviews": 0,
                 "v5_runs": len(runs), "exportable": False,
+                "excluded": {"unapproved": [], "unapproved_count": 0,
+                             "dropped": 0, "mock": 0},
+                "scope_json": {"type": "version", "portal_version": "v5"},
                 "note": f"{len(runs)} annotated V5 trajectories exist. Clinical RL "
                         "Environment data ships through the environments pipeline, "
                         "not this bundle builder."}
+
     portal_version = _VERSION_TO_PORTAL.get(version) if version else None
+    wanted_cases = [c.strip() for c in (case_ids or ([case_id] if case_id else []))
+                    if (c or "").strip()]
+    evaluator_id = None
+    if annotator_id_hashed:
+        user = store.get_user_by_id_hashed(annotator_id_hashed)
+        evaluator_id = (user or {}).get("id")
+        if evaluator_id is None:
+            return {"scope": scope, "records": [], "submission_ids": [], "task_ids": set(),
+                    "specialties": set(), "estimated_bytes": 0, "reviews": 0,
+                    "v5_runs": 0, "exportable": False,
+                    "excluded": {"unapproved": [], "unapproved_count": 0,
+                                 "dropped": 0, "mock": 0},
+                    "scope_json": {"type": "physician",
+                                   "annotator_id_hashed": annotator_id_hashed},
+                    "note": "No contributor matches that id."}
+
     mock_ids = store.mock_annotator_id_hashes()
     records = (store.list_records(status="export_ready", specialty=specialty or None)
                + store.list_records(status="exported", specialty=specialty or None))
-    matched = []
+    matched: List[Dict[str, Any]] = []
+    mock_excluded = 0
     for r in records:
         payload = r.get("payload") or {}
         if payload.get("annotator_id_hashed") in mock_ids:
+            mock_excluded += 1
             continue
-        if case_id and (r.get("task_id") or payload.get("task_id")) != case_id:
+        if wanted_cases and (r.get("task_id") or payload.get("task_id")) not in wanted_cases:
             continue
         if portal_version and (payload.get("portal_version") or "v1") != portal_version:
+            continue
+        if annotator_id_hashed and payload.get("annotator_id_hashed") != annotator_id_hashed:
             continue
         matched.append(r)
 
@@ -209,14 +321,118 @@ def _resolve_case_slice(store: Any, *, case_id: Optional[str], specialty: Option
             submission_ids.append(sid)
     specialties = {r.get("specialty") for r in emitted} - {None, ""}
     dropped = len(matched) - len(emitted)
+
+    # ── What is NOT shipping (PRD §2.2) ──────────────────────────────────────
+    # The scope's UNIVERSE of cases, not just its exportable part — a case with
+    # nothing approved on it must still be able to say so, which is the whole
+    # point.
+    #
+    # Only the Case scope names its universe as a LIST of ids (the ones the
+    # operator typed). Every other scope expresses it as the same
+    # specialty / version / physician predicate the records query used, and
+    # passes `task_ids=None`. That is not a shortcut: materialising "all" as
+    # twenty thousand ids and binding them into an `IN (…)` would blow SQLite's
+    # host-parameter ceiling and take the export tab down on the biggest slice —
+    # the one an operator is most likely to reach for.
+    unapproved_total = None
+    if scope == "case":
+        # Bounded by what a person typed, but bound it anyway: a pasted list is
+        # user input reaching a parameterised IN clause.
+        universe = wanted_cases[:_MAX_CASE_IDS]
+        # The other predicates still apply: in the legacy combinable form a
+        # caller may send `?case_id=x&specialty=y`, and an excluded list that
+        # ignored the specialty would name submissions the slice never wanted.
+        unapproved = store.submissions_not_shipping(
+            task_ids=universe, specialty=specialty or None,
+            portal_version=portal_version, evaluator_id=evaluator_id,
+            limit=_MAX_EXCLUDED_ROWS + 1)
+    else:
+        # `task_ids=None` EXPLICITLY: the predicate below is the whole scope.
+        unapproved = store.submissions_not_shipping(
+            task_ids=None, specialty=specialty or None,
+            portal_version=portal_version, evaluator_id=evaluator_id,
+            limit=_MAX_EXCLUDED_ROWS + 1)
+    if len(unapproved) > _MAX_EXCLUDED_ROWS:
+        # The COUNT is the number the warning line quotes and must be exact even
+        # when the LIST under it is truncated: "4 submissions will not ship" is
+        # the sentence an operator acts on.
+        unapproved_total = store.count_submissions_not_shipping(
+            task_ids=(universe if scope == "case" else None),
+            specialty=specialty or None, portal_version=portal_version,
+            evaluator_id=evaluator_id)
+        unapproved = unapproved[:_MAX_EXCLUDED_ROWS]
+    for row in unapproved:
+        row["approvable"] = bool(
+            row.get("n_records")
+            and row.get("status") in asc_payments.APPROVABLE_SUBMISSION_STATES
+            and not row.get("quality_hold")
+            and row.get("ledger_status") in (None, asc_payments.ACCRUED))
+        row["reason"] = _not_shipping_reason(row)
+
     note = None
     if dropped:
         note = (f"{dropped} matching record{'' if dropped == 1 else 's'} "
                 "cannot be mapped to the buyer profile and will not be included.")
-    return {"records": emitted, "submission_ids": submission_ids, "task_ids": task_ids,
-            "specialties": specialties, "estimated_bytes": mapped_bytes,
+
+    scope_json = {"type": scope}
+    if scope == "case":
+        scope_json["case_ids"] = wanted_cases
+    elif scope == "specialty":
+        scope_json["specialty"] = specialty
+    elif scope == "version":
+        scope_json["portal_version"] = portal_version
+    elif scope == "physician":
+        # THE HASH ONLY. The physician's name never enters the bundle, the
+        # datasheet, `records.jsonl`, or the filename (PRD §2.1).
+        scope_json["annotator_id_hashed"] = annotator_id_hashed
+    if specialties:
+        scope_json.setdefault("specialty", sorted(specialties)[0]
+                              if len(specialties) == 1 else None)
+    scope_json["case_count"] = len(task_ids)
+
+    return {"scope": scope, "records": emitted, "submission_ids": submission_ids,
+            "task_ids": task_ids, "specialties": specialties,
+            "estimated_bytes": mapped_bytes,
             "reviews": store.count_case_reviews_for_tasks(sorted(task_ids)),
-            "v5_runs": 0, "exportable": bool(emitted), "note": note}
+            "v5_runs": 0, "exportable": bool(emitted),
+            "excluded": {
+                "unapproved": unapproved,
+                "unapproved_count": (unapproved_total if unapproved_total is not None
+                                     else len(unapproved)),
+                "listed": len(unapproved),
+                "truncated": unapproved_total is not None,
+                "approvable_count": sum(1 for r in unapproved if r["approvable"]),
+                "dropped": dropped,
+                "mock": mock_excluded,
+            },
+            "scope_json": {k: v for k, v in scope_json.items() if v is not None},
+            "note": note}
+
+
+def _not_shipping_reason(row: Dict[str, Any]) -> str:
+    """Why one submission will not ship, in a sentence an operator can act on.
+
+    Ordered most-actionable first. "Awaiting approval" is the common case and
+    the one the Approve button fixes; everything else is a decision somebody
+    already made, and saying which one stops an operator from approving their
+    way around it.
+    """
+    if not row.get("n_records"):
+        return "No records were packaged for this submission — nothing to ship."
+    status = row.get("status")
+    if row.get("quality_hold"):
+        return ("The payout algorithm proposed a reduced rate and is waiting on a "
+                "decision. Release the hold, then approve.")
+    if status == "rejected":
+        return "Rejected in QA — deliberately not shipped."
+    if status in ("prompt_flagged", "not_hard", "case_inconsistent"):
+        return f"Flagged at capture ({status}) — captured for audit, never packaged."
+    if row.get("ledger_status") == asc_payments.VOID:
+        return ("The earning was voided. Voiding is a payment decision, so the "
+                "records were left as they were — approve only if the work is good.")
+    if status == "needs_qa":
+        return "In the QA queue. Approving here skips the QA sample."
+    return "Awaiting approval — approved money is what makes a record exportable."
 
 
 def json_dumps_safe(obj: Any) -> str:
@@ -229,24 +445,48 @@ def json_dumps_safe(obj: Any) -> str:
 
 @router.get("/export/case-options")
 async def export_case_options(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Everything the five scope pickers need, in one call.
+
+    ``specialties`` / ``versions`` are what the old two-filter surface returned
+    and are unchanged. ``cases`` and ``physicians`` are new (PRD §2.1): the Case
+    scope types or pastes an id and wants a typeahead behind it, and the
+    Physician scope picks a PERSON BY NAME while the bundle it produces carries
+    only ``annotator_id_hashed``. Both halves come from one row so a caller
+    cannot cross them.
+    """
     store = _store()
     # Explicit high limit (C-5.3): list_tasks defaults to 500, so a specialty
     # outside the 500 most recent tasks silently never appeared in the filter —
     # the operator could not export a slice they could see existed.
     specialties = sorted({t.get("specialty") for t in store.list_tasks(limit=100000)}
                          - {None, ""})
-    return {"specialties": specialties, "versions": ["V3", "V4", "V5"]}
+    cases = [
+        {"case_id": c["task_id"], "specialty": c.get("specialty"),
+         "case_source": c.get("case_source"), "portal_version": c.get("portal_version"),
+         "submissions": int(c.get("n_submissions") or 0),
+         "shippable": int(c.get("n_shippable") or 0)}
+        for c in store.export_case_directory()
+    ]
+    physicians = [
+        {"name": _display_name(p), "annotator_id_hashed": p.get("id_hashed"),
+         "specialty": p.get("specialty"), "cases": int(p.get("n_cases") or 0),
+         "submissions": int(p.get("n_submissions") or 0)}
+        for p in store.export_physician_directory()
+        # A mock/sandbox contributor's records are hard-excluded from every
+        # bundle, so offering them as a scope offers an empty bundle.
+        if not p.get("is_mock") and p.get("id_hashed")
+    ]
+    return {"specialties": specialties, "versions": ["V3", "V4", "V5"],
+            "scopes": list(EXPORT_SCOPES), "cases": cases, "physicians": physicians}
 
 
-@router.get("/export/case-preview")
-async def export_case_preview(
-    case_id: Optional[str] = None, specialty: Optional[str] = None,
-    version: Optional[str] = None,
-    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
-):
-    store = _store()
-    s = _resolve_case_slice(store, case_id=case_id, specialty=specialty, version=version)
+def _preview_payload(s: Dict[str, Any]) -> Dict[str, Any]:
+    """One slice, rendered for the preview. The counts and the excluded list come
+    from the SAME resolve call the bundle uses, which is what makes the preview a
+    promise rather than an estimate."""
+    excluded = s["excluded"]
     return {
+        "scope": s.get("scope"),
         "cases": len(s["task_ids"]) if not s["v5_runs"] else s["v5_runs"],
         "labeler_submissions": len(s["submission_ids"]),
         "reviews": s["reviews"],
@@ -254,7 +494,144 @@ async def export_case_preview(
         "estimated_bytes": s["estimated_bytes"],
         "exportable": s["exportable"],
         "note": s["note"],
+        # PRD §2.2 — the part that would have answered the question. Yesterday's
+        # export would have read: "1 case ships. 1 submission on
+        # v4real-v4-neph-001 is awaiting approval and will not ship."
+        "excluded": {
+            "unapproved_count": excluded["unapproved_count"],
+            "approvable_count": excluded.get("approvable_count", 0),
+            # How many of that count are actually LISTED below. The count is
+            # exact; the list is capped (PRD §2.2 has to stay true on the real
+            # database, not only on a demo one).
+            "listed": excluded.get("listed", excluded["unapproved_count"]),
+            "truncated": bool(excluded.get("truncated")),
+            "dropped": excluded["dropped"],
+            "mock": excluded["mock"],
+            "unapproved": [
+                {"submission_id": r["submission_id"], "case_id": r["task_id"],
+                 "earning_id": r.get("earning_id"), "status": r.get("status"),
+                 "ledger_status": r.get("ledger_status"),
+                 "specialty": r.get("specialty"),
+                 "portal_version": r.get("portal_version"),
+                 "annotator_id_hashed": r.get("annotator_id_hashed"),
+                 "approvable": r["approvable"], "reason": r["reason"]}
+                for r in excluded["unapproved"]
+            ],
+        },
+        "scope_json": s.get("scope_json"),
     }
+
+
+@router.get("/export/case-preview")
+async def export_case_preview(
+    case_id: Optional[str] = None, specialty: Optional[str] = None,
+    version: Optional[str] = None, scope: Optional[str] = None,
+    case_ids: Optional[str] = Query(None,
+        description="comma-separated case ids for the Case scope"),
+    annotator_id_hashed: Optional[str] = None,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    store = _store()
+    s = _resolve_case_slice(
+        store, scope=scope, case_id=case_id,
+        case_ids=[c for c in (case_ids or "").split(",") if c.strip()] or None,
+        specialty=specialty, version=version,
+        annotator_id_hashed=annotator_id_hashed)
+    return _preview_payload(s)
+
+
+@router.post(
+    "/export/approve",
+    dependencies=[Depends(rate_limiter("asclepius_export_approve_all", 30, 600))],
+)
+async def export_approve_unapproved(
+    body: ApproveForExportRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Approve, for export, the submissions the preview said would not ship.
+
+    This is the "[ Approve all 4 ]" button (PRD §2.2). It calls the SAME policy
+    function the single-row Approve button calls — ``payments.approve_earning``
+    — once per submission, server-side. One round trip instead of N, one rate
+    limit instead of N, and exactly one definition of what approving means.
+
+    Two cases it handles that the per-row button never sees:
+
+    * a submission whose ledger row does not exist yet. The accrual sweep
+      materialises rows lazily, so a freshly submitted case may have none.
+      ``reconcile_task_accruals`` runs first, which is the same call the admin
+      ledger makes on every page load.
+    * a submission whose author does not accrue payment at all (an advisor on
+      the equity-only model). There is no money to approve, and the work is
+      still real: the export gate moves on its own. "Approved money ⇔ exportable
+      record" holds vacuously — there is no money either way.
+    """
+    store = _store()
+    wanted = [s for s in dict.fromkeys(body.submission_ids or []) if (s or "").strip()]
+    if not wanted:
+        raise HTTPException(status_code=422,
+                            detail="Name the submissions to approve.")
+    try:
+        asc_payments.reconcile_task_accruals(store)
+    except Exception:
+        log.exception("export approve-all: reconciliation failed; approving what exists")
+
+    results: List[Dict[str, Any]] = []
+    approved = 0
+    for sub_id in wanted:
+        sub = store.get_submission(sub_id)
+        if sub is None:
+            results.append({"submission_id": sub_id, "ok": False, "outcome": "missing"})
+            continue
+        earning = store.get_earning(kind=asc_payments.KIND_TASK, ref_id=sub_id)
+        if earning is None:
+            # No ledger row and none coming: an equity-only contributor, or a
+            # kind that does not accrue. Move the export gate on its own.
+            gate = asc_payments.apply_ledger_decision_to_records(
+                store, submission_id=sub_id, decision="approve",
+                reason="admin_approved_no_ledger", actor=admin["email"])
+            store.log_event(
+                entity_type="submission", entity_id=sub_id,
+                event_type="records_approved_without_ledger", actor=admin["email"],
+                payload={"prior_qa": gate["prior_status"], "outcome": gate["outcome"]})
+            approved += 1 if gate["moved"] else 0
+            results.append({"submission_id": sub_id, "ok": bool(gate["moved"]),
+                            "outcome": gate["outcome"], "earning_id": None})
+            continue
+        res = asc_payments.approve_earning(
+            store, earning_id=earning["earning_id"], actor=admin["email"],
+            note="Approved from the export preview")
+        if res["ok"]:
+            approved += 1
+            results.append({"submission_id": sub_id, "ok": True,
+                            "outcome": res["gate"]["outcome"],
+                            "earning_id": earning["earning_id"]})
+            continue
+        if res["refusal"] in ("already_approved", "already_paid"):
+            # THE CONVERGENCE RULE, applied to a row the ledger already decided.
+            # This is the population §4 backfills: money settled, records never
+            # told. Refusing here would leave the operator staring at a case that
+            # says "approved" in the ledger and "will not ship" in the preview,
+            # with no button that fixes it.
+            gate = asc_payments.apply_ledger_decision_to_records(
+                store, submission_id=sub_id, decision="approve",
+                reason="ledger_already_approved", actor=admin["email"])
+            if gate["moved"]:
+                approved += 1
+                store.log_event(
+                    entity_type="submission", entity_id=sub_id,
+                    event_type="records_backfilled_from_ledger", actor=admin["email"],
+                    payload={"earning_id": earning["earning_id"],
+                             "ledger_status": res["refusal"],
+                             "prior_status": gate["prior_status"]})
+            results.append({"submission_id": sub_id, "ok": bool(gate["moved"]),
+                            "outcome": gate["outcome"],
+                            "earning_id": earning["earning_id"]})
+            continue
+        results.append({"submission_id": sub_id, "ok": False,
+                        "outcome": res["refusal"],
+                        "earning_id": earning["earning_id"]})
+    return {"requested": len(wanted), "approved": approved, "results": results}
 
 
 @router.post("/export/case-bundle")
@@ -264,13 +641,25 @@ async def export_case_bundle(
 ):
     from asclepius import export as asc_export
     store = _store()
-    s = _resolve_case_slice(store, case_id=body.case_id, specialty=body.specialty,
-                            version=body.version)
+    s = _resolve_case_slice(
+        store, scope=body.scope, case_id=body.case_id, case_ids=body.case_ids,
+        specialty=body.specialty, version=body.version,
+        annotator_id_hashed=body.annotator_id_hashed)
     if not s["exportable"]:
-        raise HTTPException(status_code=409, detail=s["note"]
-                            or "Nothing matches these filters — adjust and preview again.")
+        # The 409 now SAYS WHY, when there is a why to say. "Nothing matches"
+        # next to four unapproved submissions on the very cases you selected is
+        # the silence this PRD exists to remove.
+        n = s["excluded"]["unapproved_count"]
+        detail = s["note"] or "Nothing matches this scope — adjust and preview again."
+        if n:
+            detail = (f"Nothing in this scope is approved yet: {n} submission"
+                      f"{'' if n == 1 else 's'} on these cases "
+                      f"{'is' if n == 1 else 'are'} not approved and will not ship. "
+                      "Approve them from the preview, then export.")
+        raise HTTPException(status_code=409, detail=detail)
     portal_version = _VERSION_TO_PORTAL.get((body.version or "").upper())
-    note = body.note or "Admin export-by-case cut"
+    note = body.note or "Admin export cut"
+    scope_json = dict(s["scope_json"])
     # ONE call to PRD-A's case-centric entry point (Seam 2). This used to loop
     # build_export once per labeler submission, which meant an exact-case cut
     # fragmented into N bundles the operator downloaded one at a time, and none
@@ -282,26 +671,73 @@ async def export_case_bundle(
         # correctly-ordered deploy — but a legible failure beats an AttributeError.
         raise HTTPException(status_code=503,
                             detail="Case-centric export is unavailable in this build.")
+    case_ids = scope_json.get("case_ids") or None
     try:
         res = export_by_case(
-            store, created_by=admin["id"], case_id=body.case_id or None,
-            specialty=body.specialty or None, portal_version=portal_version,
-            include_exported=True, note=note)
+            store, created_by=admin["id"],
+            case_id=(case_ids[0] if case_ids and len(case_ids) == 1 else None),
+            case_ids=(case_ids if case_ids and len(case_ids) > 1 else None),
+            specialty=(s["scope"] == "specialty" and body.specialty) or None,
+            portal_version=(portal_version if s["scope"] == "version" else None),
+            annotator_id_hashed=(scope_json.get("annotator_id_hashed")),
+            include_exported=True, note=note,
+            # Carried into the datasheet's Composition section (PRD §2.3) so a
+            # lab knows how the bundle was cut. Hashes and counts only.
+            scope=scope_json)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
-    store.log_event(entity_type="export", entity_id=res.get("export_id"),
+    except asc_export.ExportValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    export_id = res.get("export_id")
+    # §2.4: the scope is persisted ON the export row, so History can say what a
+    # bundle WAS rather than only how big it was. Existing rows have no scope and
+    # render as ``legacy``; nothing is re-generated.
+    store.set_export_scope(export_id, scope_json)
+    store.log_event(entity_type="export", entity_id=export_id,
                     event_type="export_by_case", actor=admin["id"],
-                    payload={"case_id": body.case_id, "specialty": body.specialty,
-                             "version": body.version, "export_id": res.get("export_id")})
+                    payload={"scope": scope_json, "export_id": export_id})
+
+    delivery = None
+    if (body.buyer_email or "").strip():
+        # PRD §5 — "Export + send to ▾". The CRM is gone; the delivery rail is
+        # not. Attached to the export that was just built rather than rebuilding
+        # a second, differently-filtered one.
+        from routers import asclepius_buyer as asc_buyer_router
+        delivery = await asc_buyer_router.deliver_existing_export(
+            store, export_id=export_id, buyer_email=body.buyer_email.strip(),
+            label=_scope_label(scope_json), admin=admin, note=body.note)
+
     return {
-        "exports": [{"export_id": res.get("export_id"), "filename": res.get("filename"),
+        "exports": [{"export_id": export_id, "filename": res.get("filename"),
                      "record_count": res.get("record_count")}],
-        "export_id": res.get("export_id"),
+        "export_id": export_id,
         "filename": res.get("filename"),
         "record_count": res.get("record_count") or 0,
         "case_count": res.get("case_count"),
         "bundle_count": 1,
+        "scope": scope_json,
+        "delivery": delivery,
     }
+
+
+def _scope_label(scope_json: Dict[str, Any]) -> str:
+    """A human label for one scope — for a delivery record and the History row.
+
+    Hashes and ids only. A physician-scoped delivery is labelled by hash for the
+    same reason the bundle is: the name never leaves this building attached to
+    the data (PRD §2.1).
+    """
+    stype = scope_json.get("type") or "scope"
+    if stype == "case":
+        ids = scope_json.get("case_ids") or []
+        return f"Case · {', '.join(ids[:3])}" + (" +…" if len(ids) > 3 else "")
+    if stype == "specialty":
+        return f"Specialty · {scope_json.get('specialty')}"
+    if stype == "version":
+        return f"Version · {scope_json.get('portal_version')}"
+    if stype == "physician":
+        return f"Physician · {str(scope_json.get('annotator_id_hashed') or '')[:12]}"
+    return "All exportable records"
 
 
 # ─── Storage durability + reconciliation (PRD I-0 §F2/§F4) ───────────────────

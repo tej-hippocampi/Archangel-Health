@@ -550,12 +550,22 @@ INTERNAL_PROMPT_BANK = (
 )
 
 
+#: The license stamped on every shipped record, datasheet and eval pack.
+#:
+#: It was ``CC-BY-NC-4.0-clinical-eval`` until the export rework (PRD §2.3). NC
+#: means NON-COMMERCIAL, and this data is sold to frontier labs to train
+#: commercial models: a buyer's counsel reads "non-commercial" on the artifact
+#: they just paid for and the deal stops there. The name is our own terms, not a
+#: Creative Commons variant, because it is not one.
+DEFAULT_LICENSE = "archangel-commercial-v1"
+
+
 def default_license() -> str:
     """The rights/license string stamped on every record (opt §1.4).
 
     Env-overridable so a buyer-specific license can be set per deployment.
     """
-    return (os.getenv("ASCLEPIUS_LICENSE") or "CC-BY-NC-4.0-clinical-eval").strip()
+    return (os.getenv("ASCLEPIUS_LICENSE") or DEFAULT_LICENSE).strip()
 
 
 def default_ip_cleared() -> bool:

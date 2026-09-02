@@ -2598,6 +2598,15 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_fairness_subject "
                          "ON fairness_observations(subject_key)")
             # ═══ END PRD-CRED ═══
+            # ── Export scope (Export & Approval PRD §2.4, §4.4) ──────────────
+            # WHAT a bundle was, persisted on the row that records it. History
+            # could say how big an export was and never what slice it covered,
+            # so "which export did the nephrology cases go out in?" had no
+            # answer. NULL on every existing row, by design: those exports are
+            # real and their scope is genuinely unknown, so History renders them
+            # as ``legacy`` rather than inventing one. Nothing is re-generated.
+            if "scope_json" not in cols("exports"):
+                conn.execute("ALTER TABLE exports ADD COLUMN scope_json TEXT")
             # ═══ PRD-P PAYMENTS SCHEMA — owned by Agent P, do not edit from other PRDs ═══
             # Three tables and one rule: money is a LEDGER, never a computed
             # aggregate. ``earnings`` rows carry the rate they were accrued at, so
@@ -6443,6 +6452,245 @@ class AsclepiusStore:
             ).fetchall()
         return [self._record_row(r) for r in rows]
 
+    # ─── The export tab's "what is being excluded, and why" (PRD §2.2) ───────
+    def submissions_not_shipping(
+        self,
+        *,
+        task_ids: Optional[List[str]] = None,
+        specialty: Optional[str] = None,
+        portal_version: Optional[str] = None,
+        evaluator_id: Optional[str] = None,
+        include_mock: bool = False,
+        limit: int = 2000,
+    ) -> List[Dict[str, Any]]:
+        """Submissions inside a scope that have NO shippable record.
+
+        The export tab's whole failure mode was silence: a slice quietly shipped
+        the one case that happened to be ``export_ready`` and said nothing about
+        the four that were not. This is the query that lets it say so — one row
+        per submission that will not ship, carrying WHY (its own status, its
+        ledger status) and enough identity for an operator to act (case id,
+        physician, the earning id the Approve button needs).
+
+        "No shippable record" is ``NOT EXISTS`` rather than a status comparison
+        on the submission: ``records.status`` is what export actually reads, and
+        a submission whose status says ``export_ready`` while its records say
+        otherwise is exactly the drift this PRD exists to surface.
+
+        A submission with no records at all is included: it produced nothing to
+        ship, which is a different problem from an unapproved one, and hiding it
+        is how the operator loses a case entirely. ``n_records`` tells them apart.
+        """
+        clauses = [
+            "NOT EXISTS (SELECT 1 FROM records r WHERE r.submission_id = s.submission_id "
+            "            AND r.status IN ('export_ready', 'exported'))"
+        ]
+        params: List[Any] = []
+        if task_ids is not None:
+            if not task_ids:
+                return []
+            clauses.append("s.task_id IN (%s)" % ",".join("?" * len(task_ids)))
+            params.extend(task_ids)
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        if portal_version:
+            clauses.append("COALESCE(s.portal_version, 'v1') = ?")
+            params.append(portal_version)
+        if evaluator_id:
+            clauses.append("s.evaluator_id = ?")
+            params.append(evaluator_id)
+        if not include_mock:
+            # Mock/sandbox contributors are hard-excluded from every bundle, so
+            # listing their submissions as "not approved" would send an operator
+            # to approve demo data.
+            clauses.append("COALESCE(u.is_mock, 0) = 0")
+        params.append(limit)
+        sql = f"""
+            SELECT s.submission_id, s.task_id, s.status, s.evaluator_id,
+                   COALESCE(s.portal_version, 'v1') AS portal_version,
+                   s.created_at,
+                   t.specialty, t.case_source,
+                   u.id_hashed AS annotator_id_hashed,
+                   e.earning_id, e.status AS ledger_status, e.quality_hold,
+                   (SELECT COUNT(*) FROM records r
+                     WHERE r.submission_id = s.submission_id) AS n_records
+            FROM submissions s
+            JOIN tasks t ON t.task_id = s.task_id
+            LEFT JOIN users u ON u.id = s.evaluator_id
+            LEFT JOIN earnings e ON e.kind = 'task' AND e.ref_id = s.submission_id
+            WHERE {' AND '.join(clauses)}
+            ORDER BY s.created_at DESC
+            LIMIT ?
+        """
+        with self._conn() as conn:
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        return [dict(r) for r in rows]
+
+    def ledger_approved_but_unshippable(self, *, limit: int = 20000) -> List[Dict[str, Any]]:
+        """Cases we have already APPROVED or PAID for that cannot ship (PRD §4.2).
+
+        These are the rows the three-status split created: the ledger says the
+        work is good and settled, and `records.status` — the only thing export
+        reads — never heard about it. Every one of them is money already spent on
+        a record that has never been sellable.
+
+        Deliberately narrow. Only ``submitted`` / ``auto_validated`` /
+        ``qa_checked`` submissions qualify:
+
+        * ``needs_qa`` is a human decision that is still PENDING. A backfill that
+          approved it would decide a QA question by running a migration.
+        * ``rejected`` and the stage-1 flags are decisions somebody already made.
+        * ``export_ready`` / ``exported`` are already fine.
+
+        And only submissions that HAVE records: one with none is a packaging
+        failure, a different problem, and flipping its status would hide it.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT e.earning_id, e.status AS ledger_status, e.user_id,
+                       s.submission_id, s.status AS submission_status, s.task_id
+                FROM earnings e
+                JOIN submissions s ON s.submission_id = e.ref_id
+                WHERE e.kind = 'task'
+                  AND e.status IN ('approved', 'paid')
+                  AND s.status IN ('submitted', 'auto_validated', 'qa_checked')
+                  AND EXISTS (SELECT 1 FROM records r
+                               WHERE r.submission_id = s.submission_id)
+                  AND NOT EXISTS (SELECT 1 FROM records r
+                                   WHERE r.submission_id = s.submission_id
+                                     AND r.status IN ('export_ready', 'exported'))
+                ORDER BY s.created_at ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def voided_with_live_records(self, *, limit: int = 20000) -> List[Dict[str, Any]]:
+        """Voided earnings whose records are still non-terminal (PRD §4.3).
+
+        Reported, NEVER changed. A void may have been a payment decision rather
+        than a quality one — an out-of-band settlement, a duplicate, a contract
+        change — and retroactively rejecting the clinical work on that basis
+        would destroy good data on a bookkeeping signal. They surface in the
+        export preview's excluded list instead, where a person decides.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT e.earning_id, s.submission_id, s.status AS submission_status,
+                       s.task_id
+                FROM earnings e
+                JOIN submissions s ON s.submission_id = e.ref_id
+                WHERE e.kind = 'task' AND e.status = 'void'
+                  AND s.status NOT IN ('rejected', 'exported')
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def count_submissions_not_shipping(
+        self,
+        *,
+        task_ids: Optional[List[str]] = None,
+        specialty: Optional[str] = None,
+        portal_version: Optional[str] = None,
+        evaluator_id: Optional[str] = None,
+        include_mock: bool = False,
+    ) -> int:
+        """How many submissions in a scope will not ship — the exact number.
+
+        Separate from ``submissions_not_shipping`` because the preview truncates
+        the LIST it renders and must not truncate the COUNT: "4 submissions on
+        these cases are not approved" is the sentence an operator acts on, and a
+        number capped by a display limit is a wrong number.
+        """
+        clauses = [
+            "NOT EXISTS (SELECT 1 FROM records r WHERE r.submission_id = s.submission_id "
+            "            AND r.status IN ('export_ready', 'exported'))"
+        ]
+        params: List[Any] = []
+        if task_ids is not None:
+            if not task_ids:
+                return 0
+            clauses.append("s.task_id IN (%s)" % ",".join("?" * len(task_ids)))
+            params.extend(task_ids)
+        if specialty:
+            clauses.append("t.specialty = ?")
+            params.append(specialty)
+        if portal_version:
+            clauses.append("COALESCE(s.portal_version, 'v1') = ?")
+            params.append(portal_version)
+        if evaluator_id:
+            clauses.append("s.evaluator_id = ?")
+            params.append(evaluator_id)
+        if not include_mock:
+            clauses.append("COALESCE(u.is_mock, 0) = 0")
+        with self._conn() as conn:
+            return int(conn.execute(
+                f"""SELECT COUNT(*)
+                    FROM submissions s
+                    JOIN tasks t ON t.task_id = s.task_id
+                    LEFT JOIN users u ON u.id = s.evaluator_id
+                    WHERE {' AND '.join(clauses)}""",
+                tuple(params)).fetchone()[0])
+
+    def export_case_directory(self, *, limit: int = 3000) -> List[Dict[str, Any]]:
+        """Case ids an operator can paste or pick from, newest first.
+
+        Only cases that have at least one submission: a task nobody has labeled
+        has nothing to export and offering it in a typeahead is offering an empty
+        bundle.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT t.task_id, t.specialty, t.case_source,
+                       COUNT(s.submission_id) AS n_submissions,
+                       SUM(CASE WHEN EXISTS (
+                             SELECT 1 FROM records r
+                              WHERE r.submission_id = s.submission_id
+                                AND r.status IN ('export_ready','exported'))
+                           THEN 1 ELSE 0 END) AS n_shippable,
+                       MAX(s.created_at) AS last_submitted_at,
+                       MIN(COALESCE(s.portal_version, 'v1')) AS portal_version
+                FROM tasks t
+                JOIN submissions s ON s.task_id = t.task_id
+                GROUP BY t.task_id
+                ORDER BY last_submitted_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def export_physician_directory(self, *, limit: int = 1000) -> List[Dict[str, Any]]:
+        """Every physician who has labeled, with their hashed id and case count.
+
+        The UI shows the NAME (an operator picks a person, not a hash); the
+        BUNDLE carries only ``annotator_id_hashed``. Both come from this one row
+        so the two can never be crossed by a caller assembling them separately.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT u.id AS user_id, u.id_hashed, u.email, u.full_name,
+                       u.specialty, COALESCE(u.is_mock, 0) AS is_mock,
+                       COUNT(DISTINCT s.task_id) AS n_cases,
+                       COUNT(s.submission_id)    AS n_submissions
+                FROM users u
+                JOIN submissions s ON s.evaluator_id = u.id
+                GROUP BY u.id
+                ORDER BY n_cases DESC, u.created_at ASC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def mark_records_exported(self, record_ids: List[str], export_id: str) -> None:
         if not record_ids:
             return
@@ -6551,6 +6799,31 @@ class AsclepiusStore:
                 ),
             )
 
+    def set_export_scope(self, export_id: str, scope: Optional[Dict[str, Any]]) -> None:
+        """Record WHAT slice an export was (PRD §2.4).
+
+        Written after the bundle is built rather than as an ``insert_export``
+        argument: ``build_export`` owns that insert and its signature is a seam
+        several PRDs call through. Never overwrites with NULL — a caller with no
+        scope leaves an existing one alone.
+        """
+        if not export_id or not scope:
+            return
+        with self._conn() as conn:
+            conn.execute("UPDATE exports SET scope_json = ? WHERE export_id = ?",
+                         (json.dumps(scope), export_id))
+
+    @staticmethod
+    def _export_row(rec: Dict[str, Any]) -> Dict[str, Any]:
+        rec["filters"] = json.loads(rec.pop("filters_json", "{}") or "{}")
+        rec["manifest"] = json.loads(rec.pop("manifest_json", "{}") or "{}")
+        # NULL stays None, and the UI renders that as ``legacy``. An empty dict
+        # here would read as "scoped to nothing", which is a different and wrong
+        # claim about an export that really did ship records.
+        raw = rec.pop("scope_json", None)
+        rec["scope"] = json.loads(raw) if raw else None
+        return rec
+
     def get_export(self, export_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
@@ -6558,23 +6831,14 @@ class AsclepiusStore:
             ).fetchone()
         if not row:
             return None
-        rec = dict(row)
-        rec["filters"] = json.loads(rec.pop("filters_json", "{}") or "{}")
-        rec["manifest"] = json.loads(rec.pop("manifest_json", "{}") or "{}")
-        return rec
+        return self._export_row(dict(row))
 
     def list_exports(self, *, limit: int = 200) -> List[Dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM exports ORDER BY created_at DESC LIMIT ?", (limit,)
             ).fetchall()
-        out = []
-        for r in rows:
-            rec = dict(r)
-            rec["filters"] = json.loads(rec.pop("filters_json", "{}") or "{}")
-            rec["manifest"] = json.loads(rec.pop("manifest_json", "{}") or "{}")
-            out.append(rec)
-        return out
+        return [self._export_row(dict(r)) for r in rows]
 
     # ─── Stats (admin dashboard, PRD §7.6) ────────────────────────────────────
     def status_counts(self) -> Dict[str, int]:

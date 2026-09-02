@@ -736,25 +736,37 @@ def test_grounding_required_gates_submit():
 
 
 # ─── Buyer request -> batch provenance (opt §2.5) ─────────────────────────────
-def test_buyer_request_batch_stamps_provenance():
-    admin_h = A.headers_for(_admin())
+def test_buyer_request_provenance_survives_crm_removal():
+    """`buyer_request_id` PROVENANCE outlives the CRM (Export & Approval PRD §5).
+
+    The `/buyers` and `/buyer-requests*` endpoints are retired, but the tables,
+    the `tasks.buyer_request_id` column and the stamp it puts on every packaged
+    record are not — a record sold under a past request must still say which one
+    it was for. The request is created through the store (there is no route any
+    more, and `test_export_approval_prd` asserts that); everything downstream is
+    the untouched capture path.
+    """
+    store = _store()
+    admin = _admin()
+    admin_h = A.headers_for(admin)
     ev_h = A.headers_for(_seed())
 
-    buyer = client.post("/api/asclepius/buyers", json={"name": "Hungry Lab", "export_profile": "default"}, headers=admin_h)
-    assert buyer.status_code == 200, buyer.text
-    bid = buyer.json()["buyer_id"]
+    buyer = store.create_buyer(name="Hungry Lab", contact=None,
+                               export_profile="default", notes=None)
+    req = store.create_buyer_request(
+        buyer_id=buyer["buyer_id"], source="lab_supplied", export_profile="default",
+        constraints={"specialty": "nephrology", "grounding_mode": "optional"},
+        uploaded=[], note=None, created_by=admin["id"])
+    rid = req["request_id"]
 
-    req = client.post("/api/asclepius/buyer-requests", json={
-        "buyer_id": bid, "source": "lab_supplied", "export_profile": "default",
-        "specialty": "nephrology", "grounding_mode": "optional",
-        "prompts": [_task_body()],
-    }, headers=admin_h)
-    assert req.status_code == 200, req.text
-    rid = req.json()["request_id"]
-
-    batch = client.post(f"/api/asclepius/buyer-requests/{rid}/batch", json={"count": 0}, headers=admin_h)
-    assert batch.status_code == 200, batch.text
-    assert batch.json()["count"] == 1
+    body = _task_body()
+    task = store.insert_task(
+        prompt=body["prompt"], specialty=body["specialty"],
+        difficulty=body["difficulty"], capture_reasoning=False,
+        source="lab_supplied", candidate_answers=body["candidate_answers"],
+        max_labels=1, grounding_mode="optional",
+        buyer_request_id=rid, created_by=admin["id"])
+    assert task["buyer_request_id"] == rid
 
     # Evaluator grades the buyer's task.
     nxt = client.get("/api/asclepius/tasks/next", headers=ev_h).json()["task"]
@@ -773,9 +785,6 @@ def test_buyer_request_batch_stamps_provenance():
     for rec in sub["records"]:
         assert rec["payload"]["buyer_request_id"] == rid
         assert rec["payload"]["source"] == "lab_supplied"
-
-    # Request moved to in_progress.
-    assert client.get(f"/api/asclepius/buyer-requests/{rid}", headers=admin_h).json()["status"] == "in_progress"
 
 
 # ─── Export schema validation + filters (opt §2) ──────────────────────────────
@@ -990,21 +999,13 @@ def test_prelabel_gate_is_unconditional_even_with_withholding_off(monkeypatch):
     assert blocked.json()["detail"]["error"] == "independent_answer_required"
 
 
-def test_buyer_request_independent_mode_constraint_applies_to_batch():
-    """A premium/eval buyer request with independent_mode='full' produces
-    full-mode tasks without repeating the field on every prompt row."""
-    admin_h = A.headers_for(_admin())
-    buyer = client.post("/api/asclepius/buyers", json={"name": "Lab Z"}, headers=admin_h).json()
-    req = client.post("/api/asclepius/buyer-requests", json={
-        "buyer_id": buyer["buyer_id"], "source": "lab_supplied",
-        "independent_mode": "full",
-        "prompts": [_task_body()],
-    }, headers=admin_h).json()
-    batch = client.post(f"/api/asclepius/buyer-requests/{req['request_id']}/batch",
-                        json={}, headers=admin_h)
-    assert batch.status_code == 200, batch.text
-    tid = batch.json()["created"][0]
-    assert _store().get_task(tid)["independent_mode"] == "full"
+# `test_buyer_request_independent_mode_constraint_applies_to_batch` lived here.
+# It exercised `POST /buyer-requests/{id}/batch`, which inherited a request's
+# constraints onto the tasks it created. That endpoint is retired with the rest
+# of the buyer CRM (Export & Approval PRD §5) and there is no code path left to
+# test. `independent_mode` on a directly-created task is covered by
+# `test_full_mode_task_serves_and_captures`; the retired routes' 404s are
+# asserted in `tests/test_export_approval_prd.py`.
 
 
 # ─── Asclepius V2: portal version end-to-end ──────────────────────────────────

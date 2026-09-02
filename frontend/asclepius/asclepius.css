@@ -1160,7 +1160,10 @@
 .asc-stat-sub { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
 
 /* Two-column admin layouts */
-.asc-cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+/* `.asc-cols-2` lived here. Its only emitter was `renderAdminBuyers`, removed
+   with the buyer CRM (Export & Approval PRD §5). Styled-but-never-emitted CSS is
+   asserted against by test_no_new_component_vocabulary_beyond_the_prd, and the
+   honest fix for dead style is to delete it, not to allowlist it. */
 
 /* Manifest / preformatted output: card-in, never a dark fill. */
 .asc-pre {
@@ -1286,7 +1289,6 @@
 @media (max-width: 880px) {
   .asc-answers { grid-template-columns: 1fr; }
   .asc-verdicts { grid-template-columns: 1fr; }
-  .asc-cols-2 { grid-template-columns: 1fr; }
   .asc-form-row, .asc-form-row-3 { grid-template-columns: 1fr; }
   .asc-header-inner { flex-wrap: wrap; }
   .asc-nav { order: 3; width: 100%; }
@@ -5227,4 +5229,83 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   width: 0;
   background: var(--green);
   transition: width 120ms linear;
+}
+
+/* ═══ Copyable ids (Export & Approval PRD §1.3) ════════════════════════════
+   A case id is the one thing on these screens an operator has to move BETWEEN
+   screens — out of the ledger, into the export box. Truncating it (JS slice, or
+   `text-overflow: ellipsis` with no title) made that impossible without a
+   detour, and on a split screen the column collapsed until the id was three
+   characters wide.
+
+   So: never truncated, always selectable, always copyable. The column that
+   holds one refuses to shrink below the id's own width (`min-width` on the
+   cell, `white-space: nowrap` on the text); every other column in the table
+   shrinks first, and `.asc-table-wrap`'s horizontal scroll is the last resort
+   rather than the first. */
+.asc-id {
+  display: inline-flex; align-items: center; gap: 6px;
+  /* NOT `min-width: 0`. That is exactly the rule that lets a flex/grid child
+     collapse below its content, and this child must not. */
+  max-width: 100%;
+}
+.asc-id.is-wrap .asc-id-text { white-space: normal; word-break: break-all; }
+.asc-id-text {
+  font-family: var(--mono); font-size: 12px;
+  white-space: nowrap;
+  color: var(--asc-text);
+  background: none; padding: 0;
+  /* Double-click selects the id and nothing around it. */
+  user-select: all; -webkit-user-select: all;
+}
+.asc-id-copy {
+  flex: none;
+  border: 1px solid var(--asc-line); border-radius: var(--r-sm);
+  background: transparent; color: var(--ink-faint);
+  font-family: var(--mono); font-size: 10.5px; line-height: 1;
+  padding: 3px 5px; cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+.asc-id-copy:hover { color: var(--asc-text); border-color: var(--ink-faint); }
+.asc-id-copy:focus-visible { outline: 2px solid var(--asc-primary); outline-offset: 1px; }
+.asc-id-copy.is-copied {
+  color: var(--asc-success);
+  border-color: var(--asc-success);
+  padding: 3px 6px;
+}
+/* The CASE column, wherever it appears. Sized to the id, not to what is left
+   over after the other columns have taken theirs. */
+.asc-table td.asc-cell-id,
+.asc-table th.asc-cell-id { min-width: 15ch; white-space: nowrap; }
+
+/* ═══ Export tab (PRD §2) ══════════════════════════════════════════════════ */
+.asc-scope-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.asc-scope-btn {
+  border: 1px solid var(--asc-line); border-radius: 999px;
+  background: transparent; color: var(--asc-muted);
+  font-size: 12px; padding: 6px 14px; cursor: pointer;
+  transition: all 120ms ease;
+}
+.asc-scope-btn:hover { color: var(--asc-text); border-color: var(--ink-faint); }
+.asc-scope-btn.is-active {
+  background: var(--card-in); color: var(--asc-text);
+  border-color: var(--asc-primary);
+}
+.asc-export-headline { font-size: 15px; margin-bottom: 4px; }
+.asc-export-excluded {
+  margin-top: 10px; padding: 10px 12px;
+  border: 1px solid var(--asc-line); border-left-width: 3px;
+  border-radius: var(--r-sm);
+  background: var(--card-in);
+  font-size: 13px;
+}
+.asc-export-excluded.is-warn { border-left-color: var(--asc-warn); }
+.asc-export-excluded-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.asc-export-excluded-list { margin-top: 10px; }
+.asc-export-actions {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px;
+}
+.asc-scope-tag {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-faint);
 }
