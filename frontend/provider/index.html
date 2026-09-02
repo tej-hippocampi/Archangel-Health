@@ -374,6 +374,13 @@
         </div>
         <div class="asc-card-pad">
           <div class="prv-payout-summary" id="prvPayoutSummary"></div>
+          <!-- Accrual visibility (PRD §15). Hidden until the server says there
+               is a gap, because "0 uploads accepted and awaiting pricing" is a
+               sentence that only ever worries the reader. -->
+          <div class="prv-accrual" id="prvPayoutAccrual" hidden>
+            <p class="prv-accrual-line" id="prvPayoutAccrualLine"></p>
+            <p class="prv-accrual-note" id="prvPayoutAccrualNote"></p>
+          </div>
         </div>
         <div class="asc-table-wrap" id="prvPayoutTableWrap">
           <table class="asc-table">

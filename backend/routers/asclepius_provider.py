@@ -1917,6 +1917,17 @@ _HS_PAYOUT_NOTE = (
     "not going to start."
 )
 
+#: The accrual line's own caveat, and the whole reason the line is allowed to
+#: exist. Pricing is an operator decision made off this page, so the count says
+#: what we have TAKEN and refuses to imply what it is worth. A number of dollars
+#: here would be a figure nobody has agreed to, printed on the page a hospital's
+#: finance contact reads.
+_HS_ACCRUAL_NOTE = (
+    "Accepted means the data reached us intact and passed our checks. Our team "
+    "prices accepted data before it becomes a payout line, so this is a count "
+    "of what we have taken, not an amount owed."
+)
+
 
 def _hs_payout_view(row: Dict[str, Any]) -> Dict[str, Any]:
     """Named fields only. No recorded_by, no external_ref, no batch id: those
@@ -1966,9 +1977,28 @@ async def hs_payouts(
     # we have not committed to is a conversation nobody wants to have twice.
     invoices = [_hs_invoice_view(r) for r in store.list_hs_invoices(hs_id)
                 if (r.get("status") or "") in _HS_INVOICE_STATUS]
+    money = store.hs_payout_summary(hs_id)
+    # Accrual visibility, and the gap it closes: a partner whose data we accepted
+    # weeks ago sees an empty ledger and reasonably concludes it was lost.
+    # Counted off the SAME view the uploads page maps through, so the two pages
+    # cannot tell them different numbers.
+    upload_summary = _hs_upload_summary(
+        [_hs_upload_view(u) for u in store.list_uploads_for_health_system(hs_id)])
     return {
         "currency": "usd",
-        "summary": store.hs_payout_summary(hs_id),
+        "summary": money,
+        # Deliberately beside the money summary rather than inside it: nothing in
+        # here is currency, and a count that lands in a block the page formats as
+        # dollars is how "3" becomes "$0.03".
+        "accrual": {
+            "accepted_uploads": upload_summary["accepted"],
+            "ledger_entries": money["count"],
+            # What the line actually renders. Computed server-side so the page
+            # has no arithmetic of its own to get wrong, and floored at zero
+            # because an operator may price one upload into several ledger rows.
+            "awaiting_pricing": max(0, upload_summary["accepted"] - money["count"]),
+            "note": _HS_ACCRUAL_NOTE,
+        },
         "payouts": [_hs_payout_view(r) for r in rows],
         "invoices": invoices,
         "how_we_pay": _HS_PAYOUT_NOTE,
