@@ -139,16 +139,23 @@
   }
 
   /* ── The hero: what a referral is worth ─────────────────────────────── */
-  /* No ceiling figure any more. This used to lead with "Earn up to $5,200" in
-     the largest type on the page, which put a limit in front of the one
-     physician we most want introducing us to a hundred colleagues. The two
-     live rates still come off the WIRE (payout_structure): an env change has
-     to move this page with no frontend edit, and that contract predates the
-     redesign. */
+  /* One line, two terms, then the link. Six prose blocks used to stand between
+     a physician and the copy button, and every one of them was explaining a
+     deal the two terms state in nine words. A doctor who opened this tab had
+     already decided to refer someone; the page's only job is to hand them the
+     link before they change their mind.
+
+     No ceiling figure either. This used to lead with "Earn up to $5,200" in the
+     largest type on the page, which put a limit in front of the one physician
+     we most want introducing us to a hundred colleagues.
+
+     The two live rates still come off the WIRE (payout_structure): an env
+     change has to move this page with no frontend edit, and that contract
+     predates the redesign. */
   function hero(h) {
     var ps = data.payout_structure || {};
-    var bounty = money(ps.referrer_bounty_cents || data.bounty_cents || 5000);
-    var bonus = money(ps.referee_bonus_cents || 2500);
+    var bounty = money(ps.referrer_bounty_cents || data.bounty_cents || 2500);
+    var bonus = money(ps.referee_bonus_cents || 5000);
     var earns = data.earns_bounty !== false;
 
     return h('div', { class: 'asc-ref-hero asc-card' },
@@ -157,24 +164,16 @@
           h('span', { class: 'asc-ref-hero-value' }, 'Earn thousands'),
           h('span', { class: 'asc-ref-hero-label' },
             'referring physicians, hospitals and health systems')),
-        h('p', { class: 'asc-ref-hero-sub' },
-          'Even hundreds of thousands. Referring a physician pays a fixed '
-          + 'bounty; introducing a health system is negotiated on its own '
-          + 'terms, and those are the largest agreements we sign.'),
         h('div', { class: 'asc-ref-terms' },
           term(h, bounty, 'to you',
-            'once, when a physician you referred has their first case accepted.'),
-          term(h, bonus, 'to them',
-            'a first case bonus, paid on that same case.'),
-          term(h, 'No ceiling', null,
-            'there is no limit on how much you can earn referring.')),
+            'when a physician you refer has their first case accepted.'),
+          term(h, bonus, 'to them', 'on that same case.')),
         // An equity-compensated account still refers, and the funnel already
-        // blanks their amounts. Saying so here stops the three terms above
-        // from reading as a promise this particular account will not be paid.
+        // blanks their amounts. One line, but it cannot go: without it the two
+        // terms above read as a promise to an account that accrues nothing.
         earns ? null : h('div', { class: 'asc-ref-foot' },
-          'Your account is compensated in equity rather than cash, so '
-          + 'referrals are recorded here but no bounty accrues. The '
-          + 'introduction still counts.')));
+          'Your account is paid in equity, so referrals are recorded here but '
+          + 'no bounty accrues.')));
   }
 
   function term(h, value, unit, rest) {
@@ -191,11 +190,10 @@
   /* ── Left: invite a physician ───────────────────────────────────────── */
   function physicianCol(h) {
     var col = h('div', { class: 'asc-ref-card asc-ref-col' });
+    // No pitch paragraph. It explained that a link credits the person who
+    // shared it, which is the only thing a link could possibly do, and it cost
+    // the copy button its place at the top of the column.
     col.appendChild(h('div', { class: 'asc-ref-title' }, 'Invite a physician'));
-    col.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'Anyone who joins through your link is credited to you, even if they '
-      + 'finish signing up later. Send it by email and we deliver one '
-      + 'invitation with your name on it. No follow-ups, no drip.'));
 
     var url = data.invite_url || '';
     if (!url) {
@@ -515,9 +513,9 @@
 
      What this card used to be: one textarea that emailed a founder. The
      physician typed a paragraph, we replied to them, and the person they
-     actually wanted us to meet never heard from anybody. The hero above still
-     advertised institutional introductions as the largest thing you can do
-     here, which made the dead end worse rather than smaller.
+     actually wanted us to meet never heard from anybody. The hero above named
+     health systems as one of the things worth referring, which made the dead
+     end worse rather than smaller.
 
      What did NOT change, and must not: no dollar figure, no percentage, no
      worked example. This card once carried "a $1M data partnership at a 15 to
@@ -549,10 +547,7 @@
     var col = h('div', { class: 'asc-ref-card asc-ref-col' });
     col.appendChild(h('div', { class: 'asc-ref-title' }, 'Introduce a health system'));
     col.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'If you know someone at a health system that might license de-identified '
-      + 'records, tell us who they are and we’ll write to them in your name. '
-      + 'These are the largest agreements we sign, and they start with an '
-      + 'introduction from someone on the inside.'));
+      'Tell us who to write to and we write in your name.'));
 
     col.appendChild(hsField(h, 'contact_name', 'Their name', 'James Okoye'));
     col.appendChild(hsField(h, 'contact_email', 'Their email',
@@ -599,11 +594,9 @@
       'Copy an intro to forward'));
 
     col.appendChild(hsFunnelBlock(h));
-
-    col.appendChild(h('div', { class: 'asc-ref-foot' },
-      'A founder reads every one of these. If you’d rather make the '
-      + 'introduction yourself, copy the message above and send it from your '
-      + 'own inbox.'));
+    // The "a founder reads every one of these" footer is gone. The consent
+    // line already tells the physician what we do with the form, and the
+    // copyable blurb sitting above it is the offer to send it themselves.
     return col;
   }
 
