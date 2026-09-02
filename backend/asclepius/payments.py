@@ -136,6 +136,17 @@ KIND_REFERRAL = "referral"
 # the referred physician when the referrer's bounty settles. Same ref_id (the
 # referral row), so the same UNIQUE guard covers it.
 KIND_REFEREE_BONUS = "referee_first_case"
+# A health-system introduction that a founder decided to pay for. ADMIN-ENTRY
+# ONLY, and that is the entire design.
+#
+# There is no accrual path from ``hs_referrals`` to this kind: no sweep, no
+# trigger, no rate constant. An institutional deal settles on negotiated terms
+# over months, so there is no figure to compute and nothing that could compute
+# it, which is exactly why the Referral tab prints no percentage for one (see
+# docs/asclepius/REFERRALS.md). ``hs_payouts`` is admin-entry for the same
+# reason, and the ledger's UNIQUE(kind, ref_id) still guards the row, with
+# ``ref_id`` being the hs_referral_id.
+KIND_HS_REFERRAL = "hs_referral"
 SESSION_KIND_REVIEW = "review"
 
 # ─── Ledger states ────────────────────────────────────────────────────────────
@@ -1714,7 +1725,8 @@ def mark_paid(
 # ═══ The Earnings read model ══════════════════════════════════════════════════
 _KIND_LABELS = {KIND_TASK: "Task", KIND_REVIEW_SESSION: "Review session",
                 KIND_REFERRAL: "Referral",
-                KIND_REFEREE_BONUS: "First case bonus"}
+                KIND_REFEREE_BONUS: "First case bonus",
+                KIND_HS_REFERRAL: "Health system introduction"}
 # Words, not tokens — a raw status string never reaches a human.
 STATUS_WORDS = {
     ACCRUED: "Pending review",
