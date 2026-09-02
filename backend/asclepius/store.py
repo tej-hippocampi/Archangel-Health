@@ -1138,6 +1138,20 @@ class AsclepiusStore:
             if "nudge_practice_sent_at" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_practice_sent_at TEXT")
 
+            # The shareable verified card. Opt-in and revocable, so the token is
+            # stored hashed like every other token here: a read of the users
+            # table must not be a list of working card URLs.
+            if "card_token_hash" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN card_token_hash TEXT")
+            if "card_minted_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN card_minted_at TEXT")
+            # Per-field stamps for profile-completeness nudges, plus the last
+            # send. One blob rather than a column per field, because the set of
+            # things worth asking about will change and a migration per question
+            # is how a nudge feature stops being worth shipping.
+            if "profile_nudge_json" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN profile_nudge_json TEXT")
+
             sub_cols = cols("submissions")
             if "grounded" not in sub_cols:
                 conn.execute("ALTER TABLE submissions ADD COLUMN grounded INTEGER NOT NULL DEFAULT 0")
@@ -3642,6 +3656,121 @@ class AsclepiusStore:
                 (cutoff, max(1, limit)),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # ── The shareable verified card ──────────────────────────────────────────
+
+    def set_card_token(self, user_id: str, token_hash: str) -> bool:
+        """Mint or re-mint. Re-minting replaces the hash, which is what makes
+        the old URL dead: there is no second row to forget to revoke."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET card_token_hash = ?, card_minted_at = ? WHERE id = ?",
+                (token_hash, _utcnow_iso(), user_id),
+            )
+            return cur.rowcount > 0
+
+    def revoke_card_token(self, user_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET card_token_hash = NULL, card_minted_at = NULL "
+                "WHERE id = ? AND card_token_hash IS NOT NULL",
+                (user_id,),
+            )
+            return cur.rowcount > 0
+
+    def get_user_by_card_token_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        """The card page reads the account LIVE through this, deliberately.
+
+        Nothing about the physician is baked into the token, so revoking it or
+        un-approving the account kills the page on the next load rather than
+        leaving a stale card in circulation saying they are verified."""
+        if not token_hash:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE card_token_hash = ?", (token_hash,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    # ── Profile-completeness nudges ──────────────────────────────────────────
+
+    def profile_nudge_state(self, user_id: str) -> Dict[str, Any]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT profile_nudge_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+        if not row or not row["profile_nudge_json"]:
+            return {}
+        try:
+            blob = json.loads(row["profile_nudge_json"])
+            return blob if isinstance(blob, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+
+    def stamp_profile_nudge(self, user_id: str, field: str,
+                            *, min_days_between: int = 30) -> bool:
+        """Claim the right to ask about ONE field, returning whether we got it.
+
+        Two rules in one place, because they are one decision: a field is asked
+        about once ever, and a physician hears from us about their profile at
+        most once every ``min_days_between`` days. The second is what stops a
+        sparse profile turning into a nightly reminder that we are unsatisfied
+        with them.
+
+        Claim-first, like every other nudge here: the caller mails only if this
+        returned True.
+        """
+        now = datetime.utcnow().replace(microsecond=0)
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT profile_nudge_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            try:
+                blob = json.loads(row["profile_nudge_json"] or "{}")
+                if not isinstance(blob, dict):
+                    blob = {}
+            except (TypeError, ValueError):
+                blob = {}
+
+            asked = blob.get("fields") or {}
+            if field in asked:
+                return False
+            last = blob.get("last_sent_at")
+            if last:
+                try:
+                    if (now - datetime.fromisoformat(str(last).replace("Z", ""))
+                            ).days < max(0, min_days_between):
+                        return False
+                except (TypeError, ValueError):
+                    pass
+
+            stamp = now.isoformat()
+            asked[field] = stamp
+            blob["fields"] = asked
+            blob["last_sent_at"] = stamp
+            cur = conn.execute(
+                "UPDATE users SET profile_nudge_json = ? WHERE id = ?",
+                (json.dumps(blob), user_id),
+            )
+            return cur.rowcount > 0
+
+    def monthly_submission_counts(self, user_id: str, *, months: int = 12
+                                  ) -> List[Dict[str, Any]]:
+        """A count per calendar month for the physician's own history panel.
+
+        Counts only. Nothing here derives from grading, agreement or the
+        contributor score, because this is the one history surface the
+        physician themselves reads."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT substr(created_at, 1, 7) AS month, COUNT(*) AS n "
+                "FROM submissions WHERE evaluator_id = ? "
+                "GROUP BY month ORDER BY month DESC LIMIT ?",
+                (user_id, max(1, months)),
+            ).fetchall()
+        return [{"month": r["month"], "count": r["n"]} for r in rows][::-1]
 
     # ── Tier ─────────────────────────────────────────────────────────────────
 
