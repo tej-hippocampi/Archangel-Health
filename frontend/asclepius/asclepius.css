@@ -5039,6 +5039,17 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   line-height: 1.55;
   color: var(--asc-muted);
 }
+/* The same card once the payout rail is live. A solid border and a real cursor
+   rather than a new component: it is the same promise, kept, and a physician
+   who has seen the placeholder should recognise it. */
+.asc-fr-bank-live {
+  border-style: solid;
+  border-color: var(--asc-line);
+  cursor: pointer;
+  opacity: 1;
+}
+.asc-fr-bank-live:hover { border-color: var(--asc-line-strong); }
+.asc-fr-bank-live[disabled] { cursor: progress; opacity: 0.6; }
 
 /* ── The persistent checklist. Passive: it reports, it never interrupts. ── */
 .asc-fr-checklist {

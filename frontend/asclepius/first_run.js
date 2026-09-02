@@ -431,9 +431,18 @@
       h('span', { class: 'asc-fr-preview-said' }, said));
   }
 
-  function renderEarnings() {
-    current = 'earnings';
-    var bankBtn = h('button', {
+  /** Is the payout rail live for this deployment?
+   *
+   *  Read off the session payload, which carries the key ONLY when the server's
+   *  flag is on. Absent means dark, which is also what an older server that has
+   *  never heard of the rail sends, so the placeholder is what a client falls
+   *  back to in every uncertain case, and the live card can only appear when a
+   *  server has positively said so. */
+  function bankRailLive() { return !!(ctx.user && ctx.user.bank_link_enabled); }
+
+  /** The pre-rail card: disabled, clearly labelled, promising a DM. */
+  function comingSoonBankCard() {
+    return h('button', {
       class: 'asc-fr-bank', type: 'button', disabled: true,
       'aria-disabled': 'true',
     },
@@ -441,16 +450,54 @@
       h('span', { class: 'asc-fr-bank-chip' }, 'coming soon'),
       h('span', { class: 'asc-fr-bank-sub' },
         'Payouts land here once banking goes live; we’ll DM you the moment it does.'));
+  }
+
+  /** The live card. Same words, now a control that does the thing they say.
+   *
+   *  It navigates rather than opening a tab: Stripe hosts the onboarding form
+   *  and sends the physician back to the portal when they are done, so a full
+   *  navigation is the flow Stripe designed and it survives the popup blockers
+   *  that would eat a window.open fired after a network round trip.
+   *
+   *  The subtitle is not decoration. A doctor is about to type a bank account
+   *  number and a tax id into a form, and saying whose form it is, before they
+   *  leave, is the honest version of asking. */
+  function liveBankCard() {
+    var btn = h('button', {
+      class: 'asc-fr-bank asc-fr-bank-live', type: 'button',
+      onclick: function () {
+        btn.setAttribute('disabled', '');
+        ctx.api('/me/bank-link/start', { method: 'POST' }).then(function (res) {
+          if (res && res.url) { window.location.href = res.url; return; }
+          btn.removeAttribute('disabled');
+          ctx.toast('Could not open bank linking just now. Try again in a moment.');
+        }).catch(function () {
+          btn.removeAttribute('disabled');
+          ctx.toast('Could not open bank linking just now. Try again in a moment.');
+        });
+      },
+    },
+      h('span', { class: 'asc-fr-bank-title' }, 'Link your bank account'),
+      h('span', { class: 'asc-fr-bank-sub' },
+        'Stripe collects your bank and tax details and files your 1099. '
+        + 'We never see them.'));
+    return btn;
+  }
+
+  function renderEarnings() {
+    current = 'earnings';
+    var live = bankRailLive();
+    var bankBtn = live ? liveBankCard() : comingSoonBankCard();
 
     var body = h('div', {},
       h('h1', { class: 'asc-fr-title' }, 'How you get paid.'),
       h('p', { class: 'asc-fr-body' },
         'Every case you complete accrues in Earnings — $75 per completed case, '
         + 'visible immediately.'),
-      // Disabled and clearly labelled, per §6 stop 5. It is architecture on
-      // screen: the card and the `bank_link_status` field exist now, and Stripe
-      // lands on the payments track. A card that looked live and did nothing
-      // would be worse than no card.
+      // Disabled and clearly labelled, per §6 stop 5, until the payments rail is
+      // live. It is architecture on screen: the card and the `bank_link_status`
+      // field exist now, and Stripe lands on the payments track. A card that
+      // looked live and did nothing would be worse than no card.
       bankBtn);
 
     ctx.setRoot(stopShell({
@@ -460,7 +507,11 @@
         // opt-in — the button says "Show me Earnings", and reading a card is
         // not consent to anything — but it is what the payments track reads to
         // find who has been told banking is coming and is waiting on it.
-        ctx.api('/me/bank-link/interest', { method: 'POST' }).catch(function () { /* best-effort */ });
+        // Pointless once the rail is live: there is nothing left to wait for,
+        // and the waiting list is what this endpoint exists to fill.
+        if (!live) {
+          ctx.api('/me/bank-link/interest', { method: 'POST' }).catch(function () { /* best-effort */ });
+        }
         close('earnings', 'done', function () {
           teardownChrome();
           ctx.setPanel('earnings');
