@@ -1542,6 +1542,40 @@ def build_asclepius_password_reset_email(*, email: str, reset_url: str, expires_
     return _shell(subject="Reset your Archangel Health password", body_html=body)
 
 
+def build_asclepius_signin_link_email(*, signin_url: str, expires_minutes: int) -> str:
+    """A way back in for an applicant who has no password yet.
+
+    Names no account detail at all, not even the address it was sent to. This
+    is mailed on request from anyone who can type an email address, and the
+    fact worth protecting here is not "does this account exist" but "is this
+    named physician waiting on a decision from us", which is a statement about
+    their professional standing. So the body reads the same whether it reached
+    an applicant, an approved physician, or nobody at all."""
+    safe_url = html.escape(signin_url, quote=True)
+    body = (
+        _eyebrow("Sign in · Archangel Health")
+        + _h1("Pick up where you left off.")
+        + _p(
+            "Use the button below to get back into your application. This link "
+            f"works once and expires in {_strong(str(expires_minutes) + ' minutes')}."
+        )
+        + _cta(signin_url, "Sign in →")
+        + _p(
+            f'If the button does not work, paste this into your browser:<br>'
+            f'<a href="{safe_url}" style="color:{_GREEN_DEEP};">{html.escape(signin_url)}</a>',
+            muted=True,
+            small=True,
+        )
+        + _p(
+            "If you did not ask for this, ignore this email. Nobody has been "
+            "given access to anything.",
+            muted=True,
+            small=True,
+        )
+    )
+    return _shell(subject="Your Archangel Health sign in link", body_html=body)
+
+
 def build_asclepius_password_changed_email(*, email: str) -> str:
     """Notification, not an action. This is the only channel by which a
     physician finds out their account was taken over, so it is sent on every

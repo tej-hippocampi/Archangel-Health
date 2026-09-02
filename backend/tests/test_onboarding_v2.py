@@ -148,9 +148,15 @@ def test_submit_succeeds_with_only_name_email_and_specialty(client: TestClient):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["awaiting_review"] is True
-    # No session is minted: there is nothing behind the door until an admin
-    # approves, and a token would drop them into a portal that 403s every call.
-    assert not body.get("token")
+    # A session IS minted, which reverses the original v2 rule. That rule was
+    # right when there was nothing behind the door: a token would have dropped
+    # a physician into a portal that 403s every call. The practice case changed
+    # it. An applicant now has real work to do before we decide about them, and
+    # it cannot live behind a door they cannot open.
+    #
+    # No password comes into existence here, so the reasoning at approval time
+    # is untouched: approval is still where a durable credential is minted.
+    assert body.get("token"), "an applicant needs a way into the practice case"
 
     asc = client.app.state.asclepius_store
     u = asc.get_user_by_email(email)

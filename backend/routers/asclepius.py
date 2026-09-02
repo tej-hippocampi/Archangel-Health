@@ -134,6 +134,8 @@ from asclepius.schemas import (
     FirstRunUpdate,
     FIRST_RUN_STOPS as _FIRST_RUN_STOPS,
     ForgotPasswordRequest,
+    SigninLinkExchange,
+    SigninLinkRequest,
     ContributorCredentialsIn,
     CreateUserRequest,
     GenerateRealCasesRequest,
@@ -176,6 +178,7 @@ from email_utils import is_email_transport_configured, send_html_email
 from onboarding_emails import (
     build_asclepius_password_changed_email,
     build_asclepius_password_reset_email,
+    build_asclepius_signin_link_email,
 )
 from ratelimit import rate_limiter
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
@@ -427,6 +430,105 @@ async def forgot_password(
             payload={"domain": email.split("@")[-1] if "@" in email else ""},
         )
     return _FORGOT_ANSWER
+
+
+# ─── Pre-approval sign-in links ──────────────────────────────────────────────
+# An applicant has no password, so "sign in again" cannot mean what it means
+# everywhere else. It means: prove you still hold the mailbox we already sent an
+# OTP to, and we will let you back into the practice case.
+#
+# Same anti-enumeration discipline as the forgot door above, and for a sharper
+# reason: the interesting question an attacker could ask here is not "does this
+# address exist" but "is this physician still under review", which is a fact
+# about a named person's professional standing. So the answer, the latency and
+# the log shape are all identical in every branch.
+
+_SIGNIN_LINK_ANSWER = {
+    "ok": True,
+    "message": (
+        "If that email has an application with us, we've sent a sign in link. "
+        "It expires in 15 minutes."
+    ),
+}
+
+
+async def _mail_signin_link(email: str, raw_token: str) -> None:
+    if not is_email_transport_configured():
+        return
+    try:
+        await send_html_email(
+            email,
+            "Your Archangel Health sign in link",
+            build_asclepius_signin_link_email(
+                signin_url=asc_passwords.signin_url(raw_token),
+                expires_minutes=asc_passwords.SIGNIN_TTL_MINUTES,
+            ),
+        )
+    except Exception:
+        log.exception("[asclepius] sign in link email failed")
+
+
+@router.post(
+    "/auth/signin-link",
+    dependencies=[Depends(rate_limiter("asclepius_signin_link", 5, 600))],
+)
+async def request_signin_link(
+    body: SigninLinkRequest, request: Request, background: BackgroundTasks,
+):
+    store = _store()
+    email = (body.email or "").strip().lower()
+    user = store.get_user_by_email(email) if email else None
+
+    # Offered only to accounts that have no password. An account WITH one has a
+    # door already, and quietly mailing a second way in would be a downgrade
+    # attack on the stronger credential.
+    if user and user.get("active") and asc_store.password_is_unset(user):
+        raw, hashed = asc_passwords.new_signin_token()
+        store.create_signin_link(
+            user_id=user["id"], token_hash=hashed,
+            expires_at=asc_passwords.signin_expires_at(),
+        )
+        store.log_event(
+            entity_type="user", entity_id=user["id"],
+            event_type="signin_link_requested", actor=user["id"],
+        )
+        background.add_task(_mail_signin_link, user["email"], raw)
+    else:
+        store.log_event(
+            entity_type="user", entity_id=None,
+            event_type="signin_link_requested_unusable", actor=None,
+            payload={"domain": email.split("@")[-1] if "@" in email else ""},
+        )
+    return _SIGNIN_LINK_ANSWER
+
+
+@router.post(
+    "/auth/signin-link/exchange",
+    dependencies=[Depends(rate_limiter("asclepius_signin_exchange", 10, 600))],
+)
+async def exchange_signin_link(body: SigninLinkExchange):
+    """Trade the emailed token for a session, once.
+
+    Expired, already used and never-existed collapse to one sentence, the same
+    way the reset door collapses them: the holder of a bad link learns nothing
+    about which it was."""
+    store = _store()
+    token = (body.token or "").strip()
+    dead = "This sign in link is no longer valid. Request a new one."
+    if not token:
+        raise HTTPException(status_code=400, detail=dead)
+
+    user_id = store.consume_signin_link(asc_passwords.hash_reset_token(token))
+    user = store.get_user_by_id(user_id) if user_id else None
+    if not user or not user.get("active"):
+        raise HTTPException(status_code=400, detail=dead)
+
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="signin_link_used", actor=user["id"],
+    )
+    return {"ok": True, "token": asc_auth.create_token(user),
+            "user": asc_auth.public_user(user)}
 
 
 @router.post(
