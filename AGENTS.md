@@ -7,6 +7,20 @@ CareGuide, the Asclepius evaluation portal, and the Community platform — the
 product/company naming has shifted over time, but this is the one repo).
 Ship work as a **pull request targeting `main`**, not a direct push to `main`.
 
+## Context folder (read first, keep current)
+
+Before substantial work, read **[`docs/context/README.md`](docs/context/README.md)** (a
+code-free map of the whole repo) and **[`docs/context/repo-state.md`](docs/context/repo-state.md)**
+(what changed recently and what is in flight). It is the fastest way to get the
+structure without reading the backend and frontend end to end, and it is the
+context to rely on when writing PRDs or planning a change.
+
+Keep it current: after landing a substantive change (a new module, endpoint, or
+PRD), run the **`syncing-repo-context`** skill (or just say "sync repo context").
+It sweeps `git log` since the last-synced commit, updates `repo-state.md`, and
+advances the watermark. That skill is the only writer of `repo-state.md` and
+`ingestion-log.md`; do not hand-edit them.
+
 ## Cursor Cloud specific instructions
 
 ### Architecture
