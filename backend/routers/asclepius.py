@@ -2642,7 +2642,25 @@ def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> Non
         )
 
 
-def _require_distribution(store: Any, task: Dict[str, Any], user: Dict[str, Any]) -> None:
+#: Which assignment roles satisfy the distribution gate on a READ.
+#:
+#: A reviewer is assigned ``role='review'`` and legitimately needs to open the
+#: case to review it, so a read admits either role. WRITING is different — see
+#: ``_LABEL_ROLES`` below.
+_READ_ROLES = ("label", "review")
+
+#: Which roles satisfy it on a WRITE (reveal, answers, submit).
+#:
+#: ``label`` only, matching ``store._PRD_ASSIGN_MINE`` exactly. The queue's
+#: predicate carries ``a.role = 'label'``, and if this did not, the URL and the
+#: draw would disagree about who may work a case — a reviewer could bank a label
+#: on a case the queue would never have offered them, and on a single-labelled
+#: trajectory point that consumes the assignee's one slot.
+_LABEL_ROLES = ("label",)
+
+
+def _require_distribution(store: Any, task: Dict[str, Any], user: Dict[str, Any],
+                          *, roles: tuple = _LABEL_ROLES) -> None:
     """The distribution gate on DIRECT task access (PRD CASE-BATCHES §1).
 
     An ``assigned_only`` task reaches only the people it was routed to. The
@@ -2678,7 +2696,9 @@ def _require_distribution(store: Any, task: Dict[str, Any], user: Dict[str, Any]
     if user.get("role") in ("admin", "qa_reviewer"):
         return
     for a in store.assignments_for_task(task["task_id"]):
-        if a.get("user_id") == user.get("id") and a.get("status") in ("offered", "claimed"):
+        if (a.get("user_id") == user.get("id")
+                and (a.get("role") or "label") in roles
+                and a.get("status") in ("offered", "claimed")):
             return
     raise HTTPException(
         status_code=403,
@@ -2807,7 +2827,7 @@ async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_cur
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
-    _require_distribution(store, task, user)
+    _require_distribution(store, task, user, roles=_READ_ROLES)
     _require_trajectory_sequence(store, task, user)
     # The flow this task is actually graded in, derived from the TASK on the same
     # rule the submit path enforces. Opening a case from the dashboard list skips
@@ -2975,7 +2995,7 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on answer-describing surfaces
-    _require_distribution(store, task, user)  # CASE-BATCHES §1 — routed to you?
+    _require_distribution(store, task, user, roles=_READ_ROLES)  # CASE-BATCHES §1
     _require_trajectory_sequence(store, task, user)  # PRD 2 §9.1 sealed future
     if not store.get_independent_commit(task_id, user["id"]):
         raise HTTPException(

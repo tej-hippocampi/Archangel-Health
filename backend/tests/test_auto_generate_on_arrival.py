@@ -188,15 +188,22 @@ def test_a_per_case_failure_isolates_and_the_batch_continues(monkeypatch):
     report = asyncio.run(AG.run_upload(store, uid, "admin"))
     assert calls["n"] == 3, "the run must not stop at the failing case"
     assert report["generated"] == 4          # two cases × two points
-    assert report["failed"] == 1
+    # Two counts, not one. A whole CHART that could not be planned and an
+    # ENCOUNTER a case judge rejected are different events with different fixes,
+    # and an operator reading a single number cannot tell which happened.
+    assert report["cases_failed"] == 1       # the chart that raised
+    assert report["failed"] == 0             # no per-encounter rejections here
     assert len(report["trajectories"]) == 2
 
     # …and it is on the row, as a count with the detail behind it.
     upload = store.get_ingest_upload(uid)
     summary = AG.failure_summary(upload)
     assert summary is not None
-    assert summary["count"] >= 2, summary   # two gated encounters
+    assert summary["count"] >= 3, summary   # two gated encounters + the dead chart
     assert any(d.get("encounter_index") == 4 for d in summary["dropped"])
+    # The dead chart is in the chip too. It lived only in the per-case entry, so a
+    # bundle where EVERY chart failed produced no chip at all and read as clean.
+    assert any("case judge rejected" in e for e in summary["errors"]), summary
 
 
 def test_a_clean_run_grows_no_failure_chip(monkeypatch):

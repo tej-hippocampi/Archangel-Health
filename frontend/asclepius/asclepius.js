@@ -3870,18 +3870,20 @@
    * before this feature existed, which is the right failure direction for a tab
    * that is empty for almost everyone. */
   async function longitudinalAvailable() {
-    if (typeof state.longitudinalAvailable === 'number') return state.longitudinalAvailable;
-    if (!(state.user && state.user.real_data_approved)) {
-      state.longitudinalAvailable = 0;
-      return 0;
-    }
+    // Asked fresh each time rather than cached on `state`. The home screen is
+    // rendered rarely — on sign-in and on "change flow" — and a cached zero would
+    // hide the tab for a physician who was routed a walk five minutes ago, for
+    // the rest of their session, with nothing on screen to explain it.
+    if (!(state.user && state.user.real_data_approved)) return 0;
     try {
       const d = await api('/dashboard?portal_version=v5&limit=1');
-      state.longitudinalAvailable = Math.max(0, (d && d.longitudinal_available) || 0);
+      return Math.max(0, (d && d.longitudinal_available) || 0);
     } catch (e) {
-      state.longitudinalAvailable = 0;
+      // A failure resolves to 0: the physician sees exactly what they saw before
+      // this feature existed, which is the right failure direction for a tab that
+      // is empty for almost everyone.
+      return 0;
     }
-    return state.longitudinalAvailable;
   }
 
   async function renderVersionHome() {

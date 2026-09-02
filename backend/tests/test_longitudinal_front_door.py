@@ -200,3 +200,76 @@ def test_the_other_three_ingest_clean(store):
         # adapter refuses to interpret); blocking ones are not.
         blocking = [r for r in (ic.get("review") or []) if r.get("severity") == "blocking"]
         assert not blocking, blocking
+
+
+# ── the front door meets generation (§6 "front door", row 2) ──────────────────
+#
+# The rows above stop at "the chart is an ingest case". This one goes the last
+# step — the one the whole PRD is about — and drives the REAL generation route
+# over the REAL chart, so the seam between "a patient record was uploaded" and
+# "ordered, sealed trajectory points exist" is executed rather than assumed.
+#
+# The four model legs are stubbed (question authoring, the frontier difficulty
+# probe, candidate generation, the two judges) using the same stubs
+# ``test_asclepius_longitudinal_e2e`` uses. What is NOT stubbed is anything that
+# decides how many points there are or what order they are in.
+def test_patient_one_becomes_a_sealed_ordered_walk(store, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from tests.test_asclepius_longitudinal_e2e import _stub_model_legs
+
+    _stub_model_legs(monkeypatch)
+    client = TestClient(A.app)
+    admin_h = A.headers_for(A.make_user(store, role="admin"))
+
+    res = _run(store, bundles=["patient-1"])
+    upload_id = res["bundles"][0]["upload_id"]
+    ic = store.list_ingest_cases(upload_id=upload_id)[0]
+
+    # The chart arrives as STORAGE and generation is refused until a human says
+    # what it is for. Asserted rather than skipped past: it is the whole reason
+    # the fixture door leaves purpose unset, and it is the step an admin takes in
+    # Box 1 before Box 2 has any controls at all.
+    blocked = client.post(f"/api/asclepius/ingestion/cases/{ic['ingest_case_id']}/generate",
+                          headers=admin_h, json={"dry_run": False, "trajectory": True})
+    assert blocked.status_code == 409, blocked.text
+
+    ok = client.post(f"/api/asclepius/admin/uploads/{upload_id}/purpose",
+                     headers=admin_h, json={"purpose": "task_creation"})
+    assert ok.status_code == 200, ok.text
+
+    r = client.post(f"/api/asclepius/ingestion/cases/{ic['ingest_case_id']}/generate",
+                    headers=admin_h, json={"dry_run": False, "trajectory": True})
+    assert r.status_code == 200, r.text
+    body = r.json()
+
+    assert body["trajectory_points"] >= 10, body
+    points = store.trajectory_points(body["trajectory_id"])
+    assert len(points) == body["trajectory_points"]
+
+    # One walk, contiguous from 0. A gap reads to a physician as a missing case
+    # rather than as a rejected one, and to the export as a broken sequence.
+    assert {p["trajectory_id"] for p in points} == {body["trajectory_id"]}
+    assert [p["sequence_index"] for p in points] == list(range(len(points)))
+
+    # A walk of N points yields N−1 verifiable ones: the terminal point has no
+    # later encounter in the record to be checked against.
+    assert body["trajectory_verifiable_points"] == len(points) - 1
+
+    for p in points:
+        task = store.get_task(p["task_id"])
+        # Single-labelled by construction (§9.6) — a second label buys no
+        # agreement statistic on a κ-excluded point, it buys a second walk.
+        assert task["max_labels"] == 1
+        # And held back from every queue until an admin routes it: promoting a
+        # chart and releasing it to doctors are two decisions.
+        assert task["distribution"] == "assigned_only"
+
+    # Absent from EVERY doctor's queue, both versions, while unrouted.
+    doc = A.make_user(store, role="evaluator", specialty="hepatology")
+    store.set_real_data_approved(doc["id"], True)
+    h = A.headers_for(store.get_user_by_id(doc["id"]))
+    for version in ("v3", "v4", "v5"):
+        rows = client.get(f"/api/asclepius/tasks/available?portal_version={version}",
+                          headers=h).json()["tasks"]
+        assert not [t for t in rows if t.get("trajectory_id")], version

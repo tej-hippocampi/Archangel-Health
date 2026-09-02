@@ -124,7 +124,13 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
 
     report: Dict[str, Any] = {
         "upload_id": upload_id, "cases": [], "generated": 0, "gated": 0,
-        "failed": 0, "trajectories": [], "errors": [],
+        # Two different failure counts, because they are different events and one
+        # number for both is a number an operator cannot act on:
+        #   failed       — ENCOUNTERS the handler could not turn into a task
+        #                  (a case judge rejection), isolated inside one chart;
+        #   cases_failed — whole CHARTS that could not be planned at all.
+        "failed": 0, "cases_failed": 0,
+        "trajectories": [], "errors": [],
     }
     try:
         upload = store.get_ingest_upload(upload_id)
@@ -163,7 +169,7 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
                 # other nine in the same bundle.
                 log.warning("auto-generate failed for %s: %s", case["ingest_case_id"], exc)
                 entry.update({"error": _readable(exc)})
-                report["failed"] += 1
+                report["cases_failed"] += 1
                 report["cases"].append(entry)
                 continue
             # The handler queued its new-task notifications on the BackgroundTasks
@@ -205,7 +211,8 @@ async def run_upload(store: Any, upload_id: str, actor: str) -> Dict[str, Any]:
         store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                         event_type="auto_generate_finished", actor=actor,
                         payload={k: report[k] for k in
-                                 ("generated", "gated", "failed", "trajectories")})
+                                 ("generated", "gated", "failed", "cases_failed",
+                                  "trajectories")})
     except Exception:  # pragma: no cover
         log.exception("auto-generate: could not record the report for %s", upload_id)
     return report
@@ -237,6 +244,12 @@ def failure_summary(upload: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]
         for d in case.get("dropped") or []:
             dropped.append({"ingest_case_id": case.get("ingest_case_id"), **d})
     errors = list(report.get("errors") or [])
+    # A whole CHART that could not be planned is the loudest thing that can happen
+    # in an unattended run, and it lived only in the per-case entry — so a bundle
+    # where every chart failed produced no chip at all and read as a clean run.
+    for case in report.get("cases") or []:
+        if case.get("error"):
+            errors.append(f"{case.get('ingest_case_id')}: {case['error']}")
     if not dropped and not errors:
         return None
     return {"count": len(dropped) + len(errors), "dropped": dropped, "errors": errors}

@@ -155,6 +155,33 @@ offering them.
 * **Live email.** Notifications are DMs in the community store. No mail transport
   is exercised.
 
+## §5.4 definition of done — where it is deliberately not met
+
+The PRD's §5.4 asks that
+
+```
+grep -rn "'v5'\|\"v5\"" backend/ frontend/ --include=*.py --include=*.js | grep -v tests
+```
+
+return "only Group A/B sites with longitudinal meaning; zero hits mention
+'environment' or 'agentic' next to `v5`".
+
+Every code site now carries longitudinal meaning. **Six sites still mention `v5`
+next to the environments tier, and they are deliberate**, not a missed rename:
+
+* `constants.ENV_LEGACY_PORTAL_VERSION` and `is_env_portal_version(allow_legacy=)`
+  (`constants.py:200-214`);
+* the two env-route guards that opt into it (`asclepius_env.py:157`, `:192`);
+* the §5.2 migration and its boot log (`store.py:6857`, `main.py:6346`), which
+  cannot describe an env→`env` re-stamp without naming the old literal.
+
+The first four are one release of back-compat: a page cached before the rename
+still posts `portal_version: 'v5'`, and refusing it would 400 an annotation a
+physician has already typed, over a string their browser stops sending on reload.
+It is accepted only on env routes, never on anything that decides what is
+written, and the value stored is always `env`. **Delete after one deploy cycle**,
+and the grep is then clean.
+
 ## Related
 
 * `LONGITUDINAL_CASES.md` — the operator runbook and the density gate.
