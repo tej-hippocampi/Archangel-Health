@@ -2642,6 +2642,52 @@ def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> Non
         )
 
 
+def _require_distribution(store: Any, task: Dict[str, Any], user: Dict[str, Any]) -> None:
+    """The distribution gate on DIRECT task access (PRD CASE-BATCHES §1).
+
+    An ``assigned_only`` task reaches only the people it was routed to. The
+    labeler queue enforces this in SQL (``store._PRD_CB_DISTRIBUTION``) — and
+    **a queue-only fix is not a fix**, for the same reason the sequence gate says
+    so one function below: the dashboard opens cases by id, the id is in the URL,
+    and a second tab is a second draw.
+
+    Found by executing the §4 routing checks rather than reading them. Before this
+    guard, an ``assigned_only`` trajectory point that had been generated and NOT
+    yet sent was invisible in every queue (correct) and simultaneously openable,
+    revealable and submittable by task id by any real-data-approved physician
+    (not correct). Point 0 of a walk clears the sequence gate by construction —
+    there are no earlier points — so nothing else stood in the way.
+
+    The damage is not only disclosure. Trajectory points are single-labelled, so
+    a stranger's submission consumes the point's one label: the walk an admin was
+    about to send is silently taken, the intended physician is then blocked by
+    capacity, and the batch screen still shows the walk as unrouted.
+
+    **403, not 409.** Unlike the sequence gate, this is an authorization failure
+    in the ordinary sense — the physician is not entitled to this case at all, and
+    no amount of finishing earlier work changes that. Telling them to "complete
+    the earlier points" would be false.
+
+    Admins and QA are exempt, as they are on the V4 wall: inspecting a case they
+    have not been assigned is the job. Reading forward is not a harm here the way
+    it is for the sequence gate — an admin opening an unrouted point destroys no
+    physician's prediction.
+    """
+    if (task.get("distribution") or "open") == "open":
+        return
+    if user.get("role") in ("admin", "qa_reviewer"):
+        return
+    for a in store.assignments_for_task(task["task_id"]):
+        if a.get("user_id") == user.get("id") and a.get("status") in ("offered", "claimed"):
+            return
+    raise HTTPException(
+        status_code=403,
+        detail={"error": "not_routed_to_you",
+                "message": ("This case was not sent to you. Cases in a chart walk "
+                            "reach a physician only when an admin routes them."),
+                "task_id": task.get("task_id")})
+
+
 def _require_trajectory_sequence(store: Any, task: Dict[str, Any], user: Dict[str, Any]) -> None:
     """The sealed future on DIRECT task access (Longitudinal Cases PRD §9.1).
 
@@ -2761,6 +2807,7 @@ async def get_task(task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_cur
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
+    _require_distribution(store, task, user)
     _require_trajectory_sequence(store, task, user)
     # The flow this task is actually graded in, derived from the TASK on the same
     # rule the submit path enforces. Opening a case from the dashboard list skips
@@ -2789,6 +2836,7 @@ async def reveal_task_answers(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
+    _require_distribution(store, task, user)
     _require_trajectory_sequence(store, task, user)
     text = (body.text or "").strip()
     if not text:
@@ -2927,6 +2975,7 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on answer-describing surfaces
+    _require_distribution(store, task, user)  # CASE-BATCHES §1 — routed to you?
     _require_trajectory_sequence(store, task, user)  # PRD 2 §9.1 sealed future
     if not store.get_independent_commit(task_id, user["id"]):
         raise HTTPException(
@@ -3236,6 +3285,11 @@ async def submit(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on the submit path
+    # CASE-BATCHES §1 on the submit path too, and this is the one that matters
+    # most: a trajectory point is single-labelled, so a submission from somebody
+    # it was never routed to consumes the point's one label and blocks the
+    # physician the admin actually chose.
+    _require_distribution(store, task, user)
     # PRD 2 §9.1 on the submit path too. Not belt-and-braces: a client that
     # obtained the case some other way (a stale tab, a hand-written POST) must not
     # be able to bank a label on an out-of-order point, because that submission is
