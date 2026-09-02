@@ -2700,6 +2700,17 @@ def _require_distribution(store: Any, task: Dict[str, Any], user: Dict[str, Any]
                 and (a.get("role") or "label") in roles
                 and a.get("status") in ("offered", "claimed")):
             return
+    # In-flight work survives a re-route. Sending a case to specific doctors flips
+    # it to ``assigned_only``, and an admin may do that while somebody is halfway
+    # through it — without this the physician's next click 403s and their blind
+    # capture is lost, which is a worse outcome than the one this gate prevents.
+    #
+    # This does NOT reopen the leak. A commit exists only if the physician passed
+    # through ``/reveal``, which is itself behind this gate, so nobody can
+    # manufacture one for a case they were never entitled to; it can only be held
+    # by someone who was entitled when they started.
+    if store.get_independent_commit(task["task_id"], user["id"]):
+        return
     raise HTTPException(
         status_code=403,
         detail={"error": "not_routed_to_you",

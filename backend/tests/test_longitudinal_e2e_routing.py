@@ -329,3 +329,65 @@ def test_row8_retiring_a_middle_point_lets_the_next_one_serve(walk):
               if t.get("trajectory_id") == tid]
     assert 1 not in served, "a retired point must never be offered"
     assert 2 in served, "the retired point must not block the rest of the walk"
+
+
+# ═══ the gate's two edges, both found by reasoning about row 3's fix ══════════
+def test_a_mid_flight_reroute_does_not_destroy_work_in_progress(walk):
+    """Sending a case to specific doctors flips it to ``assigned_only``, and an
+    admin may do that while somebody is halfway through it. Without a carve-out
+    the physician's next click 403s and their blind capture is lost — a worse
+    outcome than the one the gate prevents.
+
+    The carve-out is holding an independent commit, and it cannot be abused: a
+    commit exists only by passing through ``/reveal``, which is itself behind this
+    gate. Nobody can manufacture one for a case they were never entitled to."""
+    tid, points = walk
+    store = _store()
+    doc, other = _doctor(store, 2)
+    dh, admin_h = A.headers_for(doc), _admin_headers(store)
+    task_id = points[0]["task_id"]
+
+    # It starts open, and the physician commits their blind capture. Set directly
+    # because a generated walk lands assigned_only by design and there is no
+    # "un-send" endpoint — the state under test is an ordinary open case that an
+    # admin is about to route.
+    with store._conn() as conn:
+        conn.execute("UPDATE tasks SET distribution = 'open' WHERE task_id = ?", (task_id,))
+    assert client.post(f"/api/asclepius/tasks/{task_id}/reveal",
+                       json={"text": "my stance, written blind"},
+                       headers=dh).status_code == 200
+
+    # The admin now routes it to somebody else, flipping it to assigned_only.
+    r = client.post("/api/asclepius/admin/assignments/allocate", headers=admin_h, json={
+        "task_ids": [task_id], "user_ids": [other["id"]], "dry_run": False})
+    assert r.status_code == 200, r.text
+    assert (store.get_task(task_id) or {}).get("distribution") == "assigned_only"
+
+    # The physician who was already working it can still finish.
+    assert client.get(f"/api/asclepius/tasks/{task_id}", headers=dh).status_code == 200
+    assert client.post("/api/asclepius/submissions", headers=dh, json={
+        "task_id": task_id, "verdict": "A_better", "chosen_id": "a", "rejected_id": "b",
+        "confidence": "high", "time_spent_sec": 900}).status_code == 200
+
+
+def test_a_reviewer_may_read_an_assigned_case_but_never_label_it(walk):
+    """The gate matches ``_PRD_ASSIGN_MINE`` on writes and is looser on reads.
+
+    A reviewer is assigned ``role='review'`` and legitimately opens the case to
+    review it. What they must not do is bank a LABEL on it: the queue's predicate
+    carries ``a.role = 'label'``, and a by-ID path that did not would let a
+    reviewer consume a single-labelled trajectory point's one slot."""
+    tid, points = walk
+    store = _store()
+    reviewer = _approved_physician(store)
+    rh = A.headers_for(reviewer)
+    task_id = points[0]["task_id"]
+    store.upsert_assignment(task_id=task_id, user_id=reviewer["id"],
+                            role="review", assigned_by="u-admin")
+
+    assert client.get(f"/api/asclepius/tasks/{task_id}", headers=rh).status_code == 200
+    assert client.post(f"/api/asclepius/tasks/{task_id}/reveal",
+                       json={"text": "stance"}, headers=rh).status_code == 403
+    assert client.post("/api/asclepius/submissions", headers=rh, json={
+        "task_id": task_id, "verdict": "A_better", "chosen_id": "a", "rejected_id": "b",
+        "confidence": "high", "time_spent_sec": 900}).status_code == 403
