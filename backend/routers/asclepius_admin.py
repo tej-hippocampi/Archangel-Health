@@ -634,6 +634,52 @@ async def export_approve_unapproved(
     return {"requested": len(wanted), "approved": approved, "results": results}
 
 
+@router.get("/export/migration-report")
+async def export_migration_report(
+    request: Request,
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """What the boot migration did, and whether any row was lost (PRD §0, §4).
+
+    Read this instead of SSHing into a container. It reports the run that
+    happened when this process started: how many cases had been approved or
+    paid but could not ship, how many are now exportable, how many voided
+    earnings were deliberately left alone — and the no-data-loss contract check
+    taken around the sweep by the sweep itself.
+
+    ``ran`` is False when the process has not finished the boot sweep yet (it
+    runs off the event loop) or when this build started before the migration
+    existed. Refresh; it does not need a redeploy.
+    """
+    report = getattr(request.app.state, "asclepius_export_backfill", None)
+    if not report:
+        return {"ran": False,
+                "message": "The boot migration has not reported yet. It runs a "
+                           "few seconds after startup — refresh shortly."}
+    contract = report.get("contract")
+    return {
+        "ran": True,
+        "cases_stranded": report.get("candidates", 0),
+        "cases_now_exportable": report.get("moved", 0),
+        "skipped": report.get("skipped", 0),
+        "voided_left_untouched": report.get("voided_untouched", 0),
+        "error": bool(report.get("error")),
+        "no_data_loss": {
+            "checked": contract is not None,
+            "ok": (contract or {}).get("ok"),
+            "problems": (contract or {}).get("problems") or [],
+            "row_counts_before": {k: (v or {}).get("count")
+                                  for k, v in ((contract or {}).get("before") or {}).items()},
+            "row_counts_after": {k: (v or {}).get("count")
+                                 for k, v in ((contract or {}).get("after") or {}).items()},
+        },
+        # Case ids, so an operator can go look at one rather than trust a count.
+        "cases": [{"case_id": r.get("case_id"), "submission_id": r.get("submission_id"),
+                   "was": r.get("prior_status"), "outcome": r.get("outcome")}
+                  for r in (report.get("rows") or [])[:200]],
+    }
+
+
 @router.post("/export/case-bundle")
 async def export_case_bundle(
     body: CaseBundleRequest,

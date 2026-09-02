@@ -853,6 +853,85 @@ def test_a_dry_run_writes_nothing():
     assert _statuses(sid)["records"] == {"qa_checked"}
 
 
+def test_the_boot_sweep_takes_the_contract_snapshot_itself():
+    """§0's before-snapshot cannot be taken by hand.
+
+    The inventory script ships WITH this change, so at the moment a
+    before-snapshot is needed it is not deployed yet — and by the time it is,
+    the boot sweep has already run. Both snapshots would be "after". So the
+    sweep takes its own, in-process, immediately before its first write.
+    """
+    admin_h = _admin_h()
+    ev = _evaluator()
+    _tid, sid = _submit(admin_h, ev)
+    _hold_back(sid, "qa_checked")
+    _accrue(ev, sid, status="paid")
+
+    report = export_backfill.run_once_at_boot(_store())
+    assert report["candidates"] == 1 and report["moved"] == 1
+    contract = report["contract"]
+    assert contract is not None and contract["ok"] is True
+    assert contract["problems"] == []
+    # The before-snapshot really is from BEFORE the sweep: the ids are identical
+    # (nothing was created or destroyed) and the sweep did move a status.
+    assert contract["before"]["records"] == contract["after"]["records"]
+    assert _statuses(sid)["records"] == {"export_ready"}
+
+
+def test_the_boot_sweep_never_raises():
+    """A migration that can take the portal down is a worse problem than the
+    drift it fixes."""
+    class _Broken:
+        def ledger_approved_but_unshippable(self, **kw):
+            raise RuntimeError("database on fire")
+
+        def _conn(self):
+            raise RuntimeError("database on fire")
+
+    report = export_backfill.run_once_at_boot(_Broken())
+    assert report["error"] is True
+    assert report["moved"] == 0
+
+
+def test_the_migration_report_endpoint_reads_the_boot_run():
+    """An operator reads this in a browser instead of SSHing into a container."""
+    admin_h = _admin_h()
+    ev = _evaluator()
+    _tid, sid = _submit(admin_h, ev)
+    _hold_back(sid, "qa_checked")
+    _accrue(ev, sid, status="paid")
+
+    # Before the sweep has reported, the endpoint says so rather than 404ing or
+    # implying nothing was stranded.
+    prior = getattr(A.app.state, "asclepius_export_backfill", None)
+    if hasattr(A.app.state, "asclepius_export_backfill"):
+        del A.app.state.asclepius_export_backfill
+    r = client.get("/api/asclepius/admin/export/migration-report", headers=admin_h)
+    assert r.status_code == 200 and r.json()["ran"] is False
+
+    A.app.state.asclepius_export_backfill = export_backfill.run_once_at_boot(_store())
+    try:
+        r = client.get("/api/asclepius/admin/export/migration-report", headers=admin_h)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["ran"] is True
+        assert body["cases_stranded"] == 1
+        assert body["cases_now_exportable"] == 1
+        assert body["no_data_loss"]["checked"] is True
+        assert body["no_data_loss"]["ok"] is True
+        assert body["cases"][0]["submission_id"] == sid
+    finally:
+        if prior is None:
+            del A.app.state.asclepius_export_backfill
+        else:
+            A.app.state.asclepius_export_backfill = prior
+
+
+def test_the_migration_report_needs_an_admin():
+    r = client.get("/api/asclepius/admin/export/migration-report")
+    assert r.status_code in (401, 403)
+
+
 def test_the_no_data_loss_contract_holds_across_the_migration():
     """§0 — counts may only go UP; the id sets must be IDENTICAL. A status may
     move, a row may not."""

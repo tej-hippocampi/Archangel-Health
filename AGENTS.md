@@ -58,9 +58,10 @@ disagree about what ships. The buyer CRM is retired and its tables are kept
 (`docs/asclepius/BUYER_CRM_RETIRED.md`); the delivery rail is untouched.
 
 A boot sweep (`asclepius/export_backfill.py`) makes already-paid-but-unshippable
-cases exportable. It is idempotent and additive; run
-`backend/scripts/export_migration_inventory.py --label before/after` around a
-deploy to prove no row was lost.
+cases exportable. It is idempotent and additive, and it takes the §0
+no-data-loss snapshot around ITSELF (a by-hand before/after cannot work — the
+script ships with the change). Read the result at
+`GET /api/asclepius/admin/export/migration-report` or in the deploy log.
 
 ### The onboarding demo video
 

@@ -8,20 +8,26 @@ Counts may only ever go **up**; the id sets must be **identical**. A row's
 deleted, dropped, or renamed. The id digest is SHA-256 over the sorted ids,
 so two runs that saw the same rows produce the same digest.
 
-## How to run it against production
+## Where the deploy-time check actually happens
+
+**Not here.** The boot sweep takes its own before/after snapshot around
+itself (`export_backfill.run_once_at_boot`), because a by-hand
+before-run cannot work: this script ships WITH the migration, so at the
+moment a before-snapshot is needed it is not deployed yet. Read the
+result at `GET /api/asclepius/admin/export/migration-report`.
+
+This script is for auditing a database at any other time — before a
+risky change, or on a copy. It is a pure read.
 
 ```sh
-# BEFORE the deploy that carries the migration:
-ASCLEPIUS_DB_PATH=/data/asclepius.db \
-  python3 backend/scripts/export_migration_inventory.py --label before
-
-# AFTER the deploy (the backfill sweep runs once at boot):
-ASCLEPIUS_DB_PATH=/data/asclepius.db \
-  python3 backend/scripts/export_migration_inventory.py --label after
+# On the Railway container the cwd is /app/backend and
+# ASCLEPIUS_DB_PATH is already set. Write the report to the VOLUME:
+python3 scripts/export_migration_inventory.py --label check \
+  --out /data/inventory.md
 ```
 
-The second run appends its pass to this file and exits non-zero if any
-count went down or any id set changed. Both runs are pure reads.
+Two runs with different `--label`s append to the same file and the
+second exits non-zero if any count went down or any id set changed.
 
 > **This snapshot was taken against an EMPTY database.** It is the
 > committed template and the proof the tooling runs. Re-run the two
@@ -30,7 +36,7 @@ count went down or any id set changed. Both runs are pure reads.
 
 ## before
 
-- Taken at: `2026-09-02T21:20:45+00:00`
+- Taken at: `2026-09-02T22:05:31+00:00`
 - Database: `(empty template database — re-run against the production volume)`
 
 ### submissions by status
@@ -63,7 +69,7 @@ _no rows_
 
 ## after
 
-- Taken at: `2026-09-02T21:20:45+00:00`
+- Taken at: `2026-09-02T22:05:31+00:00`
 - Database: `(empty template database — re-run against the production volume)`
 
 ### submissions by status

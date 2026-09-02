@@ -100,12 +100,72 @@ def backfill_records_from_ledger(
 
 
 def run_once_at_boot(store: Any) -> Dict[str, Any]:
-    """Boot hook. Never raises: a migration that can take the portal down is a
-    worse problem than the drift it fixes."""
+    """Boot hook: inventory, sweep, inventory, verify — in one pass.
+
+    **The §0 contract has to be taken around the sweep, by the sweep.** Running
+    the inventory script by hand "before the deploy" cannot work: the script
+    ships WITH this change, so at the moment a before-snapshot is needed it is
+    not deployed yet, and by the time it is, the boot sweep has already run.
+    Both snapshots would be "after". So the before-snapshot is taken here,
+    inside the same process, immediately before the first write — which is the
+    only place it is actually before anything.
+
+    The result lands in the log and on ``app.state.asclepius_export_backfill``,
+    readable at ``GET /api/asclepius/admin/export/migration-report``. Nobody has
+    to SSH into a container to find out whether their data survived.
+
+    Never raises: a migration that can take the portal down is a worse problem
+    than the drift it fixes.
+    """
+    from asclepius import export_inventory  # noqa: PLC0415 — import-light
+
+    empty = {"candidates": 0, "moved": 0, "skipped": 0, "voided_untouched": 0,
+             "rows": []}
     try:
-        return backfill_records_from_ledger(store, actor="boot_migration")
+        before = export_inventory.inventory(store)
+    except Exception:  # noqa: BLE001
+        log.warning("asclepius.export_backfill: could not take the before "
+                    "inventory; running the sweep without a contract check",
+                    exc_info=True)
+        before = None
+
+    try:
+        report = backfill_records_from_ledger(store, actor="boot_migration")
     except Exception:  # noqa: BLE001
         log.exception("asclepius.export_backfill: boot sweep failed; the portal "
                       "serves as-is and the sweep retries on the next restart")
-        return {"candidates": 0, "moved": 0, "skipped": 0, "voided_untouched": 0,
-                "error": True, "rows": []}
+        return {**empty, "error": True, "contract": None}
+
+    report["contract"] = None
+    if before is not None:
+        try:
+            after = export_inventory.inventory(store)
+            problems = export_inventory.violations(before, after)
+            report["contract"] = {
+                "ok": not problems, "problems": problems,
+                "before": before["id_sets"], "after": after["id_sets"],
+                "taken_at": after["taken_at"],
+            }
+            if problems:
+                # This should be impossible — the sweep only ever UPDATEs a
+                # status column. If it ever fires, it is the loudest thing in
+                # the log, because §0 is the promise the whole migration rests
+                # on and a silent breach of it is unrecoverable.
+                log.error("asclepius.export_backfill: THE NO-DATA-LOSS CONTRACT "
+                          "FAILED. %s", "; ".join(problems))
+            else:
+                log.warning(
+                    "asclepius.export_backfill: no-data-loss contract holds — "
+                    "every id set is identical across the sweep.")
+        except Exception:  # noqa: BLE001
+            log.warning("asclepius.export_backfill: could not verify the "
+                        "no-data-loss contract", exc_info=True)
+
+    # The headline, in one greppable line: how many cases we had already paid
+    # for that could not ship until now.
+    log.warning(
+        "asclepius.export_backfill: SUMMARY — %d case(s) were approved or paid "
+        "but could not ship; %d are now exportable; %d voided earning(s) left "
+        "untouched for a human to decide.",
+        report["candidates"], report["moved"], report["voided_untouched"])
+    return report

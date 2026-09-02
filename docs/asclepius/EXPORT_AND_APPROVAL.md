@@ -142,13 +142,69 @@ The CRM endpoints and screen are removed; the tables stay. See
 
 ## Deploy checklist
 
-1. `ASCLEPIUS_DB_PATH=… python3 backend/scripts/export_migration_inventory.py --label before`
-2. Deploy. The backfill sweep runs at boot, off the event loop, and never raises.
-3. `ASCLEPIUS_DB_PATH=… python3 backend/scripts/export_migration_inventory.py --label after`
-   — it must print `contract holds`.
-4. Read the boot log line `asclepius.export_backfill: N case(s) were approved or
-   paid but could not ship` — that N is how many cases this change just made
-   sellable.
+**You do not need to run anything.** Deploy, then open
+
+```
+GET /api/asclepius/admin/export/migration-report
+```
+
+signed in as an admin. It reports what the boot migration did:
+
+```jsonc
+{
+  "cases_stranded":        12,   // approved or paid, but could never ship
+  "cases_now_exportable":  12,   // …and now can
+  "voided_left_untouched":  3,   // §4.3 — a human decides these
+  "no_data_loss": { "checked": true, "ok": true, "problems": [] }
+}
+```
+
+`cases_stranded` is the number this change was written for: cases you have
+already paid a physician for that had no path to a buyer.
+
+The same figures are in the deploy log:
+
+```
+asclepius.export_backfill: SUMMARY — 12 case(s) were approved or paid but could
+not ship; 12 are now exportable; 3 voided earning(s) left untouched…
+asclepius.export_backfill: no-data-loss contract holds — every id set is
+identical across the sweep.
+```
+
+### Why the contract is taken by the sweep, not by hand
+
+An obvious-looking checklist — "run the inventory script before the deploy, run
+it again after" — **cannot work**, and it is worth saying why so nobody
+reintroduces it. The script ships *with* this change. At the moment a
+before-snapshot is needed it is not deployed yet; by the time it is, the boot
+sweep has already run. Both snapshots would be "after" and the check would pass
+vacuously.
+
+So `run_once_at_boot` takes the before-snapshot itself, in the same process,
+immediately before its first write — the only place that is genuinely *before*
+anything — runs the sweep, snapshots again, and compares. A breach logs at
+ERROR and appears in the report; it should be impossible, because the sweep only
+ever `UPDATE`s a status column.
+
+### The standalone script
+
+`backend/scripts/export_migration_inventory.py` is still there and still useful —
+for auditing a database at any later date, or for checking a copy before a risky
+change. It is a pure read. On a Railway container (`railway ssh`, or the
+service's shell) the working directory is already `/app/backend` and
+`ASCLEPIUS_DB_PATH` is already set, so it is just:
+
+```sh
+python3 scripts/export_migration_inventory.py --label check --out /data/inventory.md
+cat /data/inventory.md
+```
+
+Write the report to `/data` (the volume), not into the image: the container
+filesystem is replaced on the next deploy.
+
+`backend/scripts/backfill_export_ready.py --dry-run` reports what the sweep
+would move without writing anything, if you want to see the number before a
+deploy rather than after.
 
 `ASCLEPIUS_LICENSE` still overrides the license string per deployment if a buyer
 negotiates their own terms.
