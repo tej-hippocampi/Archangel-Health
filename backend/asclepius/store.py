@@ -3756,6 +3756,37 @@ class AsclepiusStore:
             )
             return cur.rowcount > 0
 
+    def list_profiles_needing_nudge(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Approved physicians who might be asked about one profile gap.
+
+        Candidates, not decisions: whether anything is actually missing is a
+        question about the credential blob and the avatar, which the caller
+        answers with the same completeness rule the profile page renders. This
+        query only narrows to the population the question is worth asking of,
+        which is people who were approved (a pending applicant is being chased
+        about their application, not their subspecialties) and who can be
+        mailed.
+
+        Ordered by how long it has been since we last said anything, longest
+        first, with the never-nudged ahead of everyone. A stable created_at
+        ordering would hand the same fifty rows to every sweep forever and
+        starve the rest of the roster the moment the population outgrew the
+        batch cap.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users "
+                "WHERE verification_status = 'approved' "
+                "  AND COALESCE(active, 1) = 1 "
+                "  AND role = 'evaluator' "
+                "  AND email IS NOT NULL AND email != '' "
+                "ORDER BY COALESCE("
+                "  json_extract(COALESCE(profile_nudge_json, '{}'), '$.last_sent_at'), ''"
+                ") ASC, created_at ASC LIMIT ?",
+                (max(1, limit),),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def monthly_submission_counts(self, user_id: str, *, months: int = 12
                                   ) -> List[Dict[str, Any]]:
         """A count per calendar month for the physician's own history panel.
@@ -3771,6 +3802,49 @@ class AsclepiusStore:
                 (user_id, max(1, months)),
             ).fetchall()
         return [{"month": r["month"], "count": r["n"]} for r in rows][::-1]
+
+    def current_day_streak(self, user_id: str, *, today: Optional[str] = None) -> int:
+        """Consecutive days ending today (or yesterday) with a submission.
+
+        Computed at READ time from ``submissions.created_at`` rather than kept
+        as a counter, because a stored streak is a second source of truth that
+        goes wrong exactly when it matters: a missed cron, a backfilled
+        submission or a restart leaves a number on somebody's profile that
+        their own history contradicts.
+
+        Yesterday still counts as alive. A physician who worked last night and
+        has not opened the portal yet this morning has not broken anything, and
+        a streak that resets at midnight punishes the timezone rather than the
+        behaviour.
+        """
+        day = today or datetime.utcnow().date().isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT substr(created_at, 1, 10) AS d FROM submissions "
+                "WHERE evaluator_id = ? AND created_at IS NOT NULL "
+                "  AND substr(created_at, 1, 10) <= ? "
+                "ORDER BY d DESC LIMIT 400",
+                (user_id, day),
+            ).fetchall()
+        days = [r["d"] for r in rows if r["d"]]
+        if not days:
+            return 0
+        try:
+            cursor = datetime.strptime(day, "%Y-%m-%d").date()
+        except ValueError:
+            return 0
+        newest = days[0]
+        if newest != cursor.isoformat():
+            cursor = cursor - timedelta(days=1)
+            if newest != cursor.isoformat():
+                return 0
+        streak = 0
+        for d in days:
+            if d != cursor.isoformat():
+                break
+            streak += 1
+            cursor = cursor - timedelta(days=1)
+        return streak
 
     # ── Tier ─────────────────────────────────────────────────────────────────
 
@@ -7340,8 +7414,10 @@ class AsclepiusStore:
     def evaluator_self_stats(self, evaluator_id: str) -> Dict[str, Any]:
         """Real, personal counts for the dashboard's own tracking widget: total
         cases this evaluator has completed, how many in the last 7 days, and
-        when they last submitted one. No earnings/streak data exists anywhere
-        in this schema, so this stays limited to what's actually true."""
+        when they last submitted one. No earnings data exists anywhere in this
+        schema, so this stays limited to what's actually true. The day streak
+        is real but is not stored either; ``current_day_streak`` derives it
+        from submission timestamps at read time."""
         week_cutoff = (datetime.utcnow().replace(microsecond=0) - timedelta(days=7)).isoformat()
         with self._conn() as conn:
             total = conn.execute(

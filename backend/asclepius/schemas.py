@@ -887,7 +887,7 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class SigninLinkRequest(BaseModel):
-    """POST /auth/signin-link — mail an applicant a way back in.
+    """POST /auth/signin-link, mail an applicant a way back in.
 
     Answers identically whether or not the address has an account, for the
     same reason the forgot-password door does."""
@@ -896,7 +896,7 @@ class SigninLinkRequest(BaseModel):
 
 
 class SigninLinkExchange(BaseModel):
-    """POST /auth/signin-link/exchange — trade the emailed token for a session."""
+    """POST /auth/signin-link/exchange, trade the emailed token for a session."""
 
     token: str
 
