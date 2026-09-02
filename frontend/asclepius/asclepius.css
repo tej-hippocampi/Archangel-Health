@@ -5346,3 +5346,58 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   background: var(--green);
   transition: width 120ms linear;
 }
+
+/* ═══ Applicant funnel: the practice case, queue readiness, re-tiering ═══
+   Append-only block. The queue is a skim surface, so everything here is a chip
+   or a line, never a panel: a badge that needs reading defeats the point of
+   putting it on the row. */
+
+/* Practice-case state, on the queue row and on the decision screen. One shape,
+   three colours, because the states are not degrees of the same thing: passed
+   is evidence, locked is an absence, and grandfathered is neither. */
+.vq-practice {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 2px 8px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--asc-line-strong);
+  color: var(--asc-muted);
+  white-space: nowrap;
+}
+.vq-practice-passed { color: var(--green); border-color: var(--green); }
+.vq-practice-locked { color: var(--asc-muted); }
+.vq-practice-grandfathered { color: var(--asc-muted); border-style: dashed; }
+.vq-practice-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+/* Both halves of the application are in. Quiet on purpose: it marks a row as
+   worth opening, it does not mark the others as unworthy. */
+.vq-ready-chip {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+.vq-ready-row td { background: rgba(76, 166, 60, 0.03); }
+.vq-ready-filter { margin-left: auto; white-space: nowrap; }
+
+/* Re-tiering. Same row shape as the decision controls, because it is the same
+   kind of act: a select, a required note, one button. */
+.vq-retier { margin-top: 12px; }
+.vq-retier-save { white-space: nowrap; }
+.vq-retier-candidates:not(:empty) {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--asc-line);
+}

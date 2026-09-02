@@ -45,6 +45,11 @@
   let pendingId = null;         // pending physician → decision report
   let cache = null;             // last /admin/physicians payload
   let pendingCache = null;      // last { queue, signups } payload
+  // The queue's default view is everyone, not "ready for review". The ready
+  // filter is advisory (the grading ledger is client-declared), and defaulting
+  // to it would hide an applicant who is obviously rejectable, or an obviously
+  // approvable colleague, behind a tutorial they have not got round to.
+  let readyOnly = false;
   let rootEl = null;            // the section body we were mounted into
   let rootCtx = null;
 
@@ -569,7 +574,11 @@
    * half is best-effort: it is the secondary population, and a failure to load
    * it must not hide the physicians who ARE waiting for a decision. */
   async function loadPending(api) {
-    const queue = await api('/verify/queue?status=pending');
+    // The server filters, not the client. `total` and the tab count are cut
+    // from the same set as the rows, so a client-side filter would show four
+    // rows under a heading that says seven.
+    const queue = await api('/verify/queue?status=pending'
+      + (readyOnly ? '&ready=true' : ''));
     let signups = null;
     try {
       signups = await api('/admin/signups');
@@ -590,6 +599,11 @@
       specialty: q.specialty || null,
       created_at: q.created_at || null,
       proposed_tier_word: q.proposed_tier_word || null,
+      // Half of what an applicant owes us, on the row rather than only on the
+      // decision screen: "who is actually worth opening" has to be answerable
+      // while skimming, or the filter below is the only way to ask it.
+      practice_case: q.practice_case || null,
+      ready_for_review: q.ready_for_review === true,
       // One merged number. An admin triaging needs to know this row is not a
       // skim, not which KIND of not-a-skim it is; that is on the decision
       // screen, where they are already looking at it.
@@ -804,10 +818,19 @@
   function renderPendingTab(container, ctx, rows) {
     const { h } = ctx;
     if (!rows.length) {
-      container.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-empty' },
-          'Queue is clear — nobody is waiting for a decision, and nobody is '
-          + 'mid-onboarding.'))));
+      // The filter rides along even on an empty queue. Without it, switching
+      // the filter on and emptying the list would leave an admin on a screen
+      // that says the queue is clear with no control to prove otherwise.
+      container.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-head' },
+          h('div', { class: 'asc-card-title' }, 'Waiting on your decision (0)'),
+          readyFilter(ctx)),
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-empty' }, readyOnly
+            ? 'Nobody is ready for review yet. Turn the filter off to see '
+              + 'everyone who is waiting.'
+            : 'Queue is clear. Nobody is waiting for a decision, and nobody is '
+              + 'mid-onboarding.'))));
       return;
     }
     /* Two headed tables, one tab. They are two different jobs -- a decision and
@@ -822,15 +845,24 @@
       container.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-head' },
           h('div', { class: 'asc-card-title' },
-            'Waiting on your decision (' + decidable.length + ')')),
+            'Waiting on your decision (' + decidable.length + ')'),
+          readyFilter(ctx)),
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
             h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, 'Waiting'),
-            h('th', {}, 'Proposed'), h('th', {}, 'Look'), h('th', {}, ''))),
+            h('th', {}, 'Practice case'), h('th', {}, 'Proposed'),
+            h('th', {}, 'Look'), h('th', {}, ''))),
           h('tbody', {}, decidable.map((r) => pendingRow(ctx, r)))))));
     } else {
-      container.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-empty' }, 'Nobody is waiting on a decision.'))));
+      container.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-head' },
+          h('div', { class: 'asc-card-title' }, 'Waiting on your decision (0)'),
+          readyFilter(ctx)),
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-empty' }, readyOnly
+            ? 'Nobody is ready for review yet. Turn the filter off to see '
+              + 'everyone who is waiting.'
+            : 'Nobody is waiting on a decision.'))));
     }
 
     if (signups.length) {
@@ -843,6 +875,52 @@
             h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, ''))),
           h('tbody', {}, signups.map((r) => pendingRow(ctx, r)))))));
     }
+  }
+
+  /* The "ready for review" toggle. A FILTER and never a wall: the practice
+     case is a client-declared pedagogy gate, not an authz boundary, so the
+     decision buttons stay live for everyone. What this buys is triage, which is
+     the actual complaint it answers: an admin with twenty rows wants the ones
+     where both halves of the application are in, without losing the ability to
+     reject an obviously bad one or approve a colleague they know. */
+  function readyFilter(ctx) {
+    const { h } = ctx;
+    const btn = h('button', {
+      type: 'button',
+      class: 'asc-btn asc-btn-sm ' + (readyOnly ? 'asc-btn-primary' : 'asc-btn-ghost')
+        + ' vq-ready-filter',
+      'aria-pressed': readyOnly ? 'true' : 'false',
+      title: 'Credentials evidence on file and the practice case sat.',
+    }, readyOnly ? 'Ready for review only' : 'Show everyone');
+    btn.addEventListener('click', () => {
+      readyOnly = !readyOnly;
+      // The rows come from the server with the filter applied, so the cached
+      // page describes the other question and has to go.
+      pendingCache = null;
+      pendingId = null;
+      rerender();
+    });
+    return btn;
+  }
+
+  /* The practice case as one cell. State only: the matched count is on the
+     decision screen, where an admin is already reading rather than skimming,
+     and a score in a queue invites deciding on the score. */
+  function practiceCell(h, pc) {
+    if (!pc) return h('td', {}, '—');
+    const state = pc.state || 'locked';
+    if (state === 'locked') {
+      return h('td', {}, h('span', { class: 'vq-practice vq-practice-locked' },
+        'Not done'));
+    }
+    if (state === 'grandfathered') {
+      // Predates the practice case. Not a pass and not a failure, and saying
+      // "passed" here would be the screen inventing evidence.
+      return h('td', {}, h('span', { class: 'vq-practice vq-practice-grandfathered' },
+        'Before the case'));
+    }
+    return h('td', {}, h('span', { class: 'vq-practice vq-practice-passed' },
+      pc.first_attempt_pass ? 'Passed first try' : 'Passed'));
   }
 
   /* How long they have been waiting, against the promise the workspace-ready
@@ -879,10 +957,18 @@
         h('td', {}, r.specialty || '—'),
         h('td', {}, resendBtn(ctx, r.signup)));
     }
-    const tr = h('tr', { class: 'asc-row-click' },
-      h('td', {}, h('strong', {}, r.name)),
+    const tr = h('tr', { class: 'asc-row-click' + (r.ready_for_review ? ' vq-ready-row' : '') },
+      h('td', {}, h('strong', {}, r.name),
+        // Both halves in. Said on the row and not only in the filter, so an
+        // admin reading the unfiltered queue can still see which applications
+        // are complete without switching views.
+        r.ready_for_review
+          ? h('span', { class: 'vq-ready-chip', title: 'Credentials evidence on '
+                        + 'file and the practice case sat.' }, 'Ready')
+          : null),
       h('td', {}, r.specialty || '—'),
       waitingCell(h, r.created_at),
+      practiceCell(h, r.practice_case),
       // The proposal, not the score. A number in a queue invites deciding on
       // the number; the tier word says which rows need real thought.
       h('td', {}, r.proposed_tier_word || '—'),
@@ -1015,6 +1101,12 @@
     });
     if (creds) slot.appendChild(creds);
 
+    // ── THE PRACTICE CASE ──
+    // Open, and above the buttons, because it is the only piece of clinical
+    // judgment we observe before deciding about somebody. Everything else on
+    // this screen is a credential they hold; this is work they did.
+    slot.appendChild(practiceCaseCard(ctx, d.practice_case, d.ready_for_review));
+
     // ── RECOMMENDATION ──
     slot.appendChild(recommendationCard(ctx, d, proposed, words));
 
@@ -1028,6 +1120,58 @@
     // ── Background research, BELOW the buttons and never in the reasons ──
     const research = d.agent_research || [];
     if (research.length) slot.appendChild(researchCard(ctx, research));
+  }
+
+  /* The practice case, in full, on the decision screen.
+
+     The matched count IS here, unlike on the queue row and unlike anywhere a
+     physician can reach: an admin deciding about somebody is entitled to how
+     the work went, and the reason it is projected out of every physician-facing
+     response is that a grade shown back to the person graded changes what the
+     exercise is, not that the number is secret from us.
+
+     "Passed" and "passed on the first attempt" are separate lines because they
+     are separate facts. The gate forces an eventual pass, so a pass on its own
+     says only that somebody kept going. */
+  function practiceCaseCard(ctx, pc, ready) {
+    const { h } = ctx;
+    const card = sectionCard(ctx, 'Practice case');
+    const pad = card.querySelector('.asc-card-pad');
+    if (!pc) {
+      pad.appendChild(h('div', { class: 'asc-dim' },
+        'No practice-case record on this account.'));
+      return card;
+    }
+    const state = pc.state || 'locked';
+    const word = state === 'passed' ? 'Passed'
+      : (state === 'grandfathered' ? 'Predates the practice case' : 'Not done yet');
+    pad.appendChild(h('div', { class: 'vq-practice-head' },
+      h('span', { class: 'vq-practice vq-practice-' + state }, word),
+      ready
+        ? h('span', { class: 'vq-ready-chip' }, 'Ready for review')
+        : h('span', { class: 'asc-dim' },
+            'Still waiting on part of this application')));
+    const rows = [
+      ['Attempts', pc.attempts != null ? String(pc.attempts) : null],
+      ['Passed first attempt', state === 'passed'
+        ? (pc.first_attempt_pass ? 'Yes' : 'No') : null],
+      ['Findings matched', pc.matched != null
+        ? String(pc.matched) + ' of ' + (pc.total != null ? pc.total : 4) : null],
+      ['Passed', pc.passed_at ? String(pc.passed_at).slice(0, 10) : null],
+      ['Case version', pc.passed_version != null ? String(pc.passed_version) : null],
+      ['Last attempt', pc.last_attempt_at
+        ? String(pc.last_attempt_at).slice(0, 10) : null],
+    ];
+    // Absent rows are dropped rather than dashed: on a decision screen a dash
+    // reads as "we looked and there is nothing", which for a case somebody has
+    // not sat yet is a claim about them we cannot make.
+    pad.appendChild(kvBlock(h, '', rows.filter((r) => r[1] != null)));
+    // Said out loud, because the screen otherwise reads as a checklist and an
+    // admin would reasonably assume the buttons below were waiting on it.
+    pad.appendChild(h('div', { class: 'asc-dim' },
+      'A signal, not a requirement. The grading ledger is declared by the '
+      + 'client, so this never blocks your decision.'));
+    return card;
   }
 
   /* The dossier and the profile carry the same identity facts in two shapes.
@@ -1464,6 +1608,14 @@
           ['Notes', p.verification_notes],
         ]))));
 
+    // Re-tiering, on an APPROVED account only. Approval writes the first tier
+    // as one of its outputs; this is the later, smaller thing, and until now a
+    // physician's role was set once and never again no matter what their work
+    // said afterwards.
+    if (p.verification_status === 'approved') {
+      container.appendChild(retierCard(ctx, id, p));
+    }
+
     // What the doctor actually typed. All of this was captured at signup and
     // rendered nowhere, so "check their credentials" could not be done from
     // the credentials page: the licence number, the training, the practice
@@ -1522,6 +1674,85 @@
         (data.review_history || []).map((r) => [
           r.created_at ? fmtDate(r.created_at) : '—', r.submission_id || '—', r.verdict || '—'])));
     }
+  }
+
+  /* Change an approved physician's tier.
+
+     A note is required for the same reason a rejection needs one: in six months
+     the only person who can explain a role change is whoever wrote it down at
+     the time, and the server refuses an empty one anyway.
+
+     The candidate list is loaded beside the control rather than as its own
+     screen, and it is deliberately advisory. A band crossing surfaces somebody
+     worth looking at; it promotes nobody, and the server re-checks the
+     credential hard gates on the way up regardless of how good the work record
+     is, because a work record is not a licence. */
+  function retierCard(ctx, id, p) {
+    const { h, api } = ctx;
+    const card = sectionCard(ctx, 'Tier');
+    const pad = card.querySelector('.asc-card-pad');
+    pad.appendChild(h('div', { class: 'asc-card-sub' },
+      'Currently ' + (tierWord(p.tier) || 'unassigned') + '. Promotion tells them; '
+      + 'a move the other way does not, because that is a conversation.'));
+
+    const select = h('select', { class: 'vq-tier-select' },
+      TIERS.map((t) => {
+        const opt = h('option', { value: t }, tierWord(t) || t);
+        if (t === p.tier) opt.setAttribute('selected', '');
+        return opt;
+      }));
+    const note = h('textarea', { class: 'vq-note', rows: '2',
+                                 placeholder: 'Why. Required.' });
+    const status = h('div', {});
+    const save = h('button', { class: 'asc-btn asc-btn-sm asc-btn-ghost vq-retier-save',
+                               type: 'button' }, 'Change tier');
+    save.addEventListener('click', () => {
+      const text = (note.value || '').trim();
+      clearNode(status);
+      if (!text) {
+        status.appendChild(h('div', { class: 'asc-inline-error' },
+          'Say why. A tier change with no reason cannot be reviewed later.'));
+        return;
+      }
+      save.setAttribute('disabled', '');
+      status.appendChild(h('div', { class: 'asc-dim' }, 'Recording…'));
+      api('/verify/retier/' + encodeURIComponent(id),
+          { method: 'POST', body: { tier: select.value, note: text } })
+        .then((res) => {
+          clearNode(status);
+          status.appendChild(h('div', { class: 'vq-reason' },
+            'Now ' + ((res && res.tier_word) || select.value)
+            + ((res && res.email_sent) ? '. They have been told.' : '.')));
+          cache = null;
+          setTimeout(() => { rerender(); }, 900);
+        })
+        .catch((e) => {
+          save.removeAttribute('disabled');
+          clearNode(status);
+          status.appendChild(h('div', { class: 'asc-inline-error' }, errText(e)));
+        });
+    });
+
+    pad.appendChild(h('div', { class: 'vq-actions vq-retier' }, select, note, save));
+    pad.appendChild(status);
+
+    const candidates = h('div', { class: 'vq-retier-candidates' });
+    pad.appendChild(candidates);
+    api('/verify/retier-candidates').then((res) => {
+      const rows = (res && res.candidates) || [];
+      const me = rows.filter((c) => c.user_id === id);
+      const crit = (res && res.criteria) || {};
+      if (!me.length) return;
+      candidates.appendChild(h('div', { class: 'vq-section-label' },
+        'Reads like a reviewer'));
+      candidates.appendChild(h('div', { class: 'vq-reason' },
+        'Score ' + me[0].score + ' over ' + me[0].n_cases + ' graded cases, against '
+        + (crit.min_score != null ? crit.min_score : 70) + ' and '
+        + (crit.min_cases != null ? crit.min_cases : 20) + '. A candidate, not a '
+        + 'decision.'));
+    }).catch(() => { /* an advisory list that failed is not an error on this page */ });
+
+    return card;
   }
 
   /* The raw registry answer. Collapsed on the decision screen and open on the
