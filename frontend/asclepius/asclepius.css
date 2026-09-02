@@ -5401,3 +5401,16 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   padding-top: 10px;
   border-top: 1px dashed var(--asc-line);
 }
+
+/* The applicant's door, beside the password recovery link. Two routes back in
+   sit on one line separated by a middot rather than stacking, because they
+   answer the same question ("I cannot get in") and a stack reads as two
+   escalating problems. */
+.asc-login-signin-link { margin-left: 10px; }
+.asc-login-signin-link::before {
+  content: "·";
+  margin-right: 10px;
+  text-decoration: none;
+  display: inline-block;
+  color: var(--ink-faint);
+}
