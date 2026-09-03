@@ -1,0 +1,48 @@
+{
+  "db": "/tmp/inv.db",
+  "taken_at": "2026-09-03T20:02:11",
+  "tables": {
+    "tasks": {
+      "table": "tasks",
+      "id_column": "task_id",
+      "count": 0,
+      "ids": []
+    },
+    "submissions": {
+      "table": "submissions",
+      "id_column": "task_id",
+      "count": 0,
+      "ids": []
+    },
+    "records": {
+      "table": "records",
+      "id_column": "task_id",
+      "count": 0,
+      "ids": []
+    },
+    "earnings": {
+      "table": "earnings",
+      "id_column": "earning_id",
+      "count": 0,
+      "ids": []
+    },
+    "uploads": {
+      "table": "ingest_uploads",
+      "id_column": "upload_id",
+      "count": 0,
+      "ids": []
+    },
+    "assignments": {
+      "table": "assignments",
+      "id_column": "task_id",
+      "count": 0,
+      "ids": []
+    },
+    "exports": {
+      "table": "exports",
+      "id_column": "export_id",
+      "count": 0,
+      "ids": []
+    }
+  }
+}

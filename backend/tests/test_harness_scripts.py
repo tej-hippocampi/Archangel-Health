@@ -260,3 +260,130 @@ def test_affected_tests_stays_a_subset_not_the_whole_suite():
 def test_affected_tests_is_quiet_when_nothing_relevant_changed():
     out = run("affected_tests.py", "--files", "README.md").stdout.strip()
     assert out == ""
+
+
+# ─── H3: prd_audit.py ────────────────────────────────────────────────────────
+
+PRD_DIR = BACKEND.parent / "docs" / "prd"
+
+
+def test_both_shipped_prds_audit_clean():
+    """H3 rule 3: a stale citation is fixed in the PRD, never in the code."""
+    prds = sorted(PRD_DIR.glob("PRD_*.md"))
+    assert prds, "no PRDs in docs/prd/"
+    proc = run("prd_audit.py", *[str(p) for p in prds], cwd=BACKEND.parent)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_prd_audit_catches_a_drifted_citation(tmp_path):
+    prd = tmp_path / "PRD_X.md"
+    prd.write_text(
+        "## Design\nThe seam is `call_llm` at `backend/ai/llm_client.py:1`.\n"
+        "## Tests\n- none\n## Do not touch\n- nothing\n")
+    proc = run("prd_audit.py", str(prd), cwd=BACKEND.parent)
+    assert proc.returncode == 1
+    assert "DRIFTED" in proc.stdout
+
+
+def test_prd_audit_accepts_a_correct_citation(tmp_path):
+    llm = (BACKEND / "ai" / "llm_client.py").read_text().splitlines()
+    line = next(i for i, l in enumerate(llm, 1) if l.startswith("async def call_llm("))
+    prd = tmp_path / "PRD_OK.md"
+    prd.write_text(
+        f"## Design\nThe seam is `call_llm` at `backend/ai/llm_client.py:{line}`.\n"
+        "## Tests\n- none\n## Do not touch\n- nothing\n")
+    assert run("prd_audit.py", str(prd), cwd=BACKEND.parent).returncode == 0
+
+
+def test_prd_audit_skips_historical_drift_notation(tmp_path):
+    """`file.py:1533->1534` narrates a citation that ALREADY drifted. Auditing it
+    would re-report history as a fresh failure on every run."""
+    prd = tmp_path / "PRD_H.md"
+    prd.write_text("## Design\n*Incidents:* `ingestion.py:1533→1534`.\n"
+                   "## Tests\n- none\n## Do not touch\n- nothing\n")
+    proc = run("prd_audit.py", str(prd), cwd=BACKEND.parent)
+    assert proc.returncode == 0
+    assert "0 citation(s)" in proc.stdout
+
+
+def test_prd_audit_requires_the_three_structural_sections(tmp_path):
+    prd = tmp_path / "PRD_BARE.md"
+    prd.write_text("# Just a title\nNo sections here.\n")
+    proc = run("prd_audit.py", str(prd), cwd=BACKEND.parent)
+    assert proc.returncode == 1
+    assert "missing required section" in proc.stdout
+
+
+# ─── H3: data_inventory.py ───────────────────────────────────────────────────
+
+def test_data_inventory_snapshots_the_protected_tables(tmp_path, monkeypatch):
+    sys.path.insert(0, str(SCRIPTS))
+    import data_inventory
+
+    snap = data_inventory.snapshot()
+    assert set(snap["tables"]) >= {"tasks", "submissions", "records", "earnings"}
+
+
+def test_data_inventory_fails_when_an_id_disappears(tmp_path):
+    """'56 tasks, none may be lost.' Loss is not fixable forward."""
+    sys.path.insert(0, str(SCRIPTS))
+    import data_inventory
+
+    before = data_inventory.snapshot()
+    before["tables"].setdefault("tasks", {"ids": [], "count": 0})
+    before["tables"]["tasks"]["ids"] = list(before["tables"]["tasks"].get("ids") or []) + ["ghost"]
+    before["tables"]["tasks"]["count"] = len(before["tables"]["tasks"]["ids"])
+    p = tmp_path / "before.json"
+    p.write_text(json.dumps(before))
+    proc = run("data_inventory.py", "--diff", str(p))
+    assert proc.returncode == 2
+    assert "ghost" in proc.stderr
+
+
+# ─── H3: export_audit.py ─────────────────────────────────────────────────────
+
+def _bundle(path, *, bad):
+    import zipfile
+    with zipfile.ZipFile(path, "w") as z:
+        recs = [{"record_id": "r1", "contributor_id": "c1"},
+                {"record_id": "r2", "contributor_id": "c2"}]
+        batch = {"specialty": "nephrology", "portal_version": "v4", "scope": "2026-Q1",
+                 "license": "CC-BY-4.0",
+                 "contributors": [{"contributor_id": "c1"}, {"contributor_id": "c2"}]}
+        if bad:
+            recs[0]["answer_key"] = "B"
+            recs[0]["amount_cents"] = 4200
+            batch["license"] = "CC-BY-NC-4.0"
+            batch["contributors"] += [{"contributor_id": f"ghost{i}"} for i in range(6)]
+            z.writestr("README.md", "Prepared by Dr Jane Roe.")
+        z.writestr("records.jsonl", "\n".join(json.dumps(r) for r in recs))
+        z.writestr("batch.json", json.dumps(batch))
+    return path
+
+
+def test_export_audit_passes_a_clean_bundle(tmp_path):
+    b = _bundle(tmp_path / "good.zip", bad=False)
+    assert run("export_audit.py", str(b)).returncode == 0
+
+
+def test_export_audit_catches_every_centaur_defect(tmp_path):
+    """The incident: an earnings bundle, NC license, eight-row roster."""
+    b = _bundle(tmp_path / "bad.zip", bad=True)
+    proc = run("export_audit.py", str(b), "--names", "Jane Roe")
+    assert proc.returncode == 2
+    err = proc.stderr
+    for expected in ("NON-COMMERCIAL", "amount_cents", "answer_key",
+                     "absent from records.jsonl", "Jane Roe"):
+        assert expected in err, f"missed: {expected}"
+
+
+def test_export_audit_rejects_malformed_jsonl(tmp_path):
+    import zipfile
+    b = tmp_path / "torn.zip"
+    with zipfile.ZipFile(b, "w") as z:
+        z.writestr("records.jsonl", '{"record_id": "r1"}\n{not json}\n')
+        z.writestr("batch.json", json.dumps(
+            {"specialty": "n", "portal_version": "v4", "scope": "s", "license": "CC-BY-4.0"}))
+    proc = run("export_audit.py", str(b))
+    assert proc.returncode == 2
+    assert "not valid JSON" in proc.stderr
