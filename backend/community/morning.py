@@ -476,6 +476,15 @@ async def run_morning(*, only: Optional[str] = None, force: bool = False) -> Dic
         scopes = [s for s in scopes if s.key == only or s.channel == only]
     results = [await run_scope(s, force=force) for s in scopes]
     await ensure_channel_topics()
+    # Rides the morning tick rather than a scheduler of its own: it is one
+    # cheap idempotent check, and a second loop would be a second thing that
+    # can be off without anyone noticing.
+    try:
+        from community import webinars as _cwebinars  # noqa: PLC0415
+
+        await _cwebinars.ensure_upcoming()
+    except Exception:  # noqa: BLE001 - a missing webinar is not a failed morning
+        log.warning("[morning] webinar series refresh failed", exc_info=True)
     summary = {
         "ran": [r["scope"] for r in results if r["outcome"] == "posted"],
         "quiet": [r["scope"] for r in results if r["outcome"] == "quiet"],
@@ -503,6 +512,7 @@ def ensure_country_channels() -> None:
             cohorts.get("countries"),
             subspecialties=cohorts.get("subspecialties"),
             cities=cohorts.get("cities"),
+            specialty_regions=cohorts.get("specialty_regions"),
         )
     except Exception:  # noqa: BLE001
         log.warning("[morning] cohort channel refresh failed", exc_info=True)
@@ -517,6 +527,16 @@ _TOPIC_BY_GROUP = {
     "specialty": ("What this room is for", "Your specialty: cases in the "
                   "abstract, literature worth reading, and the task work "
                   "specific to it. De-identified always."),
+    "subspecialty": ("What this room is for", "The narrower cut of your "
+                     "specialty: the literature, the referral patterns, and "
+                     "the AI being sold into it specifically."),
+    "city": ("What this room is for", "Colleagues in your city: who is nearby, "
+             "what is on locally, and which hospitals are actually deploying "
+             "this. Meeting in person is allowed."),
+    "specialty_region": ("What this room is for", "Your specialty, close "
+                         "enough to be the same conversation: the guidelines "
+                         "you actually follow, what your regulators say, and "
+                         "the meetings worth the flight."),
 }
 
 _TOPIC_BY_SLUG = {

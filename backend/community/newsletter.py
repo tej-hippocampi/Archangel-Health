@@ -29,6 +29,7 @@ from typing import Any, Dict, List, Optional
 from community import countries as ccountries
 from community import links
 from community import morning as cmorning
+from community import store as cstore_mod
 from community.store import get_community_store
 
 log = logging.getLogger("community.newsletter")
@@ -73,6 +74,7 @@ def _member_channels(member: Dict[str, Any], channels: List[Dict[str, Any]]) -> 
     country = (member.get("country") or "").strip().upper()
     subspecialties = set(member.get("subspecialties") or ())
     city = (member.get("city") or "").strip()
+    crossed = cstore_mod.specialty_region_key(specialty, member.get("region"))
     out = []
     for ch in channels:
         if ch.get("staff_only"):
@@ -87,6 +89,9 @@ def _member_channels(member: Dict[str, Any], channels: List[Dict[str, Any]]) -> 
         elif grp == "subspecialty" and (ch.get("subspecialty") or "").strip() in subspecialties:
             out.append(ch["slug"])
         elif grp == "city" and city and (ch.get("city") or "").strip() == city:
+            out.append(ch["slug"])
+        elif grp == "specialty_region" and crossed and cstore_mod.specialty_region_key(
+                ch.get("specialty"), ch.get("region")) == crossed:
             out.append(ch["slug"])
     return out
 

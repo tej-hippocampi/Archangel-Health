@@ -34,7 +34,9 @@ from asclepius.constants import TIER_B_FORBIDDEN_KEYS
 from asclepius.store import get_store as get_asclepius_store
 from audit import audit_log
 from community import attachments as catt
+from community import countries as ccountries
 from community import notify as cnotify
+from community import persona as cpersona
 from community import phi_gate
 from community import subspecialties as csubspecialties
 from community.schema import (
@@ -355,6 +357,11 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
             # until the profile field exists, at which point the rooms open on
             # their own.
             "city": cstore_mod.city_slug(user.get("practice_city")),
+            # The coarser grouping the crossed rooms count on. Derived from the
+            # country rather than stored, so there is one answer to "where do
+            # they practise" and the two rooms can never disagree about it.
+            "region": ccountries.region_for(
+                user.get("country_of_practice") or user.get("country_of_licensure")),
             "years_in_practice": years,
             "institution": (cred or {}).get("organization")
                 or user.get("organization") or user.get("org_name"),
@@ -374,6 +381,15 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
 def public_member(member: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not member:
         return None
+    # The Archangel account's display identity is resolved HERE, at the single
+    # chokepoint every rendered member passes through, rather than at each
+    # place the bot can appear. It is the message author, the peer of a system
+    # DM, and whatever surface renders it next; getting the face onto only two
+    # of those is how an account ends up looking like two different accounts.
+    from community.system_posts import SYSTEM_USER_ID  # noqa: PLC0415 - import cycle
+
+    if member.get("user_id") == SYSTEM_USER_ID:
+        member = cpersona.decorate(member)
     pub = {k: v for k, v in member.items() if k != "email"}
     pub = _scrub_tier_b(pub)
     # Belt and braces (PRD §2): the payload must be leak-free by construction;
@@ -529,6 +545,33 @@ def _subspecialty_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
     return out
 
 
+def specialty_region_threshold() -> int:
+    """Colleagues one specialty in one region needs before its room appears.
+
+    Higher than the plain specialty and country thresholds by default, and
+    that is the point rather than an oversight: a crossed room is a subset of
+    two rooms that already exist, so it should have to show visibly more
+    people than either before it earns a line in the rail. Below that it is
+    not a third room, it is #neurology with fewer people in it.
+    """
+    try:
+        return max(1, int(os.getenv("COMMUNITY_SPECIALTY_REGION_MIN_MEMBERS", "5")))
+    except (TypeError, ValueError):
+        return 5
+
+
+def _specialty_region_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
+    """Non-staff members per specialty-in-region cohort key."""
+    out: Dict[str, int] = {}
+    for m in members.values():
+        if m.get("is_staff"):
+            continue
+        key = cstore_mod.specialty_region_key(m.get("specialty"), m.get("region"))
+        if key:
+            out[key] = out.get(key, 0) + 1
+    return out
+
+
 def _city_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
     """Non-staff members per normalized city slug."""
     out: Dict[str, int] = {}
@@ -578,6 +621,8 @@ def visible_channels(
     sub_min = subspecialty_threshold()
     cities = _city_counts(members)
     city_min = city_threshold()
+    crossed = _specialty_region_counts(members)
+    crossed_min = specialty_region_threshold()
     out: List[Dict[str, Any]] = []
     for ch in cstore.list_channels():
         if ch.get("staff_only") and not staff_viewer:
@@ -601,6 +646,12 @@ def visible_channels(
         if grp == "city":
             slug = (ch.get("city") or "").strip().lower()
             if cities.get(slug, 0) >= city_min or cstore.channel_has_messages(ch["id"]):
+                out.append(ch)
+            continue
+        if grp == "specialty_region":
+            key = cstore_mod.specialty_region_key(ch.get("specialty"), ch.get("region"))
+            if (key and crossed.get(key, 0) >= crossed_min) \
+                    or cstore.channel_has_messages(ch["id"]):
                 out.append(ch)
             continue
         out.append(ch)
@@ -1389,6 +1440,40 @@ async def mark_dm_read(
 
 
 # ─── Members ──────────────────────────────────────────────────────────────────
+@router.get("/persona/avatar")
+async def persona_avatar(_user: Dict[str, Any] = Depends(require_member)):
+    """The Archangel account's picture.
+
+    Its own route rather than the users avatar endpoint because the account is
+    a virtual author with no users row, which is deliberate: a real account for
+    the bot would show up in the member directory, the verification queue and
+    the buyer-facing exports. Same gate as everything else here, and a 404 when
+    nobody has supplied a picture, which the client already handles by falling
+    back to initials.
+    """
+    resolved = cpersona.resolve()
+    if not resolved:
+        raise HTTPException(status_code=404, detail="No picture on file.")
+    sha, mime = resolved
+    try:
+        from asclepius import assets as asc_assets  # noqa: PLC0415
+
+        data, _mime = asc_assets.load_asset(sha)
+    except Exception:  # noqa: BLE001 - an ephemeral asset store loses the blob
+        raise HTTPException(status_code=404, detail="No picture on file.")
+    return Response(
+        content=data,
+        media_type=mime or "image/png",
+        headers={
+            "Content-Disposition": "inline",
+            # The URL carries the content hash, so the bytes behind one URL can
+            # never change and a long cache is safe.
+            "Cache-Control": "private, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/members")
 async def members_endpoint(
     specialty: Optional[str] = Query(default=None),

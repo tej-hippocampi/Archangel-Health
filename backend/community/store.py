@@ -107,6 +107,74 @@ DEFAULT_CHANNELS = [
 ]
 
 
+#: How a specialty and a region are carried as one cohort value through the
+#: seeding call and the member counts. One string rather than a tuple because
+#: it travels through JSON, a set, and a SQL parameter on the way.
+SPECIALTY_REGION_SEP = "|"
+
+
+def specialty_region_key(specialty: Optional[str], region: Optional[str]) -> str:
+    """The cohort key for one specialty in one region, or "" when incomplete.
+
+    Both halves are needed: a physician with no country has no region, and
+    counting them towards a crossed room would open a room they cannot be
+    found in.
+    """
+    spec = (specialty or "").strip().lower()
+    reg = (region or "").strip().lower()
+    if not spec or not reg:
+        return ""
+    return f"{spec}{SPECIALTY_REGION_SEP}{reg}"
+
+
+def specialty_region_channel_defs(keys: List[str]) -> List[Dict[str, Any]]:
+    """One channel per specialty-in-region cohort that has members.
+
+    The room the Sep 1 meeting asked for by name: #neurology-africa, so a
+    physician can find their own specialty near enough to be the same
+    conversation. It is a THIRD axis, not a replacement for either of the two
+    it crosses: #neurology stays the whole world and #nigeria stays every
+    specialty in one country.
+
+    Crossing every specialty with every region would be four times nine rooms
+    for a community this size, so nothing is created speculatively: a room
+    exists only when the caller passes a cohort that actually has members in
+    it, and it is hidden until it clears its own threshold, which is set
+    higher than the plain specialty and country thresholds because a crossed
+    room is a subset of two rooms that already exist.
+    """
+    from community.countries import region_name  # noqa: PLC0415 - config only
+
+    valid = {c["slug"] for c in specialty_channel_defs()}
+    out: List[Dict[str, Any]] = []
+    seen: List[str] = []
+    for raw in keys or ():
+        key = str(raw or "").strip().lower()
+        if SPECIALTY_REGION_SEP not in key:
+            continue
+        specialty, region = key.split(SPECIALTY_REGION_SEP, 1)
+        display = region_name(region)
+        # An unknown specialty or region produces nothing, which is the same
+        # rule the country and subspecialty lists follow.
+        if specialty not in valid or not display or key in seen:
+            continue
+        seen.append(key)
+        out.append({
+            "slug": f"{specialty}-{region}",
+            "name": f"{specialty}-{region}",
+            "description": (
+                f"{specialty.title()} in {display}: colleagues close enough that "
+                "the guidelines, the drug availability and the meetings worth "
+                "attending are the same conversation."
+            ),
+            "post_policy": "all",
+            "grp": "specialty_region",
+            "specialty": specialty,
+            "region": region,
+        })
+    return out
+
+
 def city_slug(raw: Optional[str]) -> str:
     """The one canonical form of a self-reported practice city.
 
@@ -140,13 +208,17 @@ def reserved_channel_slugs() -> set:
     seeding UPSERT keys on slug: without this the city cohort would silently
     rewrite the country channel's group and description.
     """
-    from community.countries import COUNTRIES  # noqa: PLC0415 - config only
+    from community.countries import COUNTRIES, REGIONS  # noqa: PLC0415 - config only
     from community.subspecialties import SUBSPECIALTIES  # noqa: PLC0415 - config only
 
+    specialties = {c["slug"] for c in specialty_channel_defs()}
     out = {c["slug"] for c in DEFAULT_CHANNELS}
-    out |= {c["slug"] for c in specialty_channel_defs()}
+    out |= specialties
     out |= {c.slug for c in COUNTRIES.values()}
     out |= {s.slug for s in SUBSPECIALTIES}
+    # Every crossed room that COULD exist, not only the ones that do: a city
+    # room seeded today must not claim a slug a cohort could open tomorrow.
+    out |= {f"{s}-{r}" for s in specialties for r in REGIONS}
     return out
 
 
@@ -473,6 +545,11 @@ class CommunityStore:
                 conn.execute("ALTER TABLE community_channels ADD COLUMN subspecialty TEXT")
             if "city" not in ch_cols:
                 conn.execute("ALTER TABLE community_channels ADD COLUMN city TEXT")
+            # The crossed rooms reuse the existing ``specialty`` column for
+            # their first half and carry the second here, so a crossed room and
+            # a plain specialty room are told apart by ``grp`` alone.
+            if "region" not in ch_cols:
+                conn.execute("ALTER TABLE community_channels ADD COLUMN region TEXT")
             # Defaults to 0 so every channel that predates the column stays
             # exactly as visible as it was. A migration that made anything
             # staff-only by default would hide live rooms on deploy.
@@ -509,21 +586,22 @@ class CommunityStore:
         *,
         subspecialties: Optional[List[str]] = None,
         cities: Optional[List[str]] = None,
+        specialty_regions: Optional[List[str]] = None,
     ) -> None:
         """Idempotently seed the fixed channels (PRD §3 + Community v2): the
         core set, one channel per enabled specialty, and one per country,
-        subspecialty and city that has members. A slug removed from the config
+        subspecialty, city and specialty-in-region cohort that has members. A slug removed from the config
         is DEACTIVATED, never deleted: its history stays in the DB and
         moderation/audit paths can still resolve it.
 
-        The three cohort arguments come from the caller because they are the
-        inputs this module cannot compute: they live on the asclepius plane,
-        and reaching across for them here would put a users query inside the
+        The cohort arguments come from the caller because they are the inputs
+        this module cannot compute: they live on the asclepius plane, and
+        reaching across for them here would put a users query inside the
         community store. Passing None for one means "leave those channels as
         they are", NOT "deactivate them": a caller without the roster to hand
-        must not silently retire every country, subspecialty or city room. The
-        three are independent, so a caller may hand over one and withhold the
-        others.
+        must not silently retire every country, subspecialty, city or crossed
+        room. They are independent, so a caller may hand over one and withhold
+        the rest.
         """
         from community.countries import channel_defs  # noqa: PLC0415 — config only
         from community.subspecialties import (  # noqa: PLC0415 - config only
@@ -534,6 +612,7 @@ class CommunityStore:
             channel_defs(country_codes or [])
             + subspecialty_channel_defs(subspecialties or [])
             + city_channel_defs(cities or [])
+            + specialty_region_channel_defs(specialty_regions or [])
         )
         seeded = DEFAULT_CHANNELS + specialty_channel_defs() + cohort_channels
         with self._conn() as conn:
@@ -543,8 +622,8 @@ class CommunityStore:
                     INSERT INTO community_channels
                         (id, slug, name, description, post_policy, position,
                          specialty, grp, country, subspecialty, city,
-                         staff_only, is_active, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                         region, staff_only, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                     ON CONFLICT(slug) DO UPDATE SET
                         name = excluded.name,
                         description = excluded.description,
@@ -555,6 +634,7 @@ class CommunityStore:
                         country = excluded.country,
                         subspecialty = excluded.subspecialty,
                         city = excluded.city,
+                        region = excluded.region,
                         staff_only = excluded.staff_only,
                         is_active = 1
                     """,
@@ -570,6 +650,7 @@ class CommunityStore:
                         ch.get("country"),
                         ch.get("subspecialty"),
                         ch.get("city"),
+                        ch.get("region"),
                         1 if ch.get("staff_only") else 0,
                         _utcnow_iso(),
                     ),
@@ -583,6 +664,7 @@ class CommunityStore:
                     ("country", country_codes),
                     ("subspecialty", subspecialties),
                     ("city", cities),
+                    ("specialty_region", specialty_regions),
                 ) if arg is None
             ]
             if withheld:
