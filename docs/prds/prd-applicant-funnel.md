@@ -116,8 +116,23 @@ R1. A clinical v2 applicant receives a session at `/asclepius/finish` and lands
     (advisor, referrer) keep today's behavior.
 R2. An applicant with `password_is_unset()` can request a sign-in link by
     email; the link signs them in exactly once, expires after 15 minutes, and
-    the request response does not reveal whether the account exists. Accounts
-    with a password are directed to the password door (no link offered).
+    the request response does not reveal whether the account exists. The
+    sign-in page offers the link control to everyone; for an account that
+    holds a password the backend mints nothing and returns the same answer.
+
+    **Amended during implementation.** As written, this said accounts with a
+    password are directed to the password door and offered no link. What
+    shipped offers the control unconditionally, because hiding it would
+    rebuild the enumeration oracle the endpoint refuses to be: branching the
+    button on account state answers "does this address hold a password" from
+    the layout alone, when the response body was written to keep exactly that
+    secret. Enforcement moved behind the door instead. The endpoint mints a
+    link only for an active account matching `password_is_unset()`; for a
+    password holder it silently declines (quietly mailing a second way in
+    would be a downgrade attack on the stronger credential) and every branch
+    returns the identical answer (`routers/asclepius.py`
+    `request_signin_link`; the unconditional control is the sign-in screen in
+    `frontend/asclepius/asclepius.js`).
 R3. A PROVISIONAL session reaches TUTORIAL, BROWSE and REFERRAL. Every other
     surface returns the existing denial. The dashboard renders review status,
     the practice case entry, the profile and the referral page; community,

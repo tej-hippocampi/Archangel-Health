@@ -3750,6 +3750,43 @@ class AsclepiusStore:
             asked[field] = stamp
             blob["fields"] = asked
             blob["last_sent_at"] = stamp
+            # A claim means there is something to ask after all, so any
+            # nothing-to-ask marker from an earlier sweep is stale.
+            blob.pop("nothing_to_ask_at", None)
+            cur = conn.execute(
+                "UPDATE users SET profile_nudge_json = ? WHERE id = ?",
+                (json.dumps(blob), user_id),
+            )
+            return cur.rowcount > 0
+
+    def mark_profile_nothing_to_ask(self, user_id: str) -> bool:
+        """Record that a sweep looked at this profile and found no gap.
+
+        A complete profile is never stamped, so without this it sorts as
+        never-nudged forever and a rosterful of complete profiles occupies
+        every batch while the physicians with real gaps wait behind the cap.
+        The due-list sorts marked rows behind everyone else instead. The
+        marker is ordering only, never a filter: the sweep still re-derives
+        the gap whenever a marked row comes round, and a successful claim
+        (``stamp_profile_nudge``) clears it, so a profile that later loses a
+        field rejoins the front of the queue.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT profile_nudge_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            try:
+                blob = json.loads(row["profile_nudge_json"] or "{}")
+                if not isinstance(blob, dict):
+                    blob = {}
+            except (TypeError, ValueError):
+                blob = {}
+            if blob.get("nothing_to_ask_at"):
+                return False
+            blob["nothing_to_ask_at"] = (
+                datetime.utcnow().replace(microsecond=0).isoformat())
             cur = conn.execute(
                 "UPDATE users SET profile_nudge_json = ? WHERE id = ?",
                 (json.dumps(blob), user_id),
@@ -3772,6 +3809,11 @@ class AsclepiusStore:
         ordering would hand the same fifty rows to every sweep forever and
         starve the rest of the roster the moment the population outgrew the
         batch cap.
+
+        Rows the sweep has marked ``nothing_to_ask_at`` sort behind everyone,
+        for the same starvation reason from the other side: a complete profile
+        is never stamped, so without the marker it reads as never-nudged and
+        permanently claims the front of every batch.
         """
         with self._conn() as conn:
             rows = conn.execute(
@@ -3780,7 +3822,9 @@ class AsclepiusStore:
                 "  AND COALESCE(active, 1) = 1 "
                 "  AND role = 'evaluator' "
                 "  AND email IS NOT NULL AND email != '' "
-                "ORDER BY COALESCE("
+                "ORDER BY (json_extract(COALESCE(profile_nudge_json, '{}'),"
+                "  '$.nothing_to_ask_at') IS NOT NULL) ASC, "
+                "COALESCE("
                 "  json_extract(COALESCE(profile_nudge_json, '{}'), '$.last_sent_at'), ''"
                 ") ASC, created_at ASC LIMIT ?",
                 (max(1, limit),),

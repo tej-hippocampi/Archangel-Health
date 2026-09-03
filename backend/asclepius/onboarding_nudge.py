@@ -226,28 +226,46 @@ async def _sweep_applicants(store: Any, sent: Dict[str, int]) -> None:
 async def _sweep_profiles(store: Any, sent: Dict[str, int]) -> None:
     import asyncio  # noqa: PLC0415
 
-    try:
-        rows = await asyncio.to_thread(store.list_profiles_needing_nudge, _BATCH)
-    except Exception:
-        log.exception("[nudge] could not list profile candidates")
-        return
-    for user in rows:
+    # The batch caps SENDS, not rows looked at. A row with nothing to ask
+    # costs no email, so the sweep marks it (which re-sorts it behind the rows
+    # that still have gaps) and fetches again until a fetch brings back nothing
+    # new. Without that, fifty complete profiles would fill the batch on every
+    # pass and a physician with a real gap would never be reached.
+    budget = _BATCH
+    seen: set = set()
+    while budget > 0:
         try:
-            gap = _first_profile_gap(user)
-            if not gap:
-                continue
-            # The store's claim carries BOTH rules: this field has never been
-            # asked about, and this physician has not heard from us inside the
-            # spacing window. One conditional write, so two racing sweeps
-            # cannot both decide the same question is fair game.
-            if not await asyncio.to_thread(
-                    store.stamp_profile_nudge, user["id"], gap["field"],
-                    min_days_between=PROFILE_NUDGE_MIN_DAYS):
-                continue
-            if await _send_profile_one(gap, user):
-                sent["profile"] += 1
+            rows = await asyncio.to_thread(store.list_profiles_needing_nudge, _BATCH)
         except Exception:
-            log.exception("[nudge] profile send failed for %s", user.get("id"))
+            log.exception("[nudge] could not list profile candidates")
+            return
+        fresh = [u for u in rows if u["id"] not in seen]
+        if not fresh:
+            return
+        for user in fresh:
+            seen.add(user["id"])
+            if budget <= 0:
+                return
+            try:
+                gap = _first_profile_gap(user)
+                if not gap:
+                    await asyncio.to_thread(
+                        store.mark_profile_nothing_to_ask, user["id"])
+                    continue
+                # The store's claim carries BOTH rules: this field has never
+                # been asked about, and this physician has not heard from us
+                # inside the spacing window. One conditional write, so two
+                # racing sweeps cannot both decide the same question is fair
+                # game.
+                if not await asyncio.to_thread(
+                        store.stamp_profile_nudge, user["id"], gap["field"],
+                        min_days_between=PROFILE_NUDGE_MIN_DAYS):
+                    continue
+                budget -= 1
+                if await _send_profile_one(gap, user):
+                    sent["profile"] += 1
+            except Exception:
+                log.exception("[nudge] profile send failed for %s", user.get("id"))
 
 
 async def sweep(ts: Optional[Any] = None, store: Optional[Any] = None) -> Dict[str, int]:

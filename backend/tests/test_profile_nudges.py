@@ -201,7 +201,45 @@ def test_a_complete_profile_is_sent_nothing(mail):
 
     assert _sweep(store)["profile"] == 0
     assert _for(mail, doc["email"]) == []
-    assert store.profile_nudge_state(doc["id"]) == {}
+    state = store.profile_nudge_state(doc["id"])
+    # No field asked, no send recorded. The nothing-to-ask marker is ordering
+    # state, not a question: it is what keeps this row from sorting as
+    # never-nudged forever and crowding out the profiles with real gaps.
+    assert "fields" not in state and "last_sent_at" not in state
+    assert state.get("nothing_to_ask_at")
+
+
+def test_complete_profiles_cannot_starve_the_physician_with_a_gap(mail):
+    """Fifty-five complete profiles against a batch cap of fifty. None of them
+    is ever stamped, so before the nothing-to-ask marker they all sorted as
+    never-nudged, occupied every batch forever, and the one physician with a
+    real gap was never mailed. The batch caps sends, not rows looked at, so
+    one sweep must reach past all of them."""
+    store = A.fresh_store()
+    for _ in range(55):
+        _complete_physician(store)
+    doc = _physician(store, {})
+
+    assert _sweep(store)["profile"] == 1
+    assert len(_for(mail, doc["email"])) == 1
+
+
+def test_a_marked_profile_that_later_loses_a_field_is_asked(mail):
+    """The marker is ordering, not a verdict. A profile that was complete and
+    is not any more has a gap again, and the claim clears the marker so the
+    row rejoins the front of the queue."""
+    store = A.fresh_store()
+    doc = _complete_physician(store)
+    _sweep(store)
+    assert store.profile_nudge_state(doc["id"]).get("nothing_to_ask_at")
+
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET avatar_asset_sha = NULL WHERE id = ?",
+                     (doc["id"],))
+
+    assert _sweep(store)["profile"] == 1
+    assert len(_for(mail, doc["email"])) == 1
+    assert store.profile_nudge_state(doc["id"]).get("nothing_to_ask_at") is None
 
 
 def test_a_pending_applicant_is_not_asked_about_their_profile(mail):

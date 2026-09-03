@@ -907,7 +907,7 @@
      decision screen, where an admin is already reading rather than skimming,
      and a score in a queue invites deciding on the score. */
   function practiceCell(h, pc) {
-    if (!pc) return h('td', {}, '—');
+    if (!pc) return h('td', {}, '-');
     const state = pc.state || 'locked';
     if (state === 'locked') {
       return h('td', {}, h('span', { class: 'vq-practice vq-practice-locked' },
