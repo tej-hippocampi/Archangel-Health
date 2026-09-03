@@ -95,8 +95,13 @@
       body = JSON.stringify(body);
     }
     let res;
+    // Almost everything here is a community route. The one exception is the
+    // staff persona post, which is an admin endpoint on the asclepius prefix,
+    // and it should still go through this function for the auth header and the
+    // error shaping rather than growing a second fetch idiom.
+    const base = opts.base || API;
     try {
-      res = await fetch(API + path, { method: opts.method || 'GET', headers, body });
+      res = await fetch(base + path, { method: opts.method || 'GET', headers, body });
     } catch (e) {
       throw { status: 0, detail: null, message: 'Network error — check your connection.' };
     }
@@ -541,6 +546,13 @@
         class: 'cm-head-btn' + (pinCount ? ' has' : ''), 'aria-label': 'Pinned messages',
         title: 'Pinned messages', onClick: () => openPins(slug),
       }, '📌 ' + (pinCount || '')));
+      if (state.isAdmin) {
+        head.appendChild(h('button', {
+          class: 'cm-head-btn cm-persona-btn', 'aria-label': 'Post as Archangel',
+          title: 'Post as the Archangel account',
+          onClick: () => openPersonaComposer(slug),
+        }, 'Post as Archangel'));
+      }
       const bar = renderBookmarkBar(slug);
       if (bar) head.appendChild(bar);
     }
@@ -1155,6 +1167,82 @@
             }
           } }, 'Post event')));
       return body;
+    });
+  }
+
+  // ─── Posting as the Archangel account (staff only) ─────────────────────────
+  // The bot voice used to be reachable only from code, so anything the team
+  // wanted to say in it had to be shipped. This is the same voice with a human
+  // trigger. It lives here rather than in the portal's admin tabs on purpose:
+  // it belongs beside the channels it writes into, and those tabs are being
+  // rebuilt elsewhere.
+  //
+  // Only channels where a bot post is what a reader already expects. #general
+  // and the specialty rooms are absent deliberately: a room of colleagues
+  // talking to each other is not somewhere the company account should appear
+  // as though it were one of them. The server enforces the same list.
+  const PERSONA_CHANNELS = [
+    'task-announcements', 'events', 'medical-ai-news',
+    'research-and-opportunities', 'team-ai-spotlight',
+  ];
+
+  function personaChannels() {
+    // Intersected with what this admin can actually see, so the picker never
+    // offers a room the post would 404 in.
+    const live = state.channels.map((c) => c.slug);
+    const out = PERSONA_CHANNELS.filter((s) => live.indexOf(s) !== -1);
+    return out.length ? out : PERSONA_CHANNELS.slice();
+  }
+
+  function openPersonaComposer(preferSlug) {
+    openModal('Post as Archangel', (close) => {
+      const slugs = personaChannels();
+      const picker = h('select', { class: 'cm-persona-channel' });
+      slugs.forEach((s) => picker.appendChild(h('option', { value: s }, '#' + s)));
+      if (preferSlug && slugs.indexOf(preferSlug) !== -1) picker.value = preferSlug;
+      const text = h('textarea', {
+        rows: '8', maxlength: '8000',
+        placeholder: 'Written in the Archangel voice. No patient identifiers.',
+      });
+      const announce = h('input', { type: 'checkbox' });
+      const announceRow = h('label', { class: 'cm-persona-announce' }, announce,
+        h('span', {}, 'Email this to every member'));
+      function syncAnnounce() {
+        // The fan-out rule is the server's, mirrored here so the box is not
+        // offered where it would be silently ignored.
+        const on = picker.value === 'task-announcements';
+        announceRow.style.display = on ? '' : 'none';
+        if (!on) announce.checked = false;
+      }
+      picker.addEventListener('change', syncAnnounce);
+      syncAnnounce();
+      const post = h('button', { class: 'cm-btn cm-btn-primary', onClick: async () => {
+        const body = text.value.trim();
+        if (!body) { toast('Nothing to post.', 'error'); return; }
+        post.disabled = true;
+        try {
+          await api('/admin/community/post', {
+            method: 'POST',
+            base: '/api/asclepius',
+            body: { channel_slug: picker.value, body: body, announce: announce.checked },
+          });
+          close();
+          toast('Posted to #' + picker.value + ' as Archangel.');
+        } catch (e) {
+          post.disabled = false;
+          toast(e.message, 'error');
+        }
+      } }, 'Post as Archangel');
+      return h('div', { class: 'cm-modal-body' },
+        field('Channel', picker),
+        field('Message', text),
+        announceRow,
+        h('p', { class: 'cm-persona-note' },
+          'This posts under the Archangel account, not your name. Every post is '
+          + 'logged against you.'),
+        h('div', { class: 'cm-modal-actions' },
+          h('button', { class: 'cm-btn cm-btn-ghost', onClick: close }, 'Cancel'),
+          post));
     });
   }
 

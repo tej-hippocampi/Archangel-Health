@@ -24,6 +24,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
+from audit import audit_log
 from onboarding_emails import build_asclepius_invite_email
 from ratelimit import rate_limiter
 
@@ -4343,3 +4344,96 @@ async def set_health_system_invoice_status(
                     event_type="invoice_status_set", actor=admin["email"],
                     payload={"invoice_id": invoice_id, "status": status})
     return {"invoice": updated}
+
+
+# ─── Posting as the Archangel persona ────────────────────────────────────────
+# The community's bot voice was, until now, only reachable from code: digests,
+# welcomes, morning briefs. Everything a person wanted to say in that voice had
+# to be shipped. This endpoint hands the same function a human trigger.
+#
+# It lives here rather than in the community router because it is an ADMIN
+# surface with admin auth, and it stays away from the asclepius.js admin
+# regions entirely: the composer that calls it is in the community frontend.
+
+#: Where the persona may speak. Every one of these is an admin-post-policy
+#: channel or the staff room, so a bot-authored post is what a reader already
+#: expects there. #general and the specialty rooms are deliberately absent: a
+#: room of colleagues talking to each other is not a place for the company
+#: account to appear as though it were one of them.
+COMMUNITY_PERSONA_CHANNELS = (
+    "task-announcements",
+    "events",
+    "medical-ai-news",
+    "research-and-opportunities",
+    "team-ai-spotlight",
+)
+
+#: The one channel whose posts fan out to every member's inbox. Honoring
+#: ``announce`` anywhere else would let a routine events post mail the whole
+#: community, which is the rule ``post_system_message`` already documents.
+COMMUNITY_ANNOUNCE_CHANNEL = "task-announcements"
+
+
+class CommunityPersonaPostIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel_slug: str = Field(min_length=1, max_length=80)
+    body: str = Field(min_length=1, max_length=8000)
+    announce: bool = False
+
+
+@router.post("/community/post")
+async def community_persona_post(
+    payload: CommunityPersonaPostIn,
+    request: Request,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Post into the community as the Archangel account.
+
+    Delegates to ``post_system_message``, which is where the PHI gate, the URL
+    masking, the bot authorship and the announcement fan-out already live. This
+    route adds exactly two things: who is allowed to press the button, and a
+    record of which admin pressed it. The bot logs itself as the author, which
+    is right for the reader and useless for an investigation, so the acting
+    admin is recorded here.
+    """
+    from community.system_posts import post_system_message  # noqa: PLC0415
+
+    slug = (payload.channel_slug or "").strip().lower()
+    if slug not in COMMUNITY_PERSONA_CHANNELS:
+        raise HTTPException(
+            status_code=400,
+            detail=("The Archangel account can only post in "
+                    + ", ".join("#" + s for s in COMMUNITY_PERSONA_CHANNELS) + "."),
+        )
+    announce = bool(payload.announce) and slug == COMMUNITY_ANNOUNCE_CHANNEL
+    message = await post_system_message(
+        channel_slug=slug, body=payload.body, kind="admin_persona",
+        announce=announce,
+    )
+    if message is None:
+        # post_system_message drops a post silently by design (there is no user
+        # to bounce a 422 to inside a digest run). There is one here, and an
+        # admin who typed a paragraph deserves to know it did not land.
+        audit_log.record(
+            actor_type="asclepius_user", actor_id=admin.get("id"),
+            action="community.persona_post", outcome="blocked",
+            resource_type="community", resource=slug,
+            source_ip=(request.client.host if request and request.client else None),
+            detail={"channel": slug, "announce": announce},
+        )
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "post_rejected",
+                    "message": ("That post was not published. Either the channel is "
+                                "inactive or the text looks like it contains "
+                                "patient-identifiable information.")},
+        )
+    audit_log.record(
+        actor_type="asclepius_user", actor_id=admin.get("id"),
+        action="community.persona_post", outcome="ok",
+        resource_type="community", resource=str(message["id"]),
+        source_ip=(request.client.host if request and request.client else None),
+        detail={"channel": slug, "message_id": message["id"], "announce": announce},
+    )
+    return {"ok": True, "message": message, "announced": announce}
