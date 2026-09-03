@@ -133,7 +133,45 @@ Write the answers into the PR that flips the flags. Not a feeling, three numbers
 Also confirm before flipping: at least one specialty has enough measured,
 above-floor inventory that the V4 queue does not go empty the moment the
 requirement turns on. An empty queue is what a previous premature flip produced.
+## 4c. Turn the community routine on
 
+The community subsystem ships fully built and entirely off. Every gate defaults
+to disabled and every way it switches itself off is silent, so a deployment that
+skips this section looks exactly like a community with nothing to say.
+
+**a. Set three variables.** Service → **Variables**:
+
+| Variable | Value | What is broken without it |
+|----------|-------|---------------------------|
+| `COMMUNITY_MORNING_ENABLED` | `1` | No morning brief in any channel, and no per-doctor 7am email (the newsletter has no flag of its own, it rides this one) |
+| `COMMUNITY_NEWS_ENABLED` | `1` | No `#medical-ai-news` digest and no daily staff spotlight |
+| `COMMUNITY_DB_PATH` | `/data/community.db` | **The named silent failure.** The default path is inside the container, so every deploy resets the dedup ledger and the run history, and the digest reposts what it already posted |
+
+Optional, all defaulting sensibly: `COMMUNITY_MORNING_HOUR_LOCAL` (7),
+`ARCHANGEL_HOME_TZ`, `COMMUNITY_COUNTRY_MIN_MEMBERS` /
+`COMMUNITY_SUBSPECIALTY_MIN_MEMBERS` / `COMMUNITY_CITY_MIN_MEMBERS` (3 each),
+`COMMUNITY_DISCUSSION_DOW` (2 = Wednesday). See `.env.example` for the rest.
+
+**b. Install the scheduler.** The hourly trigger is a GitHub Actions workflow.
+Copy `docs/asclepius/community-morning.workflow.yml` to
+`.github/workflows/community-morning.yml` and add the two repository secrets it
+names: `MORNING_BASE_URL` (your Railway URL) and `INTERNAL_TOOL_SECRET` (the
+same value this backend has). The in-process loop is the fallback for a deploy
+without the cron; both share the run ledger and cannot double-post.
+
+**c. Verify, do not assume.** `GET /internal/community/status` with the
+`Authorization: Bearer $INTERNAL_TOOL_SECRET` header reports gates, loops, last
+runs and email transport, and returns booleans and timestamps only, never a
+secret's value. Live means:
+
+- both gates `true` and both `loop_running` `true`;
+- `dependencies.community_db_path_explicit` is `true`;
+- one manual `POST /internal/community/run-morning` posts briefs;
+- the next scheduled hour posts nothing extra (the ledger holds).
+
+`dependencies.anthropic_api_key_set: false` is the other quiet one: without a
+model key the morning routine records a *successful* run with zero items, which
+is indistinguishable from a quiet day.
 ## 5. Get your public URL
 
 - Open **Settings** → **Networking** → **Generate Domain**.
