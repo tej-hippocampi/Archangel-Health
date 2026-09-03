@@ -101,7 +101,10 @@ Other words that carry meaning:
 # boot check — imports the app and exits non-zero on any import error
 cd backend && python3 -c "import main; print('boot ok')"
 
-# full suite (~13 min; keyless by design)
+# the loop: only the tests your change can break (<90s), first failure only
+cd backend && python3 scripts/affected_tests.py | xargs python3 -m pytest -x --lf -q
+
+# full suite (~14 min; keyless by design)
 cd backend && python3 -m pytest tests/ -q
 
 # one CI shard, exactly as CI runs it
