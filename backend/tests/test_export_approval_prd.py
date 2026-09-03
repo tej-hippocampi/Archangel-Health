@@ -42,6 +42,31 @@ client = TestClient(A.app)
 _FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
 _DOM_SHIM = Path(__file__).resolve().parent / "_asclepius_dom.js"
 
+# WHERE THE CONSOLE LIVES NOW. The §1 and §2 UI clauses of this PRD are about
+# the ADMIN console, and the admin console is no longer in `asclepius.js`. The
+# admin-separation change moved the whole shell (tab router, storage banner,
+# masthead, and the shared section ctx) into `admin_shell.js`, with the
+# per-screen code in the `admin_*.js` section modules; `asclepius.js` is the
+# physician bundle and is not even loaded by `/asclepius/admin`. So the source
+# greps below read the admin bundle. `tests/test_admin_separation.py` owns the
+# separation itself, including the list of console entry points that must stay
+# absent from the physician bundle.
+_ADMIN_SHELL = _FRONTEND / "admin_shell.js"
+_ADMIN_MODULES = ("admin_shell.js", "admin_community.js", "admin_earnings.js",
+                  "admin_export.js", "admin_health.js", "admin_physicians.js",
+                  "admin_referrals.js")
+
+
+def _admin_bundle() -> str:
+    """Every JS file `admin.html` loads, concatenated.
+
+    A claim about the console as a whole ("defined once", "that screen is gone")
+    has to be checked over the union, or the move that split one file into seven
+    would also split the guarantee into seven places it can hide.
+    """
+    return "\n".join((_FRONTEND / name).read_text(encoding="utf-8")
+                     for name in _ADMIN_MODULES)
+
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch):
@@ -1330,8 +1355,13 @@ def test_an_export_dir_on_the_volume_is_durable(monkeypatch):
 
 def test_the_banner_does_not_cry_data_loss_over_a_recreatable_bundle():
     """Conflating "your database is being deleted" with "re-cut that bundle" is
-    how an operator learns to ignore both."""
-    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    how an operator learns to ignore both.
+
+    Read from `admin_shell.js`: the banner moved there with the rest of the
+    console (see `_admin_bundle` above), so this reads the admin bundle even
+    though it is an export-approval test.
+    """
+    src = _ADMIN_SHELL.read_text(encoding="utf-8")
     banner = src.split("async function refreshStorageBanner()")[1].split("\n  }")[0]
     # The red alarm is gated on CRITICAL failures only…
     assert "critical = broken.filter((x) => x.severity !== 'recoverable')" in banner
@@ -1408,8 +1438,14 @@ def test_the_durability_endpoint_needs_an_admin():
 def test_the_console_shows_the_storage_banner_on_every_admin_tab():
     """A log line is read only by someone who already suspects a problem — the
     wrong medium for a failure whose whole signature is that nobody suspects
-    anything."""
-    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    anything.
+
+    `renderAdminView` is the console's tab router, and it lives in
+    `admin_shell.js` now, not in `asclepius.js` (see `_admin_bundle` above).
+    Mounting the banner in the SHELL is what makes "on every admin tab" true,
+    so the shell is also the right file for this assertion to read.
+    """
+    src = _ADMIN_SHELL.read_text(encoding="utf-8")
     view = src.split("function renderAdminView() {")[1].split("\n  }")[0]
     # Mounted in the shell, above the per-tab body, so it is not something a
     # section can forget to render.
@@ -1547,8 +1583,9 @@ var ctx = {
   loadingCard: function (t) { return h('div', {}, t); },
   downloadBlob: function () {},
   fmtDate: function (d) { return String(d); },
-  // The real one lives in asclepius.js; the shim records what it was asked to
-  // render so a test can assert the FULL id reached it.
+  // The real one lives in admin_shell.js and reaches the section modules on
+  // this ctx; the shim records what it was asked to render so a test can
+  // assert the FULL id reached it.
   copyableId: function (id) {
     COPIED.push(id);
     return h('code', { class: 'asc-id-text', title: String(id) }, String(id));
@@ -1832,20 +1869,35 @@ def test_a_quiet_migration_says_nothing():
 
 
 def test_the_export_source_has_no_subnav_and_no_buyer_crm():
-    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    """`renderAdminExportSection` is the shell's mount point for the Export
+    screen, and it lives in `admin_shell.js` now (see `_admin_bundle` above),
+    with the screen itself in `admin_export.js`."""
+    src = _ADMIN_SHELL.read_text(encoding="utf-8")
     section = src.split("function renderAdminExportSection(body) {")[1].split("\n  }")[0]
     assert "adminSubnav" not in section
     assert "renderAdminBuyers" not in section
-    # The screen itself is gone, not merely unmounted.
-    assert "function renderAdminBuyers(" not in src
-    assert "function renderAdminExports(" not in src
+    # The screen itself is gone, not merely unmounted. Checked over the whole
+    # admin bundle plus the physician bundle, because after the split "deleted"
+    # means deleted from all seven files and not resurrected in a section
+    # module the shell no longer greps.
+    everywhere = _admin_bundle() + (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    assert "function renderAdminBuyers(" not in everywhere
+    assert "function renderAdminExports(" not in everywhere
 
 
 def test_the_id_helper_is_defined_once_and_shared():
     """§1.3 — "one `copyableId(id)` helper, used everywhere an id renders"."""
-    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
-    assert src.count("function copyableId(") == 1
-    assert "copyableId, copyTextToClipboard," in src        # exposed on ctx
+    # The helper moved into `admin_shell.js` with the console (see
+    # `_admin_bundle` above), so "once" is counted over the whole admin bundle:
+    # one definition across the seven files that make up the console, not one
+    # per file. The physician bundle is checked too, because the way this
+    # clause breaks after a split is a second copy left behind in the file the
+    # console moved OUT of, drifting from the one the console actually calls.
+    bundle = _admin_bundle()
+    assert bundle.count("function copyableId(") == 1
+    assert "copyableId, copyTextToClipboard," in bundle     # exposed on ctx
+    portal = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    assert "function copyableId(" not in portal
     for module in ("admin_earnings.js", "admin_export.js"):
         text = (_FRONTEND / module).read_text(encoding="utf-8")
         assert "ctx.copyableId" in text, module

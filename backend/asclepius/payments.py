@@ -223,22 +223,29 @@ def tr_min_seconds() -> int:
 
 
 def referral_bounty_cents() -> int:
-    """$25 to the REFERRER when a physician they referred is verified and
+    """$50 to the REFERRER when a physician they referred is verified and
     completes their first accepted case.
 
-    The smaller half of a $25/$50 split, with the larger half going to the
-    person being referred (see referee_bonus_cents). The referrer forwards a
-    link in seconds; the colleague has to verify, take a case and get it
-    accepted, and that is the step the whole program is buying. Weighting the
-    money toward the harder side buys the outcome rather than the gesture, and
-    it keeps the referrer's payment small enough that nobody has to argue about
-    physicians being paid to recruit physicians.
+    The larger half of a $50/$25 split, with the smaller half going to the
+    person being referred (see referee_bonus_cents). The referrer is the scarce
+    input: a well-connected physician who will actually spend their reputation
+    introducing colleagues is worth more to us than the marginal signup, and the
+    payment has to be large enough to be worth the ask.
+
+    The Sep 1 meeting was read as reversing this split. It is ambiguous on the
+    point: it says "the people who refer get a free $50" and closes by settling
+    the signing bonus at "$25 for completing the case", both of which match the
+    number here, against one line in the middle that says the reverse. Two
+    readings out of three, and the behavior already live in production, keep the
+    larger half with the referrer, so the tie breaks toward not silently
+    restating what physicians are already promised. Settle it deliberately
+    before moving it.
 
     A ONE-TIME BOUNTY, not a percentage of the colleague's ongoing work, and the
     reasoning is worth keeping next to the number. A revenue share creates an
     indefinite liability against every future task; it is a compliance question
     the moment anyone asks the recruiting question above; and, the practical
-    objection, it is unexplainable on a dashboard. *"$25 when your colleague
+    objection, it is unexplainable on a dashboard. *"$50 when your colleague
     completes their first case"* is a sentence a doctor can hold in their head.
     A trailing percentage is a spreadsheet.
 
@@ -246,21 +253,21 @@ def referral_bounty_cents() -> int:
     STAMPED ON THE LEDGER ROW at accrual, so a bounty already earned keeps the
     rate it was earned at and only future accruals move.
     """
-    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 2500)
+    return _env_int("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", 5000)
 
 
 def referee_bonus_cents() -> int:
-    """$50 to the REFERRED physician after their first accepted case.
+    """$25 to the REFERRED physician after their first accepted case.
 
-    The larger half of the split on purpose: this is the activation payment, and
-    the first accepted case is where a new physician either stays or is never
-    seen again. Paid only when a referrer's bounty settles, which inherits every
-    guard that settlement runs (QA-accepted work, no self-referral, verified
-    account).
+    The activation half of the split: the first accepted case is where a new
+    physician either stays or is never seen again, and the meeting settled this
+    side explicitly at "$25 for completing the case". Paid only when a
+    referrer's bounty settles, which inherits every guard that settlement runs
+    (QA-accepted work, no self-referral, verified account).
 
     Stamped on the ledger row at accrual exactly like the bounty, so raising or
     lowering it later cannot restate a bonus already paid."""
-    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 5000)
+    return _env_int("ASCLEPIUS_REFEREE_BONUS_CENTS", 2500)
 
 
 def referral_cap_cents() -> int:
@@ -1522,6 +1529,15 @@ def reconcile_task_accruals(
     for row in store.unaccrued_submissions(user_id=user_id, limit=limit):
         ref = row["submission_id"]
         implied = _verdict_status(row.get("review_verdicts"))
+        # Gap U2. A case whose clinical-validity attestation was found false is
+        # not payable, whatever the review verdict says. Folded into `implied`
+        # rather than added as a fourth ledger state, so it travels through the
+        # SAME void path a rejected case takes: one zero-value row carrying its
+        # own explanation, never a silent skip. A skipped submission would be
+        # re-examined by every future sweep and would appear on no ledger, which
+        # is the one way a physician could lose money without being told.
+        if attestation_found_false(row):
+            implied = VOID
         # ``accrued_at`` is the moment the WORK happened, not the moment this
         # sweep noticed it — otherwise a backfill would restart every auto-approve
         # clock and a doctor's ledger would be dated by our deploy schedule.
@@ -1544,7 +1560,8 @@ def reconcile_task_accruals(
             status=(implied if (implied and not held) else (VOID if implied == VOID else ACCRUED)),
             accrued_at=accrued_at,
             resolved_at=_ledger_ts(now) if (implied and not held) else None,
-            note=_reject_note(row) if implied == VOID else None,
+            note=(VALIDITY_VOID_NOTE if attestation_found_false(row)
+                  else (_reject_note(row) if implied == VOID else None)),
         )
         if written is not None and terms is not None:
             store.set_earning_quality(
@@ -1575,6 +1592,29 @@ def reconcile_task_accruals(
         ref = row["submission_id"]
         status = row["status"]
         implied = _verdict_status(row.get("review_verdicts"))
+        # Gap U2, and this branch is the load-bearing one. A finding usually
+        # lands AFTER the row accrued, so voiding here is what actually makes
+        # the consequence real.
+        #
+        # `only_from=[ACCRUED]` is the whole guarantee against restating a
+        # settled payment, and it is why this is a `continue` rather than a
+        # reassignment of `implied`: falling through would reach the branch that
+        # moves VOID back to APPROVED on a later accepting verdict, which would
+        # let a reviewer's accept overrule a finding that the case should never
+        # have been labelled at all. APPROVED and PAID rows are not in this
+        # query's result set at all, so a physician who has already been paid
+        # for the case keeps that money -- section 3.5 of the agreement says
+        # exactly that, and it says it because clawing back settled pay from a
+        # doctor is a thing we are choosing not to do.
+        if attestation_found_false(row):
+            if status == ACCRUED and store.resolve_earning(
+                kind=KIND_TASK, ref_id=ref, status=VOID,
+                resolved_at=_ledger_ts(now), note=VALIDITY_VOID_NOTE,
+                only_from=[ACCRUED],
+            ):
+                counts["voided"] += 1
+                counts["validity_voided"] = counts.get("validity_voided", 0) + 1
+            continue
         # The verdict has landed, so the case now has a graded quality number
         # that it may not have had when the row was written. Recompute the terms
         # and restamp the amount while the row is still ACCRUED (never once it
@@ -1863,6 +1903,31 @@ def reconcile_referral_bounties(
 #: unusual funnel for a real physician; past that the tail resolves on the next
 #: load rather than making one request pay for all of it.
 _REFERRAL_RECONCILE_CAP = 20
+
+
+#: An admin's determination that a physician's clinical-validity attestation was
+#: not true (Gap U2). The physician agreement, section 3.5, is the promise this
+#: token enforces: the case that attestation covered is not paid.
+VALIDITY_FINDING_FALSE = "false"
+
+#: Said to the physician, next to the zero, on the same §1.2 rule the reject
+#: note follows: a number that moved is never shown without its explanation.
+VALIDITY_VOID_NOTE = (
+    "Not paid: on review, the clinical-validity attestation for this case was "
+    "found not to hold. Section 3.5 of your contributor agreement covers this, "
+    "and you can ask for it to be looked at again.")
+
+
+def attestation_found_false(row: Dict[str, Any]) -> bool:
+    """Whether this submission's validity attestation was found false.
+
+    A PREDICATE RATHER THAN AN INLINE COMPARISON, in the module that owns money,
+    because it is read from three places in the sweep and all three have to
+    agree. The finding is the ONLY thing consulted: a case nobody has reviewed
+    reads NULL and is paid normally, and a case reviewed and upheld reads
+    'upheld' and is paid normally. Silence is not an accusation.
+    """
+    return (row.get("validity_finding") or "") == VALIDITY_FINDING_FALSE
 
 
 def _reject_note(row: Dict[str, Any]) -> str:

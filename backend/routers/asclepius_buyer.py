@@ -200,6 +200,12 @@ async def send_buyer_delivery(
 
     label = ", ".join(orgs)
     scope = {"type": "buyer_delivery", "organizations": orgs, "buyer_email": body.buyer_email}
+    # Expiry is enforced lexically against ISO stamps, so a malformed value would
+    # read as already expired and the exclusive would silently never block.
+    try:
+        license_expires_at = asc_export.validate_license_expiry(body.license_expires_at)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     try:
         manifest = asc_export.build_export(
             store,
@@ -212,7 +218,23 @@ async def send_buyer_delivery(
             since=body.since,
             until=body.until,
             scope=scope,
+            # A delivery is the one export path that always knows its buyer, so it
+            # always records a licence, which is what makes the exclusivity
+            # register complete enough to be worth reading. Non-exclusive unless
+            # the deal says otherwise, which blocks nothing and matches how every
+            # delivery before this behaved.
+            licensed_to=body.buyer_email,
+            license_label=body.buyer_name,
+            license_exclusivity=(asc_export.EXCLUSIVE if body.exclusive
+                                 else asc_export.NON_EXCLUSIVE),
+            license_expires_at=license_expires_at,
+            license_note=body.note,
         )
+    except asc_export.ExclusiveLicenseConflict as exc:
+        # Checked before the buyer account is provisioned and before anything is
+        # emailed, so a refused delivery leaves no half-created buyer behind.
+        raise HTTPException(status_code=409,
+                            detail={"message": str(exc), "conflicts": exc.conflicts})
     except asc_export.ExportValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except asc_profiles.ProfileError as exc:

@@ -25,7 +25,6 @@ from typing import Any, Dict, List, Optional
 from audit import audit_log
 from community import phi_gate
 from community.store import get_community_store
-from community.ws import hub
 
 log = logging.getLogger("community.system_posts")
 
@@ -59,6 +58,120 @@ def _mask_urls(text: str) -> str:
     scan. Length-preserving is NOT needed — a blocked system post is skipped
     wholesale, spans are never surfaced."""
     return _URL_RE.sub("masked://link", text or "")
+
+
+def _resolve_channel(channel_slug: str) -> Optional[Dict[str, Any]]:
+    """The active channel behind a slug, or None with a loud log.
+
+    Deliberately NOT the visibility-gated lookup the member routes use: the bot
+    posts into the staff room, and it posts the first message into a
+    below-threshold room by design. Shared by the message and poll paths so
+    there is one answer to "where is the bot allowed to write".
+    """
+    channel = get_community_store().get_channel_by_slug(channel_slug)
+    if not channel or not channel.get("is_active", 1):
+        log.error("[system-post] channel %r missing or inactive, post skipped", channel_slug)
+        return None
+    return channel
+
+
+def _phi_clear(channel: Dict[str, Any], kind: str, text: str,
+               *, exempt: tuple = ()) -> bool:
+    """Run the §7 gate over everything human-visible in a bot post.
+
+    Returns False when the post must be dropped, having recorded the block
+    (categories only, never the text) and audited it. Factored out of
+    ``post_system_message`` when the poll path arrived: a second bot-writing
+    function that scanned its own text slightly differently is exactly how a
+    gate develops a hole.
+    """
+    findings = phi_gate.scan_text(_mask_urls(text), exempt_categories=exempt)
+    if not findings:
+        return True
+    cstore = get_community_store()
+    # Categories only: never the text (§7). Nothing persisted.
+    cstore.record_block_event(
+        user_id=SYSTEM_USER_ID, surface="system_post",
+        categories=phi_gate.categories_of(findings),
+    )
+    audit_log.record(
+        actor_type="system", actor_id=SYSTEM_USER_ID,
+        action="community.phi_block", outcome="blocked",
+        resource_type="community", resource=channel["slug"],
+        detail={"surface": "system_post", "kind": kind,
+                "categories": phi_gate.categories_of(findings),
+                "exempted": list(exempt)},
+    )
+    log.error("[system-post] PHI gate blocked a %s post to #%s, skipped (fail-closed)",
+              kind, channel["slug"])
+    return False
+
+
+async def post_system_poll(
+    *,
+    channel_slug: str,
+    body: str,
+    question: str,
+    options: List[str],
+    kind: str = "poll",
+    cards: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Post a poll AS THE BOT, and the only place that is allowed to.
+
+    ``POST /community/polls`` cannot do this and should not learn how: it
+    requires a member and deliberately authors every poll as its creator, so a
+    member poll reads as "Dr. X asked". Loosening that route to let the bot
+    through would put a system-authorship branch on a member-facing endpoint.
+    Instead the weekly discussion prompt comes here and drives the same store
+    primitives directly, so voting, results and the ``poll.updated`` broadcast
+    are byte-identical to a member's poll and only the author differs.
+
+    Two options minimum is enforced by the caller, not here: a one-option poll
+    is a composition failure with a prose fallback, not something to silently
+    repair at the write layer.
+    """
+    text = (body or "").strip()
+    q = (question or "").strip()
+    opts = [str(o).strip() for o in (options or []) if str(o).strip()]
+    if not text or not q or len(opts) < 2:
+        return None
+
+    channel = _resolve_channel(channel_slug)
+    if not channel:
+        return None
+    # The question and the options are human-visible text assembled from
+    # somewhere else's page, so they are scanned exactly like the body.
+    if not _phi_clear(channel, kind, "\n".join([text, q] + opts)):
+        return None
+
+    from community.router import (  # noqa: PLC0415 - the router imports this module
+        _serialize_messages, broadcast_channel_event, member_map,
+    )
+
+    cstore = get_community_store()
+    poll = cstore.create_poll(channel_id=channel["id"], question=q,
+                              options=opts, created_by=SYSTEM_USER_ID)
+    msg = cstore.insert_message(
+        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID, body=text,
+        kind=kind, cards=cards or None,
+    )
+    # Linked BEFORE serialization: the serializer attaches the poll payload by
+    # looking the link up, so a message serialized first would broadcast a
+    # poll-kind message with no poll in it and every client would render an
+    # empty card.
+    cstore.link_poll_message(poll["id"], msg["id"])
+    audit_log.record(
+        actor_type="system", actor_id=SYSTEM_USER_ID,
+        action="community.system_poll", outcome="ok",
+        resource_type="community", resource=str(msg["id"]),
+        detail={"channel": channel["slug"], "kind": kind,
+                "message_id": msg["id"], "poll_id": poll["id"],
+                "options": len(opts)},
+    )
+    serialized = _serialize_messages([msg], member_map(), channel["slug"])[0]
+    await broadcast_channel_event(
+        {"type": "message.created", "message": serialized}, channel)
+    return serialized
 
 
 async def post_system_message(
@@ -97,9 +210,8 @@ async def post_system_message(
         return None
 
     cstore = get_community_store()
-    channel = cstore.get_channel_by_slug(channel_slug)
-    if not channel or not channel.get("is_active", 1):
-        log.error("[system-post] channel %r missing or inactive — post skipped", channel_slug)
+    channel = _resolve_channel(channel_slug)
+    if not channel:
         return None
 
     # Scan a URL-MASKED copy: article links legitimately carry long digit runs
@@ -122,30 +234,14 @@ async def post_system_message(
             " ".join(str(c.get(k) or "") for k in ("title", "description", "meta", "prompt"))
             for c in cards
         )
-    findings = phi_gate.scan_text(
-        _mask_urls(text + ("\n" + card_text if card_text else "")),
-        exempt_categories=exempt,
-    )
-    if findings:
-        # Categories only — never the text (§7). Nothing persisted.
-        cstore.record_block_event(
-            user_id=SYSTEM_USER_ID, surface="system_post",
-            categories=phi_gate.categories_of(findings),
-        )
-        audit_log.record(
-            actor_type="system", actor_id=SYSTEM_USER_ID,
-            action="community.phi_block", outcome="blocked",
-            resource_type="community", resource=channel["slug"],
-            detail={"surface": "system_post", "kind": kind,
-                    "categories": phi_gate.categories_of(findings),
-                    "exempted": list(exempt)},
-        )
-        log.error("[system-post] PHI gate blocked a %s post to #%s — skipped (fail-closed)",
-                  kind, channel_slug)
+    if not _phi_clear(channel, kind,
+                      text + ("\n" + card_text if card_text else ""), exempt=exempt):
         return None
 
     # Late import — the router imports SYSTEM_MEMBER from this module.
-    from community.router import _serialize_messages, member_map  # noqa: PLC0415
+    from community.router import (  # noqa: PLC0415
+        _serialize_messages, broadcast_channel_event, member_map,
+    )
 
     members = member_map()
     mentions = [uid for uid in (mention_user_ids or []) if uid in members]
@@ -180,5 +276,6 @@ async def post_system_message(
         )
 
     serialized = _serialize_messages([msg], members, channel["slug"])[0]
-    await hub.broadcast({"type": "message.created", "message": serialized})
+    await broadcast_channel_event(
+        {"type": "message.created", "message": serialized}, channel)
     return serialized

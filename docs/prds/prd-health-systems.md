@@ -38,6 +38,13 @@ Locked with the founders:
   counts; pricing and the ledger entries behind `/hs/payouts` remain an
   operator decision. Nothing in this PRD computes money.
 
+  SUPERSEDED. This decision, together with the matching deferral under Out of
+  scope below, left the health-system payout rail owned by nobody: this PRD
+  sent it to group G and group G sent it back. The Sep 1 meeting had it in
+  scope for the portal. Accrual, invoicing and settlement are now built on
+  `claude/partner-gaps`, in a module and a table of their own, and they stay
+  dormant until a founder sets a rate.
+
 Made here, with rationale:
 
 * **Broadcast delivery reuses the durable-outbox shape**, not a new mechanism.
@@ -120,14 +127,14 @@ Numbered, each testable.
 12. The documented lifecycle (`docs/asclepius/HEALTH_SYSTEM_ONBOARDING.md`)
     holds in the working tree; the gaps below get fixed or explicitly waived
     in review:
-    * `GET /hs/uploads` (`asclepius_provider.py:1054`) depends on bare
+    * `GET /hs/uploads` (`asclepius_provider.py:1088`) depended on bare
       `require_hs_portal` while both upload doors use
       `require_hs_surface(UPLOAD)`. A pending member gets a 200 and an empty
       list where every sibling surface answers 403. Align it to the surface
       dependency.
     * A member added while the organization sits in `approved_awaiting_dla`
       receives only the member-added credential email
-      (`_notify_hs_members_added`, `asclepius_provider.py:2301`); the
+      (`_notify_hs_members_added`, `asclepius_provider.py:2493`); the
       agreement email went out at approval time, before they existed. The
       portal state rail rescues them, but the email trail is one letter
       short. Fix: when the org state is AWAITING_DLA, the member-added email
@@ -138,24 +145,24 @@ Numbered, each testable.
     * Two different hardcoded Calendly accounts ship today (see Decisions).
       Requirement 11 is the fix.
 13. What was verified working and needs no change: `/hs/members` self-serve
-    (GET/POST at `asclepius_provider.py:2225/2235`; 25-account cap, re-add of
+    (GET/POST at `asclepius_provider.py:2412/2422`; 25-account cap, re-add of
     an active address neither mints nor rotates, new member inherits the
     inviter's `approval_status`, per-member credential letters); the state
     machine edges and the NULL-reads-as-ACTIVE legacy collapse
     (`hs_states.py:88-119`); sign-time hash verification and the append-only
     `signed_agreements` triggers; `_hs_upload_preconditions` applied by all
-    upload doors (`asclepius_provider.py:1111`).
+    upload doors (`asclepius_provider.py:1158`).
 
 **Payout-accrual visibility**
 
 14. `GET /hs/uploads` gains a `summary` block: counts per partner-facing
     status (received, processing, accepted, needs_attention) and total
     accepted bytes, computed from the same rows the list already maps through
-    `_hs_upload_view` (`asclepius_provider.py:1021`). No new query surface.
+    `_hs_upload_view` (`asclepius_provider.py:1031`). No new query surface.
 15. The portal payouts page shows one accrual line derived from that summary:
     "N uploads accepted and awaiting pricing" when accepted uploads exceed
     payout ledger entries. Wording avoids promising amounts. The ledger and
-    invoice views behind `/hs/payouts` (`asclepius_provider.py:1856`) are
+    invoice views behind `/hs/payouts` (`asclepius_provider.py:1960`) are
     unchanged.
 
 ## What exists today
@@ -168,8 +175,8 @@ origin/main merge:
   anchors: states and transitions `hs_states.py:46-100`; account minting
   `hs_provisioning.py:40`; agreement rendering and hashing `dla.py:44,
   174-198`; executed PDF `dla.py:285-333`; the partner routes throughout
-  `routers/asclepius_provider.py` (signup 1435, intake 1730, members 2225,
-  agreement 2341-2540, payouts 1856, uploads 888/1171).
+  `routers/asclepius_provider.py` (signup 1528, intake 1823, members 2412,
+  agreement 2540-2737, payouts 1960, uploads 889/1245).
 * Lead capture: `POST /api/leads` (`routers/leads.py:86`) with four sources
   including `health_system_partner`, stored via
   `team_store.record_lead_submission` (`team_store.py:2563`) into
@@ -261,7 +268,11 @@ constant; no landing test harness exists and none is introduced here.
 
 ## Out of scope
 
-* Payout pricing, accrual computation, Stripe/ACH rails (group G).
+* Payout pricing, accrual computation, Stripe/ACH rails (group G). NO LONGER
+  TRUE: group G scoped health-system payouts back out, so this deferral pointed
+  at nobody. The rail is built on `claude/partner-gaps`. Pricing itself is still
+  out of scope here, and deliberately so: the rate is a founder decision and
+  defaults to zero.
 * De-identification tooling for partners who cannot de-identify (explicitly
   deferred in the meeting).
 * Calendly booking webhooks and auto calendar invites (the link with prefill

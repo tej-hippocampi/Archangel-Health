@@ -305,7 +305,10 @@ def test_poll_close_does_not_broadcast_the_closers_vote():
     leaks it and makes every other client render it as its own selection."""
     astore, cstore, admin, doc = setup_world()
     sent = []
-    from community import social as csocial
+    # The shared singleton, patched directly rather than through whichever
+    # module happens to re-export it: social.py now fans out through the
+    # router's channel-scoped helper and no longer imports the hub itself.
+    from community.ws import hub as _hub
 
     r = client.post(f"{BASE}/polls", headers=headers_for(doc), json={
         "channel_slug": "general", "question": "Ready?", "options": ["Yes", "No"]})
@@ -318,12 +321,12 @@ def test_poll_close_does_not_broadcast_the_closers_vote():
     async def _capture(payload):
         sent.append(payload)
 
-    orig = csocial.hub.broadcast
-    csocial.hub.broadcast = _capture
+    orig = _hub.broadcast
+    _hub.broadcast = _capture
     try:
         rc = client.post(f"{BASE}/polls/{pid}/close", headers=headers_for(doc))
     finally:
-        csocial.hub.broadcast = orig
+        _hub.broadcast = orig
     assert rc.status_code == 200
     # The closer still learns their own vote from the RESPONSE...
     assert rc.json()["your_vote"] == opt

@@ -80,6 +80,73 @@ class Physician:
     #: Work already on their plate, so a batch does not land on someone who is
     #: three deep in the last one.
     open_assignments: int = 0
+    #: 0..1. How much of the routable profile this physician has filled in
+    #: (``profile_depth`` below). The eighth field, and the only one added since
+    #: the shape was frozen, so the reasoning is written out rather than left to
+    #: the reader:
+    #:
+    #: The physician profile PRD says a richer profile powers better routing.
+    #: That was the ASK made of physicians and nothing delivered on it, which
+    #: made the completeness meter a request for information in exchange for
+    #: nothing. This field is what makes the promise true.
+    #:
+    #: It survives the "cannot weigh what it cannot see" rule because of what it
+    #: is made of: ``DEPTH_FIELDS`` is an explicit allowlist of clinical
+    #: self-descriptions, it shares no member with
+    #: ``tiering.FORBIDDEN_CREDENTIAL_KEYS``, and it deliberately excludes every
+    #: geographic field even though the profile collects one. See ``DEPTH_FIELDS``.
+    profile_depth: float = 0.0
+
+
+#: What "a richer profile" means for routing, stated as an allowlist rather than
+#: as "whatever the completeness meter counts". The meter and this list overlap
+#: but are NOT the same list, and the difference is the point.
+#:
+#: EVERY MEMBER IS A CLINICAL SELF-DESCRIPTION that makes a better case match
+#: possible: what you subspecialise in, what you are certified in, what settings
+#: you practise in, what languages you can read a chart in, how long you have
+#: been doing it, and the niche you would name for yourself.
+#:
+#: WHAT IS DELIBERATELY ABSENT, and why it is absent rather than merely
+#: forgotten:
+#:
+#:   * ``practice_city``. The completeness meter counts it, and it must not
+#:     count here. ``tiering.PINNED_ZERO`` pins ``practice_region`` at exactly
+#:     zero forever and ``FORBIDDEN_CREDENTIAL_KEYS`` bars ``practiceZip``,
+#:     ``zipCode`` and ``practiceRegion`` from ever becoming a feature. A city is
+#:     the same quantity at a finer grain. Letting it raise a physician's
+#:     standing for work would route around a guardrail through a proxy, which
+#:     is exactly the failure the guardrail exists to prevent, and it would do it
+#:     while looking like a completeness bonus.
+#:   * ``avatar`` and ``linkedin_url``. Both are counted by the meter, for good
+#:     reasons that are about the community and the verified card. Neither tells
+#:     anyone which case this physician should get, and a photograph is a
+#:     protected-attribute channel with no clinical content at all.
+DEPTH_FIELDS: Tuple[str, ...] = (
+    "subspecialties",
+    "board_certifications",
+    "practice_settings",
+    "languages",
+    "years_in_active_practice",
+    "specialty_niche",
+)
+
+
+def profile_depth(fields_present: Sequence[str]) -> float:
+    """0..1: the share of ``DEPTH_FIELDS`` this physician has answered.
+
+    A SHARE RATHER THAN A COUNT, so adding a seventh question later cannot
+    silently demote everyone who answered the first six.
+
+    Takes the names of the fields that are present rather than the profile
+    itself, keeping this module pure and keeping the decision about what counts
+    as "answered" with the caller that can see the actual values. Unknown names
+    are ignored rather than rejected: a caller passing a field this list does
+    not weigh should get no credit for it, not an exception in an allocator.
+    """
+    present = {str(f) for f in (fields_present or [])}
+    hits = sum(1 for f in DEPTH_FIELDS if f in present)
+    return hits / float(len(DEPTH_FIELDS))
 
 
 @dataclass(frozen=True)
@@ -132,15 +199,38 @@ def _rank_key(p: Physician, case: Case, load: int) -> Tuple:
 
     Domain fit first, because a nephrologist on a nephrology case is the whole
     point. Then current load, ASCENDING, so a batch spreads instead of piling
-    onto whoever ranks highest. Then the contributor score. Then user_id, so the
-    result is deterministic and a proposal can be diffed against a previous one.
+    onto whoever ranks highest. Then the contributor score. Then profile depth.
+    Then user_id, so the result is deterministic and a proposal can be diffed
+    against a previous one.
 
     An unrated physician sorts at the middle of the range rather than the
     bottom. Sorting them last would mean nobody new is ever allocated work,
     which is the loop that stops them ever being rated.
+
+    PROFILE DEPTH SITS BELOW THE CONTRIBUTOR SCORE AND ABOVE NOTHING BUT THE
+    TIEBREAK, and that position is the whole of the design decision.
+
+    Above ``user_id``: a filled-in profile has to beat an alphabetical accident,
+    or the promise the profile page makes is not kept at all.
+
+    Below load: a fuller profile must never be able to concentrate a batch on
+    one person. The spread guarantee outranks it.
+
+    Below the contributor score: work quality outranks self-description, always.
+    Anything else would let a physician talk their way past a better labeler,
+    and self-declared fields are cheap to fill in while a contributor score has
+    to be earned.
+
+    Which sounds like it makes the term inert, and it is worth being precise
+    about why it does not: EVERY UNRATED PHYSICIAN CARRIES THE SAME 50.0. Among
+    the people with no track record -- exactly the population where we have no
+    other signal and exactly the population this is meant to help -- the score
+    is a constant, and profile depth is the only thing left to sort on. That is
+    a real effect on who gets the case, produced without ever outranking
+    evidence of how well someone actually works.
     """
     score = 50.0 if p.contributor_score is None else float(p.contributor_score)
-    return (-p.domain_match, load, -score, p.user_id)
+    return (-p.domain_match, load, -score, -float(p.profile_depth), p.user_id)
 
 
 def allocate(

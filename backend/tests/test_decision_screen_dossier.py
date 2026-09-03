@@ -303,11 +303,13 @@ later(function () {
   const trs = find(body, function (e) { return e.tagName === 'TR'; });
   const names = trs.map(function (r) { return textOf(r); });
   // Structural, not textual: the waiting cell also renders an amber badge, so
-  // "does this row carry a look chip" has to be asked of the LAST cell rather
-  // than of the row's text.
+  // "does this row carry a look chip" has to be asked of a specific cell rather
+  // than of the row's text. Name, specialty, waiting, practice case, proposed,
+  // LOOK, chevron: the practice-case column landed between waiting and
+  // proposed, which is why this is index 5 and not 4.
   const looks = trs.map(function (r) {
     const tds = (r.childNodes || []).filter(function (c) { return c.tagName === 'TD'; });
-    const cell = tds.length >= 5 ? tds[4] : null;
+    const cell = tds.length >= 6 ? tds[5] : null;
     return { row: textOf(r), look: cell ? textOf(cell) : null };
   });
   console.log(JSON.stringify({ text: textOf(body), rows: names, looks: looks }));

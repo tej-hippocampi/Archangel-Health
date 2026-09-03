@@ -102,7 +102,11 @@ def test_signing_up_as_an_existing_partner_cannot_read_their_uploads(caplog):
     impostor_hs = store.get_hs_portal_user(r.json()["username"])["hs_id"]
     assert impostor_hs != incumbent["hs_id"], "SELF-SIGNUP WAS ATTACHED TO THE INCUMBENT"
 
-    # And the session really cannot see the other hospital's history.
+    # And the session really cannot see the other hospital's history. Approved
+    # first: the uploads list is gated on the upload surface like every other
+    # upload door, and a 403 from a self-signup still in review would prove the
+    # approval gate rather than the tenancy boundary this test is about.
+    store.set_hs_approval(r.json()["username"], "approved", by="test")
     hist = client.get("/api/asclepius/hs/uploads")
     assert hist.status_code == 200
     assert hist.json()["uploads"] == []

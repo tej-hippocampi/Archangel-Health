@@ -301,15 +301,40 @@ without touching channel listing, search, unread, or the digests.
 Consequence: §8.7's "post a channel update" on reassignment is a **DM to the new
 doctor** instead.
 
+### §8.5 addendum: the endorsed alternative is now built
+
+The rejection above still stands: there are no member-scoped channels, and there
+will not be. What the last paragraph named as the cheaper shape is what shipped
+(Task Pipeline PRD §B): a **group DM**, `community_dms.kind = 'case_room'`, with
+membership in a `community_dm_members` join table. It rides the existing DM
+pipeline (PHI gate, reactions, edit and soft delete, read cursors, audit), so
+channel listing, search, unread counts and the digests are untouched, which was
+the objection.
+
+Three properties the room ships with, each answering an objection raised above:
+
+* **Coordination only.** §8.5's premise holds: the case stays in the portal. The
+  bot's pinned introduction names the participants, their roles, the case TYPE and
+  the specialty, and then states the no-case-content rule outright. Nothing about
+  the case is ever in the room.
+* **Keyed on the case, not the member set.** One room per `case_ref` (trajectory
+  id for a walk, task id otherwise), so a substitution posts into the same room
+  rather than forking a second one and stranding the history.
+* **Admin-visible, and it says so.** Ordinary two-party DMs keep their existing
+  privacy exactly: an admin still gets a 404 on one. A case room is the
+  exception, because the point is that founders can step into a stuck case, and
+  the intro tells participants that is true.
+
+Consequently the reassignment consequence above is now additive rather than a
+substitute: the replacement still gets their DM, AND the room is told the roster
+changed.
+
 ---
 
 ## What is NOT built
 
-* **§8.5 the private case channel** — decided against; see above.
-* **Relay reassignment does not re-notify the rest of the chain.** The replacement
-  is DM'd; the other doctors are not told the roster changed. With no channel there
-  is no natural place for that, and N DMs saying "somebody else has point 2 now" is
-  noise for people whose own turn has not moved.
+* **§8.5 the private case channel**: decided against; see above. The group-DM
+  alternative that section endorsed IS built; see the §8.5 addendum.
 * **The chain view is not linked from anywhere but the Task Routing longitudinal
   batch.** An admin who wants it opens that batch; there is no "walks that are
   stuck" landing view across all trajectories.

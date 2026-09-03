@@ -155,6 +155,14 @@ FIELDS: Tuple[Field, ...] = (
     _shown("prompt_review.reviewed", "Reviewed the question", "signoff", "flag"),
     _shown("prompt_review.verdict", "Verdict on the question", "signoff", "eyebrow"),
     _shown("prompt_review.note", "Note on the question", "signoff", "prose"),
+    # Shown, and it is the one field here where hiding it would defeat the
+    # mechanism rather than protect it. The attestation is what moves liability
+    # for a clinically invalid case onto the labeler, and the reviewer is the
+    # only person positioned to notice that a case was certified valid when it
+    # plainly is not. Withholding it would leave that claim unchecked by the
+    # one reader who can check it.
+    _shown("prompt_review.attest_clinically_valid",
+           "They certified the case is clinically valid", "signoff", "flag"),
     _withheld("prompt_review.reviewed_at", "A timestamp, so a first/second tell in a pair."),
 
     # Stage 2: the blind answer.

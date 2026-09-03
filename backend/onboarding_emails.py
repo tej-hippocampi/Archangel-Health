@@ -184,6 +184,35 @@ def _cta(href: str, label: str) -> str:
 </table>"""
 
 
+#: One line, offered at the end of onboarding, pointing at /partner.
+#:
+#: The Sep 1 meeting asked for this in both places a new physician looks: the
+#: screen they finish on and the email they keep. The reason is that a physician
+#: who happens to know someone at a health system is the cheapest introduction
+#: we will ever get, and without a link in front of them the thought arrives with
+#: nowhere to go.
+#:
+#: It is a SENTENCE, never a second call to action. These emails already carry
+#: one button, and a second competing with it costs us the click that matters
+#: more, which is the one that opens their workspace.
+def _partner_intro_line(partner_url: str) -> str:
+    """A physician's path to hand us a health system, or nothing at all.
+
+    Empty in, empty out: a caller with no configured landing URL says nothing
+    rather than shipping a dead link into somebody's inbox.
+    """
+    url = (partner_url or "").strip()
+    if not url:
+        return ""
+    safe = html.escape(url, quote=True)
+    return _p(
+        "Know a health system with clinical data? "
+        f'<a href="{safe}" style="color:{_GREEN_DEEP};">Send them here</a>'
+        " and we will take the conversation from there.",
+        muted=True, small=True,
+    )
+
+
 def _inset_card(inner_html: str) -> str:
     return f"""<div style="background:{_CARD_IN};border:1px solid {_HAIRLINE};border-radius:14px;padding:18px 22px;margin:22px 0;">
   {inner_html}
@@ -621,12 +650,17 @@ def build_asclepius_complete_email(
     is_director: bool,
     team_count: int = 0,
     verification_notice: bool = False,
+    partner_url: str = "",
 ) -> str:
     """Asclepius workspace-ready email — same visual format as the clinical
     completion email, addressed to the data-training product.
 
     ``temporary_password`` is the person&rsquo;s permanent, standing access key
-    (kwarg name kept for parity with the clinical builders)."""
+    (kwarg name kept for parity with the clinical builders).
+
+    ``partner_url`` is optional and defaults to saying nothing. This builder is
+    called from three places and a caller that has no landing URL configured
+    should send a complete email without a dead link in it, not fail."""
     safe_org = (org_name or "your organization").strip()
     safe_spec = (specialty or "").strip()
 
@@ -675,6 +709,9 @@ def build_asclepius_complete_email(
             "sign-in page and we will email you a new one.",
             small=True,
         )
+        # Last, under the practical housekeeping. It is an offer, not an
+        # instruction, and it must not come between them and their workspace.
+        + _partner_intro_line(partner_url)
     )
     return _shell(subject="Your Asclepius workspace is ready", body_html=body)
 
@@ -1012,6 +1049,82 @@ def build_application_expiring_email(
         + _founder_signoff("— Tej & Aryaa, founders")
     )
     return _shell(subject="Your Archangel Health link expires tomorrow",
+                  body_html=body)
+
+
+def build_credentials_nudge_email(*, first_name: str, portal_url: str) -> str:
+    """The credentials half of the post-submit nudge, sent once ever.
+
+    An application with nothing to check it against cannot be reviewed at all,
+    so this is the one nudge where the reason is worth stating plainly: the
+    physician is not being chased for tidiness, they are waiting on a decision
+    that literally cannot be made yet. Same restraint as the pre-submit nudge:
+    one send, no countdown, no second chase.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1("We still need something to check.")
+        + _p(f"{_strong(_first_name(first_name))}, your application is with us, but "
+             "we have nothing on file to verify you against yet. A CV, or your NPI "
+             "or registration number, is all it takes.")
+        + _cta(portal_url, "Add my credentials")
+        + _p("Once that is there, one of us reviews your application personally.",
+             muted=True, small=True)
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="One thing missing from your application",
+                  body_html=body)
+
+
+def build_practice_case_nudge_email(*, first_name: str, portal_url: str) -> str:
+    """The practice-case half of the post-submit nudge, sent once ever.
+
+    Deliberately framed as the interesting part rather than as homework. It is
+    the only clinical judgment we get to see before deciding about somebody,
+    and it is also the thing most applicants enjoy, so the copy leads with what
+    it is instead of with the fact that it is outstanding.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1("Your practice case is waiting.")
+        + _p(f"{_strong(_first_name(first_name))}, there is one short case sitting in "
+             "your account. It takes about ten minutes, it is a real piece of "
+             "clinical reasoning rather than a form, and it is the part of your "
+             "application we read most closely.")
+        + _cta(portal_url, "Open my practice case")
+        + _p("No grade is published and there is no time limit on it.",
+             muted=True, small=True)
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="Your practice case is waiting",
+                  body_html=body)
+
+
+def build_profile_nudge_email(*, first_name: str, field_label: str,
+                              profile_url: str) -> str:
+    """ONE question about ONE missing profile field.
+
+    The single-question rule is the whole design and it is a rule about
+    restraint, not about layout. A list of gaps reads as a scorecard of what a
+    physician has failed to do; one question reads as a colleague asking
+    something specific, and it is answerable in the thirty seconds somebody
+    actually has. The scheduler enforces the rest of the discipline: each field
+    is asked about once ever, and nobody hears from us more than once a month.
+    """
+    asked = _scrub_dashes(field_label).strip().rstrip("?")
+    body = (
+        _eyebrow("Your profile")
+        + _h1("One quick question.")
+        + _p(f"{_strong(_first_name(first_name))}, would you add "
+             f"{html.escape(asked)} to your profile?")
+        + _p("It takes a moment, and it is what lets us route the right cases to "
+             "you rather than the average ones.")
+        + _cta(profile_url, "Add it to my profile")
+        + _p("Nothing on your profile is required, and none of it gates your work.",
+             muted=True, small=True)
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="One quick question about your profile",
                   body_html=body)
 
 
@@ -1375,7 +1488,7 @@ def build_hs_referral_intro_email(
         )
         + _cta(partner_url, "Tell us about your system →")
         + _p(
-            "Five quick questions so the call starts from something real, then "
+            "A few quick questions so the call starts from something real, then "
             "pick a time that works. Happy to loop in your compliance lead early.",
             muted=True, small=True,
         )
@@ -2071,15 +2184,34 @@ def build_hs_access_email(*, organization: str, full_name: str, username: str,
 
 
 def build_hs_member_added_email(*, organization: str, added_by: str, username: str,
-                                temp_password: str, portal_url: str) -> str:
+                                temp_password: str, portal_url: str,
+                                awaiting_dla: bool = False) -> str:
     """Email 2 of 5: a colleague added you.
 
     Names who added them in the subject line and again in the first sentence. An
     unexpected credentials email from a company you have not heard of is
     indistinguishable from a phishing attempt; the name of a colleague is the
     single thing that makes it legible.
+
+    ``awaiting_dla`` closes a hole in the letter trail rather than adding a
+    flourish. Email 3 goes to every member the moment the organization is
+    approved; a member added AFTER that moment never existed when it was sent,
+    so they arrive holding credentials and no idea that a contract is sitting
+    unsigned. Same wording as ``build_hs_dla_request_email`` on purpose: two
+    descriptions of one agreement is how a signer decides they are being asked
+    for two things.
     """
     who = (added_by or "").strip() or "A colleague"
+    agreement = ""
+    if awaiting_dla:
+        agreement = (
+            _p("One thing is outstanding for your organization: the data "
+               "licensing agreement is rendered and waiting for a signature. "
+               "One person with signing authority signs it, once, on behalf of "
+               f"{_strong(organization)}. Uploading unlocks the moment it is "
+               "signed.")
+            + _cta(portal_url, "Read and sign →")
+        )
     body = (
         _eyebrow("Your portal access")
         + _h1(f"{html.escape(who)} added you.")
@@ -2088,6 +2220,7 @@ def build_hs_member_added_email(*, organization: str, added_by: str, username: s
         + _MISSION_BLOCK
         + _credentials_card(username=username, temp_password=temp_password)
         + _cta(portal_url, "Open your portal →")
+        + agreement
         + _bookmark_line(portal_url)
         + _SIGNED_OFF
     )
@@ -2181,6 +2314,47 @@ def build_hs_uploads_open_email(*, organization: str, portal_url: str,
         + _SIGNED_OFF
     )
     return _shell(subject=f"Uploads are open for {organization}", body_html=body)
+
+
+def build_hs_data_request_email(*, title: str, specialty_label: str,
+                                case_count: int, due_date: str, details: str,
+                                portal_url: str) -> str:
+    """A data request, to every member of every partner who may upload.
+
+    A plain what-we-need letter and nothing more: the specialty, the number, the
+    date, and whatever the operator typed. It says outright that several partners
+    are being asked and that we confirm what we take, because a request that
+    reads as exclusive turns an invitation into a race, and the first partner to
+    reply would be the only one who ever answered a second one.
+    """
+    noun = "case" if case_count == 1 else "cases"
+    rows = [
+        ("Specialty", specialty_label, False),
+        ("How many", f"{case_count} {noun}", False),
+    ]
+    if (due_date or "").strip():
+        rows.append(("Useful by", due_date.strip()[:10], True))
+    detail_block = ""
+    if (details or "").strip():
+        detail_block = _p(html.escape(details.strip()).replace("\n", "<br>"))
+    body = (
+        _eyebrow("Data request")
+        + _h1(html.escape(title))
+        + _p("We are looking for de-identified cases from our partner health "
+             "systems, and this is what we need right now.")
+        + _inset_card(_detail_rows(rows))
+        + detail_block
+        + _cta(portal_url, "Upload in your portal →")
+        + _p("Several partners are being asked for this, and more than one may "
+             "send cases. Nothing is reserved and nothing is first come first "
+             "served: our team reviews what arrives and confirms what we accept. "
+             "If you have nothing that fits, no reply is needed.",
+             muted=True, small=True)
+        + _p("Please make sure data is de-identified and date-shifted before it "
+             "reaches us.", muted=True, small=True)
+        + _SIGNED_OFF
+    )
+    return _shell(subject=f"Data request: {title}", body_html=body)
 
 
 def build_hs_application_alert(*, organization: str, hs_id: str, full_name: str,

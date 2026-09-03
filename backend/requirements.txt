@@ -54,3 +54,8 @@ pyotp>=2.9.0
 feedparser>=6.0.11
 # Field encryption at rest (AES-256-GCM) — PRD-6
 cryptography>=48.0.1
+# Physician payouts (Stripe Connect Express, Payments Rail PRD). Imported only
+# inside ASCLEPIUS_STRIPE_ENABLED, so while the rail is dark this dependency is
+# pinned but never loaded. Exact pin in repo style; 15.6.1 is the current
+# release at the time this line was added.
+stripe==15.6.1

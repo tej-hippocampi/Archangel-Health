@@ -134,6 +134,12 @@ export type Credentials = {
   specialtyNiche: string;
   subspecialties: string[];
   practiceSettings: string[];
+  /* Where they practise, city only. A PLACE, not a region-of-origin proxy:
+     the never-collect list below rules out practice region as a scoring input,
+     and this is never scored. It exists because colleagues find each other
+     locally, and the community's city rooms have no other way to know which
+     room a physician belongs in. */
+  practiceCity: string;
   currentlyActive: boolean | null;
   yearsInActivePractice: string;
   languages: string[];
@@ -242,6 +248,7 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     specialtyNiche: "",
     subspecialties: [],
     practiceSettings: [],
+    practiceCity: "",
     currentlyActive: null,
     yearsInActivePractice: "",
     languages: [],
@@ -2579,6 +2586,14 @@ export function Step5Credentials({
         placeholder="e.g. academic, private practice"
         suggestions={PRACTICE_SETTING_SUGGESTIONS}
       />
+      <TextField
+        label="City you practise in"
+        optional
+        value={c.practiceCity}
+        onChange={(v) => set({ practiceCity: v })}
+        placeholder="e.g. Boston"
+        hint="Optional. Used to put you in the right city room with colleagues nearby. It is never part of how your application is assessed."
+      />
       <ChipMultiSelect
         label="Languages spoken"
         value={c.languages}
@@ -3332,6 +3347,34 @@ export function Step8AsclepiusSuccess({
       <PrimaryButton fullWidth onClick={onOpenWorkspace} loadingLabel="Opening…" successLabel="Opening ✓">
         {CTA[kind]}
       </PrimaryButton>
+
+      {/* The /partner door, one line, below the button that matters.
+
+          Someone who has just finished signing up is the likeliest person in
+          the funnel to think of a hospital they already know, and until now
+          that thought had nowhere to go: the link existed only on the referral
+          page, which they have not found yet. Shown to all three kinds because
+          every one of them is a person with a network, and a branch here would
+          be a branch to get wrong.
+
+          Deliberately NOT on StepApplicationSubmitted. That screen offers
+          exactly one link on purpose, because the honest answer to "what do I
+          do now" while a person reviews your credentials is "nothing". */}
+      <p
+        style={{
+          fontSize: 13,
+          color: "var(--ink-faint)",
+          textAlign: "center",
+          lineHeight: 1.6,
+          margin: "18px 0 0",
+        }}
+      >
+        Know a health system with clinical data?{" "}
+        <a href="/partner" style={{ color: "var(--ah-green-deep)" }}>
+          Send them here
+        </a>
+        .
+      </p>
     </OnboardingCard>
   );
 }
