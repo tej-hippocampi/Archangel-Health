@@ -301,6 +301,35 @@ SANDBOX_PATH_PREFIXES = ("/sandbox", "/api/asclepius/sandbox")
 #: Cookie the health-system portal keeps its session in (mirrors
 #: ``routers.asclepius_provider._HS_COOKIE``; asserted equal by a test).
 HS_COOKIE = "hs_portal_session"
+#: The sandbox portal keeps its session under a DIFFERENT cookie name. Both
+#: cookies are path="/", so with one name a sandbox sign-in would ride on every
+#: live /provider call (claim=sandbox, header=live → 401 realm_mismatch, login
+#: and logout included) and lock the browser out of the live portal for the
+#: cookie's TTL. Two names let a live and a sandbox portal session coexist.
+HS_COOKIE_SANDBOX = "hs_portal_session_sandbox"
+
+
+def hs_cookie(realm_name: Optional[str] = None) -> str:
+    """The portal session cookie name for ``realm_name`` (default: current)."""
+    r = validate(realm_name) if realm_name else current()
+    return HS_COOKIE_SANDBOX if r == SANDBOX else HS_COOKIE
+
+
+def portal_path(path: str) -> str:
+    """A backend-served page path that stays in the current realm:
+    ``/community`` → ``/sandbox/community`` in the sandbox, unchanged live."""
+    return ("/sandbox" + path) if is_sandbox() else path
+
+
+def public_url(url: str) -> str:
+    """A link handed to a user (email, outbox, console) that lands back in the
+    realm that minted it. Live links are untouched; in the sandbox the URL
+    carries ``realm=sandbox``, which the landing app persists for its whole
+    flow and this app's middleware honours on a plain navigation."""
+    if not is_sandbox():
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}realm={SANDBOX}"
 
 
 def _is_sandbox_path(path: str) -> bool:
@@ -352,7 +381,8 @@ def claim_from_scope(scope: Any) -> Dict[str, Optional[str]]:
     """Everything the middleware reads off an ASGI scope, as one dict:
     ``header`` (X-Asclepius-Realm), ``claim`` (the realm claim of whichever
     token the request carries — bearer, HS cookie, or a JWT in ``?ticket=`` /
-    ``?token=``), and ``query_realm`` (``?realm=`` on a WebSocket). Pure, so
+    ``?token=``), and ``query_realm`` (``?realm=``, honoured when no header is
+    sent: WebSockets and plain navigations). Pure, so
     the rules are unit-testable with a synthetic scope."""
     header = None
     bearer = None
@@ -373,7 +403,11 @@ def claim_from_scope(scope: Any) -> Dict[str, Optional[str]]:
 
             jar = SimpleCookie()
             jar.load(cookie_blob)
-            morsel = jar.get(HS_COOKIE)
+            # Peek the cookie of the realm the request is FOR (header or
+            # /sandbox path), never the other realm's: a browser holding both
+            # sessions must not be read as a mismatch.
+            wanted = SANDBOX if (header == SANDBOX or _is_sandbox_path(scope.get("path") or "")) else LIVE
+            morsel = jar.get(hs_cookie(wanted))
             if morsel and morsel.value:
                 claim = _peek_claim(morsel.value)
         except Exception:
@@ -424,7 +458,11 @@ class RealmMiddleware:
             return
         found = claim_from_scope(scope)
         header = found["header"]
-        if kind == "websocket" and header is None and found["query_realm"] is not None:
+        # ``?realm=sandbox`` stands in for the header when there is none: the
+        # WebSocket (no custom headers) and a plain navigation from an email or
+        # outbox link (``/community/join/<t>?realm=sandbox``) — the landing app
+        # already reads the same parameter.
+        if header is None and found["query_realm"] is not None:
             header = found["query_realm"]
         r, error = resolve_for_request(path=scope.get("path") or "", header=header,
                                        token_claim=found["claim"])

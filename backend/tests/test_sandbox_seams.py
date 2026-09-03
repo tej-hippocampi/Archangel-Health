@@ -181,3 +181,96 @@ def test_every_realm_iterating_loop_names_active_realms():
     main_text = (backend / "main.py").read_text(encoding="utf-8")
     assert main_text.count("_realm.active_realms()") >= 2   # assignment sweep + task-notify drain
     assert "run in the LIVE realm only" in main_text
+
+
+# ─── Audit findings: the thread hop, the announcement, the alert drain ───────
+def test_run_coro_keeps_the_realm_across_its_worker_thread(sandbox_on):
+    """A bare Thread starts with an empty context, so the coroutine ran live.
+    The worker now runs inside a copy of the caller's context."""
+    from asclepius.ingest_notify import _run_coro
+
+    async def where():
+        return realm.current()
+
+    async def handler():                 # an async route handler: a loop IS running
+        return _run_coro(where())
+
+    with realm.scoped("sandbox"):
+        assert asyncio.run(handler()) == "sandbox"
+    assert asyncio.run(handler()) == "live"
+
+
+def _rows_with_body(store, body: str) -> int:
+    n = 0
+    with store._conn() as c:
+        for (t,) in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
+            cols = [r[1] for r in c.execute(f"PRAGMA table_info({t})").fetchall()]
+            if "body" in cols:
+                n += c.execute(f"SELECT count(*) FROM {t} WHERE body = ?", (body,)).fetchone()[0]
+    return n
+
+
+def test_send_to_all_announcement_from_the_sandbox_stays_in_the_sandbox(sandbox_on):
+    """admin_allocate (async) → notify_routed(to_all) → _run_coro → the community
+    store resolved INSIDE the worker. This used to post into the live
+    #task-announcements with fan-out to every real doctor."""
+    import os
+    from asclepius import route_notify
+    from community.store import reset_community_store_for_tests
+
+    live_c = reset_community_store_for_tests(os.path.join(A.TMP_DIR, f"c_live_{A.uniq()}.db"))
+    live_c.ensure_default_channels([])
+    body = "SANDBOX-ONLY-ANNOUNCEMENT-" + A.uniq()
+    with realm.scoped("sandbox"):
+        A.fresh_store()
+        sb_c = reset_community_store_for_tests(os.path.join(A.TMP_DIR, f"c_sb_{A.uniq()}.db"))
+        sb_c.ensure_default_channels([])
+
+        async def handler():
+            return route_notify._run_coro(route_notify._post_announcement(body))
+
+        assert asyncio.run(handler()) is True
+    assert _rows_with_body(live_c, body) == 0, "sandbox announcement written into the live community DB"
+    assert _rows_with_body(sb_c, body) == 1
+
+
+def test_sandbox_admin_alerts_drain_into_the_sandbox_outbox(sandbox_on, monkeypatch):
+    """A founder alert raised by a sandbox event is drained under the sandbox
+    realm: it lands in the sandbox outbox, never a real inbox, never queued forever."""
+    import main
+
+    def _boom(*a, **k):
+        raise AssertionError("sandbox reached a real transport")
+
+    monkeypatch.setattr(email_utils, "_normalize_sendgrid_api_key", _boom)
+    live = A.fresh_store()
+    with realm.scoped("sandbox"):
+        sb = A.fresh_store()
+        sb.enqueue_admin_notification(
+            idempotency_key="k-" + A.uniq(), kind="founder_alert",
+            subject="Sandbox founder alert", body_html="<p>x</p>",
+            recipient_email="founders@archangelhealth.ai", send_after="2000-01-01T00:00:00")
+        assert sb.outbox_count() == 0
+    asyncio.run(main._drain_admin_notifications())
+    with realm.scoped("sandbox"):
+        assert [r["subject"] for r in sb.outbox_list()] == ["Sandbox founder alert"]
+        assert sb.due_admin_notifications() == []
+    assert live.due_admin_notifications() == []
+
+
+# ─── Audit findings: links, paths and the audit trail stay in their realm ─────
+def test_links_and_paths_stay_in_their_realm(sandbox_on):
+    assert realm.public_url("https://x/onboard/m/t") == "https://x/onboard/m/t"
+    assert realm.portal_path("/community") == "/community"
+    with realm.scoped("sandbox"):
+        assert realm.public_url("https://x/onboard/m/t") == "https://x/onboard/m/t?realm=sandbox"
+        assert realm.public_url("https://x/a?b=1") == "https://x/a?b=1&realm=sandbox"
+        assert realm.portal_path("/community") == "/sandbox/community"
+
+
+def test_ephi_audit_trail_is_realm_keyed(sandbox_on):
+    from audit import audit_log
+    assert audit_log._db_path() == realm.paths("live")["team"]
+    with realm.scoped("sandbox"):
+        assert audit_log._db_path() == realm.paths("sandbox")["team"]
+        assert audit_log._db_path() != realm.paths("live")["team"]

@@ -76,8 +76,13 @@ def _passwords() -> Dict[str, str]:
 async def sandbox_status():
     require_sandbox()
     store = _store()
-    sandbox_seed.ensure_sandbox_admin()
+    # Unauthenticated and polled by every sandbox page: only create the admin
+    # when the row is missing (a SELECT), never re-verify the password hash per
+    # hit. Rotation is applied at boot and by /seed.
     admin = store.get_user_by_email(sandbox_seed.ADMIN_EMAIL)
+    if admin is None:
+        sandbox_seed.ensure_sandbox_admin()
+        admin = store.get_user_by_email(sandbox_seed.ADMIN_EMAIL)
     return {
         "realm": _realm.current(),
         "enabled": True,

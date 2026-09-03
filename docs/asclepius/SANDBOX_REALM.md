@@ -26,13 +26,19 @@ no query can cross because there is no shared table. `mockadmin` is untouched.
 | Per-realm store accessors | `asclepius.store.get_store`, `community.store.get_community_store`, `team_store.get_team_store`, `asclepius.assets._store_root`, `asclepius.export.export_root`, `asclepius.ingestion.quarantine_root` |
 | Realm middleware (token claim → path → header) | `realm.RealmMiddleware`, added in `main.py` |
 | Token `realm` claim | Asclepius session + media ticket, HS portal cookie, landing JWT, tenant staff JWT |
+| HS portal cookie per realm | `hs_portal_session` (live) / `hs_portal_session_sandbox` — `realm.hs_cookie()`; the middleware peeks only the cookie of the realm the request is for, so both portal sessions coexist in one browser |
+| Realm-keeping thread hop | `asclepius.ingest_notify._run_coro` copies the caller's context into its worker thread (a bare thread would run the coroutine in live) |
+| ePHI audit trail | `audit.audit_log` writes to the realm's team DB |
 | The seams | `email_utils` (outbox), `payments.mark_paid` (403), buyer deliveries (403), export/DLA stamps |
-| Realm-iterating loops | verification agent, assignment sweep, task-notify drain, community digest/news/events/morning |
+| Realm-iterating loops | verification agent, assignment sweep, task-notify drain, founder/admin alert drain, community digest/news/events/morning |
+| Links that stay in their realm | `realm.public_url()` (`?realm=sandbox` on onboarding and community-join links), `realm.portal_path()`; the provider invite points at `/sandbox/provider` |
 
 **How a request gets its realm.** A token's `realm` claim always wins; a
 mismatch with the header or a `/sandbox/*` path is `401 realm_mismatch`. The
 `X-Asclepius-Realm` header is consulted only on unauthenticated entry points
 (login, signup, the onboarding wizard). `/sandbox/*` paths are the sandbox.
+`?realm=sandbox` stands in for the header when none is sent: WebSockets, and a
+plain navigation from an outbox link such as `/community/join/<t>?realm=sandbox`.
 
 **Sign-in semantics.** Sandbox accounts exist only in the sandbox DB.
 `archangelhealth.ai/?realm=sandbox` → Sign in → `sb-labeler-1@…` works; the same

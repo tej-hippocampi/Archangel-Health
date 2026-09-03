@@ -4989,16 +4989,21 @@ class TeamStore:
 # ``realm.RealmProxy`` over this accessor, so the 137 existing call sites
 # resolve the realm at call time and the sandbox team DB is a different file.
 _STORES: Dict[str, "TeamStore"] = {}
+_STORES_GUARD = threading.Lock()
 
 
 def get_team_store(realm_name: Optional[str] = None) -> "TeamStore":
     """The TeamStore for ``realm_name`` (default: the current realm), created
-    on first use."""
+    on first use — once: two threads racing the first call must not each build
+    a store (double schema init on one file)."""
     r = _realm.validate(realm_name) if realm_name else _realm.current()
     store = _STORES.get(r)
     if store is None:
-        store = TeamStore(db_path=_realm.paths(r)["team"])
-        _STORES[r] = store
+        with _STORES_GUARD:
+            store = _STORES.get(r)
+            if store is None:
+                store = TeamStore(db_path=_realm.paths(r)["team"])
+                _STORES[r] = store
     return store
 
 

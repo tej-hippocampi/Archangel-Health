@@ -125,3 +125,24 @@ def test_sandbox_shell_tag_names_the_realm_wraps_fetch_and_paints_the_banner():
     assert "/api/asclepius/sandbox/status" in tag
     assert "#c6f542" in tag                       # lime
     assert "dismiss" not in tag.lower()           # not dismissible
+
+
+# ─── Audit finding: EVERY module that reads a token keys it per realm ─────────
+def test_every_portal_module_that_reads_a_token_keys_it_per_realm():
+    """earnings.js (the billable session client) and onboarding.js read the
+    unkeyed token, so sandbox review sessions could never open; the XHR video
+    upload in admin_health.js wrote into the live asset store."""
+    offenders = []
+    for path in sorted((FRONTEND / "asclepius").glob("*.js")):
+        text = path.read_text(encoding="utf-8")
+        if "localStorage.getItem" not in text or "asclepius_token" not in text:
+            continue
+        if "asclepius_token_sandbox" not in text:
+            offenders.append(path.name)
+    assert not offenders, offenders
+
+
+def test_the_xhr_upload_names_the_realm_and_keys_its_token():
+    text = (FRONTEND / "asclepius" / "admin_health.js").read_text(encoding="utf-8")
+    assert "xhr.setRequestHeader('X-Asclepius-Realm', realm)" in text
+    assert "localStorage.getItem('asclepius_token')" not in text

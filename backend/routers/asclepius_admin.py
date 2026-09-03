@@ -15,6 +15,7 @@ from __future__ import annotations
 import html
 import logging
 import os
+import realm as _realm
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -2589,7 +2590,7 @@ async def resend_signup_link(
             role_label=(person.get("clinical_role") or "").replace("_", " ").title(),
             org_name=org_name,
             specialty=(hs.get("specialty") or "").strip(),
-            onboarding_url=f"{_landing_base()}/onboard/m/{token}",
+            onboarding_url=_realm.public_url(f"{_landing_base()}/onboard/m/{token}"),
             invitee_email=email,
         )
         expires_at = person.get("member_token_expires_at")
@@ -3363,7 +3364,7 @@ async def invite_to_community(
         token_hash=_hash_invite_token(raw_token),
         expires_at=expires_at, created_by=admin["email"])
 
-    join_url = f"{_community_base()}/community/join/{raw_token}"
+    join_url = _realm.public_url(f"{_community_base()}/community/join/{raw_token}")
     # The SAME mailer as /admin/signups/resend. One email path, so a transport
     # change cannot fix one surface and silently miss the other.
     sent = await send_html_email(

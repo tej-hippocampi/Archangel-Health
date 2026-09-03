@@ -259,7 +259,8 @@ def _invite_expiry_iso() -> str:
 
 async def _send_invite(provider: Dict[str, Any], temp_password: str) -> None:
     html_body = build_data_provider_invite_email(
-        portal_url=_portal_base(),
+        # The template appends /provider; in the sandbox that is /sandbox/provider.
+        portal_url=_portal_base() + ("/sandbox" if _realm.is_sandbox() else ""),
         email=provider["email"],
         temporary_password=temp_password,
         org_name=provider.get("org_name") or "",
@@ -566,7 +567,7 @@ from pydantic import BaseModel
 
 from asclepius.store import hash_password as _hash_password
 
-_HS_COOKIE = "hs_portal_session"
+_HS_COOKIE = "hs_portal_session"          # live; the sandbox uses realm.hs_cookie()
 #: What a portal account waiting on a decision is told when it reaches the one
 #: surface it does not have. A module constant so the copy cannot drift between
 #: the route dependency and the precondition helper, which guard the same thing
@@ -667,7 +668,7 @@ def _hs_token(username: str, hs_id: str, *, session_epoch: Any = 0) -> str:
 
 def _set_hs_cookie(response: Response, token: str) -> None:
     response.set_cookie(
-        key=_HS_COOKIE, value=token, max_age=_hs_session_ttl_min() * 60,
+        key=_realm.hs_cookie(), value=token, max_age=_hs_session_ttl_min() * 60,
         # Unconditionally Secure. This used to be gated on ENV == "production",
         # which nothing in the deployment actually sets, so a PHI portal's
         # session cookie shipped over plain HTTP. There is no plausible
@@ -684,7 +685,7 @@ def require_hs_portal(request: Request) -> Dict[str, Any]:
     a password change since the token was minted, and deactivation of either the
     portal account or the health system."""
     expired = HTTPException(status_code=401, detail="Your session has ended. Please sign in again.")
-    token = request.cookies.get(_HS_COOKIE) or ""
+    token = request.cookies.get(_realm.hs_cookie()) or ""
     if not token:
         raise expired
     try:
@@ -805,8 +806,8 @@ async def hs_logout(request: Request, response: Response):
     """Sign out for real. The cookie is cleared AND the token's jti is denylisted
     until it would have expired — on a shared hospital workstation a cookie the
     browser already handed out has to stop working, not just stop being sent."""
-    response.delete_cookie(key=_HS_COOKIE, path="/")
-    token = request.cookies.get(_HS_COOKIE) or ""
+    response.delete_cookie(key=_realm.hs_cookie(), path="/")
+    token = request.cookies.get(_realm.hs_cookie()) or ""
     if token:
         try:
             payload = _jwt.decode(token, asc_auth.get_asclepius_secret(),
