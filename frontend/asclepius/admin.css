@@ -118,3 +118,524 @@
   font-size: var(--t-sm);
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRD-F — Asclepius Operations: the console as its own surface
+
+   "The same as the product, but flipped."
+
+   The physician's chrome is paper over paper, with a progress bar for the one
+   case in front of them. An operator is never looking at their own work, they
+   are looking at everybody's, so the chrome inverts to ink and the workspace
+   stays the paper the physician sees. Same tokens, same type scale, same
+   cards: the ground and the figure swapped, and no second palette. That
+   inversion is also the only wordless signal separating this page from the
+   physician surface an admin can preview from it, which is a safety property
+   rather than a flourish.
+
+   Everything below is scoped to .asc-admin-* / the gallery / the two new
+   sections. Nothing here restyles a shared class, so the console cannot drift
+   the product by accident.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The bar is the whole navigation. The old console stacked a header, a pill
+   strip and a second pill strip before any content: three rows of chrome for
+   one axis of choice. */
+.asc-admin-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--ink);
+  color: var(--card);
+  border-bottom: 1px solid var(--ink-hover);
+}
+.asc-admin-bar-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-5);
+  min-height: 58px;
+}
+
+.asc-admin-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex: none;
+}
+.asc-admin-mark-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--lime);
+  flex: none;
+}
+.asc-admin-mark-text {
+  font-size: var(--t-body);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.asc-admin-mark-sub {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--card);
+  opacity: 0.5;
+}
+
+.asc-admin-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  /* The bar must not grow a second row on a laptop; a console tab that wraps
+     under the wordmark reads as a different control. */
+  scrollbar-width: none;
+}
+.asc-admin-tabs::-webkit-scrollbar { display: none; }
+
+/* Mono chrome at chrome size, which the product spends only on micro-labels.
+   Here it is the navigation: an instrument panel is labelled, not titled. */
+.asc-admin-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--card);
+  opacity: 0.55;
+  border-bottom: 2px solid transparent;
+  transition: opacity 0.16s cubic-bezier(.4,0,.2,1),
+              border-color 0.16s cubic-bezier(.4,0,.2,1);
+}
+.asc-admin-tab:hover { opacity: 0.85; }
+.asc-admin-tab.active {
+  opacity: 1;
+  border-bottom-color: var(--lime);
+}
+.asc-admin-tab:focus-visible { outline: 2px solid var(--lime); outline-offset: -4px; }
+/* The QA backlog, on the tab QA lives under. Lime because it is the system's
+   "needs attention now" marker and it is the one colour that reads on ink. */
+.asc-admin-tab-count {
+  background: var(--lime);
+  color: var(--ink);
+  border: none;
+}
+
+.asc-admin-who {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: none;
+  font-size: var(--t-sm);
+}
+.asc-admin-who-email { color: var(--card); opacity: 0.8; }
+/* The role word belongs here and nowhere on the physician surface: on the
+   console it says which door you came through, which is a real fact about the
+   session rather than a job title printed at somebody. */
+.asc-admin-who-role { color: var(--card); opacity: 0.5; }
+.asc-admin-out,
+.asc-admin-signout {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--card);
+  opacity: 0.65;
+  text-decoration: none;
+  padding: 6px 11px;
+  border: 1px solid var(--card);
+  border-radius: 7px;
+  transition: opacity 0.16s cubic-bezier(.4,0,.2,1);
+}
+.asc-admin-out:hover, .asc-admin-signout:hover { opacity: 1; }
+
+@media (max-width: 900px) {
+  .asc-admin-bar-inner { flex-wrap: wrap; padding-bottom: 6px; }
+  .asc-admin-tabs { order: 3; flex-basis: 100%; }
+  .asc-admin-who { margin-left: auto; }
+  .asc-admin-who-email { display: none; }
+}
+
+/* ─── The gate ───────────────────────────────────────────────────────────────
+   Two states, and they are not the same screen. No session gets a form. A
+   session that is real but not an operator's gets told so, because printing a
+   sign-in form at somebody who is already signed in is how a product teaches
+   people to distrust it. */
+.asc-admin-gate {
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-8) var(--sp-4);
+}
+.asc-admin-gate-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6);
+  box-shadow: var(--shadow-card);
+}
+.asc-admin-gate-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--sp-5);
+}
+.asc-admin-gate-title {
+  font-size: var(--t-h2);
+  margin-bottom: var(--sp-3);
+}
+.asc-admin-gate-body {
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  margin-bottom: var(--sp-5);
+}
+.asc-admin-gate-err { margin-bottom: var(--sp-3); }
+.asc-admin-gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.asc-admin-gate-actions {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.asc-admin-gate-foot {
+  margin-top: var(--sp-5);
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+
+/* ═══ Physicians: the verified-card gallery (R7) ═════════════════════════════
+   The card a physician shares with a colleague is the unit of the roster. An
+   eleven-column table answered "what is in column seven of row nine"; the
+   question an operator actually asks is "who have we got, and who is worth
+   opening". */
+.asc-gallery-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.asc-gallery-search { flex: 1 1 260px; min-width: 200px; }
+.asc-gallery-count { margin-left: auto; flex: none; }
+.asc-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+  gap: 14px;
+}
+.asc-gallery-empty {
+  grid-column: 1 / -1;
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
+}
+
+.asc-pcard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: border-color 0.16s cubic-bezier(.4,0,.2,1),
+              box-shadow 0.16s cubic-bezier(.4,0,.2,1);
+}
+.asc-pcard:hover { border-color: var(--hairline-strong); box-shadow: var(--shadow-card); }
+.asc-pcard:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.asc-pcard-top { display: flex; gap: 12px; align-items: flex-start; }
+/* Initials over the specialty accent: the card's own documented fallback when
+   there is no photograph. The roster endpoint carries no avatar URL and PRD-F
+   freezes it, so the picture lives one click away on the dossier. */
+.asc-pcard-avatar {
+  width: 44px; height: 44px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  color: var(--card);
+}
+.asc-pcard-avatar.acc-green  { background: var(--green); }
+.asc-pcard-avatar.acc-orange { background: var(--orange); }
+.asc-pcard-avatar.acc-pink   { background: var(--pink); }
+/* Lime is the one accent a paper glyph cannot sit on: it is a marker colour,
+   not a fill. Ink on lime, the same pairing .chip-lime already uses. */
+.asc-pcard-avatar.acc-lime   { background: var(--lime); color: var(--ink); }
+
+.asc-pcard-id { min-width: 0; flex: 1 1 auto; }
+.asc-pcard-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-h3);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+}
+.asc-pcard-check {
+  flex: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--green);
+  color: var(--card);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+.asc-pcard-specialty {
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  margin-top: 1px;
+}
+.asc-pcard-badges { margin-top: 7px; }
+.asc-pcard-where, .asc-pcard-contact {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asc-pcard-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.asc-pcard-metric { min-width: 0; }
+.asc-pcard-metric-label { display: block; margin-bottom: 2px; }
+.asc-pcard-metric-value {
+  font-size: var(--t-sm);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asc-pcard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.asc-pcard-realdata,
+.asc-pcard-community,
+.asc-pcard-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+}
+
+/* ═══ Referrals: the health-system introduction funnel (U13) ═════════════════
+   Cumulative, not per-stage. A deal that SIGNED was also met and also booked,
+   and a chart that drops it out of the earlier stages makes a healthy funnel
+   look like a leaking one. */
+.asc-hsref-funnel {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+.asc-hsref-stage { min-width: 0; }
+.asc-hsref-stage-n {
+  font-size: 1.6rem;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.asc-hsref-stage-label {
+  display: block;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asc-hsref-stage-bar {
+  height: 4px;
+  border-radius: var(--r-chip);
+  background: var(--card-in);
+  overflow: hidden;
+}
+.asc-hsref-stage-fill {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+@media (max-width: 760px) {
+  .asc-hsref-funnel { grid-template-columns: repeat(3, 1fr); }
+}
+
+.asc-hsref-list { display: flex; flex-direction: column; gap: 12px; }
+.asc-hsref-row { margin: 0; }
+.asc-hsref-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+.asc-hsref-who { min-width: 0; }
+.asc-hsref-hs { font-size: var(--t-h3); font-weight: 500; }
+.asc-hsref-contact { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 2px; }
+.asc-hsref-meta { display: flex; align-items: center; gap: 6px; flex: none; }
+.asc-hsref-referrer { font-size: var(--t-sm); color: var(--ink-soft); margin-top: 10px; }
+.asc-hsref-rel { color: var(--ink-faint); }
+.asc-hsref-when { color: var(--ink-faint); }
+.asc-hsref-note-text {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--card-in);
+  border-radius: var(--r-sm);
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+}
+.asc-hsref-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+.asc-hsref-select { max-width: 200px; }
+.asc-hsref-amount { max-width: 170px; }
+.asc-hsref-note { max-width: 240px; flex: 1 1 180px; }
+.asc-hsref-done { flex: none; }
+.asc-hsref-status { margin-top: 8px; }
+
+/* ═══ Community: what is going on, counted (U11) ═════════════════════════════
+   Every figure here is a COUNT an operator can check by opening the room it
+   names. There is no assistant on this page and no model in this data path. */
+.asc-comm-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--sp-4);
+}
+.asc-comm-tile { min-width: 0; }
+.asc-comm-tile-n { font-size: 1.75rem; color: var(--ink); margin-bottom: 5px; }
+.asc-comm-tile-label { display: block; }
+.asc-comm-tile-sub { font-size: var(--t-sm); color: var(--ink-faint); margin-top: 2px; }
+
+/* The one card here that is a job rather than a statistic, so it is the one
+   card that carries an accent edge. */
+.asc-comm-unanswered { border-color: var(--orange-line); }
+.asc-comm-count { margin-left: 8px; }
+.asc-comm-qs { display: flex; flex-direction: column; gap: 10px; }
+.asc-comm-q {
+  display: block;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  text-decoration: none;
+  transition: border-color 0.16s cubic-bezier(.4,0,.2,1);
+}
+.asc-comm-q:hover { border-color: var(--hairline-strong); }
+.asc-comm-q-body { font-size: var(--t-sm); line-height: var(--lh-body); }
+.asc-comm-q-meta { display: block; margin-top: 6px; }
+
+.asc-comm-chans { display: flex; flex-direction: column; gap: 10px; }
+.asc-comm-chan {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) 3fr auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+}
+/* A silent room is not an error, so it dims rather than alarms. */
+.asc-comm-chan.is-quiet { opacity: 0.55; }
+.asc-comm-chan-name {
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asc-comm-chan-bar {
+  height: 4px;
+  border-radius: var(--r-chip);
+  background: var(--card-in);
+  overflow: hidden;
+}
+.asc-comm-chan-fill { display: block; height: 100%; background: var(--ink); }
+.asc-comm-chan-n { font-size: var(--t-sm); color: var(--ink-soft); white-space: nowrap; }
+.asc-comm-chan-sub { white-space: nowrap; }
+@media (max-width: 700px) {
+  .asc-comm-chan { grid-template-columns: 1fr auto; }
+  .asc-comm-chan-bar, .asc-comm-chan-sub { display: none; }
+}
+
+.asc-comm-feed { display: flex; flex-direction: column; gap: 14px; }
+.asc-comm-post { padding-left: 12px; border-left: 2px solid var(--hairline); }
+.asc-comm-post-meta { display: block; margin-bottom: 3px; }
+.asc-comm-post-body { font-size: var(--t-sm); line-height: var(--lh-body); }
+
+.asc-comm-rooms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.asc-comm-room {
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+}
+.asc-comm-room-title { font-size: var(--t-sm); font-weight: 500; }
+.asc-comm-room-meta { display: block; margin-top: 4px; }
+
+/* The one-line empty state the console reaches for when a list is legitimately
+   empty and there is nothing to do about it. */
+.asc-empty-line { color: var(--ink-soft); font-size: var(--t-sm); }
+
+/* ─── Classes the console emitted with no rule behind them ───────────────────
+   Found by the class-coverage guard when it widened to the whole console
+   bundle. Each of these was rendering as an unstyled element on a live screen:
+   invisible in review, and invisible on the page in the sense that mattered
+   (the drawer row had no separation from the table it opened inside). */
+
+/* Mono micro-label, the same primitive `.chrome` in _base.css provides. The
+   `asc-` spelling is what two admin surfaces already emit, so it aliases
+   rather than forking a second set of values. */
+.asc-chrome {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* The ingest review drawer: a full-width row that opens under the upload it
+   belongs to. Tinted, because an expanded row inside a hairline table is
+   otherwise indistinguishable from the next upload. */
+.asc-review-drawer-row > td { background: var(--card-in); }
+.asc-review-drawer {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.asc-review-case { background: var(--card); }
