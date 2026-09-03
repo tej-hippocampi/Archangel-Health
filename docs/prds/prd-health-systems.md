@@ -38,6 +38,13 @@ Locked with the founders:
   counts; pricing and the ledger entries behind `/hs/payouts` remain an
   operator decision. Nothing in this PRD computes money.
 
+  SUPERSEDED. This decision, together with the matching deferral under Out of
+  scope below, left the health-system payout rail owned by nobody: this PRD
+  sent it to group G and group G sent it back. The Sep 1 meeting had it in
+  scope for the portal. Accrual, invoicing and settlement are now built on
+  `claude/partner-gaps`, in a module and a table of their own, and they stay
+  dormant until a founder sets a rate.
+
 Made here, with rationale:
 
 * **Broadcast delivery reuses the durable-outbox shape**, not a new mechanism.
@@ -261,7 +268,11 @@ constant; no landing test harness exists and none is introduced here.
 
 ## Out of scope
 
-* Payout pricing, accrual computation, Stripe/ACH rails (group G).
+* Payout pricing, accrual computation, Stripe/ACH rails (group G). NO LONGER
+  TRUE: group G scoped health-system payouts back out, so this deferral pointed
+  at nobody. The rail is built on `claude/partner-gaps`. Pricing itself is still
+  out of scope here, and deliberately so: the rate is a founder decision and
+  defaults to zero.
 * De-identification tooling for partners who cannot de-identify (explicitly
   deferred in the meeting).
 * Calendly booking webhooks and auto calendar invites (the link with prefill
