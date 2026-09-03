@@ -20,6 +20,7 @@ from typing import Any, Dict, Optional
 import jwt
 from fastapi import Depends, Header, HTTPException
 
+import realm as _realm
 from asclepius import capabilities as _caps
 from asclepius.store import AsclepiusStore, get_store, verify_password
 
@@ -80,6 +81,8 @@ def create_token(user: Dict[str, Any]) -> str:
         "iat": _epoch_utc(now),
         "exp": expire,
     }
+    # Sandbox PRD §1.3: a token is born in a realm and only ever works there.
+    _realm.stamp(payload)
     return jwt.encode(payload, get_asclepius_secret(), algorithm=ALGORITHM)
 
 
@@ -112,6 +115,7 @@ def create_media_ticket(user: Dict[str, Any], *, slot: str) -> str:
         "iat": _epoch_utc(now),
         "exp": now + timedelta(minutes=MEDIA_TICKET_TTL_MINUTES),
     }
+    _realm.stamp(payload)
     return jwt.encode(payload, get_asclepius_secret(), algorithm=ALGORITHM)
 
 
@@ -126,6 +130,8 @@ def decode_media_ticket(ticket: str, *, slot: str) -> Optional[str]:
     # Both checks matter: ``typ`` stops a session token being used as a ticket
     # (and vice versa), and ``slot`` stops a ticket for one asset opening another.
     if payload.get("typ") != "asclepius_media" or payload.get("slot") != slot:
+        return None
+    if not _realm.token_matches(payload):
         return None
     return payload.get("sub") or None
 
@@ -366,6 +372,12 @@ def get_current_user_optional(
         return None
     payload = decode_token(token)
     if not payload:
+        return None
+    # Sandbox PRD §1.3 / §6.2: the token's realm must be the realm this request
+    # runs in. The middleware routes on the claim, so this is belt-and-braces —
+    # but it is the check that makes "a sandbox token can never touch live
+    # stores" true even for a request that reached here some other way.
+    if not _realm.token_matches(payload):
         return None
     user = get_store().get_user_by_id(payload.get("sub", ""))
     if not user or not user.get("active"):

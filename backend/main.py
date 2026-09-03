@@ -183,6 +183,13 @@ from audit.middleware import AuditMiddleware  # noqa: E402
 
 app.add_middleware(AuditMiddleware)
 
+# Sandbox PRD §1.3: the realm is decided ONCE per request, here, from the
+# token's claim (or the header on unauthenticated entry points), and every
+# store accessor reads it from the ContextVar this sets. Added right after the
+# audit layer so it wraps the route handler and the background tasks that run
+# inside the response, and nothing else.
+app.add_middleware(_realm.RealmMiddleware)
+
 # CORS restricted to an explicit origin allowlist (PRD-2). Wildcard origins with
 # credentials are invalid + unsafe; the landing app's origin must be allowlisted
 # in production via ALLOWED_ORIGINS. The product's own https domains
@@ -194,7 +201,9 @@ app.add_middleware(
     allow_origin_regex=allowed_origin_regex(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Patient-Session", "X-Admin-Token"],
+    allow_headers=["Authorization", "Content-Type", "X-Patient-Session", "X-Admin-Token",
+                   # Sandbox PRD §1.3 — the landing app sends the realm on login.
+                   "X-Asclepius-Realm"],
     # A custom RESPONSE header is invisible to cross-origin JS unless it is
     # exposed. The Asclepius portal is same-origin with this app today, so the
     # gate header reads fine either way — but if the portal is ever served from
@@ -2774,6 +2783,60 @@ async def asclepius_portal():
         1,
     )
     return HTMLResponse(content=shell)
+
+
+# ─── Sandbox PRD §1.3 — the sandbox UI is the SAME HTML, tagged ──────────────
+#
+# ``/sandbox/asclepius``, ``/sandbox/admin``, ``/sandbox/provider``,
+# ``/sandbox/buyer`` and ``/sandbox/community`` serve the identical shells the
+# live routes serve, with one line injected: ``window.__REALM = 'sandbox'``.
+# The page JS sends ``X-Asclepius-Realm`` from that and keys its stored token
+# as ``asclepius_token_sandbox``, so a live and a sandbox session coexist in
+# one browser. The middleware 404s every ``/sandbox/*`` path while the realm is
+# dark (``ASCLEPIUS_SANDBOX_ADMIN_PASSWORD`` unset), and this guard repeats it
+# so the pages cannot be reached by a route the middleware did not see.
+_SANDBOX_SHELL_TAG = "<script>window.__REALM='sandbox';</script>"
+
+
+def _sandbox_shell(html: str) -> HTMLResponse:
+    if not _realm.enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    # After <head> so it runs before every deferred module reads window.__REALM.
+    if "<head>" in html:
+        html = html.replace("<head>", "<head>\n  " + _SANDBOX_SHELL_TAG, 1)
+    else:  # pragma: no cover — every shell has a <head>
+        html = _SANDBOX_SHELL_TAG + html
+    return HTMLResponse(content=html)
+
+
+@app.get("/sandbox/asclepius", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/sandbox/admin", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_asclepius_portal():
+    """The sandbox evaluation portal AND the sandbox admin console: the admin
+    console lives inside the Asclepius shell (Admin console tab), so both
+    aliases serve it. ``/sandbox/admin`` is the address the PRD hands out."""
+    resp = await asclepius_portal()
+    return _sandbox_shell(resp.body.decode("utf-8"))
+
+
+@app.get("/sandbox/provider", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_provider_portal():
+    resp = await data_provider_portal()
+    return _sandbox_shell(resp.body.decode("utf-8"))
+
+
+@app.get("/sandbox/buyer", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/sandbox/workspace", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_buyer_portal():
+    resp = await buyer_workspace_portal()
+    return _sandbox_shell(resp.body.decode("utf-8"))
+
+
+@app.get("/sandbox/community", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_community_page():
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/community.html")
+    with open(html_path) as f:
+        return _sandbox_shell(f.read())
 
 
 @app.get("/asclepius/env/annotate", response_class=HTMLResponse)

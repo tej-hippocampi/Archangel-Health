@@ -20,6 +20,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 
 from token_revocation import is_revoked
+import realm as _realm
 
 # ─── Config ──────────────────────────────────────────────────
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
@@ -91,6 +92,7 @@ def _verify_password(plain: str, hashed: str) -> bool:
 def _create_token(sub: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {"sub": sub, "exp": expire, "jti": uuid.uuid4().hex}
+    _realm.stamp(payload)  # Sandbox PRD §1.3
     return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
 
 
@@ -100,6 +102,8 @@ def _decode_token(token: str) -> Optional[str]:
     except jwt.PyJWTError:
         return None
     if is_revoked(payload.get("jti")):
+        return None
+    if not _realm.token_matches(payload):  # Sandbox PRD §1.3 / §6.2
         return None
     return payload.get("sub")
 
