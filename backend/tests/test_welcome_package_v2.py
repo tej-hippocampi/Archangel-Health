@@ -749,6 +749,53 @@ def test_the_tutorial_is_exempt_from_the_first_run_gate():
     assert r.status_code != 409, r.text
 
 
+def test_the_409_leads_somewhere_rather_than_dead_ending():
+    """A refusal the client cannot act on is a broken product, not a gate.
+
+    The server names the one thing left to do; without this the 409 fell into
+    `/tasks/next`'s generic catch and rendered "Could not load the next task" —
+    a dead end for a physician who has done nothing wrong, and the exact failure
+    the practice gate's 403 was shaped to avoid.
+    """
+    js = _PORTAL_JS.read_text(encoding="utf-8")
+    handler = js[js.index("const data = await api('/tasks/next"):]
+    handler = handler[:handler.index("function renderEvalEmpty()")]
+    # Comments stripped first: this asserts an ordering in the CODE, and the
+    # comment explaining the branch naturally quotes the string it exists to
+    # avoid rendering.
+    handler = re.sub(r"//[^\n]*", "", handler)
+    assert "e.detail.error === 'first_run_incomplete'" in handler
+    assert "resumeFirstRun();" in handler
+    # And it is handled BEFORE the generic error card, or it never runs.
+    assert handler.index("first_run_incomplete") < handler.index("Could not load the next task")
+
+
+def test_close_first_run_stop_refuses_any_outcome_but_done():
+    """`_close_first_run_stop` is the monotonic `done` writer, and nothing else.
+
+    A defer arriving here would skip the required-stop check that lives on the
+    endpoint — which is the one thing standing between a client that invents a
+    skip button and a physician who never does the practice case. Refused
+    loudly rather than written, so a future caller cannot reopen §1's hole by
+    passing a different string.
+    """
+    import routers.asclepius as router  # noqa: PLC0415
+
+    store = fresh_store()
+    user = make_user(store)
+    with pytest.raises(ValueError):
+        router._close_first_run_stop(store, user["id"], "community", fr.DEFERRED)
+    assert store.get_first_run(user["id"])["stops"] == {}, "the refusal still wrote"
+
+
+def test_the_cadence_threshold_is_named_on_both_sides():
+    """The number that decides "ask twice, then go quiet" is a decision, not a
+    literal — and it lives in two languages, so it is named in both."""
+    js = _FIRST_RUN_JS.read_text(encoding="utf-8")
+    assert "var REENTRY_THROUGH_SESSION = %d;" % fr.REENTRY_THROUGH_SESSION in js
+    assert "sessionsSeen(user) <= REENTRY_THROUGH_SESSION" in js
+
+
 def test_the_gate_never_locks_out_an_account_with_no_walkthrough_state():
     """The lockout this gate is shaped to avoid, part one.
 
@@ -860,3 +907,44 @@ def test_the_session_clock_does_not_run_for_non_physicians():
     for _ in range(3):
         c.get("/api/asclepius/auth/me", headers=headers_for(admin))
     assert store.get_first_run(admin["id"])["last_session_counted"] is None
+
+
+def test_the_banner_actually_renders_what_section_4_3_specifies():
+    """Source-grepping a factory proves it was written, not that it works.
+
+    This executes `firstRunBannerEl` against the DOM shim and asserts the thing
+    §4.3 draws:
+
+        ●●●●○○  Onboarding · 4 of 6     Payouts · Manual remaining
+                                             [ Finish onboarding ]
+    """
+    portal = _PORTAL_JS.read_text(encoding="utf-8")
+    start = portal.index("function firstRunBannerEl()")
+    factory = portal[start:portal.index('/** "Finish setup', start)]
+    out = _run_node(_ctx(user={
+        "role": "evaluator",
+        "first_run": {"version": _VERSION, "sessions_seen": 7,
+                      "stops": dict(_REQUIRED_DONE, community="done")},
+    }) + """
+      var state = { user: USER };
+      %s
+      var el = firstRunBannerEl();
+      console.log(JSON.stringify({
+        dots: find(el, 'asc-fr-banner-dot').length,
+        filled: find(el, 'asc-fr-banner-dot').filter(function (d) {
+          return d.classList.contains('is-done'); }).length,
+        count: textOf(find(el, 'asc-fr-banner-count')[0]).trim(),
+        rest: textOf(find(el, 'asc-fr-banner-rest')[0]).trim(),
+        buttons: find(el, 'asc-btn-primary').map(function (b) { return textOf(b).trim(); }),
+        role: el.getAttribute('role'),
+      }));
+    """ % factory.replace("openFirstRunReentry()", "0"))
+    # Six dots, four filled — a glance, not a percentage to do arithmetic on.
+    assert out["dots"] == 6 and out["filled"] == 4
+    assert out["count"] == "Onboarding · 4 of 6"
+    assert out["rest"] == "Payouts · Manual remaining"
+    # One button, and it is the only way in. No dismissal anywhere on the card.
+    assert out["buttons"] == ["Finish onboarding"]
+    # A region, never an alert: it must not steal focus or interrupt a screen
+    # reader mid-sentence. It is the "quiet" §3 asks for.
+    assert out["role"] == "region"

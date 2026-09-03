@@ -94,6 +94,12 @@
   var DONE = 'done';
   var DEFERRED = 'deferred';
 
+  /** Logins 2 and 3 get the re-entry page; the 4th onwards gets the banner.
+   *  Mirrors REENTRY_THROUGH_SESSION in asclepius/first_run.py — named on both
+   *  sides so the number is a decision in two places rather than a literal in
+   *  one of them. The suite pins the two cadences against each other. */
+  var REENTRY_THROUGH_SESSION = 3;
+
   /* ── Live state. Torn down on exit; nothing survives a sign-out. ── */
   var ctx = null;          // { h, api, toast, onUser, startTutorial, openCommunity, setPanel, exit }
   var stops = {};          // { stopId: 'done' | 'deferred' }
@@ -908,7 +914,7 @@
       if (reqOpen) return 'walkthrough';
       var optLeft = OPTIONAL.some(function (id) { return s[id] !== DONE; });
       if (!optLeft) return 'none';
-      return sessionsSeen(user) <= 3 ? 'reentry' : 'banner';
+      return sessionsSeen(user) <= REENTRY_THROUGH_SESSION ? 'reentry' : 'banner';
     },
 
     /** How far along, for the dashboard chip and the banner's six dots.

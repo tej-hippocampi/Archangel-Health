@@ -2300,6 +2300,15 @@
       }
       renderTaskWorkspace();
     } catch (e) {
+      // Welcome package v2 §5: the required stops are enforced on the SERVER, and
+      // its refusal names the one thing left to do. Send them there rather than
+      // rendering "Could not load the next task", which is a dead end for a
+      // physician who has done nothing wrong — the same reason the practice
+      // gate's 403 renders a card with an action instead of an error string.
+      if (e.status === 409 && e.detail && e.detail.error === 'first_run_incomplete') {
+        resumeFirstRun();
+        return;
+      }
       if (e.status !== 401) {
         setRoot(h('div', { class: 'asc-wrap' },
           h('div', { class: 'asc-card asc-card-pad' },

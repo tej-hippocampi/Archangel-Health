@@ -1221,15 +1221,22 @@ def _close_first_run_stop(store: Any, user_id: str, stop: str, outcome: str) -> 
 
     Welcome package v2 §1 narrowed this to ``done`` only. ``deferred`` is the
     other outcome now and it is deliberately NOT monotonic — it is rewritten on
-    every session that asks — so it goes through ``_defer_first_run_stop``
+    every session that asks — so it goes through ``_defer_first_run_stops``
     instead. Keeping one function for both would have meant one of the two rules
     quietly losing.
+
+    ``outcome`` is accepted for call-site readability and is always ``done``;
+    anything else is a caller that means ``_defer_first_run_stops`` and is
+    refused rather than written, because a defer arriving here would skip the
+    required-stop check that lives on the endpoint.
     """
     state = store.get_first_run(user_id)
     stops = dict(state.get("stops") or {})
+    if outcome != asc_first_run.DONE:
+        raise ValueError(f"_close_first_run_stop records 'done', not {outcome!r}")
     if stops.get(stop) == asc_first_run.DONE:
         return
-    stops[stop] = asc_first_run.DONE if outcome == asc_first_run.DONE else outcome
+    stops[stop] = asc_first_run.DONE
     state["stops"] = stops
     if not state.get("completed_at") and asc_first_run.is_complete(stops):
         state["completed_at"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
