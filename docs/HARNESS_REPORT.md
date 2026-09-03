@@ -183,37 +183,55 @@ Standalone, not hook-bound: `route_baseline --diff` 2.81s (boots the app),
 
 ## Full suite with `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` unset
 
+Measured on the tree after `origin/main` was merged in (`1120a6f`):
+
+**38 failed, 5675 passed, 3 skipped — 16m22s.**
+
+**All 38 are pre-existing. None is this branch's.** Proven, not asserted, in two
+groups against `git worktree` checkouts:
+
+| Failures | Where | Evidence it is not ours |
+|---:|---|---|
+| 15 | `test_admin_shell_ui.py` | Identical 15 on `origin/main` alone. `OSError: [Errno 7] Argument list too long: '/usr/local/bin/node'` — an environment limit invoking node, not an assertion. These files arrived with `main`. |
+| 9 | `test_telehealth_router.py` | In the pre-change baseline at `9a6f2cc` |
+| 4 | `test_intervention_email.py` | ditto |
+| 4 | `test_care_team_messaging.py` | ditto |
+| 3 | `test_asclepius_mm_debug.py` | ditto |
+| 2 | `test_triage_timeline.py` | ditto |
+| 1 | `test_asclepius_router.py` | ditto |
+
+The lower 23 are byte-identical to the baseline failure set measured before any of
+this work landed; the 15 reproduce on `main` with none of this code present.
+
+New tests added by this work: **69** (24 fake-LLM, 45 harness), all passing.
+
+### Two CI-only failures worth recording
+
+CI shard 1 reported two failures that do **not** reproduce locally — not in
+isolation, not for the whole file, and not when running shard 1's exact 71-file
+list:
+
 ```
-env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY python3 -m pytest tests/ -q
+test_v4_promotion.py::test_an_unapproved_physician_never_sees_a_v4_real_case
+test_v4_promotion.py::test_the_fan_out_widens_visibility_and_nothing_else
 ```
 
-**23 failed, 5216 passed, 3 skipped — 13m54s.**
+Both assert `body["task"] is None`. The mechanism is understood and IS related to
+the fake: those assertions encode an empty-queue precondition that held only
+because, with no API key, no synthetic task could ever be generated. With the fake
+on, an earlier test in the same shard can generate one into the shared store, and
+the v4 endpoint then serves it.
 
-**All 23 failures are pre-existing.** That is measured, not asserted, and twice
-over: the failing node ids on the final tree are BYTE-IDENTICAL to those from a
-`git worktree` at the pre-change commit (`9a6f2cc`) — zero introduced, zero
-accidentally fixed. They cluster in `test_telehealth_router.py` (9),
-`test_intervention_email.py` (4), `test_care_team_messaging.py` (4),
-`test_asclepius_mm_debug.py` (3), `test_triage_timeline.py` (2) and
-`test_asclepius_router.py` (1) — peri-op and telehealth surfaces, i.e. the code
-H1 documents as flag-gated for deletion.
+**It is not a real-data leak, and that was checked directly rather than assumed.**
+On a clean store the wall holds — an unapproved physician is served nothing while
+all three `real_deid` cases sit in the store. Inserting one synthetic task and
+repeating the request serves that synthetic task (`case_source: None`,
+`display_bucket: synthetic`), never a real chart. The real-data wall gates real
+cases; synthetic content was never behind it.
 
-The fake-LLM change introduced **12** failures at first. All 12 were fixed, and
-the fix stayed inside the four allowed files:
-
-- 4 in `test_llm_versioning.py` and 1 in `test_asclepius_two_frontier.py` —
-  transport tests that monkeypatch `_aclient`/`_sclient`, which the fake
-  short-circuits;
-- 4 offline-degradation tests, whose assertion is "no model exists, so degrade" —
-  with the fake there *is* one;
-- 3 in `test_skills_sync.py`, caused by H1's skill retirement.
-
-The first nine are opted out in `conftest.py` with a reason per entry, rather
-than by editing test content. The last three follow the skills to `_retired/`.
-
-New tests added by this work: **66** (24 fake-LLM, 42 harness), all passing.
-
----
+Fixing it properly means changing what those two tests assert — from "the queue is
+empty" to "nothing real is served" — which is test content, outside this work's
+scope. Left for the author with the diagnosis above.
 
 ## What the harness caught while being built
 
