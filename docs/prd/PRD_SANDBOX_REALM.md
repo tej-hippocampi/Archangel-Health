@@ -18,7 +18,7 @@ Verified against `Archangel-Health-main (32)`.
 
 ## §0 Why isolation must be a boundary, not a filter
 
-The existing mock concept (`auth.py:590-653`, `store.py:5373 mock_annotator_id_hashes`)
+The existing mock concept (`auth.py:590-653`, `asclepius/store.py:6366 mock_annotator_id_hashes`)
 works by *filtering mock hashes out* — in 30 call sites across 7 files. That is an
 allow-list: every new query that forgets the filter leaks. The sandbox uses the
 opposite mechanism: **sandbox rows live in different files.** The real admin opens
@@ -50,7 +50,7 @@ realms — so production and sandbox can't drift in config, which is the point.
 
 ### 1.2 Store selection becomes per-realm — four stores, one pattern, one trap
 
-`store.py:14060 get_store()` (29 call sites, all through this function or the routers'
+`asclepius/store.py:15727 get_store()` (29 call sites, all through this function or the routers'
 `_store()` wrappers at `asclepius.py:189`, `asclepius_admin.py:48`):
 ```python
 _STORES: Dict[str, AsclepiusStore] = {}
@@ -81,7 +81,7 @@ _team_store = _RealmTeamStore()
 app.state.team_store = _team_store
 ```
 with `team_store.get_team_store(realm)` keeping one `TeamStore` per realm
-(`team_store.py:4883` already has a `_STORE` singleton to generalize). Every
+(`team_store.py:4991` keys `_STORE`S per realm; it was a single pin before this PRD). Every
 existing `_team_store.foo()` call resolves the realm at call time. The same proxy
 pattern replaces `llm_client._event_store`, so sandbox AI-call telemetry lands in
 the sandbox team DB. A test asserts no module in `backend/` (outside `_retired`
@@ -110,7 +110,7 @@ and flag-gated legacy) instantiates `TeamStore()`, `AsclepiusStore()`, or
   because the live DB has no such user. That asymmetry is the design: a sandbox
   account cannot land in live, and a real doctor cannot stumble into the sandbox.
   The sandbox admin's Accounts tab links carry the param so it is never typed.
-- **Token**: `auth.create_token` (`auth.py:67`) adds claim `realm`. Middleware sets
+- **Token**: `auth.create_token` (`asclepius/auth.py:85`, the `realm` stamp) adds claim `realm`. Middleware sets
   the context var from the token claim; the header is consulted only on unauthenticated
   entry points. **A token's realm always wins over the header** — a sandbox token can
   never touch live stores, and vice versa; mismatch is a 401 `realm_mismatch`.
@@ -123,7 +123,7 @@ and flag-gated legacy) instantiates `TeamStore()`, `AsclepiusStore()`, or
 ### 1.4 Realm-aware side effects (the four seams)
 | Seam | Live | Sandbox |
 |---|---|---|
-| Email `send_html_email` (`email_utils.py:97`) | SendGrid | write to `sandbox_outbox` table (to, subject, html, extracted OTP/links); never sends |
+| Email `send_html_email` (`email_utils.py:192`) | SendGrid | write to `sandbox_outbox` table (to, subject, html, extracted OTP/links); never sends |
 | Payments `mark_paid` / Stripe (future) | real | 403 `sandbox_no_disbursement`; ledger accrues/approves normally so payout *logic* is testable |
 | Buyer deliveries / `Export + send` | real | export builds; delivery creation 403; bundle filename and datasheet stamped `SANDBOX — not a deliverable` |
 | Community `u-system` posts, digests | real | run, into the sandbox community DB |
@@ -219,7 +219,7 @@ real one if a file is ever moved.
 
 ---
 
-## §6 Invariants and the leak test
+## §6 Design invariants and the leak test
 
 1. **No shared table.** A test opens both realms' DBs and asserts disjoint file
    paths for all four stores.
