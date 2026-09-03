@@ -20,7 +20,11 @@
 
   let rootEl = null;
   let rootCtx = null;
+  let commitmentsEl = null;
   const filters = { case_id: '', specialty: '', version: '' };
+  // Licensing terms for the NEXT cut (audit U5). Kept out of `filters` because
+  // they do not narrow the slice, they say what we are promising about it.
+  const licence = { licensed_to: '', exclusive: false, expires_at: '' };
 
   function render(body, ctx) {
     rootEl = body; rootCtx = ctx;
@@ -40,6 +44,17 @@
     const exportBtn = h('button', { class: 'asc-btn asc-btn-primary', disabled: '' }, 'Export bundle');
     const statusBox = h('div', {});
 
+    // Licensing sits in the same card as the filters and above the button, so the
+    // terms are decided while the slice is, not remembered afterwards.
+    const buyerInput = h('input', { class: 'asc-input', placeholder: 'buyer email or account key', value: licence.licensed_to });
+    const exclusiveBox = h('input', { type: 'checkbox', class: 'asc-checkbox' });
+    exclusiveBox.checked = licence.exclusive;
+    const expiryInput = h('input', { class: 'asc-input', type: 'date', value: licence.expires_at });
+    const licenceNote = h('div', { class: 'asc-dim' },
+      'Exclusive means these exact records cannot go to anyone else until the ' +
+      'commitment is released or expires. Leave it off for an ordinary ' +
+      'non-exclusive sale, which is the default and blocks nothing.');
+
     const card = h('div', { class: 'asc-card' },
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Export by case'),
@@ -51,9 +66,29 @@
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Case ID'), caseInput),
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), specSelect),
           h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Version'), verSelect)),
+        h('div', { class: 'asc-form-row-3' },
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Licensed to'), buyerInput),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Exclusive'),
+            h('label', { class: 'asc-checkbox-row' }, exclusiveBox,
+              h('span', {}, 'Sold exclusively to this buyer'))),
+          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Exclusive until'), expiryInput)),
+        licenceNote,
         previewBox,
         exportBtn, statusBox));
     body.appendChild(card);
+
+    const onLicenceChange = () => {
+      licence.licensed_to = buyerInput.value.trim();
+      licence.exclusive = exclusiveBox.checked;
+      licence.expires_at = expiryInput.value;
+    };
+    buyerInput.addEventListener('input', onLicenceChange);
+    exclusiveBox.addEventListener('change', onLicenceChange);
+    expiryInput.addEventListener('change', onLicenceChange);
+
+    commitmentsEl = h('div', {});
+    body.appendChild(commitmentsEl);
+    refreshCommitments(ctx, commitmentsEl);
 
     // Filter changes re-preview (the preview is the safety mechanism — it must
     // always reflect the CURRENT filters before the button does anything).
@@ -134,6 +169,9 @@
         case_id: filters.case_id || null,
         specialty: filters.specialty || null,
         version: filters.version || null,
+        licensed_to: licence.licensed_to || null,
+        exclusive: !!licence.exclusive,
+        license_expires_at: licence.expires_at || null,
       } });
       const bundles = (res.exports && res.exports.length)
         ? res.exports
@@ -151,12 +189,103 @@
           downloadBlob('/exports/' + b.export_id + '/download', label));
         statusBox.appendChild(dlBtn);
       });
+      if (res.licensing) {
+        statusBox.appendChild(h('div', { class: 'asc-dim', style: 'margin-top:8px' },
+          (res.licensing.exclusivity === 'exclusive' ? 'Exclusive' : 'Non-exclusive')
+          + ' licence ' + res.licensing.license_id + ' to ' + res.licensing.licensed_to
+          + (res.licensing.expires_at ? ', until ' + res.licensing.expires_at : '') + '.'));
+      }
+      // A cut that just took records off the market has to show that in the same
+      // breath, or the register on screen is already wrong.
+      if (commitmentsEl && rootCtx) refreshCommitments(rootCtx, commitmentsEl);
     } catch (e) {
+      // A 409 here is the exclusivity refusal, and its message names the licence
+      // that blocked the cut. Shown in full: "export failed" would send the
+      // operator hunting for a bug instead of to a contract.
       statusBox.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Export failed.'));
     } finally {
       exportBtn.textContent = 'Export bundle';
       exportBtn.removeAttribute('disabled');
     }
+  }
+
+  // ─── Exclusive commitments (audit U5) ──────────────────────────────────────
+  async function refreshCommitments(ctx, box) {
+    const { h, api, clear } = ctx;
+    clear(box);
+    let data;
+    try {
+      data = await api('/admin/export/exclusivity');
+    } catch (e) {
+      box.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-inline-error' },
+            e.message || 'Could not load exclusive commitments.'))));
+      return;
+    }
+    const active = data.active || [];
+    const ended = data.ended || [];
+    const pad = h('div', { class: 'asc-card-pad' });
+    if (!active.length) {
+      pad.appendChild(h('div', { class: 'asc-empty' },
+        'Nothing is committed exclusively. Every record is free to sell.'));
+    } else {
+      const table = h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {},
+          h('th', {}, 'Buyer'), h('th', {}, 'Records'), h('th', {}, 'Cases'),
+          h('th', {}, 'Until'), h('th', {}, 'Licence'), h('th', {}, ''))));
+      const tbody = h('tbody', {});
+      active.forEach((lic) => {
+        const relBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm' }, 'Release');
+        relBtn.addEventListener('click', () => releaseCommitment(ctx, box, lic, relBtn));
+        tbody.appendChild(h('tr', {},
+          h('td', {}, h('span', { class: 'asc-badge asc-badge-lime' }, 'Exclusive'),
+            h('span', {}, ' ' + lic.buyer)),
+          h('td', {}, String(lic.record_count || 0)),
+          h('td', {}, String(lic.case_count || 0)),
+          h('td', {}, lic.expires_at || 'No end date'),
+          h('td', {}, h('span', { class: 'asc-tag' }, lic.license_id)),
+          h('td', {}, relBtn)));
+      });
+      table.appendChild(tbody);
+      pad.appendChild(table);
+      pad.appendChild(h('div', { class: 'asc-dim', style: 'margin-top:10px' },
+        String(data.committed_record_count || 0) + ' record'
+        + ((data.committed_record_count === 1) ? '' : 's')
+        + ' cannot be sold to anyone else while these stand.'));
+    }
+    if (ended.length) {
+      pad.appendChild(h('div', { class: 'asc-dim', style: 'margin-top:10px' },
+        String(ended.length) + ' ended commitment'
+        + (ended.length === 1 ? '' : 's') + ' kept on record: '
+        + ended.map((l) => l.buyer + ' (' + l.license_id + ')').join(', ') + '.'));
+    }
+    box.appendChild(h('div', { class: 'asc-card', style: 'margin-top:16px' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Exclusive commitments'),
+        h('div', { class: 'asc-card-sub' },
+          'What we have promised to one buyer and cannot sell again. An export ' +
+          'that overlaps any of these is refused and names the licence.'))),
+      pad));
+  }
+
+  async function releaseCommitment(ctx, box, lic, btn) {
+    const { api, toast } = ctx;
+    const ok = window.confirm(
+      'Release the exclusive commitment to ' + lic.buyer + '? '
+      + (lic.record_count || 0) + ' record(s) become sellable to anyone again. '
+      + 'Do this only when the agreement actually allows it.');
+    if (!ok) return;
+    btn.setAttribute('disabled', '');
+    btn.textContent = 'Releasing…';
+    try {
+      await api('/admin/export/exclusivity/' + lic.license_id + '/release',
+        { method: 'POST', body: { reason: 'Released from the admin export view' } });
+      toast('Released: ' + (lic.record_count || 0) + ' record(s) freed.', 'success');
+    } catch (e) {
+      toast(e.message || 'Could not release that commitment.', 'error');
+    }
+    refreshCommitments(ctx, box);
   }
 
   window.AdminExportSection = { render, reset() { /* filters persist intentionally */ } };
