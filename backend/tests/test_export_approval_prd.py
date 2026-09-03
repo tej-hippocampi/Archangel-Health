@@ -1303,6 +1303,67 @@ def test_the_banner_does_not_cry_data_loss_over_a_recreatable_bundle():
     assert "Nothing irreplaceable is at risk" in banner
 
 
+def test_the_durability_probe_answers_instead_of_raising(monkeypatch, tmp_path):
+    """A path the process CANNOT CREATE must still get a verdict.
+
+    ``export_storage_durable`` resolved its path through ``export_root()``, which
+    mkdirs. So probing an unmounted ``/data`` on a non-root runner raised
+    ``PermissionError`` instead of returning the answer the check exists to give,
+    and the endpoint reported ``durable: false, "durability check raised: …"``.
+
+    That is not the same claim as "this path is ephemeral". One says the export
+    store is being wiped on every deploy; the other says we could not tell. The
+    storage banner is built so an operator can act on the difference, and a probe
+    that collapses them teaches them to distrust both.
+
+    Simulated by pointing at a directory under a file, which is uncreatable for
+    every user including root — the CI failure was the same OSError reached by the
+    other common route (a non-root process and an absent ``/data``).
+    """
+    from asclepius import export as asc_export
+
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("i am a file")
+    monkeypatch.setenv("ASCLEPIUS_EXPORT_DIR", str(blocker / "exports"))
+    monkeypatch.setenv("RAILWAY_VOLUME_MOUNT_PATH", str(tmp_path))
+
+    ok, detail = asc_export.export_storage_durable()   # must not raise
+    assert isinstance(ok, bool), detail
+    assert "durability check raised" not in detail
+
+
+def test_the_durability_probe_creates_nothing(monkeypatch, tmp_path):
+    """A read-only question must not have a filesystem side effect.
+
+    Asserted separately from the verdict because it is the property that makes the
+    probe safe to call on every admin render — which is exactly what
+    ``/storage/durability`` was split out of ``/storage/reconcile`` to allow.
+    """
+    from asclepius import export as asc_export
+
+    target = tmp_path / "volume" / "asclepius-exports"
+    monkeypatch.setenv("ASCLEPIUS_EXPORT_DIR", str(target))
+    monkeypatch.setenv("RAILWAY_VOLUME_MOUNT_PATH", str(tmp_path / "volume"))
+    asc_export.export_storage_durable()
+    assert not target.exists(), "the durability probe created the directory it probed"
+
+
+def test_export_root_still_creates_the_directory(monkeypatch, tmp_path):
+    """The other half of the split: the WRITER must keep its mkdir.
+
+    ``build_export`` writes straight into ``export_root()``, so a fix that made the
+    probe read-only by making the writer read-only too would turn a false alarm
+    into a failed export.
+    """
+    from asclepius import export as asc_export
+
+    target = tmp_path / "made" / "deep"
+    monkeypatch.setenv("ASCLEPIUS_EXPORT_DIR", str(target))
+    root = asc_export.export_root()
+    assert root.is_dir()
+    assert root.stat().st_mode & 0o777 == 0o700
+
+
 def test_the_durability_endpoint_needs_an_admin():
     assert client.get("/api/asclepius/admin/storage/durability").status_code in (401, 403)
 

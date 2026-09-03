@@ -69,7 +69,34 @@ class ExportValidationError(ValueError):
     rejected wholesale (opt §2: no partial silent exports)."""
 
 
+def _export_root_path() -> Path:
+    """The configured export dir, made absolute WITHOUT creating or resolving it.
+
+    ``export_root`` adds the ``mkdir`` (and ``.resolve()``) for real filesystem use.
+    A durability *check* must do neither, for the two reasons
+    ``ingestion._ingest_root_path`` already spells out and this module had not
+    learned:
+
+      * **mkdir** turns "not durable" into an exception. Probing a path the
+        process cannot create — an unmounted ``/data`` on a non-root runner, a
+        root-owned ``/run`` — raises ``PermissionError`` instead of returning the
+        very answer the check exists to give. The endpoint catches it and reports
+        ``durable: false, "durability check raised: …"``, which is a DIFFERENT
+        claim from "this path is ephemeral": one says the export store will be
+        wiped, the other says we could not tell. The storage banner exists so an
+        operator can trust that difference.
+      * **resolve** rewrites a path through its symlinks, so ``/tmp`` on a system
+        where it links elsewhere no longer matches the ephemeral prefix list and
+        the check silently misses. The default here IS ``/tmp/asclepius-exports``,
+        so that is the one path this probe must never fail to recognise.
+    """
+    return Path(os.path.abspath(
+        os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports"))
+
+
 def export_root() -> Path:
+    """The export dir, created and ready to write into. Real filesystem use only —
+    a durability check wants ``_export_root_path`` instead."""
     root = Path(os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports").resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
@@ -96,7 +123,8 @@ def export_storage_durable() -> tuple:
     )
 
     configured = (os.getenv("ASCLEPIUS_EXPORT_DIR") or "").strip()
-    path = str(export_root())
+    # NOT ``export_root()`` — see ``_export_root_path``. This is a read-only probe.
+    path = str(_export_root_path())
     if not configured:
         return False, (
             f"ASCLEPIUS_EXPORT_DIR is not set, so built bundles land in {path} "
