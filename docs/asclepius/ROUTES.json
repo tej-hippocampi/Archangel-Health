@@ -1,5 +1,5 @@
 {
-  "count": 624,
+  "count": 626,
   "routes": [
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
     "DELETE /api/asclepius/me/avatar",
@@ -183,6 +183,7 @@
     "GET /api/community/events/{event_id}/calendar.ics",
     "GET /api/community/me",
     "GET /api/community/members",
+    "GET /api/community/members/{user_id}",
     "GET /api/community/messages/{message_id}/thread",
     "GET /api/community/persona/avatar",
     "GET /api/community/prefs",
@@ -270,6 +271,7 @@
     "GET /doctor/app",
     "GET /doctor/patient/{patient_id}",
     "GET /doctor/sign-in",
+    "GET /healthz",
     "GET /internal/community/status",
     "GET /internal/email-template-preview",
     "GET /internal/prompt-lab",

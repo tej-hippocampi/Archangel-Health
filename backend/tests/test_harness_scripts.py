@@ -474,3 +474,49 @@ def test_the_edit_matcher_covers_both_edit_and_write():
     settings = json.loads((BACKEND.parent / ".claude" / "settings.json").read_text())
     matchers = [e["matcher"] for e in settings["hooks"]["PostToolUse"]]
     assert any("Edit" in m and "Write" in m for m in matchers), matchers
+
+
+# ─── Fake LLM PRD §2: the stub audit ─────────────────────────────────────────
+
+def test_stub_audit_finds_the_call_llm_stubs():
+    """Guards the guard: if the scan stops finding stubs, the audit would report
+    a clean sheet by finding nothing rather than by there being nothing."""
+    sys.path.insert(0, str(SCRIPTS))
+    import stub_audit
+
+    files = [p for p in (BACKEND / "tests").glob("test_*.py")
+             if stub_audit.STUB_RE.search(p.read_text())]
+    assert len(files) >= 10, f"only {len(files)} files appear to stub call_llm"
+    total = sum(len(stub_audit.stubbing_tests(p)) for p in files)
+    assert total >= 20, f"only {total} stubbing tests found"
+
+
+def test_stub_audit_restores_every_file_it_rewrites():
+    """It edits tests in place to run them. A crash mid-audit that left a
+    neutralised test file behind would silently disable real assertions."""
+    sys.path.insert(0, str(SCRIPTS))
+    import stub_audit
+
+    target = BACKEND / "tests" / "test_asclepius_hardcase.py"
+    before = target.read_text()
+    stub_audit.audit(target)
+    assert target.read_text() == before, "stub_audit did not restore the file"
+    assert not list((BACKEND / "tests").glob("*.stubaudit.bak")), "backup leaked"
+
+
+def test_the_stubs_that_remain_are_all_load_bearing():
+    """Fake LLM PRD §2 asks for the redundant stubs to be deleted. All 27 were
+    audited and none is redundant: every one either fails without its stub, or
+    passes only VACUOUSLY because the stub IS the mechanism under test (a spy
+    asserting no model call, an invented URL that must be dropped, a
+    `javascript:` URL that must not survive, a raise that must be swallowed,
+    deliberately wrong judge keys). This asserts the load-bearing half stays
+    load-bearing, so a stub that later becomes genuinely redundant shows up as a
+    drop in this count rather than going unnoticed."""
+    sys.path.insert(0, str(SCRIPTS))
+    import stub_audit
+
+    target = BACKEND / "tests" / "test_llm_model_constraints.py"
+    fails, passes = stub_audit.audit(target)
+    assert fails, "these stubs supply truncated/unparsable responses; removing them cannot pass"
+    assert not passes, f"a stub here became redundant — re-audit: {passes}"

@@ -147,12 +147,32 @@ config". As a global `addopts` it would be actively harmful: `-x` stops at the
 first failure, and CI shards the suite expecting to see *every* failure in one
 run. It is the documented agent loop command in `AGENTS.md` instead.
 
-**3. The per-file `call_llm` stubs are not deleted.** Fake LLM §2 asks for this.
-27 test modules monkeypatch the client and each needs checking against the
-fixture individually; doing it in this branch would have buried the mechanism in
-a large test diff. Left as a follow-up. The fake is already load-bearing —
-`conftest` sets it suite-wide — so the stubs are now redundant rather than
-harmful.
+**3. The per-file `call_llm` stubs stay — all 27 of them.** Fake LLM §2 asks for
+the stubs the fake now satisfies to be deleted, expecting "most of the 40-odd" to
+go. Audited with `scripts/stub_audit.py`, which strips each stub and runs the test
+against the fake: **none is redundant.**
+
+17 fail outright without their stub. The other 10 pass, but reading each shows the
+pass is VACUOUS — the stub IS the mechanism under test:
+
+| Test | What the stub supplies | Without it |
+|---|---|---|
+| `test_no_results_means_no_model_call_at_all` | a spy list | `assert called == []` is free |
+| `test_a_url_the_search_never_returned_is_dropped` | an invented URL | nothing is invented; the rule is never exercised |
+| `test_a_non_http_url_never_survives` | `javascript:alert(1)` | nothing malicious present; passes for the wrong reason |
+| `test_a_failing_search_never_raises` | a raise | nothing fails; "never raises" is trivially true |
+| `test_wrong_judge_keys_would_drop_documented` | deliberately wrong keys | the fake returns correct ones |
+| `test_ab_slot_randomization_is_balanced` | a constant answer | couples a position-bias test to the fake's fixture choice |
+
+The remaining three candidates are fixtures (`_install_llm`, `searcher`,
+`_mock_llm`) consumed by tests in the load-bearing set.
+
+So the PRD's expectation does not hold for this repo, and the reason is
+structural: before the fake, a call with no key **failed**, so a test either
+stubbed a specific answer or asserted the degraded path. The "generic stub that
+only stops the call erroring" — the kind the fake would replace — was never worth
+writing here, so almost none exist. `scripts/stub_audit.py` is committed so the
+question can be re-answered cheaply as the fake's fixtures grow.
 
 **4. No product code was touched beyond the four allowed files.** `main.py` was
 the natural home for the production boot guard; instead it is invoked at import
