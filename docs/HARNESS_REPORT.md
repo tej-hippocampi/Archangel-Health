@@ -169,16 +169,12 @@ Standalone, not hook-bound: `route_baseline --diff` 2.81s (boots the app),
 env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY python3 -m pytest tests/ -q
 ```
 
-<!-- FINAL-RESULT -->
-_Measurement pending: the confirming run is in flight. The numbers below are from
-the run taken partway through this work and will be replaced by the final one._
+**23 failed, 5216 passed, 3 skipped — 13m54s.**
 
-**35 failed, 5161 passed, 3 skipped — 13m51s**, of which **23 are pre-existing**
-and 12 were introduced and then fixed (see below).
-
-**The 23 are pre-existing and unrelated to this work.** That is measured, not
-asserted: a `git worktree` at the pre-change commit (`9a6f2cc`) produces the same
-23 failures. They cluster in `test_telehealth_router.py` (9),
+**All 23 failures are pre-existing.** That is measured, not asserted, and twice
+over: the failing node ids on the final tree are BYTE-IDENTICAL to those from a
+`git worktree` at the pre-change commit (`9a6f2cc`) — zero introduced, zero
+accidentally fixed. They cluster in `test_telehealth_router.py` (9),
 `test_intervention_email.py` (4), `test_care_team_messaging.py` (4),
 `test_asclepius_mm_debug.py` (3), `test_triage_timeline.py` (2) and
 `test_asclepius_router.py` (1) — peri-op and telehealth surfaces, i.e. the code
