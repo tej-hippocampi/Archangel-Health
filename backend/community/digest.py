@@ -342,6 +342,93 @@ async def run_digest(kind: str) -> Dict[str, Any]:
         return {"ok": False, "kind": kind, "error": str(exc)[:500]}
 
 
+# ─── The daily staff spotlight ───────────────────────────────────────────────
+# One story a day, for the team, in a room members cannot see. Two reasons it
+# is a channel rather than a Slack message or a standup habit: it is where the
+# team is already reading, and it is durable, so "what were we saying about
+# this in March" has an answer.
+#
+# It shares the digest's item pool rather than fetching its own. A second
+# fetcher would double the feed traffic to say the same thing, and the pool is
+# already curated and relevance-scored by the digest's LLM pass.
+SPOTLIGHT_CHANNEL = "team-ai-spotlight"
+SPOTLIGHT_KIND = "spotlight"
+#: A distinct content status, so a story used by the spotlight is not offered
+#: to the news digest tomorrow as though it had never been seen.
+SPOTLIGHT_STATUS = "spotlight"
+
+
+def _spotlight_body(item: Dict[str, Any]) -> str:
+    """The post. One story, said plainly, with the link on a card below."""
+    title = str(item.get("title") or "").strip()
+    summary = str(item.get("summary") or item.get("abstract") or "").strip()
+    lines = ["**Today in medical AI**", "", f"**{title}**"]
+    if summary:
+        lines += ["", summary[:600]]
+    return "\n".join(lines)
+
+
+def _spotlight_card(item: Dict[str, Any]) -> Dict[str, Any]:
+    url = str(item.get("url") or "").strip()
+    from urllib.parse import urlparse  # noqa: PLC0415
+
+    try:
+        host = (urlparse(url).netloc or "").lower()
+    except Exception:  # noqa: BLE001
+        host = ""
+    return {
+        "title": str(item.get("title") or "").strip()[:200],
+        "url": url,
+        "domain": host[4:] if host.startswith("www.") else host,
+        "description": str(item.get("summary") or item.get("abstract") or "").strip()[:400],
+        "meta": str(item.get("source") or "")[:160],
+        "prompt": "",
+    }
+
+
+async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
+    """One story a day into the staff room. Never raises.
+
+    Due-ness rides the same ledger as every other digest kind, which is what
+    makes "one a day regardless of run order" true: whichever of the news
+    digest and the spotlight fires first, the second finds the day's spotlight
+    row already recorded and posts nothing extra.
+    """
+    cstore = get_community_store()
+    now = datetime.utcnow()
+    if not force and not _due(SPOTLIGHT_KIND, now,
+                              cstore.last_successful_run_at(SPOTLIGHT_KIND)):
+        return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "not_due", "posted": 0}
+
+    run_id = cstore.start_digest_run(SPOTLIGHT_KIND)
+    try:
+        pool = cstore.candidate_items_for_spotlight()
+        if not pool:
+            cstore.finish_digest_run(run_id, ok=True, items_posted=0)
+            log.info("[spotlight] nothing in the pool, no post")
+            return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "quiet", "posted": 0}
+
+        item = pool[0]
+        posted = await post_system_message(
+            channel_slug=SPOTLIGHT_CHANNEL,
+            body=_spotlight_body(item),
+            kind=SPOTLIGHT_KIND,
+            cards=[_spotlight_card(item)],
+        )
+        if posted is None:
+            raise RuntimeError("system post was skipped (channel or PHI gate)")
+        cstore.mark_content_items([item["id"]], status=SPOTLIGHT_STATUS,
+                                  posted_message_id=posted["id"])
+        cstore.finish_digest_run(run_id, ok=True, items_fetched=len(pool), items_posted=1)
+        log.info("[spotlight] posted %r (message %s)", item.get("title"), posted["id"])
+        return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "posted", "posted": 1,
+                "message_id": posted["id"]}
+    except Exception as exc:
+        cstore.finish_digest_run(run_id, ok=False, error=str(exc)[:500])
+        log.warning("[spotlight] run failed: %s", exc, exc_info=True)
+        return {"ok": False, "kind": SPOTLIGHT_KIND, "error": str(exc)[:500]}
+
+
 # ─── Scheduler (in-process, restart-safe, gated OFF by default) ──────────────
 def news_enabled() -> bool:
     # Defaults to OFF. Set COMMUNITY_NEWS_ENABLED=1 to run the scheduled loop.
@@ -412,6 +499,11 @@ def start_content_loop() -> None:
                                 cstore.consecutive_digest_failures(kind) > 0:
                             continue
                     await run_digest(kind)
+                # After the digests, so on a normal day the spotlight is
+                # choosing from a pool the news run has already scored and
+                # marked. It reads 'skipped' rows too, so the reverse order
+                # costs it nothing.
+                await run_spotlight_digest()
             except Exception:  # pragma: no cover — the loop must survive
                 log.warning("[digest] scheduler tick failed", exc_info=True)
 
