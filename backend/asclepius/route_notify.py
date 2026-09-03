@@ -750,11 +750,21 @@ def notify_reassigned(store, *, task, doctor,
         room = cstore.get_case_room(ref) if ref else None
         if room:
             cstore.add_room_participant(room["id"], doctor["id"])
-            for old in (replaced_user_ids or []):
-                if old and old != doctor["id"]:
-                    cstore.remove_room_participant(room["id"], old)
-            from community.system_posts import SYSTEM_USER_ID
             points = store.trajectory_points(task.get("trajectory_id"))
+            removed = []
+            for old in (replaced_user_ids or []):
+                if not old or old == doctor["id"]:
+                    continue
+                # A doctor who still holds another live point of the same walk
+                # stays in the room: only this point changed hands, not the case.
+                if any(a.get("user_id") == old
+                       and a.get("status") in ("offered", "claimed")
+                       for p in points
+                       for a in store.assignments_for_task(p["task_id"])):
+                    continue
+                cstore.remove_room_participant(room["id"], old)
+                removed.append(old)
+            from community.system_posts import SYSTEM_USER_ID
             cstore.insert_message(
                 channel_id=room["id"], author_user_id=SYSTEM_USER_ID,
                 body=compose_roster_change(
@@ -764,8 +774,7 @@ def notify_reassigned(store, *, task, doctor,
                 kind=ROOM_KIND)
             _audit_room("community.case_room_roster_changed", case_ref=ref,
                         dm_id=room["id"],
-                        detail={"added": doctor["id"],
-                                "removed": list(replaced_user_ids or [])})
+                        detail={"added": doctor["id"], "removed": removed})
             report["room"] = True
     except Exception as exc:
         log.info("route_notify: reassign room notice failed: %s", exc)

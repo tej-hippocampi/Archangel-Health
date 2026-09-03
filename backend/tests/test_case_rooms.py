@@ -238,6 +238,49 @@ def test_reassignment_posts_roster_notice_and_swaps_membership():
                       headers=A.headers_for(b)).status_code == 200
 
 
+def test_reassigning_one_point_keeps_a_multi_point_holder_in_the_room():
+    """WHY: losing one point of a walk is not leaving the case.
+
+    A doctor can hold two points of the same walk. Reassigning one of them used
+    to remove the doctor from the case room outright, so they lost read access
+    and got 404s posting about a point they still held. Membership tracks the
+    case, and they are still on the case until their LAST live point goes.
+    """
+    store = _store()
+    ah = _admin_headers(store)
+    a, b, c = _doc(store), _doc(store), _doc(store)
+    pts = [store.insert_task(prompt=f"p{i}", specialty="cardiology",
+                             trajectory_id="traj-m", sequence_index=i)
+           for i in range(3)]
+    for pt, who in zip(pts, (a, b, a)):
+        store.upsert_assignment(task_id=pt["task_id"], user_id=who["id"],
+                                role="label", assigned_by="admin@test")
+    RN.notify_relay_send(store, mapping=[
+        {"task_id": pts[0]["task_id"], "user_id": a["id"], "sequence_index": 0},
+        {"task_id": pts[1]["task_id"], "user_id": b["id"], "sequence_index": 1},
+        {"task_id": pts[2]["task_id"], "user_id": a["id"], "sequence_index": 2},
+    ], trajectory_id="traj-m")
+    room = _rooms()[0]
+
+    r = client.post("/api/asclepius/admin/batches/relay/traj-m/reassign", headers=ah,
+                    json={"task_id": pts[0]["task_id"], "user_id": c["id"]})
+    assert r.status_code == 200, r.text
+
+    members = _cstore().room_participants(room["id"])
+    assert a["id"] in members, "still holds point 3, so still on the case"
+    assert c["id"] in members and b["id"] in members
+    posted = client.post(f"{COMMUNITY}/dms/{room['id']}/messages",
+                         json={"body": "still working the last point"},
+                         headers=A.headers_for(a))
+    assert posted.status_code == 200, posted.text
+
+    # Losing the LAST live point is a real departure: removal happens now.
+    r = client.post("/api/asclepius/admin/batches/relay/traj-m/reassign", headers=ah,
+                    json={"task_id": pts[2]["task_id"], "user_id": c["id"]})
+    assert r.status_code == 200, r.text
+    assert a["id"] not in _cstore().room_participants(room["id"])
+
+
 # ═══ D3: the visibility exception is scoped ═════════════════════════════════
 def test_admin_can_read_case_room_but_not_private_dm():
     """WHY: D3 is an exception for ``kind='case_room'`` and nothing else.
@@ -269,6 +312,14 @@ def test_admin_can_read_case_room_but_not_private_dm():
     assert client.get(f"{COMMUNITY}/dms/{room['id']}/messages", headers=ah).status_code == 200
     assert client.get(f"{COMMUNITY}/dms/{private_id}/messages", headers=ah).status_code == 404
     assert client.get(f"{COMMUNITY}/messages/{mid}/thread", headers=ah).status_code == 404
+    # Stepping in means WRITING too: read-only could not unstick a case (D3).
+    posted = client.post(f"{COMMUNITY}/dms/{room['id']}/messages",
+                         json={"body": "checking in on this handoff"}, headers=ah)
+    assert posted.status_code == 200, posted.text
+    # And the write half of the exception is scoped exactly like the read half.
+    assert client.post(f"{COMMUNITY}/dms/{private_id}/messages",
+                       json={"body": "should never land"},
+                       headers=ah).status_code == 404
 
 
 def test_two_party_dms_unchanged():
