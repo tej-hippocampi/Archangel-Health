@@ -180,7 +180,8 @@ from onboarding_emails import (
     build_asclepius_password_reset_email,
     build_asclepius_signin_link_email,
 )
-from ratelimit import rate_limiter
+from pydantic import BaseModel
+from ratelimit import client_ip, rate_limiter
 from asclepius.validation import compute_dedupe_hash, grounding_status, is_grounded, residual_identifiers
 
 log = logging.getLogger("asclepius.router")
@@ -917,6 +918,234 @@ def _avatar_block(row: Dict[str, Any]) -> Dict[str, Any]:
         "accent": specialty_accent(row.get("specialty")),
         "updated_at": row.get("avatar_updated_at"),
     }
+
+
+# ─── The physician contributor agreement (Gap U1) ────────────────────────────
+# The sibling of the health system's DLA endpoints in routers/asclepius_provider.
+# Same three operations, same order of operations at signature, same reasoning;
+# read that module's `hs_agreement_sign` docstring before changing this one.
+class AgreementSignRequest(BaseModel):
+    """What a physician's clickwrap has to capture.
+
+    No `authority_affirmed`: a physician binds themselves and there is nothing
+    to have authority over. `signed_initials` takes its place as the act of
+    signing, matching the onboarding form, where typing initials has always been
+    what the copy calls an electronic signature.
+    """
+
+    typed_name: str
+    signed_initials: str
+    consent_esign: bool = False
+    #: The hash the client was shown, echoed back so a signature can only be
+    #: taken against a document the signer actually saw.
+    doc_sha256: str = ""
+
+
+def _agreement_summary(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """What a physician is shown about their own signature.
+
+    The network address and the user agent are recorded and are NOT returned.
+    They are evidence for a dispute, not information the account holder needs on
+    a page, and the DLA surface makes the same cut for the same reason.
+    """
+    if not row:
+        return None
+    return {
+        "agreement_id": row.get("agreement_id"),
+        "doc_version": row.get("doc_version"),
+        "doc_sha256": row.get("doc_sha256"),
+        "typed_name": row.get("typed_name"),
+        "signed_initials": row.get("signed_initials"),
+        "signed_at": row.get("signed_at"),
+        "pdf_url": (f"/api/asclepius/me/agreement/{row.get('agreement_id')}.pdf"
+                    if row.get("agreement_id") else None),
+    }
+
+
+@router.get("/me/agreement")
+async def my_agreement(
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+):
+    """The agreement, in full, as text, plus what this physician has signed.
+
+    FULL TEXT, not a link to a PDF, on the DLA's reasoning verbatim: a clickwrap
+    that requires downloading something to read it is a clickwrap whose "I have
+    read this" is provably false.
+
+    Served to every account, including one that has already signed and one that
+    is not yet approved to work. Somebody is entitled to read the terms before
+    they answer anything, and to read them again afterwards.
+    """
+    from asclepius import physician_agreement as asc_pagreement
+
+    store = _store()
+    row = store.get_user_by_id(user["id"]) or {}
+    who = row.get("full_name") or row.get("email") or ""
+    try:
+        text, sha = asc_pagreement.signable(physician=who)
+    except asc_pagreement.AgreementError:
+        log.exception("physician agreement source is unreadable")
+        raise HTTPException(status_code=503,
+                            detail="The agreement could not be loaded just now. "
+                                   "Please try again in a moment.")
+    signed = store.latest_physician_agreement(user["id"])
+    return {
+        "doc_version": asc_pagreement.CURRENT_VERSION,
+        "doc_sha256": sha,
+        "text": text,
+        "physician": who,
+        "interim": True,
+        "signed": _agreement_summary(signed),
+        # The gate's own answer, so the portal never has to re-derive the rule
+        # and reach a different conclusion from the endpoint that enforces it.
+        "signature_required": asc_pagreement.resignature_reason(signed),
+        "signer_name_prefill": who,
+    }
+
+
+@router.post("/me/agreement/sign",
+             dependencies=[Depends(rate_limiter("asc_agreement_sign", 5, 600))])
+async def sign_my_agreement(
+    request: Request,
+    body: AgreementSignRequest,
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+):
+    """Take one signature and file the record.
+
+    The order of operations is the DLA's, and it is deliberate: verify the
+    affirmations and that the text has not changed underneath the signer, render
+    and store the PDF so a row can never point at a document that does not
+    exist, then INSERT the append-only row. A failure at the PDF step leaves
+    nothing signed.
+
+    SIGNING THE VERSION ALREADY SIGNED IS A 409, not an idempotent success. Two
+    rows for one version is a question somebody has to answer later, and a
+    physician who clicked twice needs to know the first click worked. Signing a
+    NEWER version is the normal path and writes a new row beside the old one.
+    """
+    from asclepius import physician_agreement as asc_pagreement
+
+    store = _store()
+    row = store.get_user_by_id(user["id"]) or {}
+    who = row.get("full_name") or row.get("email") or ""
+
+    existing = store.latest_physician_agreement(user["id"])
+    if asc_pagreement.resignature_reason(existing) is None and existing:
+        raise HTTPException(
+            status_code=409,
+            detail="You have already signed the current version of this "
+                   "agreement. Reload the page to see when.")
+    if not body.consent_esign:
+        raise HTTPException(
+            status_code=400,
+            detail="Confirm you agree to sign electronically before you sign.")
+    typed_name = " ".join((body.typed_name or "").split())[:120]
+    initials = (body.signed_initials or "").strip().upper()[:8]
+    if not typed_name or len(initials) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Type your full name and at least two initials to sign.")
+
+    try:
+        text, sha = asc_pagreement.signable(physician=who)
+    except asc_pagreement.AgreementError:
+        log.exception("physician agreement source is unreadable at signature")
+        raise HTTPException(status_code=503,
+                            detail="The agreement could not be loaded just now. "
+                                   "Please try again in a moment.")
+    if (body.doc_sha256 or "").strip() and body.doc_sha256.strip() != sha:
+        # The document on their screen is not the document we would record: a
+        # deploy landing mid-read, or a tampered client. Both produce a
+        # signature against text nobody agreed to.
+        raise HTTPException(
+            status_code=409,
+            detail="The agreement was updated while this page was open. "
+                   "Please reload and read it again before signing.")
+
+    signed_at = asc_pagreement.utcnow_iso()
+    signature = {
+        "typed_name": typed_name, "signed_initials": initials,
+        "signed_at": signed_at, "user_id": user["id"],
+        "signer_email": row.get("email") or "",
+        "ip": client_ip(request),
+        "user_agent": (request.headers.get("user-agent") or "")[:400],
+        "doc_version": asc_pagreement.CURRENT_VERSION, "doc_sha256": sha,
+    }
+    try:
+        pdf = asc_pagreement.render_pdf(
+            physician=who, version=asc_pagreement.CURRENT_VERSION,
+            signature=signature)
+        pdf_sha = hashlib.sha256(pdf).hexdigest()
+        asc_assets._write_blob(pdf_sha, pdf)
+    except Exception:
+        log.exception("physician agreement pdf could not be produced or stored")
+        raise HTTPException(
+            status_code=503,
+            detail="We could not file your signed copy just now, so nothing was "
+                   "signed. Please try again in a moment.")
+
+    try:
+        attestations = json.loads(row.get("attestations_json") or "{}") or {}
+    except (TypeError, ValueError):
+        attestations = {}
+    saved = store.record_physician_agreement(
+        user_id=user["id"], doc_version=asc_pagreement.CURRENT_VERSION,
+        doc_sha256=sha, pdf_sha256=pdf_sha, signer_email=row.get("email") or "",
+        typed_name=typed_name, signed_initials=initials, consent_esign=True,
+        ip=signature["ip"], user_agent=signature["user_agent"],
+        attestations=attestations)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="physician_agreement_signed", actor=user.get("email"),
+        payload={"agreement_id": saved["agreement_id"],
+                 "doc_version": asc_pagreement.CURRENT_VERSION,
+                 "doc_sha256": sha, "pdf_sha256": pdf_sha})
+    return {"ok": True, "signed": _agreement_summary(saved),
+            "signature_required": None}
+
+
+@router.get("/me/agreement/{agreement_id}.pdf")
+async def my_agreement_pdf(
+    agreement_id: str,
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.BROWSE)),
+):
+    """The executed copy, rendered from the version that was signed.
+
+    NOT from ``CURRENT_VERSION``. The row names its own version and
+    ``pdf_from_row`` refuses to guess one, so shipping v2 can never rewrite a v1
+    signer's executed contract into a document they never saw. That is the
+    single most important property of this endpoint.
+
+    Rebuilt rather than served from the blob, and then CHECKED against the
+    stored hash: the row is the record, so a lost blob is an inconvenience
+    rather than the loss of a contract. A mismatch is said plainly in a header
+    instead of being hidden, because a document that differs from the one that
+    was hashed and emailed is a different document.
+    """
+    from asclepius import physician_agreement as asc_pagreement
+
+    store = _store()
+    row = store.get_physician_agreement(agreement_id)
+    if not row or row.get("user_id") != user["id"]:
+        raise HTTPException(status_code=404, detail="No such signed agreement.")
+    me = store.get_user_by_id(user["id"]) or {}
+    who = me.get("full_name") or me.get("email") or ""
+    try:
+        pdf = asc_pagreement.pdf_from_row(physician=who, row=row)
+    except asc_pagreement.AgreementError:
+        log.exception("signed physician agreement %s cannot be rebuilt", agreement_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Your signed copy could not be rebuilt just now. The "
+                   "signature record itself is unaffected.")
+    matches = hashlib.sha256(pdf).hexdigest() == (row.get("pdf_sha256") or "")
+    filename = asc_pagreement.pdf_filename(
+        physician=who, version=str(row.get("doc_version") or ""))
+    return Response(
+        content=pdf, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "X-Asclepius-Pdf-Matches-Signature": "1" if matches else "0"},
+    )
 
 
 @router.patch("/me/profile")
@@ -2543,6 +2772,66 @@ def require_practice_case(
     )
 
 
+#: Machine-readable companion to the agreement 403, same shape as
+#: PRACTICE_GATE_HEADER and for the same reason: the client picks a screen from
+#: the token rather than by matching prose.
+AGREEMENT_GATE_HEADER = "X-Asclepius-Agreement-Gate"
+
+
+def require_current_agreement(
+    user: Dict[str, Any] = Depends(require_practice_case),
+) -> Dict[str, Any]:
+    """The fourth gate: has this physician signed the terms in force today.
+
+    IT SITS ON THE DRAW AND NOT ON THE SUBMIT, and that is the whole design.
+    A physician halfway through a case when a new version ships has already
+    read a chart, formed a judgment and spent twenty minutes on it; taking that
+    away to make a legal point would be both cruel and self-defeating, and the
+    label they are about to write was produced under the terms they did sign.
+    So they finish the case, and the next one they ask for is the one that
+    stops. ``/submissions``, ``/tasks/{id}`` and ``/tasks/{id}/reveal``
+    deliberately keep the practice gate and do not take this one.
+
+    Exemptions match ``practice_gate_reason`` exactly rather than being
+    re-derived: an admin does not draw from the queue, and the mock contributor
+    is the demo account the sales walkthrough runs on.
+    """
+    from asclepius import physician_agreement as asc_pagreement
+
+    # Unarmed until somebody decides to arm it. See `gate_enabled`: switching
+    # this on before the physicians already here have been asked to sign would
+    # lock the whole queue in a single deploy, so the mechanism ships built and
+    # dark rather than shipping as a surprise.
+    if not asc_pagreement.gate_enabled():
+        return user
+    if user.get("role") == "admin" or user.get("is_mock"):
+        return user
+
+    store = _store()
+    reason = asc_pagreement.resignature_reason(
+        store.latest_physician_agreement(user["id"]))
+    if reason is None:
+        return user
+    log.info("[agreement-gate] denied user=%s reason=%s", user.get("id"), reason)
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "error": "agreement_required",
+            "reason": reason,
+            "message": (
+                "Read and sign the contributor agreement before your next case. "
+                "It takes a minute, and anything you have already submitted is "
+                "unaffected."
+                if reason == asc_pagreement.SUPERSEDED else
+                "Read and sign the contributor agreement before your first case. "
+                "It takes a minute."),
+            "action": {"kind": "sign_agreement",
+                       "label": "Read the agreement"},
+        },
+        headers={AGREEMENT_GATE_HEADER: reason},
+    )
+
+
 @router.get("/tasks/next")
 async def next_task(
     portal_version: Optional[str] = Query(
@@ -2557,7 +2846,7 @@ async def next_task(
         "oncology). Drives which specialty's cases are served/generated; an unknown "
         "or disabled value falls back to the evaluator's own specialty.",
     ),
-    user: Dict[str, Any] = Depends(require_practice_case),
+    user: Dict[str, Any] = Depends(require_current_agreement),
 ):
     store = _store()
     # Normalize the picker's specialty to an enabled one, else ignore it (never
@@ -2652,7 +2941,10 @@ async def available_tasks(
     # the list would have the dashboard advertise cases the very next click
     # refuses — the product knowing something and not saying it, which is the
     # class of defect this round exists to remove.
-    user: Dict[str, Any] = Depends(require_practice_case),
+    # The agreement gate too, for the same reason the practice gate is here:
+    # a list that advertises cases the very next click refuses is the product
+    # knowing something and not saying it.
+    user: Dict[str, Any] = Depends(require_current_agreement),
 ):
     """The tasks THIS evaluator can pick right now — the dashboard list.
 
