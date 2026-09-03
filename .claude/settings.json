@@ -17,5 +17,31 @@
     "fhir-developer@healthcare": true,
     "prior-auth-review@healthcare": true,
     "superpowers@superpowers-marketplace": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/backend/scripts/hook_post_edit.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/backend/scripts/hook_pre_push.py\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
   }
 }
