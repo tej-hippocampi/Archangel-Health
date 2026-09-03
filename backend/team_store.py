@@ -51,6 +51,7 @@ import sqlite3
 import string
 import threading
 import uuid
+import realm as _realm
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -101,8 +102,9 @@ def connect_team_db(db_path: str) -> sqlite3.Connection:
 
 class TeamStore:
     def __init__(self, db_path: Optional[str] = None):
-        base_dir = os.path.dirname(__file__)
-        self.db_path = db_path or os.getenv("TEAM_DB_PATH") or os.path.join(base_dir, "team.db")
+        # Default is the LIVE realm's file; ``get_team_store`` passes the
+        # current realm's path explicitly (Sandbox PRD §1.2).
+        self.db_path = db_path or _realm.live_team_db()
         # Create the parent dir so TEAM_DB_PATH can point straight into a mounted
         # persistent volume (e.g. /data/team.db) on first boot — the Asclepius
         # store has always done this, and the asymmetry was a live trap: setting
@@ -4981,20 +4983,33 @@ class TeamStore:
 # ``app.state.team_store is get_team_store()`` false, and the test suite rebinds
 # app.state to a temp DB — which would then be invisible to the sweep.
 
-_STORE: Optional["TeamStore"] = None
+#
+# Sandbox PRD §1.2: ONE TeamStore PER REALM, keyed on ``realm.current()``.
+# ``main`` no longer pins an instance at import — its ``_team_store`` name is a
+# ``realm.RealmProxy`` over this accessor, so the 137 existing call sites
+# resolve the realm at call time and the sandbox team DB is a different file.
+_STORES: Dict[str, "TeamStore"] = {}
 
 
-def get_team_store() -> "TeamStore":
-    """The process's TeamStore, created on first use."""
-    global _STORE
-    if _STORE is None:
-        _STORE = TeamStore()
-    return _STORE
+def get_team_store(realm_name: Optional[str] = None) -> "TeamStore":
+    """The TeamStore for ``realm_name`` (default: the current realm), created
+    on first use."""
+    r = _realm.validate(realm_name) if realm_name else _realm.current()
+    store = _STORES.get(r)
+    if store is None:
+        store = TeamStore(db_path=_realm.paths(r)["team"])
+        _STORES[r] = store
+    return store
 
 
-def set_team_store(store: "TeamStore") -> "TeamStore":
-    """Bind an existing instance (main at startup; the suite between tests)."""
-    global _STORE
-    _STORE = store
-    return _STORE
+def set_team_store(store: "TeamStore", realm_name: Optional[str] = None) -> "TeamStore":
+    """Bind an existing instance for a realm (the suite between tests)."""
+    r = _realm.validate(realm_name) if realm_name else _realm.current()
+    _STORES[r] = store
+    return store
+
+
+def drop_team_store_for_realm(r: str) -> None:
+    """Forget the cached store for ``r`` (``Reset sandbox``)."""
+    _STORES.pop(_realm.validate(r), None)
 

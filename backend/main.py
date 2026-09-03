@@ -175,7 +175,8 @@ from auth import (
 )
 import auth as auth_module
 from onboarding_emails import build_doctor_verification_email, build_task_notification_email
-from team_store import TeamStore, connect_team_db, set_team_store
+from team_store import TeamStore, connect_team_db, get_team_store, set_team_store  # noqa: F401
+import realm as _realm
 from preop_survey import (
     WINDOW_SURVEY_DAY,
     compute_window_tier,
@@ -210,6 +211,13 @@ from audit.middleware import AuditMiddleware  # noqa: E402
 
 app.add_middleware(AuditMiddleware)
 
+# Sandbox PRD §1.3: the realm is decided ONCE per request, here, from the
+# token's claim (or the header on unauthenticated entry points), and every
+# store accessor reads it from the ContextVar this sets. Added right after the
+# audit layer so it wraps the route handler and the background tasks that run
+# inside the response, and nothing else.
+app.add_middleware(_realm.RealmMiddleware)
+
 # CORS restricted to an explicit origin allowlist (PRD-2). Wildcard origins with
 # credentials are invalid + unsafe; the landing app's origin must be allowlisted
 # in production via ALLOWED_ORIGINS. The product's own https domains
@@ -221,7 +229,9 @@ app.add_middleware(
     allow_origin_regex=allowed_origin_regex(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Patient-Session", "X-Admin-Token"],
+    allow_headers=["Authorization", "Content-Type", "X-Patient-Session", "X-Admin-Token",
+                   # Sandbox PRD §1.3 — the landing app sends the realm on login.
+                   "X-Asclepius-Realm"],
     # A custom RESPONSE header is invisible to cross-origin JS unless it is
     # exposed. The Asclepius portal is same-origin with this app today, so the
     # gate header reads fine either way — but if the portal is ever served from
@@ -263,12 +273,15 @@ if os.getenv("FORCE_HTTPS_REDIRECT", "0").strip().lower() in ("1", "true", "yes"
 
 _patient_store: dict = {}
 app.state.patient_store = _patient_store
-_team_store = TeamStore()
+# Sandbox PRD §1.2: NOT a pinned instance. ``_team_store`` is referenced ~140
+# times in this module and handed to routers as ``app.state.team_store``; every
+# one of those now resolves the CURRENT realm's TeamStore at call time through
+# this proxy, so a sandbox request writes ``team_sandbox.db`` and a live one
+# writes ``team.db`` with no call site knowing the difference. ``team_store
+# .get_team_store`` keeps one instance per realm, and the suite rebinds the
+# live one with ``set_team_store``.
+_team_store = _realm.RealmProxy(get_team_store, "TeamStore")
 app.state.team_store = _team_store
-# Background work (the Onboarding v2 nudge sweep) has no request to reach
-# app.state through. Bind THIS instance rather than letting it build a second
-# one, so both see the same database — including the temp one the suite swaps in.
-set_team_store(_team_store)
 
 # ─── Asclepius — Expert Evaluation Portal (standalone, isolated) ──────────────
 # Own SQLite DB + own auth; never touches team.db or the clinical RBAC.
@@ -278,8 +291,13 @@ try:
     from asclepius.auth import ensure_admin_from_env as _ensure_asclepius_admin
     from asclepius.auth import ensure_mock_contributor as _ensure_asclepius_mock
 
-    _asclepius_store = _get_asclepius_store()
+    # Same proxy pattern as ``_team_store`` above: ``app.state.asclepius_store``
+    # is read by routers and loops that have no request context of their own,
+    # and each of them must land in the realm it is running in.
+    _asclepius_store = _realm.RealmProxy(_get_asclepius_store, "AsclepiusStore")
     app.state.asclepius_store = _asclepius_store
+    # Boot-time seeding is a LIVE-realm concern; the sandbox is seeded on demand
+    # (Sandbox PRD §2) and never at import.
     _seed_asclepius_admin(_asclepius_store)
     # Idempotently (re)provision the operator's admin from env on every boot, so
     # setting ASCLEPIUS_ADMIN_EMAIL/PASSWORD works even after the table is seeded
@@ -2795,6 +2813,104 @@ async def asclepius_portal():
         1,
     )
     return HTMLResponse(content=shell)
+
+
+# ─── Sandbox PRD §1.3 — the sandbox UI is the SAME HTML, tagged ──────────────
+#
+# ``/sandbox/asclepius``, ``/sandbox/admin``, ``/sandbox/provider``,
+# ``/sandbox/buyer`` and ``/sandbox/community`` serve the identical shells the
+# live routes serve, with one line injected: ``window.__REALM = 'sandbox'``.
+# The page JS sends ``X-Asclepius-Realm`` from that and keys its stored token
+# as ``asclepius_token_sandbox``, so a live and a sandbox session coexist in
+# one browser. The middleware 404s every ``/sandbox/*`` path while the realm is
+# dark (``ASCLEPIUS_SANDBOX_ADMIN_PASSWORD`` unset), and this guard repeats it
+# so the pages cannot be reached by a route the middleware did not see.
+# Besides naming the realm, the tag (a) wraps ``window.fetch`` so EVERY
+# same-page request carries the realm header — the page modules send it from
+# their api() helpers too, and this catches any raw fetch a future module
+# forgets — and (b) paints the realm banner (§3.1) before any module runs:
+# top of viewport, lime, not dismissible, naming the sandbox admin. The
+# banner is in the shell rather than in each page's JS so that it is on every
+# sandbox page by construction, and on screen even when a page's own script
+# fails to load. The doctor portal / provider / buyer / community pages get
+# the thinner version; /sandbox/admin gets the full one.
+_SANDBOX_SHELL_JS = """
+window.__REALM='sandbox';
+(function(){
+  var f=window.fetch;
+  window.fetch=function(u,o){o=Object.assign({},o||{});var h=new Headers(o.headers||{});
+    h.set('X-Asclepius-Realm','sandbox');o.headers=h;return f.call(window,u,o);};
+  function paint(){
+    if(document.getElementById('ascRealmBanner'))return;
+    var full=window.__REALM_FULL_BANNER===true;
+    var b=document.createElement('div');
+    b.id='ascRealmBanner';b.setAttribute('role','status');b.setAttribute('data-realm','sandbox');
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c6f542;color:#111;'
+      +'font:600 '+(full?'14px':'12px')+'/1.4 system-ui,sans-serif;text-align:center;'
+      +'padding:'+(full?'8px 12px':'4px 12px')+';letter-spacing:.02em;border-bottom:2px solid #1a1a1a;';
+    b.textContent='SANDBOX · nothing here reaches real users';
+    var who=document.createElement('span');who.id='ascRealmBannerAdmin';b.appendChild(who);
+    document.body.insertBefore(b,document.body.firstChild);
+    document.body.style.paddingTop=b.offsetHeight+'px';
+    f.call(window,'/api/asclepius/sandbox/status',{headers:{'X-Asclepius-Realm':'sandbox'}})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(s){if(s&&s.admin_email){who.textContent=' · '+s.admin_email;}})
+      .catch(function(){});
+  }
+  if(document.body){paint();}else{document.addEventListener('DOMContentLoaded',paint);}
+})();
+"""
+_SANDBOX_SHELL_TAG = "<script>" + _SANDBOX_SHELL_JS + "</script>"
+
+
+def _sandbox_shell(html: str, *, full_banner: bool = False) -> HTMLResponse:
+    if not _realm.enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    tag = _SANDBOX_SHELL_TAG
+    if full_banner:  # the admin console gets the full-height banner (§3.1)
+        tag = "<script>window.__REALM_FULL_BANNER=true;</script>" + tag
+    # After <head> so it runs before every deferred module reads window.__REALM.
+    if "<head>" in html:
+        html = html.replace("<head>", "<head>\n  " + tag, 1)
+    else:  # pragma: no cover — every shell has a <head>
+        html = tag + html
+    return HTMLResponse(content=html)
+
+
+@app.get("/sandbox/asclepius", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_asclepius_portal():
+    """The sandbox evaluation portal — the physician shell, tagged."""
+    resp = await asclepius_portal()
+    return _sandbox_shell(resp.body.decode("utf-8"))
+
+
+@app.get("/sandbox/admin", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_admin_console():
+    """The sandbox admin console — the operations shell (``/asclepius/admin``,
+    PRD-F R1) tagged with the realm and the full-height banner. This is the
+    address the PRD hands out."""
+    resp = await asclepius_admin_console()
+    return _sandbox_shell(resp.body.decode("utf-8"), full_banner=True)
+
+
+@app.get("/sandbox/provider", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_provider_portal():
+    resp = await data_provider_portal()
+    return _sandbox_shell(resp.body.decode("utf-8"))
+
+
+@app.get("/sandbox/buyer", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/sandbox/workspace", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_buyer_portal():
+    resp = await buyer_workspace_portal()
+    return _sandbox_shell(resp.body.decode("utf-8"))
+
+
+@app.get("/sandbox/community", response_class=HTMLResponse, include_in_schema=False)
+async def sandbox_community_page():
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/community.html")
+    with open(html_path) as f:
+        return _sandbox_shell(f.read())
 
 
 @app.get("/asclepius/env/annotate", response_class=HTMLResponse)
@@ -6158,14 +6274,18 @@ async def _assignment_maintenance_loop() -> None:
     from asclepius import route_notify as asc_route_notify
 
     while True:
-        try:
-            store = get_store()
-            expired = store.expire_stale_assignments()
-            if expired:
-                print(f"[assignment-maintenance] expired {expired} stale assignment(s)")
-            asc_route_notify.sweep_stalled_points(store)
-        except Exception as e:
-            print(f"[assignment-maintenance] error: {e}")
+        # Sandbox PRD §1.3: one pass per realm, so sandbox assignments expire
+        # and stall like live ones.
+        for r in _realm.active_realms():
+            try:
+                with _realm.scoped(r):
+                    store = get_store()
+                    expired = store.expire_stale_assignments()
+                    if expired:
+                        print(f"[assignment-maintenance] [{r}] expired {expired} stale assignment(s)")
+                    asc_route_notify.sweep_stalled_points(store)
+            except Exception as e:
+                print(f"[assignment-maintenance] [{r}] error: {e}")
         await asyncio.sleep(int(os.getenv("ASCLEPIUS_ASSIGNMENT_SWEEP_SECONDS", "3600")))
 
 
@@ -6671,6 +6791,11 @@ async def startup_team_scheduler():
         app.state.postop_nightly_task = None
         app.state.task_notification_task = None
         return
+    # The CareGuide/TEAM clinical loops below run in the LIVE realm only. They
+    # act on patient episodes, outreach and surveys — real-world side effects
+    # (SMS, calls, clinician pages) with no sandbox analogue — and the sandbox
+    # exists for the Asclepius/community product, whose loops iterate realms
+    # (Sandbox PRD §1.3). Deliberate, not an omission.
     app.state.team_scheduler_task = asyncio.create_task(_team_scheduler_loop())
     app.state.preop_outreach_task = asyncio.create_task(_preop_outreach_loop())
     app.state.intraop_overdue_task = asyncio.create_task(_intraop_overdue_loop())
@@ -6767,6 +6892,25 @@ def _user_subspecialties(user: Dict[str, Any]) -> list:
 
 
 @app.on_event("startup")
+async def startup_sandbox_admin():
+    """Sandbox PRD §2: when the realm is switched on, its admin account exists
+    in the SANDBOX store from the first boot, so the seed endpoint has someone
+    to call it. Nothing here touches a live file; the realm is scoped for the
+    one call. Guarded so a sandbox problem can never take startup down."""
+    try:
+        if _realm.enabled():
+            from asclepius import sandbox_seed as _sb_seed  # noqa: PLC0415
+
+            with _realm.scoped(_realm.SANDBOX):
+                _sb_seed.ensure_sandbox_admin()
+            _auth_logger.info("[sandbox] realm ON — admin ensured at /sandbox/admin")
+        else:
+            _auth_logger.info("[sandbox] realm OFF (%s unset)", _realm.ADMIN_PASSWORD_VAR)
+    except Exception:
+        _auth_logger.warning("[sandbox] admin bootstrap failed", exc_info=True)
+
+
+@app.on_event("startup")
 async def startup_community():
     """Asclepius Community (Community PRD): init the standalone store (seeds the
     three fixed channels) and start the mention/announcement email-digest loop.
@@ -6777,7 +6921,7 @@ async def startup_community():
         from community import notify as _cnotify
         from community.router import resolve_member_for_notify as _resolve_member
 
-        app.state.community_store = _get_cstore()
+        app.state.community_store = _realm.RealmProxy(_get_cstore, "CommunityStore")
         # Cohort channels exist for the countries, subspecialties and cities
         # that have members. The roster lives on the asclepius plane, so it is
         # read here and passed in: the community store must not query users
@@ -6906,18 +7050,23 @@ def _start_asclepius_task_notify_loop() -> None:
 
         while True:
             await asyncio.sleep(asclepius_task_notify_interval_sec())
-            try:
-                store = getattr(app.state, "asclepius_store", None)
-                if store is None:
-                    continue
-                # Sending is blocking (SendGrid over requests), so keep it off
-                # the event loop.
-                await asyncio.to_thread(_asc_task_notify.drain_outbox, store)
-                await asyncio.to_thread(_asc_hs_request_notify.drain_outbox, store)
-            except Exception:  # pragma: no cover -- the loop must survive
-                _auth_logger.warning(
-                    "[asclepius] task-notify drain failed", exc_info=True
-                )
+            # Sandbox PRD §1.3: drain each realm's outboxes in that realm, so a
+            # sandbox task notification becomes a sandbox outbox row rather
+            # than a real email.
+            for r in _realm.active_realms():
+                try:
+                    with _realm.scoped(r):
+                        store = getattr(app.state, "asclepius_store", None)
+                        if store is None:
+                            continue
+                        # Sending is blocking (SendGrid over requests), so keep
+                        # it off the event loop.
+                        await asyncio.to_thread(_asc_task_notify.drain_outbox, store)
+                        await asyncio.to_thread(_asc_hs_request_notify.drain_outbox, store)
+                except Exception:  # pragma: no cover -- the loop must survive
+                    _auth_logger.warning(
+                        "[asclepius] task-notify drain failed (%s)", r, exc_info=True
+                    )
 
     _asclepius_task_notify_task = asyncio.create_task(_run())
 
@@ -7203,6 +7352,11 @@ app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_admin_router)
 app.include_router(asclepius_buyer_router)
+# Sandbox PRD §2–§4: seed / accounts / outbox / reset / snapshot copy. Every
+# route is under /api/asclepius/sandbox, which the realm middleware treats as
+# the sandbox realm (and 404s while the realm is dark).
+from routers.asclepius_sandbox import router as asclepius_sandbox_router  # noqa: E402
+app.include_router(asclepius_sandbox_router)
 app.include_router(asclepius_verify_router)
 app.include_router(asclepius_review_router)
 app.include_router(asclepius_payments_router)

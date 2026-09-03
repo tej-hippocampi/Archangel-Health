@@ -21,7 +21,7 @@ Verified against `Archangel-Health-main (32)`.
 
 ## §1 Design — one switch, one seam, purpose-keyed responses
 
-**The seam is `call_llm` / `call_llm_sync`** (`llm_client.py:419`, `:514`). Both
+**The seam is `call_llm` / `call_llm_sync`** (`llm_client.py:420`, `:530`). Both
 already route on `resolve_provider(cfg["model"])`. Add a third provider:
 
 ```python

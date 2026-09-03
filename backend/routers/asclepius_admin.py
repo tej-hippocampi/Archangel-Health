@@ -3054,6 +3054,12 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
             "state_changed_at": hs.get("state_changed_at"),
             "application": _hs_application_summary(store, hs["hs_id"]),
             "agreement": _hs_agreement_chip(store, hs["hs_id"]),
+            # Sandbox PRD §3.4: where the row came from. NULL for every live
+            # row; 'production' (+ copied_at, source_hs_id) for a snapshot
+            # copy in the sandbox; 'sandbox' for a system onboarded there.
+            "origin": hs.get("origin"),
+            "copied_at": hs.get("copied_at"),
+            "source_hs_id": hs.get("source_hs_id"),
         })
     return {"health_systems": out}
 

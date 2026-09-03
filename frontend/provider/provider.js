@@ -18,6 +18,11 @@
   "use strict";
 
   const API_BASE = "/api/asclepius";
+  // Sandbox PRD §1.3 — the realm this page IS (see asclepius.js). Sent on
+  // every request; the HS session cookie carries the realm claim too, and a
+  // mismatch is a 401 that lands on the sign-in form of THIS realm.
+  const REALM = (window.__REALM === "sandbox") ? "sandbox" : "live";
+  function realmHeaders(h) { h = h || {}; h["X-Asclepius-Realm"] = REALM; return h; }
   const MIN_PW_LEN = 12;
 
   // Above this, a single request cannot be relied on: the platform closes a
@@ -174,7 +179,7 @@
 
   // GET/POST JSON. Throws AuthError on 401/403, Error otherwise.
   async function apiJson(method, path, body) {
-    const opts = { method, headers: { Accept: "application/json" }, credentials: "same-origin" };
+    const opts = { method, headers: realmHeaders({ Accept: "application/json" }), credentials: "same-origin" };
     if (body !== undefined) {
       opts.headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -680,7 +685,7 @@
         API_BASE + "/hs/uploads/sessions/" + encodeURIComponent(session.session_id) +
         "/parts/" + n,
         { method: "PUT", credentials: "same-origin", body: buf,
-          headers: { "X-Chunk-SHA256": partSha, "Content-Type": "application/octet-stream" } });
+          headers: realmHeaders({ "X-Chunk-SHA256": partSha, "Content-Type": "application/octet-stream" }) });
       if (res.status === 401 || res.status === 403) {
         throw new AuthError("Your session has ended.");
       }

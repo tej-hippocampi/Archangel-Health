@@ -58,7 +58,10 @@ _EPHEMERAL_WARNED = False
 def _store_root() -> str:
     global _EPHEMERAL_WARNED
     from asclepius.constants import asset_store, asset_store_is_ephemeral
-    root = asset_store()
+    import realm as _realm
+    # Sandbox PRD §1.2: the sandbox realm's blobs live under ``<root>/sandbox/``,
+    # derived from the live root and never configured separately.
+    root = asset_store() if not _realm.is_sandbox() else _realm.paths()["assets"]
     # Only a local filesystem backend is implemented here; an s3:// URL is accepted
     # by config but a future backend resolves it (never expose the path either way).
     if root.startswith("s3://"):

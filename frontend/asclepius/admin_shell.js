@@ -24,13 +24,23 @@
   'use strict';
 
   const API_BASE = '/api/asclepius';
+  // Sandbox PRD §1.3: which realm this page IS. /sandbox/admin serves this
+  // same shell with window.__REALM='sandbox' injected; every request sends
+  // the realm header, the stored token is keyed per realm (so a live and a
+  // sandbox operator session coexist in one browser), and cross-page links
+  // stay inside the realm.
+  const REALM = (window.__REALM === 'sandbox') ? 'sandbox' : 'live';
+  const REALM_HEADER = 'X-Asclepius-Realm';
+  function realmHeaders(h) { h = h || {}; h[REALM_HEADER] = REALM; return h; }
+  function realmPath(p) { return REALM === 'sandbox' ? '/sandbox' + p : p; }
+  function adminPath() { return REALM === 'sandbox' ? '/sandbox/admin' : '/asclepius/admin'; }
   // Companion header on the credential-verification 403 (asclepius/auth.py
   // AUTH_GATE_HEADER): 'pending' or 'rejected'.
   const AUTH_GATE_HEADER = 'X-Asclepius-Auth-Gate';
   // The SAME storage key the product uses, deliberately. Separation here is
   // surface separation, not a second credential store (PRD F3 / "out of
   // scope"): an operator already signed in on /asclepius is signed in here.
-  const TOKEN_KEY = 'asclepius_token';
+  const TOKEN_KEY = REALM === 'sandbox' ? 'asclepius_token_sandbox' : 'asclepius_token';
 
   // The two roles the product's console button admitted, unchanged (F5). A
   // qa_reviewer keeps its door; what each of them may DO is still decided by
@@ -54,6 +64,7 @@
       data: 'systems',      //   systems | pipeline | export
       export: 'bycase',     //   bycase | buyers | history (inside Data > Export)
       referrals: 'people',  //   people | systems
+      sandbox: 'accounts',  //   accounts | outbox   (Sandbox PRD §3; sandbox realm only)
     },
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
@@ -102,7 +113,7 @@
   // ─── Fetch helper (injects Bearer, parses JSON, handles 401) ────────────────
   async function api(path, opts) {
     opts = opts || {};
-    const headers = opts.headers || {};
+    const headers = realmHeaders(opts.headers || {});
     if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
     let body = opts.body;
     if (body !== undefined && !opts.isForm) {
@@ -274,7 +285,7 @@
 
   async function fetchAssetBlobUrl(assetId) {
     const res = await fetch(API_BASE + '/assets/' + encodeURIComponent(assetId), {
-      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
+      headers: realmHeaders(state.token ? { Authorization: 'Bearer ' + state.token } : {}),
     });
     if (!res.ok) throw new Error('asset ' + res.status);
     const blob = await res.blob();
@@ -461,11 +472,11 @@
       // experience is using the physician surface, which is the point of the
       // chooser; duplicating it here would be the intertwining this PR removes,
       // pointed the other way.
-      h('a', { class: 'asc-admin-out', href: '/asclepius' }, 'Physician view'),
+      h('a', { class: 'asc-admin-out', href: realmPath('/asclepius') }, 'Physician view'),
       h('button', { class: 'asc-admin-signout', onClick: signOut }, 'Sign out'));
 
     bar.appendChild(h('div', { class: 'asc-admin-bar-inner' },
-      h('a', { class: 'asc-admin-mark', href: '/asclepius/admin' },
+      h('a', { class: 'asc-admin-mark', href: adminPath() },
         h('span', { class: 'asc-admin-mark-dot', 'aria-hidden': 'true' }),
         h('span', { class: 'asc-admin-mark-text' }, 'Asclepius',
           h('span', { class: 'asc-admin-mark-sub' }, 'Operations'))),
@@ -502,7 +513,7 @@
         + ', which does not hold operator access. The console is for the '
         + 'Archangel team; your own work lives in the portal.'));
       card.appendChild(h('div', { class: 'asc-admin-gate-actions' },
-        h('a', { class: 'asc-btn asc-btn-primary', href: '/asclepius' }, 'Open the portal'),
+        h('a', { class: 'asc-btn asc-btn-primary', href: realmPath('/asclepius') }, 'Open the portal'),
         h('button', { class: 'asc-btn asc-btn-ghost', onClick: signOut }, 'Sign in as somebody else')));
       setRoot(h('div', { class: 'asc-admin-gate' }, card));
       return;
@@ -549,7 +560,7 @@
     card.appendChild(errBox);
     card.appendChild(form);
     card.appendChild(h('p', { class: 'asc-admin-gate-foot' },
-      h('a', { href: '/asclepius' }, 'Physician portal')));
+      h('a', { href: realmPath('/asclepius') }, 'Physician portal')));
     setRoot(h('div', { class: 'asc-admin-gate' }, card));
   }
 
@@ -727,6 +738,11 @@
     ['community', 'Community'],
     ['referrals', 'Referrals'],
   ];
+  // Sandbox PRD §3: the sandbox admin console is the SAME console with one
+  // more section — Accounts (the ten doctors + credentials, Reset, Seed fresh
+  // doctor, snapshot copy) and Outbox (every email the sandbox "sent"). It
+  // exists only when this page IS the sandbox; the live console never shows it.
+  if (REALM === 'sandbox') ADMIN_TABS.push(['sandbox', 'Sandbox']);
 
   // Shared helpers handed to the section modules (admin_physicians.js,
   // admin_health.js, admin_export.js, admin_earnings.js, admin_referrals.js,
@@ -808,6 +824,22 @@
     else if (state.adminTab === 'data') renderAdminDataSection(body);
     else if (state.adminTab === 'community') renderAdminCommunitySection(body);
     else if (state.adminTab === 'referrals') renderAdminReferralsSection(body);
+    else if (state.adminTab === 'sandbox' && REALM === 'sandbox') renderAdminSandboxSection(body);
+  }
+
+  // Sandbox (Sandbox PRD §3): Accounts and Outbox. Rendered by its own module
+  // (admin_sandbox.js) like every other section; the shell only routes to it.
+  function renderAdminSandboxSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('sandbox', [
+      ['accounts', 'Accounts'], ['outbox', 'Outbox'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    if (window.AdminSandboxSection) {
+      window.AdminSandboxSection.render(inner, adminSectionCtx(),
+        state.adminSub.sandbox === 'outbox' ? 'outbox' : 'accounts');
+    } else sectionModuleMissing(inner, 'The Sandbox section');
   }
 
   /* ═══ Is this deployment going to keep the data? ══════════════════════════

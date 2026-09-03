@@ -36,6 +36,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response as StarletteResponse
 
 from ratelimit import client_ip, global_rate_limiter, rate_limiter
+import realm as _realm
 
 from asclepius import auth as asc_auth
 from asclepius import dla as asc_dla
@@ -660,6 +661,7 @@ def _hs_token(username: str, hs_id: str, *, session_epoch: Any = 0) -> str:
         "jti": _uuid.uuid4().hex,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=_hs_session_ttl_min()),
     }
+    _realm.stamp(payload)  # Sandbox PRD §1.3
     return _jwt.encode(payload, asc_auth.get_asclepius_secret(), algorithm=asc_auth.ALGORITHM)
 
 
@@ -691,6 +693,8 @@ def require_hs_portal(request: Request) -> Dict[str, Any]:
     except _jwt.PyJWTError:
         raise expired
     if payload.get("typ") != "hs_portal":
+        raise expired
+    if not _realm.token_matches(payload):  # Sandbox PRD §1.3 / §6.2
         raise expired
     store = _store()
     if store.hs_token_revoked(str(payload.get("jti") or "")):

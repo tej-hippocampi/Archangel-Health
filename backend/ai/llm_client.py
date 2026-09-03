@@ -64,10 +64,11 @@ def _sopenai():
 
 
 def _store() -> TeamStore:
-    global _event_store
-    if _event_store is None:
-        _event_store = TeamStore()
-    return _event_store
+    # Sandbox PRD §1.2: AI-call telemetry lands in the CURRENT realm's team DB,
+    # so a sandbox run never writes a row a live report can read. No pinned
+    # instance — ``get_team_store`` keeps one per realm.
+    from team_store import get_team_store  # noqa: PLC0415
+    return get_team_store()
 
 
 # ── Provider-agnostic response normalization ─────────────────────────────────

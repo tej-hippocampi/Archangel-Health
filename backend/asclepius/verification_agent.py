@@ -31,6 +31,7 @@ Three properties are load-bearing. Change them only on purpose.
 from __future__ import annotations
 
 import asyncio
+import realm as _realm
 import secrets
 import json
 import logging
@@ -416,37 +417,50 @@ async def run_agent_loop() -> None:
     # this loop's interval is tuned for verification jobs (30s), and re-running
     # two nudge queries twice a minute forever is pointless work.
     next_nudge_sweep = 0.0
+    # Sandbox PRD §1.3: one pass per realm. Fake physician onboarding in the
+    # sandbox gets verified by the SAME agent against the sandbox store; the
+    # realm is set on the ContextVar for the duration of each realm's pass and
+    # every ``get_store()`` inside resolves to that realm's file.
     while True:
         try:
-            store = get_store()
             now = asyncio.get_running_loop().time()
-            if now >= next_nudge_sweep:
+            do_nudge = now >= next_nudge_sweep
+            if do_nudge:
                 next_nudge_sweep = now + onboarding_nudge.SWEEP_INTERVAL_SECONDS
-                try:
-                    await onboarding_nudge.sweep()
-                except Exception:
-                    # sweep() does not raise, but a scheduler that CAN stop is a
-                    # scheduler that eventually does. The verification jobs below
-                    # are not the nudges' business to break.
-                    log.exception("[verify-agent] nudge sweep failed (loop continues)")
-            # Every store call here is synchronous sqlite. Running it directly
-            # would put it ON THE EVENT LOOP, where one lock-wait stalls every
-            # request in the process rather than just this loop. Same rule the
-            # onboarding finish handlers already follow with run_in_threadpool.
-            job = await asyncio.to_thread(store.claim_verification_job)
-            if job is None:
+            worked = False
+            for r in _realm.active_realms():
+                with _realm.scoped(r):
+                    store = get_store()
+                    if do_nudge:
+                        try:
+                            await onboarding_nudge.sweep()
+                        except Exception:
+                            # sweep() does not raise, but a scheduler that CAN
+                            # stop is a scheduler that eventually does. The
+                            # verification jobs below are not the nudges'
+                            # business to break.
+                            log.exception("[verify-agent] nudge sweep failed (loop continues)")
+                    # Every store call here is synchronous sqlite. Running it
+                    # directly would put it ON THE EVENT LOOP, where one
+                    # lock-wait stalls every request in the process rather
+                    # than just this loop. Same rule the onboarding finish
+                    # handlers already follow with run_in_threadpool.
+                    job = await asyncio.to_thread(store.claim_verification_job)
+                    if job is None:
+                        continue
+                    worked = True
+                    try:
+                        dossier = await run_one(store, job)
+                        await asyncio.to_thread(
+                            store.finish_verification_job,
+                            job["id"], outcome=dossier.get("outcome", "skipped"), dossier=dossier,
+                        )
+                        await asyncio.to_thread(_notify_admin_of_result, store, dossier)
+                    except Exception as exc:
+                        log.exception("[verify-agent] job failed")
+                        await asyncio.to_thread(store.fail_verification_job, job["id"], str(exc))
+            if not worked:
                 await asyncio.sleep(_INTERVAL)
-                continue
-            try:
-                dossier = await run_one(store, job)
-                await asyncio.to_thread(
-                    store.finish_verification_job,
-                    job["id"], outcome=dossier.get("outcome", "skipped"), dossier=dossier,
-                )
-                await asyncio.to_thread(_notify_admin_of_result, store, dossier)
-            except Exception as exc:
-                log.exception("[verify-agent] job failed")
-                await asyncio.to_thread(store.fail_verification_job, job["id"], str(exc))
         except asyncio.CancelledError:
             raise
         except Exception:

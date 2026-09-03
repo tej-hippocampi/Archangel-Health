@@ -8,7 +8,12 @@
   'use strict';
 
   const API = '/api/community';
-  const TOKEN_KEY = 'asclepius_token';
+  // Sandbox PRD §1.3 — see asclepius.js: the realm this page IS.
+  const REALM = (window.__REALM === 'sandbox') ? 'sandbox' : 'live';
+  const REALM_HEADER = 'X-Asclepius-Realm';
+  function realmHeaders(h) { h = h || {}; h[REALM_HEADER] = REALM; return h; }
+  function realmPath(p) { return REALM === 'sandbox' ? '/sandbox' + p : p; }
+  const TOKEN_KEY = REALM === 'sandbox' ? 'asclepius_token_sandbox' : 'asclepius_token';
   const PHI_NOTICE = 'Colleague discussion only. Do not post patient-identifiable information.';
 
   // ─── State ─────────────────────────────────────────────────────────────────
@@ -93,7 +98,7 @@
   // ─── API ───────────────────────────────────────────────────────────────────
   async function api(path, opts) {
     opts = opts || {};
-    const headers = opts.headers || {};
+    const headers = realmHeaders(opts.headers || {});
     if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
     let body = opts.body;
     if (body !== undefined && !opts.isForm) {
@@ -253,7 +258,7 @@
     try {
       const res = await fetch(API + '/handoff/redeem', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: realmHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ token: code }),
       });
       if (!res.ok) return;
@@ -303,7 +308,7 @@
         h('p', { class: 'cm-gate-sub' },
           'The community opens from inside the Asclepius portal. Sign in there, then choose Community from the side panel.'),
         h('div', { class: 'cm-gate-actions' },
-          h('a', { class: 'cm-btn cm-btn-primary', href: '/asclepius' }, 'Open the doctor portal')))));
+          h('a', { class: 'cm-btn cm-btn-primary', href: realmPath('/asclepius') }, 'Open the doctor portal')))));
   }
   function renderGate() {
     setRoot(h('div', { class: 'cm-gate' },
@@ -313,7 +318,7 @@
         h('p', { class: 'cm-gate-sub' },
           'This space is reserved for credential-verified contributor physicians. Once your credentials are verified you’ll be able to join the conversation.'),
         h('div', { class: 'cm-gate-actions' },
-          h('a', { class: 'cm-btn cm-btn-ghost', href: '/asclepius' }, 'Back to the portal')))));
+          h('a', { class: 'cm-btn cm-btn-ghost', href: realmPath('/asclepius') }, 'Back to the portal')))));
   }
   function renderError(msg) {
     setRoot(h('div', { class: 'cm-gate' },
@@ -863,6 +868,8 @@
 
   function loadAvatarBlob(url) {
     if (avatarBlobCache[url] !== undefined) return Promise.resolve(avatarBlobCache[url]);
+    // Same shape as asclepius.js's loadAvatarBlob (extracted by a node
+    // harness): no helper call; the sandbox shell's fetch wrapper stamps the realm.
     return fetch(url, {
       headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
     }).then((res) => (res.ok ? res.blob() : null))
@@ -1506,7 +1513,7 @@
     if (attImgCache[assetId]) return attImgCache[assetId];
     try {
       const res = await fetch(API + '/attachments/' + encodeURIComponent(assetId), {
-        headers: { 'Authorization': 'Bearer ' + state.token },
+        headers: realmHeaders({ 'Authorization': 'Bearer ' + state.token }),
       });
       if (!res.ok) return null;
       const url = URL.createObjectURL(await res.blob());
@@ -2181,7 +2188,9 @@
     const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
     let ws;
     try {
-      ws = new WebSocket(proto + location.host + API + '/ws?ticket=' + encodeURIComponent(ticket));
+      // The socket cannot carry a header, so the realm rides beside the ticket;
+      // the server binds the ticket to the realm it was minted in.
+      ws = new WebSocket(proto + location.host + API + '/ws?ticket=' + encodeURIComponent(ticket) + '&realm=' + REALM);
     } catch (e) { startPolling(); return; }
     state.ws = ws;
     ws.onopen = () => {
