@@ -164,6 +164,12 @@
   // In-memory copy of the current portal profile (from /hs/me).
   let currentUser = null;
 
+  // The open data request the partner chose to answer, or null. Carried on
+  // both upload doors (multipart form field and chunked declare body) so the
+  // upload is recorded as a response to that request. Visible state: the
+  // "Answering:" chip above the drop zone renders exactly this variable.
+  let answeringRequest = null;
+
   // Thrown for 401/403 so callers can trigger a bounce to login.
   class AuthError extends Error {}
 
@@ -472,7 +478,141 @@
 
     refreshBtn.addEventListener("click", () => loadHistory());
 
+    loadRequests();
     loadHistory();
+  }
+
+  // ─── What we have asked this organization for ───────────────
+  //
+  // Above the drop zone because it is the reason a partner is on this screen
+  // when they are on it for a reason. Rendered only when something is open: a
+  // permanent "no open requests" panel is a permanent reminder of an absence,
+  // and this screen's job is to make sending data feel easy.
+  //
+  // A failure here is silent. The request list is a prompt, not a gate, and an
+  // error banner above the upload control would read as "uploading is broken"
+  // to a hospital IT contact who came here to send us a file.
+  //
+  // The "Answering:" chip sits directly above the drop zone so that at the
+  // moment files are dropped, the partner can see which request they will be
+  // recorded as answering. One click clears it: a wrong tag is worse than none.
+  function renderAnsweringChip() {
+    const drop = document.getElementById("prvDrop");
+    if (!drop) return;
+    let chip = document.getElementById("prvAnswering");
+    if (!answeringRequest) {
+      if (chip) chip.remove();
+      return;
+    }
+    if (!chip) {
+      chip = document.createElement("div");
+      chip.id = "prvAnswering";
+      chip.className = "prv-answering";
+      drop.parentNode.insertBefore(chip, drop);
+    }
+    clear(chip);
+    const label = document.createElement("span");
+    label.textContent = "Answering: " + (answeringRequest.title || "this request");
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "asc-btn-link";
+    clearBtn.textContent = "(clear)";
+    clearBtn.addEventListener("click", () => {
+      answeringRequest = null;
+      renderAnsweringChip();
+    });
+    chip.appendChild(label);
+    chip.appendChild(clearBtn);
+  }
+
+  async function loadRequests() {
+    const slot = document.getElementById("prvRequests");
+    if (!slot) return;
+    let data;
+    try {
+      data = await apiGet("/hs/requests");
+    } catch (e) {
+      // Including a 403, which `apiJson` reports as an AuthError. The upload
+      // screen is only reached by an account that may upload, so a refusal here
+      // means the ORGANIZATION's state changed under an open session -- and
+      // bouncing that partner to a login form over a panel they never asked for
+      // would read as being signed out for no reason.
+      return;
+    }
+    const requests = (data && Array.isArray(data.requests)) ? data.requests : [];
+    clear(slot);
+    // A refresh can close the request the partner had selected; a stale id
+    // would be refused at upload time, so drop the selection instead.
+    if (answeringRequest &&
+        !requests.some((r) => r.request_id === answeringRequest.id)) {
+      answeringRequest = null;
+      renderAnsweringChip();
+    }
+    if (!requests.length) return;
+
+    const card = document.createElement("section");
+    card.className = "asc-card prv-requests";
+    const head = document.createElement("div");
+    head.className = "asc-card-head";
+    const headInner = document.createElement("div");
+    const title = document.createElement("div");
+    title.className = "asc-card-title";
+    title.textContent = requests.length === 1
+      ? "We are looking for data"
+      : "We are looking for data (" + requests.length + " requests)";
+    const sub = document.createElement("div");
+    sub.className = "asc-card-sub";
+    // Straight from the server. The "several partners may answer" line is the
+    // one thing every request has to say, and it should not be possible to ship
+    // a client that forgets it.
+    sub.textContent = data.how_it_works || "";
+    headInner.appendChild(title);
+    headInner.appendChild(sub);
+    head.appendChild(headInner);
+    card.appendChild(head);
+
+    requests.forEach((r) => {
+      const body = document.createElement("div");
+      body.className = "asc-card-pad prv-request";
+      const line = document.createElement("div");
+      line.className = "prv-request-head";
+      const name = document.createElement("strong");
+      name.textContent = r.title || "";
+      const meta = document.createElement("span");
+      meta.className = "prv-request-meta";
+      meta.textContent = [
+        r.specialty,
+        r.case_count + (r.case_count === 1 ? " case" : " cases"),
+        r.due_date ? "useful by " + r.due_date : ""
+      ].filter(Boolean).join(" · ");
+      line.appendChild(name);
+      line.appendChild(meta);
+      body.appendChild(line);
+      if (r.details) {
+        const details = document.createElement("div");
+        details.className = "prv-request-details";
+        details.textContent = r.details;
+        body.appendChild(details);
+      }
+      if (r.request_id) {
+        const actions = document.createElement("div");
+        actions.className = "prv-request-actions";
+        const pick = document.createElement("button");
+        pick.type = "button";
+        pick.className = "asc-btn asc-btn-subtle asc-btn-sm";
+        pick.textContent = "Send cases for this request";
+        pick.addEventListener("click", () => {
+          answeringRequest = { id: r.request_id, title: r.title || "" };
+          renderAnsweringChip();
+          const drop = document.getElementById("prvDrop");
+          if (drop) drop.focus();
+        });
+        actions.appendChild(pick);
+        body.appendChild(actions);
+      }
+      card.appendChild(body);
+    });
+    slot.appendChild(card);
   }
 
   // ══════════════════════════════════════════════════════════
@@ -513,7 +653,10 @@
 
     let session = await apiPost("/hs/uploads/sessions", {
       filename: file.name, size: file.size, sha256: digest,
-      content_type: file.type || "application/octet-stream"
+      content_type: file.type || "application/octet-stream",
+      // The data request this answers, when one is selected. Parked on the
+      // session at declare, server-side, so it survives to complete.
+      request_id: answeringRequest ? answeringRequest.id : ""
     });
 
     // Already complete: the same bytes were sent before. Nothing to re-send.
@@ -590,6 +733,9 @@
 
     const form = new FormData();
     files.forEach((f) => form.append("files", f, f.name));
+    // Same optional tag as the chunked door, on the multipart field the
+    // backend already accepts. Absent when nothing is selected.
+    if (answeringRequest) form.append("request_id", answeringRequest.id);
 
     progress.hidden = false;
     progressLabel.textContent =
@@ -1499,6 +1645,10 @@
     summaryEl.appendChild(summaryStat("Paid", formatMoney(s.paid_cents)));
     summaryEl.appendChild(summaryStat("Awaiting payment", formatMoney(s.pending_cents)));
 
+    renderRail(data.rail || {});
+
+    renderAccrual(data.accrual || {});
+
     renderInvoices(data.invoices || []);
 
     const rows = data.payouts || [];
@@ -1537,6 +1687,58 @@
       [when, what, period, status, amount].forEach((td) => tr.appendChild(td));
       bodyEl.appendChild(tr);
     });
+  }
+
+  // What is owed, what is billed, what has cleared. The three states an
+  // obligation passes through, so a partner can reconcile their own records
+  // against ours without asking anyone.
+  //
+  // HIDDEN ENTIRELY UNTIL A PRICE EXISTS, and that is the rule this block is
+  // really about. Three zeroes on a money page read as "you are owed nothing",
+  // which is a different and false statement from "nobody has priced your data
+  // yet". The unpriced case is what the accrual count line below already says
+  // honestly, so this one stays out of its way.
+  //
+  // The server does every sum. This page turns cents into dollars and nothing
+  // else: arithmetic here would be a second answer to a question the ledger has
+  // already answered.
+  function renderRail(rail) {
+    const host = document.getElementById("prvPayoutRail");
+    if (!host) return;
+    if (!rail.priced) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    const stats = document.getElementById("prvPayoutRailStats");
+    clear(stats);
+    stats.appendChild(summaryStat("Accrued", formatMoney(rail.accrued_cents)));
+    stats.appendChild(summaryStat("Invoiced", formatMoney(rail.invoiced_cents)));
+    stats.appendChild(summaryStat("Settled", formatMoney(rail.settled_cents)));
+    document.getElementById("prvPayoutRailNote").textContent = rail.note || "";
+  }
+
+  // The one line between "we took your data" and "we paid you for it". A
+  // partner whose upload was accepted six weeks ago and whose ledger still reads
+  // zero has no way, without this, to tell acceptance from loss.
+  //
+  // COUNTS ONLY, and the server does the subtraction. Turning a count into a
+  // figure here would be this page inventing a price, which is the one thing
+  // §15 forbids and the one thing a finance contact would quote back at us.
+  function renderAccrual(accrual) {
+    const host = document.getElementById("prvPayoutAccrual");
+    if (!host) return;
+    const waiting = Number(accrual.awaiting_pricing || 0);
+    if (waiting <= 0) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    document.getElementById("prvPayoutAccrualLine").textContent =
+      waiting + (waiting === 1 ? " upload accepted" : " uploads accepted") +
+      " and awaiting pricing";
+    document.getElementById("prvPayoutAccrualNote").textContent =
+      accrual.note || "";
   }
 
   // What we have BILLED, as distinct from what we have PAID above. Drafts never

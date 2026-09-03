@@ -531,3 +531,84 @@ def test_earnings_now_points_at_the_referral_tab():
     assert "Referral tab" in _EARNINGS_JS.read_text(encoding="utf-8")
     # The composer left with the surface: no referral POST remains in earnings.
     assert "'/referrals', { method: 'POST'" not in code
+
+
+# ─── C2: the direct path for a physician connected to a health system ─────────
+def test_the_health_system_column_offers_the_interest_form_directly():
+    """The Sep 1 meeting replaced the note-to-founders card with a direct path,
+    and the founder corrected his own description mid-sentence to say it: if you
+    are connected to a health system, fill out the interest form and book a
+    call. A physician who is themselves the connection does not need us to write
+    to anybody in their name, and routing them through a compose-an-introduction
+    form to reach the form is a step that exists for our convenience."""
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  var sys = cols[cols.length - 1];
+  console.log(JSON.stringify({
+    links: tagsOf(sys, 'A').map(function (a) {
+      return { href: a.attributes.href || '', text: textOf(a) }; }),
+    line: find(sys, 'asc-ref-directline').map(textOf),
+  }));
+""")
+    hrefs = [l["href"] for l in out["links"]]
+    assert _FUNNEL["partner_url"] in hrefs, out["links"]
+    assert any("calendly" in h for h in hrefs), out["links"]
+    labels = " ".join(l["text"] for l in out["links"]).lower()
+    assert "interest form" in labels
+    assert "book a call" in labels
+    assert out["line"] and "connected" in out["line"][0].lower()
+
+
+def test_the_direct_path_never_replaces_the_introduce_someone_else_form():
+    """Two different asks, and the relanded referrer-enters-an-email path is the
+    right door for the other one. Adding a shortcut must not remove it."""
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  var sys = cols[cols.length - 1];
+  console.log(JSON.stringify({
+    inputs: tagsOf(sys, 'INPUT').map(function (i) {
+      return i.attributes.placeholder || ''; }),
+    buttons: tagsOf(sys, 'BUTTON').map(textOf),
+  }));
+""")
+    assert any("j.okoye@" in p for p in out["inputs"]), out["inputs"]
+    assert any("Send the introduction" in b for b in out["buttons"]), out["buttons"]
+
+
+def test_the_direct_links_open_safely_and_are_styled():
+    """External targets get noopener/noreferrer like every other outbound link
+    in this file, and every class emitted has a rule -- the stylesheet scanner
+    only catches the other direction, so this is the half nothing else checks."""
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  var sys = cols[cols.length - 1];
+  console.log(JSON.stringify({
+    rels: find(sys, 'asc-ref-direct-link').map(function (a) {
+      return (a.attributes.rel || '') + '|' + (a.attributes.target || ''); }),
+  }));
+""")
+    assert out["rels"], "the direct links did not render"
+    for rel in out["rels"]:
+        assert "noopener" in rel and "noreferrer" in rel and "_blank" in rel
+
+    css = _CSS.read_text(encoding="utf-8")
+    for cls in ("asc-ref-direct", "asc-ref-directline", "asc-ref-directrow",
+                "asc-ref-direct-link"):
+        assert f".{cls}" in css, cls
+
+
+def test_the_direct_path_survives_a_funnel_with_no_partner_url():
+    """partner_url carries the physician's referral code, so a funnel without
+    one is a physician we cannot attribute. Rendering a bare link would drop the
+    attribution silently; the book-a-call still stands on its own."""
+    funnel = dict(_FUNNEL)
+    funnel.pop("partner_url")
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  var sys = cols[cols.length - 1];
+  console.log(JSON.stringify({
+    hrefs: tagsOf(sys, 'A').map(function (a) { return a.attributes.href || ''; }),
+  }));
+""", funnel=funnel)
+    assert not [h for h in out["hrefs"] if "undefined" in h or h == ""], out["hrefs"]
+    assert any("calendly" in h for h in out["hrefs"]), out["hrefs"]

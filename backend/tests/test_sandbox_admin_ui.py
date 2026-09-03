@@ -25,9 +25,10 @@ from asclepius import auth as asc_auth  # noqa: E402
 client = TestClient(A.app)
 
 FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
-PORTAL_JS = (FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+SHELL_JS = (FRONTEND / "admin_shell.js").read_text(encoding="utf-8")
 SANDBOX_JS = (FRONTEND / "admin_sandbox.js").read_text(encoding="utf-8")
 HEALTH_JS = (FRONTEND / "admin_health.js").read_text(encoding="utf-8")
+ADMIN_HTML = (FRONTEND / "admin.html").read_text(encoding="utf-8")
 INDEX = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
 SANDBOX_ROUTES = ["/sandbox/asclepius", "/sandbox/admin", "/sandbox/provider",
@@ -43,12 +44,18 @@ def sandbox_on(monkeypatch):
 
 # ─── §3.2 / §3.3 — the console gains a Sandbox section, sandbox realm only ───
 def test_console_adds_the_sandbox_tab_only_in_the_sandbox_realm():
-    assert "if (REALM === 'sandbox') tabs.push(['sandbox', 'Sandbox']);" in PORTAL_JS
-    assert "state.adminTab === 'sandbox' && REALM === 'sandbox'" in PORTAL_JS
-    assert "sandbox: 'accounts'" in PORTAL_JS
-    assert "['accounts', 'Accounts'], ['outbox', 'Outbox']" in PORTAL_JS
-    assert '<script src="/static/asclepius/admin_sandbox.js" defer></script>' in INDEX
+    """The console lives on /asclepius/admin (admin_shell.js, PRD-F R3); the
+    physician bundle must not grow a console back."""
+    assert "if (REALM === 'sandbox') ADMIN_TABS.push(['sandbox', 'Sandbox']);" in SHELL_JS
+    assert "state.adminTab === 'sandbox' && REALM === 'sandbox'" in SHELL_JS
+    assert "sandbox: 'accounts'" in SHELL_JS
+    assert "['accounts', 'Accounts'], ['outbox', 'Outbox']" in SHELL_JS
+    assert '<script src="/static/asclepius/admin_sandbox.js" defer></script>' in ADMIN_HTML
+    assert "admin_sandbox.js" not in INDEX
     assert "window.AdminSandboxSection = { render };" in SANDBOX_JS
+    # The shell sends the realm and keys its token per realm like every page.
+    assert "window.__REALM" in SHELL_JS and "X-Asclepius-Realm" in SHELL_JS
+    assert "'asclepius_token_sandbox'" in SHELL_JS
 
 
 def test_accounts_tab_has_credentials_reset_fresh_and_onboarding_doors():
@@ -143,8 +150,17 @@ def test_realm_banner_renders_on_every_sandbox_route(sandbox_on, path):
         p.stop()
 
 
+def test_sandbox_admin_serves_the_operations_shell(sandbox_on):
+    html = client.get("/sandbox/admin").text
+    assert "admin_shell.js" in html and "admin_sandbox.js" in html
+    assert "window.__REALM_FULL_BANNER=true" in html
+    portal = client.get("/sandbox/asclepius").text
+    assert '<script src="/static/asclepius/admin_shell.js"' not in portal
+    assert "window.__REALM_FULL_BANNER=true" not in portal
+
+
 def test_live_routes_have_no_banner(sandbox_on):
-    for path in ("/asclepius", "/provider", "/workspace", "/community"):
+    for path in ("/asclepius", "/asclepius/admin", "/provider", "/workspace", "/community"):
         html = client.get(path).text
         assert "window.__REALM='sandbox'" not in html, path
         assert "b.id='ascRealmBanner'" not in html, path

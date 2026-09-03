@@ -25,6 +25,7 @@ FRONTEND = ROOT / "frontend"
 
 _PORTAL_MODULES = {
     "asclepius/asclepius.js": "asclepius_token",
+    "asclepius/admin_shell.js": "asclepius_token",
     "asclepius/community.js": "asclepius_token",
     "buyer/buyer.js": "asclepius_buyer_token",
 }

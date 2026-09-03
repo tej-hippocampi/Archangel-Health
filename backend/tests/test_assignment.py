@@ -139,12 +139,119 @@ def test_a_review_is_never_assigned_on_a_case_nobody_is_labelling():
 
 def test_the_allocator_sees_no_protected_attribute():
     """Same argument as payout.py's signature test and tiering's encoder-level
-    frozenset: a field it cannot receive is one it cannot weigh."""
+    frozenset: a field it cannot receive is one it cannot weigh.
+
+    This frozenset is a posture, not an inventory. Adding a name to it is a
+    decision that the new field is one allocation may look at, and the two tests
+    below are what that decision has to survive."""
     fields = set(Physician.__dataclass_fields__)
     assert fields == {
         "user_id", "can_label", "can_review", "domain_match",
         "contributor_score", "real_data_approved", "open_assignments",
+        "profile_depth",
     }
+
+
+def test_profile_depth_is_made_only_of_clinical_self_description():
+    """The one field added to the frozen shape has to answer for itself.
+
+    Every member of DEPTH_FIELDS is something a physician says about their own
+    clinical practice, and none of it is a credential key the tiering encoder is
+    forbidden to read. If that ever stops being true, the allocator has become a
+    second, unaudited route to a protected attribute."""
+    from asclepius.allocation import DEPTH_FIELDS
+    from asclepius.tiering import FORBIDDEN_CREDENTIAL_KEYS, PINNED_ZERO
+
+    assert set(DEPTH_FIELDS) & set(FORBIDDEN_CREDENTIAL_KEYS) == set()
+    assert set(DEPTH_FIELDS) & set(PINNED_ZERO) == set()
+
+
+def test_where_a_physician_practises_never_raises_their_standing():
+    """The completeness meter counts practice_city; routing depth must not.
+
+    tiering pins practice_region at exactly zero forever and forbids
+    practiceZip/zipCode/practiceRegion from becoming features. A city is the
+    same quantity at a finer grain, so counting it toward routing standing would
+    walk around a fairness guardrail through a proxy while looking like a
+    completeness bonus."""
+    from asclepius.allocation import DEPTH_FIELDS, profile_depth
+
+    assert not [f for f in DEPTH_FIELDS
+                if "city" in f or "region" in f or "zip" in f]
+    # Two physicians identical but for a city answer score identically.
+    answered = ["subspecialties", "languages"]
+    assert profile_depth(answered) == profile_depth(answered + ["practice_city"])
+
+
+def test_a_fuller_profile_is_offered_the_case_before_an_emptier_one():
+    """The physician profile PRD's actual promise, made true.
+
+    Two unrated physicians, equally matched and equally idle, differ only in how
+    much of their profile they filled in. The fuller one gets the case. Without
+    this the completeness meter asks a busy clinician for information in
+    exchange for nothing, which is what shipped."""
+    docs = [
+        Physician(user_id="sparse", can_label=True, domain_match=1.0,
+                  contributor_score=None, real_data_approved=True,
+                  profile_depth=0.0),
+        Physician(user_id="full", can_label=True, domain_match=1.0,
+                  contributor_score=None, real_data_approved=True,
+                  profile_depth=1.0),
+    ]
+    p = allocate(_cases(1), docs, labels_per_case=1, reviewers_per_case=0)
+    assert [a["user_id"] for a in p.assignments] == ["full"]
+
+
+def test_profile_depth_never_outranks_evidence_of_how_well_someone_works():
+    """Self-description is cheap and a contributor score has to be earned.
+
+    A physician with an empty profile and a real track record must still be
+    preferred over a fully-filled-in profile with a worse one, or a doctor could
+    talk their way past a better labeler."""
+    docs = [
+        Physician(user_id="better_worker", can_label=True, domain_match=1.0,
+                  contributor_score=90.0, real_data_approved=True,
+                  profile_depth=0.0),
+        Physician(user_id="fuller_profile", can_label=True, domain_match=1.0,
+                  contributor_score=60.0, real_data_approved=True,
+                  profile_depth=1.0),
+    ]
+    p = allocate(_cases(1), docs, labels_per_case=1, reviewers_per_case=0)
+    assert [a["user_id"] for a in p.assignments] == ["better_worker"]
+
+
+def test_profile_depth_never_concentrates_a_batch_on_one_person():
+    """The spread guarantee outranks profile depth, deliberately.
+
+    One physician with a perfect profile and nine with none must not collect the
+    batch: load sorts above depth in the rank key, so the fuller profile wins
+    ties and never wins a pile-up."""
+    docs = [Physician(user_id="full", can_label=True, domain_match=1.0,
+                      contributor_score=None, real_data_approved=True,
+                      profile_depth=1.0)]
+    docs += [Physician(user_id=f"u{i}", can_label=True, domain_match=1.0,
+                       contributor_score=None, real_data_approved=True,
+                       profile_depth=0.0) for i in range(9)]
+    p = allocate(_cases(50), docs, reviewers_per_case=0)
+    counts = {u: c["total"] for u, c in p.per_physician.items()}
+    assert counts.get("full", 0) <= int(50 * 2 * 0.35)
+    assert len([u for u in counts if counts[u]]) >= 8
+
+
+def test_the_pay_half_of_the_promise_is_off_and_says_so():
+    """The profile PRD promises richer profiles route better AND pay more.
+
+    Routing is shipped; pay is a founder decision about what the company pays
+    for, because it needs a number nobody has chosen. It is inert by a named
+    constant rather than by omission, so the status is readable in the code
+    instead of guessable from a PRD."""
+    from asclepius.payout import (
+        PROFILE_DEPTH_PAY_BONUS_MAX, profile_depth_multiplier,
+    )
+
+    assert PROFILE_DEPTH_PAY_BONUS_MAX == 0.0
+    for depth in (0.0, 0.5, 1.0):
+        assert profile_depth_multiplier(depth) == 1.0
 
 
 def test_an_unrated_physician_is_not_sorted_to_the_bottom_forever():

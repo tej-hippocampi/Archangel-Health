@@ -23,7 +23,7 @@
     isAdmin: false,
     canPost: true,      // false for a view-only account (advisor); set from /me
     channels: [],       // [{slug,name,description,post_policy,unread,mentions}]
-    dms: [],            // [{id, peer, unread, last_message_id, last_message_at}]
+    dms: [],            // conversations: DMs carry {peer}, case rooms carry {title, participants}
     active: 'general',  // channel slug OR a dm id ("dm-…") — keys never collide
     msgs: {},           // container key (slug or dm id) -> {list, hasMore, loaded}
     members: [],
@@ -100,8 +100,13 @@
       body = JSON.stringify(body);
     }
     let res;
+    // Almost everything here is a community route. The one exception is the
+    // staff persona post, which is an admin endpoint on the asclepius prefix,
+    // and it should still go through this function for the auth header and the
+    // error shaping rather than growing a second fetch idiom.
+    const base = opts.base || API;
     try {
-      res = await fetch(API + path, { method: opts.method || 'GET', headers, body });
+      res = await fetch(base + path, { method: opts.method || 'GET', headers, body });
     } catch (e) {
       throw { status: 0, detail: null, message: 'Network error — check your connection.' };
     }
@@ -328,6 +333,15 @@
   }
   function isDmKey(key) { return typeof key === 'string' && key.indexOf('dm-') === 0; }
   function activeDm() { return state.dms.find((d) => d.id === state.active) || null; }
+  // A per-case group room (Task Pipeline PRD B1) rather than a two-party DM.
+  // Read off `kind`, which the server sets, and never off the absence of a
+  // peer: a two-party DM whose other side left also has no peer, and it is
+  // still a DM.
+  function isCaseRoom(d) { return !!d && d.kind === 'case_room'; }
+  function roomTitle(d) { return (d && d.title) || 'Case room'; }
+  function roomRoster(d) {
+    return ((d && d.participants) || []).map((m) => m.display_name).filter(Boolean);
+  }
   function messagesUrl(key) {
     return isDmKey(key)
       ? '/dms/' + encodeURIComponent(key) + '/messages'
@@ -431,15 +445,52 @@
       scrollBox.appendChild(coSection);
     }
 
-    // direct messages (user-requested extension)
+    /* Conversations. Two kinds ride this one list, and they are not the same
+     * thing, so they do not render the same way.
+     *
+     * A DM is a person: a presence dot and their name. A case room has three
+     * people and no one of them is the room's name, so it renders its TITLE
+     * and how many colleagues are in it. The server used to hand rooms a
+     * synthetic peer built from the bot account so this loop would not print
+     * "Former member" at a room; that shim is gone with this branch, and a
+     * room that renders as a two-party DM is worse than one that renders
+     * plainly as a room.
+     *
+     * Rooms sit above DMs under their own label: a room appears because a case
+     * was routed to you, which is work, and a DM appears because a colleague
+     * chose to talk to you, which is not. */
+    const rooms = state.dms.filter(isCaseRoom);
+    const dms = state.dms.filter((d) => !isCaseRoom(d));
+
+    if (rooms.length) {
+      const roomSection = h('div', { class: 'cm-rail-section' },
+        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Case rooms')));
+      for (const d of rooms) {
+        const isActive = d.id === state.active;
+        const people = (d.participants || []).length;
+        roomSection.appendChild(h('button', {
+          class: 'cm-chan cm-room-row' + (isActive ? ' active' : ''),
+          'aria-current': isActive ? 'page' : null,
+          onClick: () => openDm(d.id),
+        },
+          h('span', { class: 'cm-room-mark', 'aria-hidden': 'true' }),
+          h('span', { class: 'cm-chan-name cm-room-name' }, roomTitle(d)),
+          people ? h('span', { class: 'cm-room-count' }, String(people)) : null,
+          d.unread > 0 && !isActive
+            ? h('span', { class: 'cm-chan-unread' }, d.unread > 99 ? '99+' : String(d.unread))
+            : null));
+      }
+      scrollBox.appendChild(roomSection);
+    }
+
     const dmSection = h('div', { class: 'cm-rail-section' },
       h('div', { class: 'cm-rail-label' },
         h('span', { class: 'chrome' }, 'Direct messages')));
-    if (!state.dms.length) {
+    if (!dms.length) {
       dmSection.appendChild(h('div', { class: 'cm-rail-hint' },
         'Open a colleague’s profile to start one.'));
     }
-    for (const d of state.dms) {
+    for (const d of dms) {
       const peer = d.peer || {};
       const isActive = d.id === state.active;
       dmSection.appendChild(h('button', {
@@ -518,11 +569,23 @@
     clear(head);
     if (isDmKey(state.active)) {
       const d = activeDm();
-      const peer = (d && d.peer) || {};
-      head.appendChild(h('span', { class: 'cm-head-name' }, peer.display_name || 'Conversation'));
-      head.appendChild(h('span', { class: 'cm-head-desc' },
-        'Direct messages are between the two of you.'
-        + (peer.blurb ? ' ' + peer.blurb : '')));
+      if (isCaseRoom(d)) {
+        // The roster is the header. Who else is on this case is the first
+        // thing you need before you say anything in here, and it is not
+        // derivable from a name the way a DM's other side is.
+        const roster = roomRoster(d);
+        head.appendChild(h('span', { class: 'cm-head-name' }, roomTitle(d)));
+        head.appendChild(h('span', { class: 'cm-head-desc' },
+          roster.length
+            ? 'On this case: ' + roster.join(', ') + '. Colleague discussion only — no PHI.'
+            : 'A room for the colleagues on this case. Colleague discussion only — no PHI.'));
+      } else {
+        const peer = (d && d.peer) || {};
+        head.appendChild(h('span', { class: 'cm-head-name' }, peer.display_name || 'Conversation'));
+        head.appendChild(h('span', { class: 'cm-head-desc' },
+          'Direct messages are between the two of you.'
+          + (peer.blurb ? ' ' + peer.blurb : '')));
+      }
     } else {
       const ch = activeChannel();
       if (!ch) return;
@@ -546,6 +609,13 @@
         class: 'cm-head-btn' + (pinCount ? ' has' : ''), 'aria-label': 'Pinned messages',
         title: 'Pinned messages', onClick: () => openPins(slug),
       }, '📌 ' + (pinCount || '')));
+      if (state.isAdmin) {
+        head.appendChild(h('button', {
+          class: 'cm-head-btn cm-persona-btn', 'aria-label': 'Post as Archangel',
+          title: 'Post as the Archangel account',
+          onClick: () => openPersonaComposer(slug),
+        }, 'Post as Archangel'));
+      }
       const bar = renderBookmarkBar(slug);
       if (bar) head.appendChild(bar);
     }
@@ -701,10 +771,19 @@
       if (state.active === 'events') return;
       let copy;
       if (inDm) {
-        const peer = (activeDm() || {}).peer || {};
-        copy = ['A private conversation',
-          'This is the beginning of your direct messages with '
-          + (peer.display_name || 'this colleague') + '. Colleague discussion only — no PHI.'];
+        const d = activeDm();
+        if (isCaseRoom(d)) {
+          const roster = roomRoster(d);
+          copy = [roomTitle(d),
+            'A room for the colleagues on this case'
+            + (roster.length ? ': ' + roster.join(', ') : '')
+            + '. Colleague discussion only — no PHI.'];
+        } else {
+          const peer = (d || {}).peer || {};
+          copy = ['A private conversation',
+            'This is the beginning of your direct messages with '
+            + (peer.display_name || 'this colleague') + '. Colleague discussion only — no PHI.'];
+        }
       } else {
         // A real channel: the branded panel, not two lines of grey.
         scroll.appendChild(homePanel(state.active));
@@ -1165,6 +1244,82 @@
     });
   }
 
+  // ─── Posting as the Archangel account (staff only) ─────────────────────────
+  // The bot voice used to be reachable only from code, so anything the team
+  // wanted to say in it had to be shipped. This is the same voice with a human
+  // trigger. It lives here rather than in the portal's admin tabs on purpose:
+  // it belongs beside the channels it writes into, and those tabs are being
+  // rebuilt elsewhere.
+  //
+  // Only channels where a bot post is what a reader already expects. #general
+  // and the specialty rooms are absent deliberately: a room of colleagues
+  // talking to each other is not somewhere the company account should appear
+  // as though it were one of them. The server enforces the same list.
+  const PERSONA_CHANNELS = [
+    'task-announcements', 'events', 'medical-ai-news',
+    'research-and-opportunities', 'team-ai-spotlight',
+  ];
+
+  function personaChannels() {
+    // Intersected with what this admin can actually see, so the picker never
+    // offers a room the post would 404 in.
+    const live = state.channels.map((c) => c.slug);
+    const out = PERSONA_CHANNELS.filter((s) => live.indexOf(s) !== -1);
+    return out.length ? out : PERSONA_CHANNELS.slice();
+  }
+
+  function openPersonaComposer(preferSlug) {
+    openModal('Post as Archangel', (close) => {
+      const slugs = personaChannels();
+      const picker = h('select', { class: 'cm-persona-channel' });
+      slugs.forEach((s) => picker.appendChild(h('option', { value: s }, '#' + s)));
+      if (preferSlug && slugs.indexOf(preferSlug) !== -1) picker.value = preferSlug;
+      const text = h('textarea', {
+        rows: '8', maxlength: '8000',
+        placeholder: 'Written in the Archangel voice. No patient identifiers.',
+      });
+      const announce = h('input', { type: 'checkbox' });
+      const announceRow = h('label', { class: 'cm-persona-announce' }, announce,
+        h('span', {}, 'Email this to every member'));
+      function syncAnnounce() {
+        // The fan-out rule is the server's, mirrored here so the box is not
+        // offered where it would be silently ignored.
+        const on = picker.value === 'task-announcements';
+        announceRow.style.display = on ? '' : 'none';
+        if (!on) announce.checked = false;
+      }
+      picker.addEventListener('change', syncAnnounce);
+      syncAnnounce();
+      const post = h('button', { class: 'cm-btn cm-btn-primary', onClick: async () => {
+        const body = text.value.trim();
+        if (!body) { toast('Nothing to post.', 'error'); return; }
+        post.disabled = true;
+        try {
+          await api('/admin/community/post', {
+            method: 'POST',
+            base: '/api/asclepius',
+            body: { channel_slug: picker.value, body: body, announce: announce.checked },
+          });
+          close();
+          toast('Posted to #' + picker.value + ' as Archangel.');
+        } catch (e) {
+          post.disabled = false;
+          toast(e.message, 'error');
+        }
+      } }, 'Post as Archangel');
+      return h('div', { class: 'cm-modal-body' },
+        field('Channel', picker),
+        field('Message', text),
+        announceRow,
+        h('p', { class: 'cm-persona-note' },
+          'This posts under the Archangel account, not your name. Every post is '
+          + 'logged against you.'),
+        h('div', { class: 'cm-modal-actions' },
+          h('button', { class: 'cm-btn cm-btn-ghost', onClick: close }, 'Cancel'),
+          post));
+    });
+  }
+
   function openNewPoll(slug) {
     openModal('New poll', (close) => {
       const q = h('input', { type: 'text', maxlength: '300', placeholder: 'How would you manage this?' });
@@ -1471,7 +1626,9 @@
       const peer = (d && d.peer) || {};
       wrap.appendChild(buildComposer({
         key: 'dm:' + state.active,
-        placeholder: 'Message ' + (peer.display_name || 'colleague') + '…',
+        placeholder: isCaseRoom(d)
+          ? 'Message the case team…'
+          : 'Message ' + (peer.display_name || 'colleague') + '…',
         onSend: (body, cs) => sendDmMessage(state.active, body, cs),
         typingMeta: { dm: state.active },
       }));

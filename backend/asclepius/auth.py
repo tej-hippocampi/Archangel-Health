@@ -189,8 +189,21 @@ def authenticate(store: AsclepiusStore, email: str, password: str) -> Optional[D
     return user
 
 
+def _bank_link_rail() -> Dict[str, Any]:
+    """Payments Rail §B4: tell the portal the rail is live, and only then.
+
+    Absent while dark, rather than present-and-false. The lock on this build is
+    that flag-off responses are byte-identical to the ones that shipped before
+    the rail existed, and a key nobody reads is still a key a client can see.
+    """
+    from asclepius import constants as _constants          # noqa: PLC0415
+
+    return {"bank_link_enabled": True} if _constants.stripe_enabled() else {}
+
+
 def public_user(user: Dict[str, Any]) -> Dict[str, Any]:
     return {
+        **_bank_link_rail(),
         "id": user["id"],
         "email": user["email"],
         "role": user["role"],

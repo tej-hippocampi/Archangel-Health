@@ -152,6 +152,11 @@
         </div>
       </section>
 
+      <!-- What we have asked for, when we have asked for anything. Filled by
+           provider.js and left empty otherwise: a permanent "no open requests"
+           panel is a permanent reminder of an absence. -->
+      <div id="prvRequests"></div>
+
       <div class="prv-grid">
         <!-- Drop zone column -->
         <section class="asc-card">
@@ -369,6 +374,22 @@
         </div>
         <div class="asc-card-pad">
           <div class="prv-payout-summary" id="prvPayoutSummary"></div>
+          <!-- Accrual visibility (PRD §15). Hidden until the server says there
+               is a gap, because "0 uploads accepted and awaiting pricing" is a
+               sentence that only ever worries the reader. -->
+          <div class="prv-accrual" id="prvPayoutAccrual" hidden>
+            <p class="prv-accrual-line" id="prvPayoutAccrualLine"></p>
+            <p class="prv-accrual-note" id="prvPayoutAccrualNote"></p>
+          </div>
+          <!-- The accrual rail: what is owed, what is billed, what has
+               cleared. Hidden until a price has been agreed with this
+               organization, because three zeroes on a money page read as "you
+               are owed nothing", which is a different and false statement from
+               "nobody has priced this yet". -->
+          <div class="prv-rail" id="prvPayoutRail" hidden>
+            <div class="prv-rail-stats" id="prvPayoutRailStats"></div>
+            <p class="prv-rail-note" id="prvPayoutRailNote"></p>
+          </div>
         </div>
         <div class="asc-table-wrap" id="prvPayoutTableWrap">
           <table class="asc-table">

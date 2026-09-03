@@ -752,6 +752,17 @@ class TeamStore:
             # Invited-clinician email verification (parity with the director's
             # OTP gate): set once the member proves inbox control via OTP.
             self._add_column_if_missing(conn, "asclepius_people", "email_verified_at", "TEXT")
+            # The three qualifying questions the /partner form asks, kept as
+            # named columns rather than folded into `message` or a JSON blob.
+            # docs/prds/prd-health-systems.md calls every submission the legal
+            # audit trail of an authority attestation, and an attestation that
+            # only exists inside a prose blob is one a form redesign can reshape
+            # without anything noticing. A column cannot be reshaped silently,
+            # and it is the field somebody will one day have to query.
+            self._add_column_if_missing(conn, "lead_submissions", "authority_answer", "TEXT")
+            self._add_column_if_missing(
+                conn, "lead_submissions", "deidentification_answer", "TEXT")
+            self._add_column_if_missing(conn, "lead_submissions", "data_scale_answer", "TEXT")
 
     @staticmethod
     def _migrate_team_member_roles_v4(conn: sqlite3.Connection) -> None:
@@ -2571,19 +2582,81 @@ class TeamStore:
         user_agent: Optional[str] = None,
         client_ip: Optional[str] = None,
         created_at: Optional[str] = None,
+        authority_answer: Optional[str] = None,
+        deidentification_answer: Optional[str] = None,
+        data_scale_answer: Optional[str] = None,
     ) -> int:
         """Append a landing lead-capture submission ("Request products" / "Provide
-        data"). Public form data, no PHI. Returns the new row id."""
+        data"). Public form data, no PHI. Returns the new row id.
+
+        The three qualifying answers are written EXACTLY as the visitor chose
+        them, never normalised to a token and never re-derived from ``message``.
+        A stored 'yes' that our code produced is our claim about what they said;
+        the words they picked are theirs, and that difference is the whole point
+        of archiving the submission.
+
+        They are ``None`` for the three sources that do not ask them, which is
+        what "this form never asked" looks like. It must stay distinguishable
+        from an empty string, which would mean "asked, and left blank".
+        """
         ts = created_at or _utcnow_iso()
         with self._conn() as conn:
             cur = conn.execute(
                 """
-                INSERT INTO lead_submissions (source, email, message, user_agent, client_ip, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO lead_submissions (source, email, message, user_agent, client_ip,
+                                              created_at, authority_answer,
+                                              deidentification_answer, data_scale_answer)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (source, email, message, user_agent, client_ip, ts),
+                (source, email, message, user_agent, client_ip, ts,
+                 authority_answer, deidentification_answer, data_scale_answer),
             )
             return int(cur.lastrowid)
+
+    def list_lead_submissions(
+        self,
+        *,
+        source: Optional[str] = None,
+        limit: int = 50,
+        before_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Landing lead submissions, newest first, for the admin console.
+
+        The table has been write-only since it was created: every submission is
+        an attestation about authority over de-identified data, which makes it a
+        legal audit trail, and an audit trail nobody can read is a file nobody
+        keeps. This is the reader.
+
+        Keyset paging on ``id`` rather than OFFSET because a form that is still
+        accepting submissions shifts every offset under the reader, so page two
+        would repeat rows page one already showed.
+
+        ``user_agent`` and ``client_ip`` are stored but NOT returned. They exist
+        for abuse forensics on a public form, and the console's job is to show
+        an operator who wrote in and what they said.
+
+        The three qualifying answers ARE returned. They are the part of the
+        attestation with legal weight, so a console that showed the prose and
+        hid them would be an audit trail nobody can audit.
+        """
+        clauses = []
+        params: List[Any] = []
+        if source:
+            clauses.append("source = ?")
+            params.append(source)
+        if before_id is not None:
+            clauses.append("id < ?")
+            params.append(int(before_id))
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(max(1, min(int(limit), 200)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, source, email, message, created_at, authority_answer, "
+                "deidentification_answer, data_scale_answer FROM lead_submissions"
+                + where + " ORDER BY id DESC LIMIT ?",
+                tuple(params),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_latest_preop_intake_submission(self, patient_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:

@@ -92,6 +92,20 @@ class Element extends Node {
     _registerTree(node);
     return node;
   }
+  /* Insert before a reference child, or append when the reference is null.
+   * Real DOM semantics, added when the admin console's ingest drawer needed
+   * it: without it the shim throws and the whole page fails to render, which
+   * looks like a mounting bug rather than a missing shim method. */
+  insertBefore(node, ref) {
+    if (node.parentNode) node.parentNode.removeChild(node);
+    const i = ref ? this.childNodes.indexOf(ref) : -1;
+    if (i === -1) { this.childNodes.push(node); }
+    else { this.childNodes.splice(i, 0, node); }
+    node.parentNode = this;
+    _registerTree(node);
+    return node;
+  }
+
   removeChild(node) {
     const i = this.childNodes.indexOf(node);
     if (i !== -1) { this.childNodes.splice(i, 1); node.parentNode = null; _unregisterTree(node); }

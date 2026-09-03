@@ -147,6 +147,31 @@ def _asclepius_workspace_url() -> str:
     return f"{_app_base()}/asclepius"
 
 
+def _partner_intro_url(request: Request, email: str) -> str:
+    """The /partner link the workspace-ready email hands a new physician.
+
+    Attributed to them when their referral code can be minted, plain when it
+    cannot. A physician who forwards this to a health system they already know
+    is the cheapest introduction we get, and an unattributed forward is one
+    where they never find out it worked.
+
+    Best effort throughout. This runs inside the last request of a signup that
+    has already provisioned an account, and losing a query parameter is not
+    worth failing that request over.
+    """
+    from asclepius import referrals as asc_referrals
+
+    code = None
+    try:
+        store = _asclepius_store(request)
+        user = store.get_user_by_email(email)
+        if user and asc_referrals.can_refer(user):
+            code = store.ensure_referral_code(user["id"])
+    except Exception:
+        code = None
+    return asc_referrals.partner_url(code, None)
+
+
 def _email_configured() -> bool:
     return is_email_transport_configured()
 
@@ -1850,6 +1875,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
             is_director=True,
             team_count=len(invited),
             verification_notice=True,
+            partner_url=_partner_intro_url(request, director_email),
         )
         await send_html_email(
             director_email, "Your Asclepius workspace is ready", html_body,
@@ -2005,6 +2031,7 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         workspace_url=workspace_url,
         is_director=False,
         verification_notice=True,
+        partner_url=_partner_intro_url(request, person["email"]),
     )
     await send_html_email(
         person["email"], "Your Asclepius workspace is ready", html_body, importance_headers=True

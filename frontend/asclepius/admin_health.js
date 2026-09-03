@@ -134,6 +134,11 @@
     // always first when it does. A hospital sitting in review cannot upload,
     // so a queue nobody sees is a partner nobody answers.
     const pendingSlot = h('div', {});
+    // Two more slots filled after the systems table paints, for the same reason
+    // the pending queue has one: neither should hold the page open, and neither
+    // failing should take the systems list down with it.
+    const leadsSlot = h('div', {});
+    const requestsSlot = h('div', {});
     let rows;
     try {
       const res = await api('/admin/health-systems');
@@ -162,7 +167,12 @@
       card.appendChild(h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-empty' },
           'No health systems yet. Send an organization its upload access and it will appear here.')));
+      // The leads card renders here too. A deployment with zero partners is
+      // exactly the one whose inbound leads matter most: they are the
+      // organizations that have not become rows in this table yet.
+      container.appendChild(leadsSlot);
       container.appendChild(card);
+      renderPartnerLeads(leadsSlot, ctx);
       renderStoragePanel(container, ctx);
       renderDemoVideoPanel(container, ctx);
       return;
@@ -207,10 +217,251 @@
       })));
     card.appendChild(h('div', { class: 'asc-table-wrap' }, table));
     container.appendChild(pendingSlot);
+    container.appendChild(leadsSlot);
+    container.appendChild(requestsSlot);
     container.appendChild(card);
     renderPendingSignups(pendingSlot, ctx, container);
+    renderPartnerLeads(leadsSlot, ctx);
+    renderDataRequests(requestsSlot, ctx, container);
     renderStoragePanel(container, ctx);
     renderDemoVideoPanel(container, ctx);
+  }
+
+  // ─── Partner leads ────────────────────────────────────────
+  // The landing forms have been writing into `lead_submissions` since they
+  // shipped and nothing has ever read them back. Every submission is an
+  // attestation about authority over de-identified data, which makes it a legal
+  // audit trail, and an audit trail nobody can read is a file nobody keeps.
+  //
+  // Above the systems list because a lead is the TOP of the same pipeline that
+  // list shows: these are the organizations that have not become rows yet.
+  //
+  // Read-only, deliberately. Replying happens in an inbox, so the control here
+  // is a mailto link rather than a compose box we would then have to keep in
+  // sync with a thread nobody can see from this page.
+  const LEAD_CHIPS = {
+    health_system_partner: 'asc-badge-green',
+    provide_data: 'asc-badge-lime',
+    request_data: 'asc-badge-amber',
+    research_notify: 'asc-badge-gray',
+  };
+  const LEAD_PAGE = 8;
+  // Mirrors routers/leads.py _UNANSWERED. Compared rather than reproduced: the
+  // server decides what an unanswered question reads as, this side only decides
+  // that it should look different from an answer.
+  const UNANSWERED = 'Not answered';
+
+  async function renderPartnerLeads(slot, ctx) {
+    const { h, api, clear, fmtDate } = ctx;
+    let data;
+    try {
+      // The lead table lives beside the public form that writes it, on
+      // /api/leads rather than under the asclepius prefix, so this read names
+      // its own base.
+      data = await api('/leads/admin?limit=' + LEAD_PAGE, { base: '/api' });
+    } catch (e) {
+      clear(slot);
+      slot.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' },
+          e.message || 'Could not load partner leads.'))));
+      return;
+    }
+    clear(slot);
+    const rows = data.leads || [];
+    if (!rows.length) return;
+
+    const card = h('div', { class: 'asc-card asc-hs-bucket' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Partner leads',
+          h('span', { class: 'asc-badge asc-badge-count', style: 'margin-left: var(--sp-2)' },
+            String(rows.length))),
+        h('div', { class: 'asc-card-sub' },
+          'Who wrote in through the landing forms, newest first. Every ' +
+          'submission is kept; replying happens in your inbox.'))));
+
+    rows.forEach((r) => {
+      const body = h('div', { class: 'asc-card-pad asc-hs-lead' });
+      body.appendChild(h('div', { class: 'asc-hs-lead-head' },
+        h('span', { class: 'asc-badge ' + (LEAD_CHIPS[r.source] || 'asc-badge-gray') },
+          r.source_label || r.source),
+        h('strong', {}, r.email || '(no address)'),
+        h('span', { class: 'asc-dim', style: 'font-size:12px' },
+          r.created_at ? fmtDate(r.created_at) : '')));
+      // The qualifying answers first, then the prose. These three are what the
+      // Sep 1 meeting agreed the form must ask, they are the part with legal
+      // weight, and an operator deciding whether this call is worth taking
+      // reads them before anything the visitor typed.
+      //
+      // Labels come off the wire. The server owns the wording of the questions
+      // and a second copy here is a second thing to reword.
+      const qual = r.qualifying || [];
+      if (qual.length) {
+        const dl = h('dl', { class: 'asc-hs-lead-qual' });
+        qual.forEach((q) => {
+          dl.appendChild(h('dt', { class: 'asc-hs-lead-qual-q' }, q.label || ''));
+          // "Not answered" is rendered dim rather than omitted: a question the
+          // form asked and nobody answered is a fact about the submission.
+          const missing = (q.answer || '') === UNANSWERED;
+          dl.appendChild(h('dd', {
+            class: 'asc-hs-lead-qual-a' + (missing ? ' asc-hs-lead-qual-none' : ''),
+          }, q.answer || ''));
+        });
+        body.appendChild(dl);
+      }
+      // VERBATIM. It is the attestation, and a truncated attestation is not one.
+      body.appendChild(h('div', { class: 'asc-hs-lead-message' }, r.message || ''));
+      body.appendChild(h('a', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+                                href: 'mailto:' + (r.email || '') },
+                         'Reply by email'));
+      card.appendChild(body);
+    });
+    slot.appendChild(card);
+  }
+
+  // ─── Data requests ────────────────────────────────────────
+  // "We need 100 nephrology cases", to every partner who has signed and may
+  // upload. The compose form and the open list live together because the thing
+  // an operator does after sending one is watch whether anyone answered.
+  //
+  // The delivery tally is shown next to every request for a reason: a request
+  // that produced no replies has two very different explanations, and "nobody
+  // had the cases" and "nobody was told" look identical from here without it.
+  function requestField(h, id, label, attrs) {
+    const input = h('input', Object.assign({ class: 'asc-input', id: id,
+                                             placeholder: label }, attrs || {}));
+    return input;
+  }
+
+  async function renderDataRequests(slot, ctx, listContainer) {
+    const { h, api, clear, toast, fmtDate } = ctx;
+    let data;
+    try {
+      data = await api('/admin/hs-requests');
+    } catch (e) {
+      clear(slot);
+      slot.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' },
+          e.message || 'Could not load data requests.'))));
+      return;
+    }
+    clear(slot);
+    const rows = data.requests || [];
+    const open = rows.filter((r) => r.status === 'open');
+
+    const card = h('div', { class: 'asc-card asc-hs-bucket' },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'Data requests'),
+        h('div', { class: 'asc-card-sub' },
+          'What we have asked partners for. Everyone who has signed and can ' +
+          'upload is emailed; several may answer and you approve what fits.'))));
+
+    if (!open.length) {
+      card.appendChild(h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-empty' }, 'Nothing open right now.')));
+    }
+    open.forEach((r) => {
+      const body = h('div', { class: 'asc-card-pad asc-hs-request' });
+      const d = r.delivery || {};
+      body.appendChild(h('div', { class: 'asc-hs-request-head' },
+        h('strong', {}, r.title),
+        h('span', { class: 'asc-badge asc-badge-gray' }, r.specialty),
+        h('span', { class: 'asc-dim', style: 'font-size:12px' },
+          r.case_count + ' cases' +
+          (r.due_date ? ' · by ' + r.due_date : '') +
+          (r.created_at ? ' · asked ' + fmtDate(r.created_at) : ''))));
+      if (r.details) {
+        body.appendChild(h('div', { class: 'asc-hs-lead-message' }, r.details));
+      }
+      const deliveryLine = h('div', { class: 'asc-dim', style: 'font-size:12px' },
+        'Emailed ' + (d.sent || 0) + ' · waiting to send ' + (d.pending || 0) +
+        ' · failed ' + (d.failed || 0));
+      if (d.failed > 0) {
+        // Failed rows are otherwise terminal: re-broadcasting enqueues nothing
+        // because every idempotency key already exists. This flips them back
+        // to pending for the shared drain's next tick.
+        const retryBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+                                       style: 'margin-left: var(--sp-1)' },
+                           'Retry failed (' + d.failed + ')');
+        retryBtn.addEventListener('click', async () => {
+          retryBtn.disabled = true;
+          try {
+            const res = await api('/admin/hs-requests/' + encodeURIComponent(r.id) +
+                                  '/retry-failed', { method: 'POST' });
+            toast('Queued ' + (res.retried || 0) + ' to retry.', 'success');
+            render(listContainer.parentNode, ctx);
+          } catch (e) {
+            retryBtn.disabled = false;
+            toast(e.message || 'Could not retry those.', 'error');
+          }
+        });
+        deliveryLine.appendChild(retryBtn);
+      }
+      body.appendChild(deliveryLine);
+
+      const uploadsLine = h('div', { class: 'asc-dim', style: 'font-size:12px' }, 'Loading replies…');
+      body.appendChild(uploadsLine);
+      api('/admin/hs-requests/' + encodeURIComponent(r.id)).then((detail) => {
+        const partners = (detail.responders || []).length;
+        clear(uploadsLine);
+        uploadsLine.appendChild(document.createTextNode(
+          detail.uploads_count
+            ? detail.uploads_count + ' upload' + (detail.uploads_count === 1 ? '' : 's') +
+              ' from ' + partners + ' partner' + (partners === 1 ? '' : 's')
+            : 'No uploads tagged with this request yet.'));
+      }).catch(() => {
+        clear(uploadsLine);
+        uploadsLine.appendChild(document.createTextNode('Could not load replies.'));
+      });
+
+      const actions = h('div', { class: 'asc-hs-signup-actions' });
+      ['fulfilled', 'withdrawn'].forEach((reason) => {
+        actions.appendChild(btn(h, 'Close as ' + reason, 'asc-btn-subtle', async () => {
+          try {
+            await api('/admin/hs-requests/' + encodeURIComponent(r.id) + '/close',
+                      { method: 'POST', body: { reason: reason } });
+            toast('Closed.', 'success');
+            render(listContainer.parentNode, ctx);
+          } catch (e) { toast(e.message || 'Could not close that.', 'error'); }
+        }));
+      });
+      body.appendChild(actions);
+      card.appendChild(body);
+    });
+
+    // The compose form, at the bottom: an operator opening this page is far
+    // more often checking on a request than writing a new one.
+    const titleEl = requestField(h, 'ascReqTitle', 'What we need');
+    const specialtyEl = requestField(h, 'ascReqSpecialty', 'Specialty');
+    const countEl = requestField(h, 'ascReqCount', 'How many cases', { type: 'number', min: '1' });
+    const dueEl = requestField(h, 'ascReqDue', 'Useful by', { type: 'date' });
+    const detailsEl = h('textarea', { class: 'asc-input', rows: '3',
+                                      placeholder: 'Anything else they should know' });
+    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Send to every active partner');
+    sendBtn.addEventListener('click', async () => {
+      const count = parseInt(countEl.value, 10);
+      if (!titleEl.value.trim() || !specialtyEl.value.trim()) {
+        toast('A request needs a title and a specialty.', 'error');
+        return;
+      }
+      if (!isFinite(count) || count <= 0) {
+        toast('Ask for at least one case.', 'error');
+        return;
+      }
+      try {
+        const res = await api('/admin/hs-requests', { method: 'POST', body: {
+          title: titleEl.value.trim(), specialty: specialtyEl.value.trim(),
+          case_count: count, due_date: dueEl.value || '',
+          details: (detailsEl.value || '').trim() } });
+        toast('Queued for ' + (res.recipients || 0) + ' people.', 'success');
+        render(listContainer.parentNode, ctx);
+      } catch (e) { toast(e.message || 'Could not send that.', 'error'); }
+    });
+    card.appendChild(h('div', { class: 'asc-card-pad asc-hs-payout-form' },
+      h('div', { class: 'asc-card-title' }, 'Ask for data'),
+      h('div', { class: 'asc-hs-payout-grid' }, titleEl, specialtyEl, countEl, dueEl),
+      detailsEl, sendBtn));
+
+    slot.appendChild(card);
   }
 
   // ─── The onboarding demo video (Onboarding v2 §0.1) ───────

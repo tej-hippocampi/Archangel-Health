@@ -184,3 +184,40 @@ def test_the_raw_token_is_never_stored(client):
     with store._conn() as conn:
         rows = [dict(r) for r in conn.execute("SELECT * FROM signin_links").fetchall()]
     assert rows and all(raw not in str(v) for r in rows for v in r.values())
+
+
+# ─── The door in the portal ──────────────────────────────────────────────────
+#
+# The endpoints above were reachable by curl and by nothing else. An applicant
+# who closed the tab still had no route back to their own practice case, which
+# is the whole failure this feature exists to fix.
+import pathlib  # noqa: E402
+
+_PORTAL_JS = (pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
+              / "asclepius.js").read_text(encoding="utf-8")
+
+
+def test_the_sign_in_screen_offers_a_link_and_can_redeem_one():
+    """Both halves. Requesting the link is useless without a landing path that
+    trades the token for a session, and the token arrives as a query parameter
+    on the portal's own URL."""
+    assert "/auth/signin-link" in _PORTAL_JS
+    assert "/auth/signin-link/exchange" in _PORTAL_JS
+    assert "'signin'" in _PORTAL_JS
+
+
+def test_the_offer_is_not_conditioned_on_the_account_having_no_password():
+    """A SECURITY property, not a layout one. The endpoint answers identically
+    for an account that exists, one that does not, and one that already holds a
+    password. A control shown only to passwordless accounts would answer, by
+    its presence, the exact question the response refuses to: it would turn the
+    sign-in screen into an account-enumeration oracle and hand an attacker a
+    list of physicians whose applications are still undecided.
+
+    Asserted structurally: the request block must not read account state, and
+    the only input it consults is the address the visitor typed.
+    """
+    start = _PORTAL_JS.index("/auth/signin-link'")
+    block = _PORTAL_JS[start - 1400:start + 900]
+    for oracle in ("password_is_unset", "state.user", "/auth/me", "accountExists"):
+        assert oracle not in block, f"the sign in link offer branches on {oracle}"

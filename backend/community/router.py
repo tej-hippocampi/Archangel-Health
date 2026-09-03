@@ -34,8 +34,11 @@ from asclepius.constants import TIER_B_FORBIDDEN_KEYS
 from asclepius.store import get_store as get_asclepius_store
 from audit import audit_log
 from community import attachments as catt
+from community import countries as ccountries
 from community import notify as cnotify
+from community import persona as cpersona
 from community import phi_gate
+from community import subspecialties as csubspecialties
 from community.schema import (
     DmMessageIn, DmOpen, HandoffRedeem, MessageEdit, MessageIn, ReactionIn, ReadIn,
 )
@@ -343,6 +346,22 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
             # the community needs that.
             "country": (user.get("country_of_practice")
                         or user.get("country_of_licensure") or None),
+            # Normalized here rather than at the counting site so that every
+            # consumer -- the rail, the thresholds, the newsletter -- agrees on
+            # what "the same subspecialty" means. Unmapped free text yields an
+            # empty list and simply counts towards no room.
+            "subspecialties": csubspecialties.slugs_for(ship.get("subspecialties")),
+            # Self-reported practice city, which is a colleague-facing fact and
+            # not a buyer-facing one: members already see each other's real
+            # names, and the Tier A ship still never carries a city. Absent
+            # until the profile field exists, at which point the rooms open on
+            # their own.
+            "city": cstore_mod.city_slug(user.get("practice_city")),
+            # The coarser grouping the crossed rooms count on. Derived from the
+            # country rather than stored, so there is one answer to "where do
+            # they practise" and the two rooms can never disagree about it.
+            "region": ccountries.region_for(
+                user.get("country_of_practice") or user.get("country_of_licensure")),
             "years_in_practice": years,
             "institution": (cred or {}).get("organization")
                 or user.get("organization") or user.get("org_name"),
@@ -362,6 +381,15 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
 def public_member(member: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not member:
         return None
+    # The Archangel account's display identity is resolved HERE, at the single
+    # chokepoint every rendered member passes through, rather than at each
+    # place the bot can appear. It is the message author, the peer of a system
+    # DM, and whatever surface renders it next; getting the face onto only two
+    # of those is how an account ends up looking like two different accounts.
+    from community.system_posts import SYSTEM_USER_ID  # noqa: PLC0415 - import cycle
+
+    if member.get("user_id") == SYSTEM_USER_ID:
+        member = cpersona.decorate(member)
     pub = {k: v for k, v in member.items() if k != "email"}
     pub = _scrub_tier_b(pub)
     # Belt and braces (PRD §2): the payload must be leak-free by construction;
@@ -480,20 +508,125 @@ def country_threshold() -> int:
         return 3
 
 
-def visible_channels(members: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """The channel list every member sees (visibility is deliberately GLOBAL —
-    identical for all members, so unread badges, search scope, and the WS
-    broadcast never diverge per user). Core channels always show; a specialty
+def subspecialty_threshold() -> int:
+    """Colleagues a subspecialty needs before its channel appears.
+
+    Same number and same reason as countries. A subspecialty is a narrower cut
+    than a specialty, so this rule bites more often, which is the point: the
+    alternative is twenty rooms of one.
+    """
+    try:
+        return max(1, int(os.getenv("COMMUNITY_SUBSPECIALTY_MIN_MEMBERS", "3")))
+    except (TypeError, ValueError):
+        return 3
+
+
+def city_threshold() -> int:
+    """Colleagues a city needs before its channel appears."""
+    try:
+        return max(1, int(os.getenv("COMMUNITY_CITY_MIN_MEMBERS", "3")))
+    except (TypeError, ValueError):
+        return 3
+
+
+def _subspecialty_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
+    """Non-staff members per subspecialty slug.
+
+    A physician with three subspecialties counts towards three rooms, which is
+    correct: they really do belong in all three.
+    """
+    out: Dict[str, int] = {}
+    for m in members.values():
+        if m.get("is_staff"):
+            continue
+        for slug in (m.get("subspecialties") or ()):
+            if slug:
+                out[slug] = out.get(slug, 0) + 1
+    return out
+
+
+def specialty_region_threshold() -> int:
+    """Colleagues one specialty in one region needs before its room appears.
+
+    Higher than the plain specialty and country thresholds by default, and
+    that is the point rather than an oversight: a crossed room is a subset of
+    two rooms that already exist, so it should have to show visibly more
+    people than either before it earns a line in the rail. Below that it is
+    not a third room, it is #neurology with fewer people in it.
+    """
+    try:
+        return max(1, int(os.getenv("COMMUNITY_SPECIALTY_REGION_MIN_MEMBERS", "5")))
+    except (TypeError, ValueError):
+        return 5
+
+
+def _specialty_region_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
+    """Non-staff members per specialty-in-region cohort key."""
+    out: Dict[str, int] = {}
+    for m in members.values():
+        if m.get("is_staff"):
+            continue
+        key = cstore_mod.specialty_region_key(m.get("specialty"), m.get("region"))
+        if key:
+            out[key] = out.get(key, 0) + 1
+    return out
+
+
+def _city_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
+    """Non-staff members per normalized city slug."""
+    out: Dict[str, int] = {}
+    for m in members.values():
+        if m.get("is_staff"):
+            continue
+        c = (m.get("city") or "").strip()
+        if c:
+            out[c] = out.get(c, 0) + 1
+    return out
+
+
+def is_staff_user(user: Optional[Dict[str, Any]]) -> bool:
+    """Archangel staff, by the same role test ``member_map`` uses.
+
+    Read from the users row rather than from ``member_map`` so that it still
+    answers correctly for an account the member map has no entry for (a banned
+    or deactivated admin), and so a caller need not build the whole map to ask
+    one question.
+    """
+    return (user or {}).get("role") in ("admin", "qa_reviewer")
+
+
+def visible_channels(
+    members: Dict[str, Dict[str, Any]], *, staff_viewer: bool = False,
+) -> List[Dict[str, Any]]:
+    """The channel list a member sees. Core channels always show; a specialty
     channel shows once its specialty has >= threshold members, and STICKS once
-    it has history (a channel with messages never vanishes because someone
-    was deactivated)."""
+    it has history (a channel with messages never vanishes because someone was
+    deactivated). Subspecialty, country and city rooms follow the same rule
+    against their own cohort counts.
+
+    Threshold visibility is GLOBAL: identical for every member, so unread
+    badges, search scope and the WS broadcast never diverge per user. Exactly
+    one thing is per-viewer: a ``staff_only`` channel, which is a
+    confidentiality rule rather than a liveliness rule and is therefore the one
+    place this function needs to know who is asking. ``staff_viewer`` defaults
+    to False so a caller that forgets to pass it hides the staff room rather
+    than exposing it.
+    """
     cstore = _cstore()
     counts = _specialty_counts(members)
     threshold = specialty_threshold()
     countries = _country_counts(members)
     country_min = country_threshold()
+    subs = _subspecialty_counts(members)
+    sub_min = subspecialty_threshold()
+    cities = _city_counts(members)
+    city_min = city_threshold()
+    crossed = _specialty_region_counts(members)
+    crossed_min = specialty_region_threshold()
     out: List[Dict[str, Any]] = []
     for ch in cstore.list_channels():
+        if ch.get("staff_only") and not staff_viewer:
+            continue
         grp = (ch.get("grp") or "core")
         if grp == "specialty":
             spec = (ch.get("specialty") or "").strip().lower()
@@ -505,19 +638,77 @@ def visible_channels(members: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]
             if countries.get(code, 0) >= country_min or cstore.channel_has_messages(ch["id"]):
                 out.append(ch)
             continue
+        if grp == "subspecialty":
+            slug = (ch.get("subspecialty") or "").strip().lower()
+            if subs.get(slug, 0) >= sub_min or cstore.channel_has_messages(ch["id"]):
+                out.append(ch)
+            continue
+        if grp == "city":
+            slug = (ch.get("city") or "").strip().lower()
+            if cities.get(slug, 0) >= city_min or cstore.channel_has_messages(ch["id"]):
+                out.append(ch)
+            continue
+        if grp == "specialty_region":
+            key = cstore_mod.specialty_region_key(ch.get("specialty"), ch.get("region"))
+            if (key and crossed.get(key, 0) >= crossed_min) \
+                    or cstore.channel_has_messages(ch["id"]):
+                out.append(ch)
+            continue
         out.append(ch)
     return out
 
 
-def _visible_channel_or_404(slug: str, members: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    """Resolve a slug against the VISIBLE set — a hidden (below-threshold or
-    deactivated) channel answers with the same 404 as an unknown one, so the
-    API is no oracle for what exists (mirrors ``_require_message_access``)."""
+def _visible_channel_or_404(
+    slug: str, members: Dict[str, Dict[str, Any]], *,
+    user: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Resolve a slug against the VISIBLE set: a hidden (below-threshold,
+    deactivated, or staff-only to a member) channel answers with the same 404
+    as an unknown one, so the API is no oracle for what exists (mirrors
+    ``_require_message_access``)."""
     want = (slug or "").strip().lower()
-    channel = next((c for c in visible_channels(members) if c["slug"] == want), None)
+    channel = next(
+        (c for c in visible_channels(members, staff_viewer=is_staff_user(user))
+         if c["slug"] == want),
+        None,
+    )
     if not channel:
         raise HTTPException(status_code=404, detail="Unknown channel")
     return channel
+
+
+async def broadcast_channel_event(
+    event: Dict[str, Any], channel: Optional[Dict[str, Any]],
+) -> None:
+    """Fan a channel event out to everyone who can see that channel.
+
+    The WS hub has always been a single broadcast, which was right while every
+    channel was visible to every member. A ``staff_only`` room breaks that: the
+    REST list hides it and the message-by-id path 404s it, and neither matters
+    if the socket pushes the message body to every connected physician anyway.
+    """
+    if channel and channel.get("staff_only"):
+        members = member_map()
+        staff = [uid for uid, m in members.items() if m.get("is_staff")]
+        await hub.send_to_users(staff, event)
+        return
+    await hub.broadcast(event)
+
+
+def channel_by_id(channel_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The channel row behind an id, inactive ones included.
+
+    Callers that hold a poll or a pin hold a channel_id and nothing else, and
+    they still have to know whether the room is staff-only before they put its
+    contents on a socket.
+    """
+    if not channel_id:
+        return None
+    return next(
+        (c for c in _cstore().list_channels(include_inactive=True)
+         if c["id"] == channel_id),
+        None,
+    )
 
 
 # ─── Message container resolution / access control ────────────────────────────
@@ -537,16 +728,58 @@ def _container_of(msg: Dict[str, Any]) -> tuple:
     return ("channel", channel) if channel else (None, None)
 
 
+def _is_case_room(dm: Optional[Dict[str, Any]]) -> bool:
+    return (dm or {}).get("kind") == cstore_mod.CommunityStore.ROOM_KIND
+
+
+def _dm_access(user: Dict[str, Any], dm: Optional[Dict[str, Any]]) -> bool:
+    """May this account reach this conversation at all?
+
+    Two rules, and the second is a deliberate, narrow exception to the first.
+
+    A two-party DM is its participants' and nobody else's, admins included.
+    A CASE ROOM is the routed team plus Archangel admins (PRD D3): the room
+    exists so founders can step into a stuck case, which is a capability a
+    read-only exception could not deliver. Its intro says so out loud, and case
+    CONTENT is forbidden in there precisely because the room is not private.
+    """
+    if not dm:
+        return False
+    if user["id"] in _cstore().dm_participants(dm):
+        return True
+    return _is_case_room(dm) and user.get("role") == "admin"
+
+
 def _require_message_access(user: Dict[str, Any], msg: Dict[str, Any]) -> tuple:
     """THE visibility rule for anything reached by message id (edit, delete,
-    react, thread, attachment download): channel messages are visible to every
-    member; a DM message is visible ONLY to its two participants — including
-    to admins, who have no read access to others' private conversations. A
-    non-participant gets the same 404 as a nonexistent message (no oracle)."""
+    react, thread, attachment download). Two arms, and each one exists for a
+    reason worth keeping written down.
+
+    A DM message is visible ONLY to its participants, admins included: they
+    have no read access to others' private conversations. The one exception is
+    a CASE ROOM, which is the routed team plus admins, because the room exists
+    so founders can step into a stuck case (see ``_dm_access``).
+
+    A CHANNEL message is visible only to someone the channel itself is visible
+    to. That arm used to be missing entirely: every member could reach every
+    channel message by id, which was harmless while every channel was visible
+    to every member and is a leak the moment one is not. It is written as a
+    ``staff_only`` test rather than a full ``visible_channels`` membership test
+    on purpose. Threshold gating is a liveliness rule about what the rail lists,
+    and a message inside a deactivated or below-threshold channel must still
+    resolve here for the moderation and audit paths that reach it by id
+    (``_container_of`` loads inactive channels for exactly that reason).
+    ``staff_only`` is a confidentiality rule, and it is enforced.
+
+    A caller who cannot see a message gets the same 404 as a nonexistent one,
+    so the endpoint is never an existence oracle.
+    """
     kind, container = _container_of(msg)
     if kind is None:
         raise HTTPException(status_code=404, detail="Message not found")
-    if kind == "dm" and user["id"] not in (container["user_a"], container["user_b"]):
+    if kind == "dm" and not _dm_access(user, container):
+        raise HTTPException(status_code=404, detail="Message not found")
+    if kind == "channel" and container.get("staff_only") and not is_staff_user(user):
         raise HTTPException(status_code=404, detail="Message not found")
     return kind, container
 
@@ -620,14 +853,16 @@ def _serialize_one_resolved(msg: Dict[str, Any], *, viewer_id: Optional[str] = N
 
 
 async def _emit_message_event(event_type: str, serialized: Dict[str, Any],
-                              dm: Optional[Dict[str, Any]]) -> None:
-    """Channel events broadcast to every member; DM events go ONLY to the two
-    participants (never the broadcast — PRD-level privacy invariant)."""
+                              dm: Optional[Dict[str, Any]],
+                              channel: Optional[Dict[str, Any]] = None) -> None:
+    """Channel events go to everyone who can see the channel; DM events go ONLY
+    to the two participants (never the broadcast: PRD-level privacy
+    invariant)."""
     event = {"type": event_type, "message": serialized}
     if dm:
-        await hub.send_to_users([dm["user_a"], dm["user_b"]], event)
+        await hub.send_to_users(_cstore().dm_participants(dm), event)
     else:
-        await hub.broadcast(event)
+        await broadcast_channel_event(event, channel)
 
 
 def _audit(request: Optional[Request], user: Dict[str, Any], action: str, outcome: str,
@@ -689,7 +924,7 @@ async def me(user: Dict[str, Any] = Depends(require_member)):
 async def channels(user: Dict[str, Any] = Depends(require_member)):
     cstore = _cstore()
     members = member_map()
-    visible = visible_channels(members)
+    visible = visible_channels(members, staff_viewer=is_staff_user(user))
     unread = cstore.unread_counts(user["id"], channels=visible)
     return {
         "channels": [
@@ -719,7 +954,7 @@ async def channel_messages(
 ):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(slug, members)
+    channel = _visible_channel_or_404(slug, members, user=user)
     msgs, has_more = cstore.list_messages(
         channel["id"], before_id=before, after_id=after, limit=limit
     )
@@ -774,7 +1009,7 @@ async def post_message(
 ):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(slug, members)
+    channel = _visible_channel_or_404(slug, members, user=user)
 
     text = (body.body or "").strip()
     if not text and not body.attachment_ids:
@@ -849,7 +1084,8 @@ async def post_message(
     )
 
     serialized = _serialize_messages([msg], members, channel["slug"])[0]
-    await hub.broadcast({"type": "message.created", "message": serialized})
+    await broadcast_channel_event(
+        {"type": "message.created", "message": serialized}, channel)
     return serialized
 
 
@@ -927,9 +1163,9 @@ async def delete_message(
         "parent_message_id": msg.get("parent_message_id"),
     }
     if kind == "dm":
-        await hub.send_to_users([container["user_a"], container["user_b"]], event)
+        await hub.send_to_users(cstore.dm_participants(container), event)
     else:
-        await hub.broadcast(event)
+        await broadcast_channel_event(event, container)
     return {"ok": True, "id": message_id}
 
 
@@ -965,9 +1201,9 @@ async def toggle_reaction(
         "reactions": reactions,
     }
     if kind == "dm":
-        await hub.send_to_users([container["user_a"], container["user_b"]], event)
+        await hub.send_to_users(cstore.dm_participants(container), event)
     else:
-        await hub.broadcast(event)
+        await broadcast_channel_event(event, container)
     return {"ok": True, "added": added, "reactions": reactions}
 
 
@@ -1000,11 +1236,13 @@ async def mark_read(
 ):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(slug, members)
+    channel = _visible_channel_or_404(slug, members, user=user)
     cstore.set_read(user["id"], channel["id"], body.last_read_message_id)
     return {
         "ok": True,
-        "unread": cstore.unread_counts(user["id"], channels=visible_channels(members)),
+        "unread": cstore.unread_counts(
+            user["id"],
+            channels=visible_channels(members, staff_viewer=is_staff_user(user))),
     }
 
 
@@ -1070,7 +1308,9 @@ async def badge(user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_us
     if not user or not _passes_gate(user):
         return {"eligible": False, "unread": 0, "mentions": 0}
     cstore = _cstore()
-    counts = cstore.unread_counts(user["id"], channels=visible_channels(member_map()))
+    counts = cstore.unread_counts(
+        user["id"],
+        channels=visible_channels(member_map(), staff_viewer=is_staff_user(user)))
     dm_unread = cstore.dm_unread_total(user["id"])
     return {
         "eligible": True,
@@ -1089,15 +1329,43 @@ async def badge(user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_us
 # (``hub.send_to_users``) so a DM never rides the broadcast.
 def _dm_or_404(dm_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
     dm = _cstore().get_dm(dm_id)
-    if not dm or user["id"] not in (dm["user_a"], dm["user_b"]):
+    if not _dm_access(user, dm):
         raise HTTPException(status_code=404, detail="Conversation not found")
     return dm
+
+
+def _room_title(dm: Dict[str, Any]) -> str:
+    return (dm.get("title") or "").strip() or "Case room"
 
 
 def _dm_summary(dm: Dict[str, Any], user_id: str,
                 members: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     from community.system_posts import SYSTEM_MEMBER, SYSTEM_USER_ID  # noqa: PLC0415
 
+    base = {
+        "id": dm["id"],
+        "last_message_id": dm.get("last_message_id"),
+        "last_message_at": dm.get("last_message_at"),
+        "unread": int(dm.get("unread") or 0),
+    }
+    if _is_case_room(dm):
+        # A room is named by its case and has a roster, not a peer.
+        #
+        # It used to carry a synthetic ``peer`` built from the bot member with
+        # the room's title glued into its display name. That was a client
+        # compatibility shim: community.js rendered every conversation by its
+        # peer's display name, so a room with no peer showed up as an anonymous
+        # ghost. The client now renders a room as a room (PRD-F), so the shim
+        # is gone. It should not come back: a fake peer means a room can be
+        # mistaken for a two-party DM by anything reading this payload, which is
+        # exactly the wrong thing to be wrong about on a conversation with three
+        # people in it.
+        roster = [public_member(members.get(uid)) for uid
+                  in (dm.get("participants") or _cstore().room_participants(dm["id"]))]
+        return dict(base, kind=cstore_mod.CommunityStore.ROOM_KIND,
+                    title=_room_title(dm),
+                    case_ref=dm.get("case_ref"),
+                    participants=[m for m in roster if m])
     peer_id = dm["user_b"] if dm["user_a"] == user_id else dm["user_a"]
     # The Archangel bot is a virtual author: never a users row, never in
     # member_map. ``_serialize_messages`` has always special-cased it for the
@@ -1107,13 +1375,7 @@ def _dm_summary(dm: Dict[str, Any], user_id: str,
     # an anonymous, deleted-looking conversation telling them to go do work.
     peer = (dict(SYSTEM_MEMBER) if peer_id == SYSTEM_USER_ID
             else members.get(peer_id))
-    return {
-        "id": dm["id"],
-        "peer": public_member(peer) or dict(_GHOST_MEMBER),
-        "last_message_id": dm.get("last_message_id"),
-        "last_message_at": dm.get("last_message_at"),
-        "unread": int(dm.get("unread") or 0),
-    }
+    return dict(base, kind="dm", peer=public_member(peer) or dict(_GHOST_MEMBER))
 
 
 @router.get("/dms")
@@ -1207,11 +1469,16 @@ async def post_dm_message(
     })
     cstore.set_read(user["id"], dm["id"], msg["id"])
 
-    peer_id = dm["user_b"] if dm["user_a"] == user["id"] else dm["user_a"]
-    cnotify.enqueue_dm(cstore, recipient_id=peer_id, message=msg)
+    # Everyone in the conversation except the author. On a two-party DM that is
+    # the peer, exactly as before; on a room it is the rest of the case team, so
+    # the room rides the DM unread and digest plumbing with no second path.
+    participants = cstore.dm_participants(dm)
+    for recipient_id in participants:
+        if recipient_id != user["id"]:
+            cnotify.enqueue_dm(cstore, recipient_id=recipient_id, message=msg)
 
     serialized = _serialize_messages([msg], member_map(), None, dm_id=dm["id"])[0]
-    await hub.send_to_users([dm["user_a"], dm["user_b"]],
+    await hub.send_to_users(participants,
                             {"type": "message.created", "message": serialized})
     return serialized
 
@@ -1228,6 +1495,40 @@ async def mark_dm_read(
 
 
 # ─── Members ──────────────────────────────────────────────────────────────────
+@router.get("/persona/avatar")
+async def persona_avatar(_user: Dict[str, Any] = Depends(require_member)):
+    """The Archangel account's picture.
+
+    Its own route rather than the users avatar endpoint because the account is
+    a virtual author with no users row, which is deliberate: a real account for
+    the bot would show up in the member directory, the verification queue and
+    the buyer-facing exports. Same gate as everything else here, and a 404 when
+    nobody has supplied a picture, which the client already handles by falling
+    back to initials.
+    """
+    resolved = cpersona.resolve()
+    if not resolved:
+        raise HTTPException(status_code=404, detail="No picture on file.")
+    sha, mime = resolved
+    try:
+        from asclepius import assets as asc_assets  # noqa: PLC0415
+
+        data, _mime = asc_assets.load_asset(sha)
+    except Exception:  # noqa: BLE001 - an ephemeral asset store loses the blob
+        raise HTTPException(status_code=404, detail="No picture on file.")
+    return Response(
+        content=data,
+        media_type=mime or "image/png",
+        headers={
+            "Content-Disposition": "inline",
+            # The URL carries the content hash, so the bytes behind one URL can
+            # never change and a long cache is safe.
+            "Cache-Control": "private, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/members")
 async def members_endpoint(
     specialty: Optional[str] = Query(default=None),
@@ -1254,7 +1555,10 @@ async def search(
     members = member_map()
     # Visibility-scoped: hidden/deactivated channels are excluded from the
     # search SQL exactly like someone else's DMs.
-    channels_by_id = {c["id"]: c for c in visible_channels(members)}
+    channels_by_id = {
+        c["id"]: c
+        for c in visible_channels(members, staff_viewer=is_staff_user(user))
+    }
     my_dms = {d["id"]: d for d in cstore.list_dms_for(user["id"])}
     # §4: "search across messages the user can see" — the public channels plus
     # THEIR OWN direct messages, enforced in SQL (someone else's DM content can
@@ -1449,7 +1753,9 @@ async def portal_unread(
     if not user or not _passes_gate(user):
         return {"total": 0}
     cstore = _cstore()
-    counts = cstore.unread_counts(user["id"], channels=visible_channels(member_map()))
+    counts = cstore.unread_counts(
+        user["id"],
+        channels=visible_channels(member_map(), staff_viewer=is_staff_user(user)))
     return {
         "total": sum(c["unread"] for c in counts.values())
                  + cstore.dm_unread_total(user["id"]),
@@ -1638,14 +1944,16 @@ async def community_ws(websocket: WebSocket):
                 name = me_member.get("display_name") or "Someone"
                 dm_field = event.get("dm")
                 if isinstance(dm_field, str) and dm_field.startswith("dm-"):
-                    # DM typing relays ONLY to the conversation peer.
+                    # DM typing relays ONLY inside the conversation: the peer on
+                    # a two-party DM, the rest of the case team in a room.
                     dm = _cstore().get_dm(dm_field)
-                    if dm and user["id"] in (dm["user_a"], dm["user_b"]):
-                        peer = dm["user_b"] if dm["user_a"] == user["id"] else dm["user_a"]
-                        await hub.send_to_users([peer], {
-                            "type": "typing", "dm": dm_field,
-                            "user_id": user["id"], "name": name,
-                        })
+                    members_here = _cstore().dm_participants(dm) if dm else []
+                    if dm and user["id"] in members_here:
+                        await hub.send_to_users(
+                            [u for u in members_here if u != user["id"]], {
+                                "type": "typing", "dm": dm_field,
+                                "user_id": user["id"], "name": name,
+                            })
                     continue
                 slug = str(event.get("channel") or "")[:64]
                 thread_root = event.get("thread_root")

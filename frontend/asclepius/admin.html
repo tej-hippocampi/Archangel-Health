@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asclepius Operations</title>
+  <!-- Console design system: self-hosted fonts + shared tokens, no network
+       fonts. The SAME four sheets the physician portal loads, deliberately:
+       this page is the product flipped, not a second design system. admin.css
+       adds the console chrome and nothing else; it forks no palette. -->
+  <link rel="stylesheet" href="/static/asclepius/clinical-fonts.css" />
+  <link rel="stylesheet" href="/static/asclepius/_tokens.css" />
+  <link rel="stylesheet" href="/static/asclepius/_base.css" />
+  <link rel="stylesheet" href="/static/asclepius/asclepius.css" />
+  <link rel="stylesheet" href="/static/asclepius/admin.css" />
+</head>
+<body class="asc-body asc-admin-body">
+  <!-- The masthead. Hidden until the session is proven to be an operator's, so
+       a physician who lands here never sees console furniture. -->
+  <header class="asc-admin-bar" id="ascAdminBar" hidden></header>
+
+  <main class="asc-main" id="ascAdminRoot" aria-live="polite">
+    <div class="asc-loading-screen">
+      <div class="loading-spinner"></div>
+      <p>Opening the console…</p>
+    </div>
+  </main>
+
+  <!-- Toast region -->
+  <div class="asc-toast-region" id="ascToasts" aria-live="assertive" aria-atomic="true"></div>
+
+  <!-- Scripts in dependency order. `defer` preserves document order, so a
+       section module is always defined before the shell mounts it.
+
+       What this page deliberately does NOT load: first_run.js, earnings.js,
+       review.js, case_panel.js, onboarding.js, referral.js. Those are the
+       physician's own experience. The one that would have been arguable is
+       case_panel.js, because the Routing preview shows a case, and it is not
+       needed: renderCasePanelReadOnly builds that preview itself and always did.
+
+       manual-content.js is not loaded either: the Guide is a physician
+       surface and the shell reads nothing from window.ASC_MANUAL. -->
+  <script src="/static/asclepius/admin_physicians.js" defer></script>
+  <script src="/static/asclepius/admin_health.js" defer></script>
+  <script src="/static/asclepius/admin_export.js" defer></script>
+  <script src="/static/asclepius/admin_earnings.js" defer></script>
+  <!-- The health-system introduction funnel (PRD-F U13). Its three endpoints
+       shipped with no client at all, so half the funnel was unreachable. -->
+  <script src="/static/asclepius/admin_referrals.js" defer></script>
+  <!-- The community activity summary (PRD-F U11). Computed server-side; there
+       is no assistant and no LLM call on this page. -->
+  <script src="/static/asclepius/admin_community.js" defer></script>
+  <!-- Sandbox (Sandbox PRD §3) — defines window.AdminSandboxSection: the
+       Accounts and Outbox tabs. Mounted only when this page is the sandbox
+       realm (window.__REALM === 'sandbox', injected by /sandbox/admin). -->
+  <script src="/static/asclepius/admin_sandbox.js" defer></script>
+  <script src="/static/asclepius/admin_shell.js" defer></script>
+</body>
+</html>

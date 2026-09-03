@@ -24,6 +24,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
+from audit import audit_log
 from onboarding_emails import build_asclepius_invite_email
 from ratelimit import rate_limiter
 
@@ -55,6 +56,7 @@ def _store():
 # provider router cannot import this module to reach them. Re-exported here so
 # every call site and test that reaches them through this router is unchanged.
 from asclepius import dla as asc_dla  # noqa: E402
+from asclepius import hs_billing  # noqa: E402
 from asclepius import hs_provisioning as asc_hs_provisioning  # noqa: E402
 from asclepius import hs_states  # noqa: E402
 from asclepius.portal_accounts import (  # noqa: E402,F401
@@ -187,6 +189,12 @@ class CaseBundleRequest(BaseModel):
     # Optional delivery in the same action (PRD §5): build the bundle and drop it
     # in a buyer's workspace. None = build and download only.
     buyer_email: Optional[str] = None
+    # Licensing (audit U5). Both optional: a cut built to look at, or to hand to a
+    # buyer under the ordinary non-exclusive terms, declares neither and behaves
+    # exactly as it did before.
+    licensed_to: Optional[str] = None
+    exclusive: bool = False
+    license_expires_at: Optional[str] = None
 
 
 class ApproveForExportRequest(BaseModel):
@@ -747,6 +755,16 @@ async def export_case_bundle(
         # correctly-ordered deploy — but a legible failure beats an AttributeError.
         raise HTTPException(status_code=503,
                             detail="Case-centric export is unavailable in this build.")
+    if body.exclusive and not (body.licensed_to or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="An exclusive licence needs a buyer in 'Licensed to'.")
+    # Expiry is enforced lexically against ISO stamps, so a malformed value would
+    # read as already expired and the exclusive would silently never block.
+    try:
+        license_expires_at = asc_export.validate_license_expiry(body.license_expires_at)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     case_ids = scope_json.get("case_ids") or None
     try:
         res = export_by_case(
@@ -757,9 +775,19 @@ async def export_case_bundle(
             portal_version=(portal_version if s["scope"] == "version" else None),
             annotator_id_hashed=(scope_json.get("annotator_id_hashed")),
             include_exported=True, note=note,
+            # Licensing (audit U5): recorded on the export row; an exclusive cut
+            # also freezes its record-level membership in the register.
+            licensed_to=body.licensed_to or None,
+            license_exclusivity=(asc_export.EXCLUSIVE if body.exclusive
+                                 else asc_export.NON_EXCLUSIVE),
+            license_expires_at=license_expires_at,
+            license_note=note,
             # Carried into the datasheet's Composition section (PRD §2.3) so a
             # lab knows how the bundle was cut. Hashes and counts only.
             scope=scope_json)
+    except asc_export.ExclusiveLicenseConflict as exc:
+        raise HTTPException(status_code=409,
+                            detail={"message": str(exc), "conflicts": exc.conflicts})
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except asc_export.ExportValidationError as exc:
@@ -793,6 +821,7 @@ async def export_case_bundle(
         "bundle_count": 1,
         "scope": scope_json,
         "delivery": delivery,
+        "licensing": res.get("licensing"),
     }
 
 
@@ -814,6 +843,78 @@ def _scope_label(scope_json: Dict[str, Any]) -> str:
     if stype == "physician":
         return f"Physician · {str(scope_json.get('annotator_id_hashed') or '')[:12]}"
     return "All exportable records"
+
+
+# ─── Exclusive commitments register (audit U5) ───────────────────────────────
+# Lives beside the export builder rather than in a surface of its own, because
+# the question it answers ("can I sell this?") is asked while cutting a bundle,
+# not on a separate screen somebody remembers to visit.
+class LicenseReleaseRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+@router.get("/export/exclusivity")
+async def export_exclusivity(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """What is exclusively committed, to whom, and over how much.
+
+    Live commitments first (those are the ones that block a cut), then the ended
+    ones, which are kept because "we were exclusive to them until March" is the
+    fact a dispute turns on."""
+    store = _store()
+    active = store.list_export_licenses(exclusivity="exclusive", active_only=True)
+    everything = store.list_export_licenses(exclusivity="exclusive")
+    active_ids = {lic["license_id"] for lic in active}
+    ended = [lic for lic in everything if lic["license_id"] not in active_ids]
+
+    def _row(lic: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "license_id": lic["license_id"],
+            "export_id": lic["export_id"],
+            "buyer": lic.get("buyer_label") or lic["buyer_key"],
+            "buyer_key": lic["buyer_key"],
+            "record_count": lic.get("record_count") or 0,
+            "case_count": len(lic.get("case_ids") or []),
+            "expires_at": lic.get("expires_at"),
+            "status": lic.get("status"),
+            "note": lic.get("note"),
+            "created_at": lic.get("created_at"),
+            "released_at": lic.get("released_at"),
+            "release_reason": lic.get("release_reason"),
+        }
+
+    return {
+        "active": [_row(lic) for lic in active],
+        "ended": [_row(lic) for lic in ended],
+        "committed_record_count": sum(lic.get("record_count") or 0 for lic in active),
+        "non_exclusive_count": len(store.list_export_licenses(
+            exclusivity="non_exclusive")),
+    }
+
+
+@router.post("/export/exclusivity/{license_id}/release")
+async def release_export_exclusivity(
+    license_id: str,
+    body: LicenseReleaseRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """End an exclusive commitment so its records can be sold again. The row is
+    kept and marked released rather than deleted, because deleting it destroys the
+    only record that the promise ever existed."""
+    store = _store()
+    lic = store.get_export_license(license_id)
+    if not lic:
+        raise HTTPException(status_code=404, detail="No such licence.")
+    if lic.get("status") != "active":
+        raise HTTPException(status_code=409, detail="That licence is already released.")
+    released = store.release_export_license(
+        license_id, released_by=admin["id"], reason=body.reason)
+    store.log_event(entity_type="export", entity_id=lic["export_id"],
+                    event_type="export_license_released", actor=admin["id"],
+                    payload={"license_id": license_id, "buyer_key": lic["buyer_key"],
+                             "record_count": lic.get("record_count"),
+                             "reason": body.reason})
+    return {"license_id": license_id, "status": (released or {}).get("status"),
+            "freed_record_count": lic.get("record_count") or 0}
 
 
 # ─── Storage durability + reconciliation (PRD I-0 §F2/§F4) ───────────────────
@@ -1692,6 +1793,11 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0,
               "unassigned": 0}
     score_by_user = store.contributor_scores_by_user()
+    # Task Pipeline PRD C1/D5: both in BATCH, for the reason stated on
+    # ``contributor_score`` below: this is a roster of everyone, and the per-user
+    # variants of these two are a query per physician.
+    median_by_user = store.evaluator_median_seconds_by_user()
+    kappa_by_user = store.evaluator_kappa_by_user()
     for u in _physician_users(store):
         tier = u.get("tier")
         verification = u.get("verification_status")
@@ -1740,6 +1846,18 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             # here reads as a physician who does bad work rather than one whose
             # first case is still in the queue.
             "contributor_score": score_by_user.get(u["id"]),
+            # How long they take and how consistently they agree (PRD C3). Both
+            # are None until measured, and both are ADMIN-ONLY: no physician
+            # sees their speed or their agreement, on the same rule that keeps
+            # the contributor score internal (C5).
+            #
+            # None here is load-bearing in the same way it is for the score
+            # above: a physician with no timed submission is unmeasured, not
+            # fast, and one below the kappa minimum is unmeasured, not a bad
+            # rater. ``kappa_n`` ships alongside so the screen can say which.
+            "median_seconds": median_by_user.get(u["id"]),
+            "kappa": (kappa_by_user.get(u["id"]) or {}).get("kappa"),
+            "kappa_n": (kappa_by_user.get(u["id"]) or {}).get("n"),
         })
     # Accounts with a doctor's credentials and an operator's role. Not part of
     # ``physicians`` or ``counts`` — they are not supply until someone decides
@@ -2900,6 +3018,212 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
     return {"health_systems": out}
 
 
+# ═══ Data-request broadcasts ═════════════════════════════════════════════════
+#
+# "We need 100 nephrology cases", to every partner who has signed and may
+# upload. The admin writes the request down, the request row is the record, and
+# the letters go out from the shared drain loop rather than from this request:
+# up to (partners x members) emails inline would hold the console open for
+# minutes and lose the tail on any restart.
+#
+# There is deliberately no claiming, no reservation and no quota. Several
+# partners may answer one request and the admin approves what fulfils it, which
+# is the founders' "first come first serve is informal" decision. Adding state
+# for it later would be a different feature, not a missing half of this one.
+
+class HsDataRequestBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=140)
+    # Free text rather than the enabled-specialty enum. We ask partners for data
+    # in specialties we do not yet have a corpus for -- that is what sourcing
+    # is -- so validating against ``specialties.list_specialties`` would refuse
+    # exactly the requests worth sending.
+    specialty: str = Field(min_length=1, max_length=80)
+    case_count: int = Field(gt=0, le=1_000_000)
+    due_date: str = Field(default="", max_length=32)
+    details: str = Field(default="", max_length=4000)
+
+
+class HsDataRequestCloseBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=32)
+
+
+def _hs_request_view(store: Any, row: Dict[str, Any],
+                     *, counts: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
+    """One request, admin-side. Named fields rather than a row splat, so a column
+    added to the table later does not ship by accident."""
+    stats = counts if counts is not None else _hs_request_delivery_counts(store, row["id"])
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "specialty": row["specialty"],
+        "case_count": row["case_count"],
+        "due_date": row.get("due_date") or "",
+        "details": row.get("details") or "",
+        "status": row["status"],
+        "created_by": row.get("created_by") or "",
+        "created_at": row.get("created_at"),
+        "closed_at": row.get("closed_at"),
+        "closed_reason": row.get("closed_reason") or "",
+        "delivery": stats,
+    }
+
+
+def _hs_request_delivery_counts(store: Any, request_id: str) -> Dict[str, int]:
+    """How the broadcast actually went: pending / sent / failed.
+
+    Shown because an operator whose request produced zero replies needs to be
+    able to tell "nobody had the cases" from "nobody was told", and those two
+    look identical from the outside.
+    """
+    counts = {"pending": 0, "sent": 0, "failed": 0}
+    for row in store.list_hs_request_outbox(request_id):
+        status = (row.get("status") or "pending")
+        if status in counts:
+            counts[status] += 1
+    return counts
+
+
+@router.post("/hs-requests")
+async def create_hs_data_request(
+    body: HsDataRequestBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Write the request down, then enqueue one letter per active member of every
+    partner that may upload.
+
+    The enqueue is synchronous and the SEND is not. That split is the whole
+    design: the operator finds out immediately whether the request was recorded
+    and how many people it will reach, and nothing about their request depends on
+    an email provider being up.
+    """
+    from asclepius import hs_request_notify
+
+    store = _store()
+    req = store.create_hs_data_request(
+        title=body.title.strip(), specialty=body.specialty.strip(),
+        case_count=int(body.case_count), due_date=body.due_date.strip() or None,
+        details=body.details.strip() or None, created_by=admin["id"],
+    )
+    enqueued = hs_request_notify.enqueue_for_request(store, request_id=req["id"])
+    store.log_event(entity_type="hs_data_request", entity_id=req["id"],
+                    event_type="hs_data_request_created", actor=admin["id"],
+                    payload={"specialty": req["specialty"],
+                             "case_count": req["case_count"],
+                             "recipients": enqueued})
+    return {"request": _hs_request_view(store, req), "recipients": enqueued}
+
+
+@router.get("/hs-requests")
+async def list_hs_data_requests(
+    status: Optional[str] = Query(default=None),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Every request, newest first. Closed ones stay here forever: they are the
+    record of what we asked for and when, which is the only way to read a
+    partner's upload history as a response to anything."""
+    store = _store()
+    rows = store.list_hs_data_requests(status=(status or None))
+    return {"requests": [_hs_request_view(store, r) for r in rows]}
+
+
+@router.get("/hs-requests/{request_id}")
+async def get_hs_data_request(
+    request_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """One request plus the uploads carrying its id, grouped by health system.
+
+    Grouped rather than listed flat because the question this view answers is
+    "who answered", not "what arrived": three uploads from one partner is one
+    partner responding, and a flat list reads as three.
+    """
+    store = _store()
+    req = store.get_hs_data_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="No such data request.")
+    names = {hs["hs_id"]: hs["name"] for hs in store.list_health_systems()}
+    by_hs: Dict[str, Dict[str, Any]] = {}
+    for up in store.list_uploads_for_request(request_id):
+        hs_id = up.get("health_system_id") or ""
+        entry = by_hs.setdefault(hs_id, {
+            "hs_id": hs_id,
+            "name": names.get(hs_id) or "(unknown organization)",
+            "uploads": [],
+        })
+        entry["uploads"].append({
+            "upload_id": up["upload_id"],
+            "filename": up.get("filename"),
+            "size_bytes": up.get("size_bytes") or 0,
+            "status": up.get("status"),
+            "created_at": up.get("created_at"),
+        })
+    responders = sorted(by_hs.values(), key=lambda e: e["name"].lower())
+    return {
+        "request": _hs_request_view(store, req),
+        "responders": responders,
+        "uploads_count": sum(len(e["uploads"]) for e in responders),
+    }
+
+
+@router.post("/hs-requests/{request_id}/close")
+async def close_hs_data_request(
+    request_id: str, body: HsDataRequestCloseBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Close a request as ``fulfilled`` or ``withdrawn``.
+
+    Two reasons and no free text, because the reason is read by a person
+    scanning a list rather than by whoever wrote it. ``fulfilled`` says we got
+    what we asked for; ``withdrawn`` says we stopped asking, and a partner
+    reading the portal should not have to guess which.
+    """
+    store = _store()
+    reason = (body.reason or "").strip().lower()
+    if reason not in store.HS_REQUEST_CLOSE_REASONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Close a request as 'fulfilled' or 'withdrawn'.")
+    req = store.get_hs_data_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="No such data request.")
+    if not store.close_hs_data_request(request_id, reason=reason):
+        raise HTTPException(status_code=409,
+                            detail="This request is already closed.")
+    store.log_event(entity_type="hs_data_request", entity_id=request_id,
+                    event_type="hs_data_request_closed", actor=admin["id"],
+                    payload={"reason": reason})
+    return {"ok": True,
+            "request": _hs_request_view(store, store.get_hs_data_request(request_id))}
+
+
+@router.post("/hs-requests/{request_id}/retry-failed")
+async def retry_failed_hs_request_notifications(
+    request_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Flip this request's failed letters back to pending, for the shared drain
+    to re-attempt on its next tick.
+
+    Without this a failed outbox row is terminal: re-broadcasting enqueues
+    nothing because every idempotency key already exists, so one transport
+    outage permanently under-delivered a request the operator believes went
+    out. Only rows that FAILED are touched; sent stays sent, and a retry that
+    fails again just lands back here.
+    """
+    store = _store()
+    if not store.get_hs_data_request(request_id):
+        raise HTTPException(status_code=404, detail="No such data request.")
+    retried = store.retry_failed_hs_request_notifications(request_id)
+    if retried:
+        store.log_event(entity_type="hs_data_request", entity_id=request_id,
+                        event_type="hs_data_request_retry", actor=admin["id"],
+                        payload={"retried": retried})
+    return {"ok": True, "retried": retried,
+            "delivery": _hs_request_delivery_counts(store, request_id)}
+
+
 # ═══ Admin Launch PRD §5.1 — invite a physician into Asclepius Community ══════
 #
 # "Slack" is our own community (store.py: the community IS our Slack). This
@@ -3013,6 +3337,104 @@ async def invite_to_community(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Clinical-validity attestations (Gap U2): reviewing what a physician asserted
+# ═══════════════════════════════════════════════════════════════════════════════
+class ValidityFindingBody(BaseModel):
+    """A person's determination about one physician's attestation.
+
+    ``note`` is required for a ``false`` finding and optional for ``upheld``,
+    and that asymmetry is the point. Section 4.3 of the contributor agreement
+    promises the physician is told WHICH case and WHY when a case is not paid.
+    A finding with no reason cannot keep that promise, so the API refuses to
+    record one rather than leaving a doctor with an unexplained zero.
+    """
+
+    finding: str = Field(..., pattern="^(false|upheld)$")
+    note: Optional[str] = Field(None, max_length=2000)
+    #: A 'false' finding voids pay citing the contributor agreement, so it is
+    #: refused when the submission's ``validity_agreement_version`` is NULL:
+    #: that physician never signed the terms the consequence comes from. This
+    #: flag is the deliberate exception. An admin who has decided the in-product
+    #: attestation copy alone is enough to hold the physician to sets it
+    #: explicitly, and the refusal message names it so the choice is theirs.
+    override_unsigned: bool = False
+
+
+@router.post("/submissions/{submission_id}/validity-finding")
+async def record_validity_finding(
+    submission_id: str,
+    body: ValidityFindingBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Record that a clinical-validity attestation was, or was not, true.
+
+    A HUMAN DECIDES, ALWAYS. There is no sweep, no heuristic and no model that
+    writes this: the whole reason the attestation moves responsibility is that a
+    named person looked at the case and reached a conclusion, and an automated
+    finding would be an automated pay cut, which this codebase already refuses
+    to make (see the quality-hold branch in ``payments.reconcile_task_accruals``).
+
+    The payment consequence is not applied here. It is applied by the accrual
+    sweep reading ``validity_finding``, which is what makes it idempotent, makes
+    it survive a finding recorded before the ledger row exists, and keeps the
+    one rule about restating settled money in the one module that owns money.
+    """
+    store = get_store()
+    if not body.note and body.finding == "false":
+        raise HTTPException(
+            status_code=400,
+            detail="Say why the attestation does not hold. The physician is "
+                   "told this reason.")
+    sub = store.get_submission(submission_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="No such submission.")
+    # A 'false' finding voids pay under the contributor agreement, and a NULL
+    # validity_agreement_version means this physician never signed one: there
+    # are no terms to hold the attestation against, so the finding is refused
+    # rather than producing a pay cut that cites a document its subject never
+    # saw. The attested check keeps the unattested case on the store's own
+    # refusal below, which is the more specific of the two answers.
+    if (body.finding == "false" and sub.get("validity_attested")
+            and sub.get("validity_agreement_version") is None
+            and not body.override_unsigned):
+        raise HTTPException(
+            status_code=409,
+            detail="This physician never signed the contributor agreement, so "
+                   "there are no signed terms to find the attestation false "
+                   "under. Pass override_unsigned to record it anyway, on the "
+                   "in-product attestation language alone.")
+    row = store.record_validity_finding(
+        submission_id, finding=body.finding, actor=admin.get("email") or admin.get("id"),
+        note=(body.note or None))
+    if row is None:
+        # The store refuses a finding on an unattested case. Said plainly rather
+        # than as a 404, because the submission does exist and the admin needs
+        # to know which of the two facts is the surprising one.
+        raise HTTPException(
+            status_code=409,
+            detail="That case carries no clinical-validity attestation, so "
+                   "there is nothing to find true or false.")
+    store.log_event(
+        entity_type="submission", entity_id=submission_id,
+        event_type="validity_finding_recorded",
+        actor=admin.get("email") or admin.get("id"),
+        payload={"finding": body.finding, "task_id": sub.get("task_id"),
+                 "evaluator_id": sub.get("evaluator_id"),
+                 "agreement_version": sub.get("validity_agreement_version"),
+                 # The override is a named choice, so the audit trail carries it.
+                 **({"override_unsigned": True} if body.override_unsigned else {})})
+    return {
+        "submission_id": submission_id,
+        "validity_attested": row.get("validity_attested"),
+        "validity_finding": row.get("validity_finding"),
+        "validity_finding_at": row.get("validity_finding_at"),
+        "validity_finding_by": row.get("validity_finding_by"),
+        "validity_finding_note": row.get("validity_finding_note"),
+        "validity_agreement_version": row.get("validity_agreement_version"),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Assignment (PRD-ASSIGN) — proposing who does which case
 # ═══════════════════════════════════════════════════════════════════════════════
 class AllocateBody(BaseModel):
@@ -3089,6 +3511,44 @@ class AllocateBody(BaseModel):
         return self
 
 
+def _depth_fields_present(user: Dict[str, Any]) -> List[str]:
+    """Which of ``allocation.DEPTH_FIELDS`` this physician has actually answered.
+
+    The adapter between a users row and the allocator's pure input, which is why
+    it lives here and not in ``allocation``: reading a JSON blob off a row is
+    store-shaped work, and the allocator stays a function of what it is handed.
+
+    Only the six names in ``DEPTH_FIELDS`` can come out of here. It does not
+    walk the credentials blob and report everything it finds, because a blob is
+    an open set and a field somebody adds next year must not start influencing
+    who gets which case without anyone deciding that it should.
+    """
+    from asclepius import allocation as asc_allocation
+
+    import json as _js  # noqa: PLC0415 -- module-level `json` is bound later, as _json
+
+    try:
+        creds = _js.loads(user.get("credentials_json") or "{}") or {}
+    except (TypeError, ValueError):
+        creds = {}
+    # The credential-blob spelling on the left, the DEPTH_FIELDS name on the
+    # right. Written out rather than derived from _PROFILE_DETAIL_KEYS: importing
+    # the profile page's mapping would silently enrol any field that page starts
+    # showing, and the whole point of DEPTH_FIELDS is that the list is chosen.
+    sources = {
+        "subspecialties": creds.get("subspecialties"),
+        "board_certifications": creds.get("boardCertifications"),
+        "practice_settings": creds.get("practiceSettings"),
+        "languages": creds.get("languages"),
+        "years_in_active_practice": creds.get("yearsInActivePractice"),
+        "specialty_niche": user.get("specialty_niche"),
+    }
+    present = [name for name, value in sources.items()
+               if value not in (None, "", [], {})]
+    known = set(asc_allocation.DEPTH_FIELDS)
+    return sorted(n for n in present if n in known)
+
+
 def _allocation_inputs(store: Any, task_ids: List[str]):
     """Build the allocator's pure inputs from the store.
 
@@ -3141,6 +3601,7 @@ def _allocation_inputs(store: Any, task_ids: List[str]):
             contributor_score=scores.get(u["id"]),
             real_data_approved=bool(u.get("real_data_approved")),
             open_assignments=loads.get(u["id"], 0),
+            profile_depth=asc_allocation.profile_depth(_depth_fields_present(u)),
         ))
     return cases, physicians, domain
 
@@ -3333,12 +3794,16 @@ async def admin_reassign_point(
         raise HTTPException(status_code=404, detail="Unknown user_id.")
 
     revoked = []
+    # Who lost the point, not just which assignment row did. The case room's
+    # membership is keyed on people, so the swap needs the user ids (PRD B5).
+    revoked_user_ids = []
     for a in store.assignments_for_task(body.task_id):
         if a.get("role") == "label" and a.get("status") in ("offered", "claimed"):
             if a.get("user_id") == body.user_id:
                 continue                     # already theirs; nothing to revoke
             store.set_assignment_status(a["assignment_id"], "revoked")
             revoked.append(a["assignment_id"])
+            revoked_user_ids.append(a["user_id"])
     row = store.upsert_assignment(
         task_id=body.task_id, user_id=body.user_id, role="label",
         assigned_by=admin["email"])
@@ -3349,7 +3814,7 @@ async def admin_reassign_point(
                  "sequence_index": task.get("sequence_index"),
                  "to_user_id": body.user_id, "revoked": revoked})
     notified = asc_route_notify.notify_reassigned(
-        store, task=task, doctor=new_doctor)
+        store, task=task, doctor=new_doctor, replaced_user_ids=revoked_user_ids)
     return {"trajectory_id": trajectory_id, "task_id": body.task_id,
             "assignment_id": row["assignment_id"], "revoked": revoked,
             "notified": notified, "chain": store.trajectory_chain(trajectory_id)}
@@ -3971,6 +4436,165 @@ async def void_health_system_payout(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  THE ACCRUAL RAIL
+#
+#  The routes above record what an operator DECIDED to pay. These four are
+#  about what the arithmetic says is DUE: agree a price, read the ledger it
+#  produces, roll the open rows into an invoice, and record the settlement when
+#  the transfer clears. See asclepius/hs_billing.py for why the unit is an
+#  accepted bundle, why no price is baked in, and why no bank detail is stored.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class HsDataRateRequest(BaseModel):
+    #: Cents per accepted upload bundle. ``None`` clears the price back to
+    #: unpriced, which is the state every organization starts in.
+    rate_cents: Optional[int] = None
+
+
+class HsInvoiceRunRequest(BaseModel):
+    period: str
+    description: Optional[str] = None
+
+
+class HsSettlementRequest(BaseModel):
+    #: The treasury side's reference for the transfer, and the IDEMPOTENCY KEY.
+    #: A double-submitted form replays a no-op rather than settling twice.
+    settlement_ref: str
+    invoice_id: Optional[str] = None
+    accrual_ids: Optional[List[str]] = None
+
+
+class HsAccrualVoidRequest(BaseModel):
+    reason: str
+
+
+@router.post("/health-systems/{hs_id}/data-rate", include_in_schema=False)
+async def set_health_system_data_rate(
+    hs_id: str, body: HsDataRateRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Agree what one accepted bundle is worth for this organization.
+
+    Setting a rate reconciles immediately, so an operator who prices a partner
+    sees the backlog they just priced rather than waiting for that partner to
+    open their portal. Nothing already accrued moves: every ledger row carries
+    its own stamped rate, and this decides the next one.
+    """
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    try:
+        store.set_health_system_data_rate(
+            hs_id, rate_cents=body.rate_cents, set_by=admin["email"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    counts = hs_billing.reconcile_accruals(store, hs_id=hs_id)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="hs_data_rate_set", actor=admin["email"],
+                    payload={"rate_cents": body.rate_cents,
+                             "accrued": counts["accrued"]})
+    return {"rate_cents": body.rate_cents, "reconciled": counts,
+            "summary": store.hs_accrual_summary(hs_id)}
+
+
+@router.get("/health-systems/{hs_id}/accruals", include_in_schema=False)
+async def list_health_system_accruals(
+    hs_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The ledger, reconciled on read exactly as the partner's own page does, so
+    an operator and a partner are never looking at two different backlogs."""
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    hs_billing.reconcile_accruals(store, hs_id=hs_id)
+    return {"rate_cents": hs_billing.rate_for(store, hs_id),
+            "unit": hs_billing.ACCRUAL_UNIT,
+            "rail": hs_billing.SETTLEMENT_RAIL,
+            "summary": store.hs_accrual_summary(hs_id),
+            "accruals": store.list_hs_accruals(hs_id)}
+
+
+@router.post("/health-systems/{hs_id}/accruals/invoice", include_in_schema=False)
+async def invoice_health_system_accruals(
+    hs_id: str, body: HsInvoiceRunRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Roll everything currently accrued into one invoice for a period."""
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    period = (body.period or "").strip()
+    if not period:
+        raise HTTPException(status_code=400, detail="Name the period this invoice covers.")
+    hs_billing.reconcile_accruals(store, hs_id=hs_id)
+    result = hs_billing.invoice_open_accruals(
+        store, hs_id=hs_id, period=period, created_by=admin["email"],
+        description=body.description)
+    if result is None:
+        # Two different nothings, one answer: no open accruals, or a period
+        # already invoiced. Both mean "this call created no invoice", and a 409
+        # for the second would invite a retry that must not succeed.
+        raise HTTPException(
+            status_code=409,
+            detail="Nothing open to invoice for that period.")
+    return result
+
+
+@router.post("/health-systems/{hs_id}/accruals/settle", include_in_schema=False)
+async def settle_health_system_accruals(
+    hs_id: str, body: HsSettlementRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Record that a transfer cleared. Moves no money and stores no credential.
+
+    The response distinguishes a first submit from a replay, because those are
+    different facts and an operator who cannot tell them apart submits again.
+    """
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    try:
+        return hs_billing.record_settlement(
+            store, hs_id=hs_id, settlement_ref=body.settlement_ref,
+            actor=admin["email"], accrual_ids=body.accrual_ids,
+            invoice_id=body.invoice_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/health-systems/{hs_id}/accruals/{accrual_id}/void",
+             include_in_schema=False)
+async def void_health_system_accrual(
+    hs_id: str, accrual_id: str, body: HsAccrualVoidRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Cancel a row that should never have been written, with a reason on it.
+
+    A voided row stays in the table and stays excluded from reconciliation, so
+    the sweep cannot read its absence from the live totals as work it has not
+    noticed and write it back next time somebody opens the page.
+    """
+    store = _store()
+    existing = store.get_hs_accrual(accrual_id)
+    if not existing or existing["hs_id"] != hs_id:
+        raise HTTPException(status_code=404, detail="No such accrual.")
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400,
+                            detail="Give a reason for cancelling this accrual.")
+    if existing["status"] == "settled":
+        # Money that cleared is a fact. A ledger that can void it retroactively
+        # is one whose totals stop meaning anything.
+        raise HTTPException(status_code=409,
+                            detail="That accrual has already settled.")
+    row = store.void_hs_accrual(accrual_id, reason=reason, by=admin["email"])
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="hs_accrual_voided", actor=admin["email"],
+                    payload={"accrual_id": accrual_id, "reason": reason})
+    return row
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  HEALTH-SYSTEM ONBOARDING — the application, the decision, the agreement
 #
 #  The operator half of the state machine in asclepius/hs_states.py. Two
@@ -4349,3 +4973,285 @@ async def set_health_system_invoice_status(
                     event_type="invoice_status_set", actor=admin["email"],
                     payload={"invoice_id": invoice_id, "status": status})
     return {"invoice": updated}
+
+
+# ─── Posting as the Archangel persona ────────────────────────────────────────
+# The community's bot voice was, until now, only reachable from code: digests,
+# welcomes, morning briefs. Everything a person wanted to say in that voice had
+# to be shipped. This endpoint hands the same function a human trigger.
+#
+# It lives here rather than in the community router because it is an ADMIN
+# surface with admin auth, and it stays away from the asclepius.js admin
+# regions entirely: the composer that calls it is in the community frontend.
+
+#: Where the persona may speak. Every one of these is an admin-post-policy
+#: channel or the staff room, so a bot-authored post is what a reader already
+#: expects there. #general and the specialty rooms are deliberately absent: a
+#: room of colleagues talking to each other is not a place for the company
+#: account to appear as though it were one of them.
+COMMUNITY_PERSONA_CHANNELS = (
+    "task-announcements",
+    "events",
+    "medical-ai-news",
+    "research-and-opportunities",
+    "team-ai-spotlight",
+)
+
+#: The one channel whose posts fan out to every member's inbox. Honoring
+#: ``announce`` anywhere else would let a routine events post mail the whole
+#: community, which is the rule ``post_system_message`` already documents.
+COMMUNITY_ANNOUNCE_CHANNEL = "task-announcements"
+
+
+class CommunityPersonaPostIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    channel_slug: str = Field(min_length=1, max_length=80)
+    body: str = Field(min_length=1, max_length=8000)
+    announce: bool = False
+
+
+@router.post("/community/post")
+async def community_persona_post(
+    payload: CommunityPersonaPostIn,
+    request: Request,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Post into the community as the Archangel account.
+
+    Delegates to ``post_system_message``, which is where the PHI gate, the URL
+    masking, the bot authorship and the announcement fan-out already live. This
+    route adds exactly two things: who is allowed to press the button, and a
+    record of which admin pressed it. The bot logs itself as the author, which
+    is right for the reader and useless for an investigation, so the acting
+    admin is recorded here.
+    """
+    from community.system_posts import post_system_message  # noqa: PLC0415
+
+    slug = (payload.channel_slug or "").strip().lower()
+    if slug not in COMMUNITY_PERSONA_CHANNELS:
+        raise HTTPException(
+            status_code=400,
+            detail=("The Archangel account can only post in "
+                    + ", ".join("#" + s for s in COMMUNITY_PERSONA_CHANNELS) + "."),
+        )
+    announce = bool(payload.announce) and slug == COMMUNITY_ANNOUNCE_CHANNEL
+    message = await post_system_message(
+        channel_slug=slug, body=payload.body, kind="admin_persona",
+        announce=announce,
+    )
+    if message is None:
+        # post_system_message drops a post silently by design (there is no user
+        # to bounce a 422 to inside a digest run). There is one here, and an
+        # admin who typed a paragraph deserves to know it did not land.
+        audit_log.record(
+            actor_type="asclepius_user", actor_id=admin.get("id"),
+            action="community.persona_post", outcome="blocked",
+            resource_type="community", resource=slug,
+            source_ip=(request.client.host if request and request.client else None),
+            detail={"channel": slug, "announce": announce},
+        )
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "post_rejected",
+                    "message": ("That post was not published. Either the channel is "
+                                "inactive or the text looks like it contains "
+                                "patient-identifiable information.")},
+        )
+    audit_log.record(
+        actor_type="asclepius_user", actor_id=admin.get("id"),
+        action="community.persona_post", outcome="ok",
+        resource_type="community", resource=str(message["id"]),
+        source_ip=(request.client.host if request and request.client else None),
+        detail={"channel": slug, "message_id": message["id"], "announce": announce},
+    )
+    return {"ok": True, "message": message, "announced": announce}
+
+
+# ─── The community, counted ───────────────────────────────────────────────────
+# The one endpoint PRD-F adds beyond its HTML route, and the freeze is widened
+# here on purpose rather than quietly.
+#
+# The founder meeting asked for two things about the community tab: that we can
+# post and answer questions there, and that we "get a summary of what's going
+# on". The first already exists (the persona composer above). The second did
+# not, and there was no read on this backend that answered it: /channels
+# returns a channel list, /channels/{slug}/messages returns one room's page.
+# An operator wanting to know whether the community was alive this week had to
+# open six rooms and scroll.
+#
+# It is a COUNT, not an assistant. R10 forbids an LLM call from the admin
+# frontend and that decision is right: an embedded model would be a second
+# admin surface to secure, and a summary that paraphrases is a summary that can
+# be wrong about a number. Everything below is SQL over rows the community
+# plane already owns, so the tab can be read at a glance and every figure on it
+# is checkable.
+
+#: How far back "what is going on" reaches. A week is the cadence the digests
+#: run on, so the number an operator reads here matches the one the community
+#: itself just lived through.
+COMMUNITY_SUMMARY_DAYS = 7
+
+#: A question nobody answered is the only item on this summary that is a TASK
+#: rather than a statistic, so it is worth being strict about what counts: a
+#: top-level post (not a reply), from a member (not the bot), that asks
+#: something, with no reply under it. Reactions do not clear it — a thumbs-up
+#: is not an answer to "has anyone seen this presentation before".
+_QUESTION_LOOKBACK = 30
+
+
+@router.get("/community/summary", include_in_schema=False)
+async def community_activity_summary(
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """What the community has been doing, computed server-side."""
+    from community.router import member_map  # noqa: PLC0415
+    from community.store import get_community_store  # noqa: PLC0415
+    from community.system_posts import SYSTEM_USER_ID  # noqa: PLC0415
+
+    cstore = get_community_store()
+    now = datetime.now(timezone.utc)
+    since = (now - timedelta(days=COMMUNITY_SUMMARY_DAYS)).isoformat()
+    q_since = (now - timedelta(days=_QUESTION_LOOKBACK)).isoformat()
+
+    # Display names come from the asclepius users table rather than the
+    # community member map: the map excludes advisors and banned accounts, and
+    # a post whose author has since been deactivated must still show a name
+    # here instead of turning into an anonymous row in an audit surface.
+    astore = get_store()
+    names: Dict[str, str] = {}
+    for user in astore.list_users():
+        names[user["id"]] = (user.get("full_name") or user.get("email") or "").strip()
+    names[SYSTEM_USER_ID] = "Archangel"
+
+    def who(user_id: Optional[str]) -> str:
+        return names.get(user_id or "") or "Former member"
+
+    with cstore._conn() as conn:
+        channels = [dict(r) for r in conn.execute(
+            "SELECT id, slug, name, post_policy FROM community_channels "
+            "ORDER BY position ASC, slug ASC").fetchall()]
+        by_id = {c["id"]: c for c in channels}
+
+        per_channel = {
+            r["channel_id"]: dict(r) for r in conn.execute(
+                "SELECT channel_id, COUNT(*) AS posts, "
+                "       COUNT(DISTINCT author_user_id) AS voices, "
+                "       MAX(created_at) AS last_at "
+                "  FROM community_messages "
+                " WHERE created_at >= ? AND deleted_at IS NULL "
+                " GROUP BY channel_id", (since,)).fetchall()
+        }
+
+        totals = dict(conn.execute(
+            "SELECT COUNT(*) AS posts, "
+            "       COUNT(DISTINCT author_user_id) AS voices, "
+            "       SUM(CASE WHEN parent_message_id IS NOT NULL THEN 1 ELSE 0 END) AS replies "
+            "  FROM community_messages "
+            " WHERE created_at >= ? AND deleted_at IS NULL "
+            "   AND channel_id IN (SELECT id FROM community_channels)",
+            (since,)).fetchone())
+
+        reactions = conn.execute(
+            "SELECT COUNT(*) AS n FROM community_reactions WHERE created_at >= ?",
+            (since,)).fetchone()["n"]
+
+        recent = [dict(r) for r in conn.execute(
+            "SELECT id, channel_id, author_user_id, body, created_at, parent_message_id "
+            "  FROM community_messages "
+            " WHERE deleted_at IS NULL "
+            "   AND channel_id IN (SELECT id FROM community_channels) "
+            " ORDER BY id DESC LIMIT 12").fetchall()]
+
+        # A question with nothing under it. LIKE '%?%' rather than a regex
+        # because SQLite has no REGEXP by default and the false positives (a
+        # URL with a query string) are cheap next to a missed one.
+        unanswered = [dict(r) for r in conn.execute(
+            "SELECT m.id, m.channel_id, m.author_user_id, m.body, m.created_at "
+            "  FROM community_messages m "
+            " WHERE m.parent_message_id IS NULL "
+            "   AND m.deleted_at IS NULL "
+            "   AND m.channel_id IN (SELECT id FROM community_channels) "
+            "   AND m.created_at >= ? "
+            "   AND m.author_user_id != ? "
+            "   AND m.body LIKE '%?%' "
+            "   AND NOT EXISTS (SELECT 1 FROM community_messages r "
+            "                    WHERE r.parent_message_id = m.id "
+            "                      AND r.deleted_at IS NULL) "
+            " ORDER BY m.id DESC LIMIT 25",
+            (q_since, SYSTEM_USER_ID)).fetchall()]
+
+        rooms = [dict(r) for r in conn.execute(
+            "SELECT id, title, case_ref, created_at FROM community_dms "
+            " WHERE kind = ? ORDER BY created_at DESC LIMIT 10",
+            (cstore.ROOM_KIND,)).fetchall()]
+        room_total = conn.execute(
+            "SELECT COUNT(*) AS n FROM community_dms WHERE kind = ?",
+            (cstore.ROOM_KIND,)).fetchone()["n"]
+
+    def snippet(body: str) -> str:
+        text = " ".join((body or "").split())
+        return text if len(text) <= 180 else text[:179] + "…"
+
+    def slug_of(channel_id: str) -> Optional[str]:
+        return (by_id.get(channel_id) or {}).get("slug")
+
+    return {
+        "window_days": COMMUNITY_SUMMARY_DAYS,
+        "generated_at": now.isoformat(),
+        "totals": {
+            "posts": int(totals.get("posts") or 0),
+            "replies": int(totals.get("replies") or 0),
+            "voices": int(totals.get("voices") or 0),
+            "reactions": int(reactions or 0),
+            "members": len(member_map()),
+            "case_rooms": int(room_total or 0),
+        },
+        "channels": [
+            {
+                "slug": c["slug"],
+                "name": c["name"],
+                "post_policy": c["post_policy"],
+                "posts": int((per_channel.get(c["id"]) or {}).get("posts") or 0),
+                "voices": int((per_channel.get(c["id"]) or {}).get("voices") or 0),
+                "last_at": (per_channel.get(c["id"]) or {}).get("last_at"),
+            }
+            for c in channels
+        ],
+        "recent": [
+            {
+                "id": m["id"],
+                "channel_slug": slug_of(m["channel_id"]),
+                "author": who(m["author_user_id"]),
+                "is_reply": m["parent_message_id"] is not None,
+                "body": snippet(m["body"]),
+                "created_at": m["created_at"],
+            }
+            for m in recent
+            # A room is a private conversation about one case. It is readable
+            # by an admin who goes looking for it; it does not belong in a
+            # glanceable activity feed beside the public channels.
+            if m["channel_id"] in by_id
+        ],
+        "unanswered": [
+            {
+                "id": m["id"],
+                "channel_slug": slug_of(m["channel_id"]),
+                "author": who(m["author_user_id"]),
+                "body": snippet(m["body"]),
+                "created_at": m["created_at"],
+            }
+            for m in unanswered
+            if m["channel_id"] in by_id
+        ],
+        "rooms": [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "case_ref": r["case_ref"],
+                "participants": len(cstore.room_participants(r["id"])),
+                "created_at": r["created_at"],
+            }
+            for r in rooms
+        ],
+    }

@@ -428,6 +428,46 @@ def aggregate_kappa(observations: List[Dict[str, Any]], *,
     }
 
 
+def per_annotator_kappa(observations: List[Dict[str, Any]], *,
+                        min_n: Optional[int] = None) -> Dict[str, Dict[str, Any]]:
+    """Cohen's kappa per PHYSICIAN, over the same pool the aggregate uses
+    (Task Pipeline PRD C1/C2).
+
+    THE POINT OF ROUTING IT THROUGH THE SAME TWO GATES: a per-physician number
+    computed over rows ``aggregate_kappa`` excludes would be a different metric
+    wearing the same name. ``_pool_eligible`` first (a trajectory point is
+    blinded and still cannot enter the pool), then ``_blinded_only``, exactly as
+    the aggregate orders them.
+
+    Each observation must carry ``annotator_a``/``annotator_b``: the two
+    physicians whose verdicts the row holds. Rows without both are dropped: a
+    per-person statistic needs to know whose person it is.
+
+    Returns ``{user_id: {"kappa": float|None, "n": int}}``. ``kappa`` is None
+    below ``min_n`` for the same reason the aggregate suppresses it there: a
+    kappa on three pairs is noise presented as measurement. ``n`` is always
+    reported, so a suppressed number can be read as "not yet" rather than as a
+    broken pipeline.
+    """
+    min_n = min_n or kappa_min_n()
+    eligible = _blinded_only(_pool_eligible(observations or []))
+    by_user: Dict[str, List[Tuple[Optional[str], Optional[str]]]] = {}
+    for o in eligible:
+        a_id, b_id = o.get("annotator_a"), o.get("annotator_b")
+        va, vb = o.get("verdict_a"), o.get("verdict_b")
+        if not a_id or not b_id or va is None or vb is None:
+            continue
+        # Each physician's own verdict is rater A of their pair, so the marginal
+        # the kappa corrects for is theirs and not their co-labeler's.
+        by_user.setdefault(a_id, []).append((va, vb))
+        by_user.setdefault(b_id, []).append((vb, va))
+    out: Dict[str, Dict[str, Any]] = {}
+    for uid, pairs in by_user.items():
+        n = len(pairs)
+        out[uid] = {"kappa": (cohens_kappa(pairs) if n >= min_n else None), "n": n}
+    return out
+
+
 def review_acceptance(reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Expert review outcome. NOT inter-rater reliability — the reviewer sees the
     labeler's answer, so the two observations are not independent and kappa does

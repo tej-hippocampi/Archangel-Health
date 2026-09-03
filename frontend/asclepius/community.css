@@ -946,6 +946,21 @@
 .cm-modal-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
 .cm-linkbtn { background: none; border: 0; color: var(--ink-soft); cursor: pointer; font-size: var(--t-sm); text-decoration: underline; padding: 2px 4px; }
 
+/* ── Posting as the Archangel account (staff only) ── */
+/* Marked out from the other header buttons, because writing as the company
+   rather than as yourself should never be something a hand does by accident. */
+.cm-persona-btn { color: var(--orange-deep); border-color: var(--orange-line); }
+.cm-persona-channel {
+  font: inherit; font-size: var(--t-body); color: var(--ink);
+  background: var(--card-in); border: 1px solid var(--hairline);
+  border-radius: var(--r-sm); padding: 8px 10px; width: 100%;
+}
+.cm-persona-announce {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--t-sm); color: var(--ink-soft);
+}
+.cm-persona-note { margin: 0; font-size: var(--t-sm); color: var(--ink-faint); }
+
 @media (max-width: 640px) {
   .cm-field-row { flex-direction: column; gap: var(--sp-2); }
   .cm-event-actions { gap: 6px; }
@@ -1027,3 +1042,30 @@
    goes with it so a transparent PNG does not sit on a coloured disc. */
 .cm-avatar.has-img { background: var(--card-in); padding: 0; }
 .cm-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+
+/* ─── Case rooms in the rail (PRD-F) ─────────────────────────────────────────
+   A room is not a DM. It has three people and no one of them is its name, so
+   it renders its title and how many colleagues are in it, under its own label.
+   The backend used to hand a room a synthetic peer so this rail would print
+   something instead of "Former member"; that shim is gone, and these rules are
+   what replaced it. */
+.cm-room-row { display: flex; align-items: center; gap: 8px; }
+/* A square mark, deliberately not the round presence dot a DM carries: the
+   two must never be mistaken for each other at a glance. */
+.cm-room-mark {
+  width: 6px; height: 6px;
+  flex: none;
+  background: var(--orange);
+  border-radius: 2px;
+}
+.cm-room-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-room-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  color: var(--ink-faint);
+}

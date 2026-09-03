@@ -38,6 +38,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 _FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
 JS = (_FRONTEND / "asclepius.js").read_text()
+# Task Routing moved to the console's own bundle with PRD-F. It is the same
+# renderer; only the file it is read from changed.
+ADMIN_JS = (_FRONTEND / "admin_shell.js").read_text()
 PHYS_JS = (_FRONTEND / "admin_physicians.js").read_text()
 CSS = "\n".join((_FRONTEND / f).read_text()
                 for f in ("asclepius.css", "admin.css", "_base.css", "_tokens.css"))
@@ -57,8 +60,8 @@ def _fn(src: str, name: str) -> str:
     raise AssertionError(f"unterminated {name}")
 
 
-BATCHES = _fn(JS, "renderAdminBatches")
-PREVIEW_PANEL = _fn(JS, "renderCasePanelReadOnly")
+BATCHES = _fn(ADMIN_JS, "renderAdminBatches")
+PREVIEW_PANEL = _fn(ADMIN_JS, "renderCasePanelReadOnly")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -71,15 +74,15 @@ def test_the_subnav_says_task_routing_and_routes_to_the_batch_flow():
     physician-row route-in; renaming it would be silent breakage for zero
     benefit. So the assertion is: the operator sees "Task Routing", the code
     still says 'assign'."""
-    assert "['assign', 'Task Routing']" in JS
-    assert "['tasks', 'Data & Task Creation']" in JS
-    assert "renderAdminBatches(inner)" in JS
-    assert "state.adminSub.work === 'assign'" in JS
+    assert "['assign', 'Task Routing']" in ADMIN_JS
+    assert "['tasks', 'Data & Task Creation']" in ADMIN_JS
+    assert "renderAdminBatches(inner)" in ADMIN_JS
+    assert "state.adminSub.work === 'assign'" in ADMIN_JS
 
 
 def test_the_three_classes_are_the_ones_the_backend_groups_by():
     for key in ("longitudinal", "real_static", "synthetic"):
-        assert f"{key}:" in JS.split("const BATCH_META")[1][:400], key
+        assert f"{key}:" in ADMIN_JS.split("const BATCH_META")[1][:400], key
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -186,7 +189,7 @@ def test_the_send_controls_only_exist_when_something_is_selected():
 def test_the_physician_row_deep_links_into_batches_rather_than_sending():
     """Routing from a physician's row must not become a second send path. It
     pre-selects them in Batches and stops there."""
-    assert "openBatchesFor" in JS and "openBatchesFor" in PHYS_JS
+    assert "openBatchesFor" in ADMIN_JS and "openBatchesFor" in PHYS_JS
     assert "'Route cases'" in PHYS_JS
     row = PHYS_JS[PHYS_JS.index("Route cases") - 600:PHYS_JS.index("Route cases") + 400]
     assert "assignments/allocate" not in row, "the row must not send anything itself"

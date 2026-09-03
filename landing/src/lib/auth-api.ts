@@ -554,6 +554,14 @@ export async function submitLead(payload: {
   /* Ties this submission back to the physician who made the introduction, so
      their funnel row advances on its own. */
   referral_token?: string;
+  /* The three qualifying answers from /partner, carried beside `message`
+     rather than only inside it. They land in their own columns because the
+     archived submission is what an authority attestation actually is, and a
+     claim buried in prose is not one you can produce later. Optional: the
+     other three lead forms do not ask them. */
+  authority_answer?: string;
+  deidentification_answer?: string;
+  data_scale_answer?: string;
 }): Promise<void> {
   let res: Response;
   try {

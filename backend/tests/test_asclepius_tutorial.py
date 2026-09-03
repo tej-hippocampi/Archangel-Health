@@ -371,3 +371,85 @@ def test_public_user_diff_is_exactly_the_tutorial_key():
     assert {"tier", "tier_word", "capabilities"} <= set(pub.keys())
     assert pub["tutorial"] == {"status": "not_started", "version": None,
                                "gate_state": "locked", "attempts": 0}
+
+
+# ─── 8. Pre-approval: the applicant's play-through ───────────────────────────
+#
+# The practice case moved in front of the founders' decision, so the person
+# playing it is now usually an APPLICANT: pending, untiered, holding nothing but
+# a session. That is the run whose isolation matters most. Everything above
+# proves an approved physician's run leaves no rows behind; this proves the same
+# for somebody we have not decided about, and proves the gate object it writes
+# is the one the admin queue reads.
+def _pending_applicant(store):
+    user = A.make_user(store, tier=None, practice_case=False)
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET verification_status = 'pending' WHERE id = ?",
+                     (user["id"],))
+    return store.get_user_by_id(user["id"])
+
+
+def test_a_pending_applicant_can_play_the_case_and_writes_the_gate():
+    """The whole point of moving the case before approval: the founders get a
+    work sample to decide on. If a pending session could not reach the case, or
+    could reach it and wrote nothing an admin can read, the feature is the same
+    as not having it."""
+    store = A.fresh_store()
+    user = _pending_applicant(store)
+    hdrs = A.headers_for(user)
+
+    assert client.get("/api/asclepius/tutorial/task", headers=hdrs).status_code == 200
+    assert client.post("/api/asclepius/tutorial/reveal",
+                       json={"text": "still congested, permissive rise"},
+                       headers=hdrs).status_code == 200
+    r = client.post("/api/asclepius/tutorial/submit", json=_full_good_payload(),
+                    headers=hdrs)
+    assert r.status_code == 200
+    assert r.json()["result"]["passed"] is True
+
+    gate = store.get_tutorial_state(user["id"])["gate"]
+    assert gate["state"] == "passed"
+    assert gate["first_attempt_pass"] is True
+    assert gate["attempts"] == 1
+    assert gate["passed_version"] and gate["passed_at"]
+
+
+def test_first_attempt_pass_is_false_when_the_first_attempt_failed():
+    """The field is what the tiering feature encodes, and the gate forces an
+    eventual pass, so a pass on its own only says somebody kept going. Recorded
+    at the moment of the first pass rather than inferred from an attempt count
+    that keeps climbing on replays."""
+    store = A.fresh_store()
+    user = _pending_applicant(store)
+    hdrs = A.headers_for(user)
+
+    miss = _full_good_payload()
+    miss["independent_answer"] = {"text": "Give a fluid bolus and recheck."}
+    miss["chosen_id"], miss["rejected_id"] = "A", "B"
+    miss["verdict"] = "A_better"
+    client.post("/api/asclepius/tutorial/submit", json=miss, headers=hdrs)
+    client.post("/api/asclepius/tutorial/submit", json=_full_good_payload(), headers=hdrs)
+
+    gate = store.get_tutorial_state(user["id"])["gate"]
+    assert gate["state"] == "passed"
+    assert gate.get("first_attempt_pass") is not True
+    assert gate["attempts"] >= 2
+
+
+def test_an_applicants_play_through_writes_no_tasks_row():
+    """The tutorial task is virtual, and it has to stay virtual for an account
+    nobody has approved. A `tasks` row minted by an unvetted session is a row in
+    the real queue that a real physician can be served."""
+    store = A.fresh_store()
+    user = _pending_applicant(store)
+    hdrs = A.headers_for(user)
+    before = _table_count(store, "tasks")
+
+    client.get("/api/asclepius/tutorial/task", headers=hdrs)
+    client.post("/api/asclepius/tutorial/reveal",
+                json={"text": "congested"}, headers=hdrs)
+    client.post("/api/asclepius/tutorial/submit", json=_full_good_payload(), headers=hdrs)
+
+    assert _table_count(store, "tasks") == before
+    assert store.get_task(TUTORIAL_TASK_ID) is None
+    assert _table_count(store, "submissions") == 0
