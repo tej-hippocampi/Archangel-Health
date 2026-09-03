@@ -3098,6 +3098,68 @@ class AsclepiusStore:
                 """
             )
 
+            # ═══ Export licensing + exclusivity (audit U5) ═══════════════════
+            # Incoming clinical data is usable for everything: task creation,
+            # brokering, splitting a delivery into subsets, recombining subsets
+            # into a new one. Exactly one thing constrains that, and it is the
+            # licensing agreement. If a buyer paid for exclusivity on a slice,
+            # that slice cannot be sold again, and until this table existed
+            # nothing in the pipeline held that fact. A second cut overlapping
+            # the first shipped silently, and a contractual breach discovered by
+            # the counterparty months later is the most expensive kind.
+            #
+            # Two tables rather than a flag on ``exports``, and the reason is not
+            # stylistic. ``records.export_id`` holds only the LATEST export a
+            # record shipped in (``mark_records_exported`` overwrites it), so
+            # after any re-cut the membership of an earlier export is no longer
+            # recoverable from the records table. A commitment about a set of
+            # records must carry its own frozen snapshot of that set, which is
+            # what ``export_license_records`` is.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS export_licenses (
+                    license_id     TEXT PRIMARY KEY,
+                    export_id      TEXT NOT NULL,
+                    buyer_key      TEXT NOT NULL,
+                    buyer_label    TEXT,
+                    exclusivity    TEXT NOT NULL DEFAULT 'non_exclusive',
+                    status         TEXT NOT NULL DEFAULT 'active',
+                    expires_at     TEXT,
+                    note           TEXT,
+                    record_count   INTEGER NOT NULL DEFAULT 0,
+                    case_ids_json  TEXT NOT NULL DEFAULT '[]',
+                    created_by     TEXT,
+                    created_at     TEXT NOT NULL,
+                    released_at    TEXT,
+                    released_by    TEXT,
+                    release_reason TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                -- The frozen record-level membership of one license. Record level
+                -- rather than bundle level because the meeting's own framing is
+                -- that data gets split and recombined: a commitment that only
+                -- knows about whole bundles is defeated by re-cutting the same
+                -- records under a different filter.
+                CREATE TABLE IF NOT EXISTS export_license_records (
+                    license_id  TEXT NOT NULL,
+                    record_id   TEXT NOT NULL,
+                    PRIMARY KEY (license_id, record_id)
+                )
+                """
+            )
+            # The conflict check reads by record_id across every license, which
+            # without this index is a full scan of the whole commitment history
+            # on every export.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_export_license_recs_rec "
+                         "ON export_license_records(record_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_export_licenses_buyer "
+                         "ON export_licenses(buyer_key)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_export_licenses_excl "
+                         "ON export_licenses(exclusivity, status)")
+
     # ─── Platform media (Onboarding v2 §0.1) ──────────────────────────────────
     def set_platform_media(
         self,
@@ -6659,6 +6721,185 @@ class AsclepiusStore:
             rec["manifest"] = json.loads(rec.pop("manifest_json", "{}") or "{}")
             out.append(rec)
         return out
+
+    # ─── Export licensing + exclusivity (audit U5) ────────────────────────────
+    # "Unless they have the licensing agreement, that doesn't mean you can go
+    # sell it to 5 other people unless they didn't pay exclusively." The register
+    # below is the machine-readable form of that sentence: who was promised what,
+    # exclusively or not, and whether the promise is still live.
+
+    @staticmethod
+    def normalize_buyer_key(value: Optional[str]) -> Optional[str]:
+        """One buyer identity spelled two ways is two buyers to a database and one
+        buyer to a court, so every comparison goes through here."""
+        if value is None:
+            return None
+        key = str(value).strip().lower()
+        return key or None
+
+    def create_export_license(
+        self,
+        *,
+        export_id: str,
+        buyer_key: str,
+        record_ids: List[str],
+        license_id: Optional[str] = None,
+        buyer_label: Optional[str] = None,
+        exclusivity: str = "non_exclusive",
+        expires_at: Optional[str] = None,
+        note: Optional[str] = None,
+        case_ids: Optional[List[str]] = None,
+        created_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Record what a built export was licensed to a buyer under, together with
+        the exact records it covers."""
+        lid = license_id or _new_id("lic")
+        key = self.normalize_buyer_key(buyer_key)
+        if not key:
+            raise ValueError("A licence needs a buyer key.")
+        excl = "exclusive" if exclusivity == "exclusive" else "non_exclusive"
+        rids = sorted({r for r in (record_ids or []) if r})
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO export_licenses
+                   (license_id, export_id, buyer_key, buyer_label, exclusivity, status,
+                    expires_at, note, record_count, case_ids_json, created_by, created_at)
+                   VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)""",
+                (lid, export_id, key, buyer_label, excl, expires_at, note,
+                 len(rids), json.dumps(sorted({c for c in (case_ids or []) if c})),
+                 created_by, now),
+            )
+            conn.executemany(
+                "INSERT OR IGNORE INTO export_license_records (license_id, record_id) "
+                "VALUES (?, ?)",
+                [(lid, rid) for rid in rids],
+            )
+        return self.get_export_license(lid)  # type: ignore[return-value]
+
+    @staticmethod
+    def _export_license_row(row: sqlite3.Row) -> Dict[str, Any]:
+        lic = dict(row)
+        lic["case_ids"] = json.loads(lic.pop("case_ids_json", "[]") or "[]")
+        return lic
+
+    def get_export_license(self, license_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM export_licenses WHERE license_id = ?", (license_id,)
+            ).fetchone()
+        return self._export_license_row(row) if row else None
+
+    def license_record_ids(self, license_id: str) -> List[str]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT record_id FROM export_license_records WHERE license_id = ? "
+                "ORDER BY record_id", (license_id,)
+            ).fetchall()
+        return [r["record_id"] for r in rows]
+
+    def list_export_licenses(
+        self,
+        *,
+        exclusivity: Optional[str] = None,
+        buyer_key: Optional[str] = None,
+        export_id: Optional[str] = None,
+        active_only: bool = False,
+        now: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if exclusivity:
+            clauses.append("exclusivity = ?")
+            params.append(exclusivity)
+        key = self.normalize_buyer_key(buyer_key)
+        if key:
+            clauses.append("buyer_key = ?")
+            params.append(key)
+        if export_id:
+            clauses.append("export_id = ?")
+            params.append(export_id)
+        if active_only:
+            clauses.append("status = 'active'")
+            clauses.append("(expires_at IS NULL OR expires_at > ?)")
+            params.append(now or _utcnow_iso())
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM export_licenses {where} ORDER BY created_at DESC", tuple(params)
+            ).fetchall()
+        return [self._export_license_row(r) for r in rows]
+
+    def release_export_license(
+        self, license_id: str, *, released_by: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """End a commitment early. The row and its record membership are KEPT, not
+        deleted: what we promised and when we stopped promising it is the evidence
+        a contract dispute turns on, and a deleted row proves nothing."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE export_licenses SET status = 'released', released_at = ?, "
+                "released_by = ?, release_reason = ? WHERE license_id = ? AND status = 'active'",
+                (_utcnow_iso(), released_by, reason, license_id),
+            )
+        return self.get_export_license(license_id)
+
+    def exclusive_license_conflicts(
+        self,
+        record_ids: List[str],
+        *,
+        buyer_key: Optional[str] = None,
+        now: Optional[str] = None,
+        sample_size: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Live exclusive commitments held by SOMEONE ELSE over any of these records.
+
+        Empty when nothing is committed, when every overlapping commitment belongs
+        to ``buyer_key`` (a buyer re-taking delivery of their own data), or when the
+        overlapping commitments have been released or have expired."""
+        rids = [r for r in (record_ids or []) if r]
+        if not rids:
+            return []
+        key = self.normalize_buyer_key(buyer_key)
+        stamp = now or _utcnow_iso()
+        found: Dict[str, Dict[str, Any]] = {}
+        with self._conn() as conn:
+            # SQLite caps a statement at 999 bound variables and a batch can carry
+            # far more records than that, so the IN list is chunked rather than
+            # built in one shot.
+            for start in range(0, len(rids), 400):
+                chunk = rids[start:start + 400]
+                placeholders = ",".join("?" for _ in chunk)
+                sql = (
+                    "SELECT l.*, r.record_id AS overlap_record_id "
+                    "FROM export_license_records r "
+                    "JOIN export_licenses l ON l.license_id = r.license_id "
+                    f"WHERE r.record_id IN ({placeholders}) "
+                    "AND l.exclusivity = 'exclusive' AND l.status = 'active' "
+                    "AND (l.expires_at IS NULL OR l.expires_at > ?)"
+                )
+                params: List[Any] = list(chunk) + [stamp]
+                if key:
+                    sql += " AND l.buyer_key != ?"
+                    params.append(key)
+                for row in conn.execute(sql, tuple(params)).fetchall():
+                    rec = dict(row)
+                    overlap_rid = rec.pop("overlap_record_id")
+                    entry = found.setdefault(rec["license_id"], {
+                        "license_id": rec["license_id"],
+                        "export_id": rec["export_id"],
+                        "buyer_key": rec["buyer_key"],
+                        "buyer_label": rec["buyer_label"],
+                        "expires_at": rec["expires_at"],
+                        "note": rec["note"],
+                        "created_at": rec["created_at"],
+                        "overlap_count": 0,
+                        "overlap_sample": [],
+                    })
+                    entry["overlap_count"] += 1
+                    if len(entry["overlap_sample"]) < sample_size:
+                        entry["overlap_sample"].append(overlap_rid)
+        return sorted(found.values(), key=lambda e: e["license_id"])
 
     # ─── Stats (admin dashboard, PRD §7.6) ────────────────────────────────────
     def status_counts(self) -> Dict[str, int]:
