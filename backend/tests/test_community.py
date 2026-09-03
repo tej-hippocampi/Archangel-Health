@@ -356,27 +356,43 @@ def test_search_scoped_and_excludes_deleted():
 
 # ─── §2 Profiles ──────────────────────────────────────────────────────────────
 def test_member_list_profile_fields_and_no_tier_b():
+    """The §2 profile, across the two payloads that now carry it.
+
+    The member LIST is downloaded by every member on every page open, so it was
+    narrowed to what the rail and @mention completion render; the fields that
+    make up a profile moved to ``/members/{user_id}``, one request for the one
+    colleague somebody opened. Same gate, same scrub, same source, so this
+    asserts the whole profile is still served and still Tier-A-only, and that
+    the list is no longer the thing serving it."""
     astore, _, doc, admin = setup_world()
     r = client.get(f"{BASE}/members", headers=headers_for(doc))
     assert r.status_code == 200
     members = r.json()["members"]
     me = next(m for m in members if m["user_id"] == doc["id"])
     assert me["specialty"] == "nephrology"
-    assert me["years_in_practice"] == 17
-    assert me["institution"] == "Riverside Nephrology Associates"
     assert me["verified"] is True
     assert me["specialty_accent"] == "green"
-    assert "Board-certified" in me["blurb"] and "17 yrs" in me["blurb"]
-    # Tier B must never appear anywhere in the payload (PRD §2, §10) — neither
-    # the vault keys nor the vault VALUES. ("NPI-verified." in the blurb is
-    # Tier A language, hence the key-shaped '"npi"' check.)
-    blob = json.dumps(r.json()).lower()
+    # The heavy per-row fields are gone from the LIST specifically.
+    for absent in ("blurb", "institution", "years_in_practice"):
+        assert absent not in me, absent
+
+    p = client.get(f"{BASE}/members/{doc['id']}", headers=headers_for(doc))
+    assert p.status_code == 200
+    profile = p.json()["member"]
+    assert profile["years_in_practice"] == 17
+    assert profile["institution"] == "Riverside Nephrology Associates"
+    assert "Board-certified" in profile["blurb"] and "17 yrs" in profile["blurb"]
+    # Tier B must never appear anywhere in EITHER payload (PRD §2, §10):
+    # neither the vault keys nor the vault VALUES. ("NPI-verified." in the blurb
+    # is Tier A language, hence the key-shaped '"npi"' check.)
+    blob = json.dumps(r.json()).lower() + json.dumps(p.json()).lower()
     for forbidden in ('"npi"', "full_legal_name", "medical_license_number",
                       "practice_address", "1234567893", "a-104872", "jane a. doe",
                       "1200 riverside dr"):
         assert forbidden not in blob, forbidden
     # email is not served either
     assert "email" not in me
+    assert "email" not in profile
 
 
 def test_member_specialty_filter():
@@ -640,6 +656,37 @@ def test_attachment_of_deleted_message_is_gone():
 
 
 # ─── WebSocket (§4, §9.6) ─────────────────────────────────────────────────────
+def ws_barrier(ws):
+    """Block until this socket's server-side handler has finished the work it
+    was already given. Returns once the ``pong`` for a fresh ``ping`` arrives.
+
+    This exists for a limitation in Starlette's ``TestClient``, not for the
+    app. Every ``websocket_connect`` and every HTTP request gets its OWN
+    blocking portal, so a socket's ASGI ``send`` and the test thread's
+    ``receive`` on ANOTHER socket sit in two different event loops. Delivering
+    an event to socket A from socket B's loop ends in
+    ``anyio`` waking A's stream with ``asyncio.Event.set()``, which schedules
+    A's wakeup with ``loop.call_soon`` from a foreign thread; ``call_soon``
+    does not write the selector's self-pipe, so if A's loop is already parked
+    in ``select(timeout=None)`` waiting for that very event, the wakeup is lost
+    and ``receive_json`` blocks forever.
+
+    The race is entirely in the harness: a real deployment runs one uvicorn
+    event loop, and the hub itself is provably correct here (instrumenting
+    ``Hub._send_one`` shows the event delivered, ``ok=True``, while the client
+    thread stays parked). The barrier removes the race by ordering the
+    cross-socket send BEFORE the receive: the handler is single-tasked, so a
+    ``pong`` proves every earlier broadcast it owed has already completed, and
+    the event is therefore sitting in the target socket's buffer where
+    ``receive_json`` picks it up without ever parking.
+    """
+    ws.send_text(json.dumps({"type": "ping"}))
+    while True:
+        msg = ws.receive_json()
+        if msg.get("type") == "pong":
+            return
+
+
 def test_ws_rejects_without_valid_gate():
     astore, _, _, _ = setup_world()
     buyer = make_user(astore, role="buyer")
@@ -668,10 +715,15 @@ def test_ws_delivers_messages_typing_and_presence():
         # typing from a second socket relays to the first
         with client.websocket_connect(f"{BASE}/ws?token={token_for(other)}") as ws2:
             ws2.receive_json()  # hello
+            # Barrier before every cross-socket receive (see ws_barrier): the
+            # presence and typing events are produced by ws2's event loop and
+            # consumed on ws1, and only the barrier makes that ordering real.
+            ws_barrier(ws2)
             presence = ws.receive_json()
             assert presence["type"] == "presence"
             assert other["id"] in presence["online"]
             ws2.send_text(json.dumps({"type": "typing", "channel": "general"}))
+            ws_barrier(ws2)
             typing = ws.receive_json()
             assert typing["type"] == "typing" and typing["user_id"] == other["id"]
 

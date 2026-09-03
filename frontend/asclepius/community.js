@@ -21,8 +21,14 @@
     dms: [],            // conversations: DMs carry {peer}, case rooms carry {title, participants}
     active: 'general',  // channel slug OR a dm id ("dm-…") — keys never collide
     msgs: {},           // container key (slug or dm id) -> {list, hasMore, loaded}
+    // The directory rows, which are SUMMARIES: id, name, initials, avatar,
+    // specialty and the two badges, which is everything the rail and @mention
+    // completion read. The rest of a profile (blurb, institution, years,
+    // training) is fetched one colleague at a time into `profilesById`, so
+    // opening the page no longer downloads a full dossier per member.
     members: [],
     membersById: {},
+    profilesById: {},   // user_id -> full profile, once somebody has been opened
     online: new Set(),
     memberFilter: '',   // specialty filter for the member directory (§4)
     thread: null,       // {rootId, root, replies}
@@ -409,35 +415,60 @@
           ? h('span', { class: 'cm-chan-unread' }, unread > 99 ? '99+' : String(unread))
           : (unread > 0 ? h('span', { class: 'dot dot-lime', 'aria-label': 'unread' }) : null));
     };
-    const coreChans = state.channels.filter(
-      (c) => (c.group || 'core') !== 'specialty' && (c.group || 'core') !== 'country');
-    const mySpec = ((state.me && state.me.specialty) || '').toLowerCase();
-    const specChans = state.channels.filter((c) => c.group === 'specialty')
-      .sort((a, b) => ((b.specialty || '').toLowerCase() === mySpec ? 1 : 0)
-                    - ((a.specialty || '').toLowerCase() === mySpec ? 1 : 0));
+    /* One labelled section per channel GROUP the server can send.
+     *
+     * This list used to name two of them, and everything else fell through the
+     * "not specialty, not country" filter into the unlabelled Channels
+     * section. The server has since opened subspecialty, city and crossed
+     * (specialty-in-region) rooms, so #transplant-nephrology, #boston and
+     * #nephrology-emea all piled in under the core rooms with nothing saying
+     * what they were or why they had appeared. Reading the group off the
+     * channel, rather than filtering for the ones we happen to know about,
+     * means the next cohort the server opens lands in its own section instead
+     * of on that pile.
+     *
+     * Own room first inside each group, which is the rule the specialty and
+     * country sections already followed: a nephrologist in Boston should find
+     * their own rooms at the top rather than scrolling an alphabet to reach
+     * them. `me` carries the same cohort keys the channels do, so each group
+     * sorts on its own key rather than a shared guess. */
+    const me = state.me || {};
+    const GROUPS = [
+      { key: 'specialty', label: 'Specialty',
+        mine: (c) => (c.specialty || '').toLowerCase() === (me.specialty || '').toLowerCase() },
+      { key: 'subspecialty', label: 'Subspecialty',
+        mine: (c) => (me.subspecialties || []).indexOf(c.subspecialty) !== -1 },
+      { key: 'country', label: 'Countries',
+        mine: (c) => (c.country || '').toUpperCase() === (me.country || '').toUpperCase() },
+      { key: 'specialty_region', label: 'Specialty by region',
+        mine: (c) => (c.specialty || '').toLowerCase() === (me.specialty || '').toLowerCase()
+                  && (c.region || '') === (me.region || '') },
+      { key: 'city', label: 'Cities',
+        mine: (c) => (c.city || '') === (me.city || '') },
+    ];
+    const grouped = {};
+    for (const g of GROUPS) grouped[g.key] = [];
+    const coreChans = [];
+    for (const c of state.channels) {
+      const grp = c.group || 'core';
+      if (grouped[grp]) grouped[grp].push(c); else coreChans.push(c);
+    }
+
     const chSection = h('div', { class: 'cm-rail-section' },
       h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Channels')));
     for (const ch of coreChans) chSection.appendChild(chanBtn(ch));
     scrollBox.appendChild(chSection);
-    if (specChans.length) {
-      const spSection = h('div', { class: 'cm-rail-section' },
-        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Specialty')));
-      for (const ch of specChans) spSection.appendChild(chanBtn(ch));
-      scrollBox.appendChild(spSection);
-    }
 
-    // Countries. Own room first, same as specialty: a doctor in Riyadh should
-    // find Saudi Arabia at the top of the list rather than scrolling past
-    // Australia to reach it.
-    const myCountry = ((state.me && state.me.country) || '').toUpperCase();
-    const countryChans = state.channels.filter((c) => c.group === 'country')
-      .sort((a, b) => ((b.country || '').toUpperCase() === myCountry ? 1 : 0)
-                    - ((a.country || '').toUpperCase() === myCountry ? 1 : 0));
-    if (countryChans.length) {
-      const coSection = h('div', { class: 'cm-rail-section' },
-        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Countries')));
-      for (const ch of countryChans) coSection.appendChild(chanBtn(ch));
-      scrollBox.appendChild(coSection);
+    for (const g of GROUPS) {
+      const chans = grouped[g.key];
+      if (!chans.length) continue;
+      // A cohort key we do not hold matches nothing, so `mine` is false for
+      // every room and the order is left as the server sent it.
+      chans.sort((a, b) => (g.mine(b) ? 1 : 0) - (g.mine(a) ? 1 : 0));
+      const section = h('div', { class: 'cm-rail-section' },
+        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, g.label)));
+      for (const ch of chans) section.appendChild(chanBtn(ch));
+      scrollBox.appendChild(section);
     }
 
     /* Conversations. Two kinds ride this one list, and they are not the same
@@ -545,7 +576,6 @@
     scrollBox.appendChild(mSection);
     rail.appendChild(scrollBox);
 
-    const me = state.me || {};
     rail.appendChild(h('div', { class: 'cm-rail-foot' },
       h('div', { class: 'cm-rail-me' },
         avatarEl(me, 'small'),
@@ -1935,9 +1965,45 @@
     return rows;
   }
 
+  /* The best view of a colleague we currently hold.
+   *
+   * The directory row is a summary, so it carries a name, an avatar and a
+   * specialty and nothing else; the profile fields arrive from
+   * /members/{id} the first time somebody is opened and are kept. Merging
+   * rather than replacing means a panel opened before the fetch lands still
+   * renders the name and avatar we already had, and the extra rows fill in. */
+  function memberView(userId, fallback) {
+    return Object.assign({}, fallback || {}, state.membersById[userId] || {},
+                         state.profilesById[userId] || {});
+  }
+
+  async function loadMemberProfile(userId) {
+    if (state.profilesById[userId]) return state.profilesById[userId];
+    try {
+      const d = await api('/members/' + encodeURIComponent(userId));
+      if (d && d.member) state.profilesById[userId] = d.member;
+      return state.profilesById[userId] || null;
+    } catch (e) {
+      // A profile that will not load is a thinner panel, never a broken one:
+      // the summary we already hold still renders.
+      return null;
+    }
+  }
+
   function openMember(userId) {
-    const m = state.membersById[userId];
-    if (!m) return;
+    if (!state.membersById[userId]) return;
+    // Fill the panel in with whatever we hold now, then fetch the rest and
+    // redraw. Waiting on the request first would leave the rail click doing
+    // nothing visible for a round trip.
+    if (!state.profilesById[userId]) {
+      loadMemberProfile(userId).then((full) => {
+        if (full && state.sidePanel === 'member'
+            && state.sideMember && state.sideMember.user_id === userId) {
+          openMember(userId);
+        }
+      });
+    }
+    const m = memberView(userId);
     hideHoverCard();
     state.sidePanel = 'member';
     state.sideMember = m;
@@ -1970,7 +2036,10 @@
   let hoverCardEl = null; let hoverTimer = null;
   function showHoverCard(author, evt) {
     if (!author || !author.user_id) return;
-    const m = state.membersById[author.user_id] || author;
+    // A message author arrives on the message itself and still carries the
+    // full Tier A profile, so the card is unchanged for the case it is used in
+    // most. Anything already fetched wins over it; the summary is the floor.
+    const m = memberView(author.user_id, author);
     hoverTimer = setTimeout(() => {
       hideHoverCard();
       hoverCardEl = h('div', { class: 'cm-hovercard', role: 'tooltip' },

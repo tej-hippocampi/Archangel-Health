@@ -243,6 +243,54 @@ def test_rebroadcasting_a_request_enqueues_nothing_new(sent):
     assert len(sent) == 2
 
 
+def test_two_drains_racing_send_each_partner_one_letter(monkeypatch):
+    """Four paths reach this outbox: the 60 s loop, the create-request path,
+    the admin re-drain, and the failed-row retry. A plain pending SELECT handed
+    the same row to two of them, and a partner got the same broadcast twice.
+
+    The second drain starts while the first is inside its send, which is the
+    window a per-request drain and a loop tick actually collide in.
+    """
+    box = []
+    second = []
+
+    async def _fake(to, subject, body, **kw):
+        box.append(to)
+        if not second:
+            second.append(_drain())
+        return True, None
+
+    monkeypatch.setattr("email_utils.send_html_email_with_reason", _fake,
+                        raising=False)
+
+    store = _store()
+    _make_org(state="active", members=("a@x.org", "b@x.org"))
+    _create_request(_client(), store)
+
+    assert _drain() == (2, 0)
+    # The re-entrant drain found the first row claimed and the second one still
+    # unclaimed, so it sent that one -- and between them each address is mailed
+    # exactly once, which is the property that matters.
+    assert sorted(box) == ["a@x.org", "b@x.org"]
+    assert second and second[0][1] == 0
+
+
+def test_a_retried_row_is_claimable_again_immediately(sent):
+    """``retry_failed_hs_request_notifications`` clears the lease with the
+    status. Leaving a stale claim on a row an operator just asked us to retry
+    would make the retry look broken for fifteen minutes."""
+    store = _store()
+    _make_org(state="active", members=("a@x.org",))
+    request_id = _create_request(_client(), store).json()["request"]["id"]
+
+    sent.ok = False
+    assert _drain() == (0, 1)
+    sent.ok = True
+    assert store.retry_failed_hs_request_notifications(request_id) == 1
+    assert _drain() == (1, 0)
+    assert [m["to"] for m in sent] == ["a@x.org"]
+
+
 def test_the_same_address_at_two_organizations_hears_once_per_organization(sent):
     """The key is (request, organization, recipient) rather than (request,
     recipient), because each organization is separately being asked and one

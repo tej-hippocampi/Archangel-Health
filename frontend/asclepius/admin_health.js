@@ -979,6 +979,10 @@
     renderApplicationCard(container, ctx, data);
     renderAgreementsCard(container, ctx, data);
     renderIntakeCard(container, ctx, data);
+    // Above Payouts and Invoices deliberately: the rate is the input those two
+    // are downstream of, and an operator looking at an empty ledger should meet
+    // the reason before the symptom.
+    renderDataRateCard(container, ctx, hsId);
     renderPayoutsCard(container, ctx, hsId, data);
     renderInvoicesCard(container, ctx, hsId, data);
 
@@ -1297,6 +1301,98 @@
     const n = (Number(cents) || 0) / 100;
     return '$' + n.toLocaleString(undefined,
       { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // ─── Data rate ────────────────────────────────────────────
+  // What one accepted upload from this partner is worth. Until this card
+  // existed the only way to price an organization was to POST
+  // /health-systems/{id}/data-rate by hand, and the deployment default
+  // (ASCLEPIUS_HS_UPLOAD_RATE_CENTS) is 0, so an unpriced partner accrues
+  // NOTHING and the Invoices card below it stays empty forever with no
+  // indication of why. The price is the missing input, so it belongs on the
+  // page where the money is.
+  //
+  // Its own fetch, because the rate lives on GET .../accruals and not on the
+  // detail response this view is built from. Appended synchronously and filled
+  // afterwards, exactly as renderStoragePanel does, so a slow read cannot
+  // reorder the cards or hold the page open.
+  function renderDataRateCard(container, ctx, hsId) {
+    const { h, api, toast } = ctx;
+    const card = h('div', { class: 'asc-card' });
+    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-card-title' }, 'Data rate'),
+      h('div', { class: 'asc-card-sub' },
+        'What one accepted upload from this organization is worth. Setting it ' +
+        'reconciles their backlog immediately; nothing already accrued moves, ' +
+        'because every ledger row carries the rate it was stamped with.'))));
+    const bodyEl = h('div', { class: 'asc-card-pad' });
+    card.appendChild(bodyEl);
+    container.appendChild(card);
+
+    api('/admin/health-systems/' + encodeURIComponent(hsId) + '/accruals')
+      .then((res) => {
+        // The EFFECTIVE rate, which is this organization's own figure when it
+        // has one and the deployment default when it does not. Hence "in force"
+        // rather than "agreed": the label must not claim somebody priced this
+        // partner when what is really in force is a default.
+        const rate = Number(res.rate_cents) || 0;
+        const sum = res.summary || {};
+        bodyEl.appendChild(h('div', { class: 'asc-hs-meta' },
+          metaCell(h, 'Rate in force',
+            rate ? money(rate) + ' / ' + (res.unit || 'upload') : 'Not priced'),
+          metaCell(h, 'Accrued, not billed', money(sum.accrued_cents)),
+          metaCell(h, 'Outstanding', money(sum.outstanding_cents)),
+          metaCell(h, 'Ledger rows', String(sum.count || 0))));
+        // An unpriced partner is a work item, not a default. Say what the zero
+        // actually costs: their accepted uploads are earning them nothing.
+        if (!rate) {
+          bodyEl.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top: var(--sp-2)' },
+            'This organization is not priced, so accepted uploads accrue nothing ' +
+            'at all. Agree a rate here before their data is worth anything on ' +
+            'the ledger.'));
+        }
+
+        const amountEl = h('input', { class: 'asc-input', type: 'text',
+                                      placeholder: 'Rate per accepted upload, e.g. 250.00' });
+        const setBtn = btn(h, 'Set rate', 'asc-btn-primary', async () => {
+          const dollars = parseFloat((amountEl.value || '').replace(/[$,\s]/g, ''));
+          if (!isFinite(dollars) || dollars < 0) {
+            toast('Enter a rate of zero or more.', 'error');
+            return;
+          }
+          try {
+            const out = await api('/admin/health-systems/' + encodeURIComponent(hsId) +
+                                  '/data-rate',
+                                  { method: 'POST',
+                                    body: { rate_cents: Math.round(dollars * 100) } });
+            const accrued = (out.reconciled || {}).accrued || 0;
+            toast('Rate set. ' + accrued + ' upload(s) accrued at it.', 'success');
+            render(container.parentNode, ctx);
+          } catch (e) { toast(e.message || 'Could not set that rate.', 'error'); }
+        });
+        // Clearing is not the same as setting zero: it drops the organization
+        // back to the deployment default, which is what an operator who priced
+        // the wrong partner needs. It is a ghost button because unpricing a
+        // partner is not the thing this card is for.
+        const clearBtn = btn(h, 'Clear', 'asc-btn-ghost', async () => {
+          if (!window.confirm('Clear this rate? Their accepted uploads fall back ' +
+                              'to the deployment default, which accrues nothing ' +
+                              'unless one is configured.')) return;
+          try {
+            await api('/admin/health-systems/' + encodeURIComponent(hsId) + '/data-rate',
+                      { method: 'POST', body: { rate_cents: null } });
+            toast('Rate cleared.', 'info');
+            render(container.parentNode, ctx);
+          } catch (e) { toast(e.message || 'Could not clear that rate.', 'error'); }
+        });
+        bodyEl.appendChild(h('div', { class: 'asc-hs-payout-form' },
+          h('div', { class: 'asc-hs-payout-grid' }, amountEl),
+          setBtn, rate ? clearBtn : null));
+      })
+      .catch((e) => {
+        bodyEl.appendChild(h('div', { class: 'asc-inline-error' },
+          e.message || 'Could not read this organization\u2019s rate.'));
+      });
   }
 
   function renderPayoutsCard(container, ctx, hsId, data) {

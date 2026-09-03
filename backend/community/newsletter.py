@@ -17,6 +17,18 @@ newsletter becomes noise with their name at the top.
 **One email a day, total.** When the morning routine is on it owns the daily
 send, and the older news-digest email stands down: two automated emails on the
 same morning from the same product is one too many.
+
+The third rule is the one this file got wrong. "Once a day" was recorded per
+COUNTRY COHORT, and a cohort ledger cannot answer the only question a mail path
+has to answer: has THIS doctor already been written to this morning. Two
+schedulers drive this (the in-process hourly loop and the hourly external
+trigger), both passed the cohort due-check, and both mailed the whole roster;
+and a cohort that failed on doctor 400 of 900 re-mailed the first 399 on the
+next tick, because a released cohort window restarts at the top. Both halves are
+fixed with the claim the community ledger already provides: the cohort takes a
+window so only one runner owns the morning, and every doctor takes their own,
+so a send is at-most-once per person per morning and a resumed run picks up
+where it stopped.
 """
 
 from __future__ import annotations
@@ -59,6 +71,31 @@ def _portal_url() -> str:
 def _since_iso(hours: int = 24) -> str:
     return (datetime.now(timezone.utc) - timedelta(hours=hours)).replace(
         microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _window_key(tz_name: str) -> str:
+    """Which morning this is, in the cohort's own timezone.
+
+    Delegated to ``morning.window_key`` rather than reimplemented, because the
+    window and the due-check have to mean the same day: a UTC date would put two
+    runners either side of local midnight into different windows and let both
+    mail. A throwaway Scope is the only shape that function takes, and paying
+    that rather than writing a second date derivation is the point.
+    """
+    return cmorning.window_key(cmorning.Scope(key="", channel="", tz=tz_name))
+
+
+def _member_ledger_key(user_id: str) -> str:
+    """The per-recipient ledger key: one row per doctor per morning.
+
+    Deliberately in the same table as the cohort's own claim rather than in a
+    new one. ``claim_digest_run`` is the claim primitive this codebase already
+    has, with the lease and the abandoned-window release already reasoned about,
+    and a second claim mechanism written next to it would be a second thing to
+    get right. The cost is one small ledger row per doctor per day, which is the
+    cheapest possible record of "this person has been written to".
+    """
+    return f"morning:newsletter:member:{user_id}"
 
 
 def _member_channels(member: Dict[str, Any], channels: List[Dict[str, Any]]) -> List[str]:
@@ -160,8 +197,16 @@ def _collect_sections(cstore: Any, slugs: List[str]) -> List[Dict[str, Any]]:
 async def send_for_member(
     cstore: Any, astore: Any, member: Dict[str, Any],
     channels: List[Dict[str, Any]], *, dry_run: bool = False,
+    window: Optional[str] = None,
 ) -> str:
-    """One doctor's email. Returns what happened, for the run summary."""
+    """One doctor's email. Returns what happened, for the run summary.
+
+    ``window`` is this doctor's morning (their cohort's local date). Passing it
+    puts the send behind a per-recipient claim, which is what makes the send
+    at-most-once for this person on this morning no matter how many runners
+    reach them. Omitting it sends unconditionally, which is what a single
+    hand-driven call for one doctor wants and what the existing callers do.
+    """
     email = (member.get("email") or "").strip()
     if not email:
         return "no_email"
@@ -192,11 +237,41 @@ async def send_for_member(
         community_url=_portal_url(),
         unsubscribe_url=unsubscribe,
     )
+
+    # Claim this doctor's morning HERE, immediately before the send and after
+    # every reason not to send has been checked. Claiming earlier would spend a
+    # doctor's one send on a quiet day and silence a later tick that had
+    # something to say; claiming after the send would be a record of what
+    # happened rather than a reservation, which is the shape the cohort ledger
+    # had and the reason two runners both mailed everyone.
+    run_id = None
+    if window is not None:
+        run_id = cstore.claim_digest_run(_member_ledger_key(member["user_id"]),
+                                         window_key=window)
+        if run_id is None:
+            # Somebody else is mailing this doctor, or already has. Either way
+            # the answer is the same and it is not an error.
+            return "already_sent"
+
+    ok = False
     try:
         ok = await send_html_email(email, "Your morning in Archangel", html)
     except Exception:  # noqa: BLE001
         log.warning("[newsletter] send failed for one member", exc_info=True)
-        return "failed"
+    finally:
+        # A successful send KEEPS the window, which is the whole at-most-once
+        # guarantee. A failure RELEASES it, so the next tick retries this doctor
+        # rather than writing them off for the day: an unsent morning and a
+        # duplicate morning are both bad, and the retry is the cheaper mistake.
+        if run_id is not None:
+            try:
+                cstore.finish_digest_run(run_id, ok=bool(ok), items_posted=1 if ok else 0)
+            except Exception:  # noqa: BLE001
+                # The claim stands and the lease will release it. Worth a line:
+                # a ledger that will not write means this doctor gets no mail
+                # until the lease lapses, and that should not be silent.
+                log.warning("[newsletter] could not close the send ledger row",
+                            exc_info=True)
     return "sent" if ok else "failed"
 
 
@@ -230,11 +305,25 @@ async def run_newsletter(*, force: bool = False) -> Dict[str, Any]:
         if not force and not cmorning.is_due(cstore.last_successful_run_at(key), tz):
             skipped.append(key)
             continue
-        run_id = cstore.start_digest_run(key)
+        # The cohort's own claim, exactly as ``morning.run_scope`` takes one.
+        # ``is_due`` above is a READ, and two schedulers can both pass it in the
+        # same hour; this is the write only one of them can win. ``start_digest_run``,
+        # which this used to call, reserves nothing, so both used to proceed.
+        window = _window_key(tz)
+        run_id = cstore.claim_digest_run(key, window_key=None if force else window)
+        if run_id is None:
+            log.info("[newsletter] cohort %s already claimed for %s", code, window)
+            skipped.append(key)
+            continue
         delivered = 0
         try:
             for member in cohort:
-                outcome = await send_for_member(cstore, astore, member, channels)
+                # ``window`` is passed even on a forced run. Force overrides the
+                # SCHEDULE, never the delivery ledger: an operator firing this by
+                # hand after a partial run wants the doctors who were missed, not
+                # a second copy for everyone who already has theirs.
+                outcome = await send_for_member(cstore, astore, member, channels,
+                                                window=window)
                 if outcome == "sent":
                     delivered += 1
             cstore.finish_digest_run(run_id, ok=True, items_posted=delivered)

@@ -6,9 +6,58 @@ visible in the uvicorn terminal — the "send" call returns success. Useful for
 local end-to-end testing of onboarding flows without configuring SendGrid.
 """
 
+import asyncio
 import os
 import re
+import socket
 from typing import Optional, Tuple
+
+
+#: Seconds any single outgoing-mail network call may take before we give up.
+#:
+#: There was no timeout at all, and the consequence was not "a slow email". The
+#: SendGrid client is urllib underneath, urllib with no timeout waits on the
+#: socket forever, and this module is called from unattended drain loops that
+#: share the one uvicorn event loop. A hung vendor connection therefore stalled
+#: EVERY request in the process including ``/health``, and Railway's restart
+#: policy turns a stalled healthcheck into a restart loop: a SendGrid blip
+#: becomes an outage of the whole product.
+#:
+#: urllib applies this one value as the socket deadline for BOTH the connect and
+#: each subsequent read, so a single number sets both halves; smtplib's
+#: ``timeout`` argument works the same way. Fifteen seconds is far longer than a
+#: normal accepted send (well under a second) and short enough that the mail
+#: outbox's 900 s claim lease still covers a full 50-row chunk of worst-case
+#: sends, so a slow vendor cannot let a claim lapse mid-batch and hand the same
+#: physician's mail to a second drain.
+_DEFAULT_SEND_TIMEOUT_SECONDS = 15.0
+
+
+def _send_timeout_seconds() -> float:
+    """The socket deadline for one send. Overridable, but never unbounded:
+    a non-numeric or non-positive value falls back rather than disabling the
+    protection this exists to provide."""
+    try:
+        value = float((os.getenv("EMAIL_SEND_TIMEOUT_SECONDS") or "").strip())
+    except ValueError:
+        return _DEFAULT_SEND_TIMEOUT_SECONDS
+    return value if value > 0 else _DEFAULT_SEND_TIMEOUT_SECONDS
+
+
+def _is_timeout(exc: BaseException) -> bool:
+    """Did this exception come from our own deadline expiring?
+
+    Three shapes, because one library hands back three. urllib raises
+    ``socket.timeout`` when a READ deadline expires, wraps the same object in a
+    ``URLError`` when a CONNECT deadline expires, and the builtin
+    ``TimeoutError`` is what an OS-level deadline surfaces as. Recognising only
+    the first would have left a hung CONNECT, the exact failure this module was
+    fixed for, reported as an unexplained "Email send failed".
+    """
+    if isinstance(exc, (socket.timeout, TimeoutError)):
+        return True
+    reason = getattr(exc, "reason", None)
+    return isinstance(reason, (socket.timeout, TimeoutError))
 
 
 def _normalize_sendgrid_api_key(raw: Optional[str]) -> str:
@@ -119,8 +168,40 @@ async def send_html_email_with_reason(
     attachments: Optional[list] = None,
     reply_to: str | None = None,
 ) -> "tuple[bool, str]":
-    """Send an HTML email. Returns (ok, reason). `reason` is a short, human-
-    readable explanation suitable for surfacing in the UI when ok is False.
+    """Send an HTML email OFF the event loop. Returns (ok, reason).
+
+    Every transport below is blocking (urllib for SendGrid, smtplib for SMTP),
+    and this coroutine is awaited from request handlers and from unattended
+    drain loops that all share one uvicorn event loop. Awaiting a blocking call
+    directly does not make it concurrent: it pins the loop for the duration, so
+    one slow send freezes every other request in the process. ``asyncio.to_thread``
+    is the pattern the rest of the codebase already uses for exactly this
+    (``main._asclepius_task_notify_loop`` hands the outbox drains to threads),
+    and the timeout inside is the second half. A thread hung forever is a leaked
+    thread rather than a frozen server, which is better but still not fine.
+    """
+    return await asyncio.to_thread(
+        _send_html_email_blocking,
+        to_email, subject, html_body,
+        importance_headers=importance_headers,
+        attachments=attachments,
+        reply_to=reply_to,
+    )
+
+
+def _send_html_email_blocking(
+    to_email: str,
+    subject: str,
+    html_body: str,
+    *,
+    importance_headers: bool = False,
+    attachments: Optional[list] = None,
+    reply_to: str | None = None,
+) -> "tuple[bool, str]":
+    """The actual send. Blocking, and must only ever run on a worker thread.
+
+    Returns (ok, reason). `reason` is a short, human-readable explanation
+    suitable for surfacing in the UI when ok is False.
 
     ``attachments`` is a list of ``(filename, mime_type, bytes)``. It exists for
     one requirement and should stay rare: the E-SIGN Act conditions the
@@ -195,6 +276,12 @@ async def send_html_email_with_reason(
             if clean_reply_to:
                 message.reply_to = clean_reply_to
             sg = SendGridAPIClient(api_key)
+            # The deadline, set on the client rather than passed to send()
+            # because that is the only seam the library offers: SendGridAPIClient
+            # takes no timeout, and its underlying python_http_client copies
+            # ``timeout`` into every child client it builds for the URL path, so
+            # this is what ``sg.send`` ends up handing to urllib.
+            sg.client.timeout = _send_timeout_seconds()
             response = sg.send(message)
             status_code = getattr(response, "status_code", None)
             if status_code not in (200, 202):
@@ -257,13 +344,30 @@ async def send_html_email_with_reason(
                     outer.attach(part)
                 msg = outer
             port = int(os.getenv("SMTP_PORT", "587"))
-            with smtplib.SMTP(smtp_host, port) as server:
+            # Same deadline, same reason: smtplib with no timeout inherits the
+            # global socket default, which is "wait forever" unless somebody set
+            # it, and a relay that accepts the connection and then says nothing
+            # holds this thread open indefinitely.
+            with smtplib.SMTP(smtp_host, port, timeout=_send_timeout_seconds()) as server:
                 server.starttls()
                 server.login(smtp_user, smtp_pass)
                 server.send_message(msg)
             return True, "sent"
         return False, "Email transport is not configured (no SendGrid key or SMTP credentials)."
     except Exception as e:
+        if _is_timeout(e):
+            # A timeout is an ORDINARY send failure, handled before the generic
+            # cases below rather than swallowed into them. The outbox rows this
+            # module serves retry on a False, so a slow vendor costs the message
+            # a tick and nothing more; the distinct wording is what tells an
+            # operator reading the delivery log that the provider stalled rather
+            # than rejected us.
+            timeout = _send_timeout_seconds()
+            print(f"[email_utils] send to {to_email!r} timed out after {timeout:g}s: {e}")
+            return False, (
+                f"The email provider did not respond within {timeout:g}s. "
+                "The message was not sent and will be retried."
+            )
         print(f"[email_utils] send failed: {e}")
         msg = str(e).lower()
         if "401" in msg or "unauthorized" in msg:

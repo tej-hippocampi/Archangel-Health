@@ -88,7 +88,43 @@ def _asc_credentialing():
 # chain makes per-IP meaningless.
 _SIGNUP_PER_TOKEN = (6, 3600)      # retries of one account's final step
 _SIGNUP_PER_IP = (20, 3600)        # a whole team behind one NAT, comfortably
-_SIGNUP_GLOBAL = (300, 3600)       # volumetric backstop
+
+# The global bucket is the one limit here that is NOT an abuse control, and it
+# has to be read that way or it gets sized like one. It was 300/hour, which is
+# a number below a real launch morning: physician 301 in the hour is told we
+# are receiving a lot of requests, and by the reasoning above that physician is
+# gone for good. A single shared bucket cannot tell a mailing list of doctors
+# from a script, so the only safe place for it is somewhere only a script
+# reaches: 5000/hour is far past any plausible hour of human signups and still
+# cuts a runaway loop off within a minute.
+#
+# Raising it costs nothing in abuse terms because it never was the abuse
+# control. A script still spends 6 attempts per onboarding token and 20 per IP,
+# and those two are unchanged. This one exists only for the case where the XFF
+# chain makes per-IP meaningless, and a volumetric backstop that fires on
+# ordinary demand is not a backstop, it is an outage.
+_SIGNUP_GLOBAL_DEFAULT = 5000
+
+
+def _signup_global_per_hour() -> int:
+    """The global signup ceiling, overridable with ASCLEPIUS_SIGNUP_GLOBAL_PER_HOUR.
+
+    Env-configurable so the ceiling can be moved from the platform dashboard
+    during a launch instead of through a deploy. Read once at import, so a
+    change needs a restart, which is what setting the variable does anyway.
+
+    A non-numeric or non-positive value falls back to the default rather than
+    disabling the limiter: the failure mode of a typo in an env var must not be
+    an uncapped account-creating endpoint.
+    """
+    try:
+        n = int((os.getenv("ASCLEPIUS_SIGNUP_GLOBAL_PER_HOUR") or "").strip())
+    except ValueError:
+        return _SIGNUP_GLOBAL_DEFAULT
+    return n if n > 0 else _SIGNUP_GLOBAL_DEFAULT
+
+
+_SIGNUP_GLOBAL = (_signup_global_per_hour(), 3600)
 
 
 async def _signup_rate_guard(request: Request) -> None:
@@ -145,6 +181,20 @@ def _app_base() -> str:
 
 def _asclepius_workspace_url() -> str:
     return f"{_app_base()}/asclepius"
+
+
+def _asclepius_portal_url() -> str:
+    """Where an applicant signs back in while their application is in review.
+
+    ASCLEPIUS_PORTAL_URL first, then BASE_URL, which is exactly what the
+    approval welcome resolves (``asclepius_verify._portal_base``). The two have
+    to agree because they are the same door, and in production the portal is a
+    different host from the API: resolving this from BASE_URL alone would mail
+    a physician a link to the backend instead of to their account.
+    """
+    base = (os.getenv("ASCLEPIUS_PORTAL_URL") or os.getenv("BASE_URL")
+            or "http://localhost:8000").strip().rstrip("/")
+    return f"{base}/asclepius"
 
 
 def _partner_intro_url(request: Request, email: str) -> str:
@@ -1075,25 +1125,22 @@ def _provision_asclepius_user(
         _run_signup_verification(store, user, creds)
 
 
-async def _welcome_into_community(email: str) -> None:
-    """Introduce a new physician in #introductions.
-
-    Fired at signup, not only at approval. A provisional physician is already
-    inside the community -- they can read and post from the moment they finish
-    the form -- so waiting for the credential check meant the room said nothing
-    while they were in it, and then introduced them days later to people they
-    had already been talking to. Idempotent: the welcome flag is claimed before
-    the post, so the approval path will not repeat it.
-    """
-    try:
-        from asclepius.store import get_store as _get_astore  # noqa: PLC0415
-        from community.onboard import welcome_new_member  # noqa: PLC0415
-
-        user = _get_astore().get_user_by_email(email)
-        if user:
-            await welcome_new_member(user)
-    except Exception:
-        log.exception("[community] welcome post failed (non-fatal)")
+# A signup does NOT announce anybody in #introductions. The helper that did it
+# from here is gone rather than left unwired, because an unreferenced
+# "announce at signup" function is the kind of thing that gets reconnected.
+#
+# The post it made was addressed to the room -- "please welcome X, say hello and
+# drop your own intro below" -- and the person it named had done nothing but
+# fill in a form. Verified physicians would have opened #introductions to a
+# stream of strangers, each invited by our own bot to introduce themselves, and
+# each refused the moment they tried: an applicant under review reaches neither
+# the composer nor the room (``capabilities._BY_ACCESS[PROVISIONAL]`` and
+# ``community.router._passes_gate``).
+#
+# Approval is the moment a physician is introduced, and it already posts:
+# ``routers/asclepius_verify`` calls ``welcome_new_member`` on the approve path,
+# as do the credential PUT and the invite redemption. That function is
+# idempotent on ``users.slack_joined``, so exactly one of them ever posts.
 
 
 def _run_signup_verification(store: Any, user: Dict[str, Any], creds: Dict[str, Any]) -> None:
@@ -1806,11 +1853,9 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
     # The hash is already on the row; finalize only stamps completion.
     ts.finalize_asclepius_person(row["id"], director_email, password_hash=director_hash)
     ts.complete_asclepius_onboarding(row["id"])
-    # #introductions is physicians introducing themselves to colleagues. An
-    # advisor reading along is not a new colleague to announce, and a referral
-    # partner never reaches the community at all.
-    if is_clinical:
-        await _welcome_into_community(director_email)
+    # No #introductions post here. Finishing this wizard makes an APPLICANT, and
+    # the room is introduced to physicians on approval instead. See the note
+    # where ``_welcome_into_community`` used to live.
 
     # Mint an Asclepius session token so the wizard drops the doctor straight into
     # their workspace with no re-login (mirrors the doctor-portal auto-auth).
@@ -1861,7 +1906,14 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         # wrong. Credentials arrive on approval (§4.4).
         await send_html_email(
             director_email, "We've got your application",
-            build_application_submitted_email(full_name=director.get("full_name") or ""),
+            # Carries the way back in. Nothing is READY, so this is not the
+            # workspace link, but the practice case is open to a PROVISIONAL
+            # account and the wait exists so it can be done: an email with no
+            # link left the only thing we ask of an applicant unreachable the
+            # moment they closed the tab.
+            build_application_submitted_email(
+                full_name=director.get("full_name") or "",
+                portal_url=_asclepius_portal_url()),
             importance_headers=True,
         )
     else:

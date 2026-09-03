@@ -104,6 +104,12 @@ def enqueue_for_request(store: Any, *, request_id: str) -> int:
         return 0
 
 
+#: Rows claimed per round-trip, for the reason spelled out in
+#: ``task_notify._CLAIM_CHUNK``: the claim carries a lease, and a chunk has to
+#: finish well inside it.
+_CLAIM_CHUNK = 50
+
+
 def drain_outbox(store: Any, *, limit: int = 500) -> Tuple[int, int]:
     """Send every ``pending`` outbox row (up to ``limit``). Returns
     ``(sent_count, failed_count)``. Never raises.
@@ -112,6 +118,12 @@ def drain_outbox(store: Any, *, limit: int = 500) -> Tuple[int, int]:
     row failed and leaves the rest of the batch alone. A broadcast that stopped
     at the first bad address would silently under-deliver a request the operator
     believes went out.
+
+    Rows are CLAIMED rather than listed, same as ``task_notify.drain_outbox``
+    and for the same reason: this outbox has four paths into it (the 60 s loop,
+    the create-request path, the admin re-drain, and the failed-row retry), and
+    a plain pending SELECT let two of them mail one partner the same broadcast
+    twice.
     """
     sent = 0
     failed = 0
@@ -123,61 +135,75 @@ def drain_outbox(store: Any, *, limit: int = 500) -> Tuple[int, int]:
         # One lookup per request rather than per row: a broadcast is hundreds of
         # rows against a handful of requests.
         requests: Dict[str, Any] = {}
-        for row in store.list_pending_hs_request_notifications(limit=limit):
-            row_id = row["id"]
-            email = row["recipient_email"]
-            try:
-                request_id = row["request_id"]
-                if request_id not in requests:
-                    requests[request_id] = store.get_hs_data_request(request_id)
-                req = requests[request_id]
-                if not req:
-                    # The request was deleted out from under a pending row. There
-                    # is no letter to write, and leaving it pending would retry
-                    # forever on every tick.
-                    store.mark_hs_request_notification_failed(
-                        row_id, "data request no longer exists")
-                    failed += 1
-                    continue
-                html_body = build_hs_data_request_email(
-                    title=req["title"],
-                    specialty_label=_specialty_label(req["specialty"]),
-                    case_count=int(req["case_count"]),
-                    due_date=req.get("due_date") or "",
-                    details=req.get("details") or "",
-                    portal_url=portal_url,
-                )
-                subject = f"Data request: {req['title']}"
-                ok, reason = _run_coro(
-                    send_html_email_with_reason(email, subject, html_body)
-                )
-                if ok:
-                    store.mark_hs_request_notification_sent(row_id)
-                    store.log_event(
-                        entity_type="hs_data_request", entity_id=str(request_id),
-                        event_type="hs_data_request_sent",
-                        payload={
-                            "hs_id": row["hs_id"],
-                            "recipient_domain": email.split("@")[-1] if "@" in email else None,
-                        },
-                    )
-                    sent += 1
-                else:
-                    store.mark_hs_request_notification_failed(
-                        row_id, reason or "email transport failed")
-                    store.log_event(
-                        entity_type="hs_data_request", entity_id=str(request_id),
-                        event_type="hs_data_request_failed",
-                        payload={"hs_id": row["hs_id"], "reason": reason},
-                    )
-                    failed += 1
-            except Exception as exc:  # pragma: no cover - defensive per-row
-                log.warning("hs_request_notify: drain row %s failed: %s", row_id, exc)
+        remaining = max(0, int(limit))
+        while remaining > 0:
+            batch = store.claim_hs_request_notifications(
+                limit=min(_CLAIM_CHUNK, remaining))
+            if not batch:
+                break
+            remaining -= len(batch)
+            for row in batch:
+                row_id = row["id"]
+                email = row["recipient_email"]
                 try:
-                    store.mark_hs_request_notification_failed(row_id, str(exc))
-                except Exception:
-                    pass
-                failed += 1
+                    request_id = row["request_id"]
+                    if request_id not in requests:
+                        requests[request_id] = store.get_hs_data_request(request_id)
+                    req = requests[request_id]
+                    if not req:
+                        # The request was deleted out from under a pending row. There
+                        # is no letter to write, and leaving it pending would retry
+                        # forever on every tick.
+                        store.mark_hs_request_notification_failed(
+                            row_id, "data request no longer exists")
+                        failed += 1
+                        continue
+                    html_body = build_hs_data_request_email(
+                        title=req["title"],
+                        specialty_label=_specialty_label(req["specialty"]),
+                        case_count=int(req["case_count"]),
+                        due_date=req.get("due_date") or "",
+                        details=req.get("details") or "",
+                        portal_url=portal_url,
+                    )
+                    subject = f"Data request: {req['title']}"
+                    ok, reason = _run_coro(
+                        send_html_email_with_reason(email, subject, html_body)
+                    )
+                    if ok:
+                        store.mark_hs_request_notification_sent(row_id)
+                        store.log_event(
+                            entity_type="hs_data_request", entity_id=str(request_id),
+                            event_type="hs_data_request_sent",
+                            payload={
+                                "hs_id": row["hs_id"],
+                                "recipient_domain": email.split("@")[-1] if "@" in email else None,
+                            },
+                        )
+                        sent += 1
+                    else:
+                        store.mark_hs_request_notification_failed(
+                            row_id, reason or "email transport failed")
+                        store.log_event(
+                            entity_type="hs_data_request", entity_id=str(request_id),
+                            event_type="hs_data_request_failed",
+                            payload={"hs_id": row["hs_id"], "reason": reason},
+                        )
+                        failed += 1
+                except Exception as exc:  # pragma: no cover - defensive per-row
+                    log.warning("hs_request_notify: drain row %s failed: %s", row_id, exc)
+                    try:
+                        store.mark_hs_request_notification_failed(row_id, str(exc))
+                    except Exception:
+                        # Swallowing this is what turns one bad send into a
+                        # repeated one: the row keeps its 'pending' status and a
+                        # later drain re-sends it once the claim lease expires.
+                        log.warning(
+                            "hs_request_notify: could not mark row %s failed; it "
+                            "stays pending and will be retried after the claim "
+                            "lease", row_id, exc_info=True,
+                        )
+                    failed += 1
         return sent, failed
     except Exception as exc:  # pragma: no cover - defensive; never break the caller
         log.warning("hs_request_notify: drain_outbox failed: %s", exc)

@@ -88,16 +88,66 @@ def _verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
+# ─── Token types ─────────────────────────────────────────────────────────────
+# Every token minted here carries an explicit `typ`, and each decode path accepts
+# exactly one value. This mirrors `tenant_jwt`, which has always stamped
+# `tenant_staff` / `telehealth_join` and checked it on the way back in.
+#
+# It did not hold here, and that was an MFA bypass. The pre-auth token below is
+# handed out after the password step and BEFORE the TOTP step, and `_decode_token`
+# read `sub` without ever looking at `typ`, so the 5-minute pre-auth token was
+# accepted by every route that takes a session token, and the second factor was
+# optional for anyone who could complete step one.
+#
+# Session tokens are stamped POSITIVELY rather than the known-bad value being
+# blacklisted, so a token type invented later cannot inherit session powers by
+# omission: it will carry its own `typ`, and `_decode_token` only says yes to
+# TOKEN_TYPE_SESSION. Same reason the tenant plane, which shares AUTH_SECRET,
+# can no longer resolve through the landing decode either.
+TOKEN_TYPE_SESSION = "session"
+TOKEN_TYPE_MFA_PENDING = "mfa_pending"
+
+
 def _create_token(sub: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": sub, "exp": expire, "jti": uuid.uuid4().hex}
+    payload = {
+        "sub": sub,
+        "exp": expire,
+        "jti": uuid.uuid4().hex,
+        "typ": TOKEN_TYPE_SESSION,
+    }
     return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
 
 
 def _decode_token(token: str) -> Optional[str]:
+    """Resolve a FULL SESSION token to its subject; None for anything else.
+
+    Backward compatibility, deliberately narrow. Session tokens minted before
+    this change carry no `typ` at all, and refusing them outright would sign out
+    every staff member holding a live 7-day token, an outage of our own making
+    on launch morning. So a MISSING `typ` is still honored, but only when the
+    token also carries the `jti` that every session token has had since token
+    revocation shipped (commit 69ccfa5, 2026-06-06). That is months older than
+    ACCESS_TOKEN_EXPIRE_MINUTES, so every legacy token still inside its expiry
+    has one, and nothing this module mints without a `typ` lacks a `jti`.
+
+    The grace window is self-closing: seven days after this deploys, no untyped
+    token can still validate and the `typ is None` branch can be deleted.
+
+    A `typ` that is PRESENT and is not TOKEN_TYPE_SESSION is refused outright.
+    That is the mfa_pending bypass closed, plus tenant/telehealth tokens (same
+    secret, different plane) and any token type added after today.
+    """
     try:
         payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
     except jwt.PyJWTError:
+        return None
+    typ = payload.get("typ")
+    if typ is None:
+        # Legacy grace, gated on the claim every real session token has.
+        if not payload.get("jti"):
+            return None
+    elif typ != TOKEN_TYPE_SESSION:
         return None
     if is_revoked(payload.get("jti")):
         return None
@@ -107,16 +157,22 @@ def _decode_token(token: str) -> Optional[str]:
 # ─── MFA pending (pre-auth) token — issued after password, before TOTP ───────
 def create_mfa_pending_token(email: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=5)
-    payload = {"typ": "mfa_pending", "sub": email.lower().strip(), "exp": expire}
+    payload = {"typ": TOKEN_TYPE_MFA_PENDING, "sub": email.lower().strip(), "exp": expire}
     return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
 
 
 def decode_mfa_pending_token(token: str) -> Optional[str]:
+    """Half-authenticated subject, for the TOTP step ONLY.
+
+    The single legitimate caller is `POST /api/auth/mfa/login`, which exchanges
+    this plus a valid TOTP code for a real session token. Nothing else may call
+    it: the holder has proven a password and nothing more.
+    """
     try:
         payload = jwt.decode(token, AUTH_SECRET, algorithms=[ALGORITHM])
     except jwt.PyJWTError:
         return None
-    if payload.get("typ") != "mfa_pending":
+    if payload.get("typ") != TOKEN_TYPE_MFA_PENDING:
         return None
     return payload.get("sub")
 

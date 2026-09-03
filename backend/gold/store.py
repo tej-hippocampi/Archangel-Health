@@ -28,6 +28,7 @@ from datetime import datetime
 from typing import Any, Deque, Dict, List, Optional
 
 import field_crypto
+from team_store import connect_team_db
 
 _LOCK = threading.Lock()
 
@@ -72,9 +73,9 @@ def _db_path() -> str:
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(_db_path())
-    conn.row_factory = sqlite3.Row
-    return conn
+    # Shared team.db opener (WAL + 30s busy timeout). gold_visits lives on the
+    # same file as TeamStore, so it is competing for the same write lock.
+    return connect_team_db(_db_path())
 
 
 def _utcnow_iso() -> str:

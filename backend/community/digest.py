@@ -269,13 +269,27 @@ async def _email_digest(kind: str, body: str) -> int:
     return sent
 
 
-async def run_digest(kind: str) -> Dict[str, Any]:
+async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[str, Any]:
     """One full digest run. Never raises — the outcome lands in
-    ``community_digest_runs`` and the returned summary dict."""
+    ``community_digest_runs`` and the returned summary dict.
+
+    ``claim_window`` names the scheduling window this run should RESERVE, and
+    the scheduler is the only caller that passes one. Reserving matters because
+    ``_due`` is a read: two runners can both find today's digest outstanding,
+    both curate (one LLM call each), and both post. The loser of the reservation
+    returns ``outcome='already_running'`` having spent nothing.
+
+    A manual trigger passes nothing and always runs, which is the point of a
+    manual trigger: the operator, not the ledger, decided.
+    """
     if kind not in ("news", "papers"):
         return {"ok": False, "error": f"unknown digest kind {kind!r}"}
     cstore = get_community_store()
-    run_id = cstore.start_digest_run(kind)
+    run_id = cstore.claim_digest_run(kind, window_key=claim_window)
+    if run_id is None:
+        log.info("[digest] %s already claimed for %s", kind, claim_window)
+        return {"ok": True, "kind": kind, "outcome": "already_running",
+                "fetched": 0, "posted": 0, "emailed": 0}
     fetched = 0
     try:
         items = await _fetch(kind)
@@ -400,7 +414,15 @@ async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
                               cstore.last_successful_run_at(SPOTLIGHT_KIND)):
         return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "not_due", "posted": 0}
 
-    run_id = cstore.start_digest_run(SPOTLIGHT_KIND)
+    # Same reservation as the digests: the due check is a read two runners can
+    # both pass, so the day is claimed before anything is composed. A forced run
+    # claims nothing.
+    run_id = cstore.claim_digest_run(
+        SPOTLIGHT_KIND, window_key=None if force else _window_key(now))
+    if run_id is None:
+        log.info("[spotlight] already claimed for %s", _window_key(now))
+        return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "already_running",
+                "posted": 0}
     try:
         pool = cstore.candidate_items_for_spotlight()
         if not pool:
@@ -461,6 +483,15 @@ def _papers_dow() -> int:  # 0 = Monday (Python weekday)
     return min(6, _int_env("COMMUNITY_DIGEST_PAPERS_DOW", 0, floor=0))
 
 
+def _window_key(now: datetime) -> str:
+    """The window a scheduled digest run reserves: the UTC date.
+
+    UTC because ``_due`` is computed in UTC too (the fire hour is a UTC hour),
+    and a window that disagreed with the due check about which day it is would
+    let both runners through on one side of the boundary."""
+    return now.date().isoformat()
+
+
 def _due(kind: str, now: datetime, last_ok_started: Optional[str]) -> bool:
     """Due when past today's fire time and the newest successful run started
     before it. Derived from ``community_digest_runs`` — restarts cannot
@@ -513,7 +544,7 @@ def start_content_loop() -> None:
                         if since is not None and since < 7200 and \
                                 cstore.consecutive_digest_failures(kind) > 0:
                             continue
-                    await run_digest(kind)
+                    await run_digest(kind, claim_window=_window_key(now))
                 # After the digests, so on a normal day the spotlight is
                 # choosing from a pool the news run has already scored and
                 # marked. It reads 'skipped' rows too, so the reverse order

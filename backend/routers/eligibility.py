@@ -51,7 +51,7 @@ from eligibility import evaluate as eval_mod
 from eligibility import format_detect, pipeline, store
 from eligibility.parse_x12 import InvalidX12Error
 from eligibility.parse_pdf import PDFEncryptedError
-from staff_context import StaffContext, get_staff_context_optional
+from staff_context import StaffContext, get_staff_context_optional, require_clinical_auth
 
 log = logging.getLogger("eligibility.router")
 
@@ -74,6 +74,16 @@ def _actor_id(staff: Optional[StaffContext]) -> str:
     return f"{staff.source}:{staff.email or ''}"
 
 
+# KNOWN RISK, deliberately left in place for launch: the resolver below accepts
+# a full 7-day staff JWT from the query string, which is copied into access
+# logs, proxy logs and browser history, so whoever reads a log gets a week of
+# staff access. There is no short-lived token in this codebase that resolves to
+# a StaffContext (the media and websocket tickets are bound to the Asclepius and
+# Community user models, not to tenant staff JWTs), and minting a new token type
+# is not a launch-night change. Containment until then: use this resolver ONLY
+# on routes an EventSource actually opens. Every other route, including the
+# batch JSON read below, takes the header path via
+# Depends(get_staff_context_optional) so this surface does not grow.
 async def _resolve_staff_with_query_fallback(request: Request) -> Optional[StaffContext]:
     """EventSource can't set headers — fall back to ?token= for SSE routes."""
     auth_header = request.headers.get("authorization")
@@ -90,12 +100,43 @@ def _patient_store(request: Request) -> Dict[str, Any]:
 
 
 def _assert_patient_access(patient_id: str, staff: Optional[StaffContext], store_dict: Dict[str, Any]) -> None:
+    """Gate one patient record for one staff member. Fails CLOSED.
+
+    This used to skip straight past the tenant check when ``staff`` was None,
+    so a caller with no token at all read the record: the missing context was
+    treated as "nothing to scope" instead of "nobody asked". Every route that
+    reaches this helper is a clinician-console route (frontend/doctor.html
+    sends a staff Bearer on all of them, and there is no patient-facing or
+    magic-link caller), so no auth means no PHI and there is no opt-out to
+    honor. If a genuinely public patient flow ever needs one, add an explicit
+    named argument here rather than letting None mean "allowed" again.
+
+    The auth check runs BEFORE the existence check on purpose: answering 404
+    vs 200 to an anonymous caller would leak which patient ids exist.
+    """
+    staff = require_clinical_auth(staff)
     if patient_id not in store_dict:
         raise HTTPException(status_code=404, detail="Patient not found")
-    if staff and staff.source == "tenant" and staff.tenant_id:
+    if staff.source == "tenant" and staff.tenant_id:
         d = store_dict[patient_id]
         if (d.get("health_system_id") or "") != staff.tenant_id:
             raise HTTPException(status_code=404, detail="Patient not found")
+
+
+def _assert_batch_access(rec: Optional[Dict[str, Any]], staff: Optional[StaffContext]) -> None:
+    """Gate one batch for one staff member, with the module's tenant rule.
+
+    A batch fans out into patient records and its serialized form carries their
+    names and verdicts, so it is PHI and gets the same scoping the per-patient
+    routes get: tenant staff see only batches their own tenant created. 404
+    rather than 403 so the batch id space stays opaque to a prober.
+    """
+    staff = require_clinical_auth(staff)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    if staff.source == "tenant" and staff.tenant_id:
+        if (rec.get("health_system_id") or "") != staff.tenant_id:
+            raise HTTPException(status_code=404, detail="Batch not found")
 
 
 # ─── Draft patient lifecycle ────────────────────────────────────────────────
@@ -804,6 +845,10 @@ async def create_eligibility_batch(
         "created_at": _utc_iso(),
         "updated_at": _utc_iso(),
         "actor": actor,
+        # Stamp the creating tenant on the batch so the read routes below can
+        # scope it. Without this the batch is the one PHI object in the module
+        # with no tenant to compare against.
+        "health_system_id": hs_id,
         "status": "PROCESSING",
         "created": [],
         "needs_review": [],
@@ -825,19 +870,23 @@ def _serialize_batch(rec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @router.get("/api/eligibility-batches/{batch_id}")
-async def get_batch(batch_id: str):
+async def get_batch(
+    batch_id: str,
+    staff: Optional[StaffContext] = Depends(get_staff_context_optional),
+):
+    # Header auth only, unlike the /stream sibling below: this is a plain JSON
+    # poll made by fetch(), never by an EventSource, so it has no reason to
+    # accept a staff JWT in the query string.
     rec = store.get_batch(batch_id)
-    if not rec:
-        raise HTTPException(status_code=404, detail="Batch not found")
+    _assert_batch_access(rec, staff)
     return _serialize_batch(rec)
 
 
 @router.get("/api/eligibility-batches/{batch_id}/stream")
 async def stream_batch(batch_id: str, request: Request):
-    _ = await _resolve_staff_with_query_fallback(request)  # authenticate; no tenant filter on batch
+    staff = await _resolve_staff_with_query_fallback(request)
     rec = store.get_batch(batch_id)
-    if not rec:
-        raise HTTPException(status_code=404, detail="Batch not found")
+    _assert_batch_access(rec, staff)
 
     queue: asyncio.Queue = rec["queue"]
     ring = rec["ring"]

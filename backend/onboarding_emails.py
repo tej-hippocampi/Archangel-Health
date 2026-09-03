@@ -1128,17 +1128,40 @@ def build_profile_nudge_email(*, first_name: str, field_label: str,
                   body_html=body)
 
 
-def build_application_submitted_email(*, full_name: str) -> str:
+def build_application_submitted_email(*, full_name: str, portal_url: str = "") -> str:
     """§4.3 — sent the moment an application is submitted.
 
     The whole message is one paragraph in the founders' own words. It sets the
     24–48h expectation, and it explains WHY review is human, because that
     explanation is the product's argument about itself.
+
+    ``portal_url`` is the way back in, and without it this email was the only
+    message we send that contains no link at all. That was survivable while an
+    applicant genuinely had nowhere to go; it stopped being survivable when the
+    practice case became the thing the wait is FOR. Callers pass
+    ``ASCLEPIUS_PORTAL_URL``-then-``BASE_URL`` + /asclepius, the same door the
+    approval welcome opens, so the two mails never point at different hosts.
+    Optional only so a preview or a test can render the copy without inventing
+    a hostname; a caller that omits it sends the old dead end.
     """
     last = _last_name(full_name)
     # Unescaped here on purpose: ``_strong`` escapes what it is given, so
     # escaping first would render "O&#x27;Brien" to a physician named O'Brien.
     greeting = f"Dr. {last}" if last else "Doctor"
+    # The practice case is the honest answer to "what do I do now", and it is
+    # also evidence the reviewer reads, so the copy says both: it is waiting,
+    # and it counts. Kept BELOW the review paragraph on purpose, so the message
+    # still leads with the reassurance rather than with homework.
+    waiting = (
+        _section_label("While you wait")
+        + _p("There is one short practice case sitting in your account. It takes "
+             "about ten minutes, it is real clinical reasoning rather than a form, "
+             "and it is the part of your application we read most closely.")
+        + _cta(portal_url, "Open my practice case")
+        + _p("There is no password to remember yet: signing in is a single-use "
+             "link we email you. Credentials arrive if we approve your "
+             "application.", muted=True, small=True)
+    ) if portal_url else ""
     body = (
         _eyebrow("Application received")
         + _h1("We&rsquo;ve got your application.")
@@ -1148,6 +1171,7 @@ def build_application_submitted_email(*, full_name: str) -> str:
              "Archangel is that medicine needs qualified people at every decision point, "
              "and that starts with how we welcome physicians. You&rsquo;ll hear from us "
              "either way.")
+        + waiting
         + _founder_signoff("— Tej Patel & Aryaa Bhatia")
     )
     return _shell(subject="We&rsquo;ve got your application", body_html=body)
