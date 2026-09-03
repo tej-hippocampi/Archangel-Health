@@ -259,18 +259,22 @@ def test_a_frontend_surface_calls_the_resolver_endpoint():
         "POST /admin/uploads/{id}/specialty had zero frontend callers: the "
         "promote 409 told the admin to use a control that did not exist"
     )
-    assert "asclepius.js" in hits
+    # The console moved out of the physician bundle onto its own page, so the
+    # caller is admin_shell.js. Naming the file at all is the point: the P0 this
+    # test exists for was an endpoint nothing called, and a test that accepted
+    # any hit anywhere would pass on an unrelated comment.
+    assert "admin_shell.js" in hits
 
 
 def test_the_promote_surfaces_gate_on_the_servers_verdict():
-    portal = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    console = (_FRONTEND / "admin_shell.js").read_text(encoding="utf-8")
     health = (_FRONTEND / "admin_health.js").read_text(encoding="utf-8")
-    # One implementation of the control, handed to both surfaces — not two that
+    # One implementation of the control, handed to both surfaces, not two that
     # can drift.
-    assert "function specialtyResolver(" in portal
+    assert "function specialtyResolver(" in console
     assert "specialtyResolver" in health
     # The promote list reads the server's block rather than re-deriving it.
-    assert "promote_block" in portal
+    assert "promote_block" in console
     assert "specialty_undetermined_cases" in health
 
 

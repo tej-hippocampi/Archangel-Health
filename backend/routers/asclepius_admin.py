@@ -4961,3 +4961,192 @@ async def community_persona_post(
         detail={"channel": slug, "message_id": message["id"], "announce": announce},
     )
     return {"ok": True, "message": message, "announced": announce}
+
+
+# ─── The community, counted ───────────────────────────────────────────────────
+# The one endpoint PRD-F adds beyond its HTML route, and the freeze is widened
+# here on purpose rather than quietly.
+#
+# The founder meeting asked for two things about the community tab: that we can
+# post and answer questions there, and that we "get a summary of what's going
+# on". The first already exists (the persona composer above). The second did
+# not, and there was no read on this backend that answered it: /channels
+# returns a channel list, /channels/{slug}/messages returns one room's page.
+# An operator wanting to know whether the community was alive this week had to
+# open six rooms and scroll.
+#
+# It is a COUNT, not an assistant. R10 forbids an LLM call from the admin
+# frontend and that decision is right: an embedded model would be a second
+# admin surface to secure, and a summary that paraphrases is a summary that can
+# be wrong about a number. Everything below is SQL over rows the community
+# plane already owns, so the tab can be read at a glance and every figure on it
+# is checkable.
+
+#: How far back "what is going on" reaches. A week is the cadence the digests
+#: run on, so the number an operator reads here matches the one the community
+#: itself just lived through.
+COMMUNITY_SUMMARY_DAYS = 7
+
+#: A question nobody answered is the only item on this summary that is a TASK
+#: rather than a statistic, so it is worth being strict about what counts: a
+#: top-level post (not a reply), from a member (not the bot), that asks
+#: something, with no reply under it. Reactions do not clear it — a thumbs-up
+#: is not an answer to "has anyone seen this presentation before".
+_QUESTION_LOOKBACK = 30
+
+
+@router.get("/community/summary", include_in_schema=False)
+async def community_activity_summary(
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """What the community has been doing, computed server-side."""
+    from community.router import member_map  # noqa: PLC0415
+    from community.store import get_community_store  # noqa: PLC0415
+    from community.system_posts import SYSTEM_USER_ID  # noqa: PLC0415
+
+    cstore = get_community_store()
+    now = datetime.now(timezone.utc)
+    since = (now - timedelta(days=COMMUNITY_SUMMARY_DAYS)).isoformat()
+    q_since = (now - timedelta(days=_QUESTION_LOOKBACK)).isoformat()
+
+    # Display names come from the asclepius users table rather than the
+    # community member map: the map excludes advisors and banned accounts, and
+    # a post whose author has since been deactivated must still show a name
+    # here instead of turning into an anonymous row in an audit surface.
+    astore = get_store()
+    names: Dict[str, str] = {}
+    for user in astore.list_users():
+        names[user["id"]] = (user.get("full_name") or user.get("email") or "").strip()
+    names[SYSTEM_USER_ID] = "Archangel"
+
+    def who(user_id: Optional[str]) -> str:
+        return names.get(user_id or "") or "Former member"
+
+    with cstore._conn() as conn:
+        channels = [dict(r) for r in conn.execute(
+            "SELECT id, slug, name, post_policy FROM community_channels "
+            "ORDER BY position ASC, slug ASC").fetchall()]
+        by_id = {c["id"]: c for c in channels}
+
+        per_channel = {
+            r["channel_id"]: dict(r) for r in conn.execute(
+                "SELECT channel_id, COUNT(*) AS posts, "
+                "       COUNT(DISTINCT author_user_id) AS voices, "
+                "       MAX(created_at) AS last_at "
+                "  FROM community_messages "
+                " WHERE created_at >= ? AND deleted_at IS NULL "
+                " GROUP BY channel_id", (since,)).fetchall()
+        }
+
+        totals = dict(conn.execute(
+            "SELECT COUNT(*) AS posts, "
+            "       COUNT(DISTINCT author_user_id) AS voices, "
+            "       SUM(CASE WHEN parent_message_id IS NOT NULL THEN 1 ELSE 0 END) AS replies "
+            "  FROM community_messages "
+            " WHERE created_at >= ? AND deleted_at IS NULL "
+            "   AND channel_id IN (SELECT id FROM community_channels)",
+            (since,)).fetchone())
+
+        reactions = conn.execute(
+            "SELECT COUNT(*) AS n FROM community_reactions WHERE created_at >= ?",
+            (since,)).fetchone()["n"]
+
+        recent = [dict(r) for r in conn.execute(
+            "SELECT id, channel_id, author_user_id, body, created_at, parent_message_id "
+            "  FROM community_messages "
+            " WHERE deleted_at IS NULL "
+            "   AND channel_id IN (SELECT id FROM community_channels) "
+            " ORDER BY id DESC LIMIT 12").fetchall()]
+
+        # A question with nothing under it. LIKE '%?%' rather than a regex
+        # because SQLite has no REGEXP by default and the false positives (a
+        # URL with a query string) are cheap next to a missed one.
+        unanswered = [dict(r) for r in conn.execute(
+            "SELECT m.id, m.channel_id, m.author_user_id, m.body, m.created_at "
+            "  FROM community_messages m "
+            " WHERE m.parent_message_id IS NULL "
+            "   AND m.deleted_at IS NULL "
+            "   AND m.channel_id IN (SELECT id FROM community_channels) "
+            "   AND m.created_at >= ? "
+            "   AND m.author_user_id != ? "
+            "   AND m.body LIKE '%?%' "
+            "   AND NOT EXISTS (SELECT 1 FROM community_messages r "
+            "                    WHERE r.parent_message_id = m.id "
+            "                      AND r.deleted_at IS NULL) "
+            " ORDER BY m.id DESC LIMIT 25",
+            (q_since, SYSTEM_USER_ID)).fetchall()]
+
+        rooms = [dict(r) for r in conn.execute(
+            "SELECT id, title, case_ref, created_at FROM community_dms "
+            " WHERE kind = ? ORDER BY created_at DESC LIMIT 10",
+            (cstore.ROOM_KIND,)).fetchall()]
+        room_total = conn.execute(
+            "SELECT COUNT(*) AS n FROM community_dms WHERE kind = ?",
+            (cstore.ROOM_KIND,)).fetchone()["n"]
+
+    def snippet(body: str) -> str:
+        text = " ".join((body or "").split())
+        return text if len(text) <= 180 else text[:179] + "…"
+
+    def slug_of(channel_id: str) -> Optional[str]:
+        return (by_id.get(channel_id) or {}).get("slug")
+
+    return {
+        "window_days": COMMUNITY_SUMMARY_DAYS,
+        "generated_at": now.isoformat(),
+        "totals": {
+            "posts": int(totals.get("posts") or 0),
+            "replies": int(totals.get("replies") or 0),
+            "voices": int(totals.get("voices") or 0),
+            "reactions": int(reactions or 0),
+            "members": len(member_map()),
+            "case_rooms": int(room_total or 0),
+        },
+        "channels": [
+            {
+                "slug": c["slug"],
+                "name": c["name"],
+                "post_policy": c["post_policy"],
+                "posts": int((per_channel.get(c["id"]) or {}).get("posts") or 0),
+                "voices": int((per_channel.get(c["id"]) or {}).get("voices") or 0),
+                "last_at": (per_channel.get(c["id"]) or {}).get("last_at"),
+            }
+            for c in channels
+        ],
+        "recent": [
+            {
+                "id": m["id"],
+                "channel_slug": slug_of(m["channel_id"]),
+                "author": who(m["author_user_id"]),
+                "is_reply": m["parent_message_id"] is not None,
+                "body": snippet(m["body"]),
+                "created_at": m["created_at"],
+            }
+            for m in recent
+            # A room is a private conversation about one case. It is readable
+            # by an admin who goes looking for it; it does not belong in a
+            # glanceable activity feed beside the public channels.
+            if m["channel_id"] in by_id
+        ],
+        "unanswered": [
+            {
+                "id": m["id"],
+                "channel_slug": slug_of(m["channel_id"]),
+                "author": who(m["author_user_id"]),
+                "body": snippet(m["body"]),
+                "created_at": m["created_at"],
+            }
+            for m in unanswered
+            if m["channel_id"] in by_id
+        ],
+        "rooms": [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "case_ref": r["case_ref"],
+                "participants": len(cstore.room_participants(r["id"])),
+                "created_at": r["created_at"],
+            }
+            for r in rooms
+        ],
+    }

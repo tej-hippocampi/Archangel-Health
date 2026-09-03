@@ -18,7 +18,7 @@
     isAdmin: false,
     canPost: true,      // false for a view-only account (advisor); set from /me
     channels: [],       // [{slug,name,description,post_policy,unread,mentions}]
-    dms: [],            // [{id, peer, unread, last_message_id, last_message_at}]
+    dms: [],            // conversations: DMs carry {peer}, case rooms carry {title, participants}
     active: 'general',  // channel slug OR a dm id ("dm-…") — keys never collide
     msgs: {},           // container key (slug or dm id) -> {list, hasMore, loaded}
     members: [],
@@ -328,6 +328,15 @@
   }
   function isDmKey(key) { return typeof key === 'string' && key.indexOf('dm-') === 0; }
   function activeDm() { return state.dms.find((d) => d.id === state.active) || null; }
+  // A per-case group room (Task Pipeline PRD B1) rather than a two-party DM.
+  // Read off `kind`, which the server sets, and never off the absence of a
+  // peer: a two-party DM whose other side left also has no peer, and it is
+  // still a DM.
+  function isCaseRoom(d) { return !!d && d.kind === 'case_room'; }
+  function roomTitle(d) { return (d && d.title) || 'Case room'; }
+  function roomRoster(d) {
+    return ((d && d.participants) || []).map((m) => m.display_name).filter(Boolean);
+  }
   function messagesUrl(key) {
     return isDmKey(key)
       ? '/dms/' + encodeURIComponent(key) + '/messages'
@@ -431,15 +440,52 @@
       scrollBox.appendChild(coSection);
     }
 
-    // direct messages (user-requested extension)
+    /* Conversations. Two kinds ride this one list, and they are not the same
+     * thing, so they do not render the same way.
+     *
+     * A DM is a person: a presence dot and their name. A case room has three
+     * people and no one of them is the room's name, so it renders its TITLE
+     * and how many colleagues are in it. The server used to hand rooms a
+     * synthetic peer built from the bot account so this loop would not print
+     * "Former member" at a room; that shim is gone with this branch, and a
+     * room that renders as a two-party DM is worse than one that renders
+     * plainly as a room.
+     *
+     * Rooms sit above DMs under their own label: a room appears because a case
+     * was routed to you, which is work, and a DM appears because a colleague
+     * chose to talk to you, which is not. */
+    const rooms = state.dms.filter(isCaseRoom);
+    const dms = state.dms.filter((d) => !isCaseRoom(d));
+
+    if (rooms.length) {
+      const roomSection = h('div', { class: 'cm-rail-section' },
+        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Case rooms')));
+      for (const d of rooms) {
+        const isActive = d.id === state.active;
+        const people = (d.participants || []).length;
+        roomSection.appendChild(h('button', {
+          class: 'cm-chan cm-room-row' + (isActive ? ' active' : ''),
+          'aria-current': isActive ? 'page' : null,
+          onClick: () => openDm(d.id),
+        },
+          h('span', { class: 'cm-room-mark', 'aria-hidden': 'true' }),
+          h('span', { class: 'cm-chan-name cm-room-name' }, roomTitle(d)),
+          people ? h('span', { class: 'cm-room-count' }, String(people)) : null,
+          d.unread > 0 && !isActive
+            ? h('span', { class: 'cm-chan-unread' }, d.unread > 99 ? '99+' : String(d.unread))
+            : null));
+      }
+      scrollBox.appendChild(roomSection);
+    }
+
     const dmSection = h('div', { class: 'cm-rail-section' },
       h('div', { class: 'cm-rail-label' },
         h('span', { class: 'chrome' }, 'Direct messages')));
-    if (!state.dms.length) {
+    if (!dms.length) {
       dmSection.appendChild(h('div', { class: 'cm-rail-hint' },
         'Open a colleague’s profile to start one.'));
     }
-    for (const d of state.dms) {
+    for (const d of dms) {
       const peer = d.peer || {};
       const isActive = d.id === state.active;
       dmSection.appendChild(h('button', {
@@ -518,11 +564,23 @@
     clear(head);
     if (isDmKey(state.active)) {
       const d = activeDm();
-      const peer = (d && d.peer) || {};
-      head.appendChild(h('span', { class: 'cm-head-name' }, peer.display_name || 'Conversation'));
-      head.appendChild(h('span', { class: 'cm-head-desc' },
-        'Direct messages are between the two of you.'
-        + (peer.blurb ? ' ' + peer.blurb : '')));
+      if (isCaseRoom(d)) {
+        // The roster is the header. Who else is on this case is the first
+        // thing you need before you say anything in here, and it is not
+        // derivable from a name the way a DM's other side is.
+        const roster = roomRoster(d);
+        head.appendChild(h('span', { class: 'cm-head-name' }, roomTitle(d)));
+        head.appendChild(h('span', { class: 'cm-head-desc' },
+          roster.length
+            ? 'On this case: ' + roster.join(', ') + '. Colleague discussion only — no PHI.'
+            : 'A room for the colleagues on this case. Colleague discussion only — no PHI.'));
+      } else {
+        const peer = (d && d.peer) || {};
+        head.appendChild(h('span', { class: 'cm-head-name' }, peer.display_name || 'Conversation'));
+        head.appendChild(h('span', { class: 'cm-head-desc' },
+          'Direct messages are between the two of you.'
+          + (peer.blurb ? ' ' + peer.blurb : '')));
+      }
     } else {
       const ch = activeChannel();
       if (!ch) return;
@@ -708,10 +766,19 @@
       if (state.active === 'events') return;
       let copy;
       if (inDm) {
-        const peer = (activeDm() || {}).peer || {};
-        copy = ['A private conversation',
-          'This is the beginning of your direct messages with '
-          + (peer.display_name || 'this colleague') + '. Colleague discussion only — no PHI.'];
+        const d = activeDm();
+        if (isCaseRoom(d)) {
+          const roster = roomRoster(d);
+          copy = [roomTitle(d),
+            'A room for the colleagues on this case'
+            + (roster.length ? ': ' + roster.join(', ') : '')
+            + '. Colleague discussion only — no PHI.'];
+        } else {
+          const peer = (d || {}).peer || {};
+          copy = ['A private conversation',
+            'This is the beginning of your direct messages with '
+            + (peer.display_name || 'this colleague') + '. Colleague discussion only — no PHI.'];
+        }
       } else {
         // A real channel: the branded panel, not two lines of grey.
         scroll.appendChild(homePanel(state.active));
@@ -1552,7 +1619,9 @@
       const peer = (d && d.peer) || {};
       wrap.appendChild(buildComposer({
         key: 'dm:' + state.active,
-        placeholder: 'Message ' + (peer.display_name || 'colleague') + '…',
+        placeholder: isCaseRoom(d)
+          ? 'Message the case team…'
+          : 'Message ' + (peer.display_name || 'colleague') + '…',
         onSend: (body, cs) => sendDmMessage(state.active, body, cs),
         typingMeta: { dm: state.active },
       }));

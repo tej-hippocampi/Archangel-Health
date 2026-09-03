@@ -629,10 +629,28 @@
     return rows;
   }
 
-  /* ─── Tab A — Approved and Labeling (§2.1) ────────────────────────────────
-   * Flat. The health-system grouping is gone (it split one short roster into
-   * accordions) and so is the Verification column (every row here is approved,
-   * so the column said "Approved" on every line). */
+  /* ─── Tab A — Approved and Labeling: the verified-card gallery (PRD-F R7) ──
+   *
+   * "The product but flipped". A physician's own verified card is what they
+   * share with a colleague: picture, name, checkmark, specialty. That card is
+   * the UNIT here, and the roster is a wall of them — because an operator's
+   * question is almost never "what is in column seven of row nine", it is
+   * "who have we got, and who is worth looking at".
+   *
+   * The eleven-column table this replaces was the single loudest thing in the
+   * console. Nothing it carried was deleted: the tier word, the advisor badge,
+   * the score, the median time, the agreement, real-data approval, the
+   * community invite and Route cases all live on the card, and the filters
+   * above it answer the questions the columns were being sorted for.
+   *
+   * The avatar is initials over the specialty accent, which is the card's own
+   * documented fallback (asclepius/card.py::_avatar_reference). The roster
+   * endpoint carries no avatar_url and PRD-F freezes it, so a picture here
+   * would have meant a backend change this PR is not allowed to make. The
+   * dossier, one click away, shows the photograph.
+   */
+  const ROSTER_FILTERS = { q: '', specialty: '', tier: '', realData: '' };
+
   function renderApprovedTab(container, ctx, rows) {
     const { h } = ctx;
     if (!rows.length) {
@@ -641,35 +659,165 @@
           'No approved physicians yet. Decide the pending queue and they appear here.'))));
       return;
     }
-    container.appendChild(h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {},
-          h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Phone'),
-          h('th', {}, 'Specialty'), h('th', {}, 'Tier'),
-          /* The running contributor score. Internal: it is in no package and
-           * no buyer sees it. It is on the roster because "who is doing good
-           * work" was answerable only by opening physicians one at a time. */
-          h('th', { title: 'Running quality score across graded cases. Internal.' },
-            'Score'),
-          /* Task Pipeline PRD C4. Two questions the roster could not answer:
-           * how fast this physician works, and how consistently they agree with
-           * the colleague who labelled the same case. Both numbers already
-           * existed in the backend and neither reached a screen. Internal, like
-           * the score beside them: no physician sees either one. */
-          h('th', { title: 'Median time on a case across their timed submissions. Internal.' },
-            'Median time'),
-          h('th', { title: "Cohen's kappa against their co-labelers, over the same "
-                           + 'blinded pool the reported agreement uses. Internal.' },
-            'Agreement'),
-          /* Real-data approval was API-only: the flag gates the entire V4 real
-           * de-identified queue, and the only way to grant it was curl. So the
-           * real cases sat in the queue while every physician's picker showed
-           * "Requires real-data approval" and nobody could clear it. */
-          h('th', { title: 'BAA + training cleared: unlocks the real de-identified case queue' },
-            'Real data'),
-          h('th', {}, 'Community'),
-          h('th', {}, ''))),
-        h('tbody', {}, rows.map((p) => approvedRow(ctx, p)))))));
+    const gallery = h('div', { class: 'asc-gallery' });
+    const countLine = h('div', { class: 'asc-gallery-count chrome' });
+
+    function repaint() {
+      clearNode(gallery);
+      const shown = rows.filter(matchesFilters);
+      countLine.textContent = shown.length === rows.length
+        ? rows.length + (rows.length === 1 ? ' physician' : ' physicians')
+        : shown.length + ' of ' + rows.length;
+      if (!shown.length) {
+        gallery.appendChild(h('div', { class: 'asc-gallery-empty' },
+          'No physician matches those filters.'));
+        return;
+      }
+      shown.forEach((p) => gallery.appendChild(physicianCard(ctx, p)));
+    }
+
+    container.appendChild(rosterFilterBar(ctx, rows, repaint, countLine));
+    container.appendChild(gallery);
+    repaint();
+  }
+
+  function matchesFilters(p) {
+    const q = ROSTER_FILTERS.q.trim().toLowerCase();
+    if (q) {
+      const hay = [p.name, p.email, p.specialty, p.health_system_name]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (hay.indexOf(q) === -1) return false;
+    }
+    if (ROSTER_FILTERS.specialty && (p.specialty || '') !== ROSTER_FILTERS.specialty) return false;
+    if (ROSTER_FILTERS.tier === 'advisor') { if (!p.is_advisor) return false; }
+    else if (ROSTER_FILTERS.tier && (p.tier || '') !== ROSTER_FILTERS.tier) return false;
+    if (ROSTER_FILTERS.realData === 'yes' && !p.real_data_approved) return false;
+    if (ROSTER_FILTERS.realData === 'no' && p.real_data_approved) return false;
+    return true;
+  }
+
+  /* Filters over the roster counts, not a search box on its own. Each control
+   * answers a question an operator used to answer by sorting a column: who can
+   * see the real queue, who is a reviewer, who is in this specialty. */
+  function rosterFilterBar(ctx, rows, repaint, countLine) {
+    const { h } = ctx;
+    const specialties = [];
+    rows.forEach((p) => {
+      if (p.specialty && specialties.indexOf(p.specialty) === -1) specialties.push(p.specialty);
+    });
+    specialties.sort();
+
+    const search = h('input', {
+      class: 'asc-input asc-gallery-search', type: 'search',
+      placeholder: 'Name, email, specialty or health system',
+      'aria-label': 'Filter the roster', value: ROSTER_FILTERS.q,
+    });
+    search.addEventListener('input', () => { ROSTER_FILTERS.q = search.value; repaint(); });
+
+    const specSel = h('select', { class: 'asc-input', 'aria-label': 'Specialty' },
+      h('option', { value: '' }, 'Every specialty'),
+      specialties.map((s) => h('option', { value: s }, titleCase(s))));
+    specSel.value = ROSTER_FILTERS.specialty;
+    specSel.addEventListener('change', () => { ROSTER_FILTERS.specialty = specSel.value; repaint(); });
+
+    const tierSel = h('select', { class: 'asc-input', 'aria-label': 'Tier' },
+      h('option', { value: '' }, 'Every tier'),
+      TIERS.map((t) => h('option', { value: t }, tierWord(t))),
+      h('option', { value: 'advisor' }, 'Advisors'));
+    tierSel.value = ROSTER_FILTERS.tier;
+    tierSel.addEventListener('change', () => { ROSTER_FILTERS.tier = tierSel.value; repaint(); });
+
+    const realSel = h('select', { class: 'asc-input', 'aria-label': 'Real-data approval' },
+      h('option', { value: '' }, 'Real data: either'),
+      h('option', { value: 'yes' }, 'Cleared for real data'),
+      h('option', { value: 'no' }, 'Not cleared'));
+    realSel.value = ROSTER_FILTERS.realData;
+    realSel.addEventListener('change', () => { ROSTER_FILTERS.realData = realSel.value; repaint(); });
+
+    return h('div', { class: 'asc-gallery-bar' },
+      search, specSel, tierSel, realSel, countLine);
+  }
+
+  function titleCase(s) {
+    const v = String(s || '');
+    return v ? v.charAt(0).toUpperCase() + v.slice(1) : v;
+  }
+
+  /* Initials and accent, exactly as the card computes them server-side. Two
+   * letters from the first and last word of the name; the accent is the
+   * portal's specialty chip colour, cycled for a specialty with no fixed one
+   * so two neighbours in the gallery are rarely the same colour. */
+  const SPECIALTY_ACCENTS = { nephrology: 'green', cardiology: 'orange', oncology: 'pink' };
+  const ACCENT_CYCLE = ['lime', 'green', 'orange', 'pink'];
+  function specialtyAccent(specialty) {
+    const s = String(specialty || '').trim().toLowerCase();
+    if (!s) return 'green';
+    if (SPECIALTY_ACCENTS[s]) return SPECIALTY_ACCENTS[s];
+    let acc = 0;
+    for (let i = 0; i < s.length; i += 1) acc = (acc + s.charCodeAt(i)) % 997;
+    return ACCENT_CYCLE[acc % ACCENT_CYCLE.length];
+  }
+  function cardInitials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function physicianCard(ctx, p) {
+    const { h } = ctx;
+    const metricsCell = h('div', { class: 'asc-pcard-metrics' },
+      metric(h, 'Score',
+        (p.contributor_score === null || p.contributor_score === undefined)
+          ? NULL_CELL : String(Math.round(Number(p.contributor_score))),
+        'Running quality score across graded cases. Internal.'),
+      metric(h, 'Median', minutesSeconds(p.median_seconds),
+        'Median time on a case across their timed submissions. Internal.'),
+      metric(h, 'Agreement', agreementCell(h, p),
+        "Cohen's kappa against their co-labelers. Internal."));
+
+    const realDataCell = h('div', { class: 'asc-pcard-realdata' });
+    paintRealData(ctx, p, realDataCell);
+    const communityCell = h('div', { class: 'asc-pcard-community' });
+    const actionCell = h('div', { class: 'asc-pcard-invite' });
+    paintCommunity(ctx, p, communityCell, actionCell);
+
+    const card = h('article', { class: 'asc-pcard', tabindex: '0', role: 'button' },
+      h('div', { class: 'asc-pcard-top' },
+        h('div', { class: 'asc-pcard-avatar acc-' + specialtyAccent(p.specialty) },
+          cardInitials(p.name)),
+        h('div', { class: 'asc-pcard-id' },
+          h('div', { class: 'asc-pcard-name' },
+            p.name || 'Verified physician',
+            // The checkmark is the card's claim and it is read off data, not
+            // assumed: this tab is the approved roster, so it is true here.
+            h('span', { class: 'asc-pcard-check', title: 'Verified physician',
+                        'aria-label': 'Verified' }, '✓')),
+          h('div', { class: 'asc-pcard-specialty' }, titleCase(p.specialty) || 'No specialty on file'),
+          h('div', { class: 'asc-pcard-badges' }, tierCell(h, p)))),
+      p.health_system_name
+        ? h('div', { class: 'asc-pcard-where' }, p.health_system_name) : null,
+      h('div', { class: 'asc-pcard-contact' }, p.email || NULL_CELL),
+      metricsCell,
+      h('div', { class: 'asc-pcard-actions' }, realDataCell, communityCell, actionCell));
+
+    function open(ev) {
+      // The buttons live inside the card; a click on one must not also open
+      // the dossier underneath it.
+      if (ev.target && typeof ev.target.closest === 'function' && ev.target.closest('button')) return;
+      selectedId = p.id; pendingId = null; rerender();
+    }
+    card.addEventListener('click', open);
+    card.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(ev); }
+    });
+    return card;
+  }
+
+  function metric(h, label, value, why) {
+    return h('div', { class: 'asc-pcard-metric', title: why },
+      h('div', { class: 'asc-pcard-metric-label chrome' }, label),
+      h('div', { class: 'asc-pcard-metric-value asc-mono' }, value));
   }
 
   /* Advisor renders BESIDE the tier, never instead of it (§2.2).
@@ -712,39 +860,6 @@
     }
     return h('span', { title: label + ' compared' },
       Number(p.kappa).toFixed(2) + ' (' + label + ')');
-  }
-
-  function approvedRow(ctx, p) {
-    const { h } = ctx;
-    const communityCell = h('td', {});
-    const actionCell = h('td', {});
-    paintCommunity(ctx, p, communityCell, actionCell);
-    const realDataCell = h('td', {});
-    paintRealData(ctx, p, realDataCell);
-
-    const tr = h('tr', { class: 'asc-row-click' },
-      h('td', {}, h('strong', {}, p.name || '—')),
-      h('td', {}, p.email || '—'),
-      h('td', {}, p.phone || '—'),
-      h('td', {}, p.specialty || '—'),
-      h('td', {}, tierCell(h, p)),
-      /* An em dash, never a 0. Nobody has graded them yet is not the same
-       * claim as they scored zero, and on a roster the two read identically. */
-      h('td', { class: 'asc-mono' },
-        (p.contributor_score === null || p.contributor_score === undefined)
-          ? '—' : String(Math.round(Number(p.contributor_score)))),
-      h('td', { class: 'asc-mono' }, minutesSeconds(p.median_seconds)),
-      h('td', { class: 'asc-mono' }, agreementCell(h, p)),
-      realDataCell,
-      communityCell,
-      actionCell);
-    tr.addEventListener('click', (ev) => {
-      // The invite button lives inside the row; a click on it must not also
-      // open the profile underneath it.
-      if (ev.target && typeof ev.target.closest === 'function' && ev.target.closest('button')) return;
-      selectedId = p.id; pendingId = null; rerender();
-    });
-    return tr;
   }
 
   /* The Send Invite flow (§2.1, §5.1). On success the ROW updates in place —

@@ -752,14 +752,16 @@ def _dm_access(user: Dict[str, Any], dm: Optional[Dict[str, Any]]) -> bool:
 
 def _require_message_access(user: Dict[str, Any], msg: Dict[str, Any]) -> tuple:
     """THE visibility rule for anything reached by message id (edit, delete,
-    react, thread, attachment download): a DM message is visible ONLY to its
-    participants (admins included: they have no read access to others' private
-    conversations, except on a case room, per ``_dm_access``), and a CHANNEL
-    message is visible only to someone the channel itself is visible to. A
-    caller who cannot see it gets the same 404 as a nonexistent message (no
-    oracle).
+    react, thread, attachment download). Two arms, and each one exists for a
+    reason worth keeping written down.
 
-    The channel arm used to be missing entirely: every member could reach every
+    A DM message is visible ONLY to its participants, admins included: they
+    have no read access to others' private conversations. The one exception is
+    a CASE ROOM, which is the routed team plus admins, because the room exists
+    so founders can step into a stuck case (see ``_dm_access``).
+
+    A CHANNEL message is visible only to someone the channel itself is visible
+    to. That arm used to be missing entirely: every member could reach every
     channel message by id, which was harmless while every channel was visible
     to every member and is a leak the moment one is not. It is written as a
     ``staff_only`` test rather than a full ``visible_channels`` membership test
@@ -768,6 +770,9 @@ def _require_message_access(user: Dict[str, Any], msg: Dict[str, Any]) -> tuple:
     resolve here for the moderation and audit paths that reach it by id
     (``_container_of`` loads inactive channels for exactly that reason).
     ``staff_only`` is a confidentiality rule, and it is enforced.
+
+    A caller who cannot see a message gets the same 404 as a nonexistent one,
+    so the endpoint is never an existence oracle.
     """
     kind, container = _container_of(msg)
     if kind is None:
@@ -1344,17 +1349,23 @@ def _dm_summary(dm: Dict[str, Any], user_id: str,
         "unread": int(dm.get("unread") or 0),
     }
     if _is_case_room(dm):
-        # A room is named by its case, and ``peer`` is populated with that name
-        # rather than left out: every existing client renders a conversation by
-        # its peer's display name, and a room with no peer would render as an
-        # anonymous ghost in all of them.
+        # A room is named by its case and has a roster, not a peer.
+        #
+        # It used to carry a synthetic ``peer`` built from the bot member with
+        # the room's title glued into its display name. That was a client
+        # compatibility shim: community.js rendered every conversation by its
+        # peer's display name, so a room with no peer showed up as an anonymous
+        # ghost. The client now renders a room as a room (PRD-F), so the shim
+        # is gone. It should not come back: a fake peer means a room can be
+        # mistaken for a two-party DM by anything reading this payload, which is
+        # exactly the wrong thing to be wrong about on a conversation with three
+        # people in it.
         roster = [public_member(members.get(uid)) for uid
                   in (dm.get("participants") or _cstore().room_participants(dm["id"]))]
-        title = _room_title(dm)
-        return dict(base, kind=cstore_mod.CommunityStore.ROOM_KIND, title=title,
+        return dict(base, kind=cstore_mod.CommunityStore.ROOM_KIND,
+                    title=_room_title(dm),
                     case_ref=dm.get("case_ref"),
-                    participants=[m for m in roster if m],
-                    peer=dict(SYSTEM_MEMBER, display_name=title, initials="CR"))
+                    participants=[m for m in roster if m])
     peer_id = dm["user_b"] if dm["user_a"] == user_id else dm["user_a"]
     # The Archangel bot is a virtual author: never a users row, never in
     # member_map. ``_serialize_messages`` has always special-cased it for the

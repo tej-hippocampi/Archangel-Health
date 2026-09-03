@@ -100,6 +100,10 @@
 }
 .asc-nav-btn:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-nav-btn.active { background: var(--ink); color: var(--card); }
+/* The Admin console entry is an ANCHOR now, not a button: the console is its
+   own page (PRD-F), and a link is what lets an operator open it in a second
+   tab beside the physician surface they were checking. */
+.asc-nav-link { display: inline-block; text-decoration: none; line-height: 1.4; }
 /* Community unread badge lives on the side-panel rail (.asc-rail-badge). */
 .asc-header-right {
   margin-left: auto;
