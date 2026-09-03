@@ -6604,9 +6604,13 @@ def _member_cohorts() -> Dict[str, Optional[list]]:
     try:
         from asclepius.store import get_store as _get_astore
 
+        from community import countries as _ccountries
+        from community import store as _cstore_mod
+
         codes: list = []
         subspecialties: list = []
         cities: list = []
+        crossed: list = []
         for user in _get_astore().list_users():
             if not user.get("active") or user.get("role") != "evaluator":
                 continue
@@ -6620,10 +6624,19 @@ def _member_cohorts() -> Dict[str, Optional[list]]:
             for raw in _user_subspecialties(user):
                 if raw not in subspecialties:
                     subspecialties.append(raw)
-        return {"countries": codes, "subspecialties": subspecialties, "cities": cities}
+            # The crossed room is derived, never stored: one physician's
+            # specialty and their country's region are already known here, and
+            # a second stored field would be a second thing to keep true.
+            key = _cstore_mod.specialty_region_key(
+                user.get("specialty"), _ccountries.region_for(code))
+            if key and key not in crossed:
+                crossed.append(key)
+        return {"countries": codes, "subspecialties": subspecialties,
+                "cities": cities, "specialty_regions": crossed}
     except Exception:
         _auth_logger.warning("[community] could not read member cohorts", exc_info=True)
-        return {"countries": None, "subspecialties": None, "cities": None}
+        return {"countries": None, "subspecialties": None, "cities": None,
+                "specialty_regions": None}
 
 
 def _user_subspecialties(user: Dict[str, Any]) -> list:
@@ -6668,6 +6681,7 @@ async def startup_community():
                 _cohorts.get("countries"),
                 subspecialties=_cohorts.get("subspecialties"),
                 cities=_cohorts.get("cities"),
+                specialty_regions=_cohorts.get("specialty_regions"),
             )
         except Exception:
             _auth_logger.warning("[community] cohort channel seeding failed", exc_info=True)
@@ -6709,6 +6723,18 @@ async def startup_community():
                 "[community] morning routine loop NOT STARTED: COMMUNITY_MORNING_ENABLED "
                 "is unset or 0. #events, #research-and-opportunities and the "
                 "per-doctor morning email are all inactive.")
+        # The weekend webinar series. Silent by design without a join link,
+        # but silent-by-design still gets a line: an events channel with no
+        # recurring event in it looks exactly like a misconfiguration.
+        from community import webinars as _cwebinars
+        if _cwebinars.enabled():
+            _auth_logger.info(
+                "[community] weekend webinar series ACTIVE (%s, weekday=%d)",
+                _cwebinars.title(), _cwebinars.weekday())
+        else:
+            _auth_logger.warning(
+                "[community] weekend webinar series NOT ACTIVE: COMMUNITY_WEBINAR_URL "
+                "is unset, so no recurring event is created. Set it to the join link.")
         # The two dependencies whose absence is silent rather than loud: without
         # a model key the morning routine records a *successful* run with zero
         # items, and without email transport every send returns 0 sent.
@@ -6860,6 +6886,21 @@ async def internal_run_community_spotlight(
     from community import digest as _cdigest
 
     result = await _cdigest.run_spotlight_digest(force=force)
+    return {**result, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-webinars", include_in_schema=False)
+async def internal_run_community_webinars(authorization: Optional[str] = Header(None)):
+    """Top the recurring weekend webinar series back up.
+
+    Idempotent on (channel, title, start time), so calling it by hand after
+    changing the day or the join link is safe. Also runs on the morning tick;
+    this is the way to see the result without waiting for tomorrow.
+    """
+    _check_internal_auth(authorization)
+    from community import webinars as _cwebinars
+
+    result = await _cwebinars.ensure_upcoming()
     return {**result, "ran_at": _utcnow_iso()}
 
 
