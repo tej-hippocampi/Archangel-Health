@@ -124,6 +124,7 @@ from asclepius.constants import (
 )
 from asclepius.schemas import (
     AscPortalHandoffConsumeRequest,
+    attested_validity,
     ChangePasswordRequest,
     BatchFromRequest,
     BuyerIn,
@@ -4066,12 +4067,32 @@ async def submit(
         portal_version=portal_version,
         status="submitted",
     )
+    # Gap U2: the per-case clinical-validity attestation, stamped in the SAME
+    # request that wrote the label, against the agreement version this physician
+    # has actually signed. Not the current version: an attestation means what
+    # the terms they read said it meant, and a finding made later has to be
+    # judged against those terms and not against whatever we published since.
+    #
+    # Deliberately after the insert rather than inside it. A physician who did
+    # not attest still gets their label recorded -- the attestation is a
+    # statement about the case, not a validity check on the submission -- and
+    # keeping it out of `insert_submission` keeps the flagged, not-hard and
+    # incoherent paths above from having to pass a column that means nothing to
+    # them.
+    _attested = attested_validity(body.prompt_review)
+    if _attested is not None:
+        _signed = store.latest_physician_agreement(user["id"])
+        store.stamp_validity_attestation(
+            sid, attested=_attested,
+            agreement_version=(_signed or {}).get("doc_version"))
     store.log_event(
         entity_type="submission",
         entity_id=sid,
         event_type="captured",
         actor=user["id"],
-        payload={"task_id": body.task_id, "verdict": body.verdict, "time_spent_sec": body.time_spent_sec},
+        payload={"task_id": body.task_id, "verdict": body.verdict,
+                 "time_spent_sec": body.time_spent_sec,
+                 "validity_attested": _attested},
     )
 
     # Decisive action (Audit §13): if the clinician named the verifiable outcome —

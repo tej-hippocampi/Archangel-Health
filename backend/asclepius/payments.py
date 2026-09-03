@@ -1316,6 +1316,15 @@ def reconcile_task_accruals(
     for row in store.unaccrued_submissions(user_id=user_id, limit=limit):
         ref = row["submission_id"]
         implied = _verdict_status(row.get("review_verdicts"))
+        # Gap U2. A case whose clinical-validity attestation was found false is
+        # not payable, whatever the review verdict says. Folded into `implied`
+        # rather than added as a fourth ledger state, so it travels through the
+        # SAME void path a rejected case takes: one zero-value row carrying its
+        # own explanation, never a silent skip. A skipped submission would be
+        # re-examined by every future sweep and would appear on no ledger, which
+        # is the one way a physician could lose money without being told.
+        if attestation_found_false(row):
+            implied = VOID
         # ``accrued_at`` is the moment the WORK happened, not the moment this
         # sweep noticed it — otherwise a backfill would restart every auto-approve
         # clock and a doctor's ledger would be dated by our deploy schedule.
@@ -1338,7 +1347,8 @@ def reconcile_task_accruals(
             status=(implied if (implied and not held) else (VOID if implied == VOID else ACCRUED)),
             accrued_at=accrued_at,
             resolved_at=_ledger_ts(now) if (implied and not held) else None,
-            note=_reject_note(row) if implied == VOID else None,
+            note=(VALIDITY_VOID_NOTE if attestation_found_false(row)
+                  else (_reject_note(row) if implied == VOID else None)),
         )
         if written is not None and terms is not None:
             store.set_earning_quality(
@@ -1362,6 +1372,29 @@ def reconcile_task_accruals(
         ref = row["submission_id"]
         status = row["status"]
         implied = _verdict_status(row.get("review_verdicts"))
+        # Gap U2, and this branch is the load-bearing one. A finding usually
+        # lands AFTER the row accrued, so voiding here is what actually makes
+        # the consequence real.
+        #
+        # `only_from=[ACCRUED]` is the whole guarantee against restating a
+        # settled payment, and it is why this is a `continue` rather than a
+        # reassignment of `implied`: falling through would reach the branch that
+        # moves VOID back to APPROVED on a later accepting verdict, which would
+        # let a reviewer's accept overrule a finding that the case should never
+        # have been labelled at all. APPROVED and PAID rows are not in this
+        # query's result set at all, so a physician who has already been paid
+        # for the case keeps that money -- section 3.5 of the agreement says
+        # exactly that, and it says it because clawing back settled pay from a
+        # doctor is a thing we are choosing not to do.
+        if attestation_found_false(row):
+            if status == ACCRUED and store.resolve_earning(
+                kind=KIND_TASK, ref_id=ref, status=VOID,
+                resolved_at=_ledger_ts(now), note=VALIDITY_VOID_NOTE,
+                only_from=[ACCRUED],
+            ):
+                counts["voided"] += 1
+                counts["validity_voided"] = counts.get("validity_voided", 0) + 1
+            continue
         # The verdict has landed, so the case now has a graded quality number
         # that it may not have had when the row was written. Recompute the terms
         # and restamp the amount while the row is still ACCRUED (never once it
@@ -1642,6 +1675,31 @@ def reconcile_referral_bounties(
 #: unusual funnel for a real physician; past that the tail resolves on the next
 #: load rather than making one request pay for all of it.
 _REFERRAL_RECONCILE_CAP = 20
+
+
+#: An admin's determination that a physician's clinical-validity attestation was
+#: not true (Gap U2). The physician agreement, section 3.5, is the promise this
+#: token enforces: the case that attestation covered is not paid.
+VALIDITY_FINDING_FALSE = "false"
+
+#: Said to the physician, next to the zero, on the same §1.2 rule the reject
+#: note follows: a number that moved is never shown without its explanation.
+VALIDITY_VOID_NOTE = (
+    "Not paid: on review, the clinical-validity attestation for this case was "
+    "found not to hold. Section 3.5 of your contributor agreement covers this, "
+    "and you can ask for it to be looked at again.")
+
+
+def attestation_found_false(row: Dict[str, Any]) -> bool:
+    """Whether this submission's validity attestation was found false.
+
+    A PREDICATE RATHER THAN AN INLINE COMPARISON, in the module that owns money,
+    because it is read from three places in the sweep and all three have to
+    agree. The finding is the ONLY thing consulted: a case nobody has reviewed
+    reads NULL and is paid normally, and a case reviewed and upheld reads
+    'upheld' and is paid normally. Silence is not an accusation.
+    """
+    return (row.get("validity_finding") or "") == VALIDITY_FINDING_FALSE
 
 
 def _reject_note(row: Dict[str, Any]) -> str:

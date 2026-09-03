@@ -3284,6 +3284,39 @@ class AsclepiusStore:
                 """
             )
 
+            # ── The per-case clinical-validity attestation (Gap U2) ──────────
+            # Recorded at the moment of labeling, stored WITH the submission
+            # rather than in a side table, because the attestation is a property
+            # of that label and travels with it into every audit that asks
+            # "who said this case was valid".
+            #
+            # `validity_agreement_version` is the tie to U1: an attestation
+            # means what the agreement in force at the time said it means, and
+            # that document can change. Without the version, a finding made
+            # under v2's language could be applied to a physician who only ever
+            # signed v1.
+            #
+            # `validity_finding` is separate from the attestation and is written
+            # only by an admin. NULL means "nobody has looked", which must stay
+            # distinguishable from "looked and it was true" -- the same reason
+            # `quality_score` is nullable with no default.
+            sub_cols = cols("submissions")
+            if "validity_attested" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_attested INTEGER")
+            if "validity_attested_at" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_attested_at TEXT")
+            if "validity_agreement_version" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_agreement_version TEXT")
+            if "validity_finding" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding TEXT")
+            if "validity_finding_at" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_at TEXT")
+            if "validity_finding_by" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_by TEXT")
+            if "validity_finding_note" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_note TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sub_validity_finding "
+                         "ON submissions(validity_finding)")
 
     # ─── Platform media (Onboarding v2 §0.1) ──────────────────────────────────
     def set_platform_media(
@@ -10765,6 +10798,52 @@ class AsclepiusStore:
         rows = self.list_physician_agreements(user_id)
         return rows[0] if rows else None
 
+    # ─── Per-case clinical-validity attestation (Gap U2) ─────────────────────
+    def stamp_validity_attestation(
+        self, submission_id: str, *, attested: bool, agreement_version: Optional[str],
+        attested_at: Optional[str] = None,
+    ) -> None:
+        """Record that the labeler attested this case was clinically valid.
+
+        Written once, at submit, in the same request that created the row. It is
+        not an UPDATE anybody else calls: an attestation made later than the
+        label it covers is not the thing the agreement describes."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE submissions SET validity_attested = ?, validity_attested_at = ?, "
+                "validity_agreement_version = ?, updated_at = ? WHERE submission_id = ?",
+                (1 if attested else 0, attested_at or _utcnow_iso(),
+                 agreement_version, _utcnow_iso(), submission_id),
+            )
+
+    def record_validity_finding(
+        self, submission_id: str, *, finding: str, actor: str,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """An admin's determination about an attestation, after review.
+
+        ``finding`` is 'false' (the attestation was not true) or 'upheld' (it
+        was). Only 'false' has a payment consequence; 'upheld' exists so that
+        "somebody looked and it was fine" is recordable and distinguishable
+        from NULL, which means nobody has looked.
+
+        A FINDING IS NEVER MADE AGAINST A CASE THAT WAS NOT ATTESTED. A case the
+        physician rejected, or one that predates this feature, has nothing to
+        be found false about, and letting an admin stamp one would produce an
+        unpaid case whose reason nobody can explain to its author."""
+        if finding not in ("false", "upheld"):
+            raise ValueError(f"unknown validity finding: {finding!r}")
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE submissions SET validity_finding = ?, validity_finding_at = ?, "
+                "validity_finding_by = ?, validity_finding_note = ?, updated_at = ? "
+                "WHERE submission_id = ? AND validity_attested = 1",
+                (finding, _utcnow_iso(), actor, note, _utcnow_iso(), submission_id),
+            )
+            if not cur.rowcount:
+                return None
+        return self.get_submission(submission_id)
+
     # ─── Invoices ────────────────────────────────────────────────────────────
     def create_hs_invoice(self, *, hs_id: str, period: str, amount_cents: int,
                           created_by: str, description: Optional[str] = None,
@@ -13146,6 +13225,13 @@ class AsclepiusStore:
                        s.task_id,
                        s.status,
                        s.created_at,
+                       -- Gap U2. Selected here rather than looked up per row in
+                       -- the sweep, because this query already runs on every
+                       -- Earnings page load and a per-row lookup would put a
+                       -- second walk of a physician's submissions inside their
+                       -- page render, which is the cost _quality_terms is
+                       -- carefully written to avoid.
+                       s.validity_finding,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = s.submission_id
                             OR cr.pair_sub_a   = s.submission_id
@@ -13186,6 +13272,11 @@ class AsclepiusStore:
                        e.user_id,
                        e.status,
                        e.rate_cents,
+                       -- Gap U2: a finding may land AFTER the row accrued, so the
+                       -- resolving pass has to see it too, not only the pass that
+                       -- writes the row.
+                       (SELECT s.validity_finding FROM submissions s
+                         WHERE s.submission_id = e.ref_id) AS validity_finding,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = e.ref_id
                             OR cr.pair_sub_a   = e.ref_id

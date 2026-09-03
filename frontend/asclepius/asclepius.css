@@ -2025,6 +2025,25 @@ body.asc-sheet-open { overflow: hidden; }
   flex-wrap: wrap;
 }
 
+/* ─── Clinical-validity attestation (Gap U2) ───────────────────────────── */
+/* The reject control is given the same visual weight as the checkbox rather
+   than being tucked away, because the whole fairness of holding a physician to
+   an attestation rests on the honest path being just as easy to reach. */
+.asc-validity-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 14px; line-height: 1.6; color: var(--asc-text);
+  cursor: pointer;
+}
+.asc-validity-check {
+  margin-top: 3px; flex: 0 0 auto; accent-color: var(--green);
+  width: 16px; height: 16px;
+}
+.asc-validity-out {
+  display: flex; justify-content: flex-start;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--asc-line);
+}
+.asc-validity-reject { flex: 0 0 auto; }
+
 /* ─── §2 info-dot ──────────────────────────────────────────────────────── */
 .asc-info-wrap { position: relative; display: inline-flex; }
 .asc-info-dot {

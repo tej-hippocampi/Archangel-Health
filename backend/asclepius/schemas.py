@@ -524,6 +524,41 @@ class PromptReview(BaseModel):
     verdict: Optional[str] = None  # "valid" | "flagged"
     note: Optional[str] = None
     reviewed_at: Optional[str] = None
+    #: Gap U2. The physician's explicit attestation that this case is clinically
+    #: valid, made before they label it, under section 3 of the contributor
+    #: agreement they signed. Distinct from ``verdict`` on purpose: ``verdict``
+    #: is a provenance fact about the case, and this is a statement a named
+    #: person made about it, under terms, with a consequence attached.
+    #:
+    #: None means the client made no assertion either way. That stays
+    #: distinguishable from an explicit False, and neither is treated as an
+    #: attestation -- see ``attested_validity`` for the one place that decides.
+    attest_clinically_valid: Optional[bool] = None
+
+
+def attested_validity(review: Optional["PromptReview"]) -> Optional[bool]:
+    """Did this physician attest that the case was clinically valid.
+
+    ONE DEFINITION, here, because the answer decides whether a case can later be
+    found falsely attested and therefore go unpaid, and two readings of that
+    would be two answers to "what did this doctor actually say".
+
+    The explicit field wins where the client sent one. Where it did not, a
+    ``valid`` verdict is read as the attestation, because that is what the
+    Stage-1 sign-off has always meant and every case labelled through the portal
+    passes it: treating those as unattested would be inventing a gap that the
+    product does not have. A ``flagged`` verdict is the physician declining, and
+    is not an attestation. No review at all returns None -- unknown, not false.
+    """
+    if review is None:
+        return None
+    if review.attest_clinically_valid is not None:
+        return bool(review.attest_clinically_valid)
+    if review.verdict == "valid":
+        return True
+    if review.verdict == "flagged":
+        return False
+    return None
 
 
 class IndependentAnswer(BaseModel):

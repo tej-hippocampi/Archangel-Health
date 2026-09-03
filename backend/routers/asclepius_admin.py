@@ -2224,6 +2224,80 @@ async def invite_to_community(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Clinical-validity attestations (Gap U2): reviewing what a physician asserted
+# ═══════════════════════════════════════════════════════════════════════════════
+class ValidityFindingBody(BaseModel):
+    """A person's determination about one physician's attestation.
+
+    ``note`` is required for a ``false`` finding and optional for ``upheld``,
+    and that asymmetry is the point. Section 4.3 of the contributor agreement
+    promises the physician is told WHICH case and WHY when a case is not paid.
+    A finding with no reason cannot keep that promise, so the API refuses to
+    record one rather than leaving a doctor with an unexplained zero.
+    """
+
+    finding: str = Field(..., pattern="^(false|upheld)$")
+    note: Optional[str] = Field(None, max_length=2000)
+
+
+@router.post("/submissions/{submission_id}/validity-finding")
+async def record_validity_finding(
+    submission_id: str,
+    body: ValidityFindingBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Record that a clinical-validity attestation was, or was not, true.
+
+    A HUMAN DECIDES, ALWAYS. There is no sweep, no heuristic and no model that
+    writes this: the whole reason the attestation moves responsibility is that a
+    named person looked at the case and reached a conclusion, and an automated
+    finding would be an automated pay cut, which this codebase already refuses
+    to make (see the quality-hold branch in ``payments.reconcile_task_accruals``).
+
+    The payment consequence is not applied here. It is applied by the accrual
+    sweep reading ``validity_finding``, which is what makes it idempotent, makes
+    it survive a finding recorded before the ledger row exists, and keeps the
+    one rule about restating settled money in the one module that owns money.
+    """
+    store = get_store()
+    if not body.note and body.finding == "false":
+        raise HTTPException(
+            status_code=400,
+            detail="Say why the attestation does not hold. The physician is "
+                   "told this reason.")
+    sub = store.get_submission(submission_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="No such submission.")
+    row = store.record_validity_finding(
+        submission_id, finding=body.finding, actor=admin.get("email") or admin.get("id"),
+        note=(body.note or None))
+    if row is None:
+        # The store refuses a finding on an unattested case. Said plainly rather
+        # than as a 404, because the submission does exist and the admin needs
+        # to know which of the two facts is the surprising one.
+        raise HTTPException(
+            status_code=409,
+            detail="That case carries no clinical-validity attestation, so "
+                   "there is nothing to find true or false.")
+    store.log_event(
+        entity_type="submission", entity_id=submission_id,
+        event_type="validity_finding_recorded",
+        actor=admin.get("email") or admin.get("id"),
+        payload={"finding": body.finding, "task_id": sub.get("task_id"),
+                 "evaluator_id": sub.get("evaluator_id"),
+                 "agreement_version": sub.get("validity_agreement_version")})
+    return {
+        "submission_id": submission_id,
+        "validity_attested": row.get("validity_attested"),
+        "validity_finding": row.get("validity_finding"),
+        "validity_finding_at": row.get("validity_finding_at"),
+        "validity_finding_by": row.get("validity_finding_by"),
+        "validity_finding_note": row.get("validity_finding_note"),
+        "validity_agreement_version": row.get("validity_agreement_version"),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Assignment (PRD-ASSIGN) — proposing who does which case
 # ═══════════════════════════════════════════════════════════════════════════════
 class AllocateBody(BaseModel):
