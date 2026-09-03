@@ -1,0 +1,42 @@
+Document index: 71
+Document type: discharge summary
+Service date: 2025-07-07
+Age on report: 76Y    Sex: F
+De-identification: Omitted facility name, patient name, consultant name, and IDs (green redactions); age kept as 76 years (months/days noted in content)
+
+CONTENT
+----------------------------------------
+Discharge Summary
+Admission Date: 07/07/2025
+Discharge Summary Date: 07/07/2025
+Age printed: 76 Year(s), 8 Month(s), 29 Day(s)
+
+Presenting Complaints: Flank pain radiating to back
+Diagnosis: K/C OF DCLD / HCV
+
+Relevant Investigation: CBC, LFT, PT/INR, S.AMYLASE, CRP (names listed; values not on this page)
+
+Hospital Course / inpatient meds:
+- INJ RISEK 40MG
+- INJ ONSET 8MG
+- INJ TRAMAL + INJ METACLON
+- INJ CEFTRO 2G
+
+Date of Surgery: —
+Operative Procedure: —
+Pending Reports: —
+Instruction on Discharge: TAKE MEDICATIONS AS PRESCRIBED
+Follow-up: AFTER 15 DAYS
+Discharge Status: Improved
+
+Medication on Discharge:
+- CAP EZIUM 40MG 1+0+0
+- TAB FOLIC ACID 1+1
+- TAB MOTILIUM 1+1+1
+- SYP DUPHALAC 30ML XHS
+- TAB CARVEDA 6.25MG 1/2 + 1/2
+- TAB RIFIXA 550 1+0+1
+- TAB TRAMAPAR 1+1+1
+- DEEP HEAT CREAM
+- TAB DRATE 150MG ONCE A WEEK
+- CAP INDROP D 200000 ONCE IN 15 DAYS

@@ -1,0 +1,11 @@
+Document index: 14
+Document type: radiology report
+Service date: 2023-07-12
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: no patient identifiers present on ultrasound frames; only device/scan parameters shown
+
+CONTENT
+----------------------------------------
+Ultrasound Abdomen images (GE Healthcare, L7 probe, 5.2 MHz).
+Measurement caliper (organ length): d2 = 17.09 cm; Vol = 1393 ml (consistent with enlarged spleen).
+Depth settings D 18.0 cm / 15.0 cm. Two grayscale abdominal ultrasound frames; no printed narrative findings on image.

@@ -1,0 +1,12 @@
+Document index: 120
+Document type: radiology report
+Service date: 2026-06-16
+Age on report: 65Y    Sex: M
+De-identification: Redacted identifiers omitted; kept age, sex, service date, clinical content.
+
+CONTENT
+----------------------------------------
+Alternate photo of same ULTRASOUND ABDOMEN report.
+Date: 16/06/2026 15:32:39; Male; 65 Year(s).
+Same organ measurements and findings as index 119 (shrunken coarse liver 11.5 cm; portal vein 0.9 cm; contracted GB; CBD 0.3 cm; spleen 13.3 cm; kidneys 20.07.2010.9 cm; mild ascites; prostate 4.0 x 5.3 x 3.9 cm, 45 g).
+Impression: CLD pattern (coarse irregular liver, splenomegaly, mild ascites) — correlate clinically/LFTs; prostatomegaly; remainder unremarkable.

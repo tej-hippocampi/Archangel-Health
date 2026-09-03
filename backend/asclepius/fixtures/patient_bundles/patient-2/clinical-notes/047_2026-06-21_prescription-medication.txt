@@ -1,0 +1,17 @@
+Document index: 47
+Document type: prescription/medication
+Service date: 2026-06-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Staff initials omitted. No patient name, facility, identifier field, age, or sex on form. Date year incomplete on header; interpreted as 12/7/26 from clinical series.
+
+CONTENT
+----------------------------------------
+MEDICATION FORM. Date column header ~21/06/2026 (written as 12/26). STAT DOSE empty.
+Red diagonal line across injection rows in grid.
+1. Tab Casveda 6.25 mg 1-0-1 — times 10:00, 22:00
+2. Tab Colofac 1-0-1 — times 10:00, 22:00
+3. Tab Vida 0-0-1 — time 22:00
+4. Inj Tramal + Metaclo IV SOS
+5. Inj Meronem 1 g IV BD
+6. Inj Lasix 20 mg IV stat
+Admin-box initials omitted.

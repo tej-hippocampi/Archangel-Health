@@ -1,0 +1,21 @@
+Document index: 103
+Document type: radiology report
+Service date: 2025-08-08
+Age on report: UNKNOWN    Sex: M
+De-identification: name field redacted/omitted; age value not printed.
+
+CONTENT
+----------------------------------------
+Ultrasound Abdomen report.
+LIVER: Normal in size, shape, measures about 14.5cm with slightly increased echopattern, regular outline. No evidence of any focal parenchymal abnormalities. Minimally dilated biliary channels. Collaterals seen at porta hepatis. Portal vein appears normal, no thrombus seen within it. IVC appears normal.
+G/BLADDER: Partially contracted. Shows at least two calculi, one of them measures about 1.2cm, with posterior shadowing. Advise rescan fasting for other stone and other pathology. Visualized upper part of CBD dilated measures about 0.8cm. Stent seen in CBD. No air space shadow seen (Pneumobilia).
+PANCREAS: Visualized head and body appear normal in size and echopattern. No evidence of solid or cystic mass.
+SPLEEN: Enlarged in size, measures about 16.0cm, normal shape and echopattern. Multiple hyperechoic foci scattered diffusely suggestive granuloma / other pathology. No focal mass or cyst seen. Splenic vein is not dilated.
+RIGHT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+LEFT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+Urinary bladder: Minimally filled.
+No lymphadenopathy seen.
+Bowel loops are not dilated, show normal peristalsis. Gas loaded bowel loops seen in abdomen.
+No iliocecal lump / colonic mass seen at time of scan.
+No ascites seen.
+No pleural effusion seen.

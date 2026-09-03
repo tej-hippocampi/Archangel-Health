@@ -1,0 +1,41 @@
+Document index: 34
+Document type: clinical note
+Service date: 2026-06-16
+Age on report: 65Y    Sex: UNKNOWN
+De-identification: Omitted facility name/address/phone/email, patient name/identifier field# (green redactions), and informant name/relationship (relative).
+
+CONTENT
+----------------------------------------
+Nursing admission assessment — Part 2: To be filled by nurse (Page 1 of 4)
+
+Unit: GW II
+Date of admission: 16/06/2026
+Time: 1600 Hrs
+Type of admission: Elective
+Mode of transportation: Wheel chair
+Information provided by: [relative name/relationship omitted]
+ID band: Applied
+
+Baseline:
+- Age: 65 Yrs
+- Temperature: A/F (afebrile)
+- Pulse: 74 / min
+- Respiratory rate: 19 / min
+- BP: 110/70 mmHg
+- O2 sat: 98%
+- Height/Weight: blank
+- Reason for admission: Abd pain, fever, loose stool
+
+Infectious disease: None
+Isolation: Standard precaution for all patients
+
+Pain: No; score 0
+
+Functional screening:
+- Cognition: Oriented x3; Alert
+- Sensory: Asymptomatic
+- Vision: Normal
+- Hearing: Normal
+- Speech: Normal
+- Musculoskeletal: No problem identified
+- Assistive devices: None

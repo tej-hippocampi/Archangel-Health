@@ -1,0 +1,17 @@
+Document index: 133
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility name/header, patient ID, provider name, signature; footer phones/email omitted
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 1:40 PM
+
+Seen by [provider redacted]
+- Get MRI Brain with contrast
+- Will plan for LP if pt does not improve within 24 hrs
+- Get psychiatrist opinion
+
+Note: year on form appears written as 24 (as printed/handwritten).

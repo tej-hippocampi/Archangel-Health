@@ -1,0 +1,20 @@
+Document index: 20
+Document type: LFT
+Service date: 2025-09-08
+Age on report: 65Y    Sex: M
+De-identification: Green-marker redactions ignored (lab number, patient name, referring clinician); omitted facility acronym from "sample brought from" line
+
+CONTENT
+----------------------------------------
+CHEMISTRY report
+Collection: 29-Sep-2025
+Report: 29-Sep-2025
+Note: SAMPLE BROUGHT FROM external collection site (facility name omitted)
+
+LIVER FUNCTION TESTS
+Bilirubin (Total): 1.1 mg/dl (Adults up to 1.2; pediatric ranges also printed)
+SGPT: 97 U/L (Male up to 45; Female up to 35) [H]
+Gamma GT: 72 U/L (Male 8-61; Female 5-36) [H; circled]
+Alkaline Phosphatase: 362 U/L (Male 80-270; Female 65-240; pediatric ranges also printed) [H]
+
+C-Reactive Protein: 4.9 mg/L (ref < 10.0) [checkmark]

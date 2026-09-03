@@ -1,0 +1,50 @@
+Document index: 73
+Document type: discharge summary
+Service date: 2025-02-06
+Age on report: 76Y    Sex: F
+De-identification: Omitted name, consultant, ward, facility address/header (green redactions)
+
+CONTENT
+----------------------------------------
+Discharge Summary
+Admission Date: 03/02/2025
+Discharge Summary Date: 06/02/2025
+
+Presenting Complaints (as printed):
+- COUGH
+- FEVER
+- K/C HCV PSE -REVERSED
+- IDA, VERTEBRAL
+
+Diagnosis:
+- UPPER RESPIRATORY TRACT INFECTION
+- HCV DCLD
+
+Relevant Investigation:
+- HB 10.4
+- PLT 3.8
+- TLC 64
+- CREAT 1.3
+- UREA 40
+- ELECTROLYTES NA 134 K 4.7
+
+Hospital Course: Managed conservatively with fluids, PPI, nebulization, antibiotics, cough syrup and hydrocortisone; ECG and CXR done.
+Date of Surgery: N/A
+Operative Procedure: N/A
+Pending Reports: SPUTUM STUDIES GENE EXPERT AND AFB
+
+Medication on Discharge:
+- TAB MOFEST 400MG 1-0-0
+- NEB ATEM 4 HOURLY
+- TAB DELTACORT 2-2-0
+- TAB CARVEDA 6.25 MG 1/2-0-1/2
+- TAB NUBEROL 1-0-1
+- SYP PHYLLINE 1-1-1
+- TAB AEROKAST 10MG 1-0-0
+- SYP LILAC 30ML 1-0-0
+- VOLTRAL GEL
+- NILSTAT ORAL DROPS 4 TIMES
+
+Instruction on Discharge: TAKE MEDICATION ON TIME; PHYSIOTHERAPY SHOULDER VISIT AFTER 2 WEEKS IN OPD
+Follow-up: AFTER ONE WEEK
+Discharge Status: DOR

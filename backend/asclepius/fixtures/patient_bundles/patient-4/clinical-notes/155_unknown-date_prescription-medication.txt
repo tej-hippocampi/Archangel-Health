@@ -1,0 +1,21 @@
+Document index: 155
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted administration signature/initials; year not clearly printed on entries
+
+CONTENT
+----------------------------------------
+Form: Reflo Monitoring and Insulin Administration Record Form
+
+Readings:
+- 14/7 18:04 — post meal 133
+- 14/7 22:00 — pre meal 128 mg/dl
+- 15/7 02:00 — pre meal 186 mg/dl
+- 15/7 6:00 AM — pre meal 213 mg/dl
+- 15/7 12:00 — 192
+- 15/7 15:00 — 230
+- 15/7 19:00 — 211 mg/dl
+- 15/7 22:00 — 307 mg/dl; note: 6 units HR given SL
+
+Subcutaneous insulin sites reference guide printed on form (RA/LA/U Ab etc.)

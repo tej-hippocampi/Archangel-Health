@@ -1,0 +1,10 @@
+Document index: 132
+Document type: RFT/renal
+Service date: 2023-03-23
+Age on report: 39Y    Sex: M
+De-identification: name/laboratory No. redacted (green marker); OPD location not transcribed. No identifiers transcribed.
+
+CONTENT
+----------------------------------------
+CREATININE (SERUM) (Department of Biochemistry):
+Creatinine Serum: 0.8 mg/dL (Male 0.7 - 1.2, Female 0.5 - 0.9, Children 0.3 - 0.8, Infant 0.2 - 0.4)

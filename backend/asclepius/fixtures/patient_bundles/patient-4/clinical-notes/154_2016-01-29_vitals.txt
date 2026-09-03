@@ -1,0 +1,22 @@
+Document index: 154
+Document type: vitals
+Service date: 2016-01-29
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted Name & Initial column (green redaction); years kept exactly as printed (16/2016/26 mix)
+
+CONTENT
+----------------------------------------
+Form: Vital Signs Sheet (Height/Weight blank)
+Columns: Date | Time | B/P | Resp | Pulse | SPO2% | Temp | Pain Score | Name & Initial
+
+Entries (dates/times as printed; one row has date/time columns swapped):
+1. 29/01/2016 18:09 — BP 160/100; RR 22; Pulse 84; SPO2 84; Temp A/F; Pain 6
+2. 28/01/2026 07:30 pm — BP 110/70; RR 23; Pulse 130; SPO2 99%; Temp A/F; Pain -
+3. Date col 22:00 / Time col 01/02/2016 — BP 110/60; RR 21; Pulse 89; SPO2 94%; Temp 98.2; Pain 02
+4. 02/02/2016 07:00 — BP 140/90; RR 23; Pulse 92; SPO2 99%; Temp A/R; Pain 00
+5. 02/02/2016 03:30 — BP 140/80; RR 22; Pulse 95; SPO2 96%; Temp A/R; Pain 00
+6. 02/02/2016 6:00 AM — BP 130/80; RR 20; Pulse 94; SPO2 97%; Temp A/R; Pain -
+7. 01/02/2026 09:20 — BP 110/80; RR 20; Pulse 99; SPO2 100; Temp 98; Pain -
+8. 01/02/2026 14:20 — BP 110/80; RR 20; Pulse 79; SPO2 98; Temp 98.2; Pain -
+9. 02/02/2016 17:30 — BP 140/90; RR 21; Pulse 68; SPO2 96%; Temp A/R; Pain 00
+10. 02/02/2016 22:00 — BP 130/70; RR 21; Pulse 72; SPO2 98%; Temp A/R; Pain 00

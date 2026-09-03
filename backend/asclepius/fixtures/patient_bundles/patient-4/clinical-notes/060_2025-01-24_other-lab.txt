@@ -1,0 +1,18 @@
+Document index: 60
+Document type: other lab
+Service date: 2025-01-24
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name/identifier field/facility (green redaction); kept age, sex, service dates, clinical results
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+
+Booking: 24/01/2025 12:21:13
+Collection: 24/01/2025 12:22:02
+Reporting: 24/01/2025 13:59:27
+
+Albumin (Serum):
+- Albumin: 3.0 g/dL
+- Normal ranges: Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6
+(Result below adult reference range.)

@@ -1,0 +1,16 @@
+Document index: 22
+Document type: RFT/renal
+Service date: 2025-06-29
+Age on report: 76Y    Sex: F
+De-identification: Green overlay obscured name/facility/IDs; omitted residual identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+
+Booking Date & Time: 29/06/2025 05:12:03
+Collection Date & Time: 29/06/2025 05:12:12
+Reporting Date & Time: 29/06/2025 06:34:21
+
+UREA (BLOOD)
+Urea: 59 mg/dL (Normal Range: 10 - 50)

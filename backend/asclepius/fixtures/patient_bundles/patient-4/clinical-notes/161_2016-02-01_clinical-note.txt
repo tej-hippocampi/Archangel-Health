@@ -1,0 +1,18 @@
+Document index: 161
+Document type: clinical note
+Service date: 2016-02-01
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted header facility/patient ID (green redaction); omitted nurse/physician names and signatures; dates kept as printed (2016)
+
+CONTENT
+----------------------------------------
+Form: Nurses Note (For Event Notes)
+Instructions: record procedures, invasive procedures, transfusions, events, meds, condition changes, drug reactions; do not leave blank space; write legibly with full name/designation
+
+Entries:
+- 01/02/2016 20:00 Receiving Note: Pt received from ICU; stepped down with ALOC, vomiting; K/C DM, HTN, IHD including CVA; IV lines maintained (L) hand and (R) foot 20G and 18G; Foley intake, NG intake; CBR; no skin breakdown/bedsores; NG feed 6 hourly; neb 6 hourly done; vitals stable; no active complaint; fluid continues 40 ml; all medication done
+- 02/02/2016 24:00 Event Note: Nebulization done and after 20 minutes feed given; continue double duty evening + night
+- 02/02/2016 02:00 Event Note: 4 hourly RBS checked 186 mg/dL
+- 02/02/2016 06:00 Event Note: Patient changed; stool passed; BD and TDS doses done; all tab given in feed
+- 02/02/2016 08:00 Receiving Note: Pt received from night staff; pt visit by physician (name omitted); NG feed inf. cont. on; no bed sore; no complaint; all dose done; 18G cannula in right foot
+- 02/02/2016 16:30 Receiving Note: Pt received from morning shift; vitals stable; NG feed / medications done; continue fluid; IV line maintained; no active complaint

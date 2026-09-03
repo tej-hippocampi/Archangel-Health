@@ -1,0 +1,32 @@
+Document index: 70
+Document type: CBC/hematology
+Service date: 2026-06-21
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/facility redacted and omitted
+
+CONTENT
+----------------------------------------
+Department of Hematology — CP (CBC)
+Booking: 21/06/2026 10:42:42
+Collection: 21/06/2026 10:42:54
+Reporting: 21/06/2026 13:10:40
+
+Hemoglobin: 10.0 g/dl (12-16.5) [L]
+R.B.Cs: 4.39 10^12/L (4.0-5.2)
+Hematocrit: 31.5 % (35.0-50.0) [L]
+M.C.V: 71.8 fl (76-96) [L]
+M.C.H: 22.8 pg (24-29) [L]
+M.C.H.C: 31.7 g/dl (32-36) [L]
+RDW-CV: 15.9 % (11.0-16.0)
+Total Leucocytes Count/TLC: 8.60 x 10^3/l (4-10)
+Neutrophils: 80.4 % (40-75) [H]
+Lymphocytes: 11.2 % (20-45) [L]
+Monocytes: 4.5 % (2-10)
+Eosinophils: 3.3 % (1-6)
+Basophils: 0.6 % (<1)
+Platelets: 150 x 10^9/l (150-400)
+
+Morphology:
+Hypochromic, microcytic; polychromasia; ? iron deficiency anaemia — suggest serum iron, TIBC & ferritin level.
+Large platelet clumps seen; platelets adequate on smear; ? cause.
+Remarks: Advise clinical correlation.

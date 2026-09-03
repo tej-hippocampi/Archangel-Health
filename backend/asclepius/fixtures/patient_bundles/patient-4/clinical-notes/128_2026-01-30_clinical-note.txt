@@ -1,0 +1,23 @@
+Document index: 128
+Document type: clinical note
+Service date: 2026-01-30
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility header and provider name after S/B; no identifier field/DOB transcribed
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS
+Time: 4:45 pm
+
+Thanks for Psychiatric Consultation
+S/B [provider redacted]
+
+On:
+1. Risperdal / Risperidone
+2. Rivotril 2 mg
+
+Plan — Restart:
+- Risperdal 1/2 x BD
+- Tab Lorazepam 1 x HS
+- Rivotril 0.5 mg
+- if Restlessness → 1/2 — 0 — 1

@@ -1,0 +1,33 @@
+Document index: 14
+Document type: CBC/hematology
+Service date: 2025-07-07
+Age on report: 76Y    Sex: F
+De-identification: Omitted facility/patient identifiers under green redaction
+
+CONTENT
+----------------------------------------
+Department: Hematology
+Panel: CBC & ESR
+
+Booking: 07/07/2025 14:48:38
+Collection: 07/07/2025 14:49:06
+Reporting: 08/07/2025 15:36:09
+
+Hemoglobin: 7.5 g/dl (11.5 - 15.5) [L]
+R.B.Cs: 2.70 10^12/L (4.0 - 5.2) [L]
+Hematocrit: 22.8 % (35.0 - 50.0) [L]
+M.C.V: 84.4 fl (76 - 96)
+M.C.H: 27.8 pg (24 - 29)
+M.C.H.C: 32.9 g/dl (32 - 36)
+RDW-CV: 15.9 % (11.0 - 16.0)
+Total Leucocytes Count/TLC: 4.66 x 10^3/l (4 - 10)
+Neutrophils: 70 % (40 - 75)
+Lymphocytes: 18 % (20 - 45) [L]
+Monocytes: 10 % (2 - 10)
+Eosinophils: 02 % (1 - 6)
+Basophils: 0.4 % (<1)
+Platelets: 78 x 10^9/l (150 - 400) [L]
+ESR: 11 mm/Hour (Female 0 - 18)
+
+Morphology: NORMOCYTIC, NORMOCHROMIC ANEMIA/ ACANTHOCYTES, LYMPHOPENIA, PLATELETS LOW ON SMEAR, FEW SMALL PLATELETS CLUMPS SEEN, BICYTOPENIA
+Remarks: ? CAUSE, CLINICAL CORRELATION IS ADVISED

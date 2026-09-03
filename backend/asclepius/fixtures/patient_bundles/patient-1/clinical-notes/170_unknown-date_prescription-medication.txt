@@ -1,0 +1,13 @@
+Document index: 170
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: administering-nurse name/designation redacted (green marker)
+
+CONTENT
+----------------------------------------
+Medication Administration Record (handwritten, partly illegible):
+- Inj Meronem 1g, route I/V, administered time 2030
+- Inj Norepinephrine (double support), administered ~1950
+- Inj Albumin with I/V N/Saline 120... (route I/V)
+Intake/Output (Fluid IV and oral; Urine/Stool/Other) grid present, values not clearly legible.

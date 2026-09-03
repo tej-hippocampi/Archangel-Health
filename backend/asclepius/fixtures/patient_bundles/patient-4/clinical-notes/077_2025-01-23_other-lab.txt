@@ -1,0 +1,16 @@
+Document index: 77
+Document type: other lab
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF CHEMICAL PATHOLOGY
+Booking: 23/01/2025 18:31:12
+Collection: 23/01/2025 18:31:27
+Reporting: 23/01/2025 20:55:44
+
+PCT (ICU)
+- PCT: 4.5 ng/mL
+Interpretation text on report: procalcitonin levels < 0.5 Represent a low risk of severe sepsis and/or septic shock. Procalcitonin levels > 2.0 Represent a high risk of severe sepsis and/or septic shock.

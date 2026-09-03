@@ -1,0 +1,17 @@
+Document index: 4
+Document type: CBC/hematology
+Service date: 2026-04-24
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility/patient identifiers under green redaction
+
+CONTENT
+----------------------------------------
+Department: Hematology
+Panel: ABO BLOOD GROUP & Rh FACTOR
+
+Booking: 24/04/2026 02:16:15
+Collection: 24/04/2026 02:16:22
+Reporting: 24/04/2026 02:39:36
+
+ABO BLOOD GROUP: B
+Rh Factor: POSITIVE

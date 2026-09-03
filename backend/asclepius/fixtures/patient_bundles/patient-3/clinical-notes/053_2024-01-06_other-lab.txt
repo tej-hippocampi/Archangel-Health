@@ -1,0 +1,15 @@
+Document index: 53
+Document type: other lab
+Service date: 2024-01-06
+Age on report: 75Y    Sex: F
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+Booking: 06/01/2024 17:22:50
+Collection: 06/01/2024 17:23:08
+Reporting: 06/01/2024 18:37:33
+
+Albumin (Serum): 2.8 g/dL
+Ref: Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6

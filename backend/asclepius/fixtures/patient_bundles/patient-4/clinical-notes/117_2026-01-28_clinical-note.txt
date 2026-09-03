@@ -1,0 +1,51 @@
+Document index: 117
+Document type: clinical note
+Service date: 2026-01-28
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted identifier field, patient name, consultants section, MO/SMO signature area; age/sex not printed on visible form; kept service date/time and clinical content.
+
+CONTENT
+----------------------------------------
+PATIENT TRIAGE / ER ASSESSMENT
+Time: 6:04 pm
+
+Complaint: Pt came with c/o ALOC since 11 am, 1 episode of vomiting.
+History: k/c of DM, HTN, IHD (2024 - PCI). Alcohol addict (24 years).
+H/o alcohol abuse last night & today morning.
+
+On Examination:
+- Chest: B/L crepts
+- Abdomen: soft; NIT
+- CVS/ECG Finding: S1+S2 audible
+- CNS: E4V1M5
+
+Obstetrics & Gynaecology: Not relevant (checked)
+
+Vital Signs:
+- RBS: 133 mg/dl
+- Pulse: 84 b/min
+- Temp: 100 F
+- BP: 160/100 mmHg
+- RR: 22 /min
+- SPO2: 84% on RA
+- GCS: 10/15
+
+Investigation Lab / Radiology ordered:
+ECG, ABGs, CBC, UCE, LFT, Albumin, PT/INR, Trop-I, Blood C/S, CXR,
+U/S Abdomen (Pending), Tracheal C/S
+
+Provisional Diagnosis: Aspiration Pneumonia
+
+ER Treatment & Procedure:
+- I/V cannulation
+- Inj Provas 1g I/V x stat
+- Inj Ezium 40mg I/V x stat
+- Inj Onset 8mg in 100ml N/S I/V x stat
+- Inj Tanzo 4.5g in 100ml N/S I/V x stat
+- Inj N/S 1000cc/hr + (1 amp Neurobion)
+- Neb with Atom / with clenil
+- Suctioning
+- Catheterization
+- CPAP applied (8 cmH2O)
+
+Disposition: Transfer to CCU (checked)

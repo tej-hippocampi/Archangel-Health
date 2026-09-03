@@ -1,0 +1,13 @@
+Document index: 169
+Document type: prescription/medication
+Service date: 2025-10-24
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: administering-nurse initials not transcribed
+
+CONTENT
+----------------------------------------
+Medication Form (Drugs & Dosage):
+- Tab Neo-K 2-2-2 (marked STOP)
+- Tab Sodamint (sodium bicarbonate) 2-2-2
+- Inj Norpine (noradrenaline/norepinephrine) at 3.3 mL/hr (taper slowly)
+- Inj Vancomycin 1 gm I/V stat

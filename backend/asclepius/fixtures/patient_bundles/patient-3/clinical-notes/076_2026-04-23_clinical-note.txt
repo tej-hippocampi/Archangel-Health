@@ -1,0 +1,37 @@
+Document index: 76
+Document type: clinical note
+Service date: 2026-04-23
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted physician name/signature (green redaction); patient name/age/sex/identifier field/facility not present on this page
+
+CONTENT
+----------------------------------------
+Form: PHYSICIAN ORDERS
+Date: 23/04/2026  Time: 2:00 pm
+
+Active/past conditions noted: HCV CLD (decompensated); PSE; UGIB; HTN; COPD; CAD; DM; TB; EGD few years back.
+Negative/absent: ascites (marked X); malaria; urinary symptoms; hematemesis; hemoptysis (null marks).
+
+Presenting complaints (CO):
+- Altered sleep pattern
+- Fever >2 weeks
+- Cough / SOB for 2 weeks
+- Abdomen: cramps and occasional diarrhea
+
+Impression: Seems pneumonia
+
+Exam:
+- Chest: Coarse crepitations L lower > R lower
+- Abdomen: Soft, NT; no rebound
+- GCS 15/15
+- Vitals: Stable; febrile
+
+Workup plan: CTP Score; U/S Abd; ECG; CXR; Echo; CURB-65
+
+Orders:
+1. Inj R/L at 60 ml/h
+2. Inj Ceftriaxone 2gm IV OD
+3. Inj Avelox 400mg IV OD
+4. Nebs atom + clenil every 6 hours
+5. Inj Aminoleban 500mg IV OD (handwriting ambiguous; transcribed as Aminoleban)
+6. Inj Provas 1gm IV SOS

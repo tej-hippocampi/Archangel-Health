@@ -1,0 +1,12 @@
+Document index: 6
+Document type: coagulation
+Service date: 2023-03-20
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name redacted (green marker), branch/facility name omitted, identifier field field blank
+
+CONTENT
+----------------------------------------
+Prothrombine Time
+Patient: 12 sec
+Control: 12 sec
+INR: 1.0

@@ -1,0 +1,18 @@
+Document index: 76
+Document type: serology/viral
+Service date: 2026-06-16
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/facility redacted and omitted
+
+CONTENT
+----------------------------------------
+Department of Molecular Pathology — PCR HCV RNA Quantitative
+Booking: 16/06/2026 16:26:48
+Collection: 16/06/2026 16:26:54
+Reporting: 20/06/2026 15:43:04
+
+Sample: PCR - HCV RNA Quantitative
+Result: 9176000 IU/ml
+
+Method summary (from report): Real-time RT-PCR; detects/quantitates HCV RNA genotypes 1-8; qualitative detection limit >42 IU/ml; IVD CE marked; calibrated to WHO International Standard for HCV RNA NAT (NIBSC 06/100).
+Comment: HCV titer may fluctuate with latency and may fall below sensitivity; molecular result not comparable across labs with different assay sensitivity.

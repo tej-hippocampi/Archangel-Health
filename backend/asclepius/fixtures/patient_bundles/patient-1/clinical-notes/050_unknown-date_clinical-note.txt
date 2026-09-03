@@ -1,0 +1,35 @@
+Document index: 50
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: name/patient identification redacted; referring physician names omitted
+
+CONTENT
+----------------------------------------
+PATIENT PROGRESS - Shifting Note
+Patient is being shifted to Gastro HDU as advised by primary team, with following vitals.
+Known case of: HTN, Portal Biliopathy
+Septic Shock 2° to cholangitis; S/P ERCP
+Vitals:
+GCS: 15/15
+BP: 100/70 on Nor-epi 3-3 ml/hr
+Pulse: 84 bpm
+Temp: Afebrile
+RR: 22 br/min
+SPO2: 99% on Room Air
+RBS: 246 mg/dl @ 11:30 AM
+Echo: EF 55%, IVC normal collapsing
+(R) femoral CVP
+Plan:
+- Taper Nor-epinephrine accordingly
+- Continue PCT & LFTs
+- Continue Platelets
+- Get U/S Abdomen
+- BP monitoring x 24h
+- RBS, RR, SPO2 monitoring
+- I/O charting
+- Mobilize out of bed
+- Continue IV fluid
+- Continue Meronem
+- Continue Blood C/S
+- Follow fresh orders

@@ -1,0 +1,18 @@
+Document index: 59
+Document type: radiology report
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No name/identifier field/facility/provider/age/sex/date visible on photographed page
+
+CONTENT
+----------------------------------------
+Modality: Echocardiogram — M-MODE/2-D MEASUREMENTS (continuation page)
+
+Columns labeled Normal / Normal.
+
+Systolic: 27 (ref <35 mm)
+Diastolic: 37 (ref <52 mm)
+Septal Thickness: 08 (ref <11 mm)
+Post Wall Thickness: 08 (ref <11 mm)
+Left Atrial volume index: 38 (ref <34 ml/m2) — elevated vs reference
+Ascending Aorta: 29 (ref <34 ± 3 mm)

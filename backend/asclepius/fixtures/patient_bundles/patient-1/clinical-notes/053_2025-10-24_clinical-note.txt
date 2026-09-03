@@ -1,0 +1,19 @@
+Document index: 53
+Document type: clinical note
+Service date: 2025-10-24
+Age on report: 42Y    Sex: M
+De-identification: hospital/facility name omitted; patient name and identifier field# redacted
+
+CONTENT
+----------------------------------------
+ICU ROUTINE DOCUMENT
+Presenting complaint: 42 years old male, NKCM, presented with C/O:
+1) Jaundice  2) Vomiting  3) Fever  4) SOB
+Events: In ER -> low BP 80/40 -> N/saline + Hemaccel bolus + Noradrenaline (Nor-epi) started, low Sat, O2 inhalation started with Nebs. In ICU -> low BP, Nor-epi continued -> CVP line passed, raised RR -> NIV applied -> shifted to OT -> ERCP done.
+CT/MRI (07/05/2024): CT Abdomen + Pelvis -> portal vein with cavernous transformation, edema with cholelithiasis -> portal biliopathy, gallbladder involvement.
+Echo: EF 55%, IVC normal collapsing
+CXR: Done
+USG: -
+Urine R/E: Pus cells 4-6, granular casts, bacteria few, ketone +1, protein +2, pH 6.0, specific gravity
+C/S: Blood C/S sent
+Antibiotics: Inj Meronem

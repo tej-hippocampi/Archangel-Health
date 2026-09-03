@@ -1,0 +1,35 @@
+Document index: 45
+Document type: CBC/hematology
+Service date: 2024-01-08
+Age on report: 75Y    Sex: F
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF HEMATOLOGY — CBC & ESR
+Booking: 08/01/2024 11:30:19
+Collection: 08/01/2024 11:30:39
+Reporting: 08/01/2024 15:14:24
+
+Hemoglobin: 11.1 g/dl (11.5 - 15.5)
+R.B.Cs: 4.68 10^12/L (4.0 - 5.2)
+Hematocrit: 34.0 % (35.0 - 50.0)
+M.C.V: 72.6 fl (76 - 96)
+M.C.H: 23.7 pg (24 - 29)
+M.C.H.C: 32.6 g/dl (32 - 36)
+Total Leucocytes Count/TLC: 2.96 x 10^3/l (4 - 10)
+Neutrophils: 91.7 % (40 - 75)
+Lymphocytes: 4.7 % (20 - 45)
+Monocytes: 3.0 % (2 - 10)
+Eosinophils: 0.3 % (1 - 6)
+Basophils: 0.3 % (<1)
+Platelets: 35 x 10^9/l (150 - 400)
+ESR: 28 mm/Hour (Male 0 - 10, Female 0 - 18)
+
+Morphology:
+- DIMORPHIC BLOOD PICTURE
+- ANISOCYTOSIS, HYPOCHROMIC, MICROCYTIC
+- POLYCHROMASIA, ELLIPTICAL CELLS SEEN
+- LEUKOPENIA
+- PLATELETS ARE REDUCED ON FILM
+- ? CAUSE

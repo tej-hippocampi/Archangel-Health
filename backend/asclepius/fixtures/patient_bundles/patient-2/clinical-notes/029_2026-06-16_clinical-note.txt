@@ -1,0 +1,31 @@
+Document index: 29
+Document type: clinical note
+Service date: 2026-06-16
+Age on report: 65Y    Sex: UNKNOWN
+De-identification: Omitted hospital name/location, patient name, identifier fieldnumber, consultant name, and signatures (green redactions).
+
+CONTENT
+----------------------------------------
+Nutrition & Food Service Department clinical notes
+Weight: 73 kg
+Diagnoses: CLD, HCV, Abd. pain, Malaria, Dyspnea, loose stools
+
+Entry 1 — Date 16-06-2026, Time 5:00 pm:
+- Patient has been visited
+- Comorbids asked
+- Counseling done
+- Orally allowed
+- No any food allergy
+- Tolerating well
+- Given KYB diet in meal
+- Advised BRAT diet & calorie-rich diet
+- 2000 kcal/day advised
+- Keep hydrated
+
+Entry 2 — Date 17.06.2026, Time 10:00 am:
+- Patient has been visited
+- Comorbids asked
+- Counselling done
+- Orally allowed
+- On soft diet
+- Stay hydrated

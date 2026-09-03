@@ -1,0 +1,17 @@
+Document index: 24
+Document type: LFT
+Service date: 2023-03-17
+Age on report: 39Y    Sex: M
+De-identification: name/lab identifiers redacted with green marker and omitted.
+
+CONTENT
+----------------------------------------
+LFT (LIVER FUNCTION TESTS)
+S. Total Bilirubin: 9.1 mg/dl (0.2-1.2)
+S. Direct Bilirubin: 7.1 mg/dl (0-0.3)
+S. Indirect Bilirubin: 2.00 mg/dl (0.25-0.9)
+SGPT (ALT): 253 U/L (<45)
+Alkaline Phosphatase: 659 U/l (53-128)
+Gamma GT: 1361 U/l (<55)
+SGOT (AST): 146 U/l (<35)
+Remarks: RECHECKED

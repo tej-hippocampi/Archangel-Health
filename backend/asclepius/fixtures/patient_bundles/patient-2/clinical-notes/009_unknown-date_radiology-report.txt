@@ -1,0 +1,12 @@
+Document index: 9
+Document type: radiology report
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No identifiers visible on this cropped snippet; none omitted
+
+CONTENT
+----------------------------------------
+Partial/rotated snippet of printed radiology text (continuation page):
+
+No evidence of portal venous thrombosis. No ascites is seen.
+Follow-up imaging is suggested.

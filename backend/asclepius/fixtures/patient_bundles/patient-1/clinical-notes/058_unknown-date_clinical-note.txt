@@ -1,0 +1,31 @@
+Document index: 58
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: patient identification redacted; consultant physician name omitted
+
+CONTENT
+----------------------------------------
+ICU Progress Note (systems-based) - Page 2 of 2
+Known case of HTN, Portal Biliopathy + Portal HTN. Septic Shock, S/P ERCP, 2° to cholangitis (blocked CBD stents).
+NEURO: GCS 15/15
+CARDIO: S1+S2 audible; BP 120/70; Pulse 84 bpm @ 3.3 ml/hr of Nor-epi
+RESP: RR 21 br/min; SPO2 100% on room air
+ABDO: mildly distended, rigid, A/S sluggish, stool not passed
+RENAL: Input 4276, Output 2840 (+1436)
+MUSCULOSKELETAL: No bed sores
+ENDO: RBS 174 mg/dl @ 7 AM
+HAEM: No active bleed
+ID: No fever spike
+LINE/DRAINS: (R) femoral CVP
+NUTRITION: Liquid/soft diet orally
+Plan:
+- Taper Nor-epi
+- Glycerine suppositories
+- Consult gastroenterology for further plan
+- Send PCT, LFTs, INR
+- Continue platelets
+- Plan for step down
+- BP monitoring x 24h
+- RBS & vitals monitoring
+- I/O charting

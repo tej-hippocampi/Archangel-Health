@@ -1,0 +1,15 @@
+Document index: 76
+Document type: prescription/medication
+Service date: 2025-10-23
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: name/identifier fieldnumber and signature region redacted and omitted
+
+CONTENT
+----------------------------------------
+Physician orders (handwritten, best-effort):
+- CPAP (for work of breathing)
+- Continue with IV fluids
+- Need ERCP
+- Inj Vitamin K 10 mg IV
+- Taper & stop Norepinephrine (Norpine)
+- Tab Sedamint 2+2+2

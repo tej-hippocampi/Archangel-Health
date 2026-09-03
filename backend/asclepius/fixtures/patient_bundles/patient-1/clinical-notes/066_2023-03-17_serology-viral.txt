@@ -1,0 +1,12 @@
+Document index: 66
+Document type: serology/viral
+Service date: 2023-03-17
+Age on report: 39Y    Sex: M
+De-identification: name redacted (green marker); lab number omitted
+
+CONTENT
+----------------------------------------
+HEPATITIS C ANTIBODY
+ANTI-HCV: 0.16 (S/cutoff value <=1.0: Non-reactive; >1.0: Reactive) -> Non-reactive
+Interpretation: Screening test; results must be confirmed by HCV RNA or other confirmatory testing to exclude false negative or false positive result.
+Note: Test analyzed by chemiluminescence immunoassay.

@@ -1,0 +1,30 @@
+{
+  "resourceType": "Patient",
+  "id": "patient-4-patient",
+  "meta": {
+    "profile": [
+      "http://hl7.org/fhir/StructureDefinition/Patient"
+    ],
+    "security": [
+      {
+        "system": "http://terminology.hl7.org/CodeSystem/v3-Confidentiality",
+        "code": "L",
+        "display": "low (de-identified)"
+      }
+    ]
+  },
+  "identifier": [
+    {
+      "system": "urn:ietf:rfc:3986",
+      "value": "urn:uuid:56f07eff-2ee8-53a9-89c9-45c174d72a5b"
+    }
+  ],
+  "active": true,
+  "gender": "male",
+  "extension": [
+    {
+      "url": "http://hl7.org/fhir/StructureDefinition/patient-age",
+      "valueString": "45Y"
+    }
+  ]
+}

@@ -1,0 +1,733 @@
+CLINICAL / ICU / DISCHARGE NOTES (de-identified)
+============================================================
+
+--- Image 3 | UNKNOWN | clinical note ---
+Vitals:
+- B.P: 100/50
+- TEMP: A/f (afebrile)
+- PULSE: 110 bpm
+- RESP-RATE: not recorded
+- O2 SAT: 99%
+- PEFR: not recorded
+- WEIGHT: 72 kg
+
+History checklist:
+- DM: N
+- HTN: N
+- IHD: N
+- PETS: N
+- H/O TB: N
+- CONTACT WITH TB PERSON: N
+- H/O COVID-19: N
+- SMOKER: N (handwritten note: Sometimes)
+- OTHER ADDICTION: N
+- BIO MASS FUEL EXPOSURE: N
+- ANTI HCV/HbsAg: blank
+- DRUG USAGE: blank; handwritten note "CT scan" below
+
+COMPLAIN: follow up
+EXAMINATION: blank
+ADVISE: blank
+PROVISIONAL DIAGNOSIS: blank
+
+--- Image 5 | 2026-02-02 | clinical note ---
+Vitals:
+- B.P: 120/70
+- TEMP: A/F (afebrile)
+- PULSE: 114 b/m
+- RESP-RATE: not recorded
+- O2 SAT: 98%
+- PEFR: not recorded
+- WEIGHT: 75 kg
+
+Complaints:
+1. SOB (shortness of breath), chest pain
+2. Fever
+
+History checklist:
+- DM: N
+- HTN: N
+- IHD: N
+- PETS: N
+- H/O TB: N
+- CONTACT WITH TB PERSON: N
+- H/O COVID-19: N
+- SMOKER: Y
+- OTHER ADDICTION: N
+- BIO MASS FUEL EXPOSURE: N
+
+Advise: CXR (chest X-ray)
+Examination / Provisional Diagnosis: blank
+
+--- Image 11 | 2023-09-19 | clinical note ---
+Handwritten clinical encounter note
+
+Vitals:
+- Pulse: 89
+- BP: 110/80 (circled)
+- Temp: 96.9
+- Wt: 71 (circled)
+- Ht / BMI / Problem List: blank
+
+Labs noted:
+- ALT: 72
+- AFP: 50.2
+
+Other notes:
+- No HBV vaccine
+- Reg smoker (regular smoker)
+
+Diagnoses / history:
+- HCV +ve
+- Cirrhosis
+- PHT (portal hypertension)
+- PCR - ? (status queried)
+- HBV -ve
+- NO comorbid
+- SH: Alone
+- PH: well on... (remainder illegible)
+
+Symptoms:
+- % Better
+- Cough — Productive
+- Ghabrabat (uneasiness/anxiety/palpitation)
+- SOB
+- Abd Gases
+
+--- Image 12 | 2025-09-12 | clinical note ---
+Clinical note / prescription page
+
+Vitals:
+- Pulse: 90
+- BP: 110/70
+- Temp: 96.8
+- Wt: 70
+
+Problem list / complaints (handwritten, some uncertain):
+- Asthma? (uncertain reading)
+- Fever
+- Cough
+
+Clinical notes:
+- Cough (underlined)
+- AF
+- CT Abd
+
+Medications:
+- Tab Moxiget 400mg (with Urdu dosing instructions)
+- Cap Dex 60 (with Urdu dosing instructions)
+- Tab Defla 6mg (with Urdu dosing instructions)
+- Tab Cofon (with frequency marks)
+
+--- Image 23 | 2020-08-08 | clinical note ---
+Outpatient / clinic assessment form
+
+Vitals:
+- BP: 140/90
+- Temp: recorded (checked)
+- Pulse: 109 / min
+- Resp rate: recorded (checked)
+- O2 sat: 98%
+- PEFR: not recorded
+- Weight: 74 kg
+
+History checkboxes:
+- DM: No
+- HTN: Yes (on tablet)
+- IHD: No
+- Pets: No
+- H/O TB: No
+- Contact with TB person: No
+- H/O COVID-19: No
+- COVID-19 vaccine status: No
+- Smoker: No
+- Occupation: Landlord
+- Other addiction: none indicated
+- Biomass fuel exposure: none indicated
+- Anti-HCV: negative
+- HBsAg: negative
+- Drug usage: blank
+
+Chief complaints:
+- Chest pain
+- Abdomen pain
+- Cough with sputum
+- Fever (low grade)
+
+Examination: blank
+Advice / provisional diagnosis: CXR advised; diagnosis field blank
+
+--- Image 26 | 2026-06-16 | clinical note ---
+Integrated Initial Assessment Form (Page 1 of 2)
+Time: 4:00 PM
+
+Presenting complaints: Abdominal pain; fever; loose motions
+Known case of: HCV+
+
+History of presenting complaints: Per patient, alright 1 week back; then developed abdominal pain and cramps; then loose motions; also low-grade fever.
+
+Review of symptoms (positive): Fever; Diarrhea; Abdominal pain
+
+Past medical history: Hepatic cyst on CT abdomen (07-11-2025)
+Past surgical history: N/S (non-significant)
+Personal/socioeconomic: Addiction — Smoking; Sleep — disturbed
+Drug history: none noted
+Family history: none noted
+Allergy: none noted
+
+Vitals:
+- Pulse: 80 b/min
+- BP: 110/70 mmHg
+- Temp: 98 F
+- RR: 16 b/min
+- O2 sat: 93%
+- GCS: 15/15
+
+General exam (positive): Pallor; volume depletion; koilonychia; cervical lymph nodes; axillary lymph nodes; sacral edema
+General exam (negative): Jaundice; cyanosis; clubbing; thyroid; inguinal lymph nodes; ankle edema; periorbital edema
+
+--- Image 27 | 2025-06-16 | clinical note ---
+Systemic Examination form
+
+Abdomen:
+- Inspection: Symmetric
+- Palpation: Non-tender
+- Percussion: Tympanic
+- Auscultation: N
+- Gut sounds: Audible
+- Liver / Spleen / Kidneys / Surgical scar: blank
+
+Respiratory:
+- Inspection: Normal
+- Palpation: Normal
+- Percussion: Resonant
+- Auscultation: Clear
+
+Cardiovascular:
+- Pericardium inspection: Normal
+- Palpation: Normal
+- Added sounds: No any
+- Thrill / Heave / Auscultation S1-S2: blank
+
+CNS:
+- Level of consciousness: Alert
+- Oriented to time, place, person: Yes
+- Memory intact: Recent and remote
+- Emotional state: Stable
+- Speech: Normal
+- Gait: Normal
+- Signs of meningeal irritation: No
+- Cranial nerves: Intact
+
+Motor: Bulk N; Tone N; Power Normal (UL and LL); Reflexes N; Plantars downward (bilateral)
+
+Coordination: Intact
+Sensory system: Intact
+Cortical senses: Intact
+
+Diagnosis / Differential diagnosis: blank on this page
+
+--- Image 28 | 2024-06-17 | clinical note ---
+Patient Progress form
+
+Follow-up / communication (17/06/2024):
+- SIP water
+- Procedure: Microwave ablation (MWA) of liver in right lobe of liver was done
+
+Consultant notes (17/06/2024, 1:30 pm):
+- (start of note green-redacted)
+- Get CT scan Abdomen with contrast (Triphasic) (Hepatoma protocol)
+- AFP & PIVKA raised
+
+--- Image 29 | 2026-06-16 | clinical note ---
+Nutrition & Food Service Department clinical notes
+Weight: 73 kg
+Diagnoses: CLD, HCV, Abd. pain, Malaria, Dyspnea, loose stools
+
+Entry 1 — Date 16-06-2026, Time 5:00 pm:
+- Patient has been visited
+- Comorbids asked
+- Counseling done
+- Orally allowed
+- No any food allergy
+- Tolerating well
+- Given KYB diet in meal
+- Advised BRAT diet & calorie-rich diet
+- 2000 kcal/day advised
+- Keep hydrated
+
+Entry 2 — Date 17.06.2026, Time 10:00 am:
+- Patient has been visited
+- Comorbids asked
+- Counselling done
+- Orally allowed
+- On soft diet
+- Stay hydrated
+
+--- Image 30 | 2026-06-17 | clinical note ---
+Nutrition progress notes (Page 2 of 2)
+
+Entry 1 — 17/06/2026, 9:00 pm:
+- Patient has been visited
+- Comorbid asked
+- Counseling done
+- Orally allowed
+- Recommended soft diet
+- Tolerating well
+- Keep hydrated
+
+Entry 2 — 18/06/2026, 11:00 am:
+- Patient has been visited
+- Counseling done
+- Orally allowed
+- On soft diet
+- Tolerating well
+- Advised: Low fat, low salt diet
+- Add protein-rich foods
+- Stay hydrated
+- 2000 cal/day
+
+Entry 3 — 18-06-2026, 4:00 pm:
+- Patient has been visited
+- Counseling done
+- Orally allowed
+- No food allergy
+- Given soft diet in meal
+- Tolerating well
+- Protein-rich low fat + probiotics diet advised
+- 2000 kcal/day
+- Keep hydrated
+
+--- Image 31 | 2026-06-21 | clinical note ---
+Nutrition & Food Service Department note
+Time: 4:00 pm
+Weight: 73 kg
+Diagnosis: CLD, HCV, Abd pain, Malaria, Dyspnea, loose stools
+
+- Patient has been visited
+- Comorbid asked
+- Counseling done
+- Orally allowed
+- Given soft diet in meal
+- Tolerating well
+- Advised protein rich + BRAT diet
+- 1800 kcal/day
+- Keep hydrated
+
+--- Image 32 | 2026-06-19 | clinical note ---
+Nutrition & Food Service Department notes
+Weight: 73 kg
+Diagnosis: CLD, HCV, Abd pain, malaria, Dyspnea, loose stools
+
+Entry 1 — 19/06/2026, 10:30 am:
+- Patient has been visited
+- Comorbid asked
+- Counseling done
+- Orally allowed
+- No any food allergy
+- Recommended soft diet
+- Tolerating well
+- Keep hydrated
+
+Entry 2 — 19-06-2026, 8:00 pm:
+- Patient has been visited
+- Comorbid asked
+- Counseling done
+- Orally allowed
+- No any food allergy
+- Given soft diet in meal
+- Tolerating well
+- Advised calorie-rich diet
+- 1800 kcal/day advised
+- Keep hydrated
+
+--- Image 33 | 2026-06-20 | clinical note ---
+Nutrition progress notes (Page 2 of 2)
+
+Entry 1 — 20.06.2026, 11:00 am:
+- Patient has been visited
+- Counseling done
+- Orally allowed
+- On soft diet
+- Tolerating well
+- Stay hydrated
+
+Entry 2 — 20/06/2026, 8:00 pm:
+- Patient has been visited
+- Comorbid as asked
+- Counseling done
+- Orally allowed
+- No any food allergy
+- Tolerating well on soft diet
+- Recommended Regular diet instead
+- Tolerating well
+- Keep hydrated
+
+Entry 3 — 21.06.2026, 10:00 am:
+- Patient has been visited
+- Comorbids asked
+- Counselling done
+- Orally allowed
+- On soft diet
+- Stay hydrated
+
+--- Image 34 | 2026-06-16 | clinical note ---
+Nursing admission assessment — Part 2: To be filled by nurse (Page 1 of 4)
+
+Unit: GW II
+Date of admission: 16/06/2026
+Time: 1600 Hrs
+Type of admission: Elective
+Mode of transportation: Wheel chair
+Information provided by: [relative name/relationship omitted]
+ID band: Applied
+
+Baseline:
+- Age: 65 Yrs
+- Temperature: A/F (afebrile)
+- Pulse: 74 / min
+- Respiratory rate: 19 / min
+- BP: 110/70 mmHg
+- O2 sat: 98%
+- Height/Weight: blank
+- Reason for admission: Abd pain, fever, loose stool
+
+Infectious disease: None
+Isolation: Standard precaution for all patients
+
+Pain: No; score 0
+
+Functional screening:
+- Cognition: Oriented x3; Alert
+- Sensory: Asymptomatic
+- Vision: Normal
+- Hearing: Normal
+- Speech: Normal
+- Musculoskeletal: No problem identified
+- Assistive devices: None
+
+--- Image 35 | UNKNOWN | clinical note ---
+Nursing assessment (continuation)
+
+Activity of Daily Living (scores Independence=1 / Dependence=0):
+- Bathing: 0 (needs help)
+- Dressing: 0 (needs help)
+- Toileting: 0 (needs help)
+- Transferring: 0 (needs help)
+- Continence: 0 (partially or totally incontinent)
+- Feeding: 0 (needs partial/total help)
+- Total points: 0 (very dependent)
+
+Fall Factor Assessment (Morse Scale):
+- History of fall: 0 (No)
+- Secondary diagnosis: 0 (No)
+- Ambulatory aid: 0 (None / bed rest / wheelchair / nurse assist)
+- IV / heparin / saline lock: 0 (No)
+- Gait / transferring: 0 (Normal / bed rest immobile)
+- Mental status: 0 (Oriented to own ability)
+- Total score: 0
+- Risk category: Low Risk (0-22)
+
+Psychosocial / Economic:
+- Psychological: Calm
+- Marital status: Married
+- Living with: Spouse and Children (11 children noted)
+- Occupation: Self-employed
+- Substance abuse: No for smoking, smoking environment, alcohol, pan/gutka, tobacco, nicotine
+
+Religious/Cultural/Spiritual:
+- Religion: Islam
+- Religious/cultural practices part of care: No
+
+--- Image 36 | UNKNOWN | clinical note ---
+Review of Systems
+
+Oral: Mouth/Tongue Normal; Sign/Symptom Asymptomatic; Gastric tubes No
+Skin: Appearance Normal; Temperature Normal; Integrity Intact
+Cardiac: Pulse Regular; Sign/Symptom Asymptomatic; Capillary refill <2 sec Yes
+Respiratory: Respiration Regular; Sign/Symptom Asymptomatic; Respiratory assisted devices No
+Elimination — Bowel: Bowel movement Normal; Others — Abd pain
+Elimination — Urinary: Appearance Clear; Sign/Symptoms Retention and Urgency; Mode Spontaneous
+Musculoskeletal: ROM Active all four limbs; No deformity; No external fixator; No traction
+Obs/Gyn: Not applicable
+Breast: Normal
+Sleep: Interrupted
+Others: Central lines No; Peripheral lines No; Drains No
+
+--- Image 37 | 2026-06-16 | clinical note ---
+Orientation of the Unit (admission)
+
+Items given on admission (checked): Blanket; Admission pack; Information booklet; Patient bill of rights
+Unit orientation (checked): Nursing call bell; Emergency call bell; Lights; Bed controls & use of side rails; Washroom
+Policies section: none checked on visible portion
+
+Personal belongings / valuables: no specific items recorded (section lined through / N/A pattern)
+Patient/family informed about valuable policy: not checked
+
+Initial assessment done by / nursing staff: [names omitted]
+Designation: RN
+Date: 16/06/2026
+Time: 1600
+
+--- Image 38 | 2026-06-19 | clinical note ---
+Nursing Interventions chart (Page 1 of 2)
+Dates/shifts: 19-06-2026, 20/06/2026, 21/06/2026 (Morning and Evening each)
+
+Skin breakdown: No redness/breakdown; prominences intact; no bed sore — all shifts
+Invasive lines: 22G; insertion/redress 18/06/2026; site condition Good; second line No
+Peripheral edema: Hands mostly No (LH noted 21/06/2026 Morning); Feet No
+Drainage bags: No / 0
+Pain score: 0 / No across shifts
+
+Nursing care:
+- Bath: Self (19-06-2026); Sponge (20/06/2026 and 21/06/2026)
+- Shampooing: No
+- Mouth care: Yes (all)
+- Back care: Yes (all)
+- Catheter/perineal care: Yes (all)
+- Positioning: Yes (all)
+- Safety check (side rails / ID band / call bell): all checked / all clear / all done
+- Deep breathing and coughing: not done / dash
+- Diet: Soft (all dates)
+- IV flush with 0.9% N/S: RL-D / Yes on later dates
+
+--- Image 39 | 2026-06-19 | clinical note ---
+Head to Toe Assessment & Reassessment For Adult and Peads (Page 1 of 2)
+Dates: 19-06-2026, 20/06/2026, 21/06/2026 (M and E each)
+
+Orientation x3: all shifts
+GCS: 15/15 all shifts
+
+Oral cavity: Mouth/tongue Normal; Coated/ulcer No/-; Others No/-
+Cardiac: S1/S2; Apical pulse/other No/-
+Respiratory: Air entry bilaterally present (↑↑); Breath sounds Normal
+GI: Abdomen Soft; Bowel sounds Normal; Stool passed -
+Genito-urinary: Spontaneous; Urine color Amber
+Musculoskeletal: Weakness/deformities No/-
+Activity: AAT on 19-06-2026 M/E and 20/06/2026 E; CBR on 20/06/2026 M and 21/06/2026 M/E
+Bilateral vascular: Radial R/L Strong; Capillary refill 2-3 sec
+Skin: Turgor Normal; Color Pale; Cyanotic -; Temperature Warm
+
+--- Image 40 | 2026-06-17 | clinical note ---
+Nursing Interventions chart (Page 1 of 2)
+Dates/shifts: 17/06/2026 and 18/06/2026 (Morning and Evening)
+
+Skin breakdown: No redness/breakdown; prominences intact; no bedsore — all shifts
+Invasive lines: 22G from 17/06/2026; site Intact (17/06/2026) / Good (18/06/2026); second line No
+Peripheral edema hands/feet: No all shifts
+Drainage bags: No / 0
+Pain score: 0 all shifts
+
+Nursing care:
+- Bath: Self all shifts
+- Mouth care / Back care / Catheter-perineal care: Self or Yes
+- Shampooing: No
+- Positioning: Self / Yes
+- Safety checks: All check OK / All Checked
+- Deep breathing and coughing: encouraged / Done on 17/06/2026
+- Diet: Soft diet throughout
+- IV flush with 0.9% N/S: No / -
+
+--- Image 41 | 2026-06-17 | clinical note ---
+Head to Toe Assessment & Reassessment For Adult and Peads (Page 1 of 2).
+Columns: 17/06/2026 Morning, 17/06/2026 Evening, 18/06/2026 Morning, 18/06/2026 Evening.
+Findings consistent across all four shifts:
+Orientation (Time/Place/Person): *3
+GCS: 15/15
+Oral cavity (Mouth/Tongue): Normal
+Cardiac (S1/S2 clarity): S1/S2 normal
+Respiratory – air entry bilaterally: ↑↑; breath sounds: Normal
+GI – abdomen: soft; bowel sounds: normal
+GU – stool passed: Pass; spontaneous (not Foley); urine color: Amber
+MSK – weakness: NO; deformities: NO; activity: Mobilize / AAT / Both
+Vascular – radial pulse: Strong; capillary refill: 2–3 sec
+Skin – turgor: Normal; color: Pale; cyanotic: NO; temperature: Warm
+
+--- Image 42 | 2026-06-16 | vitals ---
+VITAL SIGNS SHEET (Page 1 of 2). Height/Weight blank.
+Columns: Date, Time, B/P mmHg, Resp bpm, Pulse b/min, SPO2% (RA), Temp °F, Pain Score.
+(Name & Initial column omitted — staff identifiers.)
+
+16/06/2026 1600: BP 130/80, RR 18, Pulse 82, SpO2 98%, Temp A/F (afebrile), Pain 0/10
+16/06/2026 2200: BP 130/80, RR 19, Pulse 86, SpO2 97%, Temp A/F, Pain 0/10
+17/06/2026 0200: BP 120/70, RR 20, Pulse 85, SpO2 98%, Temp AF, Pain 00
+17/06/2026 0600: BP 120/70, RR 20, Pulse 84, SpO2 98%, Temp AF, Pain 00
+17/06/2026 1000: BP 110/70, RR 20, Pulse 79, SpO2 97%, Temp A/F, Pain 00
+17/06/2026 2200: BP 120/80, RR 20, Pulse 76, SpO2 98%, Temp A/F, Pain 00
+18/06/2026 10:00: BP 100/75, RR 21, Pulse 70, SpO2 99%, Temp A.F, Pain 0
+18/06/2026 1400: BP 110/70, RR 20, Pulse 79, SpO2 98%, Temp A/F, Pain 0
+18/06/2026 1600: BP 100/70, RR 20, Pulse 82, SpO2 96%, Temp A/F, Pain 00
+18/06/2026 2200: BP 130/80, RR 20, Pulse 83, SpO2 94%, Temp A/F, Pain 00
+18/06/2026 2300: BP 140/80, RR 20, Pulse 66, SpO2 94%, Temp 98.4°F, Pain 00
+19/06/2026 0600: BP 120/70, RR 20, Pulse 66, SpO2 94%, Temp 98.6°F, Pain 00
+19/06/2026 1000: BP 130/80, RR 20, Pulse 63, SpO2 95%, Temp 98.7°F, Pain 00
+19/06/2026 1600: BP 120/80, RR 20, Pulse 68, SpO2 96%, Temp A/F, Pain 00
+19/06/2026 0630: BP 100/40, RR 20, Pulse 88, SpO2 96%, Temp A/F, Pain 00
+19/06/2026 2300: BP 90/60, RR 20, Pulse 98, SpO2 96%, Temp AF, Pain —
+20/06/2026 0700: BP 100/60, RR 20, Pulse 88, SpO2 97%, Temp AF
+20/06/2026 0800: BP 110/70, RR 19, Pulse 90, SpO2 99%, Temp 98.7°F
+20/06/2026 1400: BP 120/80, RR 20, Pulse 89, SpO2 97%
+20/06/2026 1600: BP 120/70, RR 20, Pulse 84, SpO2 96%, Temp A/F
+20/06/2026 2200: BP 130/80, RR 24, Pulse 95, SpO2 97%
+20/06/2026 2300: BP 130/70, RR 22, Pulse 91, SpO2 96%, Temp A/F, Pain 0
+21/06/2026 0700: BP 100/70, RR 20, Pulse 96, SpO2 97%, Temp A/F, Pain 0
+21/06/2026 0900: BP 150/100, RR 20, Pulse 116, SpO2 93%, Temp 100°F, Pain 0
+21/06/2026 (time blank): Temp 102°F (highlighted/red)
+
+--- Image 43 | 2026-06-21 | vitals ---
+VITAL SIGNS SHEET (continuation; mostly blank grid). Height/Weight blank.
+Single filled row:
+21/06/2026 1600: BP 100/60, RR 20, Pulse 93, SpO2 97%, Temp —, Pain —
+(Staff initial in Name & Initial column omitted.)
+
+--- Image 59 | 2026-06-20 | clinical note ---
+Nursing progress / receiving notes (DATE / TIME / NOTES).
+
+20/06/2026 08:00 — Receiving note: Patient received by morning from night shift. Vitals stable.
+GCS 15/15. IV line passed. R/L-D intact in position. Under physician care (name omitted).
+
+20/06/2026 16:00 — Receiving note: 65-year-old male received from morning shift. GCS 15/15.
+Diagnosis/complaints: abdominal pain, loose stool. On room air; vitals stable; no active complaint.
+Under physician care (name omitted).
+
+20/06/2026 22:00 — Receiving note: Received from evening shift. Vitally stable. Fully mobilized and oriented.
+Admitted with C/O abdominal pain, fever, and loose stool. Spontaneous breathing on room air;
+no active complaint. Under physician care (name omitted).
+
+21/06/2026 01:00 — Receiving notes: Condition better but vitally unstable; fever on-off.
+Event: Shifted per physician advice — ECG done; magnesium 2 g; Pan IV cannula; sent for ABGs;
+back-to-back nebulization; maintain saturation; on oxygen RD.
+
+21/06/2026 08:00 — Receiving note: On O2 support. All medication done. ABGs done. Patient stable.
+(Staff name omitted.)
+
+--- Image 60 | 2026-06-18 | clinical note ---
+NURSES NOTE (DATE / TIME / NOTES).
+
+18/06/2026 2300 — Receiving note: 65-year-old male received from evening staff. Admitted with C/O
+abdominal pain, fever, loose stools; known case of HC (hepatic cirrhosis / hepatocellular disease —
+as written "HC"). On O2 support 2 L; vitals stable; no active complaint. Under physician care (name omitted).
+
+19/06/2026 08:00 — Receiving note: Received from night shift. Vitals stable; no active complaint.
+
+19/06/2026 1600 — Receiving note: 65-year-old male; GCS 15/15. Received from morning shift.
+On room air; vitals stable; no complaint. Under physician care (name omitted). Patient name omitted.
+
+19/06/2026 2400 — Receiving note: Vitals unstable; BP recorded including 90/60 mmHg. GCS 15/15.
+No bed sores; whole body clear. Under physician care (name omitted).
+
+20/06/2026 ~00:00 — Event note: Foley catheter inserted.
+
+20/06/2026 05:00 — Event note: Urine output decreased — 75 ml.
+
+20/06/2026 06:00 — Overnight urine output reviewed; plan to change Foley. Staff initials omitted.
+
+--- Image 61 | 2026-06-16 | clinical note ---
+Progress / nursing receiving notes (handwritten form: DATE / TIME / NOTES).
+
+16/06/2026 15:30 — Receiving note: 65Y male, known case of HCV, admitted with abdominal pain, fever, loose motion. GCS 15/15. SpO2 98% on room air. Vitally stable. Mobilized. IV in situ. Taking oral medications. Soft diet allowed. H/o hepatic cyst on CT abdomen.
+
+16/06/2026 22:00 — Patient received from evening shift.
+
+17/06/2026 (morning) — Receiving notes: patient stable, no active complaint.
+
+17/06/2026 23:00 — Receiving note: 65Y male received from evening shift. GCS 15/15. Diagnosis: fever, abdominal pain, loose motion. On room air, vitally stable, no active complaint.
+
+18/06/2026 08:00 — Receiving notes: received from night shift. Vitally stable. GCS 15/15. No active complaint.
+
+18/06/2026 15:30 — Receiving note: 65Y male, known case of HCV, admitted with abdominal pain, fever, loose motion. GCS 15/15. SpO2 98% on room air. Vitally stable. Mobilized. IV in situ. Orally allowed.
+
+--- Image 62 | 2026-06-18 | clinical note ---
+Progress / nursing receiving and event notes (continuation).
+
+18/06/2026 23:00 — Receiving note: 65Y male received from evening staff. Admitted with abdominal pain, fever, loose stools; known case of HCV. On room air with O2 support 2 L. Vitally stable. No active complaint.
+
+19/06/2026 08:00 — Receiving note: received from night shift. GCS 15/15. Vitally stable. No active complaint.
+
+19/06/2026 16:00 — Receiving note: 65Y male GCS 15/15 received from morning shift. On room air, vitally stable, no complaint.
+
+19/06/2026 20:00 — Receiving note: received from evening shift. Vitally unstable — BP screening 81/51 and 90/60; GCS 15/15. Body elevated. No bedsore. Whole body / pulse pressure noted as concerning (handwriting limited).
+
+20/06/2026 00:00 — Event note: Foley catheter insertion; then Foley cursed/issue (handwriting unclear).
+
+20/06/2026 05:00 — Event note: urine decreased — 75 ml.
+
+20/06/2026 06:00 — Overnight urine out; Foley change thereafter.
+
+--- Image 63 | UNKNOWN | clinical note ---
+Progress note entry.
+DATE: 16/8  TIME: 2:30
+Notes: Respiratory acidosis. Duty doctor informed. Apply BiPAP with setting of 16/8 with O2 5 liter support.
+
+--- Image 133 | 2026-06-19 | discharge summary ---
+DISCHARGE SUMMARY
+Admission date: 16/06/2026
+Discharge summary date: 19/06/2026
+Age: 65 years 9 months 8 days; Sex: Male
+Discharge status: Improved
+
+Presenting complaints:
+65 year old male patient presented here with complain of abdominal pain and generalized weakness.
+
+Relevant investigation: Attached
+
+Date of surgery / procedure noted:
+Microwave ablation of RT lobe of liver
+
+Pending reports: ...
+
+Medication on discharge:
+- Tab Carveda 6.25 mg 1-0-1
+- Tab Ganaton 1-0-1
+- Cap Esomol 40 mg 1-0-0
+- Tab Vida 0-0-1
+- Tab Tramapar 1-0-0 for pain
+
+Hospital course:
+He presented here with complain of abdominal pain and generalized weakness. Vitally stabilized. Relevant investigations were conducted. Meanwhile has been managed conservatively on antibiotics, painkillers, PPIs and antiemetics. After that, CT scan abdomen with contrast proceeded. Showed atypical hepatoma. With full consent, microwave ablation done. Now his condition is stable, hence discharged home.
+
+Operative procedure: (blank on form)
+
+Instruction on discharge:
+- Drink more fluids
+- Avoid constipation
+- Low salt diet
+
+Follow-up: After 7 days in OPD
+
+--- Image 134 | 2026-06-19 | discharge summary ---
+Duplicate/near-duplicate of index 133.
+DISCHARGE SUMMARY
+Admission date: 16/06/2026
+Discharge summary date: 19/06/2026
+Age: 65 years 9 months 8 days; Sex: Male
+Discharge status: Improved
+
+Presenting complaints:
+65 year old male patient presented here with complain of abdominal pain and generalized weakness.
+
+Relevant investigation: Attached
+
+Date of surgery / procedure noted:
+Microwave ablation of RT lobe of liver
+
+Pending reports: ...
+
+Medication on discharge:
+- Tab Carveda 6.25 mg 1-0-1
+- Tab Ganaton 1-0-1
+- Cap Esomol 40 mg 1-0-0
+- Tab Vida 0-0-1
+- Tab Tramapar 1-0-0 for pain
+
+Hospital course:
+He presented here with complain of abdominal pain and generalized weakness. Vitally stabilized. Relevant investigations were conducted. Meanwhile has been managed conservatively on antibiotics, painkillers, PPIs and antiemetics. After that, CT scan abdomen with contrast proceeded. Showed atypical hepatoma. With full consent, microwave ablation done. Now his condition is stable, hence discharged home.
+
+Operative procedure: (blank on form)
+
+Instruction on discharge:
+- Drink more fluids
+- Avoid constipation
+- Low salt diet
+
+Follow-up: After 7 days in OPD

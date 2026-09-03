@@ -1,0 +1,27 @@
+Document index: 112
+Document type: radiology report
+Service date: 2024-12-19
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header; kept age, sex, service date, ultrasound findings (including dilated pancreatic duct).
+
+CONTENT
+----------------------------------------
+ULTRASOUND ABDOMEN
+
+LIVER: Normal in size shows increased echopattern & regular outlines. No focal mass is seen.
+IHVs & ducts are not dilated. P.V is 1.0 cm & CBD 0.4 cm not dilated.
+
+G. BLADDER: Partially contracted, however no definite focal mass or calculus is seen.
+
+SPLEEN: Normal in size measures 7.6 cm. No focal mass is seen.
+
+PANCREAS: Visualized part ie body measures 1.7 cm shows dilated pancreatic duct measuring 0.6 cm.
+
+RIGHT KIDNEY: Appear normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+
+LEFT KIDNEY: Appear normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+
+U. BLADDER: Partially filled, however no focal mass or calculus is seen.
+
+Bowel loops are not dilated.
+Ascites is not seen at the time of scan.

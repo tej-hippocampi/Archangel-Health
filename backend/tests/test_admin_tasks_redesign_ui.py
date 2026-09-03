@@ -518,6 +518,14 @@ def test_a_solo_walk_sends_to_the_named_doctors_and_never_to_everyone():
           var docs = findAll(body, 'asc-route-doc');
           var cb = checkboxes(docs[0])[0];
           cb.checked = true; cb.dispatch('change');
+          // Longitudinal E2E §3 — Send is disabled until a human has opened
+          // one of these cases this session. Auto-generation removed the click
+          // that used to force somebody past a preview on the way to creating
+          // tasks, so this is now the only point at which a person is guaranteed
+          // to have read the case they are about to route. Clicking it here is
+          // not test scaffolding: it IS the required flow.
+          findAll(body, 'asc-btn')
+            .filter(function (b) { return tidy(b) === 'Preview'; })[0].dispatch('click');
           setTimeout(function () {
             var btns = [];
             (function walk(el) {
@@ -546,6 +554,14 @@ def test_an_explicit_send_with_nobody_named_is_refused_not_posted():
       findAll(body, 'asc-route-rail-btn')[0].dispatch('click');
       setTimeout(function () {
         checkboxes(body).forEach(function (cb) { cb.checked = true; cb.dispatch('change'); });
+          // Longitudinal E2E §3 — Send is disabled until a human has opened
+          // one of these cases this session. Auto-generation removed the click
+          // that used to force somebody past a preview on the way to creating
+          // tasks, so this is now the only point at which a person is guaranteed
+          // to have read the case they are about to route. Clicking it here is
+          // not test scaffolding: it IS the required flow.
+          findAll(body, 'asc-btn')
+            .filter(function (b) { return tidy(b) === 'Preview'; })[0].dispatch('click');
         setTimeout(function () {
           var btns = [];
           (function walk(el) {
@@ -640,3 +656,44 @@ def test_no_raw_hex_colour_entered_the_stylesheet_outside_tokens():
     sheet = (_FRONTEND / "asclepius.css").read_text()
     block = sheet[sheet.index("PRD ADMIN-TASKS — Data & Task Creation"):]
     assert not re.findall(r"#[0-9a-fA-F]{3,8}\b", block)
+
+
+def test_the_send_panel_survives_a_partial_view_built_elsewhere():
+    """``state.batches`` is not always built by ``renderAdminBatches``.
+
+    ``openBatchesFor(physician)`` — "route cases to this doctor", entered from
+    their row in Physicians — constructs a PARTIAL object and then hands control
+    here, which finds ``state.batches`` already truthy and keeps it as-is. Every
+    key that caller omits is ``undefined`` at read time, and the two read as maps
+    (``view.roles[id]``, ``view.previewed[id]``) throw a TypeError that takes the
+    whole send panel down.
+
+    Found by auditing rather than by a failure: no test entered Batches by that
+    route, so both the pre-existing ``roles`` hole and the ``previewed`` one this
+    branch added were invisible. The defaults are now backfilled onto whatever
+    arrives, so a key added later covers both entry points by construction.
+    """
+    out = _run(_BATCHES + _META + ROUTING + """
+var body = document.createElement('div');
+// EXACTLY the object openBatchesFor builds — no roles, no previewed, no relay*.
+state.batches = {
+  overview: null, batch: null, rows: null, selected: {}, busy: false,
+  err: null, mode: 'explicit', userIds: ['u-doc-1'], specialty: '',
+  doctors: [{ id: 'u-doc-1', email: 'a@b.c' }], proposal: null,
+};
+renderAdminBatches(body);
+setTimeout(function () {
+  findAll(body, 'asc-route-rail-btn')[0].dispatch('click');
+  setTimeout(function () {
+    checkboxes(body).forEach(function (cb) { cb.checked = true; cb.dispatch('change'); });
+    setTimeout(function () {
+      console.log(JSON.stringify({ text: tidy(body), errs: CALLS.filter(function (c) {
+        return String(c).indexOf('error') !== -1; }) }));
+    }, 30);
+  }, 30);
+}, 30);
+""")
+    # It renders at all — a TypeError here produced an empty panel and a dead screen.
+    assert "Send" in out["text"], out["text"][:200]
+    # And the preview gate is present rather than skipped by the crash.
+    assert "Open one of these cases first" in out["text"]

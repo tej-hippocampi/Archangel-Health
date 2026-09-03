@@ -1,0 +1,14 @@
+Document index: 142
+Document type: electrolytes
+Service date: 2025-10-23
+Age on report: 42Y    Sex: M
+De-identification: name/identifier fieldredacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Biochemistry - Electrolytes
+Sodium: 133 mmol/L (135 - 145) [L]
+Potassium: 3.7 mmol/L (3.5 - 5.5)
+Chloride: 102 mmol/L (96 - 106)
+Bicarbonate: 13.8 mmol/L (20.0-29.0) [L]
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU) -- 008

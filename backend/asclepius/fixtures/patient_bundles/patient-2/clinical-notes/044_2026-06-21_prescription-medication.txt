@@ -1,0 +1,15 @@
+Document index: 44
+Document type: prescription/medication
+Service date: 2026-06-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Header patient/facility areas redacted on source photo. No age/sex/identifier field visible in unredacted text. Provider names not present.
+
+CONTENT
+----------------------------------------
+MEDICATION FORM. Date column: 21/06/2026. STAT DOSE section empty.
+1. Inj R/L D at 30 cc/hr — note: continue 24 hours
+2. Inj Meronem (meropenem) 1 g IV BD — times 10:00, 22:00
+3. Inj Ehimulong IV OD — time 10:00
+4. Inj Aminoleban IV OD — time 10:00
+5. Duphalac enema BD — times 10:00, 22:00
+6. Inj Tramal + Metailon (tramadol + metoclopramide) IV SOS — no times recorded

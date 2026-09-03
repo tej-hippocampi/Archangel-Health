@@ -1,0 +1,24 @@
+Document index: 125
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility header, patient ID (partial digits under redaction not used), provider name, signature; footer address/phones/email omitted
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 1:10 PM
+
+Seen by [provider redacted]
+
+- GCS improving — E4 V3 M6 = 13/15
+- Abnormal mouth movements for 2 yr — likely a movement disorder
+- No episode of seizure in last 12 hrs
+- CT Brain looks normal
+- Cont. Lerace 500 mg x BD
+- Tab Vita-6 x OD
+- Get MRI Brain (plain) with contrast once pt gets stable
+- For movement disorder: assess pt as out-patient in clinic
+- Tab Rivotril 0.5 mg x 1/2 x HS
+- (S) CPK
+- No upper or lower limb rigidity

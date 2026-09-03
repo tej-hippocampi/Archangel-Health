@@ -1,0 +1,12 @@
+Document index: 43
+Document type: vitals
+Service date: 2026-06-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Staff initials omitted. No patient identifiers or facility names visible.
+
+CONTENT
+----------------------------------------
+VITAL SIGNS SHEET (continuation; mostly blank grid). Height/Weight blank.
+Single filled row:
+21/06/2026 1600: BP 100/60, RR 20, Pulse 93, SpO2 97%, Temp —, Pain —
+(Staff initial in Name & Initial column omitted.)

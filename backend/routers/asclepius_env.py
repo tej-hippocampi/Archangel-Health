@@ -1,11 +1,18 @@
-"""V5 Clinical RL Environments — HTTP surface (PRD §10).
+"""ENV · Clinical RL Environments — HTTP surface (PRD §10).
 
 Additive router mounted alongside ``routers/asclepius.py`` (kept byte-for-byte
-unchanged so V1–V4 are untouched, PRD §12.9). All routes are under
-``/api/asclepius/environments`` and admin-gated, except the physician-annotation
-surface which any authenticated evaluator can reach (it IS the crown-jewel V5
-data, PRD §7). Every V5 surface gates on ``portal_version == 'v5'`` via
-``constants.is_env_portal_version`` — never ``isAssisted()`` (PRD §12.9).
+unchanged so the single-turn portal is untouched, PRD §12.9). All routes are
+under ``/api/asclepius/environments`` and admin-gated, except the
+physician-annotation surface which any authenticated evaluator can reach (it IS
+the crown-jewel agentic data, PRD §7). Every env surface gates on
+``portal_version == 'env'`` via ``constants.is_env_portal_version`` — never
+``isAssisted()`` (PRD §12.9).
+
+**This tier used to be called V5.** It is not any more: ``v5`` now means the
+LONGITUDINAL portal version (Longitudinal E2E PRD §5.1), and this tier is ``env``
+— not a portal version at all, because it is not a version of the single-turn
+portal. The gate below reads the constant, so the rename needed no logic change;
+what it needed was a name that could not collide with a real portal version.
 """
 
 from __future__ import annotations
@@ -25,7 +32,7 @@ from asclepius.constants import (
 from asclepius.environments import service
 from asclepius.store import get_store
 
-router = APIRouter(prefix="/api/asclepius/environments", tags=["asclepius-v5"])
+router = APIRouter(prefix="/api/asclepius/environments", tags=["asclepius-env"])
 
 
 def _store():
@@ -145,9 +152,15 @@ async def annotation_queue(
     specialty: Optional[str] = None,
     user: Dict[str, Any] = Depends(asc_auth.get_current_user),
 ):
-    """The V5 annotation queue (PRD §7.2). Gated on ``portal_version == 'v5'``."""
-    if not is_env_portal_version(portal_version):
-        raise HTTPException(400, "the environment-annotation queue requires portal_version='v5'")
+    """The ENV annotation queue (PRD §7.2). Gated on ``portal_version == 'env'``.
+
+    ``allow_legacy``: a client cached before the rename still sends ``'v5'``. It is
+    accepted for one release rather than 400ing a physician mid-annotation over a
+    string their page will stop sending the moment it reloads. Nothing is STORED
+    from it — the response echoes ``ENV_PORTAL_VERSION``.
+    """
+    if not is_env_portal_version(portal_version, allow_legacy=True):
+        raise HTTPException(400, "the environment-annotation queue requires portal_version='env'")
     store = _store()
     runs = store.list_env_runs(specialty=specialty, mode="rollout", has_annotation=False, limit=200)
     return {"portal_version": ENV_PORTAL_VERSION,
@@ -174,9 +187,16 @@ async def annotate_environment(
     user: Dict[str, Any] = Depends(asc_auth.get_current_user),
 ):
     """A board-certified physician submits the §7 annotation for one trajectory
-    (run). Gated on ``portal_version == 'v5'`` (PRD §12.9)."""
-    if body.portal_version is not None and not is_env_portal_version(body.portal_version):
-        raise HTTPException(400, "V5 annotation requires portal_version='v5'")
+    (run). Gated on ``portal_version == 'env'`` (PRD §12.9).
+
+    Legacy ``'v5'`` is accepted for one release — see the queue above. It is never
+    written: an env annotation lands in ``env_runs``, which has no portal_version
+    column, so there is no way for the legacy string to be mistaken later for a
+    longitudinal submission.
+    """
+    if body.portal_version is not None and not is_env_portal_version(
+            body.portal_version, allow_legacy=True):
+        raise HTTPException(400, "ENV annotation requires portal_version='env'")
     store = _store()
     row = store.get_env_run(body.run_id)
     if not row or row.get("task_id") != task_id:

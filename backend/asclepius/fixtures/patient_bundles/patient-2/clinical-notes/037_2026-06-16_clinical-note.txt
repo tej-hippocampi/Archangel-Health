@@ -1,0 +1,21 @@
+Document index: 37
+Document type: clinical note
+Service date: 2026-06-16
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted nursing staff names and signatures (green redactions); no patient identifiers on page.
+
+CONTENT
+----------------------------------------
+Orientation of the Unit (admission)
+
+Items given on admission (checked): Blanket; Admission pack; Information booklet; Patient bill of rights
+Unit orientation (checked): Nursing call bell; Emergency call bell; Lights; Bed controls & use of side rails; Washroom
+Policies section: none checked on visible portion
+
+Personal belongings / valuables: no specific items recorded (section lined through / N/A pattern)
+Patient/family informed about valuable policy: not checked
+
+Initial assessment done by / nursing staff: [names omitted]
+Designation: RN
+Date: 16/06/2026
+Time: 1600

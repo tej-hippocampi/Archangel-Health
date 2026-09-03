@@ -641,11 +641,48 @@ def test_the_bundle_refuses_with_the_reason_rather_than_nothing_matches():
     assert "not approved" in detail and "will not ship" in detail
 
 
-def test_the_v5_note_is_preserved():
+def test_the_env_note_is_preserved():
+    """The agentic tier still refuses to build an empty bundle and says why.
+
+    This test asserted the note on ``version=V5`` until the Longitudinal E2E §5
+    relabel, which is the change that gave the two products separate names: ``V5``
+    is the REAL LONGITUDINAL chart walk and lives in the records table, and the RL
+    environments tier is ``ENV`` and lives in ``env_runs``. Keyed on V5 this asserted
+    that selecting longitudinal returns zero records with a note about environments
+    — which was the bug, not the contract.
+
+    So the assertion moves to ENV rather than being deleted: the reason it existed
+    is that an operator selecting the environments tier must get an explanation
+    rather than a silently empty bundle, and that is still true under the new name.
+    """
     admin_h = _admin_h()
-    p = _preview(admin_h, scope="version", version="V5")
+    p = _preview(admin_h, scope="version", version="ENV")
     assert p["exportable"] is False
     assert "environments pipeline" in (p["note"] or "")
+    # And the other half of the rename, which is the half that was broken: V5 now
+    # resolves through the ORDINARY records path. Whatever it finds, it must not be
+    # answered with the environments note.
+    v5 = _preview(admin_h, scope="version", version="V5")
+    assert "environments pipeline" not in (v5.get("note") or "")
+
+
+def test_env_is_not_offered_in_the_version_picker():
+    """ENV is reachable by API and deliberately absent from the dropdown.
+
+    It is not a version of the single-turn portal — its rollouts live in
+    ``env_runs``, not ``records``, and it ships from the environments section — so
+    offering it beside V3/V4/V5 would invite an operator to cut a bundle that
+    cannot exist. The guard above stays, for the API caller who asks anyway.
+    """
+    admin_h = _admin_h()
+    r = client.get("/api/asclepius/admin/export/case-options", headers=admin_h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "ENV" not in body["versions"]
+    assert "ENV" not in (body.get("version_descriptions") or {})
+    # The descriptions themselves ship, because "V4" alone does not say "real
+    # static" and the wrong slice is not recoverable once it has been sent.
+    assert body["version_descriptions"]["V5"] == "real longitudinal"
 
 
 def test_physician_scope_ships_the_hash_and_never_the_name():

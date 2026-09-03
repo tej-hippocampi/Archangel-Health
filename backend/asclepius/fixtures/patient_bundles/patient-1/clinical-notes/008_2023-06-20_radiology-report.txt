@@ -1,0 +1,21 @@
+Document index: 8
+Document type: radiology report
+Service date: 2023-06-20
+Age on report: 39Y    Sex: M
+De-identification: name and "Done by Dr." redacted/omitted
+
+CONTENT
+----------------------------------------
+FIBROSCAN OF LIVER (SWM / Elastography of liver)
+Liver is normal in size measuring 14.5 cm, slightly with decreased echotexture. However no focal mass is seen. Intrahepatic ducts appear normal and intrahepatic veins appear normal. Portal vein measures ~1 cm.
+Spleen is measuring about 15.0 cm with decreased echopattern.
+No ascites seen at the time of scan.
+05 samples of SWM of liver taken:
+1) 1.47 m/sec
+2) 1.39 m/sec
+3) 1.43 m/sec
+4) 1.20 m/sec
+5) 1.81 m/sec
+Average: 1.47 m/sec
+CONCLUSION: The average fibrosis of the liver at various segments is 1.47 m/sec = F0-F1 fibrosis at SWM scoring.
+Staging reference: F0-F1 No significant <1.53 m/s (<7.0 kPa); F2 Significant 1.53-1.78 (7-9.5); F3 Advanced 1.78-1.87 (22-08-2009.5); F4 Cirrhosis >1.97 (>10.5).

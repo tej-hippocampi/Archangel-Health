@@ -1,0 +1,18 @@
+Document index: 92
+Document type: LFT
+Service date: 2025-09-12
+Age on report: 65Y    Sex: M
+De-identification: Name, M.R. No., ward/consultant, facility header redacted (green) or omitted.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+Booking/Collection/Reporting: 12/09/2025
+Albumin (Serum)
+Albumin: 3.1 g/dL
+  Normal Ranges:
+    Newborn 2-4 Days: 2.2-4.4
+    4-14 Years: 3.8-5.4
+    Adult: 3.5-5.2
+    > 60 Years: 3.2-4.6
+(Slightly below >60 years reference range)

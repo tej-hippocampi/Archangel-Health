@@ -1,0 +1,21 @@
+Document index: 32
+Document type: other lab
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Green overlay already obscured name/facility/IDs in source photo; omitted residual header identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+
+Booking Date & Time: 28/01/2026 18:26:24
+Collection Date & Time: 28/01/2026 18:26:40
+Reporting Date & Time: 28/01/2026 20:08:48
+
+ALBUMIN (SERUM)
+Albumin: 4.87 g/dL
+Normal Ranges:
+- Newborn 2-4 Days: 2.2-4.4
+- 4 - 14 Years: 3.8-5.4
+- Adult: 3.5-5.2
+- > 60 Years: 3.2-4.6

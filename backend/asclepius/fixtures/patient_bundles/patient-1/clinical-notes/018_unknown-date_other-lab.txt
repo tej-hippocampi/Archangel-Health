@@ -1,0 +1,12 @@
+Document index: 18
+Document type: other lab
+Service date: unknown-date
+Age on report: 40Y    Sex: M
+De-identification: name, identifier field and header fields redacted/omitted (green marker); image rotated
+
+CONTENT
+----------------------------------------
+Clinical Bio Chemistry
+Amylase: 2252 U/L (Upto 90) [H]
+Lipase: 2727** U/L (13-60) [H]
+Remarks: Test done on COBAS C311 completely automated, random access Clinical Chemistry analyzer.

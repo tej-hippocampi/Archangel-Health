@@ -1,0 +1,33 @@
+Document index: 149
+Document type: prescription/medication
+Service date: 2026-01-31
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted provider signature/initials
+
+CONTENT
+----------------------------------------
+Form: Fresh Orders
+Form note: Please write all medication and IV fluid orders on the separate sheet...
+
+Orders:
+- Inj 5% dextrose saline + 1 Neurobion IV @ 40 ml/hr
+- Inj Tanzo 4.5 IV x 8 hrly
+- Inj Onset 8 mg IV x SOS
+- Inj Ezium 40 IV x OD
+- Inj Sofalgan IV x SOS
+- Tab Rivotril 0.5 (0+0+1)
+- Tab Lerace 500 (1+0+1)
+- Tab Kempro 5 mg (0+0+1)
+- NG feed Glucerna 3 scoops + 250 ml
+- Tab Risp 1 mg 1/2 (1+0+1)
+- Neb c̄ Atem 8 hrly
+- Neb c̄ Clenil 6 hrly
+- Inj Humulin R sliding scale 8 hrly
+- Tab Ascard 75 (1+0+0)
+- Tab Nebil 2.5 (1+0+0)
+- Tab Extor 5/160 x OD
+- Tab Hydralazine 25 (1+1+1)
+- Tab Vit K 10 (1+0+0)
+- RBS x 4 hourly
+
+Form: August 2024, Rev # 01, Page 1 of 1

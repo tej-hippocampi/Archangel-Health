@@ -1,0 +1,37 @@
+Document index: 137
+Document type: clinical note
+Service date: 2026-01-31
+Age on report: 46Y    Sex: M
+De-identification: Omitted identifier field# (green-redacted); facility on C/S line omitted
+
+CONTENT
+----------------------------------------
+Form: ICU ROUTINE DOCUMENT
+Time: 2:30 pm
+Date of Admission: 28/01/2026
+ICU Day: 03
+Intubation / Extubation / Post-op day: —
+Header vitals box: blank
+
+Presenting complain:
+- 46 years old male
+- k/c HTN, DM, IHD S/P PCI in 2024
+- Known alcoholic since 25 yrs
+- c/o ↓ LOC for 01 day + vomiting
+
+Events:
+- In ER: ↑ BP + ↓ GCS + ↑ RR + ↓ Sat% → O2 inhalation + CPAP + IV Abx
+- In ICU: ↑ BP + ↑ HR + Fever 101°F → IV Perfalgan + 1 episode of fits → IV antiepileptic + Neuro on board → movement disorders → Cardio on board (β-blocker + antiplatelet) → Psych on board → LP done
+
+Investigations:
+- CT/MRI: CT brain plain — (C) report
+- ECHO: EF 55%; IVC (N) collapsing
+- CXR: Requested
+- USG: Done
+- Urine R/E: Glu +3, Ketone +2, pus cells 1–2, few bacteria
+- C/S: Blood + Urine + Tracheal C/S [facility omitted]
+
+Medications:
+- Analgesic: IV Perfalgan x SOS
+- Sedation: blank
+- Antibiotics: Inj Tanzo 4.5 gm IV x TDS

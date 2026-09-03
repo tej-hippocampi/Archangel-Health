@@ -1,0 +1,17 @@
+Document index: 121
+Document type: prescription/medication
+Service date: 2025-08-08
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: patient name/address/identifier field# redacted (green marker); facility email address on letterhead omitted; no identifiers transcribed.
+
+CONTENT
+----------------------------------------
+Handwritten clinical note / prescription.
+Vitals: BP 110/70.
+Diagnosis: Chronic PVT (portal vein thrombosis); Portal Biliopathy.
+Plan/Procedure: ERCP stent exchange.
+Medications (handwritten, partly legible):
+- T. Mofilet (once daily)
+- Cap Urso 250 (approx.)
+- Cap Vit (A/D)
+- T. Peltonu

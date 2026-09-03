@@ -1,0 +1,25 @@
+Document index: 148
+Document type: prescription/medication
+Service date: 2021-01-28
+Age on report: 46Y    Sex: M
+De-identification: Omitted nurse name/designation fields (green redaction); year as printed (11/7/21)
+
+CONTENT
+----------------------------------------
+IV Cannulation Insertion Details:
+- S.No 01; Date 28/01/2021; Time 18:04; Gauge 18G; Site R/A
+
+Medication Administration Record (I.V., date 28/01/2021; admin time ~18:10):
+- Inj Provans/Provens 1 g
+- Inj Ezium 40 mg
+- Inj Onset 8 mg
+- Inj Tanzo 4.5
+- Inj N/S + Inj Neurob
+
+Intake / Output tables: blank
+
+Nurses Notes — 28/01/2021, 18:04:
+- 46 years old male pt received in ER c/o ALOC
+- IV cannulation (18G) done; labs sent; meds done; ECG done; suctioning done; Foley done; diaper applied
+- Shifting note: pt now shifts to (destination blank)
+- RPAP/CPAP applied at 8:00 pm

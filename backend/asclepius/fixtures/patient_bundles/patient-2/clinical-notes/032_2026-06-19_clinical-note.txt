@@ -1,0 +1,33 @@
+Document index: 32
+Document type: clinical note
+Service date: 2026-06-19
+Age on report: 65Y    Sex: UNKNOWN
+De-identification: Omitted identifier fieldnumber, primary consultant name, patient name, and facility identifiers (green redactions / printed).
+
+CONTENT
+----------------------------------------
+Nutrition & Food Service Department notes
+Weight: 73 kg
+Diagnosis: CLD, HCV, Abd pain, malaria, Dyspnea, loose stools
+
+Entry 1 — 19/06/2026, 10:30 am:
+- Patient has been visited
+- Comorbid asked
+- Counseling done
+- Orally allowed
+- No any food allergy
+- Recommended soft diet
+- Tolerating well
+- Keep hydrated
+
+Entry 2 — 19-06-2026, 8:00 pm:
+- Patient has been visited
+- Comorbid asked
+- Counseling done
+- Orally allowed
+- No any food allergy
+- Given soft diet in meal
+- Tolerating well
+- Advised calorie-rich diet
+- 1800 kcal/day advised
+- Keep hydrated

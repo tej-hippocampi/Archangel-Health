@@ -1,0 +1,12 @@
+Document index: 114
+Document type: radiology report
+Service date: 2026-06-17
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/IDs, facility name; kept age, sex, service date.
+
+CONTENT
+----------------------------------------
+CT film: 18 axial abdomen/pelvis slices (3x6), ABDOMEN CONTRAST DELAY PHASE; Aquilion ONE.
+Tech: 120kV; mAs varying across slices (~97–152); 0.35s; 7.0mm; HP55.0; 0.5x80.
+Coverage liver/spleen through mid-abdomen bowel/kidneys to pelvis with contrast-filled bladder.
+No written findings/impression on film.

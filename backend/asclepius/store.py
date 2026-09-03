@@ -1054,7 +1054,7 @@ class AsclepiusStore:
             if "provider" not in cols("model_failures"):
                 conn.execute("ALTER TABLE model_failures ADD COLUMN provider TEXT")
 
-            # ── V5 Clinical RL Environments (Clinical RL Environments PRD §10).
+            # ── ENV · Clinical RL Environments (Clinical RL Environments PRD §10).
             # ONE row per environment OR per rollout run, keyed by run_id. A
             # ``mode='generated'`` row is a compiled environment (compiled_json set,
             # no trajectory); a ``mode='rollout'`` row is one agent trajectory over
@@ -2334,7 +2334,7 @@ class AsclepiusStore:
             # These are NOT put in ``env_runs``. That table already carries
             # trajectory vocabulary — "a mode='rollout' row is one agent trajectory
             # over that environment, sharing task_id" — but it holds AGENT ROLLOUTS
-            # for V5, not physician sessions. Same word, different actor, and
+            # for ENV rollouts, not physician sessions. Same word, different actor, and
             # merging them makes "trajectory" ambiguous in exactly the table a buyer
             # audits.
             for _col, _ddl in (("trajectory_id", "TEXT"), ("sequence_index", "INTEGER")):
@@ -2468,6 +2468,47 @@ class AsclepiusStore:
             for _col in ("description", "task_mode"):
                 if _col not in cols("ingest_uploads"):
                     conn.execute(f"ALTER TABLE ingest_uploads ADD COLUMN {_col} TEXT")
+            # ═══ PRD LONGITUDINAL-E2E §3 — auto-generate on arrival ═══════════
+            # Today an upload needs a click per bundle in Box 2 before anything is
+            # built. These two columns let the generation run start on its own once
+            # an upload is fully described — purpose decided AND mode chosen.
+            #
+            # DEFAULT 0, and that is the only safe default: the flag makes a
+            # background run that costs a frontier difficulty probe, a candidate
+            # generation and two judges PER ENCOUNTER, and a 25-point chart that
+            # started itself unasked is a bill nobody approved. Opting in is a
+            # decision; opting out must never be one you had to remember to make.
+            #
+            # ``auto_generate`` is per UPLOAD (an admin can arm one bundle);
+            # ``auto_generate_default`` is per HEALTH SYSTEM and seeds the upload's
+            # value at arrival, so a partner whose every bundle should build itself
+            # is configured once rather than per shipment.
+            #
+            # Auto-created is NEVER auto-served: points still land
+            # ``distribution='assigned_only'`` (Batches PRD §1), so nothing reaches
+            # a physician until an admin routes it. This flag removes a click from
+            # BUILDING, never from SENDING.
+            if "auto_generate" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN "
+                             "auto_generate INTEGER NOT NULL DEFAULT 0")
+            # Bookkeeping so a run fires ONCE per upload. Without it, every event
+            # that touches the row (a purpose change, a mode correction, a retry)
+            # re-checks the trigger condition and finds it still true — and the
+            # second run bills the whole chart again.
+            if "auto_generate_started_at" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN "
+                             "auto_generate_started_at TEXT")
+            # The per-encounter failures a run isolated, as a COUNT plus the
+            # detail behind it. Surfaced on the row with a `show` link, never as a
+            # modal (§3): a chart where 3 of 25 encounters failed their case judge
+            # still produced 22 points, and a modal would present that as an error.
+            if "auto_generate_report_json" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN "
+                             "auto_generate_report_json TEXT")
+            if "auto_generate_default" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN "
+                             "auto_generate_default INTEGER NOT NULL DEFAULT 0")
+            # ═══ END PRD LONGITUDINAL-E2E §3 ══════════════════════════════════
             # display_bucket — the §5 classification, stored so the tasks list can
             # group without four CASE arms in every query, and BACKFILLED from
             # columns the row already has. Read-only derivation: the four source
@@ -4691,7 +4732,34 @@ class AsclepiusStore:
             return None
         rec = dict(row)
         rec["files"] = json.loads(rec.pop("files_json") or "[]")
+        # The unattended run's outcome, parsed here so no caller has to know the
+        # column is JSON (Longitudinal E2E PRD §3). ``None`` until a run happens.
+        raw = rec.pop("auto_generate_report_json", None)
+        try:
+            rec["auto_generate_report"] = json.loads(raw) if raw else None
+        except (TypeError, ValueError):
+            rec["auto_generate_report"] = None
         return rec
+
+    def find_ingest_upload_by_sha256(self, sha256: str) -> Optional[Dict[str, Any]]:
+        """The oldest upload carrying these exact bytes, or None.
+
+        The idempotency key for the committed-fixture ingest (Longitudinal E2E
+        PRD §2.1): a second click must be a no-op with a notice, not four
+        duplicate charts. Oldest-first rather than newest, so re-running after a
+        failed retry points at the row that actually produced the ingest cases.
+
+        NOT a uniqueness constraint on ``sha256`` — two partners legitimately
+        sending the same public test bundle is not an error, and enforcing it in
+        the schema would reject the second hospital's upload.
+        """
+        if not sha256:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT upload_id FROM ingest_uploads WHERE sha256 = ? "
+                "ORDER BY created_at ASC, rowid ASC LIMIT 1", (sha256,)).fetchone()
+        return self.get_ingest_upload(row["upload_id"]) if row else None
 
     def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0,
                             status: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -6293,7 +6361,8 @@ class AsclepiusStore:
     # ─── PRD-R: ONE labeler-queue builder (Audit R H4) ────────────────────────
     def labeler_queue_sql(
         self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
-        real_only: bool = False, multimodal_only: bool = False,
+        real_only: bool = False, trajectory_only: bool = False,
+        multimodal_only: bool = False,
         require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
         window: int = _PRD_R_SCAN_WINDOW,
     ) -> tuple:
@@ -6377,13 +6446,44 @@ class AsclepiusStore:
         if require_measured_difficulty:
             clauses.append("(t.difficulty_measured = 1 AND t.empirical_difficulty >= ?)")
             params.append(float(min_empirical_difficulty))
-        # The V4 wall (EHR PRD §9.5), enforced in SQL: real_only serves ONLY
-        # case_source='real_deid'; otherwise they are excluded entirely, so a real
-        # patient case can never reach a v1/v2/v3 session.
-        clauses.append(
-            "t.case_source = 'real_deid'" if real_only
-            else "(t.case_source IS NULL OR t.case_source != 'real_deid')"
-        )
+        # ── The two real-data walls, in SQL. They PARTITION; they do not overlap.
+        #
+        # The V4 wall (EHR PRD §9.5): ``real_only`` serves ONLY
+        # ``case_source='real_deid'``; every other version EXCLUDES those entirely,
+        # so a real patient case can never reach a v1/v2/v3 session.
+        #
+        # The LONGITUDINAL wall (Longitudinal E2E PRD §5.1 Group B) is its mirror
+        # and the load-bearing half of the relabel. A trajectory point IS
+        # ``real_deid``, so before it existed the V4 wall alone put every assigned
+        # longitudinal point into the V4 queue: a physician who chose "Real cases"
+        # could be handed decision point 0 of somebody's chart walk, inside a flow
+        # with no sequence UI, no reveal and no self-score — the right data served
+        # as the wrong product, single-labelled and κ-excluded in a queue that
+        # assumes neither.
+        #
+        # ``trajectory_only`` implies real data, and it is resolved HERE rather than
+        # left to the caller to pass both flags: a caller that passed
+        # ``trajectory_only`` without ``real_only`` would get the exclusion arm
+        # below and an always-empty V5 queue, which is the kind of silence this
+        # file is full of comments about.
+        #
+        # The sequence gate and the distribution gate are already in this WHERE and
+        # are ADDITIVE to these: the version filter decides which PRODUCT a
+        # physician is working in, those decide whether this particular point is
+        # theirs to open yet.
+        #
+        # None of these clauses binds a parameter, so appending them here is safe
+        # without touching the positional ``params`` list above — see the note on
+        # it: a clause carrying a ``?`` added out of order silently rebinds every
+        # later value and nothing raises.
+        if trajectory_only:
+            clauses.append("t.case_source = 'real_deid'")
+            clauses.append("t.trajectory_id IS NOT NULL")
+        elif real_only:
+            clauses.append("t.case_source = 'real_deid'")
+            clauses.append("t.trajectory_id IS NULL")
+        else:
+            clauses.append("(t.case_source IS NULL OR t.case_source != 'real_deid')")
         # Admin review queue (Audit PRD §21.6): a task whose ingest case still carries
         # an unresolved BLOCKING review reason (ingest_cases.status = 'needs_review')
         # must never be served for annotation — a physician must not label a case whose
@@ -6416,7 +6516,8 @@ class AsclepiusStore:
 
     def next_task_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], hard_only: bool = False,
-        real_only: bool = False, multimodal_only: bool = False,
+        real_only: bool = False, trajectory_only: bool = False,
+        multimodal_only: bool = False,
         require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
     ) -> Optional[Dict[str, Any]]:
         """Oldest servable task in the evaluator's specialty that they have not
@@ -6429,7 +6530,8 @@ class AsclepiusStore:
         from asclepius import routing as asc_routing   # pure module; no cycle
         rows = self._labeler_candidates(
             evaluator_id=evaluator_id, specialty=specialty, hard_only=hard_only,
-            real_only=real_only, multimodal_only=multimodal_only,
+            real_only=real_only, trajectory_only=trajectory_only,
+            multimodal_only=multimodal_only,
             require_measured_difficulty=require_measured_difficulty,
             min_empirical_difficulty=min_empirical_difficulty,
         )
@@ -6485,7 +6587,8 @@ class AsclepiusStore:
 
     def eligible_tasks_for_evaluator(
         self, *, evaluator_id: str, specialty: Optional[str], limit: Optional[int] = None,
-        hard_only: bool = False, real_only: bool = False, multimodal_only: bool = False,
+        hard_only: bool = False, real_only: bool = False, trajectory_only: bool = False,
+        multimodal_only: bool = False,
         require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
     ) -> List[Dict[str, Any]]:
         """Tasks this evaluator may take, priority-ordered — the candidate set
@@ -6514,7 +6617,8 @@ class AsclepiusStore:
         from asclepius import routing as asc_routing   # pure module; no cycle
         rows = self._labeler_candidates(
             evaluator_id=evaluator_id, specialty=specialty, hard_only=hard_only,
-            real_only=real_only, multimodal_only=multimodal_only,
+            real_only=real_only, trajectory_only=trajectory_only,
+            multimodal_only=multimodal_only,
             require_measured_difficulty=require_measured_difficulty,
             min_empirical_difficulty=min_empirical_difficulty,
         )
@@ -6541,6 +6645,38 @@ class AsclepiusStore:
             out = [(self.get_task(t["task_id"]) or t) if t["task_id"] in lifted else t
                    for t in out]
         return out
+
+    def count_eligible_tasks_for_evaluator(self, **kw: Any) -> int:
+        """How many tasks this evaluator may take — WITHOUT materializing them.
+
+        ``eligible_tasks_for_evaluator`` fetches the full task row for every
+        candidate so the ranker can score it. When all the caller wants is a
+        number, that is one ``get_task`` per row: measured at **217 ms** for a
+        physician holding 200 routed points, paid on every dashboard load, on
+        every portal version, including the ones that never read the number.
+
+        Same ``labeler_queue_sql``, so the count and the queue cannot disagree
+        about what is eligible — which is the whole reason the count was routed
+        through that function in the first place. Wrapping it in ``COUNT(*)``
+        keeps that property and drops the per-row fetch.
+
+        The inner query carries the scan window's ``LIMIT``, so this is bounded
+        work and SATURATES at ``_PRD_R_SCAN_WINDOW``. That is the honest number
+        rather than a cap silently applied to a total: the window is already how
+        many candidates a draw will consider, so a count that exceeded it would
+        describe work the queue would not look at.
+
+        It does NOT run the exact Python capacity check that
+        ``eligible_tasks_for_evaluator`` applies afterwards, and for the caller
+        that needs it — the longitudinal count — that makes no difference: a
+        point this evaluator has already submitted is excluded by the SQL
+        independence clause, and a trajectory point is single-labelled, so SQL's
+        necessary condition is also the sufficient one here.
+        """
+        sql, params = self.labeler_queue_sql(**kw)
+        with self._conn() as conn:
+            row = conn.execute(f"SELECT COUNT(*) AS n FROM ({sql})", params).fetchone()
+        return int((row["n"] if row else 0) or 0)
 
     def evaluator_median_seconds(self, evaluator_id: str) -> Optional[float]:
         """The contributor's rolling median seconds-per-task (Value-per-Minute
@@ -7446,6 +7582,65 @@ class AsclepiusStore:
                 "override_rate": round(step_overrides / step_total, 3) if step_total else None,
             },
         }
+
+    def migrate_portal_versions_for_longitudinal(self) -> Dict[str, Any]:
+        """Re-stamp ``submissions.portal_version`` for the V5 relabel
+        (Longitudinal E2E PRD §5.2). Idempotent; safe to run on every boot.
+
+        Two rewrites, in this ORDER, and the order is the whole correctness
+        argument:
+
+        1. **env first.** Any submission stamped ``'v5'`` whose task is an
+           ``env_runs`` row is an AGENTIC rollout from before the rename, and it
+           becomes ``'env'``. Running this second would also catch the rows step 2
+           had just created, and there would be no way to tell them apart.
+        2. **longitudinal second.** Any submission stamped ``'v4'`` whose task
+           carries a ``trajectory_id`` is a chart-walk point that was filed as a
+           static real case, and it becomes ``'v5'``.
+
+        A third class is COUNTED and left alone: a ``'v5'`` submission on a task
+        that is neither an env run nor a trajectory point. There is no fact that
+        says which it was, and guessing would put an unattributable row into a
+        buyer's provenance. It is reported so an operator can look, which is the
+        only honest thing to do with an ambiguous row.
+
+        On the branch where this ships both rewrites are expected to be **0** —
+        no trajectory has ever been generated, so there is nothing to move. That
+        is the point: this is a guard for the deployed state, not a live rewrite,
+        and it is written to be correct if either count is not zero.
+        """
+        with self._conn() as conn:
+            before = {(r["portal_version"] or "v2"): int(r["n"]) for r in conn.execute(
+                "SELECT portal_version, COUNT(*) AS n FROM submissions "
+                "GROUP BY portal_version").fetchall()}
+            env_stamped = conn.execute(
+                "UPDATE submissions SET portal_version = 'env', updated_at = ? "
+                " WHERE portal_version = 'v5' "
+                "   AND task_id IN (SELECT task_id FROM env_runs)",
+                (_utcnow_iso(),)).rowcount
+            longitudinal = conn.execute(
+                "UPDATE submissions SET portal_version = 'v5', updated_at = ? "
+                " WHERE portal_version = 'v4' "
+                "   AND task_id IN (SELECT task_id FROM tasks "
+                "                    WHERE trajectory_id IS NOT NULL)",
+                (_utcnow_iso(),)).rowcount
+            ambiguous = [r["submission_id"] for r in conn.execute(
+                "SELECT submission_id FROM submissions "
+                " WHERE portal_version = 'v5' "
+                "   AND task_id NOT IN (SELECT task_id FROM tasks "
+                "                        WHERE trajectory_id IS NOT NULL) "
+                " LIMIT 50").fetchall()]
+            after = {(r["portal_version"] or "v2"): int(r["n"]) for r in conn.execute(
+                "SELECT portal_version, COUNT(*) AS n FROM submissions "
+                "GROUP BY portal_version").fetchall()}
+        # The inventory the Export PRD §0 asks for, before and after. Totals must
+        # match: this migration RELABELS rows, it never adds or drops one, and a
+        # mismatch here is the only way to notice if it ever did.
+        return {"env_stamped": int(env_stamped or 0),
+                "longitudinal_backfilled": int(longitudinal or 0),
+                "ambiguous_v5_submission_ids": ambiguous,
+                "counts_before": before, "counts_after": after,
+                "total_before": sum(before.values()), "total_after": sum(after.values())}
 
     def portal_version_counts(self) -> Dict[str, int]:
         """Submissions by evaluator product version — lets the admin dashboard
@@ -8368,7 +8563,7 @@ class AsclepiusStore:
         rate = round(caught / scored, 3) if scored else None
         return {"scored": scored, "caught": caught, "rate": rate}
 
-    # ─── V5 Clinical RL Environments (env_runs, PRD §10) ─────────────────────
+    # ─── ENV · Clinical RL Environments (env_runs, PRD §10) ─────────────────────
     def insert_env_run(
         self, *, task_id: str, specialty: str, task_type: str,
         case_id: Optional[str] = None, case_source: str = "gold",
@@ -11644,6 +11839,29 @@ class AsclepiusStore:
                     "UPDATE ingest_uploads SET purpose = (SELECT purpose FROM "
                     "data_providers WHERE provider_id = ?), updated_at = ? "
                     "WHERE upload_id = ?", (provider_id, now, upload_id))
+        # The per-health-system auto-generate default (Longitudinal E2E PRD §3),
+        # applied HERE for the same reason purpose is resolved here: all four
+        # doors pass through this one function, so "the same partner's bundles are
+        # treated the same way whichever door they arrived by" is true by
+        # construction rather than by four call sites remembering. Live at
+        # arrival, never a snapshot — an admin who turns the default on today
+        # affects tomorrow's shipment, not the one already parsed.
+        #
+        # GUARDED, because of where this sits. ``attach_upload_provenance`` is on
+        # the critical path of every partner upload, and the purpose write above
+        # has already committed by the time we get here. An exception raised now
+        # would 500 the upload door on a bundle whose row is already correct —
+        # the partner is told their PHI transfer failed when it did not, and they
+        # re-send. Arming a convenience flag must never be able to cost that.
+        try:
+            self.apply_auto_generate_default(upload_id)
+        except Exception:                       # pragma: no cover - never fatal
+            # ``_logging.getLogger(...)``, not a module-level ``log``: this file
+            # has no such name, and a bare ``log`` here would turn the swallowed
+            # error into a NameError raised from inside the handler — the exact
+            # 500 the guard exists to prevent. Matches the other call sites.
+            _logging.getLogger("asclepius.store").exception(
+                "auto-generate default could not be applied to %s", upload_id)
 
     def set_upload_purpose(self, upload_id: str, purpose: Optional[str]) -> None:
         """Admin-side correction only (resolving a legacy row). The upload doors
@@ -11666,6 +11884,103 @@ class AsclepiusStore:
             conn.execute(
                 "UPDATE ingest_uploads SET description = ?, updated_at = ? "
                 " WHERE upload_id = ?", (text, _utcnow_iso(), upload_id))
+
+    # ─── Auto-generate on arrival (Longitudinal E2E PRD §3) ──────────────────
+    def set_upload_auto_generate(self, upload_id: str, enabled: bool) -> None:
+        """Arm (or disarm) unattended generation for one upload."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET auto_generate = ?, updated_at = ? "
+                "WHERE upload_id = ?",
+                (1 if enabled else 0, _utcnow_iso(), upload_id))
+
+    def set_health_system_auto_generate_default(self, hs_id: str, enabled: bool) -> None:
+        """The per-partner default, applied to their FUTURE uploads.
+
+        Deliberately not retroactive. An upload already on the screen has an
+        ``auto_generate`` value an admin can see and change; rewriting it from a
+        settings page would arm a bundle whose row said it was not armed.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE health_systems SET auto_generate_default = ? WHERE hs_id = ?",
+                (1 if enabled else 0, hs_id))
+
+    def apply_auto_generate_default(self, upload_id: str) -> bool:
+        """Seed a fresh upload's ``auto_generate`` from its sender's default.
+
+        Resolved by joining the upload's partner_id to a health system whose id or
+        name matches — LIVE, at arrival, the same shape as
+        ``attach_upload_provenance``. Returns whether the flag ended up armed.
+
+        Never DISARMS: an admin who armed this specific bundle before its default
+        was consulted must not have that undone by a partner-level 0.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT u.auto_generate AS current, "
+                "       (SELECT h.auto_generate_default FROM health_systems h "
+                "         WHERE h.hs_id = u.partner_id "
+                "            OR LOWER(h.name) = LOWER(u.partner_id) LIMIT 1) AS dflt "
+                "  FROM ingest_uploads u WHERE u.upload_id = ?", (upload_id,)).fetchone()
+            if not row:
+                return False
+            if int(row["current"] or 0):
+                return True
+            if not int(row["dflt"] or 0):
+                return False
+            conn.execute(
+                "UPDATE ingest_uploads SET auto_generate = 1, updated_at = ? "
+                "WHERE upload_id = ?", (_utcnow_iso(), upload_id))
+        return True
+
+    def claim_auto_generate(self, upload_id: str) -> bool:
+        """Claim the ONE auto-generation run this upload gets. Atomic.
+
+        Returns True to exactly one caller, ever. Every path that could trigger a
+        run — the purpose decision, the mode choice, arming the flag, a retry —
+        calls this first, and the conditional UPDATE means a race between two of
+        them cannot bill the same 25-encounter chart twice.
+
+        The claim requires the full trigger condition in SQL rather than in the
+        caller: purpose is task creation, a task mode is chosen, the flag is
+        armed, and no run has been claimed before. A caller that checked those in
+        Python and then wrote the timestamp would have a window between the two.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE ingest_uploads SET auto_generate_started_at = ?, updated_at = ? "
+                " WHERE upload_id = ? "
+                "   AND auto_generate = 1 "
+                "   AND auto_generate_started_at IS NULL "
+                "   AND purpose = 'task_creation' "
+                "   AND task_mode IS NOT NULL AND task_mode != ''",
+                (_utcnow_iso(), _utcnow_iso(), upload_id))
+            return cur.rowcount == 1
+
+    def release_auto_generate_claim(self, upload_id: str) -> None:
+        """Undo a claim whose run never started (the job could not be scheduled).
+
+        Without this a scheduling failure would leave the upload permanently
+        marked as having run, and the only fix would be editing the database.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET auto_generate_started_at = NULL, updated_at = ? "
+                "WHERE upload_id = ?", (_utcnow_iso(), upload_id))
+
+    def set_upload_auto_generate_report(self, upload_id: str, report: Dict[str, Any]) -> None:
+        """What the unattended run produced, including what it could not.
+
+        Failures are stored, not logged and forgotten: per-encounter isolation
+        means a run reports success while having dropped encounters, and an
+        operator who cannot see which ones has a chart that is quietly short.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET auto_generate_report_json = ?, updated_at = ? "
+                "WHERE upload_id = ?",
+                (json.dumps(report), _utcnow_iso(), upload_id))
 
     def set_upload_task_mode(self, upload_id: str, task_mode: Optional[str]) -> None:
         """'static' | 'longitudinal' | None — how this upload's cases become tasks.

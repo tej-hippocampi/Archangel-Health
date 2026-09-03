@@ -1,0 +1,22 @@
+Document index: 93
+Document type: serology/viral
+Service date: 2025-09-12
+Age on report: 65Y    Sex: M
+De-identification: Name, facility/header identifiers redacted (green) or omitted.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF VIROLOGY
+Booking: 12/09/2025 10:44:15
+Collection: 12/09/2025 10:44:41
+Reporting: 12/09/2025 12:49:25
+ANTI HCV ANTIBODY (ELISA) / Anti HCV Antibody
+Test Value: 47.9
+Cut Off Value: 1.00
+Result: Reactive
+Advice: Correlate clinically with patient history. Anti HCV Antibody Reactive.
+Interpretation: Screening test; Electrochemiluminescence immunoassay (ECLIA) for quantitative detection of antibody to Hepatitis C (anti-HCV) in serum/plasma.
+Suggestion:
+  - Borderline tests should be repeated with fresh sample.
+  - Reactive results should be followed with confirmatory test; Core HCV, NAT testing or PCR.
+  - Non reactive; no further action unless recent exposure/suspicion — then HCV RNA, NAT or PCR advised.

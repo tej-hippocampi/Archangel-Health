@@ -1,0 +1,18 @@
+Document index: 142
+Document type: prescription/medication
+Service date: 2025-10-31
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted provider signature (green redaction on image)
+
+CONTENT
+----------------------------------------
+Form note: Please write all medication and IV fluid orders on the separate sheet designed for this purpose
+Time: 6:00 pm
+
+Fresh order:
+- T. Risp 1 mg 1/2 (1/2 + 1/2) half BD
+- T. Kempro 5 mg 1 x HS
+- T. Rivotril 0.5 mg (0 + 0 + 1)
+
+Role notation after signature: (ICU)
+RN signature-time column blank

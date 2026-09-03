@@ -1,0 +1,19 @@
+Document index: 65
+Document type: radiology report
+Service date: 2023-03-24
+Age on report: 39Y    Sex: M
+De-identification: name and referring physician redacted/omitted; "Not valid for court of law/medico-legal purposes" note
+
+CONTENT
+----------------------------------------
+Examination: CT Scan Abdomen and Pelvis with contrast
+Clinical Indication: Obstructive LFTs for 15 days. ? CLD.
+Technique: Axial images obtained from abdomen and pelvis before and after IV contrast administration with reformatted coronal and sagittal images. No previous CT abdomen images available for comparison; ultrasound abdomen report dated 20/03/2023 also reviewed.
+Findings:
+Main portal vein is not separately seen. Instead, a bunch of multiple tortuous varices are seen at the porta in place of portal vein and its branches representing CAVERNOUS transformation of PORTAL VEIN (likely due to prior portal vein thrombosis).
+Multiple tortuous VARICES are seen at the porta, gall bladder wall and along pancreatic head, rectal wall and peri-rectal location. The porta varices are compressing CBD resulting in mild intrahepatic biliary dilatation representing PORTAL BILIOPATHY.
+Spleen is massively enlarged in size measuring 19 x 11 cm in length & width (axial images). Numerous tiny calcifications are also seen in entire splenic parenchyma.
+The liver is smaller in size showing lobulated and smooth margins likely secondary to portal hypertension. No liver cirrhosis. No focal hypervascular lesion is seen in liver with features suggesting hepatoma in current scan. IVC and hepatic veins are normally opacifying.
+Gall bladder is partially distended showing multiple hyperdense calculi and multiple varices in its walls.
+CBD, pancreas and bilateral adrenal glands appear normal. Both kidneys are showing normal parenchymal enhancement without mass or obstructive uropathy.
+Stomach, small and large bowel loops are normal without mass lesion, wall thickening or intestinal obstruction. Caecum, appendix and terminal ileum appear normal. No ileo-cecal TB or acute appendicitis is seen.

@@ -1,0 +1,13 @@
+Document index: 97
+Document type: clinical note
+Service date: 2024-01-08
+Age on report: 40Y    Sex: UNKNOWN
+De-identification: NAME field redacted (green marker); no other identifiers transcribed.
+
+CONTENT
+----------------------------------------
+Handwritten clinical note.
+- Diagnosed case of Portal Biliopathy.
+- Stenting done -> patent.
+- Currently asymptomatic.
+- Continue same Rx (Carveda [carvedilol], Urso [ursodeoxycholic acid]).

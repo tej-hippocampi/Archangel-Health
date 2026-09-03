@@ -1,0 +1,26 @@
+Document index: 154
+Document type: radiology report
+Service date: 2025-10-23
+Age on report: 42Y    Sex: M
+De-identification: patient name, contact no, address (city), P.Code, Refer By, Tech Name all present and omitted; report no. omitted
+
+CONTENT
+----------------------------------------
+ERCP (Endoscopic Retrograde Cholangiopancreatography) Report - Location: OT
+Medication (Conscious Sedation): Propofol
+Instrument: TJF 160 Olympus
+Indication for Examination (Procedure): Cholangitis
+Procedure Technique: Scope passed up to D2.
+Findings:
+- Previously placed two plastic stents removed.
+- Sphincterotized ampulla seen; CBD cannulated, contrast injected to reveal mild to moderate intra hepatic duct with narrowing at hilum.
+- Two 10FR/10CM and 10FR/12CM plastic stents placed for biliary drainage.
+- Good biliary drainage observed.
+- Pancreatic duct not opacified.
+Endoscopic Diagnosis:
+- S/P two blocked CBD stents removed.
+- Mild to moderate intra hepatic duct narrowing at hilum.
+- S/P two new plastic stents placed.
+Fluoroscopy (C-ARM) images labeled: CBD (C-ARM), Narrowing, Two CBD Stents.
+After Endoscopy (Medication): IVF 1 LTR x STAT; Inj: Meropenem 1G IV x STAT.
+Recommendation: Keep NPO for 06 hours. Monitor for abdominal pain.

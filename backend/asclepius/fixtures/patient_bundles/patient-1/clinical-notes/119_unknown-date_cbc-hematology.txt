@@ -1,0 +1,19 @@
+Document index: 119
+Document type: CBC/hematology
+Service date: unknown-date
+Age on report: 42Y    Sex: M
+De-identification: header identifiers redacted (green marker). Lab number ignored. No identifiers transcribed.
+
+CONTENT
+----------------------------------------
+CBC & ESR PROFILE:
+Red Blood Cells: 4.25 Millions/c.mm (4.1 - 5.9)
+Hemoglobin: 12.6 G/dl (13 - 18) [L]
+Hematocrit (PCV): 37.4 % (41 - 51) [L]
+Mean Cell Volume (MCV): 88.1 fl (76 - 96)
+M.C.H.: 29.7 pg (27 - 32)
+M C H Concentration: 33.7 G/dl (32 - 36)
+Total Leucocytes Count (White Blood Cells): 21,200 cells/c.mm (4,800 - 11,000) [H]
+Platelet Count: 56,000 /c.mm (150,000 - 450,000) [L]
+Differential: Neutrophils 85 % (40 - 75) [H]; Lymphocytes 10 % (20 - 50) [L]; Eosinophils 02 % (1 - 6); Monocytes 03 % (2 - 6); Basophils 00 % (0 - 1)
+Blood Film Report: Normocytic Normochromic. Neutrophilic Leucocytosis. Thrombocytopenia. ? Cause.

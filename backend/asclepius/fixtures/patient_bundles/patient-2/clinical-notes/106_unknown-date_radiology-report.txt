@@ -1,0 +1,12 @@
+Document index: 106
+Document type: radiology report
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Patient identifiers redacted on source; facility name omitted; age/sex/service date not legible.
+
+CONTENT
+----------------------------------------
+Monitor/film photograph: 12 axial CT frames (2x6) of abdomen/pelvis.
+Labels include W/ABD/PEL; CONTRAST VENOUS PHASE (top row lower abdomen/kidneys) and CONTRAST ARTERIAL/VENOUS PHASE (bottom row upper abdomen — liver, spleen, stomach; lower chest/heart).
+Equipment: Aquilion ONE; window examples W:400 L:40 / W:350 L:40.
+No written findings/impression; top and mid bands green-redacted.

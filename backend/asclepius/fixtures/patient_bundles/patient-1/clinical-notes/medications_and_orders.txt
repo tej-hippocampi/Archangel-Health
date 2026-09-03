@@ -1,0 +1,109 @@
+MEDICATION / ORDER LISTS (de-identified)
+============================================================
+
+--- Image 21 | 2023-06-18 ---
+Cap. Urso 500 mg — 1+0+1
+Tab. Carveda 6.25 mg — 1+0+0
+Tab. Vosogon 20 mg — 1+0+1
+Charity milk 4 scoops/day
+
+--- Image 22 | 2023-04-25 ---
+Tab. Vosogon 20 mg — 1+0+1 — 4 weeks
+Cap. Urso 250 mg — 1+0+1 — 4 weeks
+Tab. Carveda 6.25 mg — 1+0+0 (twice daily per Urdu note)
+
+--- Image 75 | 2025-10-25 ---
+Physician orders (handwritten):
+- Inj Vancomycin 1 gm IV stat
+- Continue with Solucortef (steroid) [as written, uncertain]
+- BP monitoring
+- Taper off Norepinephrine (Norpine) support 0.1 every half hourly
+- I/O charting
+- Encourage orally
+- Fever charting
+- Continue with IV hydration
+
+--- Image 76 | 2025-10-23 ---
+Physician orders (handwritten, best-effort):
+- CPAP (for work of breathing)
+- Continue with IV fluids
+- Need ERCP
+- Inj Vitamin K 10 mg IV
+- Taper & stop Norepinephrine (Norpine)
+- Tab Sedamint 2+2+2
+
+--- Image 121 | 2025-08-08 ---
+Handwritten clinical note / prescription.
+Vitals: BP 110/70.
+Diagnosis: Chronic PVT (portal vein thrombosis); Portal Biliopathy.
+Plan/Procedure: ERCP stent exchange.
+Medications (handwritten, partly legible):
+- T. Mofilet (once daily)
+- Cap Urso 250 (approx.)
+- Cap Vit (A/D)
+- T. Peltonu
+
+--- Image 123 | 2025-10-21 ---
+Handwritten clinical note / prescription.
+Vitals: BP 100/60; weight 61 kg.
+Diagnosis: Portal Biliopathy.
+Plan/Procedure: EVBL (endoscopic variceal band ligation); ERCP. LFT advised.
+Medications (handwritten, partly legible):
+- Inj. Mofest (in NG/dose)
+- Cap Urso 250 (1-0-1)
+- T. Mobitin (1-0-1)
+- T. Urdel 6.25 (1-0-1)
+
+--- Image 167 | UNKNOWN ---
+Medication Form (Drugs & Dosage):
+- Inj N/S (normal saline) 1L I/V at 100 mL/hr
+- Inj Meronem (meropenem) 1g I/V x TDS over prolonged infusion
+- Inj Ezin (esomeprazole) 40mg I/V x OD
+- Inj Vit-K I/V x OD
+- Inj Bofalgan (paracetamol) I/V x SOS
+- Inj Hy-cortisone (hydrocortisone) 50mg I/V x 6 hourly
+STAT DOSE section: blank.
+
+--- Image 169 | 2025-10-24 ---
+Medication Form (Drugs & Dosage):
+- Tab Neo-K 2-2-2 (marked STOP)
+- Tab Sodamint (sodium bicarbonate) 2-2-2
+- Inj Norpine (noradrenaline/norepinephrine) at 3.3 mL/hr (taper slowly)
+- Inj Vancomycin 1 gm I/V stat
+
+--- Image 170 | UNKNOWN ---
+Medication Administration Record (handwritten, partly illegible):
+- Inj Meronem 1g, route I/V, administered time 2030
+- Inj Norepinephrine (double support), administered ~1950
+- Inj Albumin with I/V N/Saline 120... (route I/V)
+Intake/Output (Fluid IV and oral; Urine/Stool/Other) grid present, values not clearly legible.
+
+--- Image 171 | UNKNOWN ---
+Physician Fresh Orders:
+- Inj N/S I/V @ 100 mL/hr
+- (Day 3) Inj Meronem (meropenem) 2g I/V x TDS
+- Inj Risek (omeprazole) 40mg I/V x OD
+- Inj Bofalgan (paracetamol) 1g I/V x SOS
+- Inj Onset (ondansetron) 8mg I/V x SOS
+- Inj Vit-K 10mg I/V x OD
+- Inj Nor-epinephrine I/V @ 3.3 mL/hr (taper accordingly)
+- Inj Hy-cortisone (hydrocortisone) 50mg I/V x 6H
+- Tab Neo-K 2+2+2
+- Tab Sodamint 300mg 2+2+2
+
+--- Image 173 | 2025-10-22 ---
+Physicians' Orders - Fresh Orders (RN sig column notes: CrCl 67 mL/min, wt 65 kg, Cr 1.22):
+- Keep on CPAP
+- Inj N/S I/V @ 100 mL/hr
+- Inj Meronem (meropenem) 1gm I/V x TDS
+- Inj Risek (omeprazole) 40mg I/V x OD
+- Inj Bofalgan (paracetamol) 1gm I/V x SOS
+- Inj Onset (ondansetron) 8mg I/V x SOS
+- Inj Norpine (noradrenaline) I/V @ 12 mL/hr (taper accordingly)
+- Tab Neo-K 2+2+2
+- Pass CVP line
+- Prop-up
+- Strict vital monitoring
+- Strict I/O charting
+- Tab Sodamint 2+2+2
+- Inj Vit-K x I/V x OD

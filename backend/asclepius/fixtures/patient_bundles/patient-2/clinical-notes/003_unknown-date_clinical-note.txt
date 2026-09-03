@@ -1,0 +1,35 @@
+Document index: 3
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No name/identifier field/date/facility visible on photographed portion; nothing omitted beyond blank/cut-off header fields
+
+CONTENT
+----------------------------------------
+Vitals:
+- B.P: 100/50
+- TEMP: A/f (afebrile)
+- PULSE: 110 bpm
+- RESP-RATE: not recorded
+- O2 SAT: 99%
+- PEFR: not recorded
+- WEIGHT: 72 kg
+
+History checklist:
+- DM: N
+- HTN: N
+- IHD: N
+- PETS: N
+- H/O TB: N
+- CONTACT WITH TB PERSON: N
+- H/O COVID-19: N
+- SMOKER: N (handwritten note: Sometimes)
+- OTHER ADDICTION: N
+- BIO MASS FUEL EXPOSURE: N
+- ANTI HCV/HbsAg: blank
+- DRUG USAGE: blank; handwritten note "CT scan" below
+
+COMPLAIN: follow up
+EXAMINATION: blank
+ADVISE: blank
+PROVISIONAL DIAGNOSIS: blank

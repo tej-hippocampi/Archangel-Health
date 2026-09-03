@@ -1,0 +1,16 @@
+Document index: 160
+Document type: vitals
+Service date: unknown-date
+Age on report: 42Y    Sex: UNKNOWN
+De-identification: patient name/header redacted (green marker); age retained
+
+CONTENT
+----------------------------------------
+Critical Care Flow Sheet (ICU). Diagnosis line: cerebral/... ; CBR (complete bed rest).
+Glasgow Coma Scale: Eye 4, Verbal 5, Motor 6 (recorded serially).
+Respiratory rate series: 39, 34, 28, 30, 31, 34, 30, 32, 33.
+SpO2 series: 96, 98, 96, 94, 97, 96, 97, 98, 97, 98 (%).
+Pulse series: ~124-133 /min.
+Blood pressure (systolic/diastolic) plotted ~78-88 range.
+Temperature ~ (plotted, ~ up to 100 F noted).
+Noradrenaline infusions annotated on chart (e.g. 8mg/dl, ... mg/dl).

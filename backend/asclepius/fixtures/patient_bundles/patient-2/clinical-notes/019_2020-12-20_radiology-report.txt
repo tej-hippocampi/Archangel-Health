@@ -1,0 +1,13 @@
+Document index: 19
+Document type: radiology report
+Service date: 2020-12-20
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted patient name and ID/identifier field from image header bars; omitted any facility text in headers
+
+CONTENT
+----------------------------------------
+Ultrasound image printout page (six frames in three pairs); no narrative findings/impression text.
+Modality: Ultrasound (abdominal/organ appearance).
+Date/time stamps: 20.12.2020 (e.g. 11:15:23, 11:15:33).
+Measurements visible on scan: 1 D: 121.67 mm; 2 D: 18.14 mm.
+Technical labels: B/M settings, 8MHz (pixels/raw images not transcribed).

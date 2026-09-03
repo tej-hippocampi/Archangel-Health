@@ -1,0 +1,16 @@
+Document index: 87
+Document type: other
+Service date: 2024-04-25
+Age on report: 40Y    Sex: M
+De-identification: patient name omitted; identifier field ("0336-...") omitted; address/city ("Hyderabad") omitted; provider/GI trainee name omitted
+
+CONTENT
+----------------------------------------
+ERCP / Endoscopy procedure report.
+Medication (Conscious Sedation): Propofol. Instrument: TJF 160 Olympus. Location: OPD.
+Indication for examination: Obstructive jaundice.
+Procedure technique: Scope passed up to D2.
+Finding: Previously blocked stent removed. Cholangiogram showed stricture at proximal mid CBD. Balloon sweep done to remove multiple small mushy stones. Sphincterotomy extended. Two CBD plastic stents - one was 10FR/10CM and other was 10FR/07 - placed for biliary drainage. Good biliary drainage seen. Free flow of bile seen. Pancreatic duct not opacified.
+Endoscopic diagnosis: S/P blocked CBD stent removed. ?D CBD stricture. S/P sphincterotomy. S/P balloon sweep. S/P mushy stones removed. S/P two stents placed.
+After endoscopy (medication): IVF + antibiotic (Inj Meropenem 1 G X stat).
+Recommendation: Keep NPO for 06 hours. Monitor for abdominal pain.

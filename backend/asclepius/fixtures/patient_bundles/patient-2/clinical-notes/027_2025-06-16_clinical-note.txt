@@ -1,0 +1,47 @@
+Document index: 27
+Document type: clinical note
+Service date: 2025-06-16
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No patient/provider/facility identifiers visible on this page.
+
+CONTENT
+----------------------------------------
+Systemic Examination form
+
+Abdomen:
+- Inspection: Symmetric
+- Palpation: Non-tender
+- Percussion: Tympanic
+- Auscultation: N
+- Gut sounds: Audible
+- Liver / Spleen / Kidneys / Surgical scar: blank
+
+Respiratory:
+- Inspection: Normal
+- Palpation: Normal
+- Percussion: Resonant
+- Auscultation: Clear
+
+Cardiovascular:
+- Pericardium inspection: Normal
+- Palpation: Normal
+- Added sounds: No any
+- Thrill / Heave / Auscultation S1-S2: blank
+
+CNS:
+- Level of consciousness: Alert
+- Oriented to time, place, person: Yes
+- Memory intact: Recent and remote
+- Emotional state: Stable
+- Speech: Normal
+- Gait: Normal
+- Signs of meningeal irritation: No
+- Cranial nerves: Intact
+
+Motor: Bulk N; Tone N; Power Normal (UL and LL); Reflexes N; Plantars downward (bilateral)
+
+Coordination: Intact
+Sensory system: Intact
+Cortical senses: Intact
+
+Diagnosis / Differential diagnosis: blank on this page

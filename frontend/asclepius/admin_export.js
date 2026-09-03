@@ -62,6 +62,18 @@
   var ui = null;             // {ctx, scopeRow, picker, preview, actions, status, history}
   var previewSeq = 0;        // drops the response of a preview the user moved past
 
+  // What each version IS, one line, beside the name. An operator picks a version
+  // and ships it to a buyer; "V4" on its own does not say whether that is real
+  // data, and the wrong slice is not recoverable once it has been sent. Served by
+  // /admin/export/case-options; this is the fallback when that call fails.
+  //
+  // ENV (the agentic RL tier) is deliberately absent. It is not a version of the
+  // single-turn portal — its rollouts live in env_runs, not records — and it
+  // ships from the environments section instead.
+  var VERSION_FALLBACK_DESCRIPTIONS = {
+    V3: 'synthetic multimodal', V4: 'real static', V5: 'real longitudinal',
+  };
+
   // The server accepts at most this many submissions per Approve-all call, and
   // renders at most this many rows in the excluded list. Both are bounds on the
   // same failure: a screen that happily posts ten thousand ids in one body works
@@ -324,10 +336,12 @@
     }
 
     if (filters.scope === 'version') {
+      var descs = (options && options.version_descriptions)
+        || VERSION_FALLBACK_DESCRIPTIONS;
       var vsel = h('select', { class: 'asc-input' },
         h('option', { value: '' }, 'Choose a version…'),
         ((options && options.versions) || ['V3', 'V4', 'V5']).map(function (v) {
-          return h('option', { value: v }, v);
+          return h('option', { value: v }, descs[v] ? (v + ' · ' + descs[v]) : v);
         }));
       vsel.value = filters.version;
       vsel.addEventListener('change', function () {
@@ -336,9 +350,10 @@
       wrap.appendChild(h('label', { class: 'asc-label' }, 'Product version'));
       wrap.appendChild(vsel);
       wrap.appendChild(h('div', { class: 'asc-label-hint' },
-        'V5 (Clinical RL Environment) ships through the environments pipeline, '
-        + 'not this bundle builder — the preview says so rather than shipping '
-        + 'an empty bundle.'));
+        'V5 is the real longitudinal chart walk: selecting one of its cases '
+        + 'exports the WHOLE trajectory, because a walk delivered one point at '
+        + 'a time cannot be reassembled. The agentic RL environments are a '
+        + 'separate tier (ENV) and ship from the environments section, not here.'));
       return;
     }
 

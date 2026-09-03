@@ -1,0 +1,18 @@
+Document index: 5
+Document type: radiology report
+Service date: 2023-03-20
+Age on report: 39Y    Sex: M
+De-identification: name, referring doctor, and "Done by Dr." fields redacted/omitted
+
+CONTENT
+----------------------------------------
+Ultrasound Abdomen
+LIVER: Normal in size with reduced echo pattern of parenchyma of liver. No focal mass seen in liver. No generalized infiltration seen. Intra hepatic biliary duct are not dilated. Diaphragm moves with respiration normally. Portal vein is normal measuring 1 cm.
+GALL BLADDER: Gall bladder appears thick walled showing multiple calculi seen within lumen. One of these measures 0.8 cm. Wall thickness measures 0.5 cm. Common bile duct appears normal. It measures 0.4cm. No calculus is seen.
+PANCREAS: Pancreas is normal size. Echo texture of pancreas is uniform throughout. No mass seen.
+SPLEEN: Spleen is enlarged size measuring 17 cm. Multiple granuloma are diffusely seen spleen.
+BOTH KIDNEYS: Both kidneys are normal in size, shape and position. Outline is smooth and well demarcated. Renal cortex has normal width throughout both kidneys. No mass or cyst seen. No renal parenchymal disease seen. No evidence of calculus or hydronephrosis on either side.
+RETROPERITONIUM: No evidence of para aortic lymphadenopathy.
+URINARY BLADDER: Urinary bladder has normal walls. No mass or calculus seen in urinary bladder.
+No ascites seen. No pleural effusion seen. Bowel loops are not dilated.
+CONCLUSION: Cholecystitis with cholelithiasis. Moderate splenomegaly with diffuse small granulomas. Needs lab co relation. Normal liver, portal vein, common bile duct, pancreas, both kidneys, retroperitonium and urinary bladder.

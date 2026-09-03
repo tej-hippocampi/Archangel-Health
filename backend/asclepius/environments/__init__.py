@@ -1,4 +1,4 @@
-"""Asclepius V5 — Clinical RL Environments (agentic tier).
+"""Asclepius ENV — Clinical RL Environments (agentic tier).
 
 A runnable, Gymnasium-standard clinical RL environment (PRD §4.5) built ON the
 existing V4 case pipeline. An agent works a case with tools, is scored on its
@@ -6,9 +6,15 @@ trajectory + end state by a physician-trained reward function, and is annotated
 step-by-step by a board-certified physician. Emits Centaur-format
 prompt+trajectory JSON as a byproduct.
 
-Additive to the codebase — V1–V4 flows are byte-for-byte unchanged. Every V5
-surface gates on ``portal_version == "v5"`` (constants.ENV_PORTAL_VERSION),
-NEVER on ``isAssisted()``.
+Additive to the codebase — the single-turn portal V1–V5 is byte-for-byte
+unchanged. Every ENV surface gates on ``portal_version == "env"``
+(constants.ENV_PORTAL_VERSION), NEVER on ``isAssisted()``.
+
+**This tier was called V5 until the longitudinal relabel** (Longitudinal E2E PRD
+§5). ``v5`` is now a real portal version meaning "one point of a real chart
+walk"; this tier is ``env`` and is deliberately NOT a portal version, because it
+is not a version of the single-turn portal — different table (``env_runs``),
+different routes, different export pipeline.
 
 Build order (PRD §11): schema → state/tools/env → rollout → verify →
 two-frontier + difficulty → physician annotation → reward_model → catalog →

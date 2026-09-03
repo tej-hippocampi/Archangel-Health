@@ -1,0 +1,25 @@
+Document index: 122
+Document type: CBC/hematology
+Service date: 2024-01-12
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name/branch/ward redacted (green marker); Ref By SELF. No identifiers transcribed.
+
+CONTENT
+----------------------------------------
+CBC ESR Profile:
+Haemoglobin: 8.8 gm/dl (12.0 - 16.0) [L]
+Haematocrit: 30.8 % (40 - 50) [L]
+R.B.C: 3.73 10^6/L (4.3 - 5.9) [L]
+M.C.V: 82.6 FL (80 - 100)
+M.C.H: 23.5 PG (27 - 34) [L]
+M.C.H.C: 28.4 g/dL (31 - 36) [L]
+W.B.C: 4.7 10^3/UL (4.0 - 10.0)
+Neutrophils: 81.4 % (40 - 80) [H]
+Lymphocytes: 9.8 % (20 - 40) [L]
+Monocytes: 7.9 % (2 - 10)
+Eosinophils: 0.4 % (1 - 6) [L]
+Basophils: 0.5 % (<1)
+Platelet Count: 55 x10^9/L (150 - 450) [L]
+ESR: 30 mm/1Hr (0 - 25) [H]
+Remarks: Anisocytosis. Hypochromic. Poikilocytosis. Platelets appear low on film. ? Cause. To follow with clinical history.
+ICT Malaria: Plasmodium falciparum - Negative; Plasmodium vivax - Negative.

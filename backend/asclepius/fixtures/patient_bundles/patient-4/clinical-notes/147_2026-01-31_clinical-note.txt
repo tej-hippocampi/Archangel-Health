@@ -1,0 +1,25 @@
+Document index: 147
+Document type: clinical note
+Service date: 2026-01-31
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted patient name/ID fields and PT signatures/stamps (green redaction)
+
+CONTENT
+----------------------------------------
+Form: Physiotherapy & Rehabilitation Services Progress Note
+
+Session 1 — 31/01/2026, 11:00 am:
+- Dx: DM, HTN, IHD (PCI), Aspiration pneumonia
+- Risk factor: B, C
+- Fall risk / fall protocol boxes blank
+- Interventions: PROM exercises of all 4 limbs; Approximation; Calf stretching; Ankle pumping; Pelvic rolling; AWB
+- Role: (PT)
+
+Session 2 — 31/01/2026, 6:10 pm:
+- Patient of Risk of Fall: YES
+- Risk factor: B, C
+- Fall Protocol Initiated: YES
+- Interventions: PROM exercise of all 4 limbs; Approximation; Calf stretching; Ankle pumping; Pelvic rolling; AWB
+- Role: (PT)
+
+Third session block empty

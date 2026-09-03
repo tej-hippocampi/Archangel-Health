@@ -1,0 +1,12 @@
+Document index: 104
+Document type: radiology report
+Service date: 2023-06-12
+Age on report: 45Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name; kept age, sex, service date.
+
+CONTENT
+----------------------------------------
+CT film (Aquilion ONE): scout/localizer plus ~35 axial abdomen/pelvis slices (approx 6x6 grid).
+Technical labels include ~120kV 110mAs; reconstruction/collimation text (e.g. S:1.0mm / AQ 80x0.5mm style params).
+Anatomy: liver, stomach, spleen, kidneys, vertebral bodies, bowel loops from diaphragm level inferiorly into pelvis.
+No written findings/impression on film.

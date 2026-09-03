@@ -1,0 +1,22 @@
+Document index: 58
+Document type: other
+Service date: 2024-06-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility name/address, patient ID, and staff signatures omitted.
+
+CONTENT
+----------------------------------------
+INTAKE / OUT-PUT RECORD SHEET. Date 21/06/2024. Page 1 of 1. Rev #01 August 2024.
+Intake (0700–1800 filled; later hours not fully captured):
+0700: Parenteral1 100; Parenteral2 RL-D 100; PO H2O 100
+0800: Parenteral1 Bakelsan/Bafalsan; Parenteral2 Traxel 100
+0900: Parenteral2 Metacon 100; urine Pass; stool (S) Pass
+1000: IV med 100; Parenteral2 100; H2O 100
+1100–1200: Parenteral2 100; at 1200 output No for urine/vomitus/drainage/NG
+1300: IV med 200; Parenteral2 100
+1400: Parenteral2 100; stool Pass; Total C/O Parenteral2 700
+1500: Inj PLT-D 3 units; PO 200
+1600: 30 ml PH, 100 ml
+1700: 30 ml
+1800: Parenteral2 (partially illegible); H2O 110; urine Pass
+24-hour summary totals blank on this photo.

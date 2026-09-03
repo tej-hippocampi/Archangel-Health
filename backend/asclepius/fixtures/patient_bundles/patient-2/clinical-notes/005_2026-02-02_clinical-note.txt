@@ -1,0 +1,35 @@
+Document index: 5
+Document type: clinical note
+Service date: 2026-02-02
+Age on report: 65Y    Sex: UNKNOWN
+De-identification: Omitted patient name; omitted facility name from form header
+
+CONTENT
+----------------------------------------
+Vitals:
+- B.P: 120/70
+- TEMP: A/F (afebrile)
+- PULSE: 114 b/m
+- RESP-RATE: not recorded
+- O2 SAT: 98%
+- PEFR: not recorded
+- WEIGHT: 75 kg
+
+Complaints:
+1. SOB (shortness of breath), chest pain
+2. Fever
+
+History checklist:
+- DM: N
+- HTN: N
+- IHD: N
+- PETS: N
+- H/O TB: N
+- CONTACT WITH TB PERSON: N
+- H/O COVID-19: N
+- SMOKER: Y
+- OTHER ADDICTION: N
+- BIO MASS FUEL EXPOSURE: N
+
+Advise: CXR (chest X-ray)
+Examination / Provisional Diagnosis: blank

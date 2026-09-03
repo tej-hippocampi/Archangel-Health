@@ -1,0 +1,16 @@
+Document index: 34
+Document type: LFT
+Service date: unknown-date
+Age on report: 39Y    Sex: M
+De-identification: identifier field and name fields present and redacted (green/red marker) and omitted; no service date legible.
+
+CONTENT
+----------------------------------------
+Clinical Bio Chemistry (LIVER FUNCTION TESTS - LFT)
+Bilirubin (Total): 7.22 mg/dl (0.3-1.2) [H]
+Bilirubin (Direct): 5.72 mg/dl (<0.32) [H]
+Bilirubin (Indirect): 1.50 mg/dl (<0.95) [H]
+Gamma GT: 70 U/L (12-64 Male; 9-36 Female) [H]
+SGPT (ALT): 29 U/L (< 40)
+Alkaline Phosphatase: 208 U/L (180-1200 Children; 100-290 Adults)
+Remarks: Test done on SELECTRA (Merck) completely automated, random access Clinical Chemistry analyzer.

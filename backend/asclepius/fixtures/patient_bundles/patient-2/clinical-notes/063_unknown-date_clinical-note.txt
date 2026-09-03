@@ -1,0 +1,11 @@
+Document index: 63
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: provider signature/designation omitted; year not visible on page
+
+CONTENT
+----------------------------------------
+Progress note entry.
+DATE: 16/8  TIME: 2:30
+Notes: Respiratory acidosis. Duty doctor informed. Apply BiPAP with setting of 16/8 with O2 5 liter support.

@@ -1,0 +1,19 @@
+Document index: 45
+Document type: other lab
+Service date: 2025-06-15
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name/identifier field/facility (green redaction); kept age, sex, service dates, clinical results
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+Panel: Electrolytes
+
+Booking: 15/06/2025 14:29:36
+Collection: 15/06/2025 14:30:02
+Reporting: 15/06/2025 16:07:22
+
+- Sodium: 136.8 mmol/L (135-145)
+- Potassium: 3.68 mmol/L (3.5-5.5)
+- Chloride: 96.5 mmol/L (96-106)
+- Bicarbonate: 19.1 mmol/L (20.0-29.0) — below reference range

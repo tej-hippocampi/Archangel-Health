@@ -1,0 +1,48 @@
+Document index: 115
+Document type: discharge summary
+Service date: 2024-12-19
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name, admission no., consultant, ward/facility identifiers; kept age, sex, dates, full clinical/medication content.
+
+CONTENT
+----------------------------------------
+DISCHARGE SUMMARY
+
+Presenting Complaints: ABDOMINAL PAIN, NAUSEA, VOMITING
+Diagnosis: DYSPEPSIA/AGE
+
+Relevant investigations (as summarized):
+- CBC, UCE, TROP I: Normal
+- Amylase: 146
+- Lipase: 242
+- US Abdomen: Dilated pancreatic duct 0.6 cm
+- ECHO: EF 30-35% and moderate to severe left ventricular systolic dysfunction
+
+Hospital Course:
+Known case of HTN, DM, and IHD. Presented with generalized and severe abdominal pain, nausea, and vomiting.
+Vitally stable on examination; baseline tests performed and managed accordingly.
+Cardiac team consultation requested due to low EF (~30-35%); medications adjusted.
+Patient improved, tolerating well, and being discharged.
+
+Date of Surgery: NONE
+Operative Procedure: NONE
+
+Instruction on Discharge:
+- Stop Ascard on the day of tooth extraction (one day only), then restart the next day
+- Maintain medication compliance
+- Maintain hydration
+
+Medication on Discharge:
+- CAP RISEK 40MG 1+0+0
+- SYP MOTILIUM 2+2+2
+- TAB VONOZAN 20MG 1+0+0
+- TAB SULVORID 25MG 1+0+1
+- TAB ASCARD 75MG 1+0+0
+- TAB LIPIGET 20MG 0+0+1
+- TAB NEBIL 5MG 1+0+0
+- TAB TREATAN 4MG 0+0+1/2
+- TAB SPIROMIDE 40MG 1/2+0+0
+- TAB DAPA 10MG 1+0+0
+
+Follow-up: OPD after one week
+Status at Discharge: Improved

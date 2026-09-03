@@ -1,0 +1,15 @@
+Document index: 88
+Document type: RFT/renal
+Service date: 2024-12-22
+Age on report: 45Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed; date aligned with adjacent same-draw panels (collection 11:27:53)
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Booking: 22/12/2024 11:25:59
+Collection: 22/12/2024 11:27:53
+Reporting: 22/12/2024 13:32:11
+
+UREA (BLOOD):
+Urea: 16 mg/dL (10 - 50)

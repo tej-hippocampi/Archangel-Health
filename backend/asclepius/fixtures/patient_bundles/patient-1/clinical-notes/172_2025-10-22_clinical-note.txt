@@ -1,0 +1,21 @@
+Document index: 172
+Document type: clinical note
+Service date: 2025-10-22
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: nurse initials and a diagnosis fragment redacted (green marker)
+
+CONTENT
+----------------------------------------
+IV Cannulation Insertion Details:
+- 22/10/2025 1900, 18G, site R/H (right hand), condition Intact
+- 22/10/2025 1900, 18G, site L/H (left hand), condition Intact
+Medication Administration Record:
+- Inj N/Saline 2L I/V, time 1900
+- Inj Haemaccel 500ml I/V, time 1900
+- Inj Zofran (ondansetron) 8mg I/V, time 1920
+- Inj Risek (omeprazole) 40mg I/V, time 1930
+- Inj Ceftum (cefuroxime) 2G I/V, time 1930
+Nurses Notes:
+- 22/10/2025 1900 (Receiving Note): Patient came in ER with complaints of SOB and hypotension and generalized weakness. Patient GCS 15/15. Patient known case of [redacted].
+- 22/10/2025 1930 (Initial Note): Patient initial management done in ER. Labs sent; blood C/S sent to lab; all stat doses done in ER.
+- 22/10/2025 2135 (Shifting Note): Patient shifted to ICU for further management.

@@ -1,0 +1,649 @@
+RADIOLOGY & PROCEDURE REPORTS (de-identified)
+============================================================
+
+--- Image 1 | 2026-04-25 | radiology report ---
+Modality: Ultrasound Abdomen (text report)
+
+Liver: 13.0 cm in size, coarse echotexture; no intra or extra hepatic biliary duct dilatation; portal vein 1.1 cm; no focal mass; no free fluid in abdomen.
+Gall Bladder: Partially contracted; no stone seen.
+Right Kidney: Normal in size; no stone or hydronephrosis.
+Left Kidney: Normal in size; no calculus or hydronephrosis.
+Pancreas: Normal in size; no focal mass.
+Spleen: Normal in size; no focal mass.
+Urinary Bladder: Partially filled; no stone seen.
+
+IMPRESSION:
+- Liver shows coarse echotexture
+- Suggestive of C.L.D. (chronic liver disease)
+- No ascites seen
+
+--- Image 2 | 2005-11-21 | radiology report ---
+Modality: Ultrasound
+Body region: Abdomen
+Timestamp on screen: 2005/12/12 05:44:33PM
+Two-panel cine review frames (no narrative findings/impression text on image).
+Technical notes visible: dual R/L views; probe/settings labels (6C3/4.2, 27fps, DR60).
+No typed measurements or written report text present — image-only capture (pixels not transcribed).
+
+--- Image 8 | 2025-11-07 | radiology report ---
+Study: CT SCAN WHOLE ABDOMEN WITH CONTRAST
+
+HISTORY: K/c of CLD. Suspected HCC.
+
+TECHNIQUE: Axial images obtained after oral and intravenous contrast. Reconstructions in coronal and sagittal planes.
+
+FINDINGS:
+- Liver appears cirrhotic with irregular/undulating margins and coarse nodular parenchyma. Small hypodensity in segment VI without enhancement, likely simple hepatic cyst. No definite arterially enhancing lesion in either lobe. No abnormal washout to suggest hepatocellular carcinoma.
+- Gallbladder mildly thick-walled and edematous, likely reactionary. (Later line also states gallbladder appears normal without calculi — as printed.)
+- Portal vein mildly dilated measuring 1.6 cm. No portal venous thrombosis.
+- Spleen mildly enlarged and lobulated, measuring 13 cm CC length.
+- Pancreas: no parenchymal abnormality; peripancreatic fat planes preserved.
+- Adrenal glands within normal limits.
+- Both kidneys normal size/shape/position with normal enhancement; no mass or hydronephrosis.
+- Urinary bladder inadequately filled.
+- Prostate and seminal vesicles unremarkable.
+- Fecal-loaded large bowel; small bowel grossly unremarkable.
+- No ascites.
+- Few subcentimeter abdominopelvic lymph nodes, likely nonspecific.
+- Lung bases (lung windows): diffuse emphysematous changes.
+- Bony windows: degenerative changes in spine.
+
+IMPRESSION:
+Imaging features suggesting chronic liver disease. No arterially enhancing lesion identified in either lobe of liver. No abnormal washout seen to suggest hepatocellular carcinoma.
+
+(Blue ink underlines on: cirrhotic; simple hepatic cyst; enlarged; No ascites; and full impression sentences regarding no arterially enhancing lesion / no washout for HCC.)
+
+--- Image 9 | UNKNOWN | radiology report ---
+Partial/rotated snippet of printed radiology text (continuation page):
+
+No evidence of portal venous thrombosis. No ascites is seen.
+Follow-up imaging is suggested.
+
+--- Image 18 | 2025-09-12 | radiology report ---
+ULTRASOUND ABDOMEN
+
+LIVER: Coarse echotexture and irregular margins. No focal lesion or dilated channels. Portal vein normal caliber.
+GALLBLADDER: Normal size and shape. Wall thickened due to adjacent liver inflammation. No mass or calculus. No fluid collection around it. Common duct normal caliber.
+PANCREAS: Normal echotexture. No mass/focal lesion. Pancreatic duct normal caliber.
+SPLEEN: Mildly enlarged; normal echotexture. No focal lesion.
+RIGHT KIDNEY: Normal size, shape, echotexture. No mass, cyst, calculus, or hydronephrosis.
+LEFT KIDNEY: Normal size, shape, echotexture. No mass, cyst, calculus, or hydronephrosis.
+URINARY BLADDER: Normal wall thickness. No stone or mass.
+Other: No ascites. No para-aortic lymphadenopathy.
+
+IMPRESSION:
+- Coarse echotexture of liver with irregular margins, PVD 1.0 cm, spleen 12.1 cm. No focal mass lesion in liver. [blue underline on first impression line]
+- No significant pancreato-biliary pathology seen.
+
+--- Image 19 | 2020-12-20 | radiology report ---
+Ultrasound image printout page (six frames in three pairs); no narrative findings/impression text.
+Modality: Ultrasound (abdominal/organ appearance).
+Date/time stamps: 20.12.2020 (e.g. 11:15:23, 11:15:33).
+Measurements visible on scan: 1 D: 121.67 mm; 2 D: 18.14 mm.
+Technical labels: B/M settings, 8MHz (pixels/raw images not transcribed).
+
+--- Image 22 | 2024-07-17 | radiology report ---
+Ultrasound Abdomen (typed template with handwritten corrections)
+
+LIVER:
+- Size 15.1 cm
+- Coarse echopattern; irregular outline (handwritten over typed normal/uniform/regular)
+- No evidence of focal parenchymal abnormalities
+- IHD and IHV appear normal
+- Portal vein dilated 1.4 cm (handwritten; typed "appear normal" crossed out); no thrombus seen within portal vein
+
+GALLBLADDER:
+- Thick wall; wall thickness 0.6 cm (handwritten; typed normal wall thickness crossed out)
+- Normal free lumen without calculus, mass, or polyp
+- CBD appears normal
+
+PANCREAS: Visualized head and body normal in size and echopattern; no solid or cystic mass
+
+SPLEEN: Size 13.5 cm (handwritten; typed Normal crossed out); normal shape and echopattern; no focal mass or cyst; splenic vein not dilated
+
+RIGHT KIDNEY: Normal size, shape, echopattern; intact corticomedullary distinction; regular outline; no calculus, hydronephrosis, or mass
+LEFT KIDNEY: Normal size, shape, echopattern; intact corticomedullary distinction; regular outline; no calculus, hydronephrosis, or mass
+
+URINARY BLADDER: Empty (handwritten); typed note on wall thickness/calculus/mass as printed on form
+
+Other:
+- No abdominal lymphadenopathy
+- Bowel loops not dilated; normal peristalsis
+- No ileocecal lump / colonic mass at time of scan
+- No ascites
+
+Impression (handwritten): CLD & Portal HTN
+
+--- Image 50 | 2026-06-21 | other ---
+INTAKE / OUTPUT RECORD SHEET. Date 21/06/2026. Page 1 of 1.
+Intake (selected rows):
+0700: Parenteral1 Bafalsan/Perfalgan 100 ml; Parenteral2 RL-D 100; PO/NG H2O 100
+0800: Parenteral2 ~100
+0900: IV med 100 ml; Metallow/Metaclon 100; PO/NG H2O 100
+1000–1100: Parenteral2 100 each
+1200: IV med 200; Parenteral2 100; PO/NG 200
+1300: Parenteral2 100
+1400: Inj R/L-D 200; PO/NG H2O 150
+1500: ~30 ml PH (unclear)
+TOTAL C/O (~1600): Parenteral1 300; Parenteral2 700; PO/NG 550
+Output: 0700 stool Pass; 0900 urine Pass, vomitus/drainage/aspiration No, stool Pass; 1400 urine Pass.
+Rows 1700–0600 blank. 24-hour summary totals not filled.
+Shift signatures omitted.
+
+--- Image 51 | 2024-06-20 | other ---
+INTAKE / OUT-PUT RECORD SHEET. Date 20/06/2024. Page 1 of 1. Rev #01 August 2024.
+Intake highlights:
+Parenteral1: C/O at 0700; IV med 100 at 0900–1100; morning total C/O 100
+Parenteral2: 100 ml hourly much of day; morning total ~800; evening total ~200
+PO/NG: juice ~400+50 (0800); H2O 100 (1300, 1500, 1700, 2100); Tea 100 (1900);
+  night PLW 100 at 0000/0300/0500; 0600 ~200
+Shift PO totals noted ~250 (AM), ~300 (PM)
+Output: Urine Pass at multiple hours (0800, 1000, 1400, 1600, 2100, 0000, 0300); stool SNP x2
+24h totals — Intake: Parenteral 1100 ml, Oral 750 ml, Grand 1850 ml; Output urine Pass, Grand Pass
+
+--- Image 52 | 2024-06-19 | other ---
+INTAKE / OUT-PUT RECORD SHEET. Date ~19/06/2024 (handwritten; digit ambiguous). Page 1 of 1. Rev #01 August 2024.
+Intake:
+0700–0800: PO H2O 100 each; urine Pass
+0900: PO Tab 100; urine Pass
+1400: PO 200
+1700: PO H2O 100
+1800: Inj Rocephin-like 100; Inj RL/D 50; PO H2O 100
+1900–2000: IV meds ~100 each; Half(D) noted; PO H2O 100
+2100–2200: Half(D) continue
+2300: Total C/O 300; PO H2O 100; urine Pass
+0000–0600: Parenteral2 ~50/hr; C/O at 0600 ~400; 0200 PO H2O 250, urine 750
+Stool: S.N. Pass / not passed notes overnight
+24h totals — Intake: Parenteral 750 ml, Oral 650 ml, Grand 1400 ml
+Output: Urine 750 ml; Vomitus/NG/Drainage/Others No; Grand 750 ml
+
+--- Image 53 | 2026-06-18 | other ---
+INTAKE / OUT-PUT RECORD SHEET. Date 18/06/2026.
+Intake:
+0800: Tea 100; urine Pass
+0900–1000: PLW 100 each; urine Pass at 1000
+1200: urine Pass
+1300: PO ~300 ml
+1700: handwritten lab/med note (partially illegible: Pen / VNF / Na / NM / BNP)
+2000: PO 0
+2100–2200: 1/2 R/L ~120 ml/hr; urine Pass at 2200; Total C/O parenteral 240
+2300–0400: parenteral ~120 ml/hr; 0100 urine Pass
+0300: Tea 20 ml; 0400 Juice 200 ml, stool SNP; 0500 parenteral 40 ml, PO total 220
+Night parenteral total ~760; PO night ~220
+24h totals — Intake: Parenteral 1000, Oral 520, Grand 1520; Output urine Pass, Grand Pass
+
+--- Image 54 | 2026-06-17 | other ---
+INTAKE / OUT-PUT RECORD SHEET. Date 17/06/2026. Page 1 of 1. Rev #01 August 2024.
+Intake:
+0700: PO Rh 100 ml
+0900: PO Px 60 ml
+1100: PO Rh 100 ml
+1300: PO Rh 100 ml and 250 ml (dual entry)
+1500: H2O 100; 1700: H2O 50
+Diagonal line through parenteral columns 1500–2200
+2300: H2O 200; note C/O Heplock; urine Pass
+0500: H2O 300; stool SNP/SNH
+Output: urine Pass at 0800, 1000, 1200, 1500, 2300; stool Pass at 1100
+24h totals — Intake parenteral 500; Output urine Pass, Grand Pass
+
+--- Image 55 | 2026-06-18 | other ---
+INTAKE / OUT-PUT RECORD SHEET. Date 18/06/2026.
+(Closely parallels index 53 content; separate photo of same-date I/O sheet.)
+Intake:
+0700: Parenteral1 C/O 100 off
+0800: Tea 100; urine Pass
+0900: PW 100; urine Pass
+1100: PW 100; urine Pass
+1300: urine Pass, stool Pass
+1400: PO 300 ml
+1500: NG aspiration Nil
+1600: vomitus/drainage notes (P/Pass); NG VNP; stool Nil / BNP
+2100–2200: 1/2 P ~120 ml; Total C/O 240
+2300–0200: parenteral 120 ml/hr
+0300: H2O 20 ml; stool SNP
+0400: parenteral 120; urine Pass
+0500: parenteral 40; Juice 200; urine Pass
+Night totals: parenteral 760, PO 220
+24h totals — Intake: Parenteral 1000, Oral 520, Grand 1520; Output urine Pass, Grand Pass
+
+--- Image 56 | 2024-06-19 | other ---
+INTAKE / OUT-PUT RECORD SHEET. Date ~19/06/2024 (handwritten; digit ambiguous on photo).
+Intake:
+0800: H2O 100; urine Pass
+0900–1000: Tab 100 each; urine Pass
+1300: PO total ~250
+1800: Inj Onset/corset 100; Inj S/B LD or Half D 50
+1900: Inj Betalsin 100; Half D Hold; H2O 100
+2000: Inj Ceftriax 100; Half D Hold
+1900–2100: H2O 100; urine ~200 Pass at 2100; stool SM Pass ~2100–2200
+Night: PO H2O 250 at 0200; urine 250 Pass; parenteral ~50/hr 0000–0600; C/O ~400
+Vomitus/drainage/NG mostly No
+24h totals — Intake: Parenteral 750 ml, Oral 650 ml, Grand 1400 ml
+Output: Urine 750 ml, Drainage 100 ml, Grand 850 ml; Balance +550 ml
+
+--- Image 57 | 2024-06-20 | other ---
+INTAKE / OUT-PUT RECORD SHEET. Date 20/06/2024.
+Intake:
+Parenteral1: IV med/con 100 at 1000–1100; C/O 100
+Parenteral2: frequent 100 ml entries AM–evening; notes "in line of medication", "in drip", "slow flow";
+  2100 No medication; 0000 amount 200
+PO/NG: H2O 50 (0800), Juice 200 (0900), H2O 100 (1200/1400/1700/2200), Tea 100 (1800),
+  PLW ~100–300 overnight (2300 circled 300), PLW 100 (0500), 200W (0600)
+Output: Urine Pass at 0700, 1000, 1200, 1700, 2200, 0100, 0500
+Stool: Pass (0700, 0100, 0500); SNP (2100, 0300); ABNS (~1000)
+24h totals — Intake: Parenteral 1100 ml, Oral 750 ml, Grand 1850 ml; Output urine Pass, Grand Pass
+
+--- Image 58 | 2024-06-21 | other ---
+INTAKE / OUT-PUT RECORD SHEET. Date 21/06/2024. Page 1 of 1. Rev #01 August 2024.
+Intake (0700–1800 filled; later hours not fully captured):
+0700: Parenteral1 100; Parenteral2 RL-D 100; PO H2O 100
+0800: Parenteral1 Bakelsan/Bafalsan; Parenteral2 Traxel 100
+0900: Parenteral2 Metacon 100; urine Pass; stool (S) Pass
+1000: IV med 100; Parenteral2 100; H2O 100
+1100–1200: Parenteral2 100; at 1200 output No for urine/vomitus/drainage/NG
+1300: IV med 200; Parenteral2 100
+1400: Parenteral2 100; stool Pass; Total C/O Parenteral2 700
+1500: Inj PLT-D 3 units; PO 200
+1600: 30 ml PH, 100 ml
+1700: 30 ml
+1800: Parenteral2 (partially illegible); H2O 110; urine Pass
+24-hour summary totals blank on this photo.
+
+--- Image 97 | 2026-06-17 | radiology report ---
+CT SCAN FILMS jacket — DEPARTMENT OF RADIOLOGY / COMPUTED TOMOGRAPHY IMAGING
+EXAM: CT Scan W/Abdomen Contrast (TriPhasic)
+DATE: 17/06/2026
+NO. OF FILMS: 04 films + 01 DVD
+(Referring physician name present on jacket — omitted)
+
+--- Image 98 | 2026-06-17 | radiology report ---
+CT SCAN FILMS jacket — DEPARTMENT OF RADIOLOGY / COMPUTED TOMOGRAPHY IMAGING
+EXAM: CT Scan W/Abdomen Contrast (TriPhasic)
+DATE: 17/06/2026
+NO. OF FILMS: 04 films + 01 DVD
+(Near-duplicate photo of same film jacket as index 97; referring physician name omitted)
+
+--- Image 99 | 2026-06-17 | radiology report ---
+CT film sheet — axial abdomen/pelvis contrast CT (Aquilion ONE)
+Study: W/ABDOMEN CONTRAST; frames labeled CONTRAST ARTERIAL and VENOUS phases
+Layout: 24 frames (4x6 grid)
+Technical (visible on overlays): ~120 kV / 125 mAs; thin-slice acquisition parameters
+Visual content: sequential axial slices through upper abdomen to pelvis — liver, kidneys, bowel, spine/pelvis; contrast in vessels/organs
+(No formal written radiology impression on this film sheet)
+
+--- Image 100 | 2026-06-17 | radiology report ---
+CT film sheet — axial abdomen/pelvis contrast CT (Aquilion ONE)
+Study: W/ABDOMEN CONTRAST, VENOUS PHASE
+Layout: 24 frames (4x6 grid), slices progressing upper abdomen through pelvis
+Technical (visible on overlays): ~120 kV / 125 mAs
+Visual content: liver, spleen, kidneys, bowel loops, iliac/pelvic bones with venous-phase contrast enhancement
+(Companion/near-related film sheet to index 99; no formal written impression)
+
+--- Image 101 | 2023-06-18 | radiology report ---
+CT film (Aquilion ONE): grid of ~18 axial slices through lower abdomen/pelvis.
+Protocol labels/parameters visible on frames: ~120kV 125mAs; slice/reconstruction params ~0.5s / 7.5mm; helical pitch ~HP55.0.
+Anatomy: iliac bones, sacrum, bowel loops (gas/contrast), bladder region; lower rows show hip joints (acetabula/femoral heads).
+No written radiologist findings/impression on film (image tiles only).
+
+--- Image 102 | 2023-06-12 | radiology report ---
+CT film (Aquilion ONE): ~18 axial slices of lower abdomen/pelvis.
+Labels: V-ABDOMEN / CONTRAST VENOUS PHASE; ~120kV 125mAs; ~0.5s / 1.0mm x 80; HP55.0.
+Anatomy: lower lumbar/iliac region and bowel (upper tiles); sacrum/pelvic cavity (mid); hip joints, partially filled bladder, rectum/anal canal area (lower).
+No written findings/impression on film.
+
+--- Image 103 | 2023-06-27 | radiology report ---
+CT film (Aquilion ONE): 1 scout/localizer of torso plus ~36 axial abdomen/pelvis slices (grid).
+Parameters include ~120kV with variable mA; timestamps around afternoon acquisition.
+Anatomy progression: upper abdomen (liver, stomach, spleen, lung bases/diaphragm) through kidneys/aorta/bowel to lower abdomen/upper pelvis with iliac bones.
+No written findings/impression on film.
+
+--- Image 104 | 2023-06-12 | radiology report ---
+CT film (Aquilion ONE): scout/localizer plus ~35 axial abdomen/pelvis slices (approx 6x6 grid).
+Technical labels include ~120kV 110mAs; reconstruction/collimation text (e.g. S:1.0mm / AQ 80x0.5mm style params).
+Anatomy: liver, stomach, spleen, kidneys, vertebral bodies, bowel loops from diaphragm level inferiorly into pelvis.
+No written findings/impression on film.
+
+--- Image 105 | UNKNOWN | radiology report ---
+Monitor photograph: 12 axial CT slices in two rows of six (abdomen/lower thorax).
+Top row labeled WABD/OMEN CONTRAST VENOUS PHASE — mid-abdomen with lumbar vertebrae, kidneys, aorta, bowel.
+Bottom row labeled WABD/OMEN CONTRAST ARTERIAL PHASE — lower chest/upper abdomen with heart base, liver, stomach, spleen.
+Equipment label Aquilion ONE; window settings (e.g. WL/WW) visible on tiles.
+No written findings/impression; header identity band covered by green redaction.
+
+--- Image 106 | UNKNOWN | radiology report ---
+Monitor/film photograph: 12 axial CT frames (2x6) of abdomen/pelvis.
+Labels include W/ABD/PEL; CONTRAST VENOUS PHASE (top row lower abdomen/kidneys) and CONTRAST ARTERIAL/VENOUS PHASE (bottom row upper abdomen — liver, spleen, stomach; lower chest/heart).
+Equipment: Aquilion ONE; window examples W:400 L:40 / W:350 L:40.
+No written findings/impression; top and mid bands green-redacted.
+
+--- Image 107 | UNKNOWN | radiology report ---
+CT film: 24 coronal abdomen/pelvis slices (4x6 grid), contrast venous phase.
+Labels: WABDOMEN CONTRAST VENOUS PHASE Coronal; Aquilion ONE; R orientation markers.
+Anatomy from posterior to anterior: spine/back musculature; kidneys, liver, spleen, pelvic cavity; more anterior abdominal wall/liver/bowel.
+Date/time overlay on frames partially ambiguous/illegible in photo (not recorded as a confident service date).
+No written findings/impression on film.
+
+--- Image 108 | UNKNOWN | radiology report ---
+CT film: 24 coronal contrast-enhanced abdomen/pelvis slices (4x6).
+Protocol: W/ABDOMEN CONTRAST VENOUS PHASE; Coronal; Aquilion ONE.
+Visible anatomy: spine, ribs, liver, kidneys, pelvic bones (iliac crests/hips), bowel; contrast highlighting vessels/organs.
+Date overlay on frames ambiguous in photograph.
+No written findings/impression on film.
+
+--- Image 109 | 2023-06-18 | radiology report ---
+Monitor display: ~18 coronal CT slices (3x6) of abdomen/pelvis.
+Protocol: W/ABDOMEN CONTRAST venous phase coronal reconstructions; Aquilion ONE.
+Anatomy: liver, spleen, lung bases; kidneys and contrast-opacified aorta; bowel loops; urinary bladder; pelvic bones.
+No written findings/impression on screen.
+
+--- Image 110 | 2020-06-18 | radiology report ---
+Monitor display: ~20 coronal CT abdomen/pelvis slices.
+Labels: W/ABDOMEN CONTRAST VENOUS PHASE Coronal; Aquilion ONE; params ~120kV 125mAs; HP55.0; viewer text Vitrea.
+Anatomy: liver, bowel loops, kidneys, aorta, spine, pelvic girdle.
+No written findings/impression on screen.
+Note: date overlay read as 2020.07.09 on this photo (may be OCR/lighting artifact vs adjacent films).
+
+--- Image 111 | 2026-06-17 | radiology report ---
+CT film (Aquilion ONE): ~24 axial slices; majority pelvis/upper thighs (femoral shafts in muscle), with a few larger upper-abdomen/lower-chest tiles (liver, heart/lung bases, spine).
+Labels: ABDOMEN CONTRAST VENOUS; ~120kV 125mAs; slice numbers in ~97–120 range noted on frames.
+Contrast-enhanced vessels visible. No written findings/impression on film.
+
+--- Image 112 | 2026-06-17 | radiology report ---
+CT film (Aquilion ONE): axial series through pelvis and mid-thighs (pelvic bones, hips, femoral cross-sections); bottom row includes larger upper-abdomen/lower-chest slices (liver, stomach region, spine).
+Technical examples: 120kV; ~7.0mm; window W:400 L:40.
+No written radiological interpretation on film.
+
+--- Image 113 | 2026-06-17 | radiology report ---
+CT film: 18 axial abdomen/pelvis slices (3x6).
+Protocol: ABDOMEN CONTRAST DELAY PHASE; Aquilion ONE; ~120kV; example params 0.35s / 7.0mm / 0.5x80; HP~65; WL40 WW350.
+Top: liver, stomach, kidneys; mid: bowel loops; bottom: pelvic girdle with contrast-bright urinary bladder.
+No written findings/impression on film.
+
+--- Image 114 | 2026-06-17 | radiology report ---
+CT film: 18 axial abdomen/pelvis slices (3x6), ABDOMEN CONTRAST DELAY PHASE; Aquilion ONE.
+Tech: 120kV; mAs varying across slices (~97–152); 0.35s; 7.0mm; HP55.0; 0.5x80.
+Coverage liver/spleen through mid-abdomen bowel/kidneys to pelvis with contrast-filled bladder.
+No written findings/impression on film.
+
+--- Image 115 | UNKNOWN | radiology report ---
+Printed report page (header/footer cropped): CT SCAN WHOLE ABDOMEN WITH CONTRAST (TRIPHASIC).
+
+CLINICAL DATA:
+Known case of HCC.
+Suspected CLD.
+
+SCANNING PROTOCOL:
+Multiple axial sections of abdomen acquired from base of lung down to symphysis pubis with and without IV contrast; coronal and sagittal reconstructions; oral contrast also given.
+
+FINDINGS:
+Liver: normal sized with irregular/undulating margins and coarse nodular parenchyma. Well-circumscribed atypical hypodense lesion in segment V measuring 2.2 x 2.1 cm without appreciable enhancement but with washout, likely atypical HCC. Another small hypodense lesion in segment VI measuring 0.6 x 0.6 cm with washout, likely regenerating/dysplastic nodule.
+No intra- or extrahepatic biliary duct dilatation.
+Portal vein ~1.7 cm; no portal venous thrombosis.
+Gallbladder mildly thick-walled and edematous, likely reactionary; no definite radiodense calculus; radiolucent calculus cannot be excluded on CT; no cholecystitis.
+Spleen normal size; few prominent perisplenic varices; no focal mass.
+Pancreas normal; no pancreatitis; no definite pancreatic lesion.
+Both adrenal glands normal.
+Both kidneys normal size/shape with normal enhancement and excretion; no radiodense calculus, cyst, or hydronephrosis.
+(Page continues; remainder not fully visible on this photo.)
+
+--- Image 116 | UNKNOWN | radiology report ---
+Same printed CT triphasic abdomen report page as adjacent photo (alternate crop).
+Title: CT SCAN WHOLE ABDOMEN WITH CONTRAST (TRIPHASIC).
+Clinical data: known HCC; suspected CLD.
+Protocol: axial abdomen base of lung to symphysis pubis ± IV contrast; coronal/sagittal reconstructions; oral contrast.
+Findings (as visible): cirrhotic morphology with segment V ~2.2 x 2.1 cm atypical hypodense lesion with washout (likely atypical HCC); segment VI ~0.6 x 0.6 cm hypodense lesion with washout (likely regenerating/dysplastic nodule); portal vein ~1.7 cm without thrombosis; mildly thick-walled edematous gallbladder; perisplenic varices; normal pancreas/adrenals/kidneys as described on prior tile.
+Text cuts off near start of urinary bladder section.
+
+--- Image 117 | 2026-06-17 | radiology report ---
+Continuation page of CT abdomen report (green redactions over header/provider/facility).
+Date on form: 17/06/2026 16:47:15. Age 65 Year(s); Gender Male.
+
+Additional findings:
+Both ureters normal caliber throughout; no definite radiodense calculus.
+Urinary bladder inadequately filled.
+Prostate enlarged, indenting bladder base.
+Small and large bowel loops appear normal.
+Small amount of ascites in pelvic peritoneal cavity.
+Mesenteric engorgement with reactive mesenteric lymph nodes.
+Visualized lung sections: emphysematous changes.
+Bone windows: degenerative changes in visualized bones.
+
+CONCLUSION:
+Imaging features suggest chronic liver disease with small atypical HCC in right lobe of liver; correlate with AFP and PIVKA.
+Another small hypodense right-lobe lesion may represent regenerating/dysplastic nodule.
+Small pelvic ascites.
+No portal venous thrombosis.
+Mesenteric engorgement with reactive mesenteric nodes.
+Rest of imaging unremarkable.
+Signed role line: Consultant Interventional Radiologist (name redacted on source).
+
+--- Image 118 | 2026-06-17 | radiology report ---
+Alternate photo of same CT report continuation/conclusion page.
+Date: 17/06/2026 16:47:15; Male; 65 Year(s).
+Findings: normal-caliber ureters without radiodense calculus; inadequately filled bladder; enlarged prostate indenting bladder base; normal bowel loops; small pelvic ascites; mesenteric engorgement with reactive nodes; emphysematous lung changes; degenerative bone changes on bone windows.
+Conclusion: CLD with small atypical right-lobe HCC (correlate AFP/PIVKA); possible regenerating/dysplastic nodule; pelvic ascites; no PVT; mesenteric engorgement/reactive nodes; remainder unremarkable.
+
+--- Image 119 | 2026-06-16 | radiology report ---
+ULTRASOUND ABDOMEN report (header/facility/provider green-redacted).
+Date: 16/06/2026 15:32:39; Male; 65 Year(s).
+
+LIVER: Shrunken, 11.5 cm; coarse heterogeneous echotexture with irregular margins; no focal mass; IHBD not dilated; portal vein patent, 0.9 cm.
+GALL BLADDER: Contracted; CBD normal caliber 0.3 cm.
+PANCREAS: Not visualized (overlying bowel gas).
+SPLEEN: Enlarged 13.3 cm; uniform echotexture; no mass/cyst.
+RIGHT KIDNEY: 10.8 cm; cortical thickness 1.3 cm; normal outline; no calculus/mass/hydronephrosis.
+LEFT KIDNEY: 10.9 cm; cortical thickness 1.7 cm; normal outline; no calculus/mass/hydronephrosis.
+URINARY BLADDER: Normally distended; normal wall thickness; no mass/calculus.
+Mild ascites; no para-aortic lymphadenopathy; bowel loops not dilated.
+PROSTATE: Enlarged 4.0 x 5.3 x 3.9 cm; weight 45 g; no focal mass.
+
+IMPRESSION:
+1. Coarse heterogeneous liver with irregular margins, splenomegaly & mild ascites suggesting chronic liver disease; clinical correlation & LFTs recommended.
+2. Prostatomegaly.
+3. Rest of scan unremarkable.
+Note on form: computer-generated report, signature not required.
+
+--- Image 120 | 2026-06-16 | radiology report ---
+Alternate photo of same ULTRASOUND ABDOMEN report.
+Date: 16/06/2026 15:32:39; Male; 65 Year(s).
+Same organ measurements and findings as index 119 (shrunken coarse liver 11.5 cm; portal vein 0.9 cm; contracted GB; CBD 0.3 cm; spleen 13.3 cm; kidneys 20.07.2010.9 cm; mild ascites; prostate 4.0 x 5.3 x 3.9 cm, 45 g).
+Impression: CLD pattern (coarse irregular liver, splenomegaly, mild ascites) — correlate clinically/LFTs; prostatomegaly; remainder unremarkable.
+
+--- Image 121 | 2025-11-07 | radiology report ---
+CT SCAN WHOLE ABDOMEN WITH CONTRAST
+Date/time: 07/11/2025 13:35:36
+
+HISTORY:
+K/c of CLD. Suspected HCC.
+
+TECHNIQUE:
+Axial images were obtained after oral and intravenous contrast. Reconstructions acquired in coronal and sagittal planes.
+
+FINDINGS:
+Liver appears cirrhotic showing irregular and undulating margins with coarse nodular parenchyma. A small hypodensity is noted in the segment VI of the liver not showing any enhancement likely suggesting simple hepatic cyst. No definite arterially enhancing lesion is identified in both lobes of the liver. No abnormal area of washout is seen to suggest hepatocellular carcinoma.
+
+Gallbladder appears mildly thick walled and edematous likely reactionary.
+
+Portal vein appears mildly dilated measuring 1.6 cm. No evidence of portal venous thrombosis.
+
+Spleen appears mildly enlarged and lobulated measuring 13 cm in CC length.
+
+The gall bladder appears normal. No focal mass or abnormal wall thickening is noted. No evidence of any calculi.
+
+Pancreas shows no evidence of any parenchymal abnormality. The peripancreatic fat planes are well preserved.
+
+Adrenal glands are within normal limits.
+
+Both kidneys are normal in size, shape and position with normal enhancement. No mass or hydronephrosis is seen on either side.
+
+Urinary bladder appears inadequately filled.
+
+Prostate and seminal vesicle appears unremarkable.
+
+(Page continues; impression not on this frame.)
+
+--- Image 122 | 2025-11-07 | radiology report ---
+Duplicate/near-duplicate of index 121.
+CT SCAN WHOLE ABDOMEN WITH CONTRAST
+Date/time: 07/11/2025 13:35:36
+
+HISTORY:
+K/c of CLD. Suspected HCC.
+
+TECHNIQUE:
+Axial images were obtained after oral and intravenous contrast. Reconstructions acquired in coronal and sagittal planes.
+
+FINDINGS:
+Liver appears cirrhotic showing irregular and undulating margins with coarse nodular parenchyma. A small hypodensity is noted in the segment VI of the liver not showing any enhancement likely suggesting simple hepatic cyst. No definite arterially enhancing lesion is identified in both lobes of the liver. No abnormal area of washout is seen to suggest hepatocellular carcinoma.
+
+Gallbladder appears mildly thick walled and edematous likely reactionary.
+
+Portal vein appears mildly dilated measuring 1.6 cm. No evidence of portal venous thrombosis.
+
+Spleen appears mildly enlarged and lobulated measuring 13 cm in CC length.
+
+The gall bladder appears normal. No focal mass or abnormal wall thickening is noted. No evidence of any calculi.
+
+Pancreas shows no evidence of any parenchymal abnormality. The peripancreatic fat planes are well preserved.
+
+Adrenal glands are within normal limits.
+
+Both kidneys are normal in size, shape and position with normal enhancement. No mass or hydronephrosis is seen on either side.
+
+Urinary bladder appears inadequately filled.
+
+Prostate and seminal vesicle appears unremarkable.
+
+(Page continues; impression not on this frame.)
+
+--- Image 123 | 2025-11-07 | radiology report ---
+Continuation of CT abdomen with contrast report (same study date/time 07/11/2025 13:35:36).
+
+FINDINGS (continued):
+Fecal loaded large bowel loops are seen. Small bowel loops appear grossly unremarkable.
+
+No ascites is seen.
+
+Few subcentimeter sized abdominopelvic lymph nodes are seen likely nonspecific.
+
+On appropriate lung window settings, visualized lung bases show diffuse emphysematous changes.
+
+On appropriate bony window setting, degenerative changes are seen in spine.
+
+(Impression section not visible on this frame.)
+
+--- Image 124 | 2025-11-07 | radiology report ---
+Duplicate/near-duplicate of index 123.
+Continuation of CT abdomen with contrast report (same study date/time 07/11/2025 13:35:36).
+
+FINDINGS (continued):
+Fecal loaded large bowel loops are seen. Small bowel loops appear grossly unremarkable.
+
+No ascites is seen.
+
+Few subcentimeter sized abdominopelvic lymph nodes are seen likely nonspecific.
+
+On appropriate lung window settings, visualized lung bases show diffuse emphysematous changes.
+
+On appropriate bony window setting, degenerative changes are seen in spine.
+
+(Impression section not visible on this frame.)
+
+--- Image 125 | 2025-09-12 | radiology report ---
+X-RAY CHEST PA VIEW
+Date/time: 12/09/2025 11:01:49
+
+Findings:
+- Bony cage normal.
+- No active pulmonary lesion, consolidation, collapse.
+- No mediastinal pathology seen.
+- Hilum appears normal.
+- The cardio and costophrenic angle are clear.
+- Both domes of diaphragm are normally raised.
+- Cardiac shadow is within normal limit.
+- Trachea is centrally placed.
+- Soft tissue appears normal.
+
+CONCLUSION:
+- Normal chest x-ray.
+
+--- Image 126 | 2025-09-12 | radiology report ---
+Duplicate/near-duplicate of index 125.
+X-RAY CHEST PA VIEW
+Date/time: 12/09/2025 11:01:49
+
+Findings:
+- Bony cage normal.
+- No active pulmonary lesion, consolidation, collapse.
+- No mediastinal pathology seen.
+- Hilum appears normal.
+- The cardio and costophrenic angle are clear.
+- Both domes of diaphragm are normally raised.
+- Cardiac shadow is within normal limit.
+- Trachea is centrally placed.
+- Soft tissue appears normal.
+
+CONCLUSION:
+- Normal chest x-ray.
+
+--- Image 127 | 2025-09-12 | radiology report ---
+ULTRASOUND ABDOMEN
+Date/time: 12/09/2025 11:02:58
+
+LIVER: Shows coarse echotexture and irregular margins. No focal lesion or dilated channels seen. Portal vein has normal caliber.
+
+GALLBLADDER: Gallbladder is normal in size and shape. Wall is thickened due to adjacent liver inflammation. No mass or calculus is seen. No fluid collection is seen around it. Common duct is of normal caliber.
+
+PANCREAS: It shows normal echotexture. No mass/focal lesion is seen. Pancreatic duct is normal in caliber.
+
+SPLEEN: Mildly enlarged in size and normal echotexture. No focal lesion is seen.
+
+RIGHT KIDNEY: Normal in size, shape and echotexture. No mass, cyst, calculus or hydronephrosis is seen.
+
+LEFT KIDNEY: Normal in size, shape and echotexture. No mass, cyst, calculus or hydronephrosis is seen.
+
+URINARY BLADDER: Normal wall thickness. No stone or mass is noted.
+
+No ascites detected.
+No para aortic lymphadenopathy.
+
+IMPRESSION: (heading present; impression text cut off at bottom of photo — see index 129/130)
+
+--- Image 128 | 2025-09-12 | radiology report ---
+Duplicate/near-duplicate of index 127.
+ULTRASOUND ABDOMEN
+Date/time: 12/09/2025 11:02:58
+
+LIVER: Shows coarse echotexture and irregular margins. No focal lesion or dilated channels seen. Portal vein has normal caliber.
+
+GALLBLADDER: Gallbladder is normal in size and shape. Wall is thickened due to adjacent liver inflammation. No mass or calculus is seen. No fluid collection is seen around it. Common duct is of normal caliber.
+
+PANCREAS: It shows normal echotexture. No mass/focal lesion is seen. Pancreatic duct is normal in caliber.
+
+SPLEEN: Mildly enlarged in size and normal echotexture. No focal lesion is seen.
+
+RIGHT KIDNEY: Normal in size, shape and echotexture. No mass, cyst, calculus or hydronephrosis is seen.
+
+LEFT KIDNEY: Normal in size, shape and echotexture. No mass, cyst, calculus or hydronephrosis is seen.
+
+URINARY BLADDER: Normal wall thickness. No stone or mass is noted.
+
+No ascites detected.
+No para aortic lymphadenopathy.
+
+IMPRESSION: (heading present; impression text cut off — see index 129/130)
+
+--- Image 129 | 2025-09-12 | radiology report ---
+Continuation of ULTRASOUND ABDOMEN (same study date/time 12/09/2025 11:02:58) — IMPRESSION section.
+
+IMPRESSION:
+- Coarse echotexture of liver with irregular margins, PVD 1.0 cm, spleen 12.1 cm. No focal mass lesion in liver.
+- No significant pancreato-biliary pathology seen.
+
+--- Image 130 | 2025-09-12 | radiology report ---
+Duplicate/near-duplicate of index 129.
+Continuation of ULTRASOUND ABDOMEN (same study date/time 12/09/2025 11:02:58) — IMPRESSION section.
+
+IMPRESSION:
+- Coarse echotexture of liver with irregular margins, PVD 1.0 cm, spleen 12.1 cm. No focal mass lesion in liver.
+- No significant pancreato-biliary pathology seen.

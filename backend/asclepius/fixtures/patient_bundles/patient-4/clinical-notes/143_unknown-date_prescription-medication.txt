@@ -1,0 +1,29 @@
+Document index: 143
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility address/phone/email footer; omitted signature and ICU MO stamp
+
+CONTENT
+----------------------------------------
+Form: Fresh Orders
+Time: 1:45 PM
+
+Orders:
+- CPAP @ 10 cmH2O (for ↑ WOB)
+- Inj 5% D/Saline @ 40 ml/hr + Neurobion 1 amp (N/S 1/4 crossed out)
+- Inj Tanzo 4.5 gm I/V x TDS
+- Inj Onset 8 mg I/V x TDS
+- Inj Profalgan 1 g I/V x SOS
+- Inj Ezium 40 mg I/V x OD
+- Inj Dormicum I/V x SOS
+- Inj Lerace 500 mg I/V x BD
+- Tab Lorazepam 2 mg x TDS (star/check marked)
+- Inj Humulin-R S/C on sliding scale: 150(2), 200(4), 250(6), 300(8), 350(10), 400
+- Tab Nebil 2.5 mg 1 x OD
+- Tab Ascard 75 mg x OD
+- Tab Extor 5/160 x OD
+- Tab Vita-6 x OD
+- Tab Rivotril 0.5 mg x 1/2 x HS
+- Neb c̄ Atem x 6 H°
+- Neb c̄ Clenil x BD

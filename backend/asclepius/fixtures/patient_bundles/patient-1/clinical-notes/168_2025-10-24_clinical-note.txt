@@ -1,0 +1,25 @@
+Document index: 168
+Document type: clinical note
+Service date: 2025-10-24
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: staff initials redacted (green marker)
+
+CONTENT
+----------------------------------------
+Nursing assessment (continuation) and Nursing Interventions, serial (M/E):
+- Skin breakdown check: no redness/breakdown; prominences intact; no bed sore.
+- Invasive Lines: CVP line present (site condition noted); no second line.
+- Peripheral Edema: hands - CVP line; feet - no pitting edema (No).
+- Drainage Bags: none / NG none.
+- Pain Assessment: pain score 0/10.
+Nursing Interventions:
+- Bath: sponge bath given.
+- Shampooing: no.
+- Mouth care: yes.
+- Back care: yes.
+- Catheter/Perineal care: yes.
+- Positioning: yes.
+- Safety check (side rails / ID band / call bell): all checked.
+- Deep breathing and coughing exercises: encouraged.
+- Diet: soft diet.
+- IV flush with 0.9% N/S: yes.

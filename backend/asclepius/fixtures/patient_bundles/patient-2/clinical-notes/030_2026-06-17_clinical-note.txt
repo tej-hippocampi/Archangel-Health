@@ -1,0 +1,40 @@
+Document index: 30
+Document type: clinical note
+Service date: 2026-06-17
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted signatures/names under green redactions and facility address/phone/email in footer.
+
+CONTENT
+----------------------------------------
+Nutrition progress notes (Page 2 of 2)
+
+Entry 1 — 17/06/2026, 9:00 pm:
+- Patient has been visited
+- Comorbid asked
+- Counseling done
+- Orally allowed
+- Recommended soft diet
+- Tolerating well
+- Keep hydrated
+
+Entry 2 — 18/06/2026, 11:00 am:
+- Patient has been visited
+- Counseling done
+- Orally allowed
+- On soft diet
+- Tolerating well
+- Advised: Low fat, low salt diet
+- Add protein-rich foods
+- Stay hydrated
+- 2000 cal/day
+
+Entry 3 — 18-06-2026, 4:00 pm:
+- Patient has been visited
+- Counseling done
+- Orally allowed
+- No food allergy
+- Given soft diet in meal
+- Tolerating well
+- Protein-rich low fat + probiotics diet advised
+- 2000 kcal/day
+- Keep hydrated

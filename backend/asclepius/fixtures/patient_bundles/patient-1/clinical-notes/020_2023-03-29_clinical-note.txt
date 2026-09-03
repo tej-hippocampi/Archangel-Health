@@ -1,0 +1,16 @@
+Document index: 20
+Document type: clinical note
+Service date: 2023-03-29
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: C.R. No., patient name, senior/bed doctor names, doctor's contact # and patient contact # all redacted/omitted
+
+CONTENT
+----------------------------------------
+Procedure/endoscopy note (ward OPD).
+Indication (reason): Portal Hypertension / portal biliopathy.
+Co-morbidities (Viral Markers): N/R (non-reactive).
+Procedure category selected: E.R.C.P. with stenting (other options O.G.D., colonoscopy, sclerotherapy, banding, PEG, sigmoidoscopy, stent not selected).
+Pre-procedure labs (26 Dec): Hb = 13, Platelets = 71, TLC = 6.6.
+Imaging note: CBD ... cavernous transformation of portal vein, likely para(-choledochal varices).
+Procedure outcome: Could not cannulate as floppy ampulla; will redo after next week.
+Additional LFT panel noted: Bilirubin total ~17.34, Direct ~14.14, Indirect ~3.20, ALP ~224; Hb = 9.1, Platelets = 60.

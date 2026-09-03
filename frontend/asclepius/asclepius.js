@@ -2251,7 +2251,14 @@
     // Home page: the evaluator picks their experience (V3 seamless (the
     // recommended default) / V2 assisted / V1 classic) before any labeling. Shown
     // on entry until a choice is made this session (and again on "Change experience").
-    if (!state.portalChosen) { renderVersionHome(); return; }
+    // AWAITED. ``renderVersionHome`` became async when the V5 card started
+    // asking the server whether this physician has a chart walk routed to them.
+    // Called without await, a throw inside it stops propagating to this
+    // function's caller and becomes an unobserved promise rejection instead —
+    // the physician gets a blank screen and the console gets nothing anyone is
+    // watching. Awaiting restores exactly the error path it had when it was
+    // synchronous.
+    if (!state.portalChosen) { await renderVersionHome(); return; }
     // V3/V4 are the specialty-scoped flows: pick the specialty before the case
     // loads (PRD §1). V1/V2 are text prompts and skip the picker.
     const ver = getPortalVersion();
@@ -3848,12 +3855,40 @@
       ],
     },
     {
-      // V5: the AGENTIC tier (Clinical RL Environments PRD). A different KIND of
+      // V5 (Longitudinal E2E PRD §5.1 Group B): one point of a real chart walk.
+      // Unlike the ENV tier below, this IS a single-turn portal version and it
+      // DOES go through setPortalVersion() — case → commit → reveal, the V3/V4
+      // flow over a truncated chart.
+      //
+      // `assignedOnly` renders it only when the physician actually has routed
+      // points (`longitudinal_available` from /dashboard). A chart walk reaches a
+      // doctor exactly one way — an admin pressing Send — so a tab that showed
+      // for everyone would be empty for almost everyone, which reads as the
+      // product being broken rather than as the rule it is.
+      v: 'v5', label: 'Longitudinal Chart Walks', tag: 'Real patient data', dot: 'asc-dot-lime',
+      requiresRealData: true,
+      assignedOnly: true,
+      blurb: 'Walk one real patient forward in time: decide at each encounter, then see what the chart did next.',
+      bullets: [
+        'Read the chart truncated at one decision point — nothing after it exists',
+        'Commit an assessment, a plan, and what you expect to see next',
+        'Say what would tell you that you were wrong',
+        'Then the record’s own next encounter is revealed and you score yourself',
+        'Points are answered in order; you cannot read ahead',
+      ],
+    },
+    {
+      // ENV: the AGENTIC tier (Clinical RL Environments PRD). A different KIND of
       // task, not a variant of the single-turn flow, so selecting it navigates to
       // its own surface instead of calling chooseVersion(): the single-turn queue,
-      // submit path, and portal_version stamping are never touched by V5.
-      v: 'v5', label: 'Clinical RL Environment', tag: 'New', dot: 'asc-dot-orange',
-      route: '/asclepius/v5/annotate',
+      // submit path, and portal_version stamping are never touched by it.
+      //
+      // Its `v` is 'env', not 'v5'. That literal now means longitudinal (above),
+      // and while this card never calls setPortalVersion() — so the old value
+      // could not have leaked into a queue param — leaving two different products
+      // sharing one identifier is how the next person wires them together.
+      v: 'env', label: 'Clinical RL Environment', tag: 'New', dot: 'asc-dot-orange',
+      route: '/asclepius/env/annotate',
       blurb: 'Review an AI agent working a case step by step: label each move and write what it should have done instead.',
       bullets: [
         'Label each step correct / suboptimal / wrong',
@@ -3890,14 +3925,16 @@
     renderEvalView();
   }
   // A version option may either enter the single-turn flow (chooseVersion) or, for a
-  // tier that is a different KIND of task (V5 agentic), navigate to its own surface.
-  // V5 deliberately does NOT go through setPortalVersion(), so 'v5' can never end up
-  // in the single-turn queue params or on a single-turn submission.
+  // tier that is a different KIND of task (ENV, agentic), navigate to its own
+  // surface. ENV deliberately does NOT go through setPortalVersion(), so 'env' can
+  // never end up in the single-turn queue params or on a single-turn submission.
+  // V5 (longitudinal) is the opposite case: it IS a single-turn version and takes
+  // the ordinary path.
   function selectVersion(o) {
     if (o.route) { window.location.href = o.route; return; }
     chooseVersion(o.v);
   }
-  function versionCard(o, last, approved) {
+  function versionCard(o, last, approved, nWalks) {
     const locked = !!(o.requiresRealData && !approved);
     const soon = !!o.comingSoon;
     const inert = locked || soon;
@@ -3919,6 +3956,14 @@
             o.tag ? h('span', { class: 'asc-ver-card-tag' + (o.requiresRealData ? ' asc-ver-tag-real' : '') }, o.tag) : null,
             last === o.v && !inert ? h('span', { class: 'asc-ver-card-last' }, 'Last used') : null),
           h('div', { class: 'asc-ver-card-blurb' }, o.blurb))),
+      // The count, on the card that exists BECAUSE the count is non-zero. A card
+      // whose whole reason for being visible is "you have work" should say how
+      // much, rather than making the physician click to find out.
+      (o.assignedOnly && nWalks)
+        ? h('div', { class: 'asc-ver-card-blurb' },
+            nWalks + (nWalks === 1 ? ' decision point is' : ' decision points are')
+            + ' routed to you.')
+        : null,
       h('ul', { class: 'asc-ver-card-list' }, o.bullets.map((b) => h('li', {}, b))),
       soon
         ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-block', type: 'button', tabindex: '-1', disabled: true },
@@ -3929,17 +3974,46 @@
           : h('button', { class: 'asc-btn asc-btn-primary asc-btn-block', type: 'button', tabindex: '-1' },
               'Start →'));
   }
-  function renderVersionHome() {
+  /* How many longitudinal points are ROUTED to this physician right now.
+   *
+   * Asked once and cached on `state`, because the answer decides whether a card
+   * exists at all and the home page must not flicker a card in after paint. A
+   * failure resolves to 0: a doctor with no chart walk sees exactly what they saw
+   * before this feature existed, which is the right failure direction for a tab
+   * that is empty for almost everyone. */
+  async function longitudinalAvailable() {
+    // Asked fresh each time rather than cached on `state`. The home screen is
+    // rendered rarely — on sign-in and on "change flow" — and a cached zero would
+    // hide the tab for a physician who was routed a walk five minutes ago, for
+    // the rest of their session, with nothing on screen to explain it.
+    if (!(state.user && state.user.real_data_approved)) return 0;
+    try {
+      const d = await api('/dashboard?portal_version=v5&limit=1');
+      return Math.max(0, (d && d.longitudinal_available) || 0);
+    } catch (e) {
+      // A failure resolves to 0: the physician sees exactly what they saw before
+      // this feature existed, which is the right failure direction for a tab that
+      // is empty for almost everyone.
+      return 0;
+    }
+  }
+
+  async function renderVersionHome() {
     stopTimer();
     updateHeaderProgress(); // no open task, so the §16 bar hides here
     const last = getPortalVersion();
     const approved = !!(state.user && state.user.real_data_approved);
+    // Resolved BEFORE the first paint, so an `assignedOnly` card is either there
+    // or it never was — never inserted a moment later under the cursor.
+    const nWalks = await longitudinalAvailable();
     const cards = h('div', { class: 'asc-ver-cards' });
-    VERSION_OPTS.forEach((o) => cards.appendChild(versionCard(o, last, approved)));
+    VERSION_OPTS
+      .filter((o) => !o.assignedOnly || nWalks > 0)
+      .forEach((o) => cards.appendChild(versionCard(o, last, approved, nWalks)));
 
     // Legacy flows, folded away, exactly as they were, one click deeper.
     const legacyCards = h('div', { class: 'asc-ver-cards', hidden: true });
-    LEGACY_VERSION_OPTS.forEach((o) => legacyCards.appendChild(versionCard(o, last, approved)));
+    LEGACY_VERSION_OPTS.forEach((o) => legacyCards.appendChild(versionCard(o, last, approved, nWalks)));
     const legacyToggle = h('button', {
       class: 'asc-btn-link', type: 'button', style: 'display:block;margin:18px auto 0',
       onClick: () => {
@@ -9182,7 +9256,22 @@
 
   function renderAdminBatches(body) {
     clear(body);
-    const view = state.batches || (state.batches = {
+    /* The shape of this view, in ONE place.
+     *
+     * ``state.batches`` is not always built here. ``openBatchesFor(physician)``
+     * — "route cases to this doctor", entered from their row in Physicians —
+     * constructs a PARTIAL object and then hands control to this function, which
+     * finds ``state.batches`` already truthy and keeps it as-is. Every key that
+     * caller omits is therefore ``undefined`` at read time, and the two that are
+     * read as maps (``view.roles[id]``, ``view.previewed[id]``) throw a
+     * TypeError that takes the whole send panel down.
+     *
+     * So the defaults are named once and BACKFILLED onto whatever arrives,
+     * rather than only used when the object is absent. Existing values win, so a
+     * pre-selected physician still survives the trip; missing ones stop being a
+     * crash. Adding a key here now covers both entry points by construction.
+     */
+    const BATCH_VIEW_DEFAULTS = {
       overview: null, batch: null, rows: null, selected: {}, busy: false,
       err: null, mode: 'all', userIds: [], specialty: '', doctors: null, proposal: null,
       resolved: null, relay: false, relayWalk: null, relaySeed: null,
@@ -9190,6 +9279,17 @@
       // §4.3 — {user_id: 'label'|'review'}. Sparse: a doctor absent from this
       // map is a labeler, matching the server's default for the same field.
       roles: {},
+      // Longitudinal E2E §3 — {task_id: true} for cases a human has actually
+      // opened in THIS session. Session-scoped on purpose: "somebody previewed
+      // this in March" is not the assurance the gate is asking for. Never
+      // persisted, and never read by the server — the server's own gates
+      // (distribution, sequence, capacity) are the enforcement; this is the one
+      // thing they cannot check, which is whether a person looked.
+      previewed: {},
+    };
+    const view = state.batches || (state.batches = {});
+    Object.keys(BATCH_VIEW_DEFAULTS).forEach(function (k) {
+      if (view[k] === undefined) view[k] = BATCH_VIEW_DEFAULTS[k];
     });
     const host = h('div', {});
     body.appendChild(host);
@@ -9333,7 +9433,15 @@
       view.previewFor = taskId;
       api('/admin/batches/preview/' + encodeURIComponent(taskId)).then((res) => {
         if (view.previewFor !== taskId) return;   // a later click won
-        view.preview = res; paint();
+        view.preview = res;
+        /* §3 — remember, for this session, that a human has actually LOOKED at
+         * this case. Auto-generation removes the click that used to force an
+         * admin past a preview on the way to creating tasks; without this, the
+         * first time anyone sees a machine-built case could be after a physician
+         * has already been sent it. Recorded on success only: a preview that
+         * errored showed nobody anything. */
+        view.previewed[taskId] = true;
+        paint();
       }).catch((e) => toast('Could not load preview: ' + e.message, 'error'));
     }
 
@@ -9623,9 +9731,25 @@
 
       const dry = h('button', { class: 'asc-btn', type: 'button' }, 'Preview send');
       dry.addEventListener('click', () => send(true));
-      const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button' }, 'Send');
-      go.addEventListener('click', () => send(false));
+      /* §3 — Send is disabled until a human has opened at least one case in this
+       * selection this session. "Preview send" shows the ROUTING (who gets what);
+       * this asks whether anyone has read the CASE. That distinction stopped
+       * being academic when generation became unattended: the whole batch can now
+       * reach the routing screen without a person having read one line of it.
+       *
+       * At least one, not all: an admin sending a thirteen-point walk should not
+       * have to open thirteen cases, and reading point 0 of a chart tells them
+       * whether the chart is right. */
+      const seen = chosen.some(function (id) { return view.previewed[id]; });
+      const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button',
+                               disabled: seen ? null : '' }, 'Send');
+      go.addEventListener('click', () => { if (seen) send(false); });
       panel.appendChild(h('div', { class: 'asc-stage-actions' }, dry, go));
+      if (!seen) {
+        panel.appendChild(h('div', { class: 'asc-dim' },
+          'Open one of these cases first. Nothing goes to a physician that nobody '
+          + 'here has read — and a bundle that built itself may never have been.'));
+      }
 
       if (view.proposal && view.proposal.dry_run) {
         const per = view.proposal.per_physician || {};
@@ -11394,6 +11518,67 @@
         casesDrawer(u));
     }
 
+    /* §3 — let this bundle build its tasks without a click.
+     *
+     * Off by default and armed per bundle, because a run costs a frontier probe,
+     * a candidate generation and two judges PER ENCOUNTER: a 25-point chart that
+     * started itself unasked is a bill nobody approved. What it does NOT change is
+     * who can see the output — points still land assigned_only, so this removes a
+     * click from BUILDING and never one from SENDING. */
+    function autoGenerateToggle(u) {
+      if (u.auto_generate_has_run) {
+        return h('span', { class: 'asc-chip asc-chip-ok',
+                           title: 'This bundle already had its one automatic run. '
+                                + 'Promote anything left from the button on this row.' },
+          'auto ✓');
+      }
+      const input = h('input', { type: 'checkbox', checked: !!u.auto_generate });
+      input.addEventListener('change', () => {
+        input.setAttribute('disabled', '');
+        api('/admin/uploads/' + encodeURIComponent(u.upload_id) + '/auto-generate',
+            { method: 'POST', body: { enabled: input.checked } })
+          .then((res) => {
+            if (res.run && res.run.started) {
+              toast('Building tasks from this bundle now — no click needed.', 'success');
+            }
+            load();
+          })
+          .catch((e) => {
+            input.checked = !input.checked;
+            input.removeAttribute('disabled');
+            toast((e && e.detail) || e.message || 'Could not change that.', 'error');
+          });
+      });
+      return h('label', { class: 'asc-stage-radio',
+                          title: 'Build the tasks as soon as this bundle has a purpose '
+                               + 'and a mode. Nothing is sent to a doctor either way.' },
+        input, ' Build automatically');
+    }
+
+    /* The per-encounter drops a run isolated, as a COUNT with a `show` link.
+     * Never a modal: 22 points built out of 25 is a result, not an error, and a
+     * modal would present it as one. */
+    function autoGenerateFailures(u) {
+      const f = u.auto_generate_failures;
+      if (!f || !f.count) return null;
+      const detail = h('div', { class: 'asc-stage-drawer', hidden: true },
+        (f.errors || []).map((e) => h('div', { class: 'asc-dim' }, e)),
+        (f.dropped || []).map((d) => h('div', { class: 'asc-dim' },
+          'encounter ' + (d.encounter_index == null ? '?' : d.encounter_index) + ': '
+          + (typeof d.reason === 'string' ? d.reason : JSON.stringify(d.reason || 'dropped')))));
+      const link = h('button', { class: 'asc-btn-link', type: 'button' }, 'show');
+      link.addEventListener('click', () => {
+        const showing = !detail.hasAttribute('hidden');
+        if (showing) { detail.setAttribute('hidden', ''); link.textContent = 'show'; }
+        else { detail.removeAttribute('hidden'); link.textContent = 'hide'; }
+      });
+      return h('div', {},
+        h('div', { class: 'asc-dim' },
+          f.count + ' encounter' + (f.count === 1 ? '' : 's')
+          + ' did not become a task in the automatic run. ', link),
+        detail);
+    }
+
     function box2Row(u) {
       const counts = u.case_counts || {};
       const statusBox = h('div', { style: 'margin-top:10px' });
@@ -11435,8 +11620,15 @@
           + ' · ' + (counts.promoted || 0) + ' made into tasks'),
         h('div', { class: 'asc-stage-actions' },
           h('span', { class: 'asc-dim' }, 'Make tasks as: '), radios,
+          autoGenerateToggle(u),
           h('span', { class: 'asc-stage-spacer' }),
           previewCasesBtn(u), create),
+        u.auto_generate_will_run && !u.auto_generate_has_run
+          ? h('div', { class: 'asc-dim' },
+              'This bundle builds its tasks on its own. They land held back from '
+              + 'every queue — you still choose who walks them, in Task Routing.')
+          : null,
+        autoGenerateFailures(u),
         hint,
         casesDrawer(u),
         statusBox);
@@ -11478,7 +11670,10 @@
 
       // Box 1
       const b1 = h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('h3', {}, 'Incoming data'),
+        h('div', { class: 'asc-stage-actions' },
+          h('h3', {}, 'Incoming data'),
+          h('span', { class: 'asc-stage-spacer' }),
+          ingestFixturesBtn()),
         h('div', { class: 'asc-dim' },
           'Every bundle whose purpose has not been decided yet. Choosing '
           + '“Brokering” cannot be undone.'),
@@ -11499,6 +11694,44 @@
       host.appendChild(b2);
 
       host.appendChild(autoGenerateCard());
+    }
+
+    /* §2.1 — the front door for the records we already hold.
+     *
+     * The four de-identified patient charts the V4 static cases were written
+     * FROM had never been uploaded, so no ingest case existed for them and
+     * `generate` — the only path that creates trajectories — had nothing to run
+     * on. This sends them through the same door a hospital's bundle takes.
+     *
+     * Small and in the header, not a primary action: it is a one-time operator
+     * task, and it must not compete with the Upload button that hospitals'
+     * data actually arrives through. Idempotent server-side on the bundle
+     * sha256, so a second click reports "already ingested" rather than
+     * duplicating four charts.
+     */
+    function ingestFixturesBtn() {
+      const b = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+        'Ingest committed patient records');
+      b.addEventListener('click', () => {
+        b.setAttribute('disabled', '');
+        b.textContent = 'Sending through the ingest door…';
+        api('/admin/fixtures/ingest-patient-records', { method: 'POST', body: {} })
+          .then((res) => {
+            toast(res.message || 'Done.', (res.failed || 0) ? 'error' : 'success');
+            // Name the failures rather than only counting them: "1 failed" with
+            // no bundle name is a number an operator cannot act on.
+            (res.bundles || []).filter((r) => r.status === 'failed').forEach((r) => {
+              toast(r.bundle + ': ' + (r.error || 'failed'), 'error');
+            });
+            load();
+          })
+          .catch((e) => toast((e && e.detail) || e.message || 'Could not ingest the records.', 'error'))
+          .finally(() => {
+            b.removeAttribute('disabled');
+            b.textContent = 'Ingest committed patient records';
+          });
+      });
+      return b;
     }
 
     /* Finished bundles fold rather than disappear. A row that vanishes on

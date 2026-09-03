@@ -1,0 +1,11 @@
+Document index: 137
+Document type: coagulation
+Service date: 2025-10-22
+Age on report: 42Y    Sex: M
+De-identification: name/consultant/lab no. redacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Hematology
+APTT: 31.8 Sec (25 - 45)
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU) -- 003

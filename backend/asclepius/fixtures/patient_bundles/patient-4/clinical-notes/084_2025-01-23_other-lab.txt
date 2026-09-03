@@ -1,0 +1,15 @@
+Document index: 84
+Document type: other lab
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Chemical Pathology
+Booking: 23/01/2025 10:30:40
+Collection: 23/01/2025 10:30:54
+Reporting: 23/01/2025 11:33:57
+
+TROPONIN-I:
+Troponin I: <0.100 ng/mL (< 0.30)

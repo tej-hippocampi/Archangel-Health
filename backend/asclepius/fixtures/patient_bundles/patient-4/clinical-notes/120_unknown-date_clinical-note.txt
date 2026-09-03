@@ -1,0 +1,42 @@
+Document index: 120
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility footer address/phones/email; omitted MO/SMO/consultant comments and signatures (green redaction); service date/age/sex not on this page; kept exam findings and visible diagnosis text.
+
+CONTENT
+----------------------------------------
+Clinical examination form continuation (Page 2 of 2) — systems exam / diagnosis.
+
+Abdominal Examination:
+- Inspection/Palpation/Percussion/Auscultation note: Soft Non Tender
+- Liver, Spleen, Kidneys, Gut Sounds, Surgical Scar: blank
+
+Respiratory System: fields blank
+
+Cardiovascular (partially visible):
+- Thrill: nil/φ
+- Heave: nil/φ
+- Auscultation: S1 and S2 marked (notation as on form)
+
+Central Nervous System:
+- Level of Consciousness: DROWSY (checked)
+- Oriented To Time/Place/Person: N (No) for all
+- Signs of Meningeal Irritation Present: N (No)
+- Cranial Nerves: Intact
+- Memory/Emotional State/Speech/Gait: blank
+
+Motor System:
+- Bulk: UL RT N; UL LT N; LL RT N; LL LT ↑
+- Tone: UL RT ↑; UL LT ↑; LL blank
+- Plantaris: LL RT M; LL LT M
+- Reflexes / Power: blank
+
+Coordination: INTACT
+Sensory System: INTACT
+Cortical Senses: INTACT
+
+Diagnosis (handwritten, partially obscured by redaction at end):
+Seizures? 2º ?? Aspiration Pneumonia / Stroke/Aspiration Pneumonia (exact trailing text partially redacted)
+
+Comments of MO/SMO/Consultant and Name & Signature: redacted — not transcribed

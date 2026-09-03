@@ -20,7 +20,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -28,6 +28,7 @@ from onboarding_emails import build_asclepius_invite_email
 from ratelimit import rate_limiter
 
 from asclepius import auth as asc_auth
+from asclepius import auto_generate as asc_auto_generate
 from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
 from asclepius import payments as asc_payments
@@ -35,6 +36,7 @@ from asclepius import route_notify as asc_route_notify
 from asclepius import trajectory as asc_trajectory
 from asclepius import store as asc_store_mod
 from asclepius import specialties as asc_specialties
+from asclepius.constants import ENV_PORTAL_VERSION
 from asclepius.store import get_store
 from email_utils import is_email_transport_configured, send_html_email
 
@@ -142,7 +144,22 @@ async def metrics_questions(_admin: Dict[str, Any] = Depends(asc_auth.require_ad
 # A case with several labeler submissions cuts one bundle per submission (the
 # only case-scoped hook build_export exposes today); when PRD-A's
 # export_by_case lands, this endpoint is the single seam to switch over.
-_VERSION_TO_PORTAL = {"V3": "v3", "V4": "v4"}
+_VERSION_TO_PORTAL = {"V3": "v3", "V4": "v4", "V5": "v5"}
+
+#: What each scope IS, in one line, shown beside the dropdown. Operators pick a
+#: version and ship it to a buyer; "V4" alone does not say whether that is real
+#: data, and the wrong slice is not recoverable once sent.
+_VERSION_DESCRIPTIONS = {
+    "V3": "synthetic multimodal",
+    "V4": "real static",
+    "V5": "real longitudinal",
+}
+
+#: The agentic tier's label. NOT a portal version and deliberately not in the
+#: dropdown above: its records live in ``env_runs``, not ``records``, and it ships
+#: through the environments pipeline. Naming it here rather than leaving "V5" to
+#: mean two things is the point of the §5 relabel.
+_ENV_SCOPE = "ENV"
 
 
 #: The five scopes of the single Export tab (PRD §2.1). Every one of them
@@ -243,17 +260,24 @@ def _resolve_case_slice(
         if scope != "physician":
             annotator_id_hashed = None
 
-    if version == "V5":
-        # V5 · Clinical RL Environment — trajectories live in env_runs, not the
+    if version == _ENV_SCOPE:
+        # ENV · Clinical RL Environment — rollouts live in env_runs, not the
         # records table, and ship through the environments pipeline.
+        #
+        # This branch was keyed on "V5" until the §5 relabel, which is why
+        # selecting V5 returned zero records with a note about environments while
+        # every longitudinal submission sat in the records table unreachable.
+        # ENV is deliberately absent from the version dropdown — it is not a
+        # version of the single-turn portal — so this is reached only by an
+        # explicit API call. Kept as the guard for exactly that.
         runs = store.env_annotation_records()
         return {"scope": scope, "records": [], "submission_ids": [], "task_ids": set(),
                 "specialties": set(), "estimated_bytes": 0, "reviews": 0,
-                "v5_runs": len(runs), "exportable": False,
+                "env_runs": len(runs), "exportable": False,
                 "excluded": {"unapproved": [], "unapproved_count": 0,
                              "dropped": 0, "mock": 0},
-                "scope_json": {"type": "version", "portal_version": "v5"},
-                "note": f"{len(runs)} annotated V5 trajectories exist. Clinical RL "
+                "scope_json": {"type": "version", "portal_version": ENV_PORTAL_VERSION},
+                "note": f"{len(runs)} annotated ENV trajectories exist. Clinical RL "
                         "Environment data ships through the environments pipeline, "
                         "not this bundle builder."}
 
@@ -267,7 +291,7 @@ def _resolve_case_slice(
         if evaluator_id is None:
             return {"scope": scope, "records": [], "submission_ids": [], "task_ids": set(),
                     "specialties": set(), "estimated_bytes": 0, "reviews": 0,
-                    "v5_runs": 0, "exportable": False,
+                    "env_runs": 0, "exportable": False,
                     "excluded": {"unapproved": [], "unapproved_count": 0,
                                  "dropped": 0, "mock": 0},
                     "scope_json": {"type": "physician",
@@ -395,7 +419,7 @@ def _resolve_case_slice(
             "task_ids": task_ids, "specialties": specialties,
             "estimated_bytes": mapped_bytes,
             "reviews": store.count_case_reviews_for_tasks(sorted(task_ids)),
-            "v5_runs": 0, "exportable": bool(emitted),
+            "env_runs": 0, "exportable": bool(emitted),
             "excluded": {
                 "unapproved": unapproved,
                 "unapproved_count": (unapproved_total if unapproved_total is not None
@@ -478,6 +502,11 @@ async def export_case_options(_admin: Dict[str, Any] = Depends(asc_auth.require_
         if not p.get("is_mock") and p.get("id_hashed")
     ]
     return {"specialties": specialties, "versions": ["V3", "V4", "V5"],
+            # One line per version, so an operator picking a slice to send a buyer
+            # can see what it IS. "V4" alone does not say "real static", and the
+            # wrong slice is not recoverable once it has been sent. ENV is not
+            # here on purpose: it is not a version of the single-turn portal.
+            "version_descriptions": dict(_VERSION_DESCRIPTIONS),
             "scopes": list(EXPORT_SCOPES), "cases": cases, "physicians": physicians}
 
 
@@ -488,7 +517,7 @@ def _preview_payload(s: Dict[str, Any]) -> Dict[str, Any]:
     excluded = s["excluded"]
     return {
         "scope": s.get("scope"),
-        "cases": len(s["task_ids"]) if not s["v5_runs"] else s["v5_runs"],
+        "cases": len(s["task_ids"]) if not s["env_runs"] else s["env_runs"],
         "labeler_submissions": len(s["submission_ids"]),
         "reviews": s["reviews"],
         "specialty_count": len(s["specialties"]),
@@ -1200,9 +1229,79 @@ async def set_portal_account_purpose(
                        "the purpose they arrived with."}
 
 
+class IngestFixturesRequest(BaseModel):
+    """Which committed bundles to send through the door. Empty = all of them."""
+
+    bundles: Optional[List[str]] = None
+
+
+@router.post("/fixtures/ingest-patient-records", include_in_schema=False)
+async def ingest_committed_patient_records(
+    body: IngestFixturesRequest, background: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Send the committed de-identified patient records through the real ingest
+    door (Longitudinal E2E PRD §2.1).
+
+    This is the missing FRONT DOOR, and it is deliberately not a shortcut. The
+    four charts the V4 static cases were written from had never been uploaded, so
+    ``ingest_cases`` for them did not exist and ``generate`` — the only code path
+    that creates trajectories — had nothing to run on. The fix is to send them the
+    way a hospital sends one: mint an authorizing link, store the encrypted bytes,
+    insert the upload row, unpack in the background. **Not** a helper that inserts
+    trajectory rows from ``v4_cases.py``, because then the next hospital's upload
+    would still not work.
+
+    They land in Box 1 with purpose unset, exactly like a partner's bundle, and an
+    admin decides what they are for. Idempotent on the bundle sha256: click it
+    twice and the second call reports "already ingested" per bundle.
+    """
+    from asclepius import patient_fixtures as asc_fixtures
+
+    store = _store()
+    # Same fail-closed posture as ``POST /partner/uploads``: in production we
+    # refuse to accept a raw chart we cannot encrypt at rest or cannot keep. This
+    # door writes the same blobs to the same place, so it must refuse on the same
+    # conditions — a second entrance with weaker preconditions is how the unsafe
+    # path gets built by accident.
+    if (os.getenv("ENV") or "").strip().lower() == "production":
+        import field_crypto
+        if not field_crypto.is_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Ingestion is disabled: DATA_ENCRYPTION_KEY is not configured, "
+                       "so the bundle cannot be encrypted at rest.")
+        ok, why = asc_ingestion.ingest_storage_durable()
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Ingestion is disabled: {why}")
+
+    try:
+        result = asc_fixtures.ingest_committed_bundles(
+            store, actor=admin["id"], bundles=body.bundles,
+            on_ingested=background.add_task)
+    except Exception as exc:  # pragma: no cover — surfaced, never swallowed
+        log.exception("committed-fixture ingest failed")
+        raise HTTPException(status_code=500, detail=f"Fixture ingest failed: {exc}")
+
+    store.log_event(entity_type="ingest_upload", entity_id="fixtures",
+                    event_type="committed_fixtures_ingested", actor=admin["id"],
+                    payload={k: result[k] for k in ("ingested", "skipped", "failed")})
+    n_new, n_old, n_bad = result["ingested"], result["skipped"], result["failed"]
+    if not result["available"]:
+        message = (f"No committed bundles found under {result['root']}. Each bundle is "
+                   "a directory of the partner's own files; add one and click again.")
+    else:
+        message = (f"{n_new} bundle(s) sent through the ingest door"
+                   + (f" · {n_old} already ingested" if n_old else "")
+                   + (f" · {n_bad} failed" if n_bad else "")
+                   + ". Parsing runs in the background; the rows appear in Incoming "
+                     "data as their cases land.")
+    return {**result, "message": message}
+
+
 @router.post("/uploads/{upload_id}/purpose", include_in_schema=False)
 async def set_upload_purpose(
-    upload_id: str, body: UploadPurposeRequest,
+    upload_id: str, body: UploadPurposeRequest, background: BackgroundTasks,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Resolve a single upload's ``Purpose not set`` work item.
@@ -1241,10 +1340,17 @@ async def set_upload_purpose(
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="purpose_resolved", actor=admin["id"],
                     payload={"purpose": purpose, "cases_updated": cases})
+    # §3 — this may have been the last of the three conditions. The trigger is
+    # evaluated atomically inside the claim, so calling it here is safe whether or
+    # not the mode is set yet.
+    auto = asc_auto_generate.maybe_start(store, upload_id, actor=admin["id"],
+                                         schedule=background.add_task)
     return {"ok": True, "upload_id": upload_id, "purpose": purpose,
-            "cases_updated": cases,
+            "cases_updated": cases, "auto_generate": auto,
             "message": f"{cases} case{'' if cases == 1 else 's'} recorded as "
-                       f"{purpose.replace('_', ' ')}."}
+                       f"{purpose.replace('_', ' ')}."
+                       + (" Task creation is running now — no click needed."
+                          if auto.get("started") else "")}
 
 
 class UploadTaskModeRequest(BaseModel):
@@ -1255,7 +1361,7 @@ class UploadTaskModeRequest(BaseModel):
 
 @router.post("/uploads/{upload_id}/task-mode", include_in_schema=False)
 async def set_upload_task_mode(
-    upload_id: str, body: UploadTaskModeRequest,
+    upload_id: str, body: UploadTaskModeRequest, background: BackgroundTasks,
     admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """Record static vs longitudinal for this upload, before any task is made.
@@ -1304,7 +1410,106 @@ async def set_upload_task_mode(
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="task_mode_set", actor=admin["id"],
                     payload={"task_mode": mode})
-    return {"ok": True, "upload_id": upload_id, "task_mode": mode}
+    auto = asc_auto_generate.maybe_start(store, upload_id, actor=admin["id"],
+                                         schedule=background.add_task)
+    return {"ok": True, "upload_id": upload_id, "task_mode": mode,
+            "auto_generate": auto}
+
+
+class AutoGenerateRequest(BaseModel):
+    """Arm or disarm unattended task creation (Longitudinal E2E PRD §3)."""
+
+    enabled: bool
+
+
+@router.post("/uploads/{upload_id}/auto-generate", include_in_schema=False)
+async def set_upload_auto_generate(
+    upload_id: str, body: AutoGenerateRequest, background: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Let this bundle build its tasks without a click, once it is fully described.
+
+    Off by default, and that is the only safe default: a run costs a frontier
+    difficulty probe, a candidate generation and two judges PER ENCOUNTER, and a
+    25-point chart that started itself unasked is a bill nobody approved. Opting
+    IN is a decision; opting out must never be one an admin had to remember.
+
+    Arming does NOT change who can see the output. Points still land
+    ``distribution='assigned_only'`` — this removes a click from BUILDING, never
+    one from SENDING. Nothing reaches a physician until Task Routing sends it.
+    """
+    store = _store()
+    upload = store.get_ingest_upload(upload_id)
+    if not upload:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    # Same rule as the task mode: a brokering bundle never becomes tasks, so a
+    # control that does nothing would read as the product being broken rather
+    # than as the rule it is.
+    if asc_ingestion.is_brokering(upload.get("purpose")):
+        raise HTTPException(
+            status_code=409,
+            detail="This upload came in on a brokering link, so it never becomes "
+                   "tasks and cannot auto-generate.")
+    if body.enabled and asc_auto_generate.has_run(upload):
+        # Two different situations reach here, and telling an operator the wrong
+        # one wastes their time. A run that FINISHED wrote a report; a run that
+        # was claimed and never finished — the process was redeployed mid-flight,
+        # which is an ordinary event — did not. The second reads as "nothing
+        # happened and the button is refusing me", so it says so and names the
+        # recovery instead of implying the work was done.
+        #
+        # Neither case re-arms. The claim is what stops a 25-encounter chart
+        # being billed twice, and a heuristic that guessed "this one looks dead,
+        # let it run again" would be exactly the thing that double-bills when it
+        # guesses wrong. The manual path in Task creation is unaffected and does
+        # the whole job.
+        finished = bool((upload.get("auto_generate_report") or {}))
+        raise HTTPException(
+            status_code=409,
+            detail=("This bundle has already had its automatic run. Promote what is "
+                    "left from Task creation — re-arming would bill the whole chart "
+                    "a second time."
+                    if finished else
+                    "This bundle's automatic run was started but never recorded an "
+                    "outcome — usually a deploy while it was in flight. It will not "
+                    "start again, because re-arming could bill the whole chart twice. "
+                    "Promote the remaining cases from Task creation; nothing about "
+                    "them is blocked."))
+    store.set_upload_auto_generate(upload_id, body.enabled)
+    store.log_event(entity_type="ingest_upload", entity_id=upload_id,
+                    event_type="auto_generate_set", actor=admin["id"],
+                    payload={"enabled": bool(body.enabled)})
+    auto = (asc_auto_generate.maybe_start(store, upload_id, actor=admin["id"],
+                                          schedule=background.add_task)
+            if body.enabled else {"started": False, "reason": "disarmed"})
+    return {"ok": True, "upload_id": upload_id, "auto_generate": bool(body.enabled),
+            "run": auto}
+
+
+@router.post("/health-systems/{hs_id}/auto-generate", include_in_schema=False)
+async def set_hs_auto_generate_default(
+    hs_id: str, body: AutoGenerateRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The per-partner default, applied to their FUTURE uploads (§3).
+
+    Not retroactive, deliberately. An upload already on the screen carries an
+    ``auto_generate`` value an admin can see and change; rewriting it from here
+    would arm a bundle whose own row says it is not armed.
+    """
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    store.set_health_system_auto_generate_default(hs_id, body.enabled)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="auto_generate_default_set", actor=admin["id"],
+                    payload={"enabled": bool(body.enabled)})
+    return {"ok": True, "hs_id": hs_id, "auto_generate_default": bool(body.enabled),
+            "message": ("New uploads from this health system will build their tasks "
+                        "automatically once a purpose and a mode are set. Uploads "
+                        "already received are unchanged."
+                        if body.enabled else
+                        "New uploads from this health system will wait for a click.")}
 
 
 class UploadDescriptionRequest(BaseModel):

@@ -1,0 +1,26 @@
+Document index: 55
+Document type: other
+Service date: 2026-06-18
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility name, patient ID, and signatures omitted.
+
+CONTENT
+----------------------------------------
+INTAKE / OUT-PUT RECORD SHEET. Date 18/06/2026.
+(Closely parallels index 53 content; separate photo of same-date I/O sheet.)
+Intake:
+0700: Parenteral1 C/O 100 off
+0800: Tea 100; urine Pass
+0900: PW 100; urine Pass
+1100: PW 100; urine Pass
+1300: urine Pass, stool Pass
+1400: PO 300 ml
+1500: NG aspiration Nil
+1600: vomitus/drainage notes (P/Pass); NG VNP; stool Nil / BNP
+2100–2200: 1/2 P ~120 ml; Total C/O 240
+2300–0200: parenteral 120 ml/hr
+0300: H2O 20 ml; stool SNP
+0400: parenteral 120; urine Pass
+0500: parenteral 40; Juice 200; urine Pass
+Night totals: parenteral 760, PO 220
+24h totals — Intake: Parenteral 1000, Oral 520, Grand 1520; Output urine Pass, Grand Pass

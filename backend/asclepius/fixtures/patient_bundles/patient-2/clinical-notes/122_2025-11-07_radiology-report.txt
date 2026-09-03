@@ -1,0 +1,40 @@
+Document index: 122
+Document type: radiology report
+Service date: 2025-11-07
+Age on report: 65Y    Sex: M
+De-identification: Same de-ID as 121; duplicate filename (1); patient/relative names and facility header omitted.
+
+CONTENT
+----------------------------------------
+Duplicate/near-duplicate of index 121.
+CT SCAN WHOLE ABDOMEN WITH CONTRAST
+Date/time: 07/11/2025 13:35:36
+
+HISTORY:
+K/c of CLD. Suspected HCC.
+
+TECHNIQUE:
+Axial images were obtained after oral and intravenous contrast. Reconstructions acquired in coronal and sagittal planes.
+
+FINDINGS:
+Liver appears cirrhotic showing irregular and undulating margins with coarse nodular parenchyma. A small hypodensity is noted in the segment VI of the liver not showing any enhancement likely suggesting simple hepatic cyst. No definite arterially enhancing lesion is identified in both lobes of the liver. No abnormal area of washout is seen to suggest hepatocellular carcinoma.
+
+Gallbladder appears mildly thick walled and edematous likely reactionary.
+
+Portal vein appears mildly dilated measuring 1.6 cm. No evidence of portal venous thrombosis.
+
+Spleen appears mildly enlarged and lobulated measuring 13 cm in CC length.
+
+The gall bladder appears normal. No focal mass or abnormal wall thickening is noted. No evidence of any calculi.
+
+Pancreas shows no evidence of any parenchymal abnormality. The peripancreatic fat planes are well preserved.
+
+Adrenal glands are within normal limits.
+
+Both kidneys are normal in size, shape and position with normal enhancement. No mass or hydronephrosis is seen on either side.
+
+Urinary bladder appears inadequately filled.
+
+Prostate and seminal vesicle appears unremarkable.
+
+(Page continues; impression not on this frame.)

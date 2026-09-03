@@ -1,0 +1,13 @@
+Document index: 35
+Document type: coagulation
+Service date: 2023-03-17
+Age on report: 39Y    Sex: M
+De-identification: name/lab identifiers redacted with green marker and omitted.
+
+CONTENT
+----------------------------------------
+PT (PROTHROMBIN TIME)
+PT: 8.7 seconds (24-04-2012.1 seconds) [L]
+PT Control: 10.8 seconds
+INR: 0.79 (Normal: 0.8-1.2; Patient on Warfarin: 2.0-3.0)
+Remarks: Test performed on CS-2500 based on (Clotting method)

@@ -1,0 +1,50 @@
+Document index: 72
+Document type: discharge summary
+Service date: 2025-07-01
+Age on report: 76Y    Sex: F
+De-identification: Omitted hospital name/address, patient name, guardian name, identifier field/IDs (green redactions); handwritten "PA" annotation ignored as non-clinical ID mark
+
+CONTENT
+----------------------------------------
+Discharge Summary
+Admission Date: 28/06/2025
+Discharge Summary Date: 01/07/2025
+
+Presenting Complaints:
+- ABDOMINAL PAIN
+- BACKACHE
+- ABDOMINAL DISTENSION
+- FEVER
+
+Diagnosis:
+- BRONCHIECTASIS
+- K/C HCV / DCLD
+
+Relevant Investigation:
+- HB: 9.8
+- TLC: 5.92
+- PLATS: 61
+- ALBUMIN: 2.97
+- CREATININE: 1.1
+- NA: 133; K: 4.1; CL: 102; HCO3: 19.6
+- UREA: 33.3
+- PT: 16.3; INR: 1.25
+- LFTs listed (specific values not fully captured on page)
+
+Hospital Course: Presented with above complaints; relevant investigations and X-rays done; managed with IV antibiotics, PPI, antiemetics, analgesics; known HCV/DCLD with related meds given; improved; discharged on oral medications.
+Date of Surgery: N/A
+Operative Procedure: N/A
+
+Medication on Discharge:
+- TAB MOFEST 400MG 1+0+0 (5 DAYS)
+- TAB FOLIC ACID 1 X OD
+- TAB EZIUM 40MG 1+0+0
+- TAB MOTILIUM 1+0+1
+- SYP DUPHALAC 30ML X HS
+- TAB CARVEDA 6.25 1+0+1
+- TAB RIFAXA 550MG 1+0+1
+- TAB PANADOL 1 X SOS
+
+Instruction on Discharge: TAKE MEDICATIONS ON TIME
+Follow-up: FOLLOW UP AFTER 1 WEEK
+Discharge Status: Improved

@@ -1,0 +1,17 @@
+Document index: 46
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Staff initials omitted. No patient name, facility, identifier field, or clear full service date on form.
+
+CONTENT
+----------------------------------------
+MEDICATION FORM (Page 1 of 1). STAT DOSE section blank.
+Partial time/date notation near first row: ~7 12:36; vertical note "Continue".
+1. Inj R/L D 1 L IV at 30 cc/hr — Continue
+2. Inj Ceftro (ceftriaxone) 2 g IV OD — time 10:00; annotation "Switch" to next row
+3. Cap Ezim 40 mg PO OD — time 10:00
+4. Nebs with Aken TDS — times 0600, 1400, 2200 (red slash through row — discontinued)
+5. Syp Motilin 2-2-2 — times 0600, 1400, 2200; note NPO at 1400 (red slash — discontinued)
+6. Syp Duphalac 30 ml HS — time 22:00 (red slash — discontinued)
+Staff initials in admin boxes omitted.

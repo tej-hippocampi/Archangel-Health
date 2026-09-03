@@ -1,0 +1,29 @@
+Document index: 117
+Document type: radiology report
+Service date: 2026-06-17
+Age on report: 65Y    Sex: M
+De-identification: Green redactions cover name/facility/provider; omitted any residual identifiers; kept age, sex, date, clinical content.
+
+CONTENT
+----------------------------------------
+Continuation page of CT abdomen report (green redactions over header/provider/facility).
+Date on form: 17/06/2026 16:47:15. Age 65 Year(s); Gender Male.
+
+Additional findings:
+Both ureters normal caliber throughout; no definite radiodense calculus.
+Urinary bladder inadequately filled.
+Prostate enlarged, indenting bladder base.
+Small and large bowel loops appear normal.
+Small amount of ascites in pelvic peritoneal cavity.
+Mesenteric engorgement with reactive mesenteric lymph nodes.
+Visualized lung sections: emphysematous changes.
+Bone windows: degenerative changes in visualized bones.
+
+CONCLUSION:
+Imaging features suggest chronic liver disease with small atypical HCC in right lobe of liver; correlate with AFP and PIVKA.
+Another small hypodense right-lobe lesion may represent regenerating/dysplastic nodule.
+Small pelvic ascites.
+No portal venous thrombosis.
+Mesenteric engorgement with reactive mesenteric nodes.
+Rest of imaging unremarkable.
+Signed role line: Consultant Interventional Radiologist (name redacted on source).

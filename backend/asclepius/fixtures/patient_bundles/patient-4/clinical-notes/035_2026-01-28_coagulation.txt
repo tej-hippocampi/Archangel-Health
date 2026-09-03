@@ -1,0 +1,18 @@
+Document index: 35
+Document type: coagulation
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Green overlay already obscured name/facility/IDs in source photo; omitted residual header identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF HEMATOLOGY
+
+Booking Date & Time: 28/01/2026 18:26:24
+Collection Date & Time: 28/01/2026 18:26:40
+Reporting Date & Time: 28/01/2026 18:58:47
+
+PROTHROMBIN TIME (PT/INR)
+Prothrombin Time: 11.6 Sec (10 - 15)
+INR: 0.96 (0.9 - 1.5)
+Control: 12.0 Sec

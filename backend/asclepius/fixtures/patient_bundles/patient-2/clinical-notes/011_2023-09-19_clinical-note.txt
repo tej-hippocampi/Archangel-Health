@@ -1,0 +1,41 @@
+Document index: 11
+Document type: clinical note
+Service date: 2023-09-19
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted identifier fieldnumber (039331/25 year-style registration, not age); no name/provider/facility clearly present
+
+CONTENT
+----------------------------------------
+Handwritten clinical encounter note
+
+Vitals:
+- Pulse: 89
+- BP: 110/80 (circled)
+- Temp: 96.9
+- Wt: 71 (circled)
+- Ht / BMI / Problem List: blank
+
+Labs noted:
+- ALT: 72
+- AFP: 50.2
+
+Other notes:
+- No HBV vaccine
+- Reg smoker (regular smoker)
+
+Diagnoses / history:
+- HCV +ve
+- Cirrhosis
+- PHT (portal hypertension)
+- PCR - ? (status queried)
+- HBV -ve
+- NO comorbid
+- SH: Alone
+- PH: well on... (remainder illegible)
+
+Symptoms:
+- % Better
+- Cough — Productive
+- Ghabrabat (uneasiness/anxiety/palpitation)
+- SOB
+- Abd Gases

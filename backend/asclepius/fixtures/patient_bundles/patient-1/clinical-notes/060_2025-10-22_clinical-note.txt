@@ -1,0 +1,27 @@
+Document index: 60
+Document type: clinical note
+Service date: 2025-10-22
+Age on report: 42Y    Sex: M
+De-identification: patient identification and provider name redacted/omitted; consultant names redacted
+
+CONTENT
+----------------------------------------
+PATIENT TRIAGE / ER ASSESSMENT
+Complaint: A 42 y old male admitted in ER with C/O low blood pressures, SOB and generalized weakness since few days.
+History: Patient is known case of cholangitis and was initially admitted for procedure ERCP.
+On examination: Chest B/L clear; Abdomen soft non-tender + distended mildly; CVS/ECG S1+S2; CNS conscious.
+Vital signs: RBS 114 mg/dl; Pulse 117 b/min; Temp Afebrile; BP 80/50 mmHg; RR 20/min; SPO2 94%; GCS 15/15
+Investigations ordered: ECG + ABGs, CBC, U/C/E, LFT, PCT, Trop I, Blood cultures
+Referred from: With family
+Provisional diagnosis: Sepsis
+Transfer to: ICU
+ER Treatment & Procedure:
+- Inj NS 500ml IV x bolus
+- Inj Haemaccel 500ml IV x bolus
+- Inj Norpine 2 amp @ 8 drop/min -> 12 drops/min
+- Inj Zofran 8mg IV stat
+- Inj Risek 40mg IV stat
+- Inj Ceftro 2g IV stat
+- Inj Meronem 1g IV stat
+- Oxygen inhalation + nebulization
+Patient code: Full Code

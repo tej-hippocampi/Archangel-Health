@@ -1,0 +1,160 @@
+DE-IDENTIFIED CLINICAL SUMMARY — Patient patient-2
+============================================================
+Anonymous patient ID: patient-2-patient
+Sex: male
+Age (masked): 65Y  (exact DOB omitted; ages >89 reported as 89+)
+
+PRIMARY DIAGNOSES (auto-extracted from documents; review clinically):
+  - Diabetes mellitus (first noted ~2020-08-08)
+  - Hypertension (first noted ~2020-08-08)
+  - Chronic liver disease / cirrhosis features (first noted ~2023-09-19)
+  - Portal hypertension / portal vein abnormality (first noted ~2023-09-19)
+  - Suspected hepatocellular carcinoma (first noted ~2024-06-17)
+  - Ascites (first noted ~2024-07-17)
+  - Hepatic coarse echotexture (first noted ~2025-09-12)
+  - Viral hepatitis (first noted ~2025-09-12)
+  - Cholelithiasis (first noted ~2026-04-25)
+  - Esophageal / gastric varices (first noted ~2026-04-27)
+  - Jaundice / biliary obstruction (first noted ~2026-06-16)
+  - Splenomegaly (first noted ~2026-06-16)
+  - Anemia (first noted ~2026-06-21)
+
+NOTE: All names, phones, MRNs, facility/provider identifiers omitted.
+Source images: 134 (tracked in _progress_seen_images.txt).
+
+DOCUMENT INDEX
+------------------------------------------------------------
+  [001] 2026-04-25  radiology report
+  [002] 2005-11-21  radiology report
+  [003] UNKNOWN  clinical note
+  [004] UNKNOWN  prescription/medication
+  [005] 2026-02-02  clinical note
+  [006] UNKNOWN  prescription/medication
+  [007] 2025-11-07  RFT/renal
+  [008] 2025-11-07  radiology report
+  [009] UNKNOWN  radiology report
+  [010] 2025-11-07  prescription/medication
+  [011] 2023-09-19  clinical note
+  [012] 2025-09-12  clinical note
+  [013] 2025-09-12  serology/viral
+  [014] 2025-09-12  tumor marker
+  [015] 2025-09-12  urinalysis
+  [016] 2025-09-12  coagulation
+  [017] 2025-09-12  other lab
+  [018] 2025-09-12  radiology report
+  [019] 2020-12-20  radiology report
+  [020] 2025-09-08  LFT
+  [021] 2025-09-08  CBC/hematology
+  [022] 2024-07-17  radiology report
+  [023] 2020-08-08  clinical note
+  [024] UNKNOWN  prescription/medication
+  [025] 2025-11-16  prescription/medication
+  [026] 2026-06-16  clinical note
+  [027] 2025-06-16  clinical note
+  [028] 2024-06-17  clinical note
+  [029] 2026-06-16  clinical note
+  [030] 2026-06-17  clinical note
+  [031] 2026-06-21  clinical note
+  [032] 2026-06-19  clinical note
+  [033] 2026-06-20  clinical note
+  [034] 2026-06-16  clinical note
+  [035] UNKNOWN  clinical note
+  [036] UNKNOWN  clinical note
+  [037] 2026-06-16  clinical note
+  [038] 2026-06-19  clinical note
+  [039] 2026-06-19  clinical note
+  [040] 2026-06-17  clinical note
+  [041] 2026-06-17  clinical note
+  [042] 2026-06-16  vitals
+  [043] 2026-06-21  vitals
+  [044] 2026-06-21  prescription/medication
+  [045] 2026-06-21  prescription/medication
+  [046] UNKNOWN  prescription/medication
+  [047] 2026-06-21  prescription/medication
+  [048] 2026-06-16  prescription/medication
+  [049] 2026-06-19  prescription/medication
+  [050] 2026-06-21  other
+  [051] 2024-06-20  other
+  [052] 2024-06-19  other
+  [053] 2026-06-18  other
+  [054] 2026-06-17  other
+  [055] 2026-06-18  other
+  [056] 2024-06-19  other
+  [057] 2024-06-20  other
+  [058] 2024-06-21  other
+  [059] 2026-06-20  clinical note
+  [060] 2026-06-18  clinical note
+  [061] 2026-06-16  clinical note
+  [062] 2026-06-18  clinical note
+  [063] UNKNOWN  clinical note
+  [064] 2026-06-22  other lab
+  [065] 2026-06-21  other lab
+  [066] 2026-06-21  other lab
+  [067] 2026-06-21  serology/viral
+  [068] 2026-06-21  serology/viral
+  [069] 2026-06-21  other lab
+  [070] 2026-06-21  CBC/hematology
+  [071] 2026-06-20  CBC/hematology
+  [072] 2026-06-20  RFT/renal
+  [073] 2026-06-20  electrolytes
+  [074] 2026-06-18  electrolytes
+  [075] 2026-06-18  RFT/renal
+  [076] 2026-06-16  serology/viral
+  [077] 2026-06-16  LFT
+  [078] 2026-06-16  electrolytes
+  [079] 2026-06-16  RFT/renal
+  [080] 2026-06-16  coagulation
+  [081] 2026-06-16  RFT/renal
+  [082] 2026-06-16  tumor marker
+  [083] 2026-06-16  LFT
+  [084] 2026-06-16  RFT/renal
+  [085] 2026-06-16  CBC/hematology
+  [086] 2026-06-16  tumor marker
+  [087] 2025-11-07  RFT/renal
+  [088] 2025-09-12  RFT/renal
+  [089] 2025-09-12  coagulation
+  [090] 2025-09-12  serology/viral
+  [091] 2025-09-12  urinalysis
+  [092] 2025-09-12  LFT
+  [093] 2025-09-12  serology/viral
+  [094] 2025-09-12  tumor marker
+  [095] 2025-09-12  RFT/renal
+  [096] 2025-09-12  RFT/renal
+  [097] 2026-06-17  radiology report
+  [098] 2026-06-17  radiology report
+  [099] 2026-06-17  radiology report
+  [100] 2026-06-17  radiology report
+  [101] 2023-06-18  radiology report
+  [102] 2023-06-12  radiology report
+  [103] 2023-06-27  radiology report
+  [104] 2023-06-12  radiology report
+  [105] UNKNOWN  radiology report
+  [106] UNKNOWN  radiology report
+  [107] UNKNOWN  radiology report
+  [108] UNKNOWN  radiology report
+  [109] 2023-06-18  radiology report
+  [110] 2020-06-18  radiology report
+  [111] 2026-06-17  radiology report
+  [112] 2026-06-17  radiology report
+  [113] 2026-06-17  radiology report
+  [114] 2026-06-17  radiology report
+  [115] UNKNOWN  radiology report
+  [116] UNKNOWN  radiology report
+  [117] 2026-06-17  radiology report
+  [118] 2026-06-17  radiology report
+  [119] 2026-06-16  radiology report
+  [120] 2026-06-16  radiology report
+  [121] 2025-11-07  radiology report
+  [122] 2025-11-07  radiology report
+  [123] 2025-11-07  radiology report
+  [124] 2025-11-07  radiology report
+  [125] 2025-09-12  radiology report
+  [126] 2025-09-12  radiology report
+  [127] 2025-09-12  radiology report
+  [128] 2025-09-12  radiology report
+  [129] 2025-09-12  radiology report
+  [130] 2025-09-12  radiology report
+  [131] 2026-04-27  prescription/medication
+  [132] 2026-04-27  prescription/medication
+  [133] 2026-06-19  discharge summary
+  [134] 2026-06-19  discharge summary

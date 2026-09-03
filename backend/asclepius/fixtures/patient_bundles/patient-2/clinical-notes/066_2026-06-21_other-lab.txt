@@ -1,0 +1,14 @@
+Document index: 66
+Document type: other lab
+Service date: 2026-06-21
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/consultant/facility redacted and omitted
+
+CONTENT
+----------------------------------------
+Department of Biochemistry — CRP
+Booking: 21/06/2026 10:43:46
+Collection: 21/06/2026 10:43:59
+Reporting: 21/06/2026 12:10:25
+
+CRP (C-reactive protein): 56.5 mg/L (ref < 7.90) [H]

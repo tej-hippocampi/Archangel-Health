@@ -1,0 +1,23 @@
+Document index: 11
+Document type: other lab
+Service date: 2026-01-30
+Age on report: 46Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Booking: 30/01/2026 19:05:26
+Collection: 30/01/2026 19:05:30
+Reporting: 30/01/2026 22:31:33
+
+ARTERIAL BLOOD GASES (ABGs):
+ABG's Measure at: 37 C
+pH: 7.35 (7.35-7.45)
+pCO2: 42 mmHg (35-48)
+pO2: 19 mmHg (83-108) [L]
+O2 Saturation: 26.5 % (94-98) [L]
+Bicarbonate: 23.5 mmol/L (19 - 24)
+Base Excess: -2.0 mmol/L (-2 - 3)
+
+Remarks: Whole Blood / Venous Sample. Importantly, sufficient variability between arterial and venous blood gas values may exist such that periodic correlation between arterial and venous blood gas values is always prudent.

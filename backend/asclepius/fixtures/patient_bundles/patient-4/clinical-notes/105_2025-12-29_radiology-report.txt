@@ -1,0 +1,32 @@
+Document index: 105
+Document type: radiology report
+Service date: 2025-12-29
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header; kept age, sex, service date, findings and impression.
+
+CONTENT
+----------------------------------------
+ULTRASOUND ABDOMEN
+
+LIVER: Normal in size measures 13.4 cm, shows slight increased echo pattern with regular margins.
+No focal mass seen in liver. Intra hepatic biliary duct are not dilated. Portal vein is normal. It measures 0.9 cm.
+
+GALL BLADDER: Partially contracted however no calculus or mass is seen. CBD normal caliber measures 0.3 cm.
+
+PANCREAS: Visualized part i.e. body appear normal. No focal mass is seen.
+
+SPLEEN: Is normal measuring 9.0 cm. Echotexture is uniform. No mass or cyst seen.
+
+RIGHT KIDNEY: Normal in size with regular outline. No parenchymal disease. No evidence of calculus, focal mass or hydronephrosis seen.
+
+LEFT KIDNEY: Normal in size with regular outline. No parenchymal disease.
+A cyst is seen at upper pole measuring 1.6 x 1.2 cm. No evidence of calculus or hydronephrosis seen.
+
+URINARY BLADDER: Empty at the time of scan.
+
+No ascites seen.
+No evidence of para-aortic lymphadenopathy.
+Bowel loops are not dilated.
+
+IMPRESSION:
+- Slightly increased echotexture of liver. Clinical correlation & LFTs are recommended.

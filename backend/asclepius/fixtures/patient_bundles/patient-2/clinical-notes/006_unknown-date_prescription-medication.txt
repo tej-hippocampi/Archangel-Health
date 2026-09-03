@@ -1,0 +1,18 @@
+Document index: 6
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted provider name and clinic name from faded header; omitted signature in follow-up section
+
+CONTENT
+----------------------------------------
+Medication schedule chart (Morning / Noon / Night; Before meal / After meal):
+
+1. Tab ITP 5mg — Morning 1, Noon 1, Night 1; Before meal
+2. Tab VOPRA 20mg — Morning 1, Night 1; Before meal
+3. Tab SPIRONIDE 20mg (handwriting uncertain: SPIRIDE/SPIRORIDE) — Morning 1; After meal
+4. Cap MINVIAN — note "6 dose"; Morning 1, Night 1
+5. Tab SUPRAVIT-M — Noon 1; After meal
+
+Handwritten note below table: POL
+FOLLOW UP section present (content not clinically useful beyond signature omitted)

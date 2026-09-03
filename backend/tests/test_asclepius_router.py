@@ -1012,7 +1012,13 @@ def test_prelabel_gate_is_unconditional_even_with_withholding_off(monkeypatch):
 def test_taxonomy_exposes_portal_versions():
     r = client.get("/api/asclepius/taxonomy", headers=A.headers_for(_seed()))
     body = r.json()
-    assert body["portal_versions"] == ["v1", "v2", "v3", "v4"]
+    # V5 is here since the longitudinal relabel (Longitudinal E2E PRD §5.1): a
+    # chart-walk point is answered in ONE turn — read the truncated chart, commit,
+    # reveal — so it belongs to the single-turn portal. The tier that is genuinely
+    # interactive is ``env``, and ``env`` is not a portal version at all, which is
+    # why the list still has exactly five entries and none of them is agentic.
+    assert body["portal_versions"] == ["v1", "v2", "v3", "v4", "v5"]
+    assert "env" not in body["portal_versions"]
     # Seamless PRD: the ~10s instinct capture is now a first-class mode.
     assert "instinct" in body["independent_modes"]
 

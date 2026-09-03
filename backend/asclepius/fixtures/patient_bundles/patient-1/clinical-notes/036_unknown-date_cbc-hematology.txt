@@ -1,0 +1,23 @@
+Document index: 36
+Document type: CBC/hematology
+Service date: unknown-date
+Age on report: 39Y    Sex: M
+De-identification: patient name, contact identifier field, and identifier field present and redacted/omitted (phone omitted).
+
+CONTENT
+----------------------------------------
+Complete Blood Count
+Hemoglobin: 11.9 g/dl (Male 13.0-17.0; Female 24-08-2014.4) [L]
+Hematocrit: 37.7 Vol % (Male 40-50; Female 35-47) [L]
+RBC: 4.4 x10^12/l (Male 4.5-5.5; Female 3.8-5.2) [L]
+MCV: 85.3 fl (76-100)
+MCH: 26.9 pg (27-32) [L]
+MCHC: 31.6 g/dl (31-34)
+WBC: 5.5 x10^9/l (4.0-11.0)
+Neutrophils: 80 % (40-80)
+Lymphocytes: 16 % (20-40) [L]
+Eosinophils: 02 % (01-06)
+Monocytes: 02 % (02-10)
+Platelet Count: 120 x10^9/l (150-450) [L]
+Morphology: Normocytic Normochromic
+Remarks: Platelets rechecked manually and include large platelets

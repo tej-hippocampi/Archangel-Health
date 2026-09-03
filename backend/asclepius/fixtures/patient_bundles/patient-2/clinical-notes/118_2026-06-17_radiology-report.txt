@@ -1,0 +1,12 @@
+Document index: 118
+Document type: radiology report
+Service date: 2026-06-17
+Age on report: 65Y    Sex: M
+De-identification: Removed/omitted redacted name, facility, and provider identity; kept age, sex, service date, findings.
+
+CONTENT
+----------------------------------------
+Alternate photo of same CT report continuation/conclusion page.
+Date: 17/06/2026 16:47:15; Male; 65 Year(s).
+Findings: normal-caliber ureters without radiodense calculus; inadequately filled bladder; enlarged prostate indenting bladder base; normal bowel loops; small pelvic ascites; mesenteric engorgement with reactive nodes; emphysematous lung changes; degenerative bone changes on bone windows.
+Conclusion: CLD with small atypical right-lobe HCC (correlate AFP/PIVKA); possible regenerating/dysplastic nodule; pelvic ascites; no PVT; mesenteric engorgement/reactive nodes; remainder unremarkable.

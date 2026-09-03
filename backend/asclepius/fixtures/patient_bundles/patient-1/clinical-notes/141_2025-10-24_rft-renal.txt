@@ -1,0 +1,11 @@
+Document index: 141
+Document type: RFT/renal
+Service date: 2025-10-24
+Age on report: 42Y    Sex: M
+De-identification: name/lab/identifier fieldredacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Biochemistry - Urea (Blood)
+Urea: 42.4 mg/dL (10 - 50)
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU) -- 008

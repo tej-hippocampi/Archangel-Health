@@ -1,0 +1,15 @@
+Document index: 124
+Document type: LFT
+Service date: unknown-date
+Age on report: 42Y    Sex: M
+De-identification: header identifiers and lab number redacted (green marker). No identifiers transcribed.
+
+CONTENT
+----------------------------------------
+LIVER FUNCTION TEST (6 PARA):
+Serum Bilirubin Total: 6.7 mg/dl (adult 0.2 - 1.0) [H]
+Serum Bilirubin Direct: 2.5 mg/dl (0 - 0.3) [H]
+Serum Bilirubin Indirect: 4.2 mg/dl (0.1 - 0.7) [H]
+Al-T (SGPT): 90 U/L (M = 9 - 40, F = 9 - 32) [H]
+Alkaline Phosphatase (AlP): 1050 U/L (adult = 80 - 290) [H]
+Gamma-GT (GGT): 665 U/L (M = 08 - 61, F = 5 - 36) [H]

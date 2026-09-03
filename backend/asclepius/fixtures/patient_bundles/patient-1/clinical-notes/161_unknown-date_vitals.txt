@@ -1,0 +1,12 @@
+Document index: 161
+Document type: vitals
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: hospital/facility name redacted (green marker); patient identification block omitted
+
+CONTENT
+----------------------------------------
+Intake / Out-Put Record Sheet (24-hour fluid balance chart). Mostly handwritten.
+Intake columns: Parenteral Fluid 1/2/3, enteral. Output columns: urine, vomitus, NG, drainage, stool.
+Legible totals (approximate): 24-hour intake grand total ~2000 mL; oral/NG and IV fluids recorded hourly.
+Individual hourly urine outputs recorded (values ~ 100-200 mL entries).

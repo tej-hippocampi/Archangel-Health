@@ -1,0 +1,50 @@
+Document index: 74
+Document type: discharge summary
+Service date: 2024-01-09
+Age on report: 75Y    Sex: F
+De-identification: Omitted facility logo/name, consultant, patient name, identifier field/ID (green redactions)
+
+CONTENT
+----------------------------------------
+Discharge Summary
+Admission Date: 06/01/2024
+Discharge Summary Date: 09/01/2024
+
+Presenting Complaints: 75 years old female admitted with right abdominal pain, generalized weakness, anemia; no history of melena and hematemesis.
+
+Diagnosis (as printed):
+- IRON DEFICIENCY ANEMIA, AKI
+- DISC COMPRESSION
+- K/C HCV, DECOMPENSATED CIRRHOSIS
+
+Relevant Investigation:
+- HB 10.2, TLC 4.0, PLATELETS 30
+- CREATININE 1.5; CALCIUM 8.1; UREA 46
+- NA 136, K 5.2, CL 108, BICARB 16.7
+- ALBUMIN 2.8
+- PT 16.3, INR 1.2
+- T.BILIRUBIN 0.36; DIRECT 0.20; INDIRECT 0.16
+- AST 45, ALT 21, ALP 83, GGT 35
+- CRP 16.9
+- ULTRASOUND ABDOMEN: NORMAL
+
+Hospital Course: HB 5.4 on admission baseline labs; no melena/hematemesis; after 2 pint PCV transfusion HB 11.0 then next day HB 10.2; endoscopy advised but family refused; inpatient meds included INJ EZIUM 40MG IV OD, INJ ONSET 8MG IV OD, TAB NUBEROL PRN pain, INJ CEFTRO 2G IV OD, INJ TRAMAL + METACLON IV OD, TAB SOFTIN 10MG 1-0-0, SYP DUPHALAC 30ML HS, TAB OSONATE D 1-0-0.
+
+Date of Surgery: —
+Operative Procedure: —
+Pending Reports: —
+
+Medication on Discharge:
+- CAP CEFSPAN 400MG 1-0-0 FOR 5 DAYS
+- TAB SOFTIN 10MG 0-0-1
+- CAP EZIUM 40MG 1-0-0
+- TAB OSONATE D 1-0-0
+- TAB NUBEROL 1-0-0
+- TAB MOTILIUM 1-1-1
+- TAB DRATE ONCE WEEKLY BEFORE BREAKFAST
+- SYP DUPHALAC 30ML HS
+- INJ INDROP-D 200000IU 1 STAT
+
+Instruction on Discharge: NEUROPHYSICIAN REVIEW ADVISE FOR DISC COMPRESSION
+Follow-up: AFTER 15 DAYS
+Discharge Status: DOR

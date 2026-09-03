@@ -1,0 +1,16 @@
+Document index: 13
+Document type: other lab
+Service date: 2025-07-07
+Age on report: 76Y    Sex: F
+De-identification: Omitted facility/patient identifiers under green redaction
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+Panel: CRP (C- REACTIVE PROTEIN)
+
+Booking: 07/07/2025 14:48:38
+Collection: 07/07/2025 14:49:06
+Reporting: 07/07/2025 16:49:13
+
+CRP: 17.9 mg/L (< 7.90) [H]

@@ -1,0 +1,21 @@
+Document index: 126
+Document type: RFT/renal
+Service date: unknown-date
+Age on report: 42Y    Sex: M
+De-identification: header identifiers and consultant name redacted (green marker). No identifiers transcribed.
+
+CONTENT
+----------------------------------------
+SERUM CREATININE:
+Creatinine: 1.5 mg/dl (M = 0.9 - 1.3, F = 0.6 - 1.1) [H]
+SERUM UREA:
+Urea (Serum): 55 mg/dl (10 - 50) [H]
+SERUM ELECTROLYTES:
+Serum Sodium: 140.2 m.mol/L (135 - 148)
+Serum Potassium: 4.91 m.mol/L (3.5 - 5.3)
+Serum Chloride: 105.7 m.mol/L (98 - 107)
+Serum Bicarbonate: 21.6 m.mol/L (adults 22 - 29) [L]
+PROTHROMBIN TIME:
+Patient: 15 Seconds (10 - 14) [H]
+Control: 14 Seconds
+INR: 1.07
