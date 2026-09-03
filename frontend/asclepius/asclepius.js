@@ -2965,7 +2965,7 @@
       // Evaluator experience this task is graded under (Asclepius V2). Mirrors
       // the live selection during Stage 1, then pins when Stage 2 begins.
       portal_version: getPortalVersion(),
-      prompt_review: { reviewed: false, verdict: null, note: '', reviewed_at: null },
+      prompt_review: { reviewed: false, verdict: null, note: '', reviewed_at: null, attest_clinically_valid: null },
       independent_answer: { text: '', evidence_anchor: emptyAnchor(), captured_at: null },
       verdict: null,
       chosen_id: null,
@@ -6401,9 +6401,109 @@
     // The expected-trajectory card sits above BOTH, because on a longitudinal case
     // it is the highest-value thing the physician writes and must not read as an
     // afterthought bolted to the submit button.
-    const parts = [renderExpectedTrajectoryCard(), renderDecisiveActionCard(), confidenceCard]
-      .filter(Boolean);
+    // The clinical-validity attestation sits ABOVE the confidence card for the
+    // same reason the optional cards do: it is a statement about the case, made
+    // before committing to a label, and wedging it into the commit moment would
+    // turn a signed assertion into a checkbox somebody clears on the way past.
+    const parts = [renderExpectedTrajectoryCard(), renderDecisiveActionCard(),
+      renderClinicalValidityCard(), confidenceCard].filter(Boolean);
     return parts.length > 1 ? h('div', {}, ...parts) : confidenceCard;
+  }
+
+  // ── Clinical-validity attestation (Gap U2) ─────────────────────────────────
+  // The physician says this case could occur in practice and is internally
+  // consistent, BEFORE they label it. Under section 3 of the contributor
+  // agreement that is an attestation with a consequence, which is why the copy
+  // says so plainly rather than reading as one more box.
+  //
+  // REJECTING IS AS EASY AS ATTESTING, and is the second control here rather
+  // than something buried elsewhere. A physician who has to hunt for the honest
+  // path takes the dishonest one, and the reject button is the whole reason it
+  // is fair to hold them to the attestation at all. It routes through the
+  // Stage-1 flag the backend already has, so a rejected case leaves the queue
+  // and lands on the admin flagged list exactly as it always did.
+  function renderClinicalValidityCard() {
+    const d = state.draft;
+    if (!isV3()) return null;
+    d.prompt_review = d.prompt_review || {};
+    const pr = d.prompt_review;
+
+    const box = h('input', { type: 'checkbox', class: 'asc-validity-check' });
+    box.checked = pr.attest_clinically_valid === true;
+    // The Stage-1 verdict as it stood before this checkbox touched it, so an
+    // uncheck restores the prompt-gate answer instead of erasing it.
+    const verdictBeforeAttest = pr.verdict;
+    box.addEventListener('change', () => {
+      // Unchecking is "I am no longer asserting", not "I assert the opposite":
+      // an explicit false is a statement a finding could be made against, and
+      // the physician never made it. Null keeps the tri-state honest.
+      pr.attest_clinically_valid = box.checked ? true : null;
+      pr.reviewed = true;
+      pr.verdict = box.checked ? 'valid' : verdictBeforeAttest;
+      pr.reviewed_at = new Date().toISOString();
+      saveDraft();
+      updateSubmitState();
+    });
+
+    const reject = h('button', {
+      class: 'asc-btn asc-btn-subtle asc-btn-sm asc-validity-reject', type: 'button',
+    }, 'This case is not clinically valid');
+    reject.addEventListener('click', rejectCaseAsInvalid);
+
+    const info = infoDot('Why we ask', [
+      'Cases may be modified, and your attestation is what lets us treat a modified '
+      + 'case as clinically sound. If you say a case is valid when it is not, that is '
+      + 'on you and the case is not paid.',
+      'Rejecting costs you nothing. It is the right answer for a case that is wrong, '
+      + 'it never counts against your standing or your pay, and it moves you straight '
+      + 'to the next case.',
+    ]);
+
+    return h('div', { class: 'asc-card asc-card-pad asc-substage' },
+      h('div', { class: 'asc-substage-head' },
+        h('div', { class: 'asc-substage-step' }, 'Required'),
+        h('div', { class: 'asc-substage-title' }, 'Clinical validity', info)),
+      h('label', { class: 'asc-validity-row' }, box,
+        h('span', {},
+          'I attest that this case is clinically valid: it could occur in practice '
+          + 'and it holds together as a clinical picture.')),
+      h('div', { class: 'asc-validity-out' }, reject));
+  }
+
+  async function rejectCaseAsInvalid() {
+    // The practice case is deliberately valid; rejecting it would otherwise
+    // POST a REAL submission (this path bypasses the tutorial submit branch).
+    if (tutorialActive()) {
+      toast('This is the practice case: it’s deliberately valid. Attest and continue instead.', 'info');
+      return;
+    }
+    const d = state.draft;
+    d.prompt_review = d.prompt_review || {};
+    d.prompt_review.attest_clinically_valid = false;
+    d.prompt_review.reviewed = true;
+    d.prompt_review.verdict = 'flagged';
+    d.prompt_review.reviewed_at = new Date().toISOString();
+    saveDraft();
+    if (state.submitting) return;
+    state.submitting = true;
+    try {
+      // Straight to POST /submissions, mirroring flagPrompt. The gated submit
+      // path would swallow the rejection: this card mounts exactly where the
+      // staged flow's required state (confidence, the attestation itself) is
+      // still unset, and those client gates early-return without a request.
+      // The backend's Stage-1 branch reads the flagged verdict before it
+      // validates a verdict or a rubric, so a half-filled case rejects cleanly
+      // and produces zero records.
+      await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
+      clearDraft(d.task_id);
+      stopTimer();
+      toast('Case rejected as not clinically valid. Loading the next task', 'success');
+      renderEvalView();
+    } catch (e) {
+      if (e.status !== 401) toast('Could not reject the case: ' + e.message, 'error');
+    } finally {
+      state.submitting = false;
+    }
   }
 
   // ── Expected trajectory (Longitudinal Cases §3.3, field 3) ─────────────────
@@ -8033,6 +8133,12 @@
         }
         // §15 (V3/V4): confidence is an active choice, never the draft default.
         else if (isV3() && !d.confidence_set) { ok = false; msg = 'pick your confidence to submit'; }
+        // Gap U2: the attestation gates the LABEL, never the rejection. The
+        // reject button is its own control and is never disabled by this, which
+        // is the whole point of putting it beside the checkbox.
+        else if (isV3() && (d.prompt_review || {}).attest_clinically_valid !== true) {
+          ok = false; msg = 'attest the case is clinically valid, or reject it, to submit';
+        }
       }
     }
     btn.disabled = !ok || state.submitting;
@@ -8241,6 +8347,13 @@
         verdict: d.prompt_review.verdict,
         note: (d.prompt_review.note || '').trim() || null,
         reviewed_at: d.prompt_review.reviewed_at,
+        // Gap U2. Sent as a tri-state, never coerced to a boolean: undefined
+        // means this client asserted nothing, which the server keeps distinct
+        // from an explicit false. A `!!` here would turn "did not say" into
+        // "said no" on every legacy draft resumed after this shipped.
+        attest_clinically_valid:
+          typeof d.prompt_review.attest_clinically_valid === 'boolean'
+            ? d.prompt_review.attest_clinically_valid : null,
       },
       independent_answer: {
         text: (d.independent_answer.text || '').trim(),

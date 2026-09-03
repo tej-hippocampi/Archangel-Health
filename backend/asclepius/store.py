@@ -3276,6 +3276,101 @@ class AsclepiusStore:
                 """
             )
 
+            # ── The physician contributor agreement (Gap U1) ─────────────────
+            # The sibling of `signed_agreements`, for the other side of the
+            # market, and deliberately the same shape: what makes a clickwrap
+            # enforceable is being able to show later WHAT was agreed and by
+            # WHOM. `doc_sha256` is the hash of the exact rendered text on the
+            # signer's screen; "v1" is a claim about a file that can be edited,
+            # a sha256 is a claim about the bytes that were read.
+            #
+            # WHY A SEPARATE TABLE rather than a `party_kind` column on
+            # `signed_agreements`: the two documents key on different things (an
+            # organization vs a user), carry different affirmations (authority
+            # to bind vs typed initials), and supersede on different rules. A
+            # shared table would need every one of those columns nullable, which
+            # is how you end up unable to state what a row means.
+            #
+            # The seven attestations stay exactly where they are, on
+            # `users.attestations_json`. This wraps them; it does not move them.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS physician_agreements (
+                    agreement_id    TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    doc_version     TEXT NOT NULL,
+                    doc_sha256      TEXT NOT NULL,   -- of the exact rendered text
+                    pdf_sha256      TEXT,            -- the counterpart in the asset store
+                    signer_email    TEXT,
+                    typed_name      TEXT NOT NULL,
+                    signed_initials TEXT NOT NULL,
+                    ip              TEXT,
+                    user_agent      TEXT,
+                    signed_at       TEXT NOT NULL,   -- UTC
+                    consent_esign   INTEGER NOT NULL,
+                    attestations_json TEXT           -- the seven, as they stood at signature
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_physician_agreements_user "
+                         "ON physician_agreements(user_id, signed_at)")
+            # Immutability enforced by the DATABASE rather than by everyone
+            # remembering, on the reasoning `signed_agreements` already states.
+            # A new version is a new row, which the triggers permit because
+            # INSERT is untouched.
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS physician_agreements_no_update
+                BEFORE UPDATE ON physician_agreements
+                BEGIN
+                    SELECT RAISE(ABORT, 'physician_agreements is append-only');
+                END
+                """
+            )
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS physician_agreements_no_delete
+                BEFORE DELETE ON physician_agreements
+                BEGIN
+                    SELECT RAISE(ABORT, 'physician_agreements is append-only');
+                END
+                """
+            )
+
+            # ── The per-case clinical-validity attestation (Gap U2) ──────────
+            # Recorded at the moment of labeling, stored WITH the submission
+            # rather than in a side table, because the attestation is a property
+            # of that label and travels with it into every audit that asks
+            # "who said this case was valid".
+            #
+            # `validity_agreement_version` is the tie to U1: an attestation
+            # means what the agreement in force at the time said it means, and
+            # that document can change. Without the version, a finding made
+            # under v2's language could be applied to a physician who only ever
+            # signed v1.
+            #
+            # `validity_finding` is separate from the attestation and is written
+            # only by an admin. NULL means "nobody has looked", which must stay
+            # distinguishable from "looked and it was true" -- the same reason
+            # `quality_score` is nullable with no default.
+            sub_cols = cols("submissions")
+            if "validity_attested" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_attested INTEGER")
+            if "validity_attested_at" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_attested_at TEXT")
+            if "validity_agreement_version" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_agreement_version TEXT")
+            if "validity_finding" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding TEXT")
+            if "validity_finding_at" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_at TEXT")
+            if "validity_finding_by" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_by TEXT")
+            if "validity_finding_note" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_note TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sub_validity_finding "
+                         "ON submissions(validity_finding)")
+
     # ─── Platform media (Onboarding v2 §0.1) ──────────────────────────────────
     def set_platform_media(
         self,
@@ -11212,6 +11307,106 @@ class AsclepiusStore:
         rows = self.list_signed_agreements(hs_id)
         return rows[0] if rows else None
 
+    # ─── The physician contributor agreement (append-only; the DB enforces it) ─
+    def record_physician_agreement(
+        self, *, user_id: str, doc_version: str, doc_sha256: str,
+        typed_name: str, signed_initials: str, consent_esign: bool,
+        signer_email: Optional[str] = None, pdf_sha256: Optional[str] = None,
+        ip: Optional[str] = None, user_agent: Optional[str] = None,
+        attestations: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Insert one signature. There is no update counterpart, by design and by
+        trigger: a corrected agreement is a new document version and a new row,
+        and a physician signing v2 leaves their v1 row exactly where it was.
+
+        ``attestations`` snapshots the seven booleans AS THEY STOOD at signature.
+        They also live on ``users.attestations_json``, which is mutable and is
+        the live answer; this copy is the historical one. A physician who later
+        changes an answer must not silently change what their signed agreement
+        recorded, which is the whole reason the row is append-only."""
+        agreement_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO physician_agreements (agreement_id, user_id, doc_version, "
+                "doc_sha256, pdf_sha256, signer_email, typed_name, signed_initials, "
+                "ip, user_agent, signed_at, consent_esign, attestations_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (agreement_id, user_id, doc_version, doc_sha256, pdf_sha256,
+                 signer_email, typed_name, (signed_initials or "").strip().upper(),
+                 ip, (user_agent or "")[:400], now, 1 if consent_esign else 0,
+                 json.dumps(attestations or {})),
+            )
+        return self.get_physician_agreement(agreement_id)  # type: ignore[return-value]
+
+    def get_physician_agreement(self, agreement_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM physician_agreements WHERE agreement_id = ?",
+                (agreement_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_physician_agreements(self, user_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM physician_agreements WHERE user_id = ? "
+                "ORDER BY signed_at DESC, rowid DESC", (user_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def latest_physician_agreement(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """The most recent signature, which is the one supersession is judged on.
+
+        Ordered by ``signed_at`` then ``rowid``, so two signatures inside the
+        same second still resolve to the one that was actually written last."""
+        rows = self.list_physician_agreements(user_id)
+        return rows[0] if rows else None
+
+    # ─── Per-case clinical-validity attestation (Gap U2) ─────────────────────
+    def stamp_validity_attestation(
+        self, submission_id: str, *, attested: bool, agreement_version: Optional[str],
+        attested_at: Optional[str] = None,
+    ) -> None:
+        """Record that the labeler attested this case was clinically valid.
+
+        Written once, at submit, in the same request that created the row. It is
+        not an UPDATE anybody else calls: an attestation made later than the
+        label it covers is not the thing the agreement describes."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE submissions SET validity_attested = ?, validity_attested_at = ?, "
+                "validity_agreement_version = ?, updated_at = ? WHERE submission_id = ?",
+                (1 if attested else 0, attested_at or _utcnow_iso(),
+                 agreement_version, _utcnow_iso(), submission_id),
+            )
+
+    def record_validity_finding(
+        self, submission_id: str, *, finding: str, actor: str,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """An admin's determination about an attestation, after review.
+
+        ``finding`` is 'false' (the attestation was not true) or 'upheld' (it
+        was). Only 'false' has a payment consequence; 'upheld' exists so that
+        "somebody looked and it was fine" is recordable and distinguishable
+        from NULL, which means nobody has looked.
+
+        A FINDING IS NEVER MADE AGAINST A CASE THAT WAS NOT ATTESTED. A case the
+        physician rejected, or one that predates this feature, has nothing to
+        be found false about, and letting an admin stamp one would produce an
+        unpaid case whose reason nobody can explain to its author."""
+        if finding not in ("false", "upheld"):
+            raise ValueError(f"unknown validity finding: {finding!r}")
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE submissions SET validity_finding = ?, validity_finding_at = ?, "
+                "validity_finding_by = ?, validity_finding_note = ?, updated_at = ? "
+                "WHERE submission_id = ? AND validity_attested = 1",
+                (finding, _utcnow_iso(), actor, note, _utcnow_iso(), submission_id),
+            )
+            if not cur.rowcount:
+                return None
+        return self.get_submission(submission_id)
+
     # ─── Invoices ────────────────────────────────────────────────────────────
     def create_hs_invoice(self, *, hs_id: str, period: str, amount_cents: int,
                           created_by: str, description: Optional[str] = None,
@@ -13713,6 +13908,13 @@ class AsclepiusStore:
                        s.task_id,
                        s.status,
                        s.created_at,
+                       -- Gap U2. Selected here rather than looked up per row in
+                       -- the sweep, because this query already runs on every
+                       -- Earnings page load and a per-row lookup would put a
+                       -- second walk of a physician's submissions inside their
+                       -- page render, which is the cost _quality_terms is
+                       -- carefully written to avoid.
+                       s.validity_finding,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = s.submission_id
                             OR cr.pair_sub_a   = s.submission_id
@@ -13753,6 +13955,11 @@ class AsclepiusStore:
                        e.user_id,
                        e.status,
                        e.rate_cents,
+                       -- Gap U2: a finding may land AFTER the row accrued, so the
+                       -- resolving pass has to see it too, not only the pass that
+                       -- writes the row.
+                       (SELECT s.validity_finding FROM submissions s
+                         WHERE s.submission_id = e.ref_id) AS validity_finding,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = e.ref_id
                             OR cr.pair_sub_a   = e.ref_id

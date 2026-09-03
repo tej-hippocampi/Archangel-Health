@@ -3007,6 +3007,104 @@ async def invite_to_community(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Clinical-validity attestations (Gap U2): reviewing what a physician asserted
+# ═══════════════════════════════════════════════════════════════════════════════
+class ValidityFindingBody(BaseModel):
+    """A person's determination about one physician's attestation.
+
+    ``note`` is required for a ``false`` finding and optional for ``upheld``,
+    and that asymmetry is the point. Section 4.3 of the contributor agreement
+    promises the physician is told WHICH case and WHY when a case is not paid.
+    A finding with no reason cannot keep that promise, so the API refuses to
+    record one rather than leaving a doctor with an unexplained zero.
+    """
+
+    finding: str = Field(..., pattern="^(false|upheld)$")
+    note: Optional[str] = Field(None, max_length=2000)
+    #: A 'false' finding voids pay citing the contributor agreement, so it is
+    #: refused when the submission's ``validity_agreement_version`` is NULL:
+    #: that physician never signed the terms the consequence comes from. This
+    #: flag is the deliberate exception. An admin who has decided the in-product
+    #: attestation copy alone is enough to hold the physician to sets it
+    #: explicitly, and the refusal message names it so the choice is theirs.
+    override_unsigned: bool = False
+
+
+@router.post("/submissions/{submission_id}/validity-finding")
+async def record_validity_finding(
+    submission_id: str,
+    body: ValidityFindingBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Record that a clinical-validity attestation was, or was not, true.
+
+    A HUMAN DECIDES, ALWAYS. There is no sweep, no heuristic and no model that
+    writes this: the whole reason the attestation moves responsibility is that a
+    named person looked at the case and reached a conclusion, and an automated
+    finding would be an automated pay cut, which this codebase already refuses
+    to make (see the quality-hold branch in ``payments.reconcile_task_accruals``).
+
+    The payment consequence is not applied here. It is applied by the accrual
+    sweep reading ``validity_finding``, which is what makes it idempotent, makes
+    it survive a finding recorded before the ledger row exists, and keeps the
+    one rule about restating settled money in the one module that owns money.
+    """
+    store = get_store()
+    if not body.note and body.finding == "false":
+        raise HTTPException(
+            status_code=400,
+            detail="Say why the attestation does not hold. The physician is "
+                   "told this reason.")
+    sub = store.get_submission(submission_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="No such submission.")
+    # A 'false' finding voids pay under the contributor agreement, and a NULL
+    # validity_agreement_version means this physician never signed one: there
+    # are no terms to hold the attestation against, so the finding is refused
+    # rather than producing a pay cut that cites a document its subject never
+    # saw. The attested check keeps the unattested case on the store's own
+    # refusal below, which is the more specific of the two answers.
+    if (body.finding == "false" and sub.get("validity_attested")
+            and sub.get("validity_agreement_version") is None
+            and not body.override_unsigned):
+        raise HTTPException(
+            status_code=409,
+            detail="This physician never signed the contributor agreement, so "
+                   "there are no signed terms to find the attestation false "
+                   "under. Pass override_unsigned to record it anyway, on the "
+                   "in-product attestation language alone.")
+    row = store.record_validity_finding(
+        submission_id, finding=body.finding, actor=admin.get("email") or admin.get("id"),
+        note=(body.note or None))
+    if row is None:
+        # The store refuses a finding on an unattested case. Said plainly rather
+        # than as a 404, because the submission does exist and the admin needs
+        # to know which of the two facts is the surprising one.
+        raise HTTPException(
+            status_code=409,
+            detail="That case carries no clinical-validity attestation, so "
+                   "there is nothing to find true or false.")
+    store.log_event(
+        entity_type="submission", entity_id=submission_id,
+        event_type="validity_finding_recorded",
+        actor=admin.get("email") or admin.get("id"),
+        payload={"finding": body.finding, "task_id": sub.get("task_id"),
+                 "evaluator_id": sub.get("evaluator_id"),
+                 "agreement_version": sub.get("validity_agreement_version"),
+                 # The override is a named choice, so the audit trail carries it.
+                 **({"override_unsigned": True} if body.override_unsigned else {})})
+    return {
+        "submission_id": submission_id,
+        "validity_attested": row.get("validity_attested"),
+        "validity_finding": row.get("validity_finding"),
+        "validity_finding_at": row.get("validity_finding_at"),
+        "validity_finding_by": row.get("validity_finding_by"),
+        "validity_finding_note": row.get("validity_finding_note"),
+        "validity_agreement_version": row.get("validity_agreement_version"),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Assignment (PRD-ASSIGN) — proposing who does which case
 # ═══════════════════════════════════════════════════════════════════════════════
 class AllocateBody(BaseModel):
@@ -3083,6 +3181,44 @@ class AllocateBody(BaseModel):
         return self
 
 
+def _depth_fields_present(user: Dict[str, Any]) -> List[str]:
+    """Which of ``allocation.DEPTH_FIELDS`` this physician has actually answered.
+
+    The adapter between a users row and the allocator's pure input, which is why
+    it lives here and not in ``allocation``: reading a JSON blob off a row is
+    store-shaped work, and the allocator stays a function of what it is handed.
+
+    Only the six names in ``DEPTH_FIELDS`` can come out of here. It does not
+    walk the credentials blob and report everything it finds, because a blob is
+    an open set and a field somebody adds next year must not start influencing
+    who gets which case without anyone deciding that it should.
+    """
+    from asclepius import allocation as asc_allocation
+
+    import json as _js  # noqa: PLC0415 -- module-level `json` is bound later, as _json
+
+    try:
+        creds = _js.loads(user.get("credentials_json") or "{}") or {}
+    except (TypeError, ValueError):
+        creds = {}
+    # The credential-blob spelling on the left, the DEPTH_FIELDS name on the
+    # right. Written out rather than derived from _PROFILE_DETAIL_KEYS: importing
+    # the profile page's mapping would silently enrol any field that page starts
+    # showing, and the whole point of DEPTH_FIELDS is that the list is chosen.
+    sources = {
+        "subspecialties": creds.get("subspecialties"),
+        "board_certifications": creds.get("boardCertifications"),
+        "practice_settings": creds.get("practiceSettings"),
+        "languages": creds.get("languages"),
+        "years_in_active_practice": creds.get("yearsInActivePractice"),
+        "specialty_niche": user.get("specialty_niche"),
+    }
+    present = [name for name, value in sources.items()
+               if value not in (None, "", [], {})]
+    known = set(asc_allocation.DEPTH_FIELDS)
+    return sorted(n for n in present if n in known)
+
+
 def _allocation_inputs(store: Any, task_ids: List[str]):
     """Build the allocator's pure inputs from the store.
 
@@ -3135,6 +3271,7 @@ def _allocation_inputs(store: Any, task_ids: List[str]):
             contributor_score=scores.get(u["id"]),
             real_data_approved=bool(u.get("real_data_approved")),
             open_assignments=loads.get(u["id"], 0),
+            profile_depth=asc_allocation.profile_depth(_depth_fields_present(u)),
         ))
     return cases, physicians, domain
 

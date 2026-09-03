@@ -2027,6 +2027,25 @@ body.asc-sheet-open { overflow: hidden; }
   flex-wrap: wrap;
 }
 
+/* ─── Clinical-validity attestation (Gap U2) ───────────────────────────── */
+/* The reject control is given the same visual weight as the checkbox rather
+   than being tucked away, because the whole fairness of holding a physician to
+   an attestation rests on the honest path being just as easy to reach. */
+.asc-validity-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 14px; line-height: 1.6; color: var(--asc-text);
+  cursor: pointer;
+}
+.asc-validity-check {
+  margin-top: 3px; flex: 0 0 auto; accent-color: var(--green);
+  width: 16px; height: 16px;
+}
+.asc-validity-out {
+  display: flex; justify-content: flex-start;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--asc-line);
+}
+.asc-validity-reject { flex: 0 0 auto; }
+
 /* ─── §2 info-dot ──────────────────────────────────────────────────────── */
 .asc-info-wrap { position: relative; display: inline-flex; }
 .asc-info-dot {
@@ -3500,6 +3519,30 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   line-height: 1.6;
   color: var(--asc-text);
   max-width: 54ch;
+}
+/* The direct path for a physician connected to a health system themselves.
+   Separated from the compose-an-introduction form below by a rule rather than
+   by whitespace: they are two different asks and a reader should be able to
+   see that before reading either. */
+.asc-ref-direct {
+  margin: 14px 0 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--asc-line);
+}
+.asc-ref-directline {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--asc-muted);
+  margin-bottom: 10px;
+}
+.asc-ref-directrow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.asc-ref-direct-link {
+  text-decoration: none;
 }
 .asc-ref-form {
   display: flex;
