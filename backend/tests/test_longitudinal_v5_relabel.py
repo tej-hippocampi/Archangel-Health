@@ -524,3 +524,51 @@ def test_the_dashboard_count_is_a_sql_count_not_a_materialized_list():
     assert "count_eligible_tasks_for_evaluator" in window, window[:300]
     assert "len(store.eligible_tasks_for_evaluator" not in window, (
         "the dashboard count went back to materializing every candidate row")
+
+
+# ── The regression the MERGE created, pinned ─────────────────────────────────
+def test_a_multi_case_scope_survives_the_v5_walk_widening():
+    """``build_export(case_ids=[...])`` must reach the filter intact.
+
+    Two features landed on the same lines from different branches. ``case_ids``
+    is the Export tab's MULTI-CASE scope (a parameter); the V5 walk-widening
+    turns a single-case longitudinal selection into the whole trajectory, and it
+    used a local of the same name. Merged naively, the widening's
+    ``case_ids = None`` ran ABOVE the parameter's only use and silently emptied
+    every multi-case bundle — no error, no exception, just a bundle that quietly
+    shipped nothing.
+
+    Neither branch had the bug on its own, so neither branch's tests could catch
+    it. This asserts the surviving contract directly: the parameter reaches the
+    filter, and the widening may only WIDEN a single-case V5 selection.
+    """
+    from asclepius import export as E
+
+    seen = {}
+    original = E._passes_filters
+
+    def spy(rec, **kw):
+        seen.update(kw)
+        return False
+
+    class _Store:
+        def list_records(self, **kw):
+            return [{"record_id": "r1", "payload": {}, "task_id": "t1",
+                     "submission_id": "s1"}]
+
+        def mock_annotator_id_hashes(self):
+            return set()
+
+        def get_task(self, tid):
+            return None
+
+    E._passes_filters = spy
+    try:
+        with pytest.raises(ValueError):      # nothing matches; that is fine
+            E.build_export(_Store(), created_by="admin",
+                           case_ids=["t1", "t2", "t3"])
+    finally:
+        E._passes_filters = original
+
+    assert sorted(seen.get("case_ids") or []) == ["t1", "t2", "t3"], (
+        "the multi-case scope was lost before it reached the filter")

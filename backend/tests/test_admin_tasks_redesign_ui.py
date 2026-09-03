@@ -122,6 +122,14 @@ function tidy(el) { return textOf(el).replace(/\\s+/g, ' ').trim(); }
 # built on Date.parse would hide the exact defect that dependency exists to fix.
 _HARNESS += "\n" + _fn(JS, "toUtcDate") + "\n"
 
+# The REAL ``copyableId`` and its clipboard helpers (Export & Approval PRD §1.3).
+# Task Routing renders every case id through it. Spliced rather than stubbed for
+# the same reason as ``toUtcDate``: the property under test in this file is what
+# a routing row CONTAINS, and a stub that returned a plain span would let a
+# regression in the id cell pass unnoticed here.
+for _name in ("copyableId", "copyTextToClipboard", "legacyCopy"):
+    _HARNESS += "\n" + _fn(JS, _name) + "\n"
+
 
 def _run(script: str, tz: str | None = None) -> dict:
     """Execute a render against the DOM shim.

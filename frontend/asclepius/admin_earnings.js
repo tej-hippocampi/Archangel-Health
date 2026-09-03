@@ -6,8 +6,9 @@
    Two sub-views the shell routes into:
      'earnings'  — TWO LEVELS. Level 1 is every approved physician
                    with what we owe them; level 2 is that physician's
-                   cases, each with its time, its pay, an export and
-                   a void.
+                   cases, each with its time, its pay, an export, and
+                   the decision: Approve or Void (Export & Approval
+                   PRD §1.2).
      'referrals' — the referral book: who referred whom, funnel
                    position, ledger state, source, fraud flags. A
                    separate ledger with its own bounty logic.
@@ -28,6 +29,12 @@
       not per case, so a hardcoded $75 would silently misreport every
       reviewer on the screen.
 
+   3. APPROVING IS ONE ACT, NOT TWO. The Approve button hits one
+      endpoint that moves the ledger AND the export gate together,
+      and the message it prints says which. A screen that could
+      approve payment while leaving the case unshippable is the
+      three-status split this PRD closes.
+
    Same contract as every admin_*.js module: DOM through ctx.h only,
    zero innerHTML, section state module-local, and a load failure is a
    visible error, never a blank.
@@ -43,6 +50,8 @@
   var voidingId = null;      // the row with an open inline confirm
   var voidReason = '';
   var voidError = null;
+  var approvingId = null;    // the row whose Approve is in flight
+  var rowError = {};         // earning_id -> the message its own row shows
 
   function money(cents) {
     var n = Math.round(Number(cents) || 0) / 100;
@@ -143,6 +152,7 @@
           tr.addEventListener('click', function () {
             selectedUser = r.user; error = null; message = null;
             voidingId = null; voidReason = ''; voidError = null;
+            approvingId = null; rowError = {};
             rerender(body, ctx);
           });
           return tr;
@@ -229,10 +239,14 @@
 
       var table = h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {},
-          h('th', {}, 'Case'), h('th', {}, 'Specialty'), h('th', {}, 'Time'),
-          h('th', {}, 'Quality'),
+          h('th', { class: 'asc-cell-id' }, 'Case'), h('th', {}, 'Specialty'),
+          h('th', {}, 'Time'), h('th', {}, 'Quality'),
           h('th', {}, 'Pay'), h('th', {}, 'Status'), h('th', {}, 'Export'),
-          h('th', {}, 'Void'))),
+          // ONE actions column (PRD §1.2). Approve and Void are the two answers
+          // to the same question and belong side by side; a dedicated "Void"
+          // column with nothing next to it is what made an accrued row look
+          // like it had no decision available.
+          h('th', {}, 'Actions'))),
         h('tbody', {}, rows.map(function (r) { return caseRow(body, ctx, r); })));
       body.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-table-wrap' }, table)));
@@ -300,28 +314,13 @@
       }, '—'));
     }
 
-    var voidCell = h('td', {});
-    if (isVoid) {
-      voidCell.appendChild(h('span', { class: 'asc-badge asc-badge-gray' }, 'VOIDED'));
-    } else if (r.status === 'paid') {
-      voidCell.appendChild(h('span', {
-        class: 'asc-dim',
-        title: 'Money has already left. Refunds are handled outside the ledger.',
-      }, '—'));
-    } else if (voidingId === r.earning_id) {
-      voidCell.appendChild(voidConfirm(body, ctx, r));
-    } else {
-      var vb = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
-        'Void');
-      vb.addEventListener('click', function () {
-        voidingId = r.earning_id; voidReason = ''; voidError = null;
-        rerender(body, ctx);
-      });
-      voidCell.appendChild(vb);
-    }
-
     return h('tr', isVoid ? { class: 'asc-dim' } : {},
-      h('td', { class: 'asc-mono' }, shortId(r.case_id || r.ref_id)),
+      // The FULL case id, with a copy button (PRD §1.3). It used to render as
+      // `slice(0, 10) + '…'`, which meant the one id an operator needs to move
+      // to the export box was the one thing this screen would not give them.
+      h('td', { class: 'asc-cell-id' }, ctx.copyableId
+        ? ctx.copyableId(r.case_id || r.ref_id)
+        : h('span', { class: 'asc-mono' }, String(r.case_id || r.ref_id || '—'))),
       h('td', {}, r.specialty || '—'),
       h('td', { class: 'asc-mono' }, duration(r.seconds)),
       qualityCell(ctx, r),
@@ -330,18 +329,109 @@
       h('td', { class: 'asc-mono' }, pay),
       h('td', {}, statusWord(r)),
       exportCell,
-      voidCell);
+      actionsCell(body, ctx, r));
+  }
+
+  /* ── The decision, on the row (PRD §1.2) ────────────────────────────────
+   *
+   *   accrued  → [ Approve ] [ Void ]
+   *   approved → [ Void ]
+   *   paid     → nothing (money has left; a refund is a treasury operation)
+   *   void     → the VOIDED badge, and no way back
+   *
+   * Approve is the button that did not exist. There was no approve endpoint for
+   * a labeler earning at all — only `/release` (a proposed pay cut) and `/void`
+   * — so an accrued row read "Pending review" with nothing under it and waited
+   * on a reviewer who might never come. And approving it now moves the EXPORT
+   * gate as well as the ledger, which is the other half of the same bug: a case
+   * we had paid for still could not ship. */
+  function actionsCell(body, ctx, r) {
+    var h = ctx.h;
+    var cell = h('td', {});
+    var err = rowError[r.earning_id];
+
+    if (r.status === 'void') {
+      cell.appendChild(h('span', { class: 'asc-badge asc-badge-gray' }, 'VOIDED'));
+      return cell;
+    }
+    if (r.status === 'paid') {
+      cell.appendChild(h('span', {
+        class: 'asc-dim',
+        title: 'Money has already left. Refunds are handled outside the ledger.',
+      }, '—'));
+      return cell;
+    }
+    if (voidingId === r.earning_id) {
+      cell.appendChild(voidConfirm(body, ctx, r));
+      return cell;
+    }
+
+    var wrap = h('div', { style: 'display:flex;gap:6px;flex-wrap:wrap' });
+    if (r.status === 'accrued') {
+      var ab = h('button', {
+        class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
+        title: r.quality_hold
+          ? 'The payout algorithm proposed a reduced rate on this case. Release '
+            + 'that hold first — approving here would apply the cut without the '
+            + 'decision that is supposed to authorize it.'
+          : 'Approve this case: pay it, and make its records exportable.',
+      }, approvingId === r.earning_id ? 'Approving…' : 'Approve');
+      if (busy || approvingId === r.earning_id) ab.setAttribute('disabled', '');
+      ab.addEventListener('click', function () { doApprove(body, ctx, r); });
+      wrap.appendChild(ab);
+    }
+    var vb = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+      'Void');
+    if (busy) vb.setAttribute('disabled', '');
+    vb.addEventListener('click', function () {
+      voidingId = r.earning_id; voidReason = ''; voidError = null;
+      rerender(body, ctx);
+    });
+    wrap.appendChild(vb);
+    cell.appendChild(wrap);
+    if (err) cell.appendChild(h('div', { class: 'asc-inline-error' }, err));
+    return cell;
+  }
+
+  function doApprove(body, ctx, r) {
+    if (busy) return;
+    busy = true; approvingId = r.earning_id; delete rowError[r.earning_id];
+    // Optimistic: the row shows its new state immediately and the reload below
+    // replaces it with the server's. A rollback is the same reload — the ledger
+    // is the truth and this screen never subtracts its own numbers.
+    r.status = 'approved';
+    rerender(body, ctx);
+    ctx.api('/admin/earnings/' + encodeURIComponent(r.earning_id) + '/approve', {
+      method: 'POST', body: { note: '' },
+    }).then(function (res) {
+      busy = false; approvingId = null;
+      var totals = (res && res.totals) || {};
+      // SAY WHAT HAPPENED TO THE EXPORT GATE. An approval that pays a case but
+      // leaves it unshippable is the exact silence this PRD exists to remove,
+      // so when the records did not move, the operator is told here.
+      message = res && res.exportable
+        ? 'Approved. This case is now exportable. Total payable is '
+          + money(totals.outstanding_cents || 0) + '.'
+        : 'Approved for payment, but its records did NOT become exportable ('
+          + ((res && res.records_outcome) || 'unknown')
+          + '). It will show in the Export tab\u2019s excluded list.';
+      rerender(body, ctx);
+    }).catch(function (e) {
+      busy = false; approvingId = null;
+      r.status = 'accrued';                       // rollback
+      rowError[r.earning_id] = errText(e);
+      rerender(body, ctx);
+    });
   }
 
   function statusWord(r) {
-    var words = { accrued: 'Pending review', approved: 'Approved',
+    // 'Pending review' was never true: there was no review queue behind it and
+    // no reviewer coming. It sent operators looking for a person instead of a
+    // button (PRD §1.2).
+    var words = { accrued: 'Awaiting approval', approved: 'Approved',
                   paid: 'Paid', void: 'Not approved' };
+    if (r.status === 'accrued' && r.quality_hold) return 'Held — reduced rate proposed';
     return words[r.status] || r.status || '—';
-  }
-
-  function shortId(id) {
-    var s = String(id || '—');
-    return s.length > 12 ? s.slice(0, 10) + '…' : s;
   }
 
   /* Inline confirm requiring a TYPED reason. Never window.confirm(): it cannot
@@ -492,6 +582,7 @@
       selectedUser = null; batchDraft = ''; busy = false;
       message = null; error = null;
       voidingId = null; voidReason = ''; voidError = null;
+      approvingId = null; rowError = {};
     },
   };
 })();
