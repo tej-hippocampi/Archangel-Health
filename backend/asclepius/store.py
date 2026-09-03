@@ -2021,6 +2021,78 @@ class AsclepiusStore:
                          "ON hs_payouts(hs_id, status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_payouts_batch "
                          "ON hs_payouts(payout_batch_id)")
+
+            # ─── What a health system is OWED, computed rather than typed ────
+            # `hs_payouts` above records what an operator decided to pay. This
+            # records what the arithmetic says is due, and the two are different
+            # objects: a number a person typed into a box cannot be recomputed,
+            # cannot be checked, and gives a partner nothing to reconcile their
+            # own records against.
+            #
+            # Append-only, one row per accrued item, exactly the shape `earnings`
+            # holds for physicians. The properties that shape buys are the
+            # reason for copying it:
+            #
+            #   * UNIQUE(hs_id, ref_kind, ref_id) makes double-accrual
+            #     impossible by construction rather than by a caller checking
+            #     first. Reconciliation can therefore run on every read.
+            #   * rate_cents is STAMPED ON THE ROW at accrual and never read
+            #     back from configuration. A price change decides what the NEXT
+            #     upload is worth, never what a settled one was. Recomputing
+            #     from a current rate is how a partner's closed quarter silently
+            #     changes value months later.
+            #   * settlement is a compare-and-set on status, so a double-submit
+            #     of the same settlement records once.
+            #
+            # NOT `earnings` with a discriminator column, for the same reason
+            # `hs_referrals` above is not `referrals`: every path in
+            # asclepius/payments.py assumes physician semantics (a user_id, a
+            # quality multiplier, a 14-day auto-approve), and a discriminator
+            # inside the money path is a thing every future edit has to
+            # remember. Forgetting it once pays the wrong counterparty.
+            #
+            # No bank_account, routing_number, iban, swift, tax_id, ssn or ein
+            # column, on this table any more than on hs_payouts. Settlement
+            # clears out of band and this records that it did.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_accruals (
+                    accrual_id     TEXT PRIMARY KEY,
+                    hs_id          TEXT NOT NULL,
+                    ref_kind       TEXT NOT NULL,   -- what was accrued for: 'upload'
+                    ref_id         TEXT NOT NULL,   -- ingest_uploads.upload_id
+                    rate_cents     INTEGER NOT NULL,-- the price IN FORCE at accrual
+                    amount_cents   INTEGER NOT NULL,
+                    currency       TEXT NOT NULL DEFAULT 'usd',
+                    status         TEXT NOT NULL,   -- accrued | invoiced | settled | void
+                    description    TEXT,            -- partner-readable words, not a code
+                    accrued_at     TEXT NOT NULL,   -- when the WORK landed, not when we noticed
+                    invoice_id     TEXT,
+                    invoiced_at    TEXT,
+                    settled_at     TEXT,
+                    settlement_ref TEXT,            -- the operator's reference for the transfer
+                    void_reason    TEXT,
+                    voided_by      TEXT,
+                    voided_at      TEXT,
+                    UNIQUE(hs_id, ref_kind, ref_id)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_accruals_hs "
+                         "ON hs_accruals(hs_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_accruals_invoice "
+                         "ON hs_accruals(invoice_id)")
+
+            # The agreed price per accepted upload, per organization. NULL means
+            # NOT PRICED, and not priced accrues nothing: no default figure is
+            # baked in anywhere, because a price nobody agreed to, printed on a
+            # page a hospital's finance contact reads, is quoted back at us.
+            if "data_rate_cents" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN data_rate_cents INTEGER")
+            if "data_rate_set_by" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN data_rate_set_by TEXT")
+            if "data_rate_set_at" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN data_rate_set_at TEXT")
             # ═══ END HS SELF-SERVE + PAYOUTS ═══
             # ═══ HS ONBOARDING (PRD: sign-in split, intake, e-signed DLA) ═══
             # The organization-level half of the portal. Everything above this
@@ -11387,6 +11459,236 @@ class AsclepiusStore:
                 (_utcnow_iso(), batch_id, by, payout_id),
             )
         return self.get_hs_payout(payout_id)
+
+    # ─── The accrual ledger: what a health system is owed ────────────────────
+    def set_health_system_data_rate(
+        self, hs_id: str, *, rate_cents: Optional[int], set_by: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Agree a price per accepted upload for one organization.
+
+        ``None`` clears it back to not priced. Nothing already accrued moves:
+        every ledger row carries its own stamped rate, so this decides what the
+        next accepted upload is worth and nothing about what a settled one was.
+        """
+        if rate_cents is not None and int(rate_cents) < 0:
+            raise ValueError("A rate cannot be negative.")
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE health_systems SET data_rate_cents = ?, data_rate_set_by = ?, "
+                "data_rate_set_at = ? WHERE hs_id = ?",
+                (None if rate_cents is None else int(rate_cents), set_by,
+                 _utcnow_iso(), hs_id),
+            )
+        return self.get_health_system(hs_id)
+
+    def insert_hs_accrual(
+        self, *, accrual_id: str, hs_id: str, ref_kind: str, ref_id: str,
+        rate_cents: int, amount_cents: int, accrued_at: str,
+        description: Optional[str] = None, currency: str = "usd",
+    ) -> Optional[Dict[str, Any]]:
+        """Write one ledger row. Returns None when
+        ``UNIQUE(hs_id, ref_kind, ref_id)`` already holds one.
+
+        The caller learns "already accrued" without an exception and without a
+        check-then-insert race in between, which is what lets reconciliation be
+        safe to run on every read of the payouts page.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO hs_accruals "
+                "(accrual_id, hs_id, ref_kind, ref_id, rate_cents, amount_cents, "
+                " currency, status, description, accrued_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 'accrued', ?, ?)",
+                (accrual_id, hs_id, ref_kind, ref_id, int(rate_cents),
+                 int(amount_cents), currency, description, accrued_at),
+            )
+            if cur.rowcount == 0:
+                return None
+        return self.get_hs_accrual_for_ref(hs_id=hs_id, ref_kind=ref_kind, ref_id=ref_id)
+
+    def get_hs_accrual(self, accrual_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM hs_accruals WHERE accrual_id = ?",
+                               (accrual_id,)).fetchone()
+        return dict(row) if row else None
+
+    def get_hs_accrual_for_ref(self, *, hs_id: str, ref_kind: str,
+                               ref_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_accruals WHERE hs_id = ? AND ref_kind = ? AND ref_id = ?",
+                (hs_id, ref_kind, ref_id)).fetchone()
+        return dict(row) if row else None
+
+    def list_hs_accruals(self, hs_id: str, *, status: Optional[str] = None,
+                         limit: int = 500) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM hs_accruals WHERE hs_id = ?"
+        params: List[Any] = [hs_id]
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        sql += " ORDER BY accrued_at DESC, accrual_id DESC LIMIT ?"
+        params.append(int(limit))
+        with self._conn() as conn:
+            return [dict(r) for r in conn.execute(sql, tuple(params)).fetchall()]
+
+    def hs_accrued_upload_ids(self, hs_id: str) -> set:
+        """Every upload this organization already has a ledger row for, voided
+        rows included. A voided row is a DECISION not to pay for that upload, so
+        reconciliation must not read its absence from the live set as work it
+        has not noticed yet and write the row back."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT ref_id FROM hs_accruals WHERE hs_id = ? AND ref_kind = 'upload'",
+                (hs_id,)).fetchall()
+        return {r["ref_id"] for r in rows}
+
+    def hs_accrual_summary(self, hs_id: str) -> Dict[str, Any]:
+        """What is owed, what is billed, and what has cleared.
+
+        Voided rows are absent from every figure rather than netted out of one,
+        the same rule ``hs_payout_summary`` follows: a cancelled entry is not a
+        negative payment, and no number a partner reads should have an invisible
+        correction folded into it.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents "
+                "FROM hs_accruals WHERE hs_id = ? GROUP BY status", (hs_id,)).fetchall()
+        by = {r["status"]: (int(r["n"]), int(r["cents"])) for r in rows}
+        accrued_n, accrued_c = by.get("accrued", (0, 0))
+        invoiced_n, invoiced_c = by.get("invoiced", (0, 0))
+        settled_n, settled_c = by.get("settled", (0, 0))
+        return {
+            "accrued_cents": accrued_c, "accrued_count": accrued_n,
+            "invoiced_cents": invoiced_c, "invoiced_count": invoiced_n,
+            "settled_cents": settled_c, "settled_count": settled_n,
+            # What is still ours to pay, whether or not it has been billed yet.
+            "outstanding_cents": accrued_c + invoiced_c,
+            "count": accrued_n + invoiced_n + settled_n,
+        }
+
+    def attach_hs_accruals_to_invoice(
+        self, *, hs_id: str, invoice_id: str, invoiced_at: str,
+        accrual_ids: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Move open accruals onto one invoice, compare-and-set.
+
+        ``status = 'accrued' AND invoice_id IS NULL`` is carried in the UPDATE
+        rather than checked first, so two operators billing the same period
+        cannot both attach the same row and bill a hospital twice for it.
+        """
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            where = "hs_id = ? AND status = 'accrued' AND invoice_id IS NULL"
+            params: List[Any] = [hs_id]
+            if accrual_ids:
+                where += " AND accrual_id IN (%s)" % ",".join("?" * len(accrual_ids))
+                params.extend(accrual_ids)
+            candidates = [dict(r) for r in conn.execute(
+                f"SELECT * FROM hs_accruals WHERE {where}", params).fetchall()]
+            moved = []
+            for row in candidates:
+                cur = conn.execute(
+                    "UPDATE hs_accruals SET status = 'invoiced', invoice_id = ?, "
+                    "invoiced_at = ? WHERE accrual_id = ? AND status = 'accrued' "
+                    "  AND invoice_id IS NULL",
+                    (invoice_id, invoiced_at, row["accrual_id"]))
+                if cur.rowcount:
+                    moved.append(row)
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return moved
+
+    def settle_hs_accruals(
+        self, *, hs_id: str, settlement_ref: str, settled_at: str,
+        accrual_ids: Optional[List[str]] = None, invoice_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Record that a transfer against these accruals actually cleared.
+
+        This does NOT move money. It is the ledger's record that money moved,
+        which is the half that belongs here: for a counterparty this size the
+        transfer is a treasury operation, and ``settlement_ref`` is how the two
+        are reconciled afterwards.
+
+        ``settlement_ref`` is the IDEMPOTENCY KEY, not a label, and that is the
+        whole design. An operator double-submitting the settle form, or a job
+        that times out and retries, replays a no-op rather than settling a
+        second time. The guard is a compare-and-set inside one BEGIN IMMEDIATE
+        rather than a read followed by a hopeful write, so two concurrent
+        submits cannot interleave.
+
+        Returns counts, mirroring ``mark_earnings_paid``: a retry is the case
+        where ``settled`` is empty and ``already_in_ref`` is not.
+        """
+        ref = (settlement_ref or "").strip()
+        if not ref:
+            raise ValueError("A settlement reference is required.")
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            where = "hs_id = ?"
+            params: List[Any] = [hs_id]
+            if accrual_ids:
+                where += " AND accrual_id IN (%s)" % ",".join("?" * len(accrual_ids))
+                params.extend(accrual_ids)
+            if invoice_id:
+                where += " AND invoice_id = ?"
+                params.append(invoice_id)
+            candidates = [dict(r) for r in conn.execute(
+                f"SELECT * FROM hs_accruals WHERE {where}", params).fetchall()]
+            already = [r for r in candidates
+                       if r["status"] == "settled" and r["settlement_ref"] == ref]
+            settled = []
+            for row in candidates:
+                cur = conn.execute(
+                    "UPDATE hs_accruals SET status = 'settled', settled_at = ?, "
+                    "settlement_ref = ? WHERE accrual_id = ? "
+                    "  AND status IN ('accrued', 'invoiced') AND settlement_ref IS NULL",
+                    (settled_at, ref, row["accrual_id"]))
+                if cur.rowcount:
+                    settled.append(row)
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return {
+            "settlement_ref": ref,
+            "settled": settled,
+            "amount_cents": sum(int(r["amount_cents"]) for r in settled),
+            "already_in_ref": len(already),
+            "skipped": len(candidates) - len(settled) - len(already),
+        }
+
+    def void_hs_accrual(self, accrual_id: str, *, reason: str,
+                        by: str) -> Optional[Dict[str, Any]]:
+        """Cancel an accrual that should never have been written.
+
+        Compare-and-set on the pre-settlement states: money that has already
+        cleared is a fact, and a ledger that can void it retroactively is one
+        whose totals stop meaning anything.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_accruals SET status = 'void', void_reason = ?, voided_by = ?, "
+                "voided_at = ? WHERE accrual_id = ? AND status IN ('accrued', 'invoiced')",
+                (reason, by, _utcnow_iso(), accrual_id))
+            row = conn.execute("SELECT * FROM hs_accruals WHERE accrual_id = ?",
+                               (accrual_id,)).fetchone()
+        return dict(row) if row else None
 
     def void_hs_payout(self, payout_id: str, *, reason: str,
                        by: str) -> Optional[Dict[str, Any]]:

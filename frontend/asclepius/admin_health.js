@@ -230,6 +230,10 @@
     research_notify: 'asc-badge-gray',
   };
   const LEAD_PAGE = 8;
+  // Mirrors routers/leads.py _UNANSWERED. Compared rather than reproduced: the
+  // server decides what an unanswered question reads as, this side only decides
+  // that it should look different from an answer.
+  const UNANSWERED = 'Not answered';
 
   async function renderPartnerLeads(slot, ctx) {
     const { h, api, clear, fmtDate } = ctx;
@@ -267,6 +271,27 @@
         h('strong', {}, r.email || '(no address)'),
         h('span', { class: 'asc-dim', style: 'font-size:12px' },
           r.created_at ? fmtDate(r.created_at) : '')));
+      // The qualifying answers first, then the prose. These three are what the
+      // Sep 1 meeting agreed the form must ask, they are the part with legal
+      // weight, and an operator deciding whether this call is worth taking
+      // reads them before anything the visitor typed.
+      //
+      // Labels come off the wire. The server owns the wording of the questions
+      // and a second copy here is a second thing to reword.
+      const qual = r.qualifying || [];
+      if (qual.length) {
+        const dl = h('dl', { class: 'asc-hs-lead-qual' });
+        qual.forEach((q) => {
+          dl.appendChild(h('dt', { class: 'asc-hs-lead-qual-q' }, q.label || ''));
+          // "Not answered" is rendered dim rather than omitted: a question the
+          // form asked and nobody answered is a fact about the submission.
+          const missing = (q.answer || '') === UNANSWERED;
+          dl.appendChild(h('dd', {
+            class: 'asc-hs-lead-qual-a' + (missing ? ' asc-hs-lead-qual-none' : ''),
+          }, q.answer || ''));
+        });
+        body.appendChild(dl);
+      }
       // VERBATIM. It is the attestation, and a truncated attestation is not one.
       body.appendChild(h('div', { class: 'asc-hs-lead-message' }, r.message || ''));
       body.appendChild(h('a', { class: 'asc-btn asc-btn-subtle asc-btn-sm',

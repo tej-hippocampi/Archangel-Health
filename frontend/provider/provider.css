@@ -343,6 +343,28 @@ body.prv-has-rail .prv-main { padding-left: calc(var(--asc-rail-w, 220px) + 8px)
   max-width: 52ch;
 }
 
+/* ─── The accrual rail ────────────────────────────────────────
+   Accrued, invoiced, settled: the same stat treatment as the payout summary
+   above, under its own rule so the two can be read as one row of numbers
+   without either block owning the other's spacing. */
+.prv-rail {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--asc-line);
+}
+.prv-rail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+}
+.prv-rail-note {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-faint);
+  max-width: 52ch;
+}
+
 /* ─── Intake ──────────────────────────────────────────────── */
 .prv-intake-field textarea.asc-input {
   min-height: 96px;

@@ -184,6 +184,35 @@ def _cta(href: str, label: str) -> str:
 </table>"""
 
 
+#: One line, offered at the end of onboarding, pointing at /partner.
+#:
+#: The Sep 1 meeting asked for this in both places a new physician looks: the
+#: screen they finish on and the email they keep. The reason is that a physician
+#: who happens to know someone at a health system is the cheapest introduction
+#: we will ever get, and without a link in front of them the thought arrives with
+#: nowhere to go.
+#:
+#: It is a SENTENCE, never a second call to action. These emails already carry
+#: one button, and a second competing with it costs us the click that matters
+#: more, which is the one that opens their workspace.
+def _partner_intro_line(partner_url: str) -> str:
+    """A physician's path to hand us a health system, or nothing at all.
+
+    Empty in, empty out: a caller with no configured landing URL says nothing
+    rather than shipping a dead link into somebody's inbox.
+    """
+    url = (partner_url or "").strip()
+    if not url:
+        return ""
+    safe = html.escape(url, quote=True)
+    return _p(
+        "Know a health system with clinical data? "
+        f'<a href="{safe}" style="color:{_GREEN_DEEP};">Send them here</a>'
+        " and we will take the conversation from there.",
+        muted=True, small=True,
+    )
+
+
 def _inset_card(inner_html: str) -> str:
     return f"""<div style="background:{_CARD_IN};border:1px solid {_HAIRLINE};border-radius:14px;padding:18px 22px;margin:22px 0;">
   {inner_html}
@@ -621,12 +650,17 @@ def build_asclepius_complete_email(
     is_director: bool,
     team_count: int = 0,
     verification_notice: bool = False,
+    partner_url: str = "",
 ) -> str:
     """Asclepius workspace-ready email — same visual format as the clinical
     completion email, addressed to the data-training product.
 
     ``temporary_password`` is the person&rsquo;s permanent, standing access key
-    (kwarg name kept for parity with the clinical builders)."""
+    (kwarg name kept for parity with the clinical builders).
+
+    ``partner_url`` is optional and defaults to saying nothing. This builder is
+    called from three places and a caller that has no landing URL configured
+    should send a complete email without a dead link in it, not fail."""
     safe_org = (org_name or "your organization").strip()
     safe_spec = (specialty or "").strip()
 
@@ -675,6 +709,9 @@ def build_asclepius_complete_email(
             "sign-in page and we will email you a new one.",
             small=True,
         )
+        # Last, under the practical housekeeping. It is an offer, not an
+        # instruction, and it must not come between them and their workspace.
+        + _partner_intro_line(partner_url)
     )
     return _shell(subject="Your Asclepius workspace is ready", body_html=body)
 
@@ -1451,7 +1488,7 @@ def build_hs_referral_intro_email(
         )
         + _cta(partner_url, "Tell us about your system →")
         + _p(
-            "Five quick questions so the call starts from something real, then "
+            "A few quick questions so the call starts from something real, then "
             "pick a time that works. Happy to loop in your compliance lead early.",
             muted=True, small=True,
         )

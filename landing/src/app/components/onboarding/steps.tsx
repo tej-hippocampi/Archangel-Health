@@ -3347,6 +3347,34 @@ export function Step8AsclepiusSuccess({
       <PrimaryButton fullWidth onClick={onOpenWorkspace} loadingLabel="Opening…" successLabel="Opening ✓">
         {CTA[kind]}
       </PrimaryButton>
+
+      {/* The /partner door, one line, below the button that matters.
+
+          Someone who has just finished signing up is the likeliest person in
+          the funnel to think of a hospital they already know, and until now
+          that thought had nowhere to go: the link existed only on the referral
+          page, which they have not found yet. Shown to all three kinds because
+          every one of them is a person with a network, and a branch here would
+          be a branch to get wrong.
+
+          Deliberately NOT on StepApplicationSubmitted. That screen offers
+          exactly one link on purpose, because the honest answer to "what do I
+          do now" while a person reviews your credentials is "nothing". */}
+      <p
+        style={{
+          fontSize: 13,
+          color: "var(--ink-faint)",
+          textAlign: "center",
+          lineHeight: 1.6,
+          margin: "18px 0 0",
+        }}
+      >
+        Know a health system with clinical data?{" "}
+        <a href="/partner" style={{ color: "var(--ah-green-deep)" }}>
+          Send them here
+        </a>
+        .
+      </p>
     </OnboardingCard>
   );
 }

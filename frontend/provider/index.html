@@ -381,6 +381,15 @@
             <p class="prv-accrual-line" id="prvPayoutAccrualLine"></p>
             <p class="prv-accrual-note" id="prvPayoutAccrualNote"></p>
           </div>
+          <!-- The accrual rail: what is owed, what is billed, what has
+               cleared. Hidden until a price has been agreed with this
+               organization, because three zeroes on a money page read as "you
+               are owed nothing", which is a different and false statement from
+               "nobody has priced this yet". -->
+          <div class="prv-rail" id="prvPayoutRail" hidden>
+            <div class="prv-rail-stats" id="prvPayoutRailStats"></div>
+            <p class="prv-rail-note" id="prvPayoutRailNote"></p>
+          </div>
         </div>
         <div class="asc-table-wrap" id="prvPayoutTableWrap">
           <table class="asc-table">

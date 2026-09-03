@@ -4419,6 +4419,35 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   margin-bottom: var(--sp-2);
 }
 
+/* The three qualifying answers, above the prose rather than inside it. They
+   are the part of the submission with legal weight, and an operator deciding
+   whether to take a call reads them first. A definition list, because that is
+   what a question and its answer are, and because the label has to stay
+   welded to the answer when the pair wraps on a narrow console. */
+.asc-hs-lead-qual {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0 0 var(--sp-2);
+}
+.asc-hs-lead-qual-q {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.asc-hs-lead-qual-a {
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+/* An unanswered question is not a blank. The whole point of archiving this row
+   is being able to say what they attested, so a gap has to look like a gap. */
+.asc-hs-lead-qual-none { color: var(--ink-faint); font-style: italic; }
+
+@media (max-width: 640px) {
+  .asc-hs-lead-qual { grid-template-columns: minmax(0, 1fr); }
+}
+
 .asc-hs-request { border-top: 1px solid var(--hairline); }
 .asc-hs-request:first-of-type { border-top: 0; }
 .asc-hs-request-head {

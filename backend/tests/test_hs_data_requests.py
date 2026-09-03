@@ -776,7 +776,11 @@ def test_the_lead_reader_never_returns_the_forensic_columns(leads):
     lead = leads.get("/api/leads/admin",
                      headers=_admin_headers(store)).json()["leads"][0]
     assert set(lead) == {"id", "source", "source_label", "email", "message",
-                         "created_at"}
+                         "created_at", "qualifying"}
+    # An allowlist is the point of this assertion, so a new key has to be named
+    # here to pass. `qualifying` carries the three answers the /partner form
+    # asks and nothing about the browser that sent them.
+    assert all(set(q) == {"label", "answer"} for q in lead["qualifying"])
 
 
 def test_the_lead_reader_is_admin_only():
