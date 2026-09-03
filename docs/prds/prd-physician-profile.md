@@ -80,15 +80,35 @@ asked at most once ever (stamped, claim-first), inside the meeting's 1-6 month
 cadence. We reuse the `onboarding_nudge` idempotency discipline rather than
 building a second scheduler.
 
-**D6. Referral terms pin to $25 referrer and $50 referred, per the meeting.**
-Today the code pays the referrer $50 (`ASCLEPIUS_REFERRAL_BOUNTY_CENTS`
-default 5000, `backend/asclepius/payments.py` line 230) and the referred
-physician $25 (`ASCLEPIUS_REFEREE_BONUS_CENTS` default 2500, line 241). The
-meeting pinned the reverse. Safe to flip: amounts are stamped on the ledger
-row at accrual, so already-earned rows cannot be restated (line 227-229), and
-the referral page renders amounts from the wire (`payout_structure`), so the
-frontend follows automatically; only the hero's fallback constants
-(`frontend/asclepius/referral.js` lines 131-133) need the same swap.
+**D6. Referral terms stay at $50 referrer and $25 referred.** *(Amended during
+implementation. This paragraph originally pinned the reverse, $25 referrer and
+$50 referred, per one line of the Sep 1 meeting. The flip was built and then
+reverted by founder decision; what follows is the settled position.)*
+
+The code pays the referrer $50 (`ASCLEPIUS_REFERRAL_BOUNTY_CENTS` default 5000,
+`backend/asclepius/payments.py` line 230) and the referred physician $25
+(`ASCLEPIUS_REFEREE_BONUS_CENTS` default 2500, line 241), and it keeps doing so.
+
+The transcript is ambiguous rather than clear. It says "the people who refer get
+a free $50", which matches the code, and it closes by settling the signing bonus
+at "$25 for completing the case", which also matches the code. One line in the
+middle says the reverse. Two readings out of three, plus the amounts already
+live on a referral page physicians have read, break the tie toward not silently
+restating what people have been promised.
+
+The product argument runs the same way. The referrer is the scarce input: a
+well-connected physician who will spend their reputation introducing colleagues
+is worth more than the marginal signup, and the ask has to be worth making. The
+referred physician's $25 is the activation half, paid at the first accepted case
+because that is where somebody stays or is never seen again.
+
+Nothing about this is hard to revisit, and that is deliberate: both amounts are
+env-configurable and both are stamped on the ledger row at accrual (lines
+227-229), so a future decision moves future accruals and cannot restate a
+payment already promised. The referral page renders amounts from the wire
+(`payout_structure`), so the frontend follows whatever the backend says; the
+hero's fallback constants (`frontend/asclepius/referral.js` lines 131-133) are
+the only place a number is written twice, and they match the defaults.
 
 ## Requirements
 
@@ -125,7 +145,8 @@ R9. Profile-completeness nudge emails ask exactly one question, name exactly
     once-ever-per-field stamp, and send nothing when the profile is complete
     or no mail transport is configured (without stamping).
 R10. The referral page above the fold is: one-line hero, the two terms as
-    single lines ($25 to you, $50 to them, per D6), and the copy-link row.
+    single lines ($50 to you, $25 to them, per the amended D6), and the
+    copy-link row.
     The two-column physician and health-system layout, invite composer,
     funnel list, share targets, and the health-system note card all keep
     working. Roughly six prose blocks go: the hero subtitle paragraph, the
@@ -134,8 +155,13 @@ R10. The referral page above the fold is: one-line hero, the two terms as
     every one" footer, and the equity footnote collapses to one line (it must
     survive in some form; it prevents the terms reading as a promise to
     equity-compensated accounts).
-R11. Payout defaults flip per D6 in `payments.py` and the `referral.js`
-    fallbacks; ledger history is untouched.
+R11. Payout defaults stay as production already promises them, per the amended
+    D6: $50 referrer and $25 referred, in `payments.py` and in the
+    `referral.js` fallbacks alike. Ledger history is untouched, as it would
+    have been either way, because both amounts are stamped at accrual.
+    Asserted in `backend/tests/test_referral_payout.py`: the two defaults, both
+    halves accruing at those amounts through the real trigger, and a rate
+    change moving future accruals only.
 R12. No response reachable by a physician session, and nothing on the card or
     its image, contains the internal score, band, or components.
 
