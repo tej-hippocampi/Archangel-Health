@@ -57,6 +57,23 @@ that endpoint expensive — `/storage/reconcile` is the heavy one, cached for 15
 minutes, and the split exists because the question "is my data safe?" has to be
 askable on every page load.
 
+### The Sandbox realm (`docs/asclepius/SANDBOX_REALM.md`)
+
+**Every store call is realm-scoped via `realm.current()`. Never instantiate a
+store or open a DB path directly** — use `asclepius.store.get_store()`,
+`community.store.get_community_store()`, `team_store.get_team_store()` (or the
+`app.state.*` proxies), which return the CURRENT realm's instance. A test
+(`test_sandbox_realm_plumbing.py`) fails the build on any module-level
+`TeamStore()` / `AsclepiusStore()` / `CommunityStore()`. Sandbox paths are
+derived from the live ones (`<name>_sandbox.db`, `<root>/sandbox/`); never add a
+`*_SANDBOX_*` path variable.
+
+To test against production conditions, use the sandbox realm — `/sandbox/admin`,
+credentials on the Accounts tab. It is dark until `ASCLEPIUS_SANDBOX_ADMIN_PASSWORD`
+is set. Money never leaves it (`mark_paid` and buyer deliveries are 403), email
+never leaves it (the Outbox tab), and `tests/test_sandbox_leak.py` asserts the
+live admin can see none of it — run it after any change to an admin endpoint.
+
 ### Export & approval (the three-status split)
 
 A submission used to carry three statuses that never talked to each other —
