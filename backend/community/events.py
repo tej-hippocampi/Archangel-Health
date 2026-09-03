@@ -17,6 +17,7 @@ import asyncio
 import html as html_lib
 import logging
 import os
+import realm as _realm
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -148,10 +149,12 @@ def start_reminder_loop(*, resolve_member: Any) -> None:
     async def _run() -> None:
         while True:
             await asyncio.sleep(_TICK_SEC)
-            try:
-                await send_due_reminders(resolve_member=resolve_member)
-            except Exception:  # pragma: no cover — the loop must survive
-                log.warning("[events] reminder sweep failed", exc_info=True)
+            for r in _realm.active_realms():  # Sandbox PRD §1.3
+                try:
+                    with _realm.scoped(r):
+                        await send_due_reminders(resolve_member=resolve_member)
+                except Exception:  # pragma: no cover — the loop must survive
+                    log.warning("[events] reminder sweep failed (%s)", r, exc_info=True)
 
     _loop_task = asyncio.get_running_loop().create_task(_run())
     log.info("[events] reminder loop started (window %d min)", reminder_window_min())

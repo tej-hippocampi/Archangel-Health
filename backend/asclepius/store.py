@@ -571,6 +571,7 @@ class AsclepiusStore:
             conn.execute("PRAGMA journal_mode = WAL")
             conn.execute("PRAGMA synchronous = NORMAL")
         self._init_schema()
+        self._ensure_sandbox_tables()
 
     # ─── Connection ──────────────────────────────────────────────────────────
     def _connect_uri(self) -> str:
@@ -14020,6 +14021,93 @@ class AsclepiusStore:
             conn.close()
         return self.get_referral(paid["referral_id"])
     # ═══ END PRD-REF STORE METHODS ═══
+
+    # ═══ Sandbox PRD §1.4 / §3 — the sandbox email outbox ═══════════════════════
+    #
+    # In the sandbox realm ``email_utils.send_html_email`` never reaches a
+    # transport: it writes the message here, with the OTP code / magic link /
+    # DLA link extracted so the sandbox admin's Outbox tab can show them
+    # clickable in place. This table exists in BOTH realms' schemas (every
+    # store carries the live schema) but is only ever written in the sandbox.
+    def _ensure_sandbox_tables(self) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sandbox_outbox (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    to_email     TEXT NOT NULL,
+                    subject      TEXT NOT NULL,
+                    html         TEXT NOT NULL,
+                    text_body    TEXT,
+                    codes_json   TEXT,          -- extracted OTP-looking codes
+                    links_json   TEXT,          -- extracted http(s) links
+                    attachments_json TEXT,      -- [{name, mime, bytes}] — sizes only
+                    reply_to     TEXT,
+                    created_at   TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sandbox_outbox_created ON sandbox_outbox(created_at)")
+            # §3.4 / §4: where a health system came from. Live rows carry NULL;
+            # a sandbox copy of a production system is stamped 'production'
+            # with the copy time and source id, a system onboarded through the
+            # sandbox wizard is stamped 'sandbox'.
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(health_systems)").fetchall()}
+            if cols and "origin" not in cols:
+                conn.execute("ALTER TABLE health_systems ADD COLUMN origin TEXT")
+            if cols and "copied_at" not in cols:
+                conn.execute("ALTER TABLE health_systems ADD COLUMN copied_at TEXT")
+            if cols and "source_hs_id" not in cols:
+                conn.execute("ALTER TABLE health_systems ADD COLUMN source_hs_id TEXT")
+
+    def outbox_add(self, *, to_email: str, subject: str, html: str, text_body: str = "",
+                   codes: Optional[List[str]] = None, links: Optional[List[str]] = None,
+                   attachments: Optional[List[Dict[str, Any]]] = None,
+                   reply_to: Optional[str] = None) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO sandbox_outbox (to_email, subject, html, text_body, codes_json, "
+                "links_json, attachments_json, reply_to, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (to_email, subject, html, text_body, json.dumps(codes or []),
+                 json.dumps(links or []), json.dumps(attachments or []), reply_to, _utcnow_iso()),
+            )
+            return int(cur.lastrowid)
+
+    def outbox_list(self, *, limit: int = 200) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, to_email, subject, codes_json, links_json, reply_to, created_at, "
+                "length(html) AS html_bytes FROM sandbox_outbox ORDER BY id DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["codes"] = json.loads(d.pop("codes_json") or "[]")
+            d["links"] = json.loads(d.pop("links_json") or "[]")
+            out.append(d)
+        return out
+
+    def outbox_get(self, outbox_id: int) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            r = conn.execute("SELECT * FROM sandbox_outbox WHERE id = ?", (int(outbox_id),)).fetchone()
+        if not r:
+            return None
+        d = dict(r)
+        d["codes"] = json.loads(d.pop("codes_json") or "[]")
+        d["links"] = json.loads(d.pop("links_json") or "[]")
+        d["attachments"] = json.loads(d.pop("attachments_json") or "[]")
+        return d
+
+    def outbox_count(self) -> int:
+        with self._conn() as conn:
+            return int(conn.execute("SELECT count(*) FROM sandbox_outbox").fetchone()[0])
+
+    def outbox_clear(self) -> int:
+        with self._conn() as conn:
+            n = int(conn.execute("SELECT count(*) FROM sandbox_outbox").fetchone()[0])
+            conn.execute("DELETE FROM sandbox_outbox")
+            return n
 
 
 # ─── PRD-I §F3: database durability ───────────────────────────────────────────

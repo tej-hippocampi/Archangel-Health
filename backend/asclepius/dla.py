@@ -32,6 +32,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import realm as _realm
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
@@ -304,6 +305,10 @@ def render_pdf(*, organization: str, version: str, signature: Dict[str, Any]) ->
     rows = _markdown_rows(body) + signature_rows(dict(signature, organization=organization))
     banner = (f"Archangel Health · Data Licensing Agreement {version} · "
               f"executed {str(signature.get('signed_at') or '')[:10]}")
+    # Sandbox PRD §5: a test signature can never be mistaken for a real one if
+    # the file is ever moved — the document header says which realm signed it.
+    if _realm.is_sandbox():
+        banner = "SANDBOX — test signature, not a real agreement · " + banner
     return pdf_render.render_text_pdf(rows, banner=banner)
 
 

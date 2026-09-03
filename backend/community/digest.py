@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import realm as _realm
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -388,32 +389,40 @@ def start_content_loop() -> None:
     if _loop_task is not None and not _loop_task.done():
         return
 
+    async def _tick_one_realm() -> None:
+        cstore = get_community_store()
+        now = datetime.utcnow()
+        for kind in ("news", "papers"):
+            if not _due(kind, now, cstore.last_successful_run_at(kind)):
+                continue
+            # Failure backoff: after a failed attempt, wait 2h before
+            # retrying (not every tick) — an all-day-broken source or a
+            # missing API key must not hammer the LLM 40× a day. The
+            # manual trigger bypasses this deliberately.
+            last_try = cstore.last_run_attempt_at(kind)
+            if last_try:
+                try:
+                    since = (now - datetime.fromisoformat(
+                        last_try.rstrip("Z"))).total_seconds()
+                except ValueError:
+                    since = None
+                if since is not None and since < 7200 and \
+                        cstore.consecutive_digest_failures(kind) > 0:
+                    continue
+            await run_digest(kind)
+
     async def _run() -> None:
         while True:
             await asyncio.sleep(_TICK_SEC)
-            try:
-                cstore = get_community_store()
-                now = datetime.utcnow()
-                for kind in ("news", "papers"):
-                    if not _due(kind, now, cstore.last_successful_run_at(kind)):
-                        continue
-                    # Failure backoff: after a failed attempt, wait 2h before
-                    # retrying (not every tick) — an all-day-broken source or a
-                    # missing API key must not hammer the LLM 40× a day. The
-                    # manual trigger bypasses this deliberately.
-                    last_try = cstore.last_run_attempt_at(kind)
-                    if last_try:
-                        try:
-                            since = (now - datetime.fromisoformat(
-                                last_try.rstrip("Z"))).total_seconds()
-                        except ValueError:
-                            since = None
-                        if since is not None and since < 7200 and \
-                                cstore.consecutive_digest_failures(kind) > 0:
-                            continue
-                    await run_digest(kind)
-            except Exception:  # pragma: no cover — the loop must survive
-                log.warning("[digest] scheduler tick failed", exc_info=True)
+            # Sandbox PRD §1.4: the u-system digests run in the sandbox too,
+            # into the sandbox community DB (its own run ledger, so the two
+            # realms never double-post or block each other).
+            for r in _realm.active_realms():
+                try:
+                    with _realm.scoped(r):
+                        await _tick_one_realm()
+                except Exception:  # pragma: no cover — the loop must survive
+                    log.warning("[digest] scheduler tick failed (%s)", r, exc_info=True)
 
     _loop_task = asyncio.get_running_loop().create_task(_run())
     log.info("[digest] content loop started (news daily %02d:00 UTC, papers weekly dow=%d)",

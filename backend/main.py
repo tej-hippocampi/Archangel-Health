@@ -6181,14 +6181,18 @@ async def _assignment_maintenance_loop() -> None:
     from asclepius import route_notify as asc_route_notify
 
     while True:
-        try:
-            store = get_store()
-            expired = store.expire_stale_assignments()
-            if expired:
-                print(f"[assignment-maintenance] expired {expired} stale assignment(s)")
-            asc_route_notify.sweep_stalled_points(store)
-        except Exception as e:
-            print(f"[assignment-maintenance] error: {e}")
+        # Sandbox PRD §1.3: one pass per realm, so sandbox assignments expire
+        # and stall like live ones.
+        for r in _realm.active_realms():
+            try:
+                with _realm.scoped(r):
+                    store = get_store()
+                    expired = store.expire_stale_assignments()
+                    if expired:
+                        print(f"[assignment-maintenance] [{r}] expired {expired} stale assignment(s)")
+                    asc_route_notify.sweep_stalled_points(store)
+            except Exception as e:
+                print(f"[assignment-maintenance] [{r}] error: {e}")
         await asyncio.sleep(int(os.getenv("ASCLEPIUS_ASSIGNMENT_SWEEP_SECONDS", "3600")))
 
 
@@ -6636,6 +6640,11 @@ async def startup_team_scheduler():
         app.state.postop_nightly_task = None
         app.state.task_notification_task = None
         return
+    # The CareGuide/TEAM clinical loops below run in the LIVE realm only. They
+    # act on patient episodes, outreach and surveys — real-world side effects
+    # (SMS, calls, clinician pages) with no sandbox analogue — and the sandbox
+    # exists for the Asclepius/community product, whose loops iterate realms
+    # (Sandbox PRD §1.3). Deliberate, not an omission.
     app.state.team_scheduler_task = asyncio.create_task(_team_scheduler_loop())
     app.state.preop_outreach_task = asyncio.create_task(_preop_outreach_loop())
     app.state.intraop_overdue_task = asyncio.create_task(_intraop_overdue_loop())
@@ -6794,17 +6803,22 @@ def _start_asclepius_task_notify_loop() -> None:
 
         while True:
             await asyncio.sleep(asclepius_task_notify_interval_sec())
-            try:
-                store = getattr(app.state, "asclepius_store", None)
-                if store is None:
-                    continue
-                # Sending is blocking (SendGrid over requests), so keep it off
-                # the event loop.
-                await asyncio.to_thread(_asc_task_notify.drain_outbox, store)
-            except Exception:  # pragma: no cover -- the loop must survive
-                _auth_logger.warning(
-                    "[asclepius] task-notify drain failed", exc_info=True
-                )
+            # Sandbox PRD §1.3: drain each realm's outbox in that realm, so a
+            # sandbox task notification becomes a sandbox outbox row rather
+            # than a real email.
+            for r in _realm.active_realms():
+                try:
+                    with _realm.scoped(r):
+                        store = getattr(app.state, "asclepius_store", None)
+                        if store is None:
+                            continue
+                        # Sending is blocking (SendGrid over requests), so keep
+                        # it off the event loop.
+                        await asyncio.to_thread(_asc_task_notify.drain_outbox, store)
+                except Exception:  # pragma: no cover -- the loop must survive
+                    _auth_logger.warning(
+                        "[asclepius] task-notify drain failed (%s)", r, exc_info=True
+                    )
 
     _asclepius_task_notify_task = asyncio.create_task(_run())
 

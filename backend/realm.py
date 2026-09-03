@@ -90,6 +90,14 @@ def enabled() -> bool:
     return bool((os.getenv(ADMIN_PASSWORD_VAR) or "").strip())
 
 
+def active_realms() -> tuple:
+    """The realms a background loop must iterate (§1.3): always live, plus
+    sandbox once the realm is switched on. Loops that only make sense live
+    (payout disbursement, buyer deliveries) do NOT use this — they skip the
+    sandbox explicitly, with a comment naming why."""
+    return REALMS if enabled() else (LIVE,)
+
+
 def admin_password() -> str:
     return (os.getenv(ADMIN_PASSWORD_VAR) or "").strip()
 

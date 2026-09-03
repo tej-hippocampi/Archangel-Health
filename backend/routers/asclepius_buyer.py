@@ -28,6 +28,7 @@ from fastapi.responses import StreamingResponse
 from ratelimit import rate_limiter
 
 from asclepius import auth as asc_auth
+import realm as _realm
 from asclepius import export as asc_export
 from asclepius import profiles as asc_profiles
 from asclepius.schemas import BuyerDeliveryRequest, ProviderPasswordRequest
@@ -165,6 +166,14 @@ async def send_buyer_delivery(
     leak-gated), provisions/rotates the buyer account, records the delivery, and
     emails the buyer credentials + the workspace link. 503 if email isn't
     configured — we never deliver without being able to tell the buyer."""
+    # Sandbox PRD §1.4: a delivery is the one export action that reaches a
+    # real person's workspace and inbox. Exports BUILD in the sandbox (their
+    # bundle and datasheet are stamped "SANDBOX — not a deliverable"); creating
+    # a delivery is refused before anything is built or provisioned.
+    if _realm.is_sandbox():
+        raise HTTPException(status_code=403, detail={
+            "code": "sandbox_no_delivery",
+            "message": "This is the sandbox realm: exports build here but are never delivered."})
     if not _email_configured():
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
     store = _store()
@@ -372,5 +381,5 @@ async def buyer_download_delivery(
     data = asc_export.zip_export(export)
     store.log_event(entity_type="buyer_delivery", entity_id=export_id,
                     event_type="delivery_downloaded", actor=buyer_user["id"])
-    headers = {"Content-Disposition": f'attachment; filename="{export_id}.zip"'}
+    headers = {"Content-Disposition": f'attachment; filename="{asc_export.bundle_filename(export_id)}"'}
     return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)

@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import realm as _realm
 from typing import Any, Dict, List, Optional
 
 from community.store import CommunityStore, get_community_store
@@ -170,10 +171,14 @@ def start_digest_loop(*, resolve_member: Any) -> None:
     async def _run() -> None:
         while True:
             await asyncio.sleep(digest_interval_sec())
-            try:
-                await flush_pending(resolve_member=resolve_member)
-            except Exception:  # pragma: no cover — the loop must survive
-                log.warning("community digest flush failed", exc_info=True)
+            # Sandbox PRD §1.3 / §1.4: one flush per realm. In the sandbox the
+            # digest lands in the sandbox outbox, never in a real inbox.
+            for r in _realm.active_realms():
+                try:
+                    with _realm.scoped(r):
+                        await flush_pending(resolve_member=resolve_member)
+                except Exception:  # pragma: no cover — the loop must survive
+                    log.warning("community digest flush failed (%s)", r, exc_info=True)
 
     _loop_task = asyncio.get_running_loop().create_task(_run())
 

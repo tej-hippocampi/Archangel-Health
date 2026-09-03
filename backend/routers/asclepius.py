@@ -4802,7 +4802,7 @@ async def download_export(
     if not export:
         raise HTTPException(status_code=404, detail="Export not found")
     data = asc_export.zip_export(export)
-    headers = {"Content-Disposition": f'attachment; filename="{export_id}.zip"'}
+    headers = {"Content-Disposition": f'attachment; filename="{asc_export.bundle_filename(export_id)}"'}
     return StreamingResponse(io.BytesIO(data), media_type="application/zip", headers=headers)
 
 

@@ -949,6 +949,8 @@ async def mark_paid(
         return asc_payments.mark_paid(
             _store(), payout_batch_id=body.payout_batch_id, actor_id=admin["id"],
             earning_ids=body.earning_ids, user_id=body.user_id)
+    except asc_payments.SandboxNoDisbursement as sb:
+        raise HTTPException(status_code=403, detail={"code": sb.code, "message": sb.detail})
     except asc_payments.PaymentsDenied as denied:
         raise HTTPException(status_code=422, detail=denied.detail)
 
@@ -1404,6 +1406,8 @@ async def admin_pay_earnings(
         result = asc_payments.mark_paid(
             store, payout_batch_id=body.payout_batch_id, actor_id=admin["id"],
             earning_ids=body.earning_ids, user_id=body.user_id)
+    except asc_payments.SandboxNoDisbursement as sb:
+        raise HTTPException(status_code=403, detail={"code": sb.code, "message": sb.detail})
     except asc_payments.PaymentsDenied as denied:
         raise HTTPException(status_code=422, detail=denied.detail)
     return {"ok": True, "user_id": body.user_id, **result,

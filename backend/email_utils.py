@@ -7,6 +7,7 @@ local end-to-end testing of onboarding flows without configuring SendGrid.
 """
 
 import os
+import realm as _realm
 import re
 from typing import Optional, Tuple
 
@@ -43,6 +44,9 @@ def is_email_transport_configured() -> bool:
     """
     if _is_dev_mode():
         return True
+    if _realm.is_sandbox():
+        # Sandbox PRD §1.4: the sandbox always has a transport — the outbox.
+        return True
     if _normalize_sendgrid_api_key(os.getenv("SENDGRID_API_KEY")):
         return True
     h = (os.getenv("SMTP_HOST") or "").strip()
@@ -53,6 +57,8 @@ def is_email_transport_configured() -> bool:
 
 def active_email_vendor() -> Optional[str]:
     """Which transport an outgoing email would actually use right now."""
+    if _realm.is_sandbox():
+        return "sandbox"
     if _is_dev_mode():
         return "dev"
     if _normalize_sendgrid_api_key(os.getenv("SENDGRID_API_KEY")):
@@ -70,7 +76,7 @@ def email_phi_allowed() -> bool:
     transport (PRD-4). SendGrid is not HIPAA-eligible unless a BAA is flagged; a
     self-hosted SMTP relay is assumed covered; dev mode never leaves the host."""
     vendor = active_email_vendor()
-    if vendor in ("dev", "smtp"):
+    if vendor in ("dev", "smtp", "sandbox"):
         return True
     if vendor == "sendgrid":
         from compliance.subprocessors import phi_allowed  # local: avoid import cost
@@ -92,6 +98,46 @@ def _strip_html(html: str) -> str:
 #: addresses we accept at signup: this value is written into a mail header, so
 #: the bar is "cannot possibly be two headers" rather than "is deliverable".
 _REPLY_TO_RE = re.compile(r"[^@\s,<>;:\\\"]+@[^@\s,<>;:\\\"]+\.[A-Za-z]{2,}")
+
+
+#: What an OTP / verification code looks like in our mail: 6–8 digits, or the
+#: dash-separated word codes some flows mint. Extracted for the Outbox tab.
+_CODE_RE = re.compile(r"(?<![\w-])(\d{6,8}|[A-Z0-9]{4}-[A-Z0-9]{4}(?:-[A-Z0-9]{4})?)(?![\w-])")
+_LINK_RE = re.compile(r"https?://[^\s\"'<>]+")
+
+
+def extract_codes_and_links(html_body: str) -> "tuple[list, list]":
+    """The OTP-looking codes and http(s) links in an email body, in order of
+    first appearance, de-duplicated. Pure; used by the sandbox outbox."""
+    text = _strip_html(html_body)
+    codes: list = []
+    for m in _CODE_RE.finditer(text):
+        if m.group(1) not in codes:
+            codes.append(m.group(1))
+    links: list = []
+    for m in _LINK_RE.finditer(html_body):
+        url = m.group(0).rstrip(".,;)")
+        if url not in links:
+            links.append(url)
+    return codes, links
+
+
+def _sandbox_outbox_write(to_email: str, subject: str, html_body: str, *,
+                          attachments: Optional[list] = None,
+                          reply_to: str | None = None) -> "tuple[bool, str]":
+    from asclepius.store import get_store  # noqa: PLC0415 — realm-scoped store
+
+    codes, links = extract_codes_and_links(html_body)
+    atts = [{"name": name, "mime": mime, "bytes": len(blob or b"")}
+            for name, mime, blob in (attachments or [])]
+    try:
+        get_store().outbox_add(to_email=to_email, subject=subject, html=html_body,
+                               text_body=_strip_html(html_body), codes=codes, links=links,
+                               attachments=atts, reply_to=(reply_to or None))
+    except Exception as exc:  # pragma: no cover — never let the outbox break a flow
+        print(f"[email_utils] sandbox outbox write failed: {exc}")
+        return False, "sandbox_outbox_failed"
+    return True, "sandbox_outbox"
 
 
 async def send_html_email(
@@ -140,6 +186,16 @@ async def send_html_email_with_reason(
     input, and a CR/LF in a MIME header is header injection on the SMTP path;
     anything that does not look like a bare address is dropped rather than sent.
     """
+    # Sandbox PRD §1.4: in the sandbox realm NOTHING is ever sent. The message
+    # is written to the sandbox store's outbox — with the OTP code / magic
+    # link / DLA link extracted so the Outbox tab can show them clickable —
+    # and the caller sees success, exactly as it would from SendGrid. Checked
+    # BEFORE dev mode so a sandbox running with EMAIL_DEV_MODE=1 (the test
+    # suite) still lands in the outbox rather than on stdout.
+    if _realm.is_sandbox():
+        return _sandbox_outbox_write(to_email, subject, html_body,
+                                     attachments=attachments, reply_to=reply_to)
+
     # Dev mode short-circuit: print the message to stdout and return success.
     # This lets onboarding / OTP / invite flows run end-to-end without SendGrid.
     if _is_dev_mode():
