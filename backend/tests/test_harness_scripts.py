@@ -436,3 +436,41 @@ def test_auditor_is_told_not_to_fix_what_it_finds():
     text = (BACKEND.parent / ".claude" / "agents" / "auditor.md").read_text()
     assert "Do not fix" in text
     assert "no findings must say what was checked" in text
+
+
+# ─── H2: the hooks are actually installed ────────────────────────────────────
+
+def test_hooks_are_wired_into_settings_json():
+    """The scripts existing is not the same as the hooks running. This asserts
+    the config that makes them fire, so a settings.json edit cannot quietly
+    unhook the sensors."""
+    settings = json.loads((BACKEND.parent / ".claude" / "settings.json").read_text())
+    hooks = settings.get("hooks") or {}
+    assert "PostToolUse" in hooks and "PreToolUse" in hooks
+
+    wired = {ev: [h["command"] for entry in entries for h in entry["hooks"]]
+             for ev, entries in hooks.items()}
+    assert any("hook_post_edit.py" in c for c in wired["PostToolUse"])
+    assert any("hook_pre_push.py" in c for c in wired["PreToolUse"])
+
+    # Every command must name a script that exists, or the hook fails open on
+    # every edit and nobody notices.
+    for commands in wired.values():
+        for cmd in commands:
+            name = cmd.split("/")[-1].rstrip('"')
+            assert (SCRIPTS / name).is_file(), f"hook points at missing {name}"
+
+
+def test_hook_timeouts_leave_room_over_the_measured_cost():
+    settings = json.loads((BACKEND.parent / ".claude" / "settings.json").read_text())
+    for entries in settings["hooks"].values():
+        for entry in entries:
+            for h in entry["hooks"]:
+                assert h.get("timeout", 0) >= 15, "a tight timeout kills the hook mid-check"
+
+
+def test_the_edit_matcher_covers_both_edit_and_write():
+    """A matcher of only `Edit` misses every file created with Write."""
+    settings = json.loads((BACKEND.parent / ".claude" / "settings.json").read_text())
+    matchers = [e["matcher"] for e in settings["hooks"]["PostToolUse"]]
+    assert any("Edit" in m and "Write" in m for m in matchers), matchers

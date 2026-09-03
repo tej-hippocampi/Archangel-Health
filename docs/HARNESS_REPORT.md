@@ -89,15 +89,13 @@ purposes; the real figure is 27 literal LLM purposes, a different set, across
 
 ---
 
-## What I did not do, and why
+## Hooks: installed
 
-**1. The hooks are not installed.** `.claude/settings.json` is unchanged.
-
-Writing hook configuration was **blocked in this session**. That is the right
-default: hooks run shell commands automatically on every edit and every Bash
-call, so installing them is the user's decision, not the agent's. All six scripts
-are written, tested in both directions, and timed. To turn them on, add this
-`hooks` key to `.claude/settings.json` alongside the existing keys:
+`.claude/settings.json` carries the `hooks` key below. The first attempt to write
+it was blocked by this session's permission layer, which is the right default —
+hooks run shell commands automatically on every edit and every Bash call, so
+installing them is the user's decision, not the agent's. It was installed on the
+user's explicit instruction.
 
 ```json
 "hooks": {
@@ -119,10 +117,30 @@ are written, tested in both directions, and timed. To turn them on, add this
 One dispatcher per event rather than H2's six matchers: each matcher pays a
 Python startup, and `hook_post_edit.py` routes by file type internally.
 
-H2's `Stop` → `route_baseline.py --diff` hook is deliberately **not** in that
-config. It boots the app (2.8s) on every turn end, and unlike the others it
-cannot block anything useful at that point. Run it in `/merge-readiness` and CI
-instead, where a route diff is actionable.
+Verified by invoking each exactly as Claude Code does, JSON on stdin:
+
+| Input | Result |
+|---|---|
+| clean Python (`ai/fake_llm.py`) | `exit 0` — allow |
+| unbalanced CSS (`@media` never closed) | `exit 2` — **block** |
+| malformed JS (unclosed function) | `exit 2` — **block** |
+| `ls -la` | `exit 0` — allow |
+| `git push` on a clean branch | `exit 0` — allow |
+
+`tests/test_harness_scripts.py` now asserts the wiring itself — that both hooks
+are present, that every command names a script that exists, that the matcher
+covers `Write` and not just `Edit`, and that no timeout is tight enough to kill a
+check mid-run. A later `settings.json` edit cannot quietly unhook the sensors.
+
+---
+
+## What I did not do, and why
+
+**1. H2's `Stop` hook is not installed.** The other two are (see below). The
+`Stop` → `route_baseline.py --diff` hook boots the app (2.8s) on every turn end,
+and unlike the edit and push hooks it cannot block anything actionable at that
+point — a route has already changed by then. It runs in `/merge-readiness` and CI
+instead, where a route diff can still stop something.
 
 **2. `pytest -x --lf` is not a global default.** H5.3 asks for it "in the hook
 config". As a global `addopts` it would be actively harmful: `-x` stops at the
