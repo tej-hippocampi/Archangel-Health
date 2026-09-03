@@ -18,10 +18,20 @@
    phone is a checklist that nags. It is also why closing a stop is a network
    call and not a variable.
 
-   EVERY STOP IS SKIPPABLE, AND A SKIP IS PERMANENT. "Skip for now" closes the
-   stop the same way finishing it does; the only difference is which word is
-   recorded. A stop that could reopen would make "never nags again" a promise
-   the code does not keep.
+   THREE STOPS ARE REQUIRED, THREE ARE OPTIONAL (Welcome package v2 §1). The
+   welcome, choosing a start and the practice case render NO skip control, and
+   the server 400s a defer against them. The other three offer "Do this later",
+   which writes `deferred` — "asked, declined this session" — and is deliberately
+   NOT terminal. The previous model made every skip permanent, which is why the
+   walkthrough asked about the community exactly once and then went silent
+   forever; `deferred` is what lets §2's cadence ask twice and then go quiet.
+
+   ONE FUNCTION DECIDES WHAT A LOGIN SEES. `mode(user)` returns 'walkthrough',
+   'reentry', 'banner' or 'none', and the shell branches on it. It mirrors
+   `first_run.mode()` in Python line for line — the server is the authority, the
+   client cannot paint a screen without answering the same question first, and
+   the test suite checks the two against each other rather than trusting them to
+   stay in step.
 
    ONE PRIMARY ACTION, ONE QUIET SKIP (§7). Never two primaries. The checklist
    card is persistent and passive; it never grabs focus and never blocks.
@@ -38,9 +48,13 @@
    still on screen behind. It plays a native <video controls> against the Range
    endpoint (§0.1), so the timeline actually scrubs.
 
-   RE-ENTRY IS A CHIP, NEVER A MODAL AMBUSH. An unfinished checklist shows a
-   quiet "Finish setup · 3 of 6" on the dashboard. Clicking it resumes; ignoring
-   it costs nothing.
+   RE-ENTRY ASKS TWICE, THEN GOES QUIET, AND NEVER AMBUSHES (§2, §3). Logins 2
+   and 3 with optional stops left open get the re-entry page — one column, the
+   remaining stops, and "Go to my cases →" as the PRIMARY, because on re-entry
+   the default is leaving. From login 4 there is no page at all, only a passive
+   dashboard banner. The chip stays on every other screen. Nothing here is ever
+   a modal, and after the practice case a physician is never more than one click
+   from Start new case, on any login, forever.
    ═══════════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -64,41 +78,168 @@
 
   var DEMO_URL = '/api/asclepius/assets/onboarding-demo';   // absolute: it is a <video src>, not an api() call
 
+  /** §1's split. REQUIRED renders no skip control anywhere and the server 400s
+   *  a defer against any of them; OPTIONAL may be put off, as often as asked.
+   *  Mirrors REQUIRED_STOPS / OPTIONAL_STOPS in asclepius/first_run.py. */
+  var REQUIRED = ['welcome', 'start', 'practice'];
+  var OPTIONAL = ['community', 'earnings', 'manual'];
+
+  /** Honest time estimates for the re-entry rows (§4.2). Honest is the point:
+   *  a "2 min" that takes ten is the last time anybody believes one of these. */
+  var STOP_MINUTES = { community: '2 min', earnings: '1 min', manual: '3 min' };
+
+  /** The short names the banner lists as remaining (§4.3). */
+  var STOP_SHORT = { community: 'Community', earnings: 'Payouts', manual: 'Manual' };
+
+  var DONE = 'done';
+  var DEFERRED = 'deferred';
+
+  /** Logins 2 and 3 get the re-entry page; the 4th onwards gets the banner.
+   *  Mirrors REENTRY_THROUGH_SESSION in asclepius/first_run.py — named on both
+   *  sides so the number is a decision in two places rather than a literal in
+   *  one of them. The suite pins the two cadences against each other. */
+  var REENTRY_THROUGH_SESSION = 3;
+
   /* ── Live state. Torn down on exit; nothing survives a sign-out. ── */
   var ctx = null;          // { h, api, toast, onUser, startTutorial, openCommunity, setPanel, exit }
-  var stops = {};          // { stopId: 'done' | 'skipped' }
+  var stops = {};          // { stopId: 'done' | 'deferred' }
   var current = null;      // stop id on screen
   var demoMeta = null;     // { available, url, version } once probed
   var demoProbe = null;    // the in-flight probe, so stop 2 can wait on it
   var escHandler = null;
+  var reentryEsc = null;   // §3: Esc leaves the re-entry page
+  var returnTo = null;     // set while ONE stop was opened from the re-entry page
   var objectUrl = null;    // blob: URL for the authenticated video, revoked on close
 
   function h() { return ctx.h.apply(null, arguments); }
 
-  function isClosed(id) { return !!stops[id]; }
+  function isRequired(id) { return REQUIRED.indexOf(id) !== -1; }
 
-  function openStops() { return STOPS.filter(function (s) { return !isClosed(s); }); }
+  /** Finished for good. A deferred stop is NOT closed — that is the §1 change. */
+  function isDone(id) { return stops[id] === DONE; }
+
+  /** Stops still owed, in order. Deferred ones are in here: deferred is "not
+   *  now", not "no", and the whole cadence depends on the difference. */
+  function openStops() { return STOPS.filter(function (s) { return !isDone(s); }); }
 
   function doneCount() { return STOPS.length - openStops().length; }
 
-  /** Record a stop as closed and move on.
+  function requiredOpen() { return REQUIRED.filter(function (s) { return !isDone(s); }); }
+
+  function optionalRemaining() { return OPTIONAL.filter(function (s) { return !isDone(s); }); }
+
+  /** Read the stops map off a user payload, migrating the previous vocabulary.
+   *
+   *  The server migrates on read too, and this is not redundant with it: a
+   *  physician can be holding a page rendered from a payload fetched BEFORE the
+   *  deploy, and 'skipped' arriving from that cache must not render as a fourth
+   *  state nothing styles. Same rule as the server's, deliberately: required
+   *  skips vanish (they must actually do it), optional skips become deferred. */
+  function readState(user) {
+    var fr = (user && user.first_run) || {};
+    var raw = fr.stops || {};
+    var out = {};
+    STOPS.forEach(function (id) {
+      var v = raw[id];
+      if (v === DONE) out[id] = DONE;
+      else if (v && !isRequired(id)) out[id] = DEFERRED;
+    });
+    return out;
+  }
+
+  function sessionsSeen(user) {
+    var n = parseInt(((user && user.first_run) || {}).sessions_seen, 10);
+    return (isFinite(n) && n >= 1) ? n : 1;
+  }
+
+  /** Record a transition and move on.
    *
    *  The local map is updated FIRST and the request is fire-and-forget, on
-   *  purpose: a physician clicking "Skip" must not wait on a round trip to see
+   *  purpose: a physician clicking through must not wait on a round trip to see
    *  the next screen, and the worst case of a dropped write is that one stop
    *  reappears on their next login. The opposite trade — blocking the UI on the
-   *  network — makes every stop feel broken on a hotel connection. */
-  function close(id, outcome, next) {
-    if (!isClosed(id)) {
+   *  network — makes every stop feel broken on a hotel connection. It is also
+   *  why the server's required-stop gate refuses only what a correct client
+   *  would never send: a dropped PATCH must cost one extra screen, never access
+   *  to work.
+   *
+   *  `done` is monotonic on both sides. `deferred` is rewritten every session
+   *  it is offered and declined, so unlike the old `skipped` it does NOT guard
+   *  on "already closed" — only on "already done", which a defer must never
+   *  undo. */
+  function write(id, outcome, next) {
+    if (isRequired(id) && outcome !== DONE) {
+      // Unreachable through the UI — required stops render no skip control —
+      // and refused by the server if it ever were. Guarded here too so a future
+      // caller cannot quietly re-open the hole §1 was written to close.
+      outcome = DONE;
+    }
+    if (!isDone(id)) {
       stops[id] = outcome;
       ctx.api('/me/first-run', {
         method: 'PATCH',
-        body: { action: outcome === 'skipped' ? 'skip' : 'done', stop: id },
+        body: { action: outcome === DEFERRED ? 'defer' : 'done', stop: id },
       }).then(function (user) {
         if (user && ctx.onUser) ctx.onUser(user);
       }).catch(function () { /* best-effort: see above */ });
     }
     if (typeof next === 'function') next();
+  }
+
+  /** Kept as the old name so every call site below reads unchanged. */
+  function close(id, outcome, next) { write(id, outcome, next); }
+
+  /** Defer every optional stop still open, in ONE request (§4.2).
+   *
+   *  Three separate PATCHes would each read the stored blob, each write their
+   *  own stop, and the last one home would erase the other two — so leaving the
+   *  re-entry page would reliably record one stop deferred out of three. */
+  function deferAll(next) {
+    var remaining = optionalRemaining();
+    if (remaining.length) {
+      remaining.forEach(function (id) { stops[id] = DEFERRED; });
+      ctx.api('/me/first-run', { method: 'PATCH', body: { action: 'defer_all' } })
+        .then(function (user) { if (user && ctx.onUser) ctx.onUser(user); })
+        .catch(function () { /* best-effort: see above */ });
+    }
+    if (typeof next === 'function') next();
+  }
+
+  /** Where a stop goes when it finishes.
+   *
+   *  Inside the walkthrough that is the next stop. Opened as a single stop from
+   *  the re-entry page it is that page again — a physician who clicked "Do it →"
+   *  on the manual asked for the manual, not to be re-enrolled in the rest of an
+   *  onboarding they had already put down. `returnTo` is consumed once, so a
+   *  later walkthrough run is not permanently pinned back to re-entry. */
+  function nextAfter(fallback) {
+    return function () {
+      if (returnTo) { var back = returnTo; returnTo = null; back(); return; }
+      if (typeof fallback === 'function') fallback();
+    };
+  }
+
+  function renderOptional(id) {
+    if (id === 'community') { renderCommunity(); return; }
+    if (id === 'earnings') { renderEarnings(); return; }
+    renderManual();
+  }
+
+  /** The walkthrough's advance, from one optional stop to the next one still
+   *  OPEN — not simply to the next in the list.
+   *
+   *  The difference shows up on "Finish these now": a physician who did the
+   *  community months ago and deferred the other two would otherwise be walked
+   *  back through the community stop before reaching the ones they asked for.
+   *  Inside a first run the two readings are identical, because nothing is done
+   *  yet. */
+  function afterOptional(id) {
+    return function () {
+      var rest = OPTIONAL.slice(OPTIONAL.indexOf(id) + 1)
+        .filter(function (s) { return !isDone(s); });
+      if (rest.length) { renderOptional(rest[0]); return; }
+      finishWalkthrough();
+    };
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -131,8 +272,11 @@
     return h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button', onClick: onClick }, label);
   }
 
+  /** The quiet second action. §3: "The skip is a real action" — a visible
+   *  secondary button with the same hit target as the primary, not 11px of grey
+   *  text. It appears ONLY on the three optional stops. */
   function skipBtn(label, onClick) {
-    return h('button', { class: 'asc-fr-skip', type: 'button', onClick: onClick }, label || 'Skip for now');
+    return h('button', { class: 'asc-fr-skip', type: 'button', onClick: onClick }, label || 'Do this later');
   }
 
   /** The persistent right-side checklist — the researched activation pattern.
@@ -148,16 +292,26 @@
         h('span', { class: 'asc-fr-check-box', 'aria-hidden': 'true' }, '✓'),
         h('span', { class: 'asc-fr-check-title' }, 'You’re all set'));
     }
-    var items = STOPS.map(function (id) {
+    // §4.1: required first, a hairline divider, then the optional three under a
+    // tiny OPTIONAL eyebrow. The grouping IS the explanation of why three of
+    // these screens have no skip control and three do — without it a physician
+    // meets a stop with no way past and has to guess whether that is a bug.
+    function row(id) {
       var state = stops[id];
       var cls = 'asc-fr-check-item'
-        + (state ? ' is-done' : '')
+        + (state === DONE ? ' is-done' : '')
+        + (state === DEFERRED ? ' is-later' : '')
         + (id === current ? ' is-current' : '');
       return h('li', { class: cls },
-        h('span', { class: 'asc-fr-check-box', 'aria-hidden': 'true' }, state ? '✓' : ''),
+        h('span', { class: 'asc-fr-check-box', 'aria-hidden': 'true' }, state === DONE ? '✓' : ''),
         h('span', { class: 'asc-fr-check-label' }, STOP_LABEL[id]),
-        state === 'skipped' ? h('span', { class: 'asc-fr-check-note' }, 'skipped') : null);
-    });
+        // "later", not "skipped". The word is the model: this is a thing they
+        // have not done yet, not a thing they declined for good.
+        state === DEFERRED ? h('span', { class: 'asc-fr-later' }, 'later') : null);
+    }
+    var items = REQUIRED.map(row);
+    items.push(h('li', { class: 'asc-fr-eyebrow', 'aria-hidden': 'true' }, 'OPTIONAL'));
+    OPTIONAL.forEach(function (id) { items.push(row(id)); });
     return h('aside', { class: 'asc-fr-checklist', 'aria-label': 'Setup checklist' },
       h('div', { class: 'asc-fr-check-head' },
         h('span', { class: 'asc-fr-check-title' }, 'Getting set up'),
@@ -273,12 +427,14 @@
     // right-hand card verbatim — same words, same destination — and, being the
     // heaviest thing on the screen, answered the question on the physician's
     // behalf. The two cards ARE the primary action, which is why the whole card
-    // is the button. "Skip for now" stays: it is the third, different answer.
-    ctx.setRoot(stopShell({
-      body: body,
-      wide: true,
-      skip: skipBtn('Skip for now', function () { close('start', 'skipped', runPracticeCase); }),
-    }));
+    // is the button.
+    //
+    // And no skip either, as of Welcome package v2 §4.1. There WAS a third
+    // answer here — "Skip for now", writing a terminal `skipped` — and it is how
+    // real accounts reached the dashboard having seen neither the demo nor a
+    // case. "Choose your start" is a required stop now; the two cards are the
+    // only two answers.
+    ctx.setRoot(stopShell({ body: body, wide: true }));
   }
 
   /* ── The player: expands IN PLACE, never a route change. ── */
@@ -419,9 +575,9 @@
         // walkthrough is still here when they come back — which is why this
         // advances rather than waiting for a return that has no event.
         ctx.openCommunity();
-        close('community', 'done', renderEarnings);
+        close('community', DONE, nextAfter(afterOptional('community')));
       }),
-      skip: skipBtn('Skip for now', function () { close('community', 'skipped', renderEarnings); }),
+      skip: skipBtn('Do this later', function () { close('community', DEFERRED, nextAfter(afterOptional('community'))); }),
     }));
   }
 
@@ -461,12 +617,16 @@
         // not consent to anything — but it is what the payments track reads to
         // find who has been told banking is coming and is waiting on it.
         ctx.api('/me/bank-link/interest', { method: 'POST' }).catch(function () { /* best-effort */ });
-        close('earnings', 'done', function () {
+        // Terminal by destination: this lands the physician ON the Earnings
+        // panel, which is a place to be rather than a step to come back from,
+        // so any pending return to the re-entry page is dropped.
+        close('earnings', DONE, function () {
+          returnTo = null;
           teardownChrome();
           ctx.setPanel('earnings');
         });
       }),
-      skip: skipBtn('Skip for now', function () { close('earnings', 'skipped', renderManual); }),
+      skip: skipBtn('Do this later', function () { close('earnings', DEFERRED, nextAfter(afterOptional('earnings'))); }),
     }));
   }
 
@@ -487,18 +647,37 @@
     ctx.setRoot(stopShell({
       body: body,
       primary: primaryBtn('Open the manual', function () {
-        close('manual', 'done', function () {
+        // Terminal by destination, exactly as Earnings above: the manual IS
+        // the guide panel.
+        close('manual', DONE, function () {
+          returnTo = null;
           teardownChrome();
           ctx.setPanel('guide');
         });
       }),
-      skip: skipBtn('Skip for now', function () { close('manual', 'skipped', renderFinished); }),
+      skip: skipBtn('Do this later', function () { close('manual', DEFERRED, nextAfter(afterOptional('manual'))); }),
     }));
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
      The end. One line, no confetti (§6 stop 6: "confetti-free restraint").
      ═══════════════════════════════════════════════════════════════════════ */
+
+  /** The end of a walkthrough RUN, which is not the same as the end of the
+   *  checklist.
+   *
+   *  "You're all set" carries a dismiss, and dismiss is permanent — it is the
+   *  one control that stops the product ever mentioning onboarding again. Show
+   *  it only when all six stops are genuinely `done`. A physician who reached
+   *  the last screen by deferring the optional three has not finished anything;
+   *  congratulating them and then quietly switching off the re-entry cadence
+   *  they were promised would defeat §2 on the very first login. They simply
+   *  leave, and login 2 brings back the re-entry page. */
+  function finishWalkthrough() {
+    if (!openStops().length) { renderFinished(); return; }
+    teardownChrome();
+    ctx.exit();
+  }
 
   function renderFinished() {
     current = null;
@@ -525,17 +704,156 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
+     The re-entry page (§4.2) — logins 2 and 3, once the required stops are done.
+
+     A short interstitial, NOT the walkthrough: one centred column at 560px on
+     the same stage grid, no checklist rail, and nothing animates because the
+     physician has seen this before (§3).
+
+     The buttons are deliberately INVERTED from every walkthrough stop. There,
+     the primary carries the physician forward and the quiet action leaves;
+     here "Go to my cases →" is the filled primary and "Finish these now" is the
+     secondary. On re-entry the default is leaving, and a product that makes the
+     specialist argue with it for the third login running has stopped being
+     worth their time.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  function renderReentry() {
+    current = null;
+    var remaining = optionalRemaining();
+    // Nothing left to offer: this screen would be an empty box with a button
+    // that says "go to my cases", which is a worse way of going to their cases
+    // than going to their cases.
+    if (!remaining.length) { leaveReentry(); return; }
+
+    var rows = h('div', { class: 'asc-fr-reentry-rows' });
+    remaining.forEach(function (id) {
+      rows.appendChild(h('button', {
+        class: 'asc-fr-reentry-row', type: 'button',
+        onClick: function () { openSingleStop(id); },
+      },
+        h('span', { class: 'asc-fr-reentry-ring', 'aria-hidden': 'true' }),
+        h('span', { class: 'asc-fr-reentry-label' }, STOP_LABEL[id]),
+        h('span', { class: 'asc-fr-reentry-time' }, STOP_MINUTES[id] || ''),
+        h('span', { class: 'asc-fr-reentry-go', 'aria-hidden': 'true' }, 'Do it →')));
+    });
+
+    var goToCases = h('button', {
+      class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
+      onClick: function () { leaveReentry(); },
+    }, 'Go to my cases →');
+
+    var finishNow = h('button', {
+      class: 'asc-fr-skip', type: 'button',
+      // §4.2: "it starts the remaining optional stops IN ORDER" — so no
+      // `returnTo`. A row's "Do it →" opens one stop and comes back; this is the
+      // other request, and running it one-stop-at-a-time would silently turn
+      // "finish these" into "finish this".
+      onClick: function () { startRemaining(); },
+    }, 'Finish these now');
+
+    // §3, keyboard first: the primary is FIRST in the DOM, so Tab lands on
+    // "Go to my cases" before anything else and Enter leaves. Esc leaves too.
+    var actions = h('div', { class: 'asc-fr-actions' }, goToCases, finishNow);
+
+    ctx.setRoot(h('div', { class: 'asc-fr-stage asc-fr-stage-solo' },
+      h('div', { class: 'asc-fr-main' },
+        h('div', { class: 'asc-fr-panel asc-fr-reentry' },
+          h('h1', { class: 'asc-fr-title' }, 'Finish your onboarding'),
+          h('p', { class: 'asc-fr-body' },
+            reentryLede(remaining.length)),
+          rows,
+          actions))));
+
+    bindReentryEsc();
+    // No close ✕ anywhere on this page: the primary IS the close (§4.2). A
+    // dismiss control would also be a second way to leave, competing with the
+    // one that is already the biggest thing on the screen.
+    setTimeout(function () { try { goToCases.focus(); } catch (e) { /* headless */ } }, 30);
+  }
+
+  /** "Three quick things you set aside" — and two, and one, correctly. */
+  function reentryLede(n) {
+    var count = n === 1 ? 'One quick thing' : (n === 2 ? 'Two quick things' : 'Three quick things');
+    return count + ' you set aside. '
+      + (n === 1 ? 'A couple of minutes' : 'Two minutes') + ', or later — your call.';
+  }
+
+  function bindReentryEsc() {
+    unbindReentryEsc();
+    reentryEsc = function (e) {
+      // Never while the demo player is up: Esc belongs to the topmost thing on
+      // screen, and closing the page out from under an open overlay would leave
+      // the overlay orphaned over the dashboard.
+      if (e.key !== 'Escape' || document.getElementById('ascFrDemo')) return;
+      leaveReentry();
+    };
+    document.addEventListener('keydown', reentryEsc);
+  }
+
+  function unbindReentryEsc() {
+    if (reentryEsc) { document.removeEventListener('keydown', reentryEsc); reentryEsc = null; }
+  }
+
+  /** Leaving writes `deferred` on every remaining optional stop and goes to the
+   *  dashboard. It increments nothing — `sessions_seen` already ticked at login,
+   *  server-side, and a client that also counted would run the cadence at the
+   *  speed of page loads. */
+  function leaveReentry() {
+    unbindReentryEsc();
+    deferAll(function () { ctx.exit(); });
+  }
+
+  /** Open ONE optional stop from the re-entry page, and come back here after.
+   *
+   *  The walkthrough's own stop renderers advance to the NEXT stop when they
+   *  finish, which is right inside the walkthrough and wrong here — a physician
+   *  who clicked "Do it →" on the manual asked for the manual, not for the rest
+   *  of an onboarding they already put down. So `returnTo` is set for exactly
+   *  one stop and the renderers consult it instead of advancing. */
+  function openSingleStop(id) {
+    unbindReentryEsc();
+    returnTo = renderReentryOrLeave;
+    renderOptional(id);
+  }
+
+  /** Run every remaining optional stop, in order, and finish. */
+  function startRemaining() {
+    unbindReentryEsc();
+    returnTo = null;
+    var remaining = optionalRemaining();
+    if (!remaining.length) { leaveReentry(); return; }
+    renderOptional(remaining[0]);
+  }
+
+  /** Back to the re-entry page, or straight out if that was the last one. */
+  function renderReentryOrLeave() {
+    returnTo = null;
+    if (optionalRemaining().length) renderReentry();
+    else ctx.exit();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
      Entry / resume / teardown.
      ═══════════════════════════════════════════════════════════════════════ */
 
   function teardownChrome() {
     closeDemo();
+    unbindReentryEsc();
   }
 
   /** The first stop that is still open, or the finish card when none is. */
   function resumeAt() {
     var open = openStops();
     if (!open.length) return renderFinished;
+    // Required all done and only deferred optional stops left: this is not a
+    // walkthrough to resume, it is the re-entry cadence's job. The shell asks
+    // `mode()` and routes there, but the dashboard chip lands here directly, so
+    // answer it correctly rather than replaying stops they already declined.
+    if (!requiredOpen().length && optionalRemaining().length
+        && OPTIONAL.every(function (id) { return stops[id] !== undefined; })) {
+      return renderReentry;
+    }
     var first = open[0];
     if (first === 'welcome') return renderWelcome;
     if (first === 'start') return renderChooseStart;
@@ -556,14 +874,6 @@
     return demoProbe;
   }
 
-  function readState(user) {
-    var fr = (user && user.first_run) || {};
-    var s = fr.stops || {};
-    var out = {};
-    STOPS.forEach(function (id) { if (s[id]) out[id] = s[id]; });
-    return out;
-  }
-
   window.FirstRunWalkthrough = {
     STOPS: STOPS,
 
@@ -574,23 +884,74 @@
      *  caller, which knows the role; this answers the checklist question only.
      */
     shouldRun: function (user) {
-      var fr = (user && user.first_run) || {};
-      if (fr.dismissed_at || fr.completed_at) return false;
-      var s = fr.stops || {};
-      return STOPS.some(function (id) { return !s[id]; });
+      return this.mode(user) !== 'none';
     },
 
-    /** How far along, for the dashboard chip. */
+    /** §2's cadence, and the ONLY place the question is answered.
+     *
+     *      dismissed                → 'none'
+     *      required unfinished      → 'walkthrough'   (whatever the session count)
+     *      no optional remaining    → 'none'
+     *      sessions_seen <= 3       → 'reentry'       (logins 2 and 3)
+     *      otherwise                → 'banner'
+     *
+     *  Mirrors `first_run.mode()` in Python, which is the authority — the server
+     *  gates real work on the same reading, and the test suite pins the two
+     *  against each other rather than trusting them to stay in step.
+     *
+     *  `dismissed` is checked FIRST, and that is not a detail. The store's
+     *  one-time backfill stamped every already-approved account with
+     *  `dismissed_at` and an EMPTY stops map, which is how physicians who had
+     *  been labeling for months were kept out of "Welcome to Archangel Health".
+     *  Those rows have three required stops open and always will, so testing
+     *  the required stops first would drop the entire existing roster into an
+     *  onboarding they finished long before it was written. */
+    mode: function (user) {
+      var fr = (user && user.first_run) || {};
+      if (fr.dismissed_at) return 'none';
+      var s = readState(user);
+      var reqOpen = REQUIRED.some(function (id) { return s[id] !== DONE; });
+      if (reqOpen) return 'walkthrough';
+      var optLeft = OPTIONAL.some(function (id) { return s[id] !== DONE; });
+      if (!optLeft) return 'none';
+      return sessionsSeen(user) <= REENTRY_THROUGH_SESSION ? 'reentry' : 'banner';
+    },
+
+    /** How far along, for the dashboard chip and the banner's six dots.
+     *  Counts DONE only — a deferred stop is progress nobody has made yet. */
     progress: function (user) {
-      var s = ((user && user.first_run) || {}).stops || {};
-      var done = STOPS.filter(function (id) { return !!s[id]; }).length;
+      var s = readState(user);
+      var done = STOPS.filter(function (id) { return s[id] === DONE; }).length;
       return { done: done, total: STOPS.length };
+    },
+
+    /** True while any stop has NO outcome at all — the first pass through the
+     *  tour is genuinely unfinished.
+     *
+     *  Distinct from `shouldRun`, and the difference matters at exactly one
+     *  place: when the practice case hands control back. A physician on their
+     *  first login should carry on to community/earnings/manual; one who
+     *  replayed the tutorial months later, having already deferred all three,
+     *  should land on their dashboard rather than be walked through an
+     *  onboarding they finished with. `deferred` is "asked and declined", so it
+     *  counts as touched here even though it is still open for the cadence. */
+    tourPending: function (user) {
+      var s = readState(user);
+      return STOPS.some(function (id) { return s[id] === undefined; });
+    },
+
+    /** The optional stops still remaining, for the banner's "… remaining". */
+    remaining: function (user) {
+      var s = readState(user);
+      return OPTIONAL.filter(function (id) { return s[id] !== DONE; })
+        .map(function (id) { return STOP_SHORT[id] || STOP_LABEL[id]; });
     },
 
     /** Open the walkthrough at the first unfinished stop. */
     start: function (context) {
       ctx = context;
       stops = readState(context.user);
+      returnTo = null;
       // Probe for the demo BEFORE stop 2 needs it, so the choice screen never
       // flashes a card in or out. A failed probe simply means no demo card.
       probeDemo();
@@ -603,8 +964,22 @@
     resume: function (context) {
       ctx = context;
       stops = readState(context.user);
+      returnTo = null;
       probeDemo();
       resumeAt()();
+    },
+
+    /** §4.2 — the re-entry page, and what the banner's button opens.
+     *
+     *  Never decides for itself whether it is the right screen; the shell asks
+     *  `mode()` and calls this or `resume()`. One question, one answer, one
+     *  place. */
+    reentry: function (context) {
+      ctx = context;
+      stops = readState(context.user);
+      returnTo = null;
+      probeDemo();
+      renderReentry();
     },
 
     teardown: teardownChrome,

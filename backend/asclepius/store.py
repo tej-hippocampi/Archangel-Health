@@ -1485,9 +1485,12 @@ class AsclepiusStore:
                 # everyone who signed up before this shipped.
                 ("must_change_password",  "INTEGER"),
                 # §6: first-login walkthrough state — {version, stops:{id:
-                # 'done'|'skipped'}, completed_at, dismissed_at}. Server-side and
-                # not localStorage, deliberately: doctors switch devices, and a
-                # checklist that resets on the phone is a checklist that nags.
+                # 'done'|'deferred'}, sessions_seen, completed_at, dismissed_at}.
+                # Server-side and not localStorage, deliberately: doctors switch
+                # devices, and a checklist that resets on the phone is a
+                # checklist that nags. Welcome package v2 §1 replaced the old
+                # terminal 'skipped' with 'deferred' on the three optional stops;
+                # stored rows migrate on read (see get_first_run).
                 ("first_run_json",        "TEXT"),
                 # §6 stop 5: the payout rail, built now and wired to Stripe on
                 # the payments track. NULL means "never asked"; the only other
@@ -5248,18 +5251,29 @@ class AsclepiusStore:
     FIRST_RUN_VERSION = 1
 
     def get_first_run(self, user_id: str) -> Dict[str, Any]:
-        """The walkthrough checklist for one user.
+        """The walkthrough checklist for one user, in the v2 three-state shape.
 
         A corrupt or stale-version blob returns the empty shape rather than
         raising: the worst outcome of a bad read is one extra walkthrough, and
         the worst outcome of a raise is a physician who cannot open the portal.
+
+        Welcome package v2 §1's migration happens HERE, on read, via
+        ``asc_first_run.normalize`` — ``skipped`` becomes ``deferred`` on an
+        optional stop and disappears from a required one. Read-time rather than a
+        batch UPDATE because it is idempotent, cannot half-finish, needs no
+        downtime, and rewrites itself the first time anything calls
+        ``set_first_run``. ``FIRST_RUN_VERSION`` is deliberately NOT bumped for
+        it: a bump retires every stored checklist, which on a model change (as
+        opposed to a content change) would reset the roster rather than migrate
+        it.
         """
+        from asclepius import first_run as asc_first_run  # noqa: PLC0415
+
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT first_run_json FROM users WHERE id = ?", (user_id,)
             ).fetchone()
-        empty = {"version": self.FIRST_RUN_VERSION, "stops": {},
-                 "completed_at": None, "dismissed_at": None}
+        empty = asc_first_run.normalize(None, version=self.FIRST_RUN_VERSION)
         raw = row[0] if row else None
         if not raw:
             return empty
@@ -5271,18 +5285,64 @@ class AsclepiusStore:
             return empty
         if int(parsed.get("version") or 0) != self.FIRST_RUN_VERSION:
             return empty
-        stops = parsed.get("stops")
-        parsed["stops"] = stops if isinstance(stops, dict) else {}
-        parsed.setdefault("completed_at", None)
-        parsed.setdefault("dismissed_at", None)
-        return parsed
+        return asc_first_run.normalize(parsed, version=self.FIRST_RUN_VERSION)
 
     def set_first_run(self, user_id: str, state: Dict[str, Any]) -> None:
+        """Store the checklist, normalized.
+
+        Normalizing on the way IN as well as out is what turns §1's read-time
+        migration into a real one: the first transition a physician makes after
+        the deploy rewrites their row in the v2 shape, so the migration drains
+        itself instead of re-running forever.
+        """
+        from asclepius import first_run as asc_first_run  # noqa: PLC0415
+
+        blob = asc_first_run.normalize(state, version=self.FIRST_RUN_VERSION)
+        # ``normalize`` recomputes ``completed_at`` from the stops, so a caller
+        # that has just stamped it on the last ``done`` keeps that stamp and a
+        # caller that has not does not invent one.
+        if state.get("completed_at") and blob.get("completed_at") is None \
+                and asc_first_run.is_complete(blob["stops"]):
+            blob["completed_at"] = state["completed_at"]
         with self._conn() as conn:
             conn.execute(
                 "UPDATE users SET first_run_json = ? WHERE id = ?",
-                (json.dumps(state), user_id),
+                (json.dumps(blob), user_id),
             )
+
+    def count_first_run_session(self, user_id: str, session_key: str) -> Dict[str, Any]:
+        """Welcome package v2 §5 — tick the cadence clock, at most once a login.
+
+        ``sessions_seen`` is what decides whether a returning physician meets the
+        re-entry page or the quiet banner, so double-counting it is not a
+        cosmetic bug: it skips a screen the product promised to show twice.
+
+        ``session_key`` is the ``jti`` of the caller's token. One login mints one
+        token, so a reload, a second tab, and the handful of parallel
+        ``/auth/me`` calls a single page paint makes all carry the SAME key and
+        count once — while a genuine new sign-in carries a new one. That is why
+        the key is the token id and not, say, the day: a physician who signs in
+        twice on Tuesday has had two sessions, and the cadence should agree.
+
+        Returns the state as stored afterwards, so the caller does not re-read.
+        """
+        state = self.get_first_run(user_id)
+        if not session_key or state.get("last_session_counted") == session_key:
+            return state
+        if state.get("last_session_counted") is None:
+            # The FIRST session this clock ever observes is session one, not two.
+            # ``sessions_seen`` already floors at 1, so incrementing here would
+            # put a physician's very first login on the count the cadence reads
+            # as "they have been here before" — and a brand-new account would
+            # meet the re-entry page one login early for the rest of its life.
+            # An existing account migrating in is in the same position: we start
+            # counting when we start counting.
+            state["sessions_seen"] = 1
+        else:
+            state["sessions_seen"] = int(state.get("sessions_seen") or 1) + 1
+        state["last_session_counted"] = session_key
+        self.set_first_run(user_id, state)
+        return state
 
     def set_bank_link_status(self, user_id: str, status: Optional[str]) -> None:
         """§6 stop 5. Architecture now, Stripe later — nothing in this release

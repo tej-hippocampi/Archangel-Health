@@ -184,8 +184,9 @@ def test_no_stop_ever_shows_two_primaries_or_two_ways_to_do_one_thing():
       window.FirstRunWalkthrough.start(ctx);
       done(function () { done(function () {
         snapshot('start');
-        // Skip forward through the remaining stops.
-        find(rootNode, 'asc-fr-skip')[0].dispatch('click');
+        // The right-hand choice card is the way forward now that this required
+        // stop has no skip control.
+        find(rootNode, 'asc-fr-choice').slice(-1)[0].dispatch('click');
         snapshot('practice-handoff');
         console.log(JSON.stringify({ seen: seen, handoffs: handoffs }));
       }); });
@@ -193,7 +194,11 @@ def test_no_stop_ever_shows_two_primaries_or_two_ways_to_do_one_thing():
     start = out["seen"][0]
     assert len(start["primaries"]) == 0, (
         "stop 2's choice cards ARE the action; a primary here duplicates one of them")
-    assert start["skips"] == 1
+    # Welcome package v2 §4.1: ZERO skips. "Choose your start" is a required
+    # stop, and the "Skip for now" that used to sit here wrote a terminal
+    # `skipped` — which is how real accounts reached the dashboard having seen
+    # neither the demo nor a case.
+    assert start["skips"] == 0, "a required stop must render no skip control"
     # The real rule, stated positively: nothing on this screen offers the same
     # action twice. A primary that repeats a card's label is the failure mode.
     labels = [t.strip() for t in start["primaries"]]
@@ -201,8 +206,7 @@ def test_no_stop_ever_shows_two_primaries_or_two_ways_to_do_one_thing():
         for label in labels:
             assert label.rstrip(" →") not in choice, (
                 f"primary {label!r} repeats the choice card {choice!r}")
-    # Skipping "choose your start" still runs the practice case: the stop being
-    # skipped is the CHOICE, not the case.
+    # Choosing "start the practice case" runs the practice case.
     assert "tutorial" in out["handoffs"]
 
 
@@ -241,9 +245,16 @@ def test_no_stop_prints_its_own_position_beside_the_checklists_count():
     ("Stop 4 of 6"). Two different numbers for the same six things, in the same
     visual register, 400px apart. Only the checklist survives."""
     src = _FIRST_RUN_JS.read_text()
-    assert "asc-fr-eyebrow" not in src
     assert not re.search(r"Stop\s+\d\s+of\s+6'", src), (
         "a stop is printing its own position; the checklist already reports progress")
+    # This test used to ban the class `asc-fr-eyebrow` outright, because the only
+    # eyebrow that had ever existed was the "Stop 4 of 6" one. Welcome package v2
+    # §4.1 gives the name a different job — the tiny OPTIONAL label that splits
+    # the checklist's required rows from its optional ones — so the ban narrows
+    # to what it was always about: no stop announces its own POSITION anywhere.
+    for eyebrow in re.findall(r"asc-fr-eyebrow'[^\n]*", src):
+        assert not re.search(r"\d\s+of\s+\d", eyebrow), (
+            f"an eyebrow is counting position again: {eyebrow!r}")
 
 
 def test_stop_two_offers_the_demo_only_when_one_is_installed():
@@ -305,9 +316,17 @@ def test_the_demo_expands_in_place_and_esc_closes_it():
     assert out["handoffs"] == [], "watching the demo must not navigate anywhere"
 
 
-def test_closing_a_stop_posts_it_and_a_skip_is_recorded_as_a_skip():
-    """State is server-side, and a skip is a different fact from a completion."""
-    out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {"welcome": "done"}}}) + """
+def test_closing_a_stop_posts_it_and_a_defer_is_recorded_as_a_defer():
+    """State is server-side, and putting a stop off is a different fact from
+    finishing it.
+
+    The word on the wire is `defer`, not `skip`: Welcome package v2 §1 made the
+    outcome non-terminal, and the server refuses either word against a required
+    stop. This drives the first OPTIONAL stop, since the required three no
+    longer render a control that could send this at all.
+    """
+    out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
+        "welcome": "done", "start": "done", "practice": "done"}}}) + """
       window.FirstRunWalkthrough.start(ctx);
       done(function () { done(function () {
         find(rootNode, 'asc-fr-skip')[0].dispatch('click');
@@ -317,27 +336,43 @@ def test_closing_a_stop_posts_it_and_a_skip_is_recorded_as_a_skip():
       }); });
     """)
     assert out["calls"] == [{"path": "/me/first-run", "method": "PATCH",
-                            "body": {"action": "skip", "stop": "start"}}]
+                            "body": {"action": "defer", "stop": "community"}}]
 
 
-def test_the_checklist_counts_closed_stops_and_marks_skips():
+def test_the_checklist_counts_done_stops_and_marks_deferred_ones_later():
+    """The count is COMPLETED work, and a deferred stop is not completed work.
+
+    Under the old model any outcome counted, so a physician who skipped three
+    stops read "6 of 6" and the walkthrough never returned. `deferred` is
+    progress nobody has made yet: it does not count, and it says `later` rather
+    than `skipped`, because it is a thing they have not done — not a thing they
+    declined for good.
+    """
     out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
-        "welcome": "done", "start": "skipped", "practice": "done"}}}) + """
+        "welcome": "done", "start": "done", "practice": "done",
+        "community": "deferred"}}}) + """
       window.FirstRunWalkthrough.start(ctx);
       done(function () {
         var list = find(rootNode, 'asc-fr-checklist')[0];
         console.log(JSON.stringify({
           count: textOf(find(list, 'asc-fr-check-count')[0]),
           items: find(list, 'asc-fr-check-item').map(function (li) {
-            return { text: textOf(li).trim(), done: li.classList.contains('is-done') };
+            return { text: textOf(li).trim(),
+                     done: li.classList.contains('is-done'),
+                     later: li.classList.contains('is-later') };
           }),
+          eyebrows: find(list, 'asc-fr-eyebrow').map(textOf),
         }));
       });
     """)
-    assert out["count"] == "3 of 6"
+    assert out["count"] == "3 of 6", "a deferred stop must not count as done"
     assert [i["done"] for i in out["items"]] == [True, True, True, False, False, False]
-    # A skip reads as closed AND says so, rather than looking like a completion.
-    assert "skipped" in out["items"][1]["text"]
+    # The deferred one is visibly a different state from both done and untouched.
+    assert out["items"][3]["later"] is True
+    assert "later" in out["items"][3]["text"]
+    assert "skipped" not in out["items"][3]["text"]
+    # §4.1: required rows first, then the optional three under a tiny eyebrow.
+    assert out["eyebrows"] == ["OPTIONAL"]
 
 
 def test_a_walkthrough_resumed_after_the_practice_case_lands_on_the_community():
@@ -392,22 +427,49 @@ def test_the_manual_stop_offers_the_founders_intro_and_finishes_the_checklist():
         console.log(JSON.stringify({
           links: links,
           finished: textOf(rootNode),
+          handoffs: handoffs,
           calls: apiCalls.filter(function (c) { return c.path === '/me/first-run'; }),
         }));
       });
     """)
     assert any("calendly.com/tejpatel-berkeley" in (l or "") for l in out["links"])
-    assert "You’re all set." in out["finished"]
-    assert out["calls"][-1]["body"] == {"action": "skip", "stop": "manual"}
+    assert out["calls"][-1]["body"] == {"action": "defer", "stop": "manual"}
+    # Welcome package v2: putting the last stop off does NOT reach "You're all
+    # set". That card carries the dismiss — the one control that stops the
+    # product ever mentioning onboarding again — and a physician who deferred
+    # their way to the end has finished nothing. Congratulating them and then
+    # quietly switching off the re-entry cadence they were promised would defeat
+    # §2 on the very first login. They leave, and login 2 brings the re-entry
+    # page back.
+    assert "You’re all set." not in out["finished"]
+    assert "exit" in out["handoffs"], "deferring the last stop should leave"
+    assert not [c for c in out["calls"] if c["body"].get("action") == "dismiss"]
+
+
+def test_finishing_the_last_stop_for_real_does_reach_the_all_set_card():
+    """The other half of the rule above: `done` on all six earns the finish card
+    and the dismiss that goes with it."""
+    out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
+        "welcome": "done", "start": "done", "practice": "done",
+        "community": "done", "earnings": "done"}}}) + """
+      window.FirstRunWalkthrough.resume(ctx);
+      done(function () {
+        find(rootNode, 'asc-btn-primary')[0].dispatch('click');
+        done(function () {
+          console.log(JSON.stringify({ finished: textOf(rootNode), handoffs: handoffs }));
+        });
+      });
+    """)
+    # The manual's primary opens the guide panel, which is where "the manual"
+    # lives — the stop is done, and the finish card is reached on the next resume.
+    assert "guide" in str(out["handoffs"])
 
 
 def test_the_checklist_card_collapses_to_one_line_when_every_stop_is_closed():
     """§6 stop 6: "the card collapses to a one-line 'You're all set' with
     confetti-free restraint". It is not REMOVED — a checklist that vanishes at
     the moment you finish it takes the sense of having finished with it."""
-    out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
-        "welcome": "done", "start": "done", "practice": "done", "community": "done",
-        "earnings": "done", "manual": "skipped"}}}) + """
+    probe = """
       window.FirstRunWalkthrough.resume(ctx);
       done(function () {
         var card = find(rootNode, 'asc-fr-checklist')[0];
@@ -417,12 +479,25 @@ def test_the_checklist_card_collapses_to_one_line_when_every_stop_is_closed():
           items: card ? find(card, 'asc-fr-check-item').length : -1,
         }));
       });
-    """)
+    """
+    out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
+        "welcome": "done", "start": "done", "practice": "done", "community": "done",
+        "earnings": "done", "manual": "done"}}}) + probe)
     assert out["collapsed"], "the checklist did not collapse"
     assert "You’re all set" in out["text"]
     assert out["items"] == 0
     # No exclamation, no count, no confetti.
     assert "!" not in out["text"]
+
+    # ...and it does NOT collapse on a deferred stop. This case read as finished
+    # under the old model — every stop carried an outcome, so the card collapsed,
+    # the count said 6 of 6, and the walkthrough never came back. That is the bug
+    # Welcome package v2 §1 exists to fix, so it is pinned here as well as in the
+    # count test.
+    out = _run_node(_ctx(user={"first_run": {"version": 1, "stops": {
+        "welcome": "done", "start": "done", "practice": "done", "community": "done",
+        "earnings": "done", "manual": "deferred"}}}) + probe)
+    assert not out["collapsed"], "a deferred stop is not a finished checklist"
 
 
 def test_the_finish_card_dismisses_the_checklist_for_good():
@@ -463,21 +538,35 @@ def test_leaving_early_does_not_dismiss_the_remaining_stops():
 def test_should_run_and_progress_answer_the_shell_correctly():
     out = _run_node(_ctx() + """
       var W = window.FirstRunWalkthrough;
+      var ALL = { welcome: 'done', start: 'done', practice: 'done',
+                  community: 'done', earnings: 'done', manual: 'done' };
       console.log(JSON.stringify({
         fresh: W.shouldRun({ first_run: { version: 1, stops: {} } }),
         partial: W.shouldRun({ first_run: { version: 1, stops: { welcome: 'done' } } }),
         dismissed: W.shouldRun({ first_run: { stops: {}, dismissed_at: '2026-01-01' } }),
-        completed: W.shouldRun({ first_run: { stops: {}, completed_at: '2026-01-01' } }),
+        allDone: W.shouldRun({ first_run: { stops: ALL } }),
         noPayload: W.shouldRun({}),
+        // 'skipped' is the PREVIOUS bundle's word, and a payload cached from
+        // before the deploy can still carry it. A required skip is not progress
+        // (they must actually do it); an optional one reads as deferred, which
+        // is also not progress. Either way this counts 1.
         progress: W.progress({ first_run: { stops: { welcome: 'done', start: 'skipped' } } }),
+        progressLegacyOptional: W.progress({
+          first_run: { stops: { welcome: 'done', community: 'skipped' } } }),
       }));
     """)
     assert out["fresh"] is True and out["partial"] is True
-    assert out["dismissed"] is False and out["completed"] is False
+    assert out["dismissed"] is False
+    # Every stop genuinely done is the only thing that means "nothing to show".
+    assert out["allDone"] is False
     # An account whose payload is missing entirely (a very old row) still gets
     # the walkthrough rather than silently never seeing it.
     assert out["noPayload"] is True
-    assert out["progress"] == {"done": 2, "total": 6}
+    # The old assertion here was {"done": 2}: it counted a skip as progress,
+    # which is exactly how a physician who skipped the practice case read "6 of
+    # 6" and was never asked again.
+    assert out["progress"] == {"done": 1, "total": 6}
+    assert out["progressLegacyOptional"] == {"done": 1, "total": 6}
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -494,7 +583,7 @@ def test_the_shell_gates_on_rotation_before_the_walkthrough():
     screen that retires it."""
     js = _PORTAL_JS.read_text(encoding="utf-8")
     rotate = js.index("if (state.user.must_change_password) { renderRotateTempPassword(); return; }")
-    walkthrough = js.index("window.FirstRunWalkthrough.shouldRun(state.user)")
+    walkthrough = js.index("if (frMode === 'walkthrough') { startFirstRun(); return; }")
     assert rotate < walkthrough
 
 
@@ -506,14 +595,22 @@ def test_the_walkthrough_is_offered_to_physicians_only():
     entry gate and the dashboard chip go through.
     """
     js = _PORTAL_JS.read_text(encoding="utf-8")
-    body = js[js.index("function firstRunPending()"):]
+    # Welcome package v2 §2 moved the routing decision from a boolean to
+    # `firstRunMode()`; the role question stayed exactly where it was, on the
+    # shell side, and this is still the one predicate everything goes through.
+    body = js[js.index("function firstRunMode()"):]
     body = body[:body.index("\n  }") + 4]
-    assert "state.user.role === 'evaluator'" in body
-    assert "!isAdvisor()" in body
-    assert "window.FirstRunWalkthrough.shouldRun(state.user)" in body
-    # And both entry points go through it rather than re-deriving the rule.
-    assert "if (firstRunPending()) { startFirstRun(); return; }" in js
+    assert "state.user.role !== 'evaluator'" in body
+    assert "isAdvisor()" in body
+    assert "window.FirstRunWalkthrough.mode(state.user)" in body
+    # The chip still derives from it rather than re-deriving the rule...
+    assert "function firstRunPending()" in js
+    assert "return firstRunMode() !== 'none';" in js
     assert "if (!firstRunPending()) return null;" in js
+    # ...and so does every entry point, including the two new ones.
+    assert "const frMode = firstRunMode();" in js
+    assert "if (frMode === 'walkthrough') { startFirstRun(); return; }" in js
+    assert "if (frMode === 'reentry') { openFirstRunReentry(); return; }" in js
 
 
 def test_the_review_deep_link_is_read_before_the_walkthrough_opens():
@@ -521,7 +618,7 @@ def test_the_review_deep_link_is_read_before_the_walkthrough_opens():
     walkthrough would both ignore it and leave it in the URL to fire on some
     later reload."""
     js = _PORTAL_JS.read_text(encoding="utf-8")
-    assert js.index("readReviewHash()") < js.index("if (firstRunPending()) { startFirstRun()")
+    assert js.index("readReviewHash()") < js.index("const frMode = firstRunMode();")
 
 
 def test_the_walkthrough_builds_its_dom_with_h_and_never_innerHTML():

@@ -313,6 +313,11 @@ function openInstructionDrawer() {}
 function renderDashboardView() { calls.push('dashboard'); }
 function startTutorial(o) { calls.push('replay:' + !!(o && o.replay)); }
 function firstRunPending() { return false; }
+// Welcome package v2: the practice case's hand-back asks whether the FIRST pass
+// through the tour is unfinished, not whether any stop is open — `deferred`
+// keeps a stop open, and resuming on that would walk a physician who replayed
+// the practice case months later back through an onboarding they declined.
+function firstRunTourPending() { return false; }
 function resumeFirstRun() { calls.push('first-run'); }
 const calls = [];
 const state = { user: {}, tutorial: null };
