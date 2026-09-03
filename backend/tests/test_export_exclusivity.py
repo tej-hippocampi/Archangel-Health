@@ -355,6 +355,54 @@ def test_an_exclusive_with_nobody_holding_it_is_refused_at_the_door():
     assert "licensed_to" in r.json()["detail"]
 
 
+def test_a_malformed_expiry_is_refused_with_400_and_no_licence_is_recorded():
+    """Expiry is enforced by lexical comparison against ISO stamps, so a value
+    like '12/31/2026' sorts before every current stamp and reads as already
+    expired: the licence would record fine and then silently never block anyone.
+    That is worse than no licence, because the register would show protection
+    that does not exist. The boundary refuses what the store cannot enforce."""
+    store = _store()
+    _seed_records(store, 1)
+    r = client.post("/api/asclepius/exports",
+                    json={"licensed_to": "first@example.com", "exclusive": True,
+                          "license_expires_at": "12/31/2026",
+                          "include_exported": True},
+                    headers=_admin_h())
+    assert r.status_code == 400, r.text
+    assert "license_expires_at" in r.json()["detail"]
+    assert store.list_export_licenses() == [], "a refused cut must record no licence"
+    assert store.list_records(status="exported") == [], \
+        "a refused cut must not mark anything exported"
+
+
+def test_the_case_bundle_endpoint_refuses_a_malformed_expiry_the_same_way():
+    """Export-by-case is the surface an operator actually types the expiry on
+    (a bare date input), so it gets the same door check as the raw endpoint."""
+    store = _store()
+    _seed_records(store, 1)
+    r = client.post("/api/asclepius/admin/export/case-bundle",
+                    json={"licensed_to": "first@example.com", "exclusive": True,
+                          "license_expires_at": "next year"},
+                    headers=_admin_h())
+    assert r.status_code == 400, r.text
+    assert "license_expires_at" in r.json()["detail"]
+    assert store.list_export_licenses() == []
+
+
+def test_a_well_formed_expiry_still_passes_the_door_check():
+    """The guard must reject '12/31/2026' without rejecting the values the date
+    input actually sends (a bare ISO date) or a full ISO datetime."""
+    store = _store()
+    _seed_records(store, 1)
+    r = client.post("/api/asclepius/exports",
+                    json={"licensed_to": "first@example.com", "exclusive": True,
+                          "license_expires_at": "2999-01-31",
+                          "include_exported": True},
+                    headers=_admin_h())
+    assert r.status_code == 200, r.text
+    assert r.json()["licensing"]["expires_at"] == "2999-01-31"
+
+
 def test_the_admin_register_shows_what_is_committed_and_can_release_it():
     """Requirement 3: an operator about to sell something must be able to see what
     is already promised, to whom, and end it, without reading the database."""
@@ -456,3 +504,12 @@ def test_the_export_screen_asks_for_the_licence_and_shows_the_commitments():
     assert "licensed_to" in js and "exclusive" in js
     assert "/admin/export/exclusivity" in js
     assert "window.confirm(" in js, "releasing a commitment must not be a stray click"
+
+
+def test_a_successful_cut_disarms_the_exclusive_checkbox_for_the_next_one():
+    """The licence state is module-level so it survives tab switches, which means
+    an exclusive left set after one cut would silently record a brand-new
+    exclusive commitment on the next unrelated cut. The screen must clear it."""
+    js = _admin_export_js()
+    assert "licence.exclusive = false" in js, \
+        "exclusive must not persist into the next cut after a successful export"

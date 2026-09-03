@@ -25,7 +25,7 @@ import logging
 import os
 import re
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -109,6 +109,36 @@ def _conflict_message(conflicts: List[Dict[str, Any]], licensed_to: Optional[str
         "buyer. " + "; ".join(parts) + ". Release or narrow the licence, or narrow "
         "this cut, before exporting."
     )
+
+
+def validate_license_expiry(value: Optional[str]) -> Optional[str]:
+    """Vet ``license_expires_at`` at the API boundary, before anything is written.
+
+    Expiry is enforced by LEXICAL comparison against naive-UTC ISO stamps
+    (``expires_at > now`` in ``store.exclusive_license_conflicts``), so a
+    malformed value like '12/31/2026' sorts before every current stamp and reads
+    as already expired: the licence records fine and then silently never blocks
+    anyone. Refusing it at the door is the only moment somebody is looking.
+
+    Returns the string to store: as typed for naive dates/datetimes, converted
+    to naive UTC for offset-aware ones (an offset kept verbatim would be
+    compared as if it were UTC and enforce the wrong instant). Raises
+    ValueError, which every export boundary turns into a 400, on a value
+    ``fromisoformat`` cannot parse.
+    """
+    if value is None or not str(value).strip():
+        return None
+    text = str(value).strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(
+            "license_expires_at must be an ISO date or datetime "
+            f"(for example 2027-01-31 or 2027-01-31T00:00:00), got {text!r}."
+        ) from None
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
+    return text
 
 
 def enforce_exclusivity(

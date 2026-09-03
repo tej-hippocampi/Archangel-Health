@@ -4185,6 +4185,12 @@ async def create_export(
             status_code=400,
             detail="An exclusive licence needs licensed_to (the buyer holding it).",
         )
+    # Expiry is enforced lexically against ISO stamps, so a malformed value would
+    # read as already expired and the exclusive would silently never block.
+    try:
+        license_expires_at = asc_export.validate_license_expiry(body.license_expires_at)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     try:
         manifest = asc_export.build_export(
             store,
@@ -4210,7 +4216,7 @@ async def create_export(
             license_label=body.license_label,
             license_exclusivity=(asc_export.EXCLUSIVE if body.exclusive
                                  else asc_export.NON_EXCLUSIVE),
-            license_expires_at=body.license_expires_at,
+            license_expires_at=license_expires_at,
             license_note=body.license_note,
         )
     except asc_export.ExclusiveLicenseConflict as exc:

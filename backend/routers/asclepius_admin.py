@@ -292,6 +292,12 @@ async def export_case_bundle(
         raise HTTPException(
             status_code=400,
             detail="An exclusive licence needs a buyer in 'Licensed to'.")
+    # Expiry is enforced lexically against ISO stamps, so a malformed value would
+    # read as already expired and the exclusive would silently never block.
+    try:
+        license_expires_at = asc_export.validate_license_expiry(body.license_expires_at)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     try:
         res = export_by_case(
             store, created_by=admin["id"], case_id=body.case_id or None,
@@ -300,7 +306,7 @@ async def export_case_bundle(
             licensed_to=body.licensed_to or None,
             license_exclusivity=(asc_export.EXCLUSIVE if body.exclusive
                                  else asc_export.NON_EXCLUSIVE),
-            license_expires_at=body.license_expires_at or None,
+            license_expires_at=license_expires_at,
             license_note=note)
     except asc_export.ExclusiveLicenseConflict as exc:
         raise HTTPException(status_code=409,

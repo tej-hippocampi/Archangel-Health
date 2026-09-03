@@ -24,7 +24,10 @@
   const filters = { case_id: '', specialty: '', version: '' };
   // Licensing terms for the NEXT cut (audit U5). Kept out of `filters` because
   // they do not narrow the slice, they say what we are promising about it.
+  // `exclusive` describes ONE deal and is cleared after each successful cut
+  // (see runExport); buyer + expiry persist as prefill for re-deliveries.
   const licence = { licensed_to: '', exclusive: false, expires_at: '' };
+  let exclusiveBoxEl = null;
 
   function render(body, ctx) {
     rootEl = body; rootCtx = ctx;
@@ -49,6 +52,7 @@
     const buyerInput = h('input', { class: 'asc-input', placeholder: 'buyer email or account key', value: licence.licensed_to });
     const exclusiveBox = h('input', { type: 'checkbox', class: 'asc-checkbox' });
     exclusiveBox.checked = licence.exclusive;
+    exclusiveBoxEl = exclusiveBox;
     const expiryInput = h('input', { class: 'asc-input', type: 'date', value: licence.expires_at });
     const licenceNote = h('div', { class: 'asc-dim' },
       'Exclusive means these exact records cannot go to anyone else until the ' +
@@ -195,6 +199,12 @@
           + ' licence ' + res.licensing.license_id + ' to ' + res.licensing.licensed_to
           + (res.licensing.expires_at ? ', until ' + res.licensing.expires_at : '') + '.'));
       }
+      // Exclusivity is a term of ONE deal. Left set, the next unrelated cut
+      // would silently record a brand-new exclusive commitment nobody decided
+      // to make, so it clears after every successful export. Buyer and expiry
+      // stay as prefill: re-deliveries to the same buyer are routine.
+      licence.exclusive = false;
+      if (exclusiveBoxEl) exclusiveBoxEl.checked = false;
       // A cut that just took records off the market has to show that in the same
       // breath, or the register on screen is already wrong.
       if (commitmentsEl && rootCtx) refreshCommitments(rootCtx, commitmentsEl);

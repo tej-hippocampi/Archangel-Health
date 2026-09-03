@@ -124,6 +124,12 @@ async def send_buyer_delivery(
 
     label = ", ".join(orgs)
     scope = {"type": "buyer_delivery", "organizations": orgs, "buyer_email": body.buyer_email}
+    # Expiry is enforced lexically against ISO stamps, so a malformed value would
+    # read as already expired and the exclusive would silently never block.
+    try:
+        license_expires_at = asc_export.validate_license_expiry(body.license_expires_at)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     try:
         manifest = asc_export.build_export(
             store,
@@ -145,7 +151,7 @@ async def send_buyer_delivery(
             license_label=body.buyer_name,
             license_exclusivity=(asc_export.EXCLUSIVE if body.exclusive
                                  else asc_export.NON_EXCLUSIVE),
-            license_expires_at=body.license_expires_at,
+            license_expires_at=license_expires_at,
             license_note=body.note,
         )
     except asc_export.ExclusiveLicenseConflict as exc:
