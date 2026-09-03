@@ -2374,6 +2374,44 @@ class AllocateBody(BaseModel):
         return self
 
 
+def _depth_fields_present(user: Dict[str, Any]) -> List[str]:
+    """Which of ``allocation.DEPTH_FIELDS`` this physician has actually answered.
+
+    The adapter between a users row and the allocator's pure input, which is why
+    it lives here and not in ``allocation``: reading a JSON blob off a row is
+    store-shaped work, and the allocator stays a function of what it is handed.
+
+    Only the six names in ``DEPTH_FIELDS`` can come out of here. It does not
+    walk the credentials blob and report everything it finds, because a blob is
+    an open set and a field somebody adds next year must not start influencing
+    who gets which case without anyone deciding that it should.
+    """
+    from asclepius import allocation as asc_allocation
+
+    import json as _js  # noqa: PLC0415 -- module-level `json` is bound later, as _json
+
+    try:
+        creds = _js.loads(user.get("credentials_json") or "{}") or {}
+    except (TypeError, ValueError):
+        creds = {}
+    # The credential-blob spelling on the left, the DEPTH_FIELDS name on the
+    # right. Written out rather than derived from _PROFILE_DETAIL_KEYS: importing
+    # the profile page's mapping would silently enrol any field that page starts
+    # showing, and the whole point of DEPTH_FIELDS is that the list is chosen.
+    sources = {
+        "subspecialties": creds.get("subspecialties"),
+        "board_certifications": creds.get("boardCertifications"),
+        "practice_settings": creds.get("practiceSettings"),
+        "languages": creds.get("languages"),
+        "years_in_active_practice": creds.get("yearsInActivePractice"),
+        "specialty_niche": user.get("specialty_niche"),
+    }
+    present = [name for name, value in sources.items()
+               if value not in (None, "", [], {})]
+    known = set(asc_allocation.DEPTH_FIELDS)
+    return sorted(n for n in present if n in known)
+
+
 def _allocation_inputs(store: Any, task_ids: List[str]):
     """Build the allocator's pure inputs from the store.
 
@@ -2426,6 +2464,7 @@ def _allocation_inputs(store: Any, task_ids: List[str]):
             contributor_score=scores.get(u["id"]),
             real_data_approved=bool(u.get("real_data_approved")),
             open_assignments=loads.get(u["id"], 0),
+            profile_depth=asc_allocation.profile_depth(_depth_fields_present(u)),
         ))
     return cases, physicians, domain
 
