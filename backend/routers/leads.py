@@ -94,11 +94,21 @@ async def submit_lead(body: LeadBody, request: Request):
     if body.company_website.strip():
         return {"ok": True}
 
+    if body.source not in _LEAD_SOURCES:
+        raise HTTPException(status_code=422, detail="Unknown form.")
+
+    message = body.message.strip()
+    if not message:
+        raise HTTPException(status_code=422, detail="Please tell us a little about what you need.")
+    email = str(body.email).strip()
+
     # A submission that came from a physician's introduction advances that
-    # physician's funnel row. Best-effort and deliberately BEFORE the transport
-    # check below: this endpoint 503s when email is unconfigured, and the
-    # referring doctor should not lose the one signal that their introduction
-    # is working because our SendGrid key expired.
+    # physician's funnel row. Best-effort, AFTER validation so a rejected
+    # submission cannot tell the referrer "they told us about their system",
+    # but deliberately BEFORE the transport check below: this endpoint 503s
+    # when email is unconfigured, and the referring doctor should not lose the
+    # one signal that their introduction is working because our SendGrid key
+    # expired.
     if body.referral_token:
         try:
             from asclepius.store import get_store
@@ -109,14 +119,6 @@ async def submit_lead(body: LeadBody, request: Request):
                 store.advance_hs_referral(row["hs_referral_id"], "submitted")
         except Exception:
             pass
-
-    if body.source not in _LEAD_SOURCES:
-        raise HTTPException(status_code=422, detail="Unknown form.")
-
-    message = body.message.strip()
-    if not message:
-        raise HTTPException(status_code=422, detail="Please tell us a little about what you need.")
-    email = str(body.email).strip()
 
     # Persist first (best-effort). Never fail the request on a storage hiccup —
     # the email is the primary delivery path.

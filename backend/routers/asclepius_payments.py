@@ -511,6 +511,20 @@ async def create_hs_referral(
     store = _store()
     referrer = store.get_user_by_id(user["id"]) or user
 
+    # Stricter than the physician path, on purpose. That invite is templated;
+    # this one carries the referrer's chosen name, their free-text description
+    # of a relationship, and their Reply-To, delivered cold to somebody senior
+    # at an organization we want to do business with. An account nobody has
+    # vetted yet does not get to make the platform speak in that voice — an
+    # OTP signup is possession of an inbox, not an identity. The under-review
+    # physician keeps their referral link and the physician invite; this one
+    # door waits for approval.
+    if (referrer.get("role") != "admin"
+            and referrer.get("verification_status") != "approved"):
+        raise HTTPException(
+            status_code=403,
+            detail="Health-system introductions unlock once your account is approved.")
+
     # Self-referral. Not a fraud control so much as a coherence one: an email
     # telling you that you suggested we reach out to yourself is nonsense, and
     # the physician path already refuses the same shape.

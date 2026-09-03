@@ -115,7 +115,21 @@ def test_a_named_contact_is_recorded_with_a_landing_token():
     assert row["hs_name"] == "Meridian Health"
     assert row["contact_email"].islower()
     assert row["landing_token"]
-    assert row["referral_code"] == referrer.get("referral_code") or True
+    assert row["referral_code"] == referrer.get("referral_code")
+
+
+def test_an_under_review_account_cannot_send_an_introduction():
+    """The intro email speaks in the referrer's chosen name, carries their
+    free-text relationship claim, and lands cold in a senior third-party inbox.
+    An account nobody has vetted yet does not get that voice: the door opens on
+    approval, unlike the physician invite, which stays available under review."""
+    store = _store()
+    pending = A.make_user(store, role="evaluator", specialty="nephrology")
+    assert (store.get_user_by_id(pending["id"]) or {}).get("verification_status") != "approved"
+
+    r = _submit(store.get_user_by_id(pending["id"]))
+    assert r.status_code == 403, r.text
+    assert store.list_hs_referrals_by_referrer(pending["id"]) == []
 
 
 def test_the_consent_checkbox_is_required():
