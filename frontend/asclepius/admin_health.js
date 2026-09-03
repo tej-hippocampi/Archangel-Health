@@ -549,8 +549,16 @@
         form.append('file', file, file.name);
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/asclepius/admin/assets/onboarding-demo');
+        // XMLHttpRequest, not fetch (progress events) — so the /sandbox/*
+        // shell's fetch wrapper never sees it. Key the token per realm and
+        // name the realm here, or a sandbox admin holding a live session in
+        // the same browser would write the video into the LIVE asset store.
+        const realm = (window.__REALM === 'sandbox') ? 'sandbox' : 'live';
         let token = null;
-        try { token = localStorage.getItem('asclepius_token'); } catch (e) { token = null; }
+        try {
+          token = localStorage.getItem(realm === 'sandbox' ? 'asclepius_token_sandbox' : 'asclepius_token');
+        } catch (e) { token = null; }
+        xhr.setRequestHeader('X-Asclepius-Realm', realm);
         if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
         xhr.upload.addEventListener('progress', (ev) => {
           if (!ev.lengthComputable) return;

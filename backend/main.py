@@ -788,22 +788,28 @@ async def _drain_admin_notifications() -> None:
     from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
     from notifications import IMPORTANT_KINDS  # noqa: PLC0415
 
-    if not is_email_transport_configured():
-        return
-    store = _asc_store()
-    for row in store.due_admin_notifications():
-        try:
-            ok = await send_html_email(
-                row["recipient_email"], row["subject"], row["body_html"],
-                # Preserved from the inline send this outbox replaced. Moving
-                # the approval mail here would otherwise have quietly dropped
-                # the flag it was sent with, and a verification decision is the
-                # one queued mail its recipient is actually waiting on.
-                importance_headers=row["kind"] in IMPORTANT_KINDS,
-            )
-            store.mark_admin_notification_sent(row["id"], ok=bool(ok))
-        except Exception as exc:
-            store.mark_admin_notification_sent(row["id"], ok=False, error=str(exc))
+    # Per realm (Sandbox PRD §1.4): a founder alert raised by a sandbox event
+    # sits in the sandbox store and, drained under the sandbox realm, lands in
+    # the sandbox outbox — never a real inbox, and never left queued forever.
+    for realm_name in _realm.active_realms():
+        with _realm.scoped(realm_name):
+            if not is_email_transport_configured():
+                continue
+            store = _asc_store()
+            for row in store.due_admin_notifications():
+                try:
+                    ok = await send_html_email(
+                        row["recipient_email"], row["subject"], row["body_html"],
+                        # Preserved from the inline send this outbox replaced.
+                        # Moving the approval mail here would otherwise have
+                        # quietly dropped the flag it was sent with, and a
+                        # verification decision is the one queued mail its
+                        # recipient is actually waiting on.
+                        importance_headers=row["kind"] in IMPORTANT_KINDS,
+                    )
+                    store.mark_admin_notification_sent(row["id"], ok=bool(ok))
+                except Exception as exc:
+                    store.mark_admin_notification_sent(row["id"], ok=False, error=str(exc))
 
 
 async def _task_notification_loop() -> None:

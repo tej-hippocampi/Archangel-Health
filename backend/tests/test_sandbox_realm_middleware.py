@@ -277,3 +277,58 @@ def test_websocket_scope_with_a_live_token_on_a_sandbox_realm_is_refused(two_rea
     scope = _scope("websocket", query=("ticket=opaque&realm=sandbox").encode(), path="/api/community/ws")
     asyncio.run(realm.RealmMiddleware(app2)(scope, None, send))
     assert seen["realm"] == "sandbox"
+
+
+# ─── Audit finding: one portal cookie per realm ──────────────────────────────
+def test_portal_cookie_is_named_per_realm():
+    assert realm.hs_cookie("live") == realm.HS_COOKIE == "hs_portal_session"
+    assert realm.hs_cookie("sandbox") == realm.HS_COOKIE_SANDBOX != realm.HS_COOKIE
+    with realm.scoped("sandbox"):
+        assert realm.hs_cookie() == realm.HS_COOKIE_SANDBOX
+
+
+def test_claim_from_scope_peeks_only_the_cookie_of_the_requested_realm(two_realms):
+    from routers import asclepius_provider as P
+    with realm.scoped("sandbox"):
+        sb_cookie = P._hs_token("sb-user", "hs-sb")
+    live_cookie = P._hs_token("live-user", "hs-live")
+    both = f"{realm.HS_COOKIE}={live_cookie}; {realm.HS_COOKIE_SANDBOX}={sb_cookie}"
+    # A live request reads the live cookie even with the sandbox one beside it…
+    assert realm.claim_from_scope(_scope(headers=[("cookie", both), ("x-asclepius-realm", "live")]))["claim"] == "live"
+    assert realm.claim_from_scope(_scope(headers=[("cookie", both)]))["claim"] == "live"
+    # …and a sandbox request (header or path) reads the sandbox one.
+    assert realm.claim_from_scope(_scope(headers=[("cookie", both), ("x-asclepius-realm", "sandbox")]))["claim"] == "sandbox"
+    assert realm.claim_from_scope(_scope(headers=[("cookie", both)], path="/sandbox/provider"))["claim"] == "sandbox"
+    # A stray sandbox cookie says nothing about a live request.
+    assert realm.claim_from_scope(_scope(headers=[("cookie", f"{realm.HS_COOKIE_SANDBOX}={sb_cookie}")]))["claim"] is None
+
+
+def test_a_sandbox_portal_session_does_not_lock_the_browser_out_of_the_live_portal(two_realms):
+    """Both cookies are path=/. With one name, a sandbox sign-in rode on every
+    live /provider call — login and logout included — as 401 realm_mismatch
+    for the cookie's TTL. And the reverse: a live cookie 401'd the sandbox shells."""
+    from routers import asclepius_provider as P
+    with realm.scoped("sandbox"):
+        sb_cookie = P._hs_token("sb-user", "hs-sb")
+    live_cookie = P._hs_token("live-user", "hs-live")
+    sb_jar = {realm.HS_COOKIE_SANDBOX: sb_cookie}
+    r = client.post("/api/asclepius/hs/login", headers={realm.HEADER: "live"}, cookies=sb_jar,
+                    json={"username": "nobody", "password": "pw-12345678"})
+    assert "realm_mismatch" not in r.text, r.text
+    r = client.post("/api/asclepius/hs/logout", headers={realm.HEADER: "live"}, cookies=sb_jar)
+    assert "realm_mismatch" not in r.text, r.text
+    for path in ("/sandbox/asclepius", "/sandbox/provider"):
+        r = client.get(path, cookies={realm.HS_COOKIE: live_cookie})
+        assert r.status_code == 200 and "window.__REALM='sandbox'" in r.text, (path, r.status_code)
+
+
+def test_realm_query_param_stands_in_for_the_header_on_a_plain_navigation(two_realms):
+    """An outbox link (``/community/join/<t>?realm=sandbox``) is a navigation
+    with no header; ``?realm=`` names the realm exactly as the header would."""
+    live = two_realms["live_token"]
+    ok = client.get("/api/asclepius/auth/me", headers={"Authorization": "Bearer " + live})
+    assert ok.status_code == 200
+    r = client.get("/api/asclepius/auth/me?realm=sandbox", headers={"Authorization": "Bearer " + live})
+    assert r.status_code == 401 and "realm_mismatch" in r.text
+    r = client.get("/api/asclepius/auth/me?realm=live", headers={"Authorization": "Bearer " + live})
+    assert r.status_code == 200

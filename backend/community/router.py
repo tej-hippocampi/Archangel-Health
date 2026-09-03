@@ -1928,7 +1928,10 @@ async def redeem_community_invite(token: str):
         await welcome_new_member(user)
     except Exception:
         log.exception("[community] welcome failed on invite redemption (join stands)")
-    return RedirectResponse(url="/community", status_code=303)
+    import realm as _realm  # noqa: PLC0415
+
+    # A sandbox invite (``?realm=sandbox`` on the link) lands on the sandbox shell.
+    return RedirectResponse(url=_realm.portal_path("/community"), status_code=303)
 
 
 def _hash_community_invite(raw: str) -> str:

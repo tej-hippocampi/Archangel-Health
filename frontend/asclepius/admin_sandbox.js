@@ -1,7 +1,7 @@
 /*
    Admin · Sandbox section (Sandbox PRD §3.2 Accounts, §3.3 Outbox, §4 copy)
 
-   Mounted by asclepius.js as the fifth admin tab, and ONLY when the page is
+   Mounted by admin_shell.js as the fifth admin tab, and ONLY when the page is
    the sandbox realm (window.__REALM === 'sandbox'). The live console never
    shows it. Same design system, same `ctx` contract as the other sections
    (admin_health.js et al.): { h, api, clear, toast, loadingCard, fmtDate,
@@ -200,7 +200,7 @@
           try {
             const res = await api(SANDBOX_API + '/copy-health-system/' + encodeURIComponent(s.hs_id), { method: 'POST' });
             toast('Copied ' + s.name + ': ' + res.uploads + ' upload(s), ' + res.ingest_cases + ' case(s), ' + res.assets + ' file(s).', 'ok');
-            renderAccounts(container.parentNode ? container : container, ctx);
+            renderAccounts(container, ctx);
           } catch (e) { toast(e.message || 'Copy failed.', 'error'); btn.disabled = false; }
         });
         return h('tr', {},

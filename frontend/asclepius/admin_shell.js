@@ -481,7 +481,24 @@
         h('span', { class: 'asc-admin-mark-text' }, 'Asclepius',
           h('span', { class: 'asc-admin-mark-sub' }, 'Operations'))),
       nav, who));
+    fitMasthead();
   }
+
+  /** The tab strip is navigation; the who-block is information. When one row
+   *  cannot hold both — seven sections beside a long operator address on a
+   *  laptop — the strip used to scroll with its scrollbar hidden, so the last
+   *  sections (Referrals, and Sandbox in the sandbox) were simply not on
+   *  screen, with nothing saying so. Measure the overflow and drop the strip
+   *  onto its own row instead (admin.css `.stacked`); re-measure on resize. */
+  function fitMasthead() {
+    const bar = document.getElementById('ascAdminBar');
+    const inner = bar && bar.querySelector('.asc-admin-bar-inner');
+    const nav = inner && inner.querySelector('.asc-admin-tabs');
+    if (!inner || !nav) return;
+    inner.classList.remove('stacked');
+    if (nav.scrollWidth > nav.clientWidth + 1) inner.classList.add('stacked');
+  }
+  if (typeof window.addEventListener === 'function') window.addEventListener('resize', fitMasthead);
 
   function signOut() {
     state.token = null;
