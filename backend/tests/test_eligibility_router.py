@@ -81,7 +81,12 @@ def stub_pipeline(monkeypatch):
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    # Carries a tenant staff token because these routes serve patient PHI and
+    # now refuse an anonymous caller. This fixture used to be a bare TestClient,
+    # which meant every test here drove the PHI routes with no credential at
+    # all: the suite was asserting the hole rather than the behavior.
+    return TestClient(app, headers={
+        "Authorization": f"Bearer {tenant_token(health_system_id='demo_hs')}"})
 
 
 # ─── Draft patient lifecycle ───────────────────────────────────────────────
@@ -541,9 +546,13 @@ def test_postop_confirm_rejects_empty(client):
 
 
 # ─── Audit ────────────────────────────────────────────────────────────────
-def test_audit_endpoint_requires_auth(client):
-    """Anonymous callers must NOT see the audit log (PHI leak prevention)."""
-    r = client.get("/admin/audit/eligibility")
+def test_audit_endpoint_requires_auth():
+    """Anonymous callers must NOT see the audit log (PHI leak prevention).
+
+    Deliberately does NOT take the ``client`` fixture: that one now carries a
+    staff token, and this test is about what happens without one.
+    """
+    r = TestClient(app).get("/admin/audit/eligibility")
     assert r.status_code == 401
 
 
@@ -1062,6 +1071,9 @@ def test_preop_notes_endpoint_returns_batch_extracted_notes(client):
     pid = "batch-margaret"
     app.state.patient_store[pid] = {
         "name": "Margaret O'Sullivan",
+        # Hand-built rows still need a tenant: the PHI routes are tenant-scoped
+        # now, and a row with no health_system_id belongs to nobody.
+        "health_system_id": "demo_hs",
         "structured_data": {
             "patient_name": "Margaret O'Sullivan",
             "procedure_name": "TKR",

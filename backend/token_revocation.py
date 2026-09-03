@@ -15,6 +15,8 @@ from typing import Optional
 
 import jwt
 
+from team_store import connect_team_db
+
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
 ALGORITHM = "HS256"
 
@@ -25,9 +27,10 @@ def _db_path() -> str:
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(_db_path())
-    conn.row_factory = sqlite3.Row
-    return conn
+    # WAL + a 30s busy timeout, same as every other team.db opener: is_revoked()
+    # runs on every token decode, so it is the first thing to feel write-lock
+    # contention on a busy morning.
+    return connect_team_db(_db_path())
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:

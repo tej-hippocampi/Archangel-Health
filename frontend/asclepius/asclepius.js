@@ -24,6 +24,11 @@
   // from this rather than from the message, so rewording the copy can never
   // break the routing.
   const PRACTICE_GATE_HEADER = 'X-Asclepius-Practice-Gate';
+  // Companion header on the contributor-agreement 403 (routers/asclepius.py
+  // AGREEMENT_GATE_HEADER): 'never_signed' | 'superseded'. Read for the same
+  // reason as the two above, and it is what routes a refused draw to the
+  // signature screen instead of to an error card.
+  const AGREEMENT_GATE_HEADER = 'X-Asclepius-Agreement-Gate';
   const TOKEN_KEY = REALM === 'sandbox' ? 'asclepius_token_sandbox' : 'asclepius_token';
   // In-progress evaluation drafts, one key per task. Deliberately per-browser
   // and client-only: the drafts are not mirrored to the server.
@@ -208,6 +213,7 @@
         // Lets the caller pick the right screen without matching on prose.
         authGate: res.headers.get(AUTH_GATE_HEADER),
         practiceGate: res.headers.get(PRACTICE_GATE_HEADER),
+        agreementGate: res.headers.get(AGREEMENT_GATE_HEADER),
       };
     }
     return data;
@@ -2334,6 +2340,205 @@
     startTutorial({});
   }
 
+  // ─── The contributor agreement ──────────────────────────────────────────────
+  // The screen the fourth gate points at. It is the reason that gate may be
+  // armed at all: ASCLEPIUS_AGREEMENT_GATE refuses a draw with
+  // {"action": {"kind": "sign_agreement"}}, and until this existed that refusal
+  // named a door nobody had built, so every physician's queue would have locked on
+  // the deploy that flipped the flag, with nothing on screen to unlock it.
+  //
+  // Reachable two ways ON PURPOSE. The gate routes here when it is armed; the
+  // Profile page links here whether or not it is, because the rollout order in
+  // `physician_agreement.gate_enabled` is "ask the physicians already here to
+  // sign, THEN arm it", and that first step needs a door that does not depend on
+  // the flag.
+
+  /** True when this error is the contributor-agreement gate, not a real refusal.
+   *
+   *  Structured `error` code and the header, never the message: same discipline
+   *  as isPracticeGate, and for the same reason. */
+  function isAgreementGate(err) {
+    if (!err || err.status !== 403) return false;
+    if (err.agreementGate) return true;  // the header, when the response carried it
+    const d = err.detail;
+    return !!(d && typeof d === 'object' && d.error === 'agreement_required');
+  }
+
+  /** The dashboard's one card when the terms in force have not been signed.
+   *
+   *  A card with the action on it, not an error: nothing has gone wrong, the
+   *  physician has done nothing wrong, and there is exactly one thing to do. */
+  function renderAgreementGateCard(reason) {
+    return h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'asc-dash-widget-title' },
+        reason === 'superseded' ? 'The contributor agreement has changed'
+          : 'Read and sign the contributor agreement'),
+      h('p', { class: 'asc-help', style: 'margin:8px 0 16px' },
+        reason === 'superseded'
+          ? 'The terms were updated since you last signed. Read the new version '
+            + 'and sign it to open your queue again. Anything you have already '
+            + 'submitted is unaffected.'
+          : 'It is one page and it takes a minute. Your queue opens as soon as '
+            + 'it is signed.'),
+      h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
+        onClick: () => renderAgreementView({}) }, 'Read the agreement'));
+  }
+
+  /** Read the agreement and, when one is owed, sign it.
+   *
+   *  The FULL TEXT is on screen, from GET /me/agreement, because a clickwrap
+   *  that makes you download something to read it is a clickwrap whose "I have
+   *  read this" is provably false. The endpoint serves the text for exactly
+   *  that reason and this renders what it serves.
+   *
+   *  `doc_sha256` is echoed back on signature so the signature can only be taken
+   *  against the document that was on this screen. A deploy landing mid-read
+   *  answers 409, which is why every 409 here re-renders: whether the text moved
+   *  underneath them or they had already signed, the correct next screen is this
+   *  one, freshly loaded. */
+  async function renderAgreementView(opts) {
+    opts = opts || {};
+    const back = opts.onBack || renderDashboardView;
+    stopTimer();
+    updateHeaderProgress();
+    const body = h('div', {});
+    setRoot(h('div', { class: 'asc-wrap' }, body));
+    body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+      h('div', { class: 'loading-state' }, h('div', { class: 'loading-spinner' }),
+        'Loading the agreement…')));
+    let doc;
+    try {
+      doc = await api('/me/agreement');
+    } catch (e) {
+      if (e.status === 401) return;  // handleUnauthorized already took the screen
+      clear(body);
+      body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'asc-inline-error' },
+          'The agreement could not be loaded: ' + e.message),
+        h('div', { style: 'margin-top:16px' },
+          h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+            onClick: () => renderAgreementView(opts) }, 'Try again'),
+          h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm',
+            type: 'button', style: 'margin-left:8px',
+            onClick: () => back() }, 'Back'))));
+      return;
+    }
+    clear(body);
+    // The server's own answer about whether a signature is owed, never
+    // re-derived here: `/me/agreement` and the gate that enforces it must not be
+    // able to reach two different conclusions from the same row.
+    const required = doc.signature_required || null;
+    const signed = doc.signed || null;
+
+    const card = h('div', { class: 'asc-card' });
+    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
+      h('div', { class: 'asc-card-title' }, 'Physician contributor agreement'),
+      h('div', { class: 'asc-card-sub' },
+        'Version ' + (doc.doc_version || '') + (doc.interim ? ' · interim text' : '')))));
+    // Scrolls inside its own box rather than the page, so the signature controls
+    // below it are never pushed off the bottom of a laptop screen.
+    card.appendChild(h('div', { class: 'asc-card-pad' },
+      h('div', {
+        style: 'max-height:420px; overflow-y:auto; white-space:pre-wrap; '
+          + 'font-size:13px; line-height:1.65; padding-right:8px',
+        tabindex: '0', role: 'region', 'aria-label': 'Agreement text',
+      }, doc.text || '')));
+    body.appendChild(card);
+
+    if (!required) {
+      // Nothing is owed. Say when it was signed and get out of the way: this
+      // screen is also the place somebody comes to re-read what they agreed to.
+      body.appendChild(h('div', { class: 'asc-card asc-card-pad', style: 'margin-top:16px' },
+        h('div', { class: 'asc-dash-widget-title' }, 'You have signed this agreement'),
+        h('p', { class: 'asc-help', style: 'margin:8px 0 16px' },
+          signed
+            ? 'Signed as ' + (signed.typed_name || '') + ' on '
+              + fmtDate(signed.signed_at) + ' · version ' + (signed.doc_version || '')
+            : 'Your signature is on file.'),
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button',
+          onClick: () => back() }, 'Back')));
+      return;
+    }
+
+    const nameInput = h('input', { class: 'asc-input', type: 'text', id: 'ascAgreementName',
+      placeholder: 'Type your full name', autocomplete: 'name',
+      value: doc.signer_name_prefill || '' });
+    const initialsInput = h('input', { class: 'asc-input', type: 'text',
+      id: 'ascAgreementInitials',
+      placeholder: 'Initials', maxlength: '8', style: 'max-width:140px' });
+    const consent = h('input', { type: 'checkbox', id: 'ascAgreementConsent' });
+    const errBox = h('div', { class: 'asc-inline-error', hidden: true });
+    const signBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg',
+      type: 'submit' }, 'Sign and continue');
+
+    const form = h('form', {
+      onSubmit: async (e) => {
+        e.preventDefault();
+        errBox.setAttribute('hidden', '');
+        // Checked here as well as on the server so the common mistakes are
+        // answered without a round trip. The server still refuses each of them:
+        // this is a courtesy, not the rule.
+        if (!consent.checked) {
+          errBox.textContent = 'Confirm you agree to sign electronically before you sign.';
+          errBox.removeAttribute('hidden');
+          return;
+        }
+        signBtn.setAttribute('disabled', '');
+        signBtn.textContent = 'Signing…';
+        try {
+          await api('/me/agreement/sign', { method: 'POST', body: {
+            typed_name: nameInput.value,
+            signed_initials: initialsInput.value,
+            consent_esign: true,
+            // What was ON THIS SCREEN. The server compares it and refuses a
+            // signature against text nobody read.
+            doc_sha256: doc.doc_sha256 || '',
+          } });
+          toast('Signed. Your copy is on file.', 'success');
+          (opts.onSigned || back)();
+          return;
+        } catch (err) {
+          if (err.status === 401) return;
+          if (err.status === 409) {
+            // Either the text moved underneath them or they had already signed
+            // this version. Both are answered by the same screen, reloaded.
+            toast(err.message || 'Reloading the agreement.', 'info');
+            renderAgreementView(opts);
+            return;
+          }
+          errBox.textContent = err.message || 'That could not be signed just now.';
+          errBox.removeAttribute('hidden');
+          signBtn.removeAttribute('disabled');
+          signBtn.textContent = 'Sign and continue';
+        }
+      },
+    },
+      h('div', { class: 'asc-dash-widget-title' },
+        required === 'superseded' ? 'Sign the updated agreement' : 'Sign the agreement'),
+      h('p', { class: 'asc-help', style: 'margin:8px 0 16px' },
+        required === 'superseded'
+          ? 'The terms above were updated since you last signed. Your earlier '
+            + 'signature and everything you have submitted stay exactly as they are.'
+          : 'Typing your name and initials is your electronic signature. We keep '
+            + 'a copy of the exact text you signed.'),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label', for: 'ascAgreementName' }, 'Full name'),
+        nameInput),
+      h('div', { class: 'asc-field' },
+        h('label', { class: 'asc-label', for: 'ascAgreementInitials' }, 'Initials'),
+        initialsInput),
+      h('label', { class: 'asc-checkbox-row', style: 'margin-bottom:16px' },
+        consent,
+        h('span', {}, 'I agree to sign this electronically.')),
+      errBox,
+      h('div', { style: 'margin-top:16px' },
+        signBtn,
+        h('button', { class: 'asc-btn asc-btn-ghost', type: 'button',
+          style: 'margin-left:8px', onClick: () => back() }, 'Not now')));
+    body.appendChild(h('div', { class: 'asc-card asc-card-pad', style: 'margin-top:16px' },
+      form));
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  EVALUATOR WORKSPACE
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2410,6 +2615,15 @@
       // gate's 403 renders a card with an action instead of an error string.
       if (e.status === 409 && e.detail && e.detail.error === 'first_run_incomplete') {
         resumeFirstRun();
+        return;
+      }
+      // Same rule for the agreement gate, one gate later: the refusal names the
+      // one thing left to do, so go there. Rendering "Could not load the next
+      // task" instead would be an outage message for a queue that is working,
+      // and it is the screen every physician would have hit on the deploy that
+      // armed the flag.
+      if (isAgreementGate(e)) {
+        renderAgreementView({ onSigned: renderEvalView });
         return;
       }
       if (e.status !== 401) {
@@ -2526,6 +2740,7 @@
     let stats = null;
     let queueError = null;
     let practiceGate = null;
+    let agreementGate = null;
     // No real queue and no earnings, and BOTH endpoints below are on the
     // real-work surface. Asking anyway would produce two 403s and render "we
     // could not load your queue", which is a bug report, not the truth.
@@ -2575,7 +2790,24 @@
       // "Leave for now" impossible: leaving renders the dashboard, the
       // dashboard 403s, and the physician is put straight back into the tour
       // they just left. boot() is the one place that opens it unasked.
-      practiceGate = e;
+      //
+      // The agreement gate reaches here as a 403 of its own shape, and it is
+      // separated out FIRST: rendering "one practice case first" at a physician
+      // who has passed the practice case and owes a signature is a dead end,
+      // because the button on that card cannot clear the thing blocking them.
+      //
+      // And the practice gate is claimed by the SIGNAL, never by elimination.
+      // `else practiceGate = e` sent every remaining failure to that card, so a
+      // 500, a timeout or a dropped connection told an approved physician who
+      // passed the practice case weeks ago that their real cases were locked
+      // behind a practice case: a false explanation, with a button that cannot
+      // fix anything, for an outage on our side. isPracticeGate reads the
+      // PRACTICE_GATE_HEADER and the structured `practice_case_required` code,
+      // which is the same test every other caller of that card uses; anything
+      // else is an error and renders as one.
+      if (isAgreementGate(e)) agreementGate = e;
+      else if (isPracticeGate(e)) practiceGate = e;
+      else queueError = e;
       }
     }
     const tasks = data.tasks || [];
@@ -2619,7 +2851,10 @@
         h('span', { class: 'asc-dash-card-go', 'aria-hidden': 'true' }, '\u2192')));
     }
 
-    if (practiceGate) {
+    if (agreementGate) {
+      main.appendChild(renderAgreementGateCard(
+        (agreementGate.detail && agreementGate.detail.reason) || agreementGate.agreementGate));
+    } else if (practiceGate) {
       main.appendChild(renderPracticeGateCard());
     } else if (queueError) {
       main.appendChild(renderDashboardError(queueError));
@@ -4001,7 +4236,7 @@
       // flow over a truncated chart.
       //
       // `assignedOnly` renders it only when the physician actually has routed
-      // points (`longitudinal_available` from /dashboard). A chart walk reaches a
+      // points (`longitudinal_available` from /tasks/available). A chart walk reaches a
       // doctor exactly one way — an admin pressing Send — so a tab that showed
       // for everyone would be empty for almost everyone, which reads as the
       // product being broken rather than as the rule it is.
@@ -4128,7 +4363,20 @@
     // the rest of their session, with nothing on screen to explain it.
     if (!(state.user && state.user.real_data_approved)) return 0;
     try {
-      const d = await api('/dashboard?portal_version=v5&limit=1');
+      // /tasks/available, NOT a /dashboard route: there is no such endpoint, so
+      // this read 404ed for every physician and the catch below turned that into
+      // a 0, which is the one value that permanently hides the card. The field
+      // is the one the queue itself returns, from the same response the
+      // dashboard already reads.
+      //
+      // The specialty is resolved exactly as renderDashboardView resolves it,
+      // because `longitudinal_available` is counted THROUGH the specialty the
+      // request names. Sending none would count against a different set from
+      // the one the V5 queue will serve, and the card and the queue behind it
+      // must not disagree about whether there is work.
+      const spec = ((state.user && state.user.specialty) || getPortalSpecialty()).trim().toLowerCase();
+      const d = await api('/tasks/available?portal_version=v5&limit=1'
+        + '&specialty=' + encodeURIComponent(spec));
       return Math.max(0, (d && d.longitudinal_available) || 0);
     } catch (e) {
       // A failure resolves to 0: the physician sees exactly what they saw before
@@ -8509,6 +8757,7 @@
         meCardPanel(data.standing || {}),
         meHistoryPanel(),
         mePasswordPanel(),
+        meAgreementPanel(),
         meReferralPanel(data.standing || {})));
       // Sign out lives on a destination, not only in chrome. It is what lets
       // the rail foot collapse to an avatar on a narrow screen without
@@ -9113,6 +9362,31 @@
     panel.appendChild(h('div', { class: 'asc-me-field' }, next));
     panel.appendChild(h('div', { class: 'asc-ref-form asc-me-actions' }, button));
     panel.appendChild(note);
+    return panel;
+  }
+
+  /* The standing door to the contributor agreement, open whether or not the
+     queue gate is armed.
+
+     This is the half of the rollout the gate depends on: the terms have to be
+     readable and signable by the physicians who are already here BEFORE anyone
+     arms ASCLEPIUS_AGREEMENT_GATE, or arming it locks a roster that never had a
+     chance to sign. Nothing is fetched until it is clicked.
+
+     Not shown to a non-physician account. An advisor and a referrer are not
+     contributors, there is nothing for them to sign, and offering it would
+     invite a signature on a document that does not describe them. */
+  function meAgreementPanel() {
+    if (isAdvisor() || isReferralOnly()) return null;
+    const panel = h('div', { class: 'asc-me-panel' });
+    panel.appendChild(h('div', { class: 'asc-ref-title' }, 'Contributor agreement'));
+    panel.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'The terms you work under, in full. Read them any time, and sign here if '
+      + 'you have not yet.'));
+    const button = h('button', { class: 'asc-btn asc-btn-sm asc-btn-ghost', type: 'button' },
+      'Open the agreement');
+    button.addEventListener('click', () => renderAgreementView({ onBack: renderProfileView }));
+    panel.appendChild(h('div', { class: 'asc-ref-form asc-me-actions' }, button));
     return panel;
   }
 

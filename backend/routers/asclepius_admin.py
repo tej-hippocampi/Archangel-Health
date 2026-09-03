@@ -1224,7 +1224,12 @@ async def provision_health_system_portal(
     Password is a generated passphrase, shown ONCE in the email and stored only
     as a hash. must_reset=1 forces a change on first login. Re-provisioning the
     same organization + email rotates that account's password instead of minting
-    a second account."""
+    a second account.
+
+    A NEW organization lands in `approved_awaiting_dla`, not open for business.
+    This mints credentials; the signature is what opens the upload door, and the
+    two were never the same decision. An organization that already existed keeps
+    the state it had, including a legacy NULL -- see the comment on that write."""
     name = " ".join((body.organization or "").split())
     if not name:
         raise HTTPException(status_code=400, detail="Organization name is required.")
@@ -1237,6 +1242,12 @@ async def provision_health_system_portal(
         raise HTTPException(status_code=503, detail="Email is not configured (SendGrid or SMTP).")
 
     store = _store()
+    # Asked BEFORE the create-or-reuse, because afterwards the answer is gone:
+    # a row this call just inserted and a row that has been here for a year both
+    # come back carrying a NULL onboarding_state. Same predicate
+    # ``ensure_health_system`` matches on (LOWER(name)), so the two cannot
+    # disagree about which organizations already existed.
+    org_is_new = not store.health_systems_named_like(name)
     hs = store.ensure_health_system(name, contact_email=str(body.email))
     # The one place accounts are minted, shared with self-signup and with a
     # partner adding a colleague (asclepius/hs_provisioning.py). Which health
@@ -1254,6 +1265,33 @@ async def provision_health_system_portal(
     # what the admin chose.
     store.set_hs_portal_purpose(username, purpose)
 
+    # The contract is the gate (PRD §0.1.2, and the whole reason the DLA states
+    # exist): a partner uploads after somebody signs, not before. This door used
+    # to write no state at all, and NULL collapses to ACTIVE in
+    # ``hs_states.state_of``, so minting credentials also silently opened the
+    # upload door on an organization with no agreement on file, and the only
+    # thing that said so was a chip on an admin page. It lands in AWAITING_DLA
+    # instead, which is the state that closes ``hs_states.can_upload`` and opens
+    # the portal's Sign surface, so the path out is the one the partner is
+    # already looking at.
+    #
+    # ONLY for an organization this call created. The legacy collapse is
+    # load-bearing and stays untouched: an EXISTING row's NULL means "provisioned
+    # before any of this existed, and uploading today", and stamping AWAITING_DLA
+    # on it would lock a live partner out of a door they use, on a deploy, with
+    # nothing they can do about it. So re-provisioning (the password-rotation
+    # case this endpoint is mostly used for) leaves the organization's state
+    # exactly as it found it, whatever that state is. Nothing is backfilled.
+    #
+    # Set BEFORE the email, for the same reason the purpose is: a send that fails
+    # must not leave the door open on an organization we just handed a password.
+    if org_is_new:
+        store.set_hs_onboarding_state(hs["hs_id"], hs_states.AWAITING_DLA)
+    # Re-read rather than assume. `hs` was captured before the write, and for a
+    # reused organization it holds whatever state that partner already carried.
+    fresh = store.get_health_system(hs["hs_id"])
+    onboarding_state = hs_states.state_of(fresh)
+
     # From here down, nothing branches. The email, its subject, its body, the
     # response and the timing are byte-identical for both purposes — the value
     # above selected DATA, and nothing about behaviour.
@@ -1270,13 +1308,21 @@ async def provision_health_system_portal(
     store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                     event_type=action, actor=admin["id"],
                     payload={"username": username, "email": str(body.email),
-                             "org": hs["name"], "purpose": purpose})
+                             "org": hs["name"], "purpose": purpose,
+                             "onboarding_state": onboarding_state})
+    # The second sentence is the one the operator now needs, because this button
+    # stopped meaning "they can upload". Read off the state rather than off
+    # `org_is_new`, so a re-provisioned partner who IS through the agreement is
+    # told the truth about itself too.
+    opens = ("Uploading is open." if hs_states.can_upload(fresh)
+             else "Uploading opens when someone there signs the agreement.")
     return {
         "health_system": {"hs_id": hs["hs_id"], "name": hs["name"]},
         "username": username,
         "purpose": purpose,
-        "message": f"Upload access sent to {body.email} — username “{username}”, "
-                   "temporary password emailed (shown once, never stored).",
+        "onboarding_state": onboarding_state,
+        "message": f"Access sent to {body.email}. Username “{username}”, "
+                   f"temporary password emailed (shown once, never stored). {opens}",
     }
 
 

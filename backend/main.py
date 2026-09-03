@@ -34,16 +34,44 @@ _backend_dir = Path(__file__).resolve().parent
 _repo_root = _backend_dir.parent
 
 
+#: Every variable the PROCESS was started with, captured before any dotenv file
+#: is read. On Railway/Render this is the dashboard's variable set; locally it is
+#: whatever the shell exported. Snapshotting the keys is what lets the loader
+#: below tell "the platform set this" apart from "an earlier .env file set this".
+_PROCESS_ENV_KEYS = frozenset(os.environ)
+
+
 def _load_layered_dotenv(*paths: Path) -> None:
-    """Load .env files in order; later files win, but blank values must not
-    wipe secrets already set (backend/.env often ships empty placeholders)."""
+    """Load .env files in order; later files win over earlier ones, but a real
+    environment variable wins over ALL of them, and blank values never wipe a
+    secret already set (backend/.env often ships empty placeholders).
+
+    The precedence is the whole point. This used to assign unconditionally, so a
+    .env file copied into the image (or left in a laptop checkout) silently
+    overrode the platform's own variables: you could set ENV, TEAM_DB_PATH or
+    SENDGRID_API_KEY in the Railway dashboard, watch the deploy succeed, and get
+    the .env value at runtime with nothing in the logs saying so. Production
+    config has to come from the platform, so the platform wins and the dotenv
+    files are a fallback for keys nobody set.
+    """
+    shadowed: list = []
     for path in paths:
         if not path.is_file():
             continue
         for key, val in dotenv_values(path).items():
             if val is None or val == "":
                 continue
+            if key in _PROCESS_ENV_KEYS:
+                # Set for real by the platform/shell. Record it so the operator
+                # is not left comparing a dashboard against a file by hand.
+                shadowed.append(f"{key} ({path.name})")
+                continue
             os.environ[key] = val
+    if shadowed:
+        # Printed rather than logged: logging is configured further down this
+        # module, and this runs at import time. Names only, never values.
+        print("[env] real environment variables take precedence over the dotenv "
+              "file(s); IGNORED from file: " + ", ".join(sorted(set(shadowed))))
 
 
 _load_layered_dotenv(_repo_root / ".env", _backend_dir / ".env")
@@ -147,7 +175,7 @@ from auth import (
 )
 import auth as auth_module
 from onboarding_emails import build_doctor_verification_email, build_task_notification_email
-from team_store import TeamStore, get_team_store, set_team_store  # noqa: F401
+from team_store import TeamStore, connect_team_db, get_team_store, set_team_store  # noqa: F401
 import realm as _realm
 from preop_survey import (
     WINDOW_SURVEY_DAY,
@@ -1301,7 +1329,9 @@ def _clear_demo_sqlite_rows(patient_ids: List[str]) -> None:
     if not patient_ids:
         return
     placeholders = ",".join("?" for _ in patient_ids)
-    with sqlite3.connect(_team_store.db_path) as conn:
+    # Shared team.db opener, not a bare sqlite3.connect: this runs at startup
+    # against the same file the request path is already using.
+    with connect_team_db(_team_store.db_path) as conn:
         conn.execute(f"DELETE FROM escalations WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM survey_responses WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM survey_sends WHERE patient_id IN ({placeholders})", patient_ids)
@@ -6545,40 +6575,80 @@ async def startup_team_scheduler():
     # edge: a container that will not boot is a five-minute incident with a log
     # line naming the store; a container that boots onto ephemeral disk accepts
     # PHI and destroys it at the next redeploy, silently, and costs a partnership.
+    #
+    # What the refusal must NOT be is a dead end. A crash-loop on a restart policy
+    # with a retry budget ends with the service stopped, and "stopped" reads the
+    # same to an operator whether the cause was a typo in ASCLEPIUS_DB_PATH or the
+    # process segfaulting. Two things make it recoverable instead: the message
+    # names the exact variable(s) to set, and STORAGE_GATE_ALLOW_EPHEMERAL is a
+    # deliberate, logged, one-variable way back up at 2am for someone who accepts
+    # what it costs. The gate still fails closed by default.
+    _storage_failures: List[Dict[str, str]] = []
+    _gate_override = (os.getenv("STORAGE_GATE_ALLOW_EPHEMERAL") or "").strip().lower() \
+        in ("1", "true", "yes", "on")
+    app.state.storage_durability = {
+        "checked": False, "ok": None, "failures": _storage_failures,
+        "gate_overridden": _gate_override,
+    }
     try:
         from asclepius import assets as _asc_assets_dur
         from asclepius import ingestion as _asc_ingestion_dur
+        from asclepius.constants import VOLUME_MOUNT_ENV as _VOLUME_MOUNT_ENV
         from asclepius.store import _db_storage_durable as _asc_db_durable
 
         _DURABILITY_CHECKS = (
-            ("database", _asc_db_durable),
-            ("raw ingest", _asc_ingestion_dur.ingest_storage_durable),
-            ("asset store", _asc_assets_dur.asset_storage_durable),
+            ("database", "ASCLEPIUS_DB_PATH", _asc_db_durable),
+            ("raw ingest", "ASCLEPIUS_INGEST_DIR", _asc_ingestion_dur.ingest_storage_durable),
+            ("asset store", "ASCLEPIUS_ASSET_STORE", _asc_assets_dur.asset_storage_durable),
         )
         _dur_failures = []
-        for _name, _fn in _DURABILITY_CHECKS:
+        for _name, _var, _fn in _DURABILITY_CHECKS:
             try:
                 _ok, _why = _fn()
             except Exception as _exc:  # a check that cannot run is a failed check
                 _ok, _why = False, f"durability check raised: {_exc}"
             if not _ok:
                 _dur_failures.append((_name, _why))
+                _storage_failures.append({"store": _name, "variable": _var, "why": _why})
+        app.state.storage_durability["checked"] = True
+        app.state.storage_durability["ok"] = not _dur_failures
         if _dur_failures:
             _detail = " · ".join(f"{n}: {w}" for n, w in _dur_failures)
+            # The individual checks already explain themselves, but they explain
+            # themselves in prose. Lead with the bare list of variables so the fix
+            # is legible from a log line read on a phone.
+            _vars = ", ".join(v for n, v, _ in _DURABILITY_CHECKS
+                              if n in {n2 for n2, _ in _dur_failures})
+            if is_production() and not _gate_override:
+                _msg = (
+                    f"NON-DURABLE STORAGE, refusing to start. FIX: set {_vars} to "
+                    "path(s) inside the mounted persistent volume "
+                    f"({_VOLUME_MOUNT_ENV}), then redeploy. To boot anyway and "
+                    "accept that everything in these stores is destroyed on the next "
+                    "redeploy, set STORAGE_GATE_ALLOW_EPHEMERAL=1. Detail: " + _detail)
+                # Logged before raising: a traceback out of a startup handler is
+                # easy to lose in a platform log viewer, and this is the one line
+                # that has to survive.
+                _auth_logger.critical("[storage] %s", _msg)
+                raise RuntimeError(_msg)
             if is_production():
-                raise RuntimeError(f"NON-DURABLE STORAGE, refusing to start — {_detail}")
+                _auth_logger.critical(
+                    "[storage] NON-DURABLE STORAGE, but STORAGE_GATE_ALLOW_EPHEMERAL "
+                    "is set, so this container is booting onto storage a redeploy "
+                    "WIPES. This is an override, not a fix: set %s and remove the "
+                    "override. %s", _vars, _detail)
             # The fail-closed behaviour is gated on ENV=production, and NOTHING in
             # this repo's deploy config sets ENV — the same trap that once shipped
             # a PHI portal's session cookie over plain HTTP. So when storage is
             # non-durable AND ENV is unset, say so at ERROR and name the cause:
             # otherwise the deliverable ("refuses to boot") silently degrades to a
             # warning nobody reads, on exactly the deployment that needs it.
-            if not (os.getenv("ENV") or "").strip():
+            elif not (os.getenv("ENV") or "").strip():
                 _auth_logger.error(
                     "[storage] NON-DURABLE STORAGE and ENV is UNSET, so the "
                     "fail-closed boot gate is INACTIVE. This container will accept "
                     "PHI and lose it on the next redeploy. Set ENV=production (and "
-                    "the four storage paths) — %s", _detail)
+                    "%s). Detail: %s", _vars, _detail)
             else:
                 _auth_logger.warning(
                     "[storage] NON-DURABLE (dev; would refuse to boot in production) — %s",
@@ -6590,40 +6660,58 @@ async def startup_team_scheduler():
     except Exception:
         _auth_logger.warning("[storage] durability gate could not run", exc_info=True)
 
-    # The TENANT database (team.db) is the fourth store and was in none of the
-    # checks above, which only cover the Asclepius plane. It holds every
-    # onboarding in flight — the physicians the admin console's Signups view
-    # reads — so if it sits on ephemeral disk, a redeploy erases the signup
-    # funnel and the console goes back to showing an empty roster beside an
-    # inbox full of notifications: the exact failure the Signups view exists to
-    # end, reintroduced by a deploy setting rather than by code.
+    # The TENANT database (team.db) and the COMMUNITY database (community.db) are
+    # the fourth and fifth stores, and neither is in the checks above, which only
+    # cover the Asclepius plane. team.db holds every onboarding in flight (the
+    # physicians the admin console's Signups view reads), so if it sits on
+    # ephemeral disk, a redeploy erases the signup funnel and the console goes
+    # back to showing an empty roster beside an inbox full of notifications: the
+    # exact failure the Signups view exists to end, reintroduced by a deploy
+    # setting rather than by code. community.db holds the entire community
+    # (channels, posts, events, the digest dedup ledger) and its default path is
+    # inside the container, so on RAILPACK it is ephemeral unless someone sets
+    # COMMUNITY_DB_PATH. Neither variable was in .env.example, which is how a
+    # deploy loses both without anyone choosing to.
     #
     # WARN-only, deliberately: the fail-closed gate above is a deliberate
     # production behaviour for the PHI stores, and quietly extending "refuses to
-    # start" to a fourth path would take down a running deployment on the next
-    # restart. Naming it is the job here; the operator sets TEAM_DB_PATH.
+    # start" to two more paths would take down a running deployment on the next
+    # restart, and would brick every legitimate local run (whose databases sit
+    # beside the code by design). Loud is the job here: CRITICAL in the log, and
+    # reported by GET /healthz so the state is askable rather than only greppable.
     try:
         from asclepius.constants import path_is_ephemeral as _path_is_ephemeral
 
-        _team_db = os.getenv("TEAM_DB_PATH") or _team_store.db_path
-        _team_dir = os.path.dirname(os.path.abspath(_team_db)) or "/"
-        if _path_is_ephemeral(_team_dir):
-            _auth_logger.error(
-                "[storage] tenant database %s is on EPHEMERAL storage — every "
-                "onboarding in flight (Admin > Physicians > Signups) is destroyed "
-                "on the next redeploy. Point TEAM_DB_PATH at the persistent volume.",
-                _team_db)
-        elif not (os.getenv("TEAM_DB_PATH") or "").strip():
-            _auth_logger.error(
-                "[storage] TEAM_DB_PATH is not set, so the tenant database lives "
-                "beside the code at %s and is REPLACED on every redeploy — losing "
-                "every physician mid-onboarding. Set it to a path on your "
-                "persistent volume.", _team_db)
-        else:
-            _auth_logger.info("[storage] tenant database durable (%s)", _team_db)
+        # Resolved the same way the stores resolve it, but WITHOUT constructing a
+        # store: a durability check must not create the file it is judging.
+        _backend_base = os.path.dirname(os.path.abspath(__file__))
+        _extra_dbs = (
+            ("tenant database", "TEAM_DB_PATH",
+             os.getenv("TEAM_DB_PATH") or _team_store.db_path,
+             "every physician mid-onboarding (Admin > Physicians > Signups)"),
+            ("community database", "COMMUNITY_DB_PATH",
+             (os.getenv("COMMUNITY_DB_PATH") or "").strip()
+             or os.path.join(_backend_base, "community.db"),
+             "every channel, post, event and digest ledger row"),
+        )
+        for _label, _var, _db_path, _loses in _extra_dbs:
+            _db_dir = os.path.dirname(os.path.abspath(_db_path)) or "/"
+            _set = bool((os.getenv(_var) or "").strip())
+            if _path_is_ephemeral(_db_dir):
+                _why = (f"{_db_path} is on EPHEMERAL storage; a redeploy destroys "
+                        f"{_loses}. Point {_var} at the persistent volume.")
+            elif not _set:
+                _why = (f"{_var} is not set, so the database lives beside the code at "
+                        f"{_db_path} and is REPLACED on every redeploy, losing "
+                        f"{_loses}. Set {_var} to a path on your persistent volume.")
+            else:
+                _auth_logger.info("[storage] %s durable (%s)", _label, _db_path)
+                continue
+            _storage_failures.append({"store": _label, "variable": _var, "why": _why})
+            _auth_logger.critical("[storage] %s: %s", _label, _why)
     except Exception:
-        _auth_logger.warning("[storage] tenant-database durability check could not run",
-                             exc_info=True)
+        _auth_logger.warning("[storage] tenant/community database durability check "
+                             "could not run", exc_info=True)
     # Asset reconciliation (PRD I-0 §F4) — what a PAST redeploy already took. Off
     # the event loop: it stats the whole blob tree and must never delay startup.
     try:
@@ -6874,8 +6962,14 @@ async def startup_community():
         _cevents.start_reminder_loop(resolve_member=_resolve_member)
         # The morning routine. The scheduled trigger in .github/workflows is
         # the reliable path; this is here so a deploy without that configured
-        # still fills the channels rather than quietly not doing so. Both share
-        # the run ledger, so they cannot double-post.
+        # still fills the channels rather than quietly not doing so.
+        #
+        # What stops the two of them double-posting is the run CLAIM, not the
+        # run ledger. Sharing the ledger was never enough: both read "no
+        # successful run since today's fire time", both found it true, and both
+        # composed and posted. ``store.claim_digest_run`` reserves (scope, local
+        # date) behind a unique index, so the second runner loses the race
+        # before it spends an LLM call.
         from community import morning as _cmorning
         if _cmorning.enabled():
             _cmorning.start_morning_loop()
@@ -7379,6 +7473,112 @@ try:
     app.mount("/audio", StaticFiles(directory="/tmp"), name="audio")
 except Exception:
     pass
+
+
+# ─── Deploy health check ──────────────────────────────────────
+# The platform healthcheck used to point at /docs. FastAPI serves /docs out of
+# its own OpenAPI machinery, so it answers 200 for a process that has lost
+# everything the product actually needs: the three app.mount() calls above are
+# each wrapped in try/except, so an image built without frontend/ boots a backend
+# that serves no UI at all and /docs still reports it healthy. A check that
+# cannot fail is not a check, and a healthcheck that cannot fail means a broken
+# deploy replaces a working one.
+#
+# Cheap on purpose, because the platform polls this for the life of the
+# deployment: one isdir() per mounted tree and one connect + "SELECT 1" per
+# database. No application queries, no writes, and no caching (a cached health
+# answer is the one answer a health check must never give).
+#: Only /static. It is the mount whose absence means the product is not being
+#: served at all, and the Dockerfile copies frontend/ explicitly for it. The
+#: other two mounts are deliberately NOT here: backend/assets is not in the repo
+#: (so /email-assets legitimately never registers) and /audio serves /tmp, which
+#: is scratch. A health check that reds on something optional gets ignored, and
+#: an ignored health check is the one we started with.
+_HEALTH_MOUNTS = (
+    ("static", os.path.join(os.path.dirname(__file__), "../frontend"), "index.html"),
+)
+_HEALTH_DATABASES = (
+    ("team", "TEAM_DB_PATH", "team.db"),
+    ("community", "COMMUNITY_DB_PATH", "community.db"),
+)
+#: Which mounts actually registered. Computed once: app.mount() runs at import
+#: time and the set cannot change afterwards, so re-walking several hundred
+#: routes on every poll would buy nothing.
+_HEALTH_MOUNTED_NAMES: Optional[frozenset] = None
+
+
+def _health_db_path(var: str, default_name: str) -> str:
+    """The same resolution TeamStore and CommunityStore use, without building
+    one: a health check must not create the database it is reporting on."""
+    return ((os.getenv(var) or "").strip()
+            or os.path.join(os.path.dirname(os.path.abspath(__file__)), default_name))
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz(response: Response) -> Dict[str, Any]:
+    """Is this deployment fit to receive traffic? 200 yes, 503 no.
+
+    A sync def on purpose: the blocking sqlite calls then run in the threadpool,
+    so a stalled disk cannot freeze the event loop for every other request while
+    the health check waits.
+    """
+    global _HEALTH_MOUNTED_NAMES
+    failures: List[str] = []
+    checks: Dict[str, Any] = {}
+
+    # 1. Static trees. A mount whose directory is absent raises inside the
+    #    try/except above and simply does not register, which is invisible from
+    #    outside except that every page is a 404.
+    if _HEALTH_MOUNTED_NAMES is None:
+        _HEALTH_MOUNTED_NAMES = frozenset(
+            n for r in app.routes if (n := getattr(r, "name", None)))
+    for name, directory, sentinel in _HEALTH_MOUNTS:
+        # isfile on one known member, not just isdir: an empty directory mounts
+        # perfectly happily and serves 404s, which is the same outage.
+        ok = (name in _HEALTH_MOUNTED_NAMES
+              and os.path.isfile(os.path.join(directory, sentinel)))
+        checks[f"mount:{name}"] = "ok" if ok else "MISSING"
+        if not ok:
+            failures.append(
+                f"/{name} is not being served: {directory}/{sentinel} is missing "
+                "from the image")
+
+    # 2. Databases: openable and queryable, which is what "can serve a request"
+    #    reduces to. A volume that failed to attach, a path pointing at a
+    #    directory, a file the container cannot read all surface right here.
+    for label, var, default_name in _HEALTH_DATABASES:
+        path = _health_db_path(var, default_name)
+        try:
+            conn = sqlite3.connect(path, timeout=2)
+            try:
+                conn.execute("SELECT 1").fetchone()
+            finally:
+                conn.close()
+            checks[f"db:{label}"] = "ok"
+        except Exception as exc:
+            checks[f"db:{label}"] = "UNAVAILABLE"
+            failures.append(
+                f"{label} database at {path} cannot be opened ({exc}); check {var}")
+
+    # 3. Storage durability is REPORTED here, never failed on. The boot gate
+    #    already refuses to start in production, and when an operator has
+    #    deliberately set STORAGE_GATE_ALLOW_EPHEMERAL the whole point is that the
+    #    service comes back up, which a 503 here would undo. Locally the
+    #    databases sit beside the code and are non-durable by design.
+    durability = getattr(app.state, "storage_durability", None) or {}
+    checks["storage_durable"] = durability.get("ok")
+    warnings = [f"{f['variable']}: {f['why']}" for f in durability.get("failures", ())]
+
+    if failures:
+        response.status_code = 503
+    return {
+        "status": "unhealthy" if failures else "ok",
+        "degraded": bool(warnings),
+        "checks": checks,
+        "failures": failures,
+        "storage_warnings": warnings,
+        "storage_gate_overridden": bool(durability.get("gate_overridden")),
+    }
 
 
 if __name__ == "__main__":

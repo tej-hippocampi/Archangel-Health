@@ -117,11 +117,14 @@ def test_gate_approval_path_enters_without_vault_row():
 
 def test_gate_pending_rejected_and_undecided_denied():
     astore, _, _ = setup_world()
-    # 'pending' is now ADMITTED: the community is the most useful thing we can
-    # offer during a one-to-two day credential check, and a physician who cannot
-    # introduce themselves does not come back. 'rejected' is a final decision
-    # and still gets nothing.
-    for status, expected in (("pending", 200), ("rejected", 403)):
+    # 'pending' was ADMITTED for a while, on the argument that the community is
+    # the most useful thing we can offer during a one-to-two day credential
+    # check. It is denied again, because these rooms are worth reading only
+    # while everyone in them is a verified clinician and an unread message
+    # cannot be taken back. What the wait is for is the practice case
+    # (``capabilities._BY_ACCESS[PROVISIONAL]``, which never granted
+    # COMMUNITY_READ). 'rejected' is a final decision and gets nothing either.
+    for status, expected in (("pending", 403), ("rejected", 403)):
         u = astore.create_user(email=f"dr-{uniq()}@x.com", password="pw-12345678",
                                role="evaluator", specialty="cardiology")
         astore.record_verification_decision(
@@ -339,6 +342,33 @@ def test_system_post_real_digest_format_passes_phi_gate():
         body="- [story](https://example.com/a) — patient MRN: 12345678 disclosed",
         kind="digest_news"))
     assert blocked is None
+
+
+def test_two_schedulers_cannot_both_claim_one_digest_window(monkeypatch):
+    """The hourly cron and the in-process hourly loop both read the SAME
+    due-ness off the ledger and both find it true, so the reservation, not the
+    read, is what stops two curated digests landing in one channel.
+
+    A failed run hands its window back, because a transient LLM error must not
+    cost the channel its day, and a forced run reserves nothing, because the
+    operator who triggered it has already decided it should happen.
+    """
+    _, cstore, _ = setup_world()
+
+    first = cstore.claim_digest_run("news", window_key="2026-09-03")
+    assert first is not None
+    assert cstore.claim_digest_run("news", window_key="2026-09-03") is None
+    # A different day, and the next kind, are separate windows.
+    assert cstore.claim_digest_run("news", window_key="2026-09-04") is not None
+    assert cstore.claim_digest_run("papers", window_key="2026-09-03") is not None
+    # A forced run holds no window and is never blocked by one.
+    assert cstore.claim_digest_run("news", window_key=None) is not None
+
+    cstore.finish_digest_run(first, ok=False, error="sources down")
+    retry = cstore.claim_digest_run("news", window_key="2026-09-03")
+    assert retry is not None and retry != first
+    cstore.finish_digest_run(retry, ok=True, items_posted=3)
+    assert cstore.claim_digest_run("news", window_key="2026-09-03") is None
 
 
 def test_failed_run_items_are_retried_not_stranded(monkeypatch):

@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-import { API_BASE, apiHeaders } from "@/lib/auth-api";
+import { API_BASE, apiHeaders, asclepiusPortalUrl, redirectToAsclepiusPortal } from "@/lib/auth-api";
 import { npiWarning } from "@/lib/npi";
 
 import {
@@ -1595,7 +1595,11 @@ function CvUploadField({
       const form = new FormData();
       form.append("token", token);
       form.append("file", file);
-      const res = await fetch("/api/onboarding/asclepius/cv", {
+      // Through API_BASE, like every other call in this wizard. A bare
+      // relative path posts to the LANDING origin, which only works in dev
+      // where Vite proxies /api; in production the landing is a static site
+      // with no backend, so the upload 404s for every real applicant.
+      const res = await fetch(`${API_BASE}/api/onboarding/asclepius/cv`, {
         method: "POST",
         headers: apiHeaders(),
         body: form,
@@ -3390,11 +3394,42 @@ export function Step8AsclepiusSuccess({
    with a hole in it, which reads as something having gone wrong.
 
    It mirrors §4.3 word for word on the point that matters — review is human, on
-   purpose — and offers exactly one link, to the mission page, because the honest
-   answer to "what do I do now" is "nothing, read about us if you like".
+   purpose.
+
+   It used to end there, with one quiet link to /mission, on the reasoning that
+   the honest answer to "what do I do now" is "nothing". That answer is no
+   longer honest. /finish mints a real session for an applicant (see the long
+   note at its `session_token`), and a PROVISIONAL account reaches the practice
+   case: a short piece of clinical reasoning that the reviewer actually reads.
+   Throwing that token away on this screen made the one thing we ask of an
+   applicant reachable only by asking for an emailed sign-in link to a portal
+   nobody had told them about. So the token goes where it was minted to go.
+
+   The button is still not the "your workspace is ready" CTA, because it is not
+   ready: it opens ONE piece of work, the copy says what it is worth, and the
+   24-48h reassurance stays above it.
    ═════════════════════════════════════════════════════════════ */
 export function StepApplicationSubmitted({ data }: { data: OnboardingData }) {
   const last = (data.lastName || "").trim();
+
+  /* Same trade the success screen makes: the portal is a different ORIGIN in
+     production, so a session token cannot be handed over through storage. It
+     is exchanged for a single-use handoff code the portal redeems on load. If
+     that exchange fails, or there is no token because /finish could not mint
+     one, land them on the portal anyway: it offers the emailed sign-in link,
+     which is a worse door but not a dead end. */
+  const openPracticeCase = async () => {
+    if (data.asclepiusToken) {
+      try {
+        await redirectToAsclepiusPortal(data.asclepiusToken);
+        return true;
+      } catch {
+        /* fall through to the plain portal URL + its emailed sign-in link */
+      }
+    }
+    window.location.href = data.workspaceUrl || asclepiusPortalUrl();
+    return true;
+  };
   return (
     <OnboardingCard
       maxWidth={620}
@@ -3441,25 +3476,38 @@ export function StepApplicationSubmitted({ data }: { data: OnboardingData }) {
         either way. If we say yes, that email carries your sign-in details.
       </p>
       <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-faint)",
-                  textAlign: "center", margin: "0 0 30px" }}>
+                  textAlign: "center", margin: "0 0 26px" }}>
         &mdash; Tej Patel &amp; Aryaa Bhatia
       </p>
 
-      {/* One quiet action. Not a primary button: there is nothing for them to do,
-          and a big lime CTA would manufacture a next step that does not exist. */}
-      <div style={{ textAlign: "center" }}>
-        <a
-          href="/mission"
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "11px 20px", borderRadius: 999,
-            border: "1px solid var(--hairline-strong)",
-            color: "var(--ink)", fontSize: 14, textDecoration: "none",
-          }}
-        >
-          While you wait &mdash; our mission
-          <span aria-hidden="true">&rarr;</span>
-        </a>
+      {/* The one thing there IS to do. It is a real action now, so it gets the
+          real button: the practice case is the work the wait is for, and the
+          copy says it counts, because it does and because "optional-looking"
+          is how a reviewer ends up with nothing to read. */}
+      <div style={{
+        borderTop: "1px solid var(--hairline)", paddingTop: 22, marginBottom: 4,
+      }}>
+        <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--ink-soft)",
+                    textAlign: "center", margin: "0 0 18px" }}>
+          One thing while you wait: your{" "}
+          <strong style={{ color: "var(--ink)" }}>practice case</strong> is open in your
+          account. It takes about ten minutes, it is real clinical reasoning rather than a
+          form, and it is the part of your application we read most closely.
+        </p>
+        <PrimaryButton fullWidth onClick={openPracticeCase} loadingLabel="Opening…"
+                       successLabel="Opening ✓">
+          Start my practice case
+        </PrimaryButton>
+        <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-faint)",
+                    textAlign: "center", margin: "14px 0 0" }}>
+          No time limit, and no grade is published. We&rsquo;ve emailed{" "}
+          <strong style={{ color: "var(--ink-soft)" }}>{data.email}</strong> a link back in
+          if you want to finish it later.{" "}
+          <a href="/mission" style={{ color: "var(--ah-green-deep)" }}>
+            Or read our mission
+          </a>
+          .
+        </p>
       </div>
     </OnboardingCard>
   );

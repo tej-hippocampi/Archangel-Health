@@ -14,10 +14,14 @@ notification. Each country channel fires at 7am in that country's own timezone,
 which is most of what makes a daily routine feel like it was written for the
 person reading it.
 
-**Idempotent by ledger, not by luck.** Every scope is a row in
+**Idempotent by CLAIM, not by luck.** Every scope is a row in
 ``community_digest_runs`` and is due only when it has not succeeded since
-today's fire time. The trigger can be called every hour, twice, or by an
-impatient admin, and the channel gets one brief.
+today's fire time. Due-ness alone is not enough, because two schedulers drive
+this (the hourly GitHub Actions cron and the in-process hourly loop) and both
+can read the same "not yet today". So the run RESERVES its window before it
+composes anything, and the runner that loses that race exits without spending an
+LLM call or writing a post. The trigger can be called every hour, twice, or by
+an impatient admin, and the channel gets one brief.
 
 **A quiet day is a valid day.** No sources, no valid URLs, nothing new to say:
 post nothing. A channel that greets its members with three stale conferences
@@ -115,6 +119,24 @@ def is_due(
     except ValueError:
         return True
     return last.astimezone(tz) < fire_at
+
+
+def window_key(scope: Scope, *, now: Optional[datetime] = None) -> str:
+    """The window ``run_scope`` reserves: this scope's LOCAL date.
+
+    Paired with ``is_due`` and resolving the zone identically (bad zone falls
+    back to the same default), because the two must agree on which day they
+    mean. A UTC date would put two runners either side of midnight local into
+    different windows and let both post.
+    """
+    try:
+        tz = ZoneInfo(scope.tz)
+    except Exception:  # noqa: BLE001 - a bad zone must not stop the world
+        tz = ZoneInfo(ccountries.DEFAULT_TIMEZONE)
+    now_utc = now or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    return now_utc.astimezone(tz).date().isoformat()
 
 
 # ─── Cards ───────────────────────────────────────────────────────────────────
@@ -423,7 +445,17 @@ async def run_scope(scope: Scope, *, force: bool = False) -> Dict[str, Any]:
                                 dow=scope.dow):
         return {"scope": scope.key, "outcome": "not_due"}
 
-    run_id = cstore.start_digest_run(scope.key)
+    # Reserve the day BEFORE composing. The due check above is a read, and two
+    # schedulers can both pass it in the same hour; this is the write that only
+    # one of them can win. A forced run reserves nothing, because the caller has
+    # already decided it should happen.
+    run_id = cstore.claim_digest_run(
+        scope.key, window_key=None if force else window_key(scope))
+    if run_id is None:
+        # The other runner holds today. Quietly, and without spending the LLM
+        # call: that spend, and the second post, are the whole bug.
+        log.info("[morning] scope %s already claimed for today", scope.key)
+        return {"scope": scope.key, "outcome": "already_running"}
     try:
         composed = await _composer_for(scope)(cstore, scope)
         if not composed:

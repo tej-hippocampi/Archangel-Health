@@ -132,25 +132,29 @@ def _passes_gate(user: Optional[Dict[str, Any]]) -> bool:
     kind = asc_caps.account_kind(user)
     if kind is not None:
         return asc_caps.can_surface(user, asc_caps.COMMUNITY_READ)
-    # A physician awaiting verification is admitted. The community is the most
-    # valuable thing we can hand someone during a one-to-two day wait, and a
-    # read-only member is a lurker who does not come back. They have already
-    # cleared an OTP on their institutional mailbox, submitted an NPI, and
-    # signed the confidentiality and independent-judgment attestations, which is
-    # more identity proof than most professional forums ask for before a first
-    # post. DMs and attachments still wait: see require_verified_member.
+    # A physician awaiting verification is NOT admitted, and this reverses an
+    # earlier decision, so it is worth saying why rather than just deleting a
+    # branch. The argument for admitting them was that the community is the most
+    # valuable thing we can hand someone during a one-to-two day wait. The
+    # argument against is the one the review queue exists for: these rooms are
+    # worth reading precisely because everyone in them is a verified clinician,
+    # an account that has done nothing but submit a form is not that yet, and
+    # rejecting the application afterwards does not unread the messages. What an
+    # applicant gets during the wait is the practice case, which is real work.
     #
-    # _verified_colleague keeps its exact meaning and is still consulted, so a
-    # vault-verified contributor carrying a NULL status passes as it always did.
-    # It is now a BADGE input as well as a gate input; do not change it.
-    # ONLY 'pending' is added here, not "anything the surface table allows".
-    # access_level deliberately folds NULL in with 'approved', which is right for
-    # the evaluator surface (a pre-verification-era account has always been able
-    # to work) and wrong here: the community has always required a positive
-    # signal, and a NULL account with no vault row has never been let in. Adding
-    # it now would widen this gate as a side effect of a change about pending.
-    if user.get("verification_status") == "pending":
-        return True
+    # This gate was the ONLY thing still admitting them. ``capabilities``
+    # removed COMMUNITY_READ and COMMUNITY_WRITE from ``_BY_ACCESS[PROVISIONAL]``
+    # for exactly the reason above, so the two disagreed and the looser one won:
+    # ``require_poster`` refused the post while this line served every message in
+    # every physician-only room to the same account.
+    #
+    # Falling through to _verified_colleague is also what keeps NULL out.
+    # access_level folds a pre-verification-era NULL in with 'approved', which is
+    # right for the evaluator surface and has never been right here: this gate
+    # asks for a positive signal rather than consulting the surface table.
+    # _verified_colleague keeps its exact meaning, so a vault-verified
+    # contributor carrying a NULL status passes as it always did. It is a BADGE
+    # input as well as a gate input; do not change it.
     cred = _astore().get_contributor_credentials(user.get("id_hashed") or "")
     return _verified_colleague(user, cred)
 
@@ -178,8 +182,19 @@ def require_poster(
     would have been able to post in a channel of doctors, react to their
     messages, open polls and unpin their pins.
 
-    A physician's behaviour does not change: PROVISIONAL still grants
-    ``COMMUNITY_WRITE``, so a doctor under review posts exactly as they did.
+    A PHYSICIAN UNDER REVIEW NEITHER POSTS NOR READS, and that is a second
+    narrowing, decided in ``capabilities``, not here. ``_BY_ACCESS[PROVISIONAL]``
+    carries neither ``COMMUNITY_WRITE`` nor ``COMMUNITY_READ``: an unvetted
+    account posting under a physician identity, in rooms whose whole value is
+    that everyone in them is a verified clinician, is what the review queue
+    exists to prevent, and rejecting the application afterwards does not unsend
+    the post.
+
+    This docstring used to say that reading still worked for an applicant,
+    because ``_passes_gate`` fast-passed 'pending'. It no longer does, and the
+    two now agree: an applicant does not reach the community at all, so this
+    gate's job is the non-physician kinds it was written for. An advisor reads
+    the room and does not post; a referral-only account never gets this far.
     """
     if not asc_caps.can_surface(user, asc_caps.COMMUNITY_WRITE):
         raise HTTPException(
@@ -197,10 +212,16 @@ def require_verified_member(
 ) -> Dict[str, Any]:
     """A member whose credentials have actually cleared.
 
-    Channel posts are open to a physician still under review; direct messages
-    and file uploads are not. Those two are the unsolicited-contact and the PHI
-    vectors respectively, and they are the two worth making someone wait a day
-    for. Everything else in the community is the same for both.
+    Direct messages and file uploads are the unsolicited-contact and the PHI
+    vectors respectively, so they ask the access level directly rather than
+    inheriting whatever ``COMMUNITY_WRITE`` currently means.
+
+    Since an applicant under review reaches neither the room nor the composer,
+    nothing should now arrive here holding ``COMMUNITY_WRITE`` without being
+    FULL, and this check stops being the thing that turns anyone away. It stays
+    because it is one line of defence in depth on the two most sensitive
+    surfaces in the product, and because the access level moving under it again
+    is exactly the change that would otherwise be silent.
 
     Chained on ``require_poster`` rather than ``require_member``: a DM is
     strictly more privileged than a channel post, so someone who may not post at
@@ -266,12 +287,48 @@ def _scrub_tier_b(obj: Any) -> Any:
     return obj
 
 
+def _tier_a_credentials_by_id_hashed() -> Dict[str, Dict[str, Any]]:
+    """Every contributor's Tier A credential row, in ONE query.
+
+    ``store.get_contributor_credentials`` opens a fresh sqlite connection per
+    call (connect + two PRAGMAs), and ``member_map`` called it once per user.
+    Measured on 1200 physicians that N+1 was ~480ms of the ~500ms it took to
+    build the map, and the map is rebuilt from scratch on every community
+    request, so opening the page cost about five of them back to back.
+
+    The vault columns are not in the SELECT at all, which is the second reason
+    this is a function rather than an inlined loop: the directory has never
+    opened Tier B, and now it cannot. The projection is exactly the four fields
+    ``member_map`` and ``_verified_colleague`` read.
+    """
+    astore = _astore()
+    out: Dict[str, Dict[str, Any]] = {}
+    with astore._conn() as conn:  # noqa: SLF001 - same pattern as routers/asclepius_admin
+        rows = conn.execute(
+            "SELECT id_hashed, organization, blurb, credentials_verified, ship_json "
+            "FROM contributor_credentials"
+        ).fetchall()
+    for row in rows:
+        try:
+            ship = json.loads(row["ship_json"] or "{}")
+        except ValueError:
+            ship = {}
+        out[row["id_hashed"]] = {
+            "organization": row["organization"],
+            "blurb": row["blurb"],
+            "credentials_verified": bool(row["credentials_verified"]),
+            "ship": ship if isinstance(ship, dict) else {},
+        }
+    return out
+
+
 def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
     """Every gated member keyed by user id. Built exclusively from Tier A
     attributes + the users table — the Tier B vault is never opened here."""
     astore = _astore()
     cstore = _cstore()
     banned = set(cstore.banned_user_ids())
+    creds_by_hash = _tier_a_credentials_by_id_hashed()
     out: Dict[str, Dict[str, Any]] = {}
     for user in astore.list_users():
         if not user.get("active") or user["id"] in banned:
@@ -285,9 +342,7 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
         # They read the community; they are not part of it.
         if asc_caps.account_kind(user) is not None:
             continue
-        cred = None
-        if user.get("id_hashed"):
-            cred = astore.get_contributor_credentials(user["id_hashed"])
+        cred = creds_by_hash.get(user.get("id_hashed") or "")
         # Same bridge as the gate — an approval-path member (no vault row)
         # must serialize as a member, not a ghost, and appear in the directory.
         # _verified_colleague keeps its exact original meaning. access_level
@@ -295,21 +350,25 @@ def member_map(*, include_email: bool = False) -> Dict[str, Dict[str, Any]]:
         # pre-verification-era evaluator as a verified colleague, which is the
         # widening the gate above deliberately refuses.
         verified = _verified_colleague(user, cred)
-        # A provisional physician can post, so they must also resolve in the
-        # directory: a member who appears in a channel but in no member list is
-        # exactly the ghost this function was written to avoid.
-        provisional = (
-            role == "evaluator"
-            and not verified
-            and user.get("verification_status") == "pending"
-        )
+        # Members are the verified colleagues plus staff, and an applicant under
+        # review is deliberately not one. A branch here used to admit them on the
+        # grounds that a provisional physician could post and so had to resolve
+        # in the directory rather than render as a ghost; they can no longer post
+        # or even read (``_passes_gate``), so that reasoning has expired.
+        #
+        # Leaving them in would not have been a cosmetic choice. A member row is
+        # also a mention target, a head that counts toward whether a specialty,
+        # city or country room opens at all, and the address that
+        # ``resolve_member_for_notify`` hands ``notify.flush_pending`` -- which
+        # mails a digest of channel content. An unvetted account would have gone
+        # on receiving physician-only messages by email after being shut out of
+        # the room itself.
         if role in ("admin", "qa_reviewer"):
             is_staff = True
-        elif role == "evaluator" and (verified or provisional):
+        elif role == "evaluator" and verified:
             is_staff = False
         else:
             continue
-        verification_state = "verified" if verified else "provisional"
         ship = (cred or {}).get("ship") or {}
         specialty = ship.get("primary_specialty") or user.get("specialty")
         years = ship.get("years_in_active_practice")
@@ -399,6 +458,37 @@ def public_member(member: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         log.error("community member payload contained a Tier B key; withheld")
         raise HTTPException(status_code=500, detail="profile unavailable")
     return pub
+
+
+#: What the rail, the mention autocomplete and an avatar actually read off a
+#: member. Everything else on a profile is read one member at a time, when
+#: somebody opens that person, and is served by ``/members/{user_id}``.
+_MEMBER_SUMMARY_KEYS = (
+    "user_id", "display_name", "initials", "avatar_url",
+    "specialty", "specialty_accent", "verified", "is_staff", "is_admin",
+)
+
+
+def public_member_summary(member: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """A member as the DIRECTORY needs them, not as a profile panel does.
+
+    The member list is the one payload whose size is multiplied by the whole
+    community: every doctor who opens the page downloads a row per colleague.
+    Measured at 1200 members it was 587 KB, and roughly 55% of that was fields
+    no list ever renders -- the blurb, the institution, the years, the two
+    training booleans, and the country / region / city / subspecialty slugs,
+    which exist so the SERVER can count who is in which room and were never
+    read by the client at all.
+
+    Trimming rather than paginating is deliberate: the rail shows every
+    colleague with a specialty filter over the whole set, and @mention
+    completion matches against the whole set too, so a page of members would
+    change what the product does. A narrower row does not.
+    """
+    pub = public_member(member)
+    if pub is None:
+        return None
+    return {k: pub.get(k) for k in _MEMBER_SUMMARY_KEYS}
 
 
 _GHOST_MEMBER = {
@@ -936,6 +1026,13 @@ async def channels(user: Dict[str, Any] = Depends(require_member)):
                 "group": ch.get("grp") or "core",
                 "specialty": ch.get("specialty"),
                 "country": ch.get("country"),
+                # The other three cohort keys. The rail groups on ``group``
+                # alone, but it puts a member's OWN room at the top of each
+                # group, and it cannot do that for a subspecialty, a city or a
+                # crossed room without being told which one each channel is.
+                "subspecialty": ch.get("subspecialty"),
+                "city": ch.get("city"),
+                "region": ch.get("region"),
                 "unread": (unread.get(ch["slug"]) or {}).get("unread", 0),
                 "mentions": (unread.get(ch["slug"]) or {}).get("mentions", 0),
             }
@@ -1534,7 +1631,7 @@ async def members_endpoint(
     specialty: Optional[str] = Query(default=None),
     user: Dict[str, Any] = Depends(require_member),
 ):
-    members = [public_member(m) for m in member_map().values()]
+    members = [public_member_summary(m) for m in member_map().values()]
     if specialty:
         want = specialty.strip().lower()
         members = [m for m in members if (m.get("specialty") or "").lower() == want]
@@ -1543,6 +1640,26 @@ async def members_endpoint(
         m["online"] = m["user_id"] in online
     members.sort(key=lambda m: ((m.get("display_name") or "").lower()))
     return {"members": members, "count": len(members)}
+
+
+@router.get("/members/{user_id}")
+async def member_profile(user_id: str, user: Dict[str, Any] = Depends(require_member)):
+    """One colleague's full profile, fetched when somebody opens them.
+
+    The counterpart to the trim in ``public_member_summary``: the blurb and the
+    training detail are what a member wants when they click a name, and they are
+    dead weight in a list of a thousand people. Same gate, same scrub, same
+    ``member_map`` source, so this can show nothing the list could not.
+
+    A user id that is not a member 404s exactly as an unknown one does, for the
+    reason ``_visible_channel_or_404`` gives: the API is not an oracle for who
+    holds an account here.
+    """
+    member = public_member(member_map().get(user_id))
+    if member is None:
+        raise HTTPException(status_code=404, detail="Unknown member")
+    member["online"] = user_id in set(await hub.online_user_ids())
+    return {"member": member}
 
 
 # ─── Search ───────────────────────────────────────────────────────────────────

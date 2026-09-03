@@ -495,10 +495,13 @@ def ensure_triage_demo_staff(team_store: Any) -> None:
 def _clear_triage_sqlite(team_store: Any, patient_ids: List[str]) -> None:
     if not patient_ids:
         return
-    import sqlite3
+    from team_store import connect_team_db
 
     placeholders = ",".join("?" for _ in patient_ids)
-    with sqlite3.connect(team_store.db_path) as conn:
+    # Demo-only seeding, but it opens the production team.db file, so it uses
+    # the shared opener too: a bare connect here would be one more chance to
+    # hit the 5s default timeout against a database the app is already using.
+    with connect_team_db(team_store.db_path) as conn:
         conn.execute(f"DELETE FROM escalations WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM patient_self_flags WHERE patient_id IN ({placeholders})", patient_ids)
         conn.execute(f"DELETE FROM survey_responses WHERE patient_id IN ({placeholders})", patient_ids)
@@ -915,9 +918,9 @@ def _blueprint_fingerprint() -> str:
 
 
 def _seed_meta_conn(team_store: Any):
-    import sqlite3
+    from team_store import connect_team_db
 
-    conn = sqlite3.connect(team_store.db_path)
+    conn = connect_team_db(team_store.db_path)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS triage_demo_seed_meta (key TEXT PRIMARY KEY, value TEXT)"
     )

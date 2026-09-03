@@ -422,6 +422,12 @@ class CommunityStore:
                     ON community_content_items(status, fetched_at);
                 CREATE INDEX IF NOT EXISTS idx_ccontent_title
                     ON community_content_items(title_norm, fetched_at);
+                -- ``window_key`` is the RESERVATION, not a label: it names the
+                -- scheduling window this run holds (the scope's local date for
+                -- the morning, the UTC date for the digests) and the unique
+                -- index below is what stops two runners composing and posting
+                -- the same brief. NULL means "holds no window" -- a forced or
+                -- manual run, and every row written before this shipped.
                 CREATE TABLE IF NOT EXISTS community_digest_runs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     kind TEXT NOT NULL,
@@ -430,7 +436,8 @@ class CommunityStore:
                     ok INTEGER,
                     items_fetched INTEGER,
                     items_posted INTEGER,
-                    error TEXT
+                    error TEXT,
+                    window_key TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_cdigest_kind
                     ON community_digest_runs(kind, id);
@@ -630,6 +637,25 @@ class CommunityStore:
                 SELECT id, user_b, created_at FROM community_dms WHERE kind = 'dm'
                 """
             )
+            # ─── The scheduling window a run holds (double-post fix) ──────────
+            # The ledger recorded runs; it did not RESERVE them. The morning
+            # routine and the digest scheduler both checked "no successful run
+            # since today's fire time" and only then inserted a row with ok
+            # unset, so the hourly GitHub Actions cron and the in-process hourly
+            # loop could both pass the check, both spend an LLM call, and both
+            # post the same brief into the same channel.
+            #
+            # This index is the arbiter. NULLs are distinct in a SQLite UNIQUE
+            # index, so historical rows and deliberately forced runs collide
+            # with nothing; two runners reaching for the same (kind, window)
+            # cannot both get it.
+            if "window_key" not in cols("community_digest_runs"):
+                conn.execute(
+                    "ALTER TABLE community_digest_runs ADD COLUMN window_key TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_cdigest_window "
+                "ON community_digest_runs(kind, window_key) "
+                "WHERE window_key IS NOT NULL")
 
     # ─── Channels ─────────────────────────────────────────────────────────────
     def ensure_default_channels(
@@ -1791,7 +1817,29 @@ class CommunityStore:
                 )
 
     # ─── Digest runs (three-outcome: ok NULL=running / 1 / 0) ─────────────────
+    #: How long a claimed-but-unfinished window is honoured before another
+    #: runner may take it. Far longer than any compose (sourcing plus one LLM
+    #: call is seconds to a minute) and shorter than the hourly tick, so it only
+    #: ever fires for a runner that actually died mid-run.
+    RUN_CLAIM_LEASE_SECONDS = 3600
+
+    @staticmethod
+    def _immediate(conn: sqlite3.Connection) -> None:
+        """Take SQLite's write lock at transaction START.
+
+        The default DEFERRED transaction takes a SHARED lock on the first read
+        and tries to upgrade on the first write, so two claimers that both read
+        first can race on the upgrade. BEGIN IMMEDIATE makes the second wait at
+        the door instead. Mirrors ``AsclepiusStore._immediate``.
+        """
+        conn.isolation_level = None      # we drive BEGIN/COMMIT ourselves
+        conn.execute("BEGIN IMMEDIATE")
+
     def start_digest_run(self, kind: str) -> int:
+        """Record a run that reserves nothing. For callers that have already
+        decided to run (a manual trigger, a forced run): the caller, not the
+        ledger, is the arbiter. Anything on a schedule wants
+        ``claim_digest_run``."""
         with self._conn() as conn:
             cur = conn.execute(
                 "INSERT INTO community_digest_runs (kind, started_at) VALUES (?, ?)",
@@ -1799,16 +1847,82 @@ class CommunityStore:
             )
             return int(cur.lastrowid)
 
+    def claim_digest_run(self, kind: str, *, window_key: Optional[str]) -> Optional[int]:
+        """Reserve ``(kind, window_key)`` and return the run id, or None if
+        another runner already holds that window.
+
+        This is the whole double-post fix. Two schedulers drive these runs (the
+        hourly GitHub Actions cron and the in-process hourly loop) and both used
+        to read "no successful run since today's fire time", both find it true,
+        both compose (an LLM call each), and both post. Due-ness computed from a
+        ledger is not a claim; the UNIQUE index on (kind, window_key) is, and
+        the loser finds out before it spends anything.
+
+        ``window_key=None`` reserves nothing and always inserts, which is what a
+        forced or manual run wants: the operator asked for this run and is the
+        authority on whether it should happen.
+
+        A window whose runner died mid-run is released after
+        ``RUN_CLAIM_LEASE_SECONDS`` and marked abandoned, because the honest
+        alternative, a window held forever by a process that no longer exists,
+        means the channel silently stops getting its morning until tomorrow.
+        """
+        if window_key is None:
+            return self.start_digest_run(kind)
+        now = datetime.utcnow().replace(microsecond=0)
+        stale = (now - timedelta(seconds=self.RUN_CLAIM_LEASE_SECONDS)) \
+            .isoformat() + "Z"
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            # Release first, in the same transaction as the insert, so the
+            # reclaim cannot land between another claimer's release and its
+            # insert. ok=0 rather than left running: an abandoned run IS a
+            # failed one, and the failure backoff should see it.
+            conn.execute(
+                "UPDATE community_digest_runs SET window_key = NULL, ok = 0, "
+                "finished_at = ?, error = 'abandoned mid-run' "
+                "WHERE kind = ? AND window_key = ? AND ok IS NULL "
+                "  AND started_at <= ?",
+                (now.isoformat() + "Z", kind, window_key, stale),
+            )
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO community_digest_runs "
+                "  (kind, started_at, window_key) VALUES (?, ?, ?)",
+                (kind, now.isoformat() + "Z", window_key),
+            )
+            run_id = int(cur.lastrowid) if cur.rowcount else None
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:  # noqa: BLE001
+                pass
+            raise
+        finally:
+            conn.close()
+        return run_id
+
     def finish_digest_run(
         self, run_id: int, *, ok: bool, items_fetched: int = 0,
         items_posted: int = 0, error: Optional[str] = None,
     ) -> None:
+        """Close a run. A FAILED run releases its window.
+
+        Releasing on failure is what keeps the retry behaviour the schedulers
+        already had: a transient sourcing or LLM error must not cost the channel
+        its whole day, and the next tick finds the window free again. A
+        successful run keeps its window, which is what makes "once per channel
+        per day" true.
+        """
         with self._conn() as conn:
             conn.execute(
                 "UPDATE community_digest_runs SET finished_at = ?, ok = ?, "
-                "items_fetched = ?, items_posted = ?, error = ? WHERE id = ?",
+                "items_fetched = ?, items_posted = ?, error = ?, "
+                "window_key = CASE WHEN ? THEN window_key ELSE NULL END "
+                "WHERE id = ?",
                 (_utcnow_iso(), 1 if ok else 0, items_fetched, items_posted,
-                 (error or None), run_id),
+                 (error or None), 1 if ok else 0, run_id),
             )
 
     def last_successful_run_at(self, kind: str) -> Optional[str]:

@@ -652,6 +652,53 @@ def _mock_years() -> int:
         return 12
 
 
+_MOCK_PROD_FIX = ("Set ASCLEPIUS_MOCK_PASSWORD to a private value to run the sandbox "
+                  "on production (this also unlocks the V4 real-case demo), or set "
+                  "ASCLEPIUS_MOCK_ENABLED=0 to turn it off entirely.")
+
+
+def _refuse_default_password_mock_in_production(store: AsclepiusStore, login_id: str) -> None:
+    """Production boot with the published default password: leave no usable login.
+
+    Two states to handle, and only refusing the first would be half a fix. A
+    fresh production deployment simply never gets the account. A deployment that
+    has booted before already has the row on disk WITH the default password,
+    because ``ensure_mock_user`` reset it on every previous boot; walking past it
+    would leave the exact credential this refusal exists to remove.
+
+    The rotation is one-way on purpose. The new secret is generated here, handed
+    straight to the store and never logged, so nobody (including us) can sign in
+    as the sandbox on production. Recovering the account means setting
+    ASCLEPIUS_MOCK_PASSWORD, which is the supported path anyway.
+    """
+    existing = store.get_user_by_email(login_id)
+    if not existing:
+        log.error(
+            "Asclepius: REFUSING to provision the MOCK contributor '%s' in production: "
+            "it would be a login-capable physician account guarded by a password "
+            "published in this repo. %s",
+            login_id, _MOCK_PROD_FIX,
+        )
+        return
+    store.ensure_mock_user(
+        email=login_id,
+        # Never logged, never returned, not derived from anything guessable.
+        password=secrets.token_urlsafe(32),
+        specialty=existing.get("specialty"),
+        board_cert=existing.get("board_cert"),
+        years_experience=existing.get("years_experience"),
+        organization=existing.get("organization"),
+        real_data_approved=False,
+    )
+    log.error(
+        "Asclepius: MOCK contributor '%s' already existed in production under the "
+        "published default password. Its password has been rotated to an unrecoverable "
+        "random value and its real-case access revoked; the account can no longer be "
+        "signed into. %s",
+        login_id, _MOCK_PROD_FIX,
+    )
+
+
 def ensure_mock_contributor(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
     """Idempotently provision the mock/sandbox contributor on every boot (no-op
     when ASCLEPIUS_MOCK_ENABLED=0). Safe in production: the account is isolated
@@ -661,11 +708,46 @@ def ensure_mock_contributor(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
     password is not the known default in production. An out-of-the-box prod
     deployment must never expose real de-identified cases behind published
     credentials (security review); set ASCLEPIUS_MOCK_PASSWORD to a private
-    value to unlock the V4 demo on prod. Dev/staging stays unlocked."""
+    value to unlock the V4 demo on prod. Dev/staging stays unlocked.
+
+    PRODUCTION + DEFAULT PASSWORD: no login-capable account at all. The V4 gate
+    above keeps real patient cases away from this account, but it was never the
+    whole exposure. The account still authenticates on the live portal with a
+    password published in the repo, in ``demo_credentials``, and in the admin
+    console. What it reaches once signed in, confirmed against the code rather
+    than assumed: role=evaluator with tier='labeler', so it draws from the
+    SYNTHETIC task queue and submits labels; the practice-case gate and the
+    physician-agreement gate both exempt it explicitly on ``is_mock``; it appears
+    in the contributor directory; and it holds a BROWSE-level ``/me/*`` surface.
+    It does NOT reach real patient cases (the V4 gate), the contributor community
+    (``community.router._passes_gate`` needs a verified vault row it has none of),
+    default exports, the physician roster, allocation or weekly metrics. So the
+    blast radius is a physician-shaped session on our production portal for
+    anyone who has read the source, not a PHI breach, which is why this is a
+    same-night fix rather than an incident.
+
+    So in ``ENV=production`` with no ``ASCLEPIUS_MOCK_PASSWORD``:
+      * if the account does not exist, it is NOT created (loud ERROR, no
+        silently-weakened variant);
+      * if a previous boot already created it, its published password is
+        rotated to an unguessable value that is never logged and never
+        recoverable, because refusing to touch the row would leave exactly the
+        live default-credential login this fix exists to remove. The row itself
+        stays, so its historic sandbox submissions, directory entry and export
+        exclusion keep resolving.
+    Either way this returns None: no usable sandbox account came out of it.
+
+    Dev and staging are untouched: the sandbox is genuinely useful there, and
+    neither serves real patients. Production operators who want the demo set
+    ASCLEPIUS_MOCK_PASSWORD (also the switch that unlocks V4), and operators who
+    want it gone everywhere set ASCLEPIUS_MOCK_ENABLED=0."""
     cfg = mock_credentials()
     if not cfg["enabled"]:
         return None
     custom_password = bool(os.getenv("ASCLEPIUS_MOCK_PASSWORD"))
+    if _is_production() and not custom_password:
+        _refuse_default_password_mock_in_production(store, cfg["email"])
+        return None
     v4_ok = custom_password or not _is_production()
     user = store.ensure_mock_user(
         email=cfg["email"], password=cfg["password"], specialty=cfg["specialty"],

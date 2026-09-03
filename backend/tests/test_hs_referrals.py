@@ -125,11 +125,39 @@ def test_an_under_review_account_cannot_send_an_introduction():
     approval, unlike the physician invite, which stays available under review."""
     store = _store()
     pending = A.make_user(store, role="evaluator", specialty="nephrology")
-    assert (store.get_user_by_id(pending["id"]) or {}).get("verification_status") != "approved"
+    # Set the status explicitly. make_user leaves it NULL, which reads as an
+    # account that predates the review queue and legitimately keeps this door
+    # (see the legacy test below), so relying on the fixture default here would
+    # assert nothing about an account actually under review.
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET verification_status = 'pending' WHERE id = ?",
+                     (pending["id"],))
+    assert (store.get_user_by_id(pending["id"]) or {}).get("verification_status") == "pending"
 
     r = _submit(store.get_user_by_id(pending["id"]))
     assert r.status_code == 403, r.text
     assert store.list_hs_referrals_by_referrer(pending["id"]) == []
+
+
+def test_a_legacy_account_with_no_status_can_still_introduce():
+    """The gate reads the access level, not the literal string 'approved'.
+
+    An account that predates the review queue carries a NULL status, which
+    capabilities has always read as full access. Comparing to the literal would
+    silently take this door away from every physician who joined before
+    verification existed.
+    """
+    store = _store()
+    legacy = A.make_user(store, role="evaluator", specialty="nephrology")
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET verification_status = NULL WHERE id = ?",
+                     (legacy["id"],))
+    row = store.get_user_by_id(legacy["id"])
+    assert row.get("verification_status") is None
+
+    r = _submit_only(row)
+    assert r.status_code == 200, r.text
+    assert len(store.list_hs_referrals_by_referrer(legacy["id"])) == 1
 
 
 def test_the_consent_checkbox_is_required():

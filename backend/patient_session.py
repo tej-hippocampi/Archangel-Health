@@ -30,6 +30,8 @@ from typing import Any, Dict, Optional
 
 import jwt
 
+from team_store import connect_team_db
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
 ALGORITHM = "HS256"
@@ -57,9 +59,10 @@ def _db_path() -> str:
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(_db_path())
-    conn.row_factory = sqlite3.Row
-    return conn
+    # Shared team.db opener: WAL + 30s busy timeout. The jti table is touched on
+    # the patient auth path, so a 5s default timeout here shows up as a failed
+    # login rather than a slow one.
+    return connect_team_db(_db_path())
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:

@@ -160,6 +160,56 @@ def test_the_drain_sends_each_pending_row_once(store, monkeypatch):
     assert task_notify.drain_outbox(store) == (0, 0)
 
 
+def test_two_drains_racing_mail_the_physician_once(store, monkeypatch):
+    """Three callers drain this outbox: the 60 s loop in ``main``, the
+    per-upload ``BackgroundTasks.add_task``, and the admin re-drain endpoint.
+
+    Before the claim they all ran a plain ``SELECT ... WHERE status='pending'``,
+    so an upload landing inside a tick handed the SAME row to two of them and
+    the physician got the same mail twice. The second drain here starts while
+    the first is still inside its send, which is exactly the window.
+    """
+    _neph(store)
+    task_notify.enqueue_for_batch(
+        store, batch_id=uuid.uuid4().hex,
+        created_tasks=[{"task_id": "t1", "specialty": "nephrology"}],
+    )
+    sent = []
+    second = []
+
+    async def _ok(to, subject, body):
+        sent.append(to)
+        if not second:
+            # The loop's tick lands mid-send. It must find nothing to take.
+            second.append(task_notify.drain_outbox(store))
+        return True, None
+
+    monkeypatch.setattr("email_utils.send_html_email_with_reason", _ok)
+
+    assert task_notify.drain_outbox(store) == (1, 0)
+    assert second == [(0, 0)]
+    assert len(sent) == 1
+
+
+def test_a_claim_that_ages_out_is_reclaimed_rather_than_stranded(store):
+    """The other half of the lease. A worker killed between claiming a row and
+    marking it leaves the row claimed; without a lease that mail is never sent
+    and nothing retries it, which is the failure the outbox exists to prevent.
+    """
+    _neph(store)
+    task_notify.enqueue_for_batch(
+        store, batch_id=uuid.uuid4().hex,
+        created_tasks=[{"task_id": "t1", "specialty": "nephrology"}],
+    )
+    claimed = store.claim_task_notifications()
+    assert len(claimed) == 1
+    # A live claim is honoured.
+    assert store.claim_task_notifications() == []
+    # An expired one is not.
+    reclaimed = store.claim_task_notifications(stale_after_seconds=0)
+    assert [r["id"] for r in reclaimed] == [claimed[0]["id"]]
+
+
 def test_a_transport_failure_leaves_the_row_recorded_not_lost(store, monkeypatch):
     _neph(store)
     task_notify.enqueue_for_batch(

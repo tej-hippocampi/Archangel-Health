@@ -187,7 +187,19 @@ def gate_enabled() -> bool:
 
     So the order is: merge the mechanism, let counsel replace the interim
     document, put the signature screen in front of the physicians who are
-    already here, and then arm it on a day somebody chooses. Off, everything
+    already here, and then arm it on a day somebody chooses.
+
+    THE SCREEN NOW EXISTS, and that is what makes arming this survivable at all:
+    ``renderAgreementView`` in ``frontend/asclepius/asclepius.js`` renders the
+    text, takes the signature and POSTs ``/me/agreement/sign``, and both the
+    dashboard and the next-case path route this gate's 403 into it (they match on
+    ``AGREEMENT_GATE_HEADER`` / ``error == "agreement_required"``, so the copy can
+    be reworded without breaking the routing). Physicians can also reach it
+    unprompted from Profile, which is how step three above gets done. What is
+    still owed before the flag is worth flipping is step two, counsel's language,
+    and asking the roster to sign while the gate is still off -- arming it with
+    an unsigned roster still stops every one of them at their next draw.
+    Off, everything
     else in this feature still runs: the agreement is readable, signatures are
     taken and recorded, artifacts render, and supersession is computed and
     reported by ``/me/agreement``. The only thing the flag decides is whether

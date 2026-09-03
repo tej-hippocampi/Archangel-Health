@@ -3197,6 +3197,7 @@ class AsclepiusStore:
                     send_attempts   INTEGER NOT NULL DEFAULT 0,
                     last_error      TEXT,
                     sent_at         TEXT,
+                    claimed_at      TEXT,
                     created_at      TEXT NOT NULL
                 )
                 """
@@ -3333,6 +3334,14 @@ class AsclepiusStore:
             # enqueues these synchronously (fast, transactional) and a background
             # drain sends the emails, so a crash mid-send leaves rows `pending`
             # for the manual re-drain endpoint rather than losing the tail.
+            #
+            # ``claimed_at`` is the LEASE, and it is what makes three concurrent
+            # drains safe (the 60 s loop, the per-upload BackgroundTasks drain,
+            # and the manual admin re-drain all reach this table). A drain claims
+            # rows with one guarded UPDATE and sends only the rows it won; a
+            # pending row nobody has claimed carries NULL, and a claim that ages
+            # out is reclaimable so a worker that died mid-send does not strand
+            # a physician's mail forever. See ``claim_task_notifications``.
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS task_notify_outbox (
@@ -3347,6 +3356,7 @@ class AsclepiusStore:
                     send_attempts     INTEGER NOT NULL DEFAULT 0,
                     last_error        TEXT,
                     sent_at           TEXT,
+                    claimed_at        TEXT,
                     created_at        TEXT NOT NULL
                 )
                 """
@@ -3402,6 +3412,7 @@ class AsclepiusStore:
                     send_attempts   INTEGER NOT NULL DEFAULT 0,
                     last_error      TEXT,
                     sent_at         TEXT,
+                    claimed_at      TEXT,
                     created_at      TEXT NOT NULL
                 )
                 """
@@ -3414,6 +3425,18 @@ class AsclepiusStore:
                 "CREATE INDEX IF NOT EXISTS idx_hs_request_outbox_request "
                 "ON hs_request_outbox(request_id)"
             )
+            # The lease column on all three mail outboxes, for databases that
+            # predate it. Every one of them is drained by more than one caller
+            # (the 60 s loop, a per-request BackgroundTasks drain, the manual
+            # admin re-drain), and every one of them used to hand the same
+            # pending row to both: a plain SELECT is not a claim, so two drains
+            # one tick apart mailed the same physician twice. Backfilled NULL,
+            # which reads as "nobody holds this row" and is exactly right for
+            # rows that were pending when the migration ran.
+            for _outbox in ("task_notify_outbox", "hs_request_outbox",
+                            "admin_notify_outbox"):
+                if "claimed_at" not in cols(_outbox):
+                    conn.execute(f"ALTER TABLE {_outbox} ADD COLUMN claimed_at TEXT")
             # Which request an upload answers, when it answers one at all.
             # Nullable and it stays nullable: most uploads predate or ignore
             # every request, and a partner who just sends us data must not meet
@@ -4479,13 +4502,26 @@ class AsclepiusStore:
             return cur.rowcount > 0
 
     def due_admin_notifications(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Claim the due alerts and return only the ones this caller won.
+
+        Reads like a query and is a claim, deliberately: the caller is a drain
+        loop, and the same select-then-mark shape here as in the two mail
+        outboxes would double-send an admin alert the moment a second drainer
+        exists. The lease is the same one, and a failed send clears it below so
+        the retry the next tick still happens on the next tick.
+        """
         now = _utcnow_iso()
+        stale = _iso_minus_seconds(self.OUTBOX_CLAIM_LEASE_SECONDS)
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM admin_notify_outbox WHERE status='pending' "
-                "AND (send_after IS NULL OR send_after <= ?) "
-                "ORDER BY id LIMIT ?",
-                (now, limit),
+                "UPDATE admin_notify_outbox SET claimed_at = ? "
+                "WHERE id IN (SELECT id FROM admin_notify_outbox "
+                "             WHERE status='pending' "
+                "               AND (send_after IS NULL OR send_after <= ?) "
+                "               AND (claimed_at IS NULL OR claimed_at <= ?) "
+                "             ORDER BY id LIMIT ?) "
+                "RETURNING *",
+                (now, now, stale, max(0, int(limit))),
             ).fetchall()
             return [dict(r) for r in rows]
 
@@ -4498,9 +4534,13 @@ class AsclepiusStore:
                     (_utcnow_iso(), row_id),
                 )
             else:
+                # The row stays 'pending', which is how an admin alert retries,
+                # so the claim has to come off with it. Leaving the lease on
+                # would turn "retry next tick" into "retry in fifteen minutes",
+                # which is a delay nobody asked for on a verification decision.
                 conn.execute(
                     "UPDATE admin_notify_outbox SET send_attempts=send_attempts+1, "
-                    "last_error=? WHERE id=?",
+                    "last_error=?, claimed_at=NULL WHERE id=?",
                     ((error or "")[:500], row_id),
                 )
 
@@ -4806,20 +4846,99 @@ class AsclepiusStore:
         return {r["user_id"]: int(r["n"]) for r in rows}
 
     def expire_stale_assignments(self, *, now_iso: Optional[str] = None) -> int:
-        """Return timed-out exclusive assignments to the pool.
+        """Return timed-out exclusive assignments to the pool. Returns the number
+        of assignment rows expired.
 
         An exclusive assignment with no expiry is a queue that wedges the moment
         somebody goes on holiday, so exclusivity is only ever offered with one.
+
+        **Expiring the assignment is only half of "return it to the pool", and
+        for a routed case the other half is the half that matters.** Sending
+        cases to named doctors flips them to ``distribution='assigned_only'``,
+        and that gate (``_PRD_CB_DISTRIBUTION``) serves such a task to nobody but
+        a live assignee. So expiring the last live assignment on an assigned_only
+        case made it invisible to the assignee AND to everyone else at the same
+        instant: the case was not returned anywhere, it fell out of every queue,
+        out of the dashboard count, and off the by-id path too. This method had no
+        caller until the hourly sweep shipped, which is why nobody had seen it.
+
+        So the flip back to ``'open'`` below is not an extra feature, it is the
+        docstring's first line finally being true. It is deliberately narrow:
+          * only tasks this sweep actually just expired an assignment on;
+          * only ``label`` expiries, matching ``_PRD_ASSIGN_MINE``, so a lapsed
+            REVIEW assignment never opens a case for labeling;
+          * only when NO live label assignment remains, so a case routed to two
+            doctors stays theirs while either still holds it;
+          * only ``assigned_only`` tasks, because an already-open task was never
+            hidden and needs nothing.
+
+        A REVOKE still hides the case, and must: revoking is an admin un-routing
+        work on purpose, while an expiry is a clock running out on work nobody
+        did. One is a decision and the other is a timeout, and only the timeout
+        means "put it back".
+
+        The read and the two writes are ONE ``BEGIN IMMEDIATE`` transaction: the
+        release decision is made from rows read inside it, so a re-route landing
+        between the read and the write cannot have its fresh assignment ignored
+        and its case opened underneath it.
         """
         now = now_iso or _utcnow_iso()
-        with self._conn() as conn:
+        conn = self._conn()
+        released: List[str] = []
+        try:
+            self._immediate(conn)
+            touched = [r["task_id"] for r in conn.execute(
+                "SELECT DISTINCT task_id FROM assignments "
+                "WHERE status IN ('offered','claimed') AND role = 'label' "
+                "AND expires_at IS NOT NULL AND expires_at < ?",
+                (now,),
+            ).fetchall()]
             cur = conn.execute(
                 "UPDATE assignments SET status = 'expired' "
                 "WHERE status IN ('offered','claimed') AND expires_at IS NOT NULL "
                 "AND expires_at < ?",
                 (now,),
             )
-            return cur.rowcount
+            expired = int(cur.rowcount or 0)
+            if touched:
+                marks = ",".join("?" for _ in touched)
+                released = [r["task_id"] for r in conn.execute(
+                    f"SELECT task_id FROM tasks WHERE task_id IN ({marks}) "
+                    "  AND COALESCE(distribution, 'open') = 'assigned_only' "
+                    "  AND NOT EXISTS (SELECT 1 FROM assignments a "
+                    "                   WHERE a.task_id = tasks.task_id "
+                    "                     AND a.role = 'label' "
+                    "                     AND a.status IN ('offered','claimed'))",
+                    tuple(touched),
+                ).fetchall()]
+                if released:
+                    marks = ",".join("?" for _ in released)
+                    conn.execute(
+                        f"UPDATE tasks SET distribution = 'open' WHERE task_id IN ({marks})",
+                        tuple(released),
+                    )
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:  # noqa: BLE001
+                pass
+            raise
+        finally:
+            conn.close()
+        # Logged AFTER the connection closes, never inside it: ``log_event``
+        # opens its own connection and re-entering an open one is the C-5.5 bug.
+        # Worth an event per case rather than a count, because "why is this case
+        # back in the general queue" is a question an admin will ask about one
+        # specific case, and a sweep that changes visibility silently is how a
+        # janitorial pass becomes indistinguishable from a bug.
+        for task_id in released:
+            self.log_event(
+                entity_type="task", entity_id=task_id,
+                event_type="assignment_expired_returned_to_pool",
+                payload={"distribution": "open", "expired_at": now},
+            )
+        return expired
 
     # ─── Case quality (internal metric, stamped) ─────────────────────────────
     def set_earning_quality(
@@ -5101,12 +5220,49 @@ class AsclepiusStore:
             )
             return int(cur.lastrowid) if cur.rowcount else None
 
-    def list_pending_task_notifications(self, limit: int = 500) -> List[Dict[str, Any]]:
+    #: How long a drain's claim on an outbox row is honoured before another
+    #: drain may take it. Long enough that a live drain cannot be lapped (a
+    #: claimed chunk is tens of rows and a send is seconds), short enough that a
+    #: worker killed mid-send does not strand a physician's mail until someone
+    #: notices. Same 900 s the verification-job claim uses.
+    OUTBOX_CLAIM_LEASE_SECONDS = 900
+
+    def claim_task_notifications(
+        self, limit: int = 500, *, stale_after_seconds: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Take ownership of up to ``limit`` pending rows and return only the
+        rows THIS caller won.
+
+        The claim is one guarded UPDATE, never a SELECT followed by a hopeful
+        write, because three callers drain this outbox concurrently: the 60 s
+        loop, the per-upload ``BackgroundTasks`` drain, and the admin re-drain
+        endpoint. A plain ``SELECT ... WHERE status='pending'`` handed the same
+        row to two of them whenever an upload landed inside a tick, and both
+        sent it, so the physician got the same mail twice. SQLite serialises
+        writers, so the second caller's UPDATE runs after the first has stamped
+        ``claimed_at`` and matches nothing.
+
+        ``status`` deliberately stays 'pending' while claimed: the admin
+        delivery tally and every other reader keep their three-value vocabulary
+        (pending / sent / failed), and the lease is carried in its own column.
+
+        A claim older than the lease is reclaimable, which is the crash path: a
+        worker that died between claiming and marking leaves rows claimed
+        forever otherwise, and unsent mail nobody is retrying is the failure
+        this outbox exists to prevent.
+        """
+        stale = _iso_minus_seconds(
+            stale_after_seconds if stale_after_seconds is not None
+            else self.OUTBOX_CLAIM_LEASE_SECONDS)
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM task_notify_outbox WHERE status = 'pending' "
-                "ORDER BY created_at ASC LIMIT ?",
-                (limit,),
+                "UPDATE task_notify_outbox SET claimed_at = ? "
+                "WHERE id IN (SELECT id FROM task_notify_outbox "
+                "             WHERE status = 'pending' "
+                "               AND (claimed_at IS NULL OR claimed_at <= ?) "
+                "             ORDER BY created_at ASC, id ASC LIMIT ?) "
+                "RETURNING *",
+                (_utcnow_iso(), stale, max(0, int(limit))),
             ).fetchall()
             return [dict(r) for r in rows]
 
@@ -5206,12 +5362,25 @@ class AsclepiusStore:
             )
             return int(cur.lastrowid) if cur.rowcount else None
 
-    def list_pending_hs_request_notifications(self, limit: int = 500) -> List[Dict[str, Any]]:
+    def claim_hs_request_notifications(
+        self, limit: int = 500, *, stale_after_seconds: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """The broadcast outbox's claim. Identical in shape and for the same
+        reason as ``claim_task_notifications``, with a fourth concurrent path
+        into it: ``retry_failed_hs_request_notifications`` flips rows back to
+        pending under a drain that is already running."""
+        stale = _iso_minus_seconds(
+            stale_after_seconds if stale_after_seconds is not None
+            else self.OUTBOX_CLAIM_LEASE_SECONDS)
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM hs_request_outbox WHERE status = 'pending' "
-                "ORDER BY created_at ASC, id ASC LIMIT ?",
-                (limit,),
+                "UPDATE hs_request_outbox SET claimed_at = ? "
+                "WHERE id IN (SELECT id FROM hs_request_outbox "
+                "             WHERE status = 'pending' "
+                "               AND (claimed_at IS NULL OR claimed_at <= ?) "
+                "             ORDER BY created_at ASC, id ASC LIMIT ?) "
+                "RETURNING *",
+                (_utcnow_iso(), stale, max(0, int(limit))),
             ).fetchall()
             return [dict(r) for r in rows]
 
@@ -5246,10 +5415,14 @@ class AsclepiusStore:
         """Flip every failed row for one request back to pending, so the next
         drain re-attempts them. Returns how many rows were flipped. Without
         this a failed row is terminal: re-broadcasting enqueues nothing because
-        every idempotency key already exists."""
+        every idempotency key already exists.
+
+        ``claimed_at`` is cleared with the status, so the next drain can claim
+        the row immediately rather than waiting out a lease left over from the
+        attempt that failed."""
         with self._conn() as conn:
             cur = conn.execute(
-                "UPDATE hs_request_outbox SET status = 'pending' "
+                "UPDATE hs_request_outbox SET status = 'pending', claimed_at = NULL "
                 "WHERE request_id = ? AND status = 'failed'",
                 (request_id,),
             )
