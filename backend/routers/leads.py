@@ -11,9 +11,10 @@ import html
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, EmailStr, Field
 
+from asclepius import auth as asc_auth
 from email_utils import is_email_transport_configured, send_html_email
 from ratelimit import client_ip, rate_limiter
 
@@ -151,3 +152,50 @@ async def submit_lead(body: LeadBody, request: Request):
             detail="We couldn't send that just now — please email us instead.",
         )
     return {"ok": True}
+
+
+@router.get("/admin")
+async def list_leads_admin(
+    request: Request,
+    source: Optional[str] = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    before_id: Optional[int] = Query(default=None),
+    _admin: dict = Depends(asc_auth.require_admin),
+):
+    """Read the submissions back, newest first.
+
+    Lives here rather than in the admin router because the write lives here: the
+    table is a team-store table, this module already holds the team-store handle,
+    and splitting reader from writer across two routers is how the two drift
+    about what a source string means.
+
+    Every source is returned by default and ``source`` narrows it, because the
+    health-system pipeline and the buyer pipeline are read by different people
+    and neither wants to scroll past the other. Honeypot submissions cannot
+    appear: they were never stored (``submit_lead`` returns before the write).
+
+    An unknown ``source`` is an empty page rather than a 422. The filter names a
+    stream we may add to or rename, and a console that 500s because a chip is a
+    release behind is worse than one that shows nothing.
+    """
+    src = (source or "").strip() or None
+    rows = _ts(request).list_lead_submissions(
+        source=src, limit=limit, before_id=before_id)
+    return {
+        "leads": [
+            {
+                "id": r["id"],
+                "source": r["source"],
+                "source_label": _SOURCE_LABELS.get(r["source"], r["source"]),
+                "email": r["email"],
+                "message": r["message"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ],
+        "sources": [{"key": k, "label": v} for k, v in _SOURCE_LABELS.items()],
+        # The cursor for the next page, or None when this page is the end.
+        # Derived here rather than by the client, which would otherwise have to
+        # know that the keyset is the id.
+        "next_before_id": rows[-1]["id"] if len(rows) == limit else None,
+    }

@@ -54,6 +54,8 @@ The backend serves the **doctor dashboard**, **patient dashboards**, and all **A
 4. **Environment variables** (in the host’s dashboard):
    - `VITE_API_URL` = `https://app.archangelhealth.ai`
    - (Optional) `VITE_DASHBOARD_URL` = `https://app.archangelhealth.ai` (for “Dashboard” after sign-in).
+   - (Optional) `VITE_CALENDLY_URL`: booking link for `/partner`. Unset keeps the partner-call account the build ships with.
+   - (Optional) `VITE_CALENDLY_TEAM_URL`: booking link for `/team-calculator`'s “Book a demo”. Deliberately separate: the two links are on **two different Calendly accounts** today. Set both to the same value to consolidate.
 5. **Custom domain**: Add `archangelhealth.ai` and `www.archangelhealth.ai`; follow the host’s DNS instructions (usually CNAME for `www`, and A or CNAME for root as they specify).
 
 ---

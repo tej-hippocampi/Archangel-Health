@@ -231,7 +231,12 @@
     }
     let res;
     try {
-      res = await fetch(API_BASE + path, { method: opts.method || 'GET', headers, body });
+      // `opts.base` overrides the asclepius prefix for the handful of admin
+      // reads that live outside it (the landing lead table is on /api/leads,
+      // beside the public form that writes it). Everything else defaults to
+      // API_BASE, so no caller has to know the prefix exists.
+      res = await fetch((opts.base || API_BASE) + path,
+                        { method: opts.method || 'GET', headers, body });
     } catch (e) {
       throw { status: 0, detail: 'Network error. Is the backend running?', message: 'Network error' };
     }

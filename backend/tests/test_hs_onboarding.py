@@ -989,3 +989,199 @@ def test_the_agreement_reads_as_a_document_not_as_markdown():
     assert "Both purposes are granted" in rendered
     # The hash of what was signed is printed in it, in two halves.
     assert sha[:32] in rendered and sha[32:] in rendered
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  §12, the glue gaps: the surface gate on the read doors, and the letter a
+#  member added mid-approval receives
+# ════════════════════════════════════════════════════════════════════════════
+def _read_upload_doors(client, session_id: str):
+    """The three upload doors that only READ, each returning its status code.
+
+    They were the ones that answered differently. The four write doors have
+    named the upload surface since ``test_hs_gating`` started asserting it; these
+    three took a bare portal session, so a pending account got a 200 and an
+    empty list from the first and a live session handle from the other two.
+    """
+    return [
+        client.get(f"{API}/hs/uploads"),
+        client.get(f"{API}/hs/uploads/sessions/{session_id}"),
+        client.delete(f"{API}/hs/uploads/sessions/{session_id}"),
+    ]
+
+
+def test_a_pending_account_is_refused_the_upload_read_doors_too():
+    """A partner in review must get ONE answer from the upload area, not a 403
+    at the doors that write and a cheerful empty list at the door that reads.
+
+    "You have uploaded nothing" and "you may not upload yet" are different
+    sentences, and the first one sends a hospital hunting for a file it never
+    sent. Asserted against a REAL session opened while the account was approved,
+    because a fabricated id 404s before any gate is consulted.
+    """
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    # The ORGANIZATION is active throughout, so the only thing that can refuse
+    # is the account gate. Otherwise the state gate would answer first and this
+    # would prove nothing about the surface.
+    store.set_hs_onboarding_state(org["hs_id"], "active")
+    store.set_hs_approval(org["username"], "approved", by="test")
+    session_id = _open_session(client, _bundle())
+
+    store.set_hs_approval(org["username"], "pending", by="test")
+    reads = _read_upload_doors(client, session_id)
+    assert [r.status_code for r in reads] == [403, 403, 403]
+
+    # And refused in the SAME WORDS as the write doors. Two vocabularies for one
+    # condition is how a support thread becomes two support threads.
+    write = client.post(f"{API}/hs/uploads",
+                        files={"files": ("b.zip", _bundle(), "application/zip")})
+    assert write.status_code == 403
+    assert {r.json()["detail"] for r in reads} == {write.json()["detail"]}
+
+
+def test_the_upload_read_doors_reopen_the_moment_the_account_is_approved():
+    """The gate is the account's current row, not the cookie it signed in with.
+    An operator who approves someone must not have to tell them to sign out and
+    back in before the page they were staring at works."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    store.set_hs_onboarding_state(org["hs_id"], "active")
+    store.set_hs_approval(org["username"], "approved", by="test")
+    session_id = _open_session(client, _bundle())
+    store.set_hs_approval(org["username"], "pending", by="test")
+    assert [r.status_code for r in _read_upload_doors(client, session_id)] == [403, 403, 403]
+
+    store.set_hs_approval(org["username"], "approved", by="test")
+    reopened = _read_upload_doors(client, session_id)
+    assert [r.status_code for r in reopened] == [200, 200, 200]
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  §14, the uploads summary
+# ════════════════════════════════════════════════════════════════════════════
+def _seed_uploads(store, hs_id, *pairs):
+    """Land uploads directly in the pipeline's own states.
+
+    Direct inserts rather than real uploads on purpose: the point of the summary
+    is what it says about statuses the INGESTION pipeline sets minutes later, and
+    driving a bundle all the way to `ingested` here would test the pipeline.
+    """
+    for status, size in pairs:
+        up = store.insert_ingest_upload(
+            link_id="hs-portal", partner_id=hs_id, filename=f"{status}.zip",
+            sha256=uuid.uuid4().hex * 2, size_bytes=size, raw_path=None,
+            source_ip=None)
+        store.set_upload_health_system(up["upload_id"], hs_id)
+        store.update_ingest_upload(up["upload_id"], status=status)
+
+
+def _approved_active(client):
+    """A partner who may read the upload area: approved account, active org."""
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    store.set_hs_onboarding_state(org["hs_id"], "active")
+    store.set_hs_approval(org["username"], "approved", by="test")
+    return org
+
+
+def test_the_uploads_summary_counts_exactly_what_the_list_shows():
+    """The summary exists so a partner can reconcile their own records against
+    ours without counting rows by hand. Its one obligation is therefore to agree
+    with the list beside it: computed from the same mapped views, so a change to
+    the status map moves both or neither."""
+    client = _client()
+    store = _store()
+    org = _approved_active(client)
+    _seed_uploads(store, org["hs_id"],
+                  ("ingested", 400), ("ingested", 600), ("parsing", 90),
+                  ("scanning", 5), ("received", 10), ("rejected", 7))
+
+    body = client.get(f"{API}/hs/uploads").json()
+    summary = body["summary"]
+    assert summary == {"received": 1, "processing": 2, "accepted": 2,
+                       "needs_attention": 1, "total": 6, "accepted_bytes": 1000}
+    assert summary["total"] == len(body["uploads"])
+    for state in ("received", "processing", "accepted", "needs_attention"):
+        assert summary[state] == sum(1 for u in body["uploads"]
+                                     if u["status"] == state), state
+    # Bytes are ACCEPTED bytes only. Counting everything would tell a hospital
+    # we hold data we rejected.
+    assert summary["accepted_bytes"] == sum(
+        u["total_bytes"] for u in body["uploads"] if u["status"] == "accepted")
+
+
+def test_the_uploads_summary_carries_all_four_states_even_at_zero():
+    """A page reading ``summary.accepted`` must never have to guard for a key
+    that is absent only because the count happened to be zero."""
+    client = _client()
+    _approved_active(client)
+    summary = client.get(f"{API}/hs/uploads").json()["summary"]
+    assert summary == {"received": 0, "processing": 0, "accepted": 0,
+                       "needs_attention": 0, "total": 0, "accepted_bytes": 0}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  §12, the member added while the agreement is still unsigned
+# ════════════════════════════════════════════════════════════════════════════
+def test_a_member_added_before_the_signature_is_told_about_the_agreement(mail):
+    """The agreement letter goes to every member at APPROVAL time. Somebody added
+    after that moment never existed when it was sent, so without this line they
+    arrive holding credentials and no idea a contract is sitting unsigned. The
+    portal rail rescues them; the email trail was one letter short."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    store.set_hs_onboarding_state(org["hs_id"], "approved_awaiting_dla")
+
+    r = client.post(f"{API}/hs/members", json={"emails": ["late@example.org"]})
+    assert r.status_code == 200, r.text
+    letter = next(m for m in mail if m["to"] == "late@example.org")
+    body = letter["body"]
+    # The same words the agreement letter uses, because two descriptions of one
+    # contract is how a signer decides they are being asked for two things.
+    assert "data licensing agreement" in body
+    assert "Read and sign" in body
+    assert "signing authority" in body
+    # Added TO, not replaced: the letter still does its original job of naming
+    # the colleague and carrying the credential.
+    assert "added you" in body
+    assert "Open your portal" in body
+
+
+def test_a_member_added_after_the_signature_hears_nothing_about_signing(mail):
+    """The line is conditional and must stay that way. Telling an ACTIVE
+    organization's new hire that a contract is waiting sends them looking for a
+    signature page that will refuse them."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    store.set_hs_onboarding_state(org["hs_id"], "active")
+
+    assert client.post(f"{API}/hs/members",
+                       json={"emails": ["ontime@example.org"]}).status_code == 200
+    body = next(m for m in mail if m["to"] == "ontime@example.org")["body"]
+    assert "data licensing agreement" not in body
+    assert "Read and sign" not in body
+
+
+@pytest.mark.parametrize("state", ["intake", "submitted", "active", "declined"])
+def test_only_awaiting_signature_adds_the_agreement_line(state, mail):
+    """One state earns the line, and it is the only one where a signature is
+    actually possible. In intake and submitted there is no agreement to sign
+    yet; in active and declined there is nothing left to sign."""
+    client = _client()
+    store = _store()
+    org = _signup(client)
+    _rotate(client)
+    store.set_hs_onboarding_state(org["hs_id"], state)
+    addr = f"m{uuid.uuid4().hex[:6]}@example.org"
+    assert client.post(f"{API}/hs/members", json={"emails": [addr]}).status_code == 200
+    assert "Read and sign" not in next(m for m in mail if m["to"] == addr)["body"]

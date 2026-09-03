@@ -2894,6 +2894,212 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
     return {"health_systems": out}
 
 
+# ═══ Data-request broadcasts ═════════════════════════════════════════════════
+#
+# "We need 100 nephrology cases", to every partner who has signed and may
+# upload. The admin writes the request down, the request row is the record, and
+# the letters go out from the shared drain loop rather than from this request:
+# up to (partners x members) emails inline would hold the console open for
+# minutes and lose the tail on any restart.
+#
+# There is deliberately no claiming, no reservation and no quota. Several
+# partners may answer one request and the admin approves what fulfils it, which
+# is the founders' "first come first serve is informal" decision. Adding state
+# for it later would be a different feature, not a missing half of this one.
+
+class HsDataRequestBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, max_length=140)
+    # Free text rather than the enabled-specialty enum. We ask partners for data
+    # in specialties we do not yet have a corpus for -- that is what sourcing
+    # is -- so validating against ``specialties.list_specialties`` would refuse
+    # exactly the requests worth sending.
+    specialty: str = Field(min_length=1, max_length=80)
+    case_count: int = Field(gt=0, le=1_000_000)
+    due_date: str = Field(default="", max_length=32)
+    details: str = Field(default="", max_length=4000)
+
+
+class HsDataRequestCloseBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=32)
+
+
+def _hs_request_view(store: Any, row: Dict[str, Any],
+                     *, counts: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
+    """One request, admin-side. Named fields rather than a row splat, so a column
+    added to the table later does not ship by accident."""
+    stats = counts if counts is not None else _hs_request_delivery_counts(store, row["id"])
+    return {
+        "id": row["id"],
+        "title": row["title"],
+        "specialty": row["specialty"],
+        "case_count": row["case_count"],
+        "due_date": row.get("due_date") or "",
+        "details": row.get("details") or "",
+        "status": row["status"],
+        "created_by": row.get("created_by") or "",
+        "created_at": row.get("created_at"),
+        "closed_at": row.get("closed_at"),
+        "closed_reason": row.get("closed_reason") or "",
+        "delivery": stats,
+    }
+
+
+def _hs_request_delivery_counts(store: Any, request_id: str) -> Dict[str, int]:
+    """How the broadcast actually went: pending / sent / failed.
+
+    Shown because an operator whose request produced zero replies needs to be
+    able to tell "nobody had the cases" from "nobody was told", and those two
+    look identical from the outside.
+    """
+    counts = {"pending": 0, "sent": 0, "failed": 0}
+    for row in store.list_hs_request_outbox(request_id):
+        status = (row.get("status") or "pending")
+        if status in counts:
+            counts[status] += 1
+    return counts
+
+
+@router.post("/hs-requests")
+async def create_hs_data_request(
+    body: HsDataRequestBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Write the request down, then enqueue one letter per active member of every
+    partner that may upload.
+
+    The enqueue is synchronous and the SEND is not. That split is the whole
+    design: the operator finds out immediately whether the request was recorded
+    and how many people it will reach, and nothing about their request depends on
+    an email provider being up.
+    """
+    from asclepius import hs_request_notify
+
+    store = _store()
+    req = store.create_hs_data_request(
+        title=body.title.strip(), specialty=body.specialty.strip(),
+        case_count=int(body.case_count), due_date=body.due_date.strip() or None,
+        details=body.details.strip() or None, created_by=admin["id"],
+    )
+    enqueued = hs_request_notify.enqueue_for_request(store, request_id=req["id"])
+    store.log_event(entity_type="hs_data_request", entity_id=req["id"],
+                    event_type="hs_data_request_created", actor=admin["id"],
+                    payload={"specialty": req["specialty"],
+                             "case_count": req["case_count"],
+                             "recipients": enqueued})
+    return {"request": _hs_request_view(store, req), "recipients": enqueued}
+
+
+@router.get("/hs-requests")
+async def list_hs_data_requests(
+    status: Optional[str] = Query(default=None),
+    _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Every request, newest first. Closed ones stay here forever: they are the
+    record of what we asked for and when, which is the only way to read a
+    partner's upload history as a response to anything."""
+    store = _store()
+    rows = store.list_hs_data_requests(status=(status or None))
+    return {"requests": [_hs_request_view(store, r) for r in rows]}
+
+
+@router.get("/hs-requests/{request_id}")
+async def get_hs_data_request(
+    request_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """One request plus the uploads carrying its id, grouped by health system.
+
+    Grouped rather than listed flat because the question this view answers is
+    "who answered", not "what arrived": three uploads from one partner is one
+    partner responding, and a flat list reads as three.
+    """
+    store = _store()
+    req = store.get_hs_data_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="No such data request.")
+    names = {hs["hs_id"]: hs["name"] for hs in store.list_health_systems()}
+    by_hs: Dict[str, Dict[str, Any]] = {}
+    for up in store.list_uploads_for_request(request_id):
+        hs_id = up.get("health_system_id") or ""
+        entry = by_hs.setdefault(hs_id, {
+            "hs_id": hs_id,
+            "name": names.get(hs_id) or "(unknown organization)",
+            "uploads": [],
+        })
+        entry["uploads"].append({
+            "upload_id": up["upload_id"],
+            "filename": up.get("filename"),
+            "size_bytes": up.get("size_bytes") or 0,
+            "status": up.get("status"),
+            "created_at": up.get("created_at"),
+        })
+    responders = sorted(by_hs.values(), key=lambda e: e["name"].lower())
+    return {
+        "request": _hs_request_view(store, req),
+        "responders": responders,
+        "uploads_count": sum(len(e["uploads"]) for e in responders),
+    }
+
+
+@router.post("/hs-requests/{request_id}/close")
+async def close_hs_data_request(
+    request_id: str, body: HsDataRequestCloseBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Close a request as ``fulfilled`` or ``withdrawn``.
+
+    Two reasons and no free text, because the reason is read by a person
+    scanning a list rather than by whoever wrote it. ``fulfilled`` says we got
+    what we asked for; ``withdrawn`` says we stopped asking, and a partner
+    reading the portal should not have to guess which.
+    """
+    store = _store()
+    reason = (body.reason or "").strip().lower()
+    if reason not in store.HS_REQUEST_CLOSE_REASONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Close a request as 'fulfilled' or 'withdrawn'.")
+    req = store.get_hs_data_request(request_id)
+    if not req:
+        raise HTTPException(status_code=404, detail="No such data request.")
+    if not store.close_hs_data_request(request_id, reason=reason):
+        raise HTTPException(status_code=409,
+                            detail="This request is already closed.")
+    store.log_event(entity_type="hs_data_request", entity_id=request_id,
+                    event_type="hs_data_request_closed", actor=admin["id"],
+                    payload={"reason": reason})
+    return {"ok": True,
+            "request": _hs_request_view(store, store.get_hs_data_request(request_id))}
+
+
+@router.post("/hs-requests/{request_id}/retry-failed")
+async def retry_failed_hs_request_notifications(
+    request_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Flip this request's failed letters back to pending, for the shared drain
+    to re-attempt on its next tick.
+
+    Without this a failed outbox row is terminal: re-broadcasting enqueues
+    nothing because every idempotency key already exists, so one transport
+    outage permanently under-delivered a request the operator believes went
+    out. Only rows that FAILED are touched; sent stays sent, and a retry that
+    fails again just lands back here.
+    """
+    store = _store()
+    if not store.get_hs_data_request(request_id):
+        raise HTTPException(status_code=404, detail="No such data request.")
+    retried = store.retry_failed_hs_request_notifications(request_id)
+    if retried:
+        store.log_event(entity_type="hs_data_request", entity_id=request_id,
+                        event_type="hs_data_request_retry", actor=admin["id"],
+                        payload={"retried": retried})
+    return {"ok": True, "retried": retried,
+            "delivery": _hs_request_delivery_counts(store, request_id)}
+
+
 # ═══ Admin Launch PRD §5.1 — invite a physician into Asclepius Community ══════
 #
 # "Slack" is our own community (store.py: the community IS our Slack). This
