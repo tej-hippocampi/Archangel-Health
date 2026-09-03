@@ -13,9 +13,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from eligibility.evaluate import CHECK_LABELS  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
+# Harness PRD H1 retired these three to `_retired/`: they describe peri-op code
+# that is flag-gated for deletion, and a live skill describing dead code sends an
+# agent to edit it. The drift guard still applies while the code is still here —
+# only the directory moved.
+SKILLS_DIR = REPO_ROOT / ".claude" / "skills" / "_retired"
 
 EXPECTED_SKILLS = ["team-eligibility-review", "ehr-extraction", "surgical-risk-triage"]
+
+
+def test_retired_skills_are_not_active():
+    """They must not reappear under .claude/skills/ itself."""
+    active = REPO_ROOT / ".claude" / "skills"
+    for name in EXPECTED_SKILLS:
+        assert not (active / name).exists(), f"{name} is active again — see Harness PRD H1"
 
 
 def _frontmatter(text: str) -> dict:
