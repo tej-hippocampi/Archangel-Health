@@ -212,6 +212,22 @@ class CommunityStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cdm_a ON community_dms(user_a);
                 CREATE INDEX IF NOT EXISTS idx_cdm_b ON community_dms(user_b);
+                -- Conversation membership past two people (Task Pipeline PRD B1).
+                -- ``community_dms`` is strictly two-party by its own UNIQUE
+                -- constraint, and that constraint is load-bearing for ordinary
+                -- DMs, so a per-case room adds members here instead of widening
+                -- the parent row. ``removed_at`` rather than a DELETE: a member
+                -- taken off a case must stop being able to post while the
+                -- history they took part in stays readable to whoever is left.
+                CREATE TABLE IF NOT EXISTS community_dm_members (
+                    dm_id      TEXT NOT NULL,
+                    user_id    TEXT NOT NULL,
+                    added_at   TEXT NOT NULL,
+                    removed_at TEXT,
+                    PRIMARY KEY (dm_id, user_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_cdmmem_user
+                    ON community_dm_members(user_id, removed_at);
                 CREATE TABLE IF NOT EXISTS community_bans (
                     user_id TEXT PRIMARY KEY,
                     banned_by TEXT NOT NULL,
@@ -398,6 +414,41 @@ class CommunityStore:
                     "ALTER TABLE community_email_prefs "
                     "ADD COLUMN activity_emails INTEGER NOT NULL DEFAULT 1"
                 )
+            # ─── Task Pipeline PRD B1: per-case group rooms ───────────────────
+            # Additive only. ``kind`` defaults to 'dm' so every existing row keeps
+            # the behaviour it already had without being rewritten, and the two
+            # new columns are nullable so the ALTER cannot fail on a populated
+            # production table.
+            dm_cols = cols("community_dms")
+            if "kind" not in dm_cols:
+                conn.execute(
+                    "ALTER TABLE community_dms ADD COLUMN kind TEXT NOT NULL DEFAULT 'dm'"
+                )
+            if "case_ref" not in dm_cols:
+                conn.execute("ALTER TABLE community_dms ADD COLUMN case_ref TEXT")
+            # The room's name. A two-party DM is titled by its peer; a room has no
+            # peer, so the name has to be stored rather than derived from the
+            # membership -- which changes on reassignment, and a conversation that
+            # renames itself when somebody is substituted is a different room to
+            # the person reading it.
+            if "title" not in dm_cols:
+                conn.execute("ALTER TABLE community_dms ADD COLUMN title TEXT")
+            # THE key that makes reassignment reuse the room instead of forking a
+            # second one (PRD D2). SQLite treats NULLs as distinct in a UNIQUE
+            # index, so every ordinary DM is exempt by carrying no case_ref.
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_cdm_case_ref "
+                         "ON community_dms(case_ref)")
+            # Backfill: existing two-party rows become member rows, so membership
+            # has ONE resolution path from here on rather than two that can
+            # disagree. INSERT OR IGNORE, so re-running the migration is free.
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO community_dm_members (dm_id, user_id, added_at)
+                SELECT id, user_a, created_at FROM community_dms WHERE kind = 'dm'
+                UNION ALL
+                SELECT id, user_b, created_at FROM community_dms WHERE kind = 'dm'
+                """
+            )
 
     # ─── Channels ─────────────────────────────────────────────────────────────
     def ensure_default_channels(
@@ -839,6 +890,7 @@ class CommunityStore:
             raise ValueError("cannot open a conversation with yourself")
         a, b = sorted([user_x, user_y])
         dm_id = "dm-" + uuid.uuid4().hex[:16]
+        now = _utcnow_iso()
         with self._conn() as conn:
             # Race-safe get-or-create: two simultaneous opens both reach the
             # INSERT; ON CONFLICT DO NOTHING lets the loser fall through to
@@ -846,12 +898,128 @@ class CommunityStore:
             conn.execute(
                 "INSERT INTO community_dms (id, user_a, user_b, created_at) VALUES (?, ?, ?, ?) "
                 "ON CONFLICT(user_a, user_b) DO NOTHING",
-                (dm_id, a, b, _utcnow_iso()),
+                (dm_id, a, b, now),
             )
             row = conn.execute(
                 "SELECT * FROM community_dms WHERE user_a = ? AND user_b = ?", (a, b)
             ).fetchone()
+            # Mirrored into the members table so a two-party DM opened after the
+            # migration resolves the same way a backfilled one does. The columns
+            # stay authoritative for two-party rows (``dm_participants`` reads
+            # them first), so this is redundancy for listing, never for privacy.
+            self._add_members(conn, row["id"], [a, b], now)
         return dict(row)
+
+    # ─── Per-case group rooms (Task Pipeline PRD B1-B7) ───────────────────────
+    #: ``community_dms.kind`` for a routed-case room. Everything else is 'dm'.
+    ROOM_KIND = "case_room"
+
+    @staticmethod
+    def _add_members(conn: sqlite3.Connection, dm_id: str,
+                     user_ids: List[str], now: str) -> None:
+        """Add (or un-remove) members inside an open transaction.
+
+        Re-adding somebody who was removed clears ``removed_at`` and keeps the
+        original ``added_at``: they are rejoining the conversation they were
+        already part of, and rewriting the join date would lose that."""
+        for uid in user_ids:
+            if not uid:
+                continue
+            conn.execute(
+                "INSERT INTO community_dm_members (dm_id, user_id, added_at, removed_at) "
+                "VALUES (?, ?, ?, NULL) "
+                "ON CONFLICT(dm_id, user_id) DO UPDATE SET removed_at = NULL",
+                (dm_id, uid, now),
+            )
+
+    def get_or_create_case_room(
+        self, case_ref: str, participant_ids: List[str], *,
+        title: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """The room for one routed case, keyed on ``case_ref`` (PRD D2).
+
+        Keyed on the CASE and not the member set, so a substitution posts into
+        the same room rather than forking a second one and stranding the
+        history. Race-safe on the ``case_ref`` unique index, the same ON CONFLICT
+        shape ``get_or_create_dm`` uses on ``(user_a, user_b)``.
+
+        The returned row carries ``created``: True only for the caller that
+        actually wrote the row, so the bot's introduction is posted once however
+        many sends reference the same case.
+
+        ``user_a``/``user_b`` are NOT NULL columns from the two-party era and are
+        filled with the room's own id. A room has no two parties -- its
+        membership is the members table -- and a room id can never equal a user
+        id, so the legacy UNIQUE (user_a, user_b) constraint cannot collide with
+        a real pair.
+        """
+        ref = (case_ref or "").strip()
+        if not ref:
+            raise ValueError("a case room needs a case_ref")
+        room_id = "dm-" + uuid.uuid4().hex[:16]
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO community_dms "
+                "  (id, user_a, user_b, created_at, kind, case_ref, title) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(case_ref) DO NOTHING",
+                (room_id, room_id, room_id, now, self.ROOM_KIND, ref, title),
+            )
+            row = conn.execute(
+                "SELECT * FROM community_dms WHERE case_ref = ?", (ref,)
+            ).fetchone()
+            self._add_members(conn, row["id"], list(participant_ids or []), now)
+        out = dict(row)
+        out["created"] = (out["id"] == room_id)
+        return out
+
+    def get_case_room(self, case_ref: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM community_dms WHERE case_ref = ?",
+                ((case_ref or "").strip(),),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def room_participants(self, dm_id: str) -> List[str]:
+        """Current members of a room, oldest first. Removed members are absent."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT user_id FROM community_dm_members "
+                "WHERE dm_id = ? AND removed_at IS NULL ORDER BY added_at ASC, user_id ASC",
+                (dm_id,),
+            ).fetchall()
+        return [r["user_id"] for r in rows]
+
+    def add_room_participant(self, dm_id: str, user_id: str) -> None:
+        with self._conn() as conn:
+            self._add_members(conn, dm_id, [user_id], _utcnow_iso())
+
+    def remove_room_participant(self, dm_id: str, user_id: str) -> None:
+        """Take somebody off a room without taking the room off them.
+
+        Stamps ``removed_at`` rather than deleting: posting rights end here, and
+        the messages they were part of stay readable to everyone still on the
+        case, which is what makes the room an auditable record of the handoff.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE community_dm_members SET removed_at = ? "
+                "WHERE dm_id = ? AND user_id = ? AND removed_at IS NULL",
+                (_utcnow_iso(), dm_id, user_id),
+            )
+
+    def dm_participants(self, dm: Dict[str, Any]) -> List[str]:
+        """THE membership answer for any conversation row, room or two-party.
+
+        A two-party DM answers from its own columns rather than the members
+        table, so privacy on the oldest rows in the database never depends on a
+        backfill having run.
+        """
+        if (dm or {}).get("kind") == self.ROOM_KIND:
+            return self.room_participants(dm["id"])
+        return [u for u in (dm.get("user_a"), dm.get("user_b")) if u]
 
     def get_dm(self, dm_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -863,7 +1031,12 @@ class CommunityStore:
     def list_dms_for(self, user_id: str) -> List[Dict[str, Any]]:
         """The user's conversations, most-recent-activity first, each with the
         peer id, the last live message id/time, and the unread count (messages
-        past the user's read cursor, authored by the peer, not deleted)."""
+        past the user's read cursor, authored by somebody else, not deleted).
+
+        Rooms ride the same list (PRD B2): they are reached through the members
+        table and carry a ``title`` and ``participants`` instead of a peer, since
+        a room has three people and no one of them is the conversation's name.
+        """
         with self._conn() as conn:
             rows = conn.execute(
                 """
@@ -877,13 +1050,30 @@ class CommunityStore:
                          WHERE r.user_id = ? AND r.channel_id = d.id), 0) AS cursor
                 FROM community_dms d
                 WHERE d.user_a = ? OR d.user_b = ?
+                   OR EXISTS (SELECT 1 FROM community_dm_members mm
+                               WHERE mm.dm_id = d.id AND mm.user_id = ?
+                                 AND mm.removed_at IS NULL)
                 """,
-                (user_id, user_id, user_id),
+                (user_id, user_id, user_id, user_id),
             ).fetchall()
             out = []
             for r in rows:
                 d = dict(r)
-                d["peer_user_id"] = d["user_b"] if d["user_a"] == user_id else d["user_a"]
+                if d.get("kind") == self.ROOM_KIND:
+                    # No peer: naming one of three participants as "the" other
+                    # side would make the same room look like a different
+                    # conversation to each member.
+                    d["peer_user_id"] = None
+                    d["participants"] = [
+                        m["user_id"] for m in conn.execute(
+                            "SELECT user_id FROM community_dm_members "
+                            "WHERE dm_id = ? AND removed_at IS NULL "
+                            "ORDER BY added_at ASC, user_id ASC", (d["id"],)
+                        ).fetchall()
+                    ]
+                else:
+                    d["peer_user_id"] = (d["user_b"] if d["user_a"] == user_id
+                                         else d["user_a"])
                 unread_row = conn.execute(
                     "SELECT COUNT(*) AS n FROM community_messages "
                     "WHERE channel_id = ? AND id > ? AND deleted_at IS NULL AND author_user_id != ?",

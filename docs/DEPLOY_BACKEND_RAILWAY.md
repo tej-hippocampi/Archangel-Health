@@ -29,6 +29,9 @@ In the project, open your service → **Variables** tab. Add:
 
 Optional (add when you have them): `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `ANTHROPIC_API_KEY`, `CARE_TEAM_PHONE`, etc.
 
+The empirical-difficulty flags are their own staged decision and have their own
+table in **4b** below. Set them there, not here.
+
 ## 4. Attach a volume — REQUIRED, or every deploy wipes your data
 
 > **Checking this afterwards:** the admin console shows a banner on every tab
@@ -84,6 +87,58 @@ correct and the service will not boot.
 > nothing durable to migrate from. If the current data matters, copy it out
 > first (`railway ssh` into the running service and read
 > `/app/backend/team.db`) before you save the variables.
+
+## 4b. The empirical-difficulty gate, in two stages
+
+The product's central claim is that a case is only worth selling if frontier
+models fail it. The measurement that establishes that runs live frontier calls,
+so it ships behind flags and is turned on in two stages, in this order.
+
+| Variable | Stage 1 (now) | Stage 2 (after the review below) | What it does |
+|---|---|---|---|
+| `ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY` | `1` | `1` | Measures every newly generated case against the frontier baselines and records the result on the case. Blocks nothing. |
+| `ASCLEPIUS_REQUIRE_MEASURED_DIFFICULTY` | `0` | `1` | Serving refuses any case that was not LIVE-measured at or above the floor. |
+| `ASCLEPIUS_V3_RELAX_MM_GATES` | `1` | `0` | Stage 2 restores the strict multimodal quality floors (necessity >= 0.8, hardness >= 0.75, coherence, ground truth). |
+| `ASCLEPIUS_MIN_EMPIRICAL_DIFFICULTY` | `0.5` | `0.5` | The floor: the fraction of frontier attempts that must fail. |
+| `ASCLEPIUS_EMPIRICAL_DIFFICULTY_ATTEMPTS` | `2` | `2` | Draws per baseline model. Cost scales with this. |
+
+**Why stage 1 first.** Flipping the requirement on day one would gate serving on
+a distribution nobody has observed with live keys. Stage 1 produces that
+distribution at no risk to the queue: measurement runs, nothing is blocked, and
+a case below the floor still serves exactly as it does today.
+
+**What stage 1 costs.** Measurement spends real frontier tokens on every
+generated case: roughly `baseline_models` (2, one per provider) times
+`ASCLEPIUS_EMPIRICAL_DIFFICULTY_ATTEMPTS` (2) frontier answers, plus one judge
+call per answer, so about 8 LLM calls per case on full multimodal prompts. Under
+stage 2 a below-floor case is discarded AFTER that spend, so the effective cost
+per SHIPPED case is the measurement cost divided by the pass rate. That is the
+product working as intended, and it is also a real per-case bill that scales with
+generation volume, which is why stage 2 waits for numbers.
+
+**No frontier key reachable?** Measurement returns `measured=False` and the case
+keeps its declared value. Under stage 2 such a case is held rather than served.
+That is the gate working, not an incident.
+
+### The stage-2 review (do this before flipping)
+
+Write the answers into the PR that flips the flags. Not a feeling, three numbers:
+
+1. **The measured distribution** over at least 20 stage-1 cases: the pooled
+   `value`, and separately the Wilson LOWER bound `value_lower`, which is what
+   the gate actually tests. A median lower bound near the floor means stage 2
+   will discard about half of everything generated.
+2. **The below-floor discard rate**: the fraction of measured cases whose
+   `value_lower` is under `ASCLEPIUS_MIN_EMPIRICAL_DIFFICULTY`. This is the
+   inventory stage 2 stops shipping.
+3. **The projected token cost per SHIPPED case**: measured cost per case divided
+   by `1 - discard_rate`. If that number is not one the business would pay per
+   case, the answer is to lower generation volume or raise generation quality,
+   never to lower the floor.
+
+Also confirm before flipping: at least one specialty has enough measured,
+above-floor inventory that the V4 queue does not go empty the moment the
+requirement turns on. An empty queue is what a previous premature flip produced.
 
 ## 5. Get your public URL
 

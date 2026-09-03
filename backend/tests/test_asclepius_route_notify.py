@@ -222,7 +222,10 @@ def test_the_report_says_what_went_out_not_what_was_intended():
     t = store.insert_task(prompt="c", specialty="cardiology")
     r = client.post("/api/asclepius/admin/assignments/allocate", headers=ah, json={
         "task_ids": [t["task_id"]], "user_ids": [doc["id"]], "dry_run": False})
-    assert set(r.json()["notified"]) == {"dms", "channel", "errors"}
+    # ``rooms`` joined the report when per-case group rooms landed (Task Pipeline
+    # PRD B4): a room that failed to open is exactly the kind of thing this
+    # module swallows, so it has to be counted here or nobody learns about it.
+    assert set(r.json()["notified"]) == {"dms", "channel", "rooms", "errors"}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

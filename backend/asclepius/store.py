@@ -7273,6 +7273,63 @@ class AsclepiusStore:
         mid = n // 2
         return float(vals[mid]) if n % 2 else (vals[mid - 1] + vals[mid]) / 2.0
 
+    def evaluator_median_seconds_by_user(self) -> Dict[str, float]:
+        """Every contributor's rolling median seconds-per-task, in ONE query
+        (Task Pipeline PRD C1/D5).
+
+        Same median definition as the per-user ``evaluator_median_seconds``
+        above, and it has to be: two definitions of "how long they take" that
+        disagree by a row is the defect this file keeps writing single-source
+        helpers to avoid. The batch variant exists because the roster is a list
+        of everyone, and the per-user query is a query per physician -- the same
+        rule the roster already states for ``contributor_score``.
+
+        Absent from the dict means no timed submission, which the caller must
+        render as unknown and never as zero (D6)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT evaluator_id, time_spent_sec FROM submissions "
+                "WHERE time_spent_sec > 0 ORDER BY evaluator_id ASC, time_spent_sec ASC"
+            ).fetchall()
+        by_user: Dict[str, List[int]] = {}
+        for r in rows:
+            by_user.setdefault(r["evaluator_id"], []).append(int(r["time_spent_sec"]))
+        out: Dict[str, float] = {}
+        for uid, vals in by_user.items():
+            n = len(vals)
+            mid = n // 2
+            out[uid] = float(vals[mid]) if n % 2 else (vals[mid - 1] + vals[mid]) / 2.0
+        return out
+
+    def evaluator_kappa_by_user(self) -> Dict[str, Dict[str, Any]]:
+        """Per-physician Cohen's kappa, in ONE query plus pure math (PRD C1/C2).
+
+        The agreement row stores the two SUBMISSIONS, not the two physicians, so
+        the join is what turns a per-task observation into a per-person one. The
+        gates are not applied here: the rows are handed to
+        ``agreement.per_annotator_kappa``, which runs the SAME ``_pool_eligible``
+        and ``_blinded_only`` filters the pooled number uses. A per-physician
+        kappa over rows the pool excludes would be a different metric under the
+        same name.
+
+        Returns ``{user_id: {"kappa": float|None, "n": int}}``; kappa is None
+        below ``agreement.kappa_min_n()``."""
+        from asclepius import agreement as asc_agreement
+
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT g.verdict_a, g.verdict_b, g.blinded, g.kappa_excluded_reason,
+                       g.specialty,
+                       sa.evaluator_id AS annotator_a,
+                       sb.evaluator_id AS annotator_b
+                FROM agreement g
+                JOIN submissions sa ON sa.submission_id = g.sub_a
+                JOIN submissions sb ON sb.submission_id = g.sub_b
+                """
+            ).fetchall()
+        return asc_agreement.per_annotator_kappa([dict(r) for r in rows])
+
     def mark_task_status(self, task_id: str, status: str) -> None:
         with self._conn() as conn:
             conn.execute("UPDATE tasks SET status = ? WHERE task_id = ?", (status, task_id))
