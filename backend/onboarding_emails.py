@@ -2001,15 +2001,34 @@ def build_hs_access_email(*, organization: str, full_name: str, username: str,
 
 
 def build_hs_member_added_email(*, organization: str, added_by: str, username: str,
-                                temp_password: str, portal_url: str) -> str:
+                                temp_password: str, portal_url: str,
+                                awaiting_dla: bool = False) -> str:
     """Email 2 of 5: a colleague added you.
 
     Names who added them in the subject line and again in the first sentence. An
     unexpected credentials email from a company you have not heard of is
     indistinguishable from a phishing attempt; the name of a colleague is the
     single thing that makes it legible.
+
+    ``awaiting_dla`` closes a hole in the letter trail rather than adding a
+    flourish. Email 3 goes to every member the moment the organization is
+    approved; a member added AFTER that moment never existed when it was sent,
+    so they arrive holding credentials and no idea that a contract is sitting
+    unsigned. Same wording as ``build_hs_dla_request_email`` on purpose: two
+    descriptions of one agreement is how a signer decides they are being asked
+    for two things.
     """
     who = (added_by or "").strip() or "A colleague"
+    agreement = ""
+    if awaiting_dla:
+        agreement = (
+            _p("One thing is outstanding for your organization: the data "
+               "licensing agreement is rendered and waiting for a signature. "
+               "One person with signing authority signs it, once, on behalf of "
+               f"{_strong(organization)}. Uploading unlocks the moment it is "
+               "signed.")
+            + _cta(portal_url, "Read and sign →")
+        )
     body = (
         _eyebrow("Your portal access")
         + _h1(f"{html.escape(who)} added you.")
@@ -2018,6 +2037,7 @@ def build_hs_member_added_email(*, organization: str, added_by: str, username: s
         + _MISSION_BLOCK
         + _credentials_card(username=username, temp_password=temp_password)
         + _cta(portal_url, "Open your portal →")
+        + agreement
         + _bookmark_line(portal_url)
         + _SIGNED_OFF
     )

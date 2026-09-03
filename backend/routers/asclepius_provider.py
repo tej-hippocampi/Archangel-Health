@@ -1061,13 +1061,46 @@ def _hs_upload_view(up: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+#: The four partner-facing states, in the order a bundle moves through them.
+#: Named here rather than derived from ``_HS_PORTAL_STATUS.values()`` so a
+#: summary always carries all four keys, including the ones that are zero: a
+#: page that reads ``summary.accepted`` must not have to guard for absence.
+_HS_UPLOAD_STATES = ("received", "processing", "accepted", "needs_attention")
+
+
+def _hs_upload_summary(views: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """The accounting a partner can check their own records against.
+
+    Takes the ALREADY-MAPPED views rather than raw rows, so the counts can never
+    disagree with the list rendered beside them. Deriving them from a second
+    query would let the two answers drift the first time the status map changes.
+    """
+    counts = {state: 0 for state in _HS_UPLOAD_STATES}
+    accepted_bytes = 0
+    for view in views:
+        state = view.get("status") or "needs_attention"
+        counts[state] = counts.get(state, 0) + 1
+        if state == "accepted":
+            accepted_bytes += int(view.get("total_bytes") or 0)
+    return {**counts, "total": len(views), "accepted_bytes": accepted_bytes}
+
+
 @portal_router.get("/hs/uploads")
-async def hs_uploads(portal_user: Dict[str, Any] = Depends(require_hs_portal)):
+async def hs_uploads(
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
+):
     """This health system's uploads — date, filename, size, and one of four
-    plain-language states: received · processing · accepted · needs_attention."""
+    plain-language states: received · processing · accepted · needs_attention.
+
+    Gated on the UPLOAD surface, like every door that writes one. A pending
+    account used to be handed a 200 and an empty list here, which reads as "you
+    have sent us nothing" when the truth is "you may not use this yet", and it
+    was the one upload surface that answered differently from its four siblings.
+    """
     store = _store()
     ups = store.list_uploads_for_health_system(portal_user["hs_id"])
-    return {"uploads": [_hs_upload_view(u) for u in ups]}
+    views = [_hs_upload_view(u) for u in ups]
+    return {"uploads": views, "summary": _hs_upload_summary(views)}
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1269,10 +1302,14 @@ async def hs_upload_declare(
 @portal_router.get("/hs/uploads/sessions/{session_id}")
 async def hs_upload_session_state(
     session_id: str,
-    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
 ):
     """Which parts are already stored — the resume endpoint. An interrupted 4 GB
-    upload continues from here rather than starting over."""
+    upload continues from here rather than starting over.
+
+    Gated on the UPLOAD surface with the rest of the chunked handshake: an
+    account that may not declare or send a part has no business reading the
+    progress of one either."""
     from asclepius import uploads as asc_uploads
 
     store = _store()
@@ -1402,10 +1439,14 @@ async def hs_upload_complete(
 @portal_router.delete("/hs/uploads/sessions/{session_id}")
 async def hs_upload_abort(
     session_id: str,
-    portal_user: Dict[str, Any] = Depends(require_hs_portal),
+    portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.UPLOAD)),
 ):
     """Give up on an unfinished upload and release its parts immediately, rather
-    than waiting for the reaper."""
+    than waiting for the reaper.
+
+    Gated on the UPLOAD surface with the rest of the chunked handshake. It is a
+    write against an upload, and the account that may not make one may not
+    destroy one."""
     from asclepius import uploads as asc_uploads
 
     store = _store()
@@ -1876,6 +1917,17 @@ _HS_PAYOUT_NOTE = (
     "not going to start."
 )
 
+#: The accrual line's own caveat, and the whole reason the line is allowed to
+#: exist. Pricing is an operator decision made off this page, so the count says
+#: what we have TAKEN and refuses to imply what it is worth. A number of dollars
+#: here would be a figure nobody has agreed to, printed on the page a hospital's
+#: finance contact reads.
+_HS_ACCRUAL_NOTE = (
+    "Accepted means the data reached us intact and passed our checks. Our team "
+    "prices accepted data before it becomes a payout line, so this is a count "
+    "of what we have taken, not an amount owed."
+)
+
 
 def _hs_payout_view(row: Dict[str, Any]) -> Dict[str, Any]:
     """Named fields only. No recorded_by, no external_ref, no batch id: those
@@ -1925,9 +1977,28 @@ async def hs_payouts(
     # we have not committed to is a conversation nobody wants to have twice.
     invoices = [_hs_invoice_view(r) for r in store.list_hs_invoices(hs_id)
                 if (r.get("status") or "") in _HS_INVOICE_STATUS]
+    money = store.hs_payout_summary(hs_id)
+    # Accrual visibility, and the gap it closes: a partner whose data we accepted
+    # weeks ago sees an empty ledger and reasonably concludes it was lost.
+    # Counted off the SAME view the uploads page maps through, so the two pages
+    # cannot tell them different numbers.
+    upload_summary = _hs_upload_summary(
+        [_hs_upload_view(u) for u in store.list_uploads_for_health_system(hs_id)])
     return {
         "currency": "usd",
-        "summary": store.hs_payout_summary(hs_id),
+        "summary": money,
+        # Deliberately beside the money summary rather than inside it: nothing in
+        # here is currency, and a count that lands in a block the page formats as
+        # dollars is how "3" becomes "$0.03".
+        "accrual": {
+            "accepted_uploads": upload_summary["accepted"],
+            "ledger_entries": money["count"],
+            # What the line actually renders. Computed server-side so the page
+            # has no arithmetic of its own to get wrong, and floored at zero
+            # because an operator may price one upload into several ledger rows.
+            "awaiting_pricing": max(0, upload_summary["accepted"] - money["count"]),
+            "note": _HS_ACCRUAL_NOTE,
+        },
         "payouts": [_hs_payout_view(r) for r in rows],
         "invoices": invoices,
         "how_we_pay": _HS_PAYOUT_NOTE,
@@ -2402,7 +2473,12 @@ async def hs_members_post(
                       "passphrase": minted["passphrase"]})
 
     inviter = (portal_user.get("full_name") or "").strip() or "A colleague"
-    background.add_task(_notify_hs_members_added, hs["name"], inviter, added)
+    # Read here, on the row this request already holds, rather than inside the
+    # background task: the task runs after the response and a refetch there would
+    # be a second read of a row that could have moved under it, which would mail
+    # a member the wrong story about their own organization.
+    background.add_task(_notify_hs_members_added, hs["name"], inviter, added,
+                        hs_states.state_of(hs) == hs_states.AWAITING_DLA)
     fresh = [u for u in store.list_hs_portal_users(hs["hs_id"]) if u.get("active")]
     return {
         # The passphrases are NOT echoed. They go to the address they belong to
@@ -2415,8 +2491,15 @@ async def hs_members_post(
 
 
 def _notify_hs_members_added(organization: str, inviter: str,
-                             added: List[Dict[str, Any]]) -> None:
-    """One letter per new member, each carrying only its own credential."""
+                             added: List[Dict[str, Any]],
+                             awaiting_dla: bool = False) -> None:
+    """One letter per new member, each carrying only its own credential.
+
+    ``awaiting_dla`` is passed in rather than looked up. This runs after the
+    response has gone out, so there is no request row to read and no session to
+    read it from; the caller resolved the organization's state while it still
+    had both.
+    """
     if not is_email_transport_configured():
         return
     try:
@@ -2429,7 +2512,7 @@ def _notify_hs_members_added(organization: str, inviter: str,
                 build_hs_member_added_email(
                     organization=organization, added_by=inviter,
                     username=member["username"], temp_password=member["passphrase"],
-                    portal_url=_hs_portal_url())))
+                    portal_url=_hs_portal_url(), awaiting_dla=awaiting_dla)))
     except Exception:
         log.exception("hs members: invite email failed")
 

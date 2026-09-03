@@ -1572,6 +1572,8 @@
     summaryEl.appendChild(summaryStat("Paid", formatMoney(s.paid_cents)));
     summaryEl.appendChild(summaryStat("Awaiting payment", formatMoney(s.pending_cents)));
 
+    renderAccrual(data.accrual || {});
+
     renderInvoices(data.invoices || []);
 
     const rows = data.payouts || [];
@@ -1610,6 +1612,29 @@
       [when, what, period, status, amount].forEach((td) => tr.appendChild(td));
       bodyEl.appendChild(tr);
     });
+  }
+
+  // The one line between "we took your data" and "we paid you for it". A
+  // partner whose upload was accepted six weeks ago and whose ledger still reads
+  // zero has no way, without this, to tell acceptance from loss.
+  //
+  // COUNTS ONLY, and the server does the subtraction. Turning a count into a
+  // figure here would be this page inventing a price, which is the one thing
+  // §15 forbids and the one thing a finance contact would quote back at us.
+  function renderAccrual(accrual) {
+    const host = document.getElementById("prvPayoutAccrual");
+    if (!host) return;
+    const waiting = Number(accrual.awaiting_pricing || 0);
+    if (waiting <= 0) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    document.getElementById("prvPayoutAccrualLine").textContent =
+      waiting + (waiting === 1 ? " upload accepted" : " uploads accepted") +
+      " and awaiting pricing";
+    document.getElementById("prvPayoutAccrualNote").textContent =
+      accrual.note || "";
   }
 
   // What we have BILLED, as distinct from what we have PAID above. Drafts never
