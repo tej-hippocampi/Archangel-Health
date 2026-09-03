@@ -5,6 +5,7 @@ import {
   InlineError,
   OnboardingCard,
   PrimaryButton,
+  SelectField,
   TextArea,
   TextField,
 } from "./onboarding/primitives";
@@ -17,14 +18,24 @@ import { PARTNER_BOOKING_URL } from "../config";
  * One job, in two beats: collect enough that the meeting starts from something
  * real, then book the meeting. It is deliberately NOT the portal signup. A CIO
  * reading a one-pager is not ready to create an account and will not upload
- * anything today; asking them to is how you lose them. They answer five
- * questions and pick a time. The portal link is what we send after the call.
+ * anything today; asking them to is how you lose them. They answer a short
+ * set of questions and pick a time. The portal link is what we send after the call.
  *
  * Not an ArchShell route on purpose. `useLandingAuth` bounces a signed-in user
  * off the marketing shell to their portal, which would eject exactly the person
  * we are courting, and `normalizePath` refuses to navigate anywhere outside
  * ARCH_PATHS. So this is a top-level route in App.tsx alongside /join, built on
  * the onboarding primitives that /join already uses.
+ *
+ * ─── Why three of these questions are not like the others ──────────────────
+ * Authority, de-identification and data scale are QUALIFYING questions, agreed
+ * word for word in the Sep 1 meeting, and they are the reason
+ * docs/prds/prd-health-systems.md can call a submission the legal audit trail
+ * of an authority attestation. That claim only holds if the authority question
+ * is asked on the form being archived, so they are sent as their own fields and
+ * stored in their own columns rather than folded into the prose `message` with
+ * everything else. They also go into the message, because the message is what a
+ * person reads in an inbox and half an answer there is worse than none.
  */
 
 /* The booking link comes from the shared landing config, which reads
@@ -57,7 +68,32 @@ type Answers = {
   licensable: string;
   scale: string;
   timeline: string;
+  authority: string;
+  deidentification: string;
+  dataScale: string;
 };
+
+/* The wording is the answer. These are stored verbatim and read back months
+   later by whoever has to say what this organization told us, so the option a
+   CIO picked has to be a sentence rather than a token we would then have to
+   keep a decoder for. "Not sure yet" is offered on both because it is the true
+   answer for most first conversations, and a form with no honest option for it
+   collects a confident "yes" that nobody meant. */
+const AUTHORITY_OPTIONS = [
+  { value: "Yes, we can license de-identified clinical data to a commercial party",
+    label: "Yes" },
+  { value: "Not sure yet, we would need to check with legal or compliance",
+    label: "Not sure yet" },
+  { value: "No, we cannot license de-identified clinical data to a commercial party",
+    label: "No" },
+];
+
+const DEIDENTIFICATION_OPTIONS = [
+  { value: "Yes, we can de-identify and date-shift", label: "Yes, both" },
+  { value: "We can de-identify, but not date-shift", label: "De-identify only" },
+  { value: "Not sure yet", label: "Not sure yet" },
+  { value: "No, we cannot de-identify or date-shift", label: "No" },
+];
 
 /* The lead endpoint takes one `message` string, so the structure has to live in
    the text. Labelled sections rather than JSON: this lands in an inbox and gets
@@ -67,6 +103,9 @@ function composeMessage(a: Answers): string {
     ["Health system", a.organization],
     ["Their role", a.role],
     ["Scale", a.scale],
+    ["Authority to license", a.authority],
+    ["De-identify and date-shift", a.deidentification],
+    ["Patients, years, specialties", a.dataScale],
     ["Data they hold", a.dataHeld],
     ["Open to licensing", a.licensable],
     ["Timeline", a.timeline],
@@ -99,6 +138,9 @@ export default function PartnerInterest() {
   const [licensable, setLicensable] = useState("");
   const [scale, setScale] = useState("");
   const [timeline, setTimeline] = useState("");
+  const [authority, setAuthority] = useState("");
+  const [deidentification, setDeidentification] = useState("");
+  const [dataScale, setDataScale] = useState("");
   const [honeypot, setHoneypot] = useState("");
 
   const [busy, setBusy] = useState(false);
@@ -125,11 +167,16 @@ export default function PartnerInterest() {
   }, [referralToken]);
 
   const emailValid = /.+@.+\..+/.test(email.trim());
-  /* Four required fields, and no more. Every extra required box on a page like
-     this is a person who closes the tab. Scale and timeline are nice to have
-     and are marked optional. */
+  /* The four original required fields, plus the two qualifying questions that
+     are one click each. Every extra required BOX on a page like this is a
+     person who closes the tab, which is why the third qualifying question, the
+     one that needs typing, stays optional and why scale, role, licensing and
+     timeline stay optional too. A dropdown is not a box in that sense: it costs
+     a click, and a form that lets the authority question be skipped is a form
+     whose archive cannot be called an attestation. */
   const canSubmit =
-    emailValid && !!name.trim() && !!organization.trim() && !!dataHeld.trim() && !busy;
+    emailValid && !!name.trim() && !!organization.trim() && !!dataHeld.trim()
+    && !!authority && !!deidentification && !busy;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -137,6 +184,7 @@ export default function PartnerInterest() {
     setError("");
     const answers: Answers = {
       name, email, organization, role, dataHeld, licensable, scale, timeline,
+      authority, deidentification, dataScale,
     };
     try {
       await authApi.submitLead({
@@ -145,6 +193,12 @@ export default function PartnerInterest() {
         message: composeMessage(answers),
         company_website: honeypot,
         referral_token: referralToken || undefined,
+        /* Sent as their own fields as well as inside the message. The message is
+           for the person reading the inbox; these are what gets archived in
+           columns, and what somebody has to be able to produce later. */
+        authority_answer: authority,
+        deidentification_answer: deidentification,
+        data_scale_answer: dataScale.trim(),
       });
       setSent(true);
     } catch (e) {
@@ -268,6 +322,35 @@ export default function PartnerInterest() {
             rows={3}
             value={licensable}
             onChange={setLicensable}
+          />
+
+          {/* The three qualifying questions, as agreed on Sep 1. They sit
+              together and last because they read as paperwork next to the two
+              open questions above, and someone who has just described their
+              data is further in than someone who has not started. */}
+          <SelectField
+            label="Does your organization have the authority to license de-identified clinical data to a commercial party?"
+            placeholder="Select an answer"
+            value={authority}
+            onChange={setAuthority}
+            options={AUTHORITY_OPTIONS}
+          />
+
+          <SelectField
+            label="Can you de-identify and date-shift?"
+            placeholder="Select an answer"
+            value={deidentification}
+            onChange={setDeidentification}
+            options={DEIDENTIFICATION_OPTIONS}
+          />
+
+          <TextArea
+            label="Roughly how many patients, over how many years, and in which specialties?"
+            placeholder="e.g. around 80,000 patients over 12 years, mostly nephrology and cardiology"
+            optional
+            rows={3}
+            value={dataScale}
+            onChange={setDataScale}
           />
 
           <TextField

@@ -1339,7 +1339,7 @@ def build_hs_referral_intro_email(
         )
         + _cta(partner_url, "Tell us about your system →")
         + _p(
-            "Five quick questions so the call starts from something real, then "
+            "A few quick questions so the call starts from something real, then "
             "pick a time that works. Happy to loop in your compliance lead early.",
             muted=True, small=True,
         )
