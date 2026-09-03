@@ -51,6 +51,10 @@
   <script src="/static/asclepius/admin_health.js" defer></script>
   <script src="/static/asclepius/admin_export.js" defer></script>
   <script src="/static/asclepius/admin_earnings.js" defer></script>
+  <!-- Sandbox (Sandbox PRD §3) — defines window.AdminSandboxSection: the
+       Accounts and Outbox tabs. Loaded on every shell, mounted only when the
+       page is the sandbox realm (window.__REALM === 'sandbox'). -->
+  <script src="/static/asclepius/admin_sandbox.js" defer></script>
   <!-- Referral (PRD-REF) — defines window.ReferralSection, mounted by
        asclepius.js for sessions holding the 'refer' capability. -->
   <script src="/static/asclepius/referral.js" defer></script>

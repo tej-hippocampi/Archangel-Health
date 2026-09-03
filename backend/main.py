@@ -2812,15 +2812,16 @@ window.__REALM='sandbox';
     h.set('X-Asclepius-Realm','sandbox');o.headers=h;return f.call(window,u,o);};
   function paint(){
     if(document.getElementById('ascRealmBanner'))return;
-    var full=location.pathname.indexOf('/sandbox/admin')===0;
+    var full=window.__REALM_FULL_BANNER===true;
     var b=document.createElement('div');
     b.id='ascRealmBanner';b.setAttribute('role','status');b.setAttribute('data-realm','sandbox');
-    b.style.cssText='position:sticky;top:0;z-index:2147483647;background:#c6f542;color:#111;'
+    b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c6f542;color:#111;'
       +'font:600 '+(full?'14px':'12px')+'/1.4 system-ui,sans-serif;text-align:center;'
       +'padding:'+(full?'8px 12px':'4px 12px')+';letter-spacing:.02em;border-bottom:2px solid #1a1a1a;';
     b.textContent='SANDBOX · nothing here reaches real users';
     var who=document.createElement('span');who.id='ascRealmBannerAdmin';b.appendChild(who);
     document.body.insertBefore(b,document.body.firstChild);
+    document.body.style.paddingTop=b.offsetHeight+'px';
     f.call(window,'/api/asclepius/sandbox/status',{headers:{'X-Asclepius-Realm':'sandbox'}})
       .then(function(r){return r.ok?r.json():null;})
       .then(function(s){if(s&&s.admin_email){who.textContent=' · '+s.admin_email;}})
@@ -2832,25 +2833,30 @@ window.__REALM='sandbox';
 _SANDBOX_SHELL_TAG = "<script>" + _SANDBOX_SHELL_JS + "</script>"
 
 
-def _sandbox_shell(html: str) -> HTMLResponse:
+def _sandbox_shell(html: str, *, full_banner: bool = False) -> HTMLResponse:
     if not _realm.enabled():
         raise HTTPException(status_code=404, detail="Not found.")
+    tag = _SANDBOX_SHELL_TAG
+    if full_banner:  # the admin console gets the full-height banner (§3.1)
+        tag = "<script>window.__REALM_FULL_BANNER=true;</script>" + tag
     # After <head> so it runs before every deferred module reads window.__REALM.
     if "<head>" in html:
-        html = html.replace("<head>", "<head>\n  " + _SANDBOX_SHELL_TAG, 1)
+        html = html.replace("<head>", "<head>\n  " + tag, 1)
     else:  # pragma: no cover — every shell has a <head>
-        html = _SANDBOX_SHELL_TAG + html
+        html = tag + html
     return HTMLResponse(content=html)
 
 
 @app.get("/sandbox/asclepius", response_class=HTMLResponse, include_in_schema=False)
 @app.get("/sandbox/admin", response_class=HTMLResponse, include_in_schema=False)
-async def sandbox_asclepius_portal():
+async def sandbox_asclepius_portal(request: Request):
     """The sandbox evaluation portal AND the sandbox admin console: the admin
     console lives inside the Asclepius shell (Admin console tab), so both
-    aliases serve it. ``/sandbox/admin`` is the address the PRD hands out."""
+    aliases serve it. ``/sandbox/admin`` is the address the PRD hands out and
+    gets the full-height banner; the doctor portal gets the thinner one."""
     resp = await asclepius_portal()
-    return _sandbox_shell(resp.body.decode("utf-8"))
+    return _sandbox_shell(resp.body.decode("utf-8"),
+                          full_banner=request.url.path.startswith("/sandbox/admin"))
 
 
 @app.get("/sandbox/provider", response_class=HTMLResponse, include_in_schema=False)

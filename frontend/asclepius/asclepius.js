@@ -89,6 +89,7 @@
       money: 'earnings',      //   earnings | referrals
       data: 'systems',        //   systems | pipeline | export
       export: 'bycase',       //   bycase | buyers | history (inside Data > Export)
+      sandbox: 'accounts',    //   accounts | outbox   (Sandbox PRD §3; sandbox realm only)
     },
     // Org → contributor drill-down state, shared shape across Exports + Metrics.
     browse: {
@@ -9209,6 +9210,11 @@
       ['money', 'Money and Metrics'], // key stays 'money'
       ['data', 'Data'],
     ];
+    // Sandbox PRD §3: the sandbox admin console is the SAME console with one
+    // more section — Accounts (the ten doctors + credentials, Reset, Seed
+    // fresh doctor) and Outbox (every email the sandbox "sent"). It exists
+    // only when this page IS the sandbox; the live console never shows it.
+    if (REALM === 'sandbox') tabs.push(['sandbox', 'Sandbox']);
     const subnav = h('div', { class: 'asc-subnav' },
       tabs.map(([id, label]) => {
         const btn = h('button', {
@@ -9234,6 +9240,22 @@
     else if (state.adminTab === 'work') renderAdminWorkSection(body);
     else if (state.adminTab === 'money') renderAdminMoneySection(body);
     else if (state.adminTab === 'data') renderAdminDataSection(body);
+    else if (state.adminTab === 'sandbox' && REALM === 'sandbox') renderAdminSandboxSection(body);
+  }
+
+  // Sandbox (Sandbox PRD §3): Accounts and Outbox. Rendered by its own module
+  // like every other section; the shell only routes to it.
+  function renderAdminSandboxSection(body) {
+    clear(body);
+    body.appendChild(adminSubnav('sandbox', [
+      ['accounts', 'Accounts'], ['outbox', 'Outbox'],
+    ]));
+    const inner = h('div', {});
+    body.appendChild(inner);
+    if (window.AdminSandboxSection) {
+      window.AdminSandboxSection.render(inner, adminSectionCtx(),
+        state.adminSub.sandbox === 'outbox' ? 'outbox' : 'accounts');
+    } else sectionModuleMissing(inner, 'The Sandbox section');
   }
 
   /* ═══ Is this deployment going to keep the data? ══════════════════════════

@@ -545,6 +545,14 @@ _PRD_2_SEQUENCE_GATE = f"""(
 # ═══ END PRD-2 ═══════════════════════════════════════════════════════════════
 
 
+def _hs_origin_for_new_row() -> Optional[str]:
+    """Sandbox PRD §3.4: a health system created in the sandbox realm (fake
+    org onboarding, an operator's manual add) is stamped ``sandbox``; a live
+    row carries NULL; a snapshot copy of a live system is stamped
+    ``production`` by ``sandbox_copy`` (§4)."""
+    return "sandbox" if _realm.is_sandbox() else None
+
+
 class AsclepiusStore:
     def __init__(self, db_path: Optional[str] = None, *, read_only: bool = False):
         # The default is the LIVE realm's file; ``get_store()`` passes the
@@ -10126,12 +10134,13 @@ class AsclepiusStore:
             hs_id = self.hs_id_for_name(clean)
             now = _utcnow_iso()
             conn.execute(
-                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at) "
-                "VALUES (?, ?, ?, ?, 1, ?)",
-                (hs_id, clean, contact_email, notes, now),
+                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at, origin) "
+                "VALUES (?, ?, ?, ?, 1, ?, ?)",
+                (hs_id, clean, contact_email, notes, now, _hs_origin_for_new_row()),
             )
             return {"hs_id": hs_id, "name": clean, "contact_email": contact_email,
-                    "notes": notes, "active": 1, "created_at": now}
+                    "notes": notes, "active": 1, "created_at": now,
+                    "origin": _hs_origin_for_new_row()}
 
     def get_health_system(self, hs_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -10652,12 +10661,13 @@ class AsclepiusStore:
                                (hs_id,)).fetchone() is not None:
                 hs_id = f"{base}-{secrets.token_hex(2)}"
             conn.execute(
-                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at) "
-                "VALUES (?, ?, ?, NULL, 1, ?)",
-                (hs_id, clean, contact_email, now),
+                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at, origin) "
+                "VALUES (?, ?, ?, NULL, 1, ?, ?)",
+                (hs_id, clean, contact_email, now, _hs_origin_for_new_row()),
             )
         return {"hs_id": hs_id, "name": clean, "contact_email": contact_email,
-                "notes": None, "active": 1, "created_at": now, "intake_at": None}
+                "notes": None, "active": 1, "created_at": now, "intake_at": None,
+                "origin": _hs_origin_for_new_row()}
 
     def health_systems_named_like(self, name: str, *,
                                   exclude_hs_id: Optional[str] = None) -> List[Dict[str, Any]]:
