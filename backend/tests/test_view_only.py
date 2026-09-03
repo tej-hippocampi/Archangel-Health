@@ -244,3 +244,85 @@ def test_a_referral_only_account_cannot_open_the_practice_case():
     r = client.get("/api/asclepius/tutorial/task",
                    headers=headers_for(_account(store, kind=caps.REFERRER)))
     assert r.status_code == 403
+
+
+# ─── The applicant reads nothing (the mirror of the write narrowing above) ────
+def test_an_applicant_under_review_cannot_read_the_community():
+    """The other half of the narrowing, and the half that was still open.
+
+    ``require_poster`` refused the POST while ``_passes_gate`` fast-passed
+    ``verification_status == 'pending'`` on the read, so an account that had
+    done nothing but submit a form could open every physician-only channel and
+    read every message in it. Rejecting the application afterwards does not
+    unread them, which is the same argument that closed the write.
+    """
+    store = fresh_store()
+    applicant = _account(store, status="pending", tier=None)
+    for path in ("/api/community/me",
+                 "/api/community/channels",
+                 "/api/community/channels/general/messages",
+                 "/api/community/members"):
+        r = client.get(path, headers=headers_for(applicant))
+        assert r.status_code == 403, f"{path} -> {r.status_code}"
+
+
+def test_an_approved_physician_reads_and_posts():
+    """The guard on the line above: the accounts that SHOULD be in the room are
+    in it. A padlock on an approved physician's community tab is the same bug
+    with the sign flipped."""
+    store = fresh_store()
+    doctor = _account(store, status="approved", tier="labeler")
+    assert caps.COMMUNITY_READ in caps.surfaces(doctor)
+    assert caps.COMMUNITY_WRITE in caps.surfaces(doctor)
+    me = client.get("/api/community/me", headers=headers_for(doctor))
+    assert me.status_code == 200, me.text
+    assert me.json()["can_post"] is True
+    assert client.get("/api/community/channels",
+                      headers=headers_for(doctor)).status_code == 200
+    posted = client.post("/api/community/channels/general/messages",
+                         json={"body": "Reading and posting, as an approved colleague."},
+                         headers=headers_for(doctor))
+    assert posted.status_code == 200, posted.text
+
+
+def test_an_applicant_is_not_a_member_and_is_not_mailed_channel_content():
+    """A member row is not only a directory entry. It is a mention target, a
+    head that counts towards whether a room opens, and the address
+    ``resolve_member_for_notify`` hands the digest mailer, which sends message
+    snippets. An applicant left in that map would go on receiving
+    physician-only content by email after being shut out of the room."""
+    from community.router import member_map, resolve_member_for_notify
+
+    store = fresh_store()
+    applicant = _account(store, status="pending", tier=None)
+    doctor = _account(store, status="approved", tier="labeler")
+    members = member_map()
+    assert doctor["id"] in members
+    assert applicant["id"] not in members
+    assert resolve_member_for_notify(applicant["id"]) is None
+
+
+def test_the_member_list_is_a_summary_and_the_profile_is_a_fetch():
+    """The list is downloaded by every doctor on every page open, so it carries
+    what the rail and @mention completion render and nothing else; the profile
+    fields it used to duplicate a thousand times are one request per colleague
+    somebody actually opens."""
+    store = fresh_store()
+    doctor = _account(store, status="approved", tier="labeler", name="Ada Reyes")
+    listed = client.get("/api/community/members", headers=headers_for(doctor)).json()
+    row = next(m for m in listed["members"] if m["user_id"] == doctor["id"])
+    assert row["display_name"] == "Ada Reyes"
+    for absent in ("blurb", "institution", "years_in_practice", "board_certified",
+                   "fellowship_trained", "country", "city", "region", "subspecialties"):
+        assert absent not in row, absent
+
+    full = client.get(f"/api/community/members/{doctor['id']}",
+                      headers=headers_for(doctor))
+    assert full.status_code == 200, full.text
+    assert set(("blurb", "institution", "years_in_practice")) <= set(full.json()["member"])
+    # Same gate as everything else in here, and no oracle for who has an account.
+    assert client.get(f"/api/community/members/{doctor['id']}",
+                      headers=headers_for(_account(store, status="pending", tier=None))
+                      ).status_code == 403
+    assert client.get("/api/community/members/nobody-at-all",
+                      headers=headers_for(doctor)).status_code == 404

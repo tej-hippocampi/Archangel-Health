@@ -227,6 +227,62 @@ def test_a_brief_is_posted_once_and_not_again_the_same_day(wired, monkeypatch):
     assert len([m for m in messages if m.get("kind") == morning.KIND_EVENTS]) == 1
 
 
+def test_two_runners_racing_the_same_morning_post_one_brief(wired, monkeypatch):
+    """Two schedulers drive this: the hourly GitHub Actions cron and the
+    in-process hourly loop. Both used to read "no successful run since today's
+    fire time", both find it true, both spend an LLM call composing, and both
+    post, because a ledger READ is not a claim. The run has to reserve its
+    window before it composes anything.
+
+    The second runner arrives mid-compose, which is exactly when the ledger
+    still says nothing has succeeded today.
+    """
+    # 00:00 local, so the fire time has passed for every scope and both runs
+    # reach the claim rather than short-circuiting on due-ness.
+    monkeypatch.setenv("COMMUNITY_MORNING_HOUR_LOCAL", "0")
+    scope = morning.Scope(key="morning:events", channel="events", tz="America/New_York")
+    second: List[Dict[str, Any]] = []
+
+    async def _one(**kwargs):
+        if not second:
+            # The other runner's tick lands while this one is still sourcing.
+            # It gets no further than the claim, so this does not recurse.
+            second.append(await morning.run_scope(scope))
+        return [{"title": "Riyadh Health AI Summit", "url": "https://example.org/s",
+                 "when": "14 March", "location": "Riyadh", "why": "Clinical AI."}]
+
+    monkeypatch.setattr(websearch, "search_events", _one)
+
+    first = asyncio.run(morning.run_scope(scope))
+    assert first["outcome"] == "posted"
+    # The loser exits without composing and without posting.
+    assert second[0]["outcome"] == "already_running"
+
+    channel = wired.get_channel_by_slug("events")
+    messages, _ = wired.list_messages(channel["id"])
+    assert len([m for m in messages if m.get("kind") == morning.KIND_EVENTS]) == 1
+
+
+def test_a_failed_morning_releases_the_day_so_the_next_tick_retries(wired, monkeypatch):
+    """The reservation must not cost a channel its day over a transient error.
+    A run that fails hands its window back; only a successful one keeps it."""
+    monkeypatch.setenv("COMMUNITY_MORNING_HOUR_LOCAL", "0")
+    scope = morning.Scope(key="morning:events", channel="events", tz="America/New_York")
+
+    async def _boom(**kwargs):
+        raise RuntimeError("search is down")
+
+    monkeypatch.setattr(websearch, "search_events", _boom)
+    assert asyncio.run(morning.run_scope(scope))["outcome"] == "failed"
+
+    async def _one(**kwargs):
+        return [{"title": "Riyadh Health AI Summit", "url": "https://example.org/s",
+                 "when": "14 March", "location": "Riyadh", "why": "Clinical AI."}]
+
+    monkeypatch.setattr(websearch, "search_events", _one)
+    assert asyncio.run(morning.run_scope(scope))["outcome"] == "posted"
+
+
 def test_an_event_card_may_carry_its_date(wired, monkeypatch):
     """"14 March" trips the PHI gate's exact_date rule, which is right for a
     message that might be about a patient and wrong for a conference. Without

@@ -12,4 +12,52 @@ landing/
 !docs/legal/*.md
 .env
 .env.*
+
+# Real data and real credentials belonging to whoever ran the build. `COPY
+# backend/ backend/` copies the WORKING TREE, not the git index, so every one of
+# these ships inside the image even though .gitignore keeps them out of the repo:
+# a 4 MB team.db carrying the builder's live onboarding funnel, the staff
+# password store, the demo patient roster. None of them is needed to boot.
+#
+# Verified not needed at runtime, one by one:
+#   *.db          team_store.connect_team_db and community.store.CommunityStore
+#                 both mkdir the parent and sqlite3.connect(), which CREATES an
+#                 empty file, then run their schema migrations. In production
+#                 TEAM_DB_PATH / COMMUNITY_DB_PATH point at the volume, so a
+#                 baked-in copy is never even opened; it is only stale data
+#                 sitting where a misconfigured deploy can find it. Nothing
+#                 tracked in git matches (`git ls-files | grep '\.db$'` is empty),
+#                 so no seed corpus or fixture is caught by this.
+#   auth_users.json        auth.py:184 / routers/admin.py:98 both read it behind
+#                          USERS_FILE.exists() and return {} when absent.
+#   demo_patient_store.json main.py:_load_demo_patient_store_snapshot returns
+#                          early on `not os.path.isfile(path)`; the roster is
+#                          re-seeded at startup regardless.
+#   _assetstore/           a stray local blob dir; production points
+#                          ASCLEPIUS_ASSET_STORE at the mounted volume.
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+backend/auth_users.json
+backend/demo_patient_store.json
+backend/asclepius/_assetstore/
+
+# The two dotenv rules above are ROOT-anchored (a .dockerignore pattern does not
+# cross `/` unless it says `**`), so backend/.env needed its own line and
+# anything deeper had none at all. Catch every dotenv wherever it sits, including
+# the .bak copies that are the ones most likely to hold real keys.
+**/.env
+**/.env.*
+**/sendgrid.env
+
+# Virtualenvs are hundreds of MB of the builder's machine, and pip/keyring state
+# under them can carry credentials. The image installs deps from requirements.txt
+# in its own cached layer.
+**/.venv/
+**/venv/
+**/.DS_Store
+
+# Last match wins, and the `**/.env.*` above would otherwise swallow the one
+# dotenv file that is safe to ship (it holds no values, only documentation).
 !.env.example

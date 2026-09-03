@@ -49,6 +49,7 @@ import re
 import secrets
 import sqlite3
 import string
+import threading
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -60,6 +61,42 @@ _pwd = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def _utcnow_iso() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
+
+
+# ─── Shared team.db connection ───────────────────────────────────────────────
+# team.db is opened from seven places: this store, audit/audit_log, gold/store,
+# token_revocation, patient_session, main._clear_demo_sqlite_rows and
+# triage_demo_seed. They all route through connect_team_db so none of them can
+# drift back to the sqlite defaults, which asclepius.db has never used
+# (asclepius/store.py). Those defaults are rollback-journal, where a reader
+# blocks a writer, plus Python's 5s connect timeout: under launch load that
+# combination turned ordinary contention into "database is locked", and on the
+# audit path that meant ePHI access records were dropped while the request
+# still returned 200.
+_WAL_APPLIED: set = set()
+_WAL_LOCK = threading.Lock()
+
+
+def connect_team_db(db_path: str) -> sqlite3.Connection:
+    """Open team.db the way AsclepiusStore opens asclepius.db.
+
+    journal_mode is a persistent property of the database FILE, so one
+    connection setting it is enough for every later connection (we memoize per
+    path to keep it off the hot path). timeout / busy_timeout / synchronous are
+    per-CONNECTION and reset to the sqlite defaults on every open, so they must
+    be set here, every time. That is what makes a request wait for the write
+    lock instead of raising.
+    """
+    conn = sqlite3.connect(db_path, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 30000")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    key = os.path.abspath(db_path)
+    if key not in _WAL_APPLIED:
+        with _WAL_LOCK:
+            conn.execute("PRAGMA journal_mode = WAL")
+            _WAL_APPLIED.add(key)
+    return conn
 
 
 class TeamStore:
@@ -78,9 +115,7 @@ class TeamStore:
         self._init_schema()
 
     def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        return connect_team_db(self.db_path)
 
     def _init_schema(self) -> None:
         with self._conn() as conn:

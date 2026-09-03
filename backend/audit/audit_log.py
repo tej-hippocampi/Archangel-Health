@@ -21,13 +21,25 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import sqlite3
 import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from team_store import connect_team_db
+
+log = logging.getLogger("audit")
+
 _LOCK = threading.Lock()
+
+# Paths whose audit_events table we have already created this process. The
+# CREATE TABLE used to run on EVERY write, inside the global lock and ahead of
+# the chain SELECT + INSERT: a schema round-trip per ePHI access, on a database
+# that was in rollback-journal mode. It only ever needs to happen once per file.
+_TABLE_READY: set = set()
+_TABLE_LOCK = threading.Lock()
 
 
 def _db_path() -> str:
@@ -36,9 +48,21 @@ def _db_path() -> str:
 
 
 def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(_db_path())
-    conn.row_factory = sqlite3.Row
-    return conn
+    # Shared team.db opener: WAL (readers no longer block the writer) + a 30s
+    # busy timeout. Without it, a busy moment raised "database is locked" here
+    # and the except below ate the ePHI access record.
+    return connect_team_db(_db_path())
+
+
+def _ensure_table_once(conn: sqlite3.Connection, db_path: str) -> None:
+    """_ensure_table, hoisted off the per-write hot path. Keyed on the resolved
+    path so a test that repoints TEAM_DB_PATH still gets its table created."""
+    key = os.path.abspath(db_path)
+    if key in _TABLE_READY:
+        return
+    with _TABLE_LOCK:
+        _ensure_table(conn)
+        _TABLE_READY.add(key)
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:
@@ -101,10 +125,11 @@ def record(
         "outcome": outcome,
         "detail": detail or {},
     }
+    db_path = _db_path()
     try:
         with _LOCK:
-            with _conn() as conn:
-                _ensure_table(conn)
+            with connect_team_db(db_path) as conn:
+                _ensure_table_once(conn, db_path)
                 row = conn.execute(
                     "SELECT row_hash FROM audit_events ORDER BY id DESC LIMIT 1"
                 ).fetchone()
@@ -127,8 +152,18 @@ def record(
                         _canonical(detail or {}), prev_hash, row_hash,
                     ),
                 )
-    except Exception as exc:  # pragma: no cover - audit must never break a request
-        print(f"[audit] failed to record event: {exc}")
+    except Exception as exc:  # audit must never break a request
+        # A dropped record is a HIPAA §164.312(b) gap: the access happened and
+        # nothing says so. Still no re-raise (an audit outage must not become a
+        # clinical outage), but it goes out at ERROR with the actor and the
+        # route so alerting can see it. A print on stdout could not.
+        log.error(
+            "DROPPED ePHI audit event: actor=%s/%s action=%s resource=%s "
+            "patient=%s outcome=%s db=%s: %s",
+            actor_type, actor_id or "-", action, resource or "-",
+            patient_id or "-", outcome, db_path, exc,
+            exc_info=True,
+        )
 
 
 def _recompute_hash(r: sqlite3.Row, prev_hash: str) -> str:

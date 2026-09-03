@@ -50,6 +50,20 @@
   // to it would hide an applicant who is obviously rejectable, or an obviously
   // approvable colleague, behind a tutorial they have not got round to.
   let readyOnly = false;
+  /* Which page of the verification queue is on screen.
+   *
+   * GET /verify/queue is paginated and always has been (it answers with total,
+   * offset, limit and has_more), but this file read the rows and nothing else:
+   * the chip and the card heading both counted the ROWS IT HAD, so a hundred
+   * and one physicians waiting rendered as "100 waiting" and the hundred and
+   * first was unreachable from this console entirely. On a morning when
+   * everybody signs up at once that is the difference between a queue and a
+   * queue you cannot see the end of. Every count below now comes from the
+   * server's `total`, and this offset is what lets an admin reach the rest. */
+  let pendingOffset = 0;
+  // The endpoint's own default limit. Only a fallback page step, for a
+  // response that does not say what it served (it does; see queueMeta).
+  const PENDING_PAGE = 100;
   let rootEl = null;            // the section body we were mounted into
   let rootCtx = null;
 
@@ -354,7 +368,11 @@
     // reads before deciding whether to open the tab at all, and counting
     // mid-wizard signups in it made it say "7 waiting" when two accounts could
     // actually be decided: false urgency on the only signal there is.
-    const decidableCount = pendingRows.filter((r) => r.kind === 'queued').length;
+    // ...and the SERVER's count of that set, not this page's. `total` is cut
+    // from the same filtered rows the page was cut from, so it is exactly the
+    // number of decisions waiting; rows.length is only ever the size of the
+    // window we happen to be looking through.
+    const decidableCount = queueMeta().total;
     container.appendChild(tabStrip(ctx, approved.length, decidableCount,
                                    approvedErr, pendingErr));
     // Above the tabs on purpose: an account in here is invisible in BOTH of
@@ -573,12 +591,46 @@
    * walking it (not decidable — there is no account to approve). The signups
    * half is best-effort: it is the secondary population, and a failure to load
    * it must not hide the physicians who ARE waiting for a decision. */
+  /* The first page is the endpoint's own default (status=pending, limit=100,
+     offset=0), so it is asked for exactly as it always was: restating a window
+     the server already assumes buys nothing. Only a page turn has something to
+     say, and PENDING_PAGE is that default written down, which is what keeps
+     every offset a whole number of pages in both directions. */
+  function queueUrl(offset) {
+    let url = '/verify/queue?status=pending' + (readyOnly ? '&ready=true' : '');
+    if (offset > 0) url += '&limit=' + PENDING_PAGE + '&offset=' + offset;
+    return url;
+  }
+
+  /* What the server said about the page it just sent. Defaults describe an
+     unpaginated answer, which is what a failed or empty load looks like, so a
+     missing `total` degrades to "as many as we can see" and never to 0 -- a
+     confident zero here is the claim that nobody is waiting, made on no
+     information. */
+  function queueMeta() {
+    const q = ((pendingCache || {}).queue) || {};
+    const rows = q.queue || [];
+    return {
+      offset: typeof q.offset === 'number' ? q.offset : 0,
+      count: rows.length,
+      total: typeof q.total === 'number' ? q.total : rows.length,
+      hasMore: q.has_more === true,
+    };
+  }
+
   async function loadPending(api) {
     // The server filters, not the client. `total` and the tab count are cut
     // from the same set as the rows, so a client-side filter would show four
     // rows under a heading that says seven.
-    const queue = await api('/verify/queue?status=pending'
-      + (readyOnly ? '&ready=true' : ''));
+    let queue = await api(queueUrl(pendingOffset));
+    /* Deciding rows shrinks the queue underneath the admin doing it, so the
+       page they are standing on can fall off the end. An empty page 2 reads as
+       "queue clear" when it means "you are past the end", so go back to the
+       start rather than show that. */
+    if (pendingOffset > 0 && !((queue.queue || []).length)) {
+      pendingOffset = 0;
+      queue = await api(queueUrl(pendingOffset));
+    }
     let signups = null;
     try {
       signups = await api('/admin/signups');
@@ -1000,17 +1052,23 @@
     const signups = rows.filter((r) => r.kind !== 'queued');
 
     if (decidable.length) {
-      container.appendChild(h('div', { class: 'asc-card' },
+      const meta = queueMeta();
+      // The heading is the whole queue, not this page of it. Rendering
+      // decidable.length here is what made a capped page read as the total.
+      const card = h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-head' },
           h('div', { class: 'asc-card-title' },
-            'Waiting on your decision (' + decidable.length + ')'),
+            'Waiting on your decision (' + meta.total + ')'),
           readyFilter(ctx)),
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
             h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, 'Waiting'),
             h('th', {}, 'Practice case'), h('th', {}, 'Proposed'),
             h('th', {}, 'Look'), h('th', {}, ''))),
-          h('tbody', {}, decidable.map((r) => pendingRow(ctx, r)))))));
+          h('tbody', {}, decidable.map((r) => pendingRow(ctx, r))))));
+      const pager = queuePager(ctx, meta);
+      if (pager) card.appendChild(pager);
+      container.appendChild(card);
     } else {
       container.appendChild(h('div', { class: 'asc-card' },
         h('div', { class: 'asc-card-head' },
@@ -1053,12 +1111,53 @@
     btn.addEventListener('click', () => {
       readyOnly = !readyOnly;
       // The rows come from the server with the filter applied, so the cached
-      // page describes the other question and has to go.
+      // page describes the other question and has to go. Page 3 of the old
+      // question is not page 3 of the new one either, so the offset goes with
+      // it: a filter change is a different queue.
       pendingCache = null;
+      pendingOffset = 0;
       pendingId = null;
       rerender();
     });
     return btn;
+  }
+
+  /* The way to the rest of the queue. Nothing rendered it before, so a queue
+     longer than one page ended at row 100 with no sign that it had: the count
+     said 100, the table showed 100, and the hundred and first physician was
+     simply not in the console. Same shape as the uploads pager in
+     admin_shell.js, because an operator should not have to learn two.
+
+     Absent when the whole queue is on screen, which is the ordinary case: a
+     pager under a table that IS everything is a control that can only tell you
+     what you already know. */
+  function queuePager(ctx, meta) {
+    const { h } = ctx;
+    const to = meta.offset + meta.count;
+    if (meta.offset <= 0 && !meta.hasMore && to >= meta.total) return null;
+    const prev = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button' },
+      'Previous');
+    const next = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button' },
+      'Next');
+    if (meta.offset <= 0) prev.disabled = true;
+    if (!meta.hasMore && to >= meta.total) next.disabled = true;
+    prev.addEventListener('click', () => goToPage(Math.max(0, meta.offset - PENDING_PAGE)));
+    next.addEventListener('click', () => goToPage(to));
+    return h('div', {
+      class: 'asc-card-pad',
+      style: 'display:flex;justify-content:space-between;align-items:center;gap:10px',
+    },
+      h('div', { class: 'asc-card-sub' },
+        'Showing ' + (meta.offset + 1) + ' to ' + to + ' of ' + meta.total),
+      h('div', { style: 'display:flex;gap:8px' }, prev, next));
+  }
+
+  function goToPage(offset) {
+    pendingOffset = Math.max(0, offset);
+    // The cache holds one page, so it describes the page we are leaving.
+    pendingCache = null;
+    pendingId = null;
+    rerender();
   }
 
   /* The practice case as one cell. State only: the matched count is on the

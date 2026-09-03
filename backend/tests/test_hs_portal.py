@@ -527,9 +527,16 @@ def test_rejected_uploads_do_not_sit_in_needs_review():
 
 def test_definition_of_done_end_to_end(monkeypatch):
     """PRD C §2 verbatim: type an organization and an email → the contact
-    receives credentials → logs into a password-protected portal → uploads a
-    bare .json → it appears under that health system in the admin — with no
-    partner IDs or specialty fields anywhere in the flow."""
+    receives credentials → logs into a password-protected portal → signs the
+    agreement → uploads a bare .json → it appears under that health system in
+    the admin, with no partner IDs or specialty fields anywhere in the flow.
+
+    The signature is a step in this list now, not a formality it skipped.
+    Provisioning used to leave the organization's state NULL, which reads as
+    ACTIVE, so this test walked from "an admin typed a name" to "bytes accepted"
+    without a contract existing anywhere, which is exactly the door the state
+    machine was built to close.
+    """
     import re as _re
     from routers import asclepius_admin as RA
 
@@ -558,18 +565,32 @@ def test_definition_of_done_end_to_end(monkeypatch):
     codes = _re.findall(r"<code>([^<]+)</code>", sent[0])
     passphrase = codes[1]
 
-    # 3. Sign in, forced reset, upload a bare .json.
+    # 3. Sign in and take the forced reset.
     cp = _client()
     login = cp.post("/api/asclepius/hs/login",
                     json={"username": username, "password": passphrase})
     assert login.status_code == 200 and login.json()["must_reset"] is True
     assert cp.post("/api/asclepius/hs/password",
                    json={"new_password": "hospital-it-passphrase-1"}).status_code == 200
+
+    # 4. Sign the agreement. Read the hash off the page they were shown rather
+    # than recomputing it, because that is the only version of the document the
+    # signature is allowed to be taken against.
+    shown = cp.get("/api/asclepius/hs/agreement")
+    assert shown.status_code == 200, shown.text
+    assert shown.json()["can_sign"] is True, shown.json()["state"]
+    signed = cp.post("/api/asclepius/hs/agreement/sign", json={
+        "typed_name": "Dana Reyes", "typed_title": "Chief Information Officer",
+        "authority_affirmed": True, "consent_esign": True,
+        "doc_sha256": shown.json()["doc_sha256"]})
+    assert signed.status_code == 200, signed.text
+
+    # 5. Now the bare .json goes through.
     up = cp.post("/api/asclepius/hs/uploads",
                  files=[("files", ("export.json", b'{"resourceType": "Bundle"}', "application/json"))])
     assert up.status_code == 200, up.text
 
-    # 4. It appears under that health system in the admin buckets.
+    # 6. It appears under that health system in the admin buckets.
     detail = ca.get(f"/api/asclepius/admin/health-systems/{hs_id}",
                     headers=_A.headers_for(admin)).json()
     all_entries = [e for bucket in detail["buckets"].values() for e in bucket]

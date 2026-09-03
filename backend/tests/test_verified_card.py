@@ -80,8 +80,9 @@ def physician():
 def _path(url: str) -> str:
     """The card URL as this TestClient can fetch it.
 
-    ``card_url`` builds an absolute address on BASE_URL because that is what a
-    physician pastes somewhere; the test drives the same route through the app.
+    ``card_url`` builds an absolute address on the public host because that is
+    what a physician pastes somewhere; the test drives the same route through the
+    app. Which host that is has its own tests below.
     """
     return urlparse(url).path
 
@@ -157,6 +158,47 @@ def test_every_way_of_missing_answers_the_same_404(physician):
     unknown = client.get("/api/asclepius/card/there-is-no-such-token")
     assert withdrawn.status_code == unknown.status_code == 404
     assert withdrawn.json() == unknown.json()
+
+
+# ─── Where the link points ────────────────────────────────────────────────────
+
+
+def test_the_card_url_is_built_on_the_public_host_not_on_a_bare_base_url(monkeypatch):
+    """The one fact a shared card cannot get wrong is whose site it opens.
+
+    ``BASE_URL`` is the oldest of the three variables, it names the API host
+    rather than the host physicians are sent to, and the committed
+    ``.env.example`` still fills it with a CareGuide address. A deploy that sets
+    only it would turn every "I'm verified on Archangel" link into a link to a
+    product the physician's colleagues have never heard of, and the physician is
+    the last person who would find out. So the two public-host variables the rest
+    of the product already resolves first win over it here too.
+    """
+    monkeypatch.setenv("BASE_URL", "https://app.careguide.com")
+
+    monkeypatch.delenv("ASCLEPIUS_PORTAL_URL", raising=False)
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://app.archangelhealth.ai")
+    assert urlparse(asc_card.card_url("tok")).netloc == "app.archangelhealth.ai"
+
+    monkeypatch.delenv("PUBLIC_BASE_URL")
+    monkeypatch.setenv("ASCLEPIUS_PORTAL_URL", "https://portal.archangelhealth.ai/")
+    assert urlparse(asc_card.card_url("tok")).netloc == "portal.archangelhealth.ai"
+    # The share image unfurls from the same origin the page does. A preview
+    # served by one host for a page on another is what link scrapers refuse.
+    assert (urlparse(asc_card.card_image_url("tok")).netloc
+            == urlparse(asc_card.card_url("tok")).netloc)
+
+
+def test_an_unconfigured_card_url_is_obviously_broken_rather_than_plausible(monkeypatch):
+    """With nothing configured the link has to fail loudly on the first share.
+
+    A card that resolves to localhost is a bug somebody reports in a minute. A
+    card that resolves to a real domain belonging to something else looks like it
+    worked, and stays wrong for as long as nobody clicks it.
+    """
+    for var in ("PUBLIC_BASE_URL", "ASCLEPIUS_PORTAL_URL", "BASE_URL"):
+        monkeypatch.delenv(var, raising=False)
+    assert urlparse(asc_card.card_url("tok")).hostname == "localhost"
 
 
 # ─── Who may mint ─────────────────────────────────────────────────────────────

@@ -255,7 +255,26 @@ def avatar_bytes(user: Dict[str, Any]) -> Optional[bytes]:
 
 
 def _base_url() -> str:
-    return (os.getenv("BASE_URL") or "http://localhost:8000").strip().rstrip("/")
+    """Which host a shared card resolves on, in the product's usual order.
+
+    ``PUBLIC_BASE_URL`` then ``ASCLEPIUS_PORTAL_URL`` then ``BASE_URL`` is the
+    same chain ``asclepius_provider._hs_portal_url`` walks, and ``BASE_URL`` is
+    LAST in it deliberately. It is the oldest variable here, it names the API
+    host rather than the host people are sent to, and the committed
+    ``.env.example`` still fills it with a CareGuide address. Resolving a card
+    from it alone is how "I'm verified on Archangel" ends up pointing at a
+    product the physician's colleagues have never heard of -- and a link that
+    loads someone else's site is the failure nobody reports, because it looks
+    like it worked.
+
+    The last resort stays localhost on purpose. A card nobody configured has to
+    be visibly broken to the first person who shares it; a plausible real domain
+    is the version that ships quietly and stays wrong.
+    """
+    return (os.getenv("PUBLIC_BASE_URL")
+            or os.getenv("ASCLEPIUS_PORTAL_URL")
+            or os.getenv("BASE_URL")
+            or "http://localhost:8000").strip().rstrip("/")
 
 
 def card_url(raw_token: str) -> str:

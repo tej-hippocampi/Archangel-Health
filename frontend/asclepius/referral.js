@@ -41,6 +41,20 @@
   };
   var hsConsent = false;
 
+  // Whether this account may actually send a health-system introduction:
+  // true, false, or null while we do not know yet.
+  //
+  // POST /referrals/health-system requires an APPROVED account (admins aside)
+  // and 403s everyone else, which is deliberate: that email goes out cold, in
+  // the physician's name, to somebody senior at an organization we want to do
+  // business with, and an OTP signup is possession of an inbox rather than an
+  // identity. The form was rendered to everyone anyway, so a physician still
+  // under review typed six fields and a consent tick to be refused on submit.
+  // This mirrors the server's rule so the UI says the same thing the endpoint
+  // does. Only this half locks: the physician invite beside it IS available
+  // under review, and takes no notice of this flag.
+  var hsUnlocked = null;
+
   // WHICH button says "Copied", not WHETHER one does. There are four copy
   // controls on this page now; a shared boolean lit them all at once, so
   // copying the physician link also told you the health-system blurb was on
@@ -83,10 +97,12 @@
     hsDraft = { contact_name: '', contact_email: '', contact_role: '',
                 hs_name: '', relationship: '', note: '' };
     hsConsent = false;
+    hsUnlocked = null;
     copiedKey = null;
     ctx.clear(body);
     body.appendChild(ctx.h('div', { class: 'asc-pay-loading' }, 'Loading your referrals…'));
     load();
+    loadStanding();
   }
 
   function reset() {
@@ -94,7 +110,7 @@
     refDraft = ''; noteDraft = '';
     hsDraft = { contact_name: '', contact_email: '', contact_role: '',
                 hs_name: '', relationship: '', note: '' };
-    hsConsent = false; copiedKey = null;
+    hsConsent = false; hsUnlocked = null; copiedKey = null;
     if (copiedTimer) { clearTimeout(copiedTimer); copiedTimer = null; }
   }
 
@@ -109,6 +125,29 @@
       loadError = (err && (err.detail || err.message)) || 'The server did not respond.';
       rerender();
     });
+  }
+
+  /* Is this account approved? A second read, because the gate is on the ACCOUNT
+     and the funnel payload carries nothing about it: /auth/me is where the
+     portal already learns its own standing, and role + verification_status are
+     the two fields the endpoint's own check reads.
+
+     Best-effort, and separate from load() on purpose. A failure here leaves
+     hsUnlocked null, which draws the form exactly as before, because taking a
+     working feature away from an approved physician over one failed request is
+     worse than the refusal it would have saved an unapproved one. The server
+     is still the thing that decides either way; this only stops us asking for
+     six fields we already know will be turned down. */
+  function loadStanding() {
+    var ctx = rootCtx;
+    if (!ctx) return;
+    ctx.api('/auth/me').then(function (me) {
+      var acct = me || {};
+      // 'approved' and nothing else, matching the endpoint: an account with no
+      // verification decision on it is refused there too.
+      hsUnlocked = acct.role === 'admin' || acct.verification_status === 'approved';
+      rerender();
+    }).catch(function () { /* unknown standing; the column stays as it was */ });
   }
 
   function rerender() {
@@ -579,9 +618,33 @@
     return block;
   }
 
+  /* An account still under review gets this column with the compose form left
+     out and the reason said plainly, rather than six fields and a consent tick
+     that end in a 403. What stays is everything that actually works for them:
+     the interest form and the call are ordinary public pages, and the blurb
+     below is theirs to forward under their own signature. So the ask is not
+     withdrawn from an under-review physician, only the one path that goes
+     through us. */
+  function systemColLocked(h, col) {
+    col.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'We write to them in your name, so this one opens once a person has '
+      + 'approved your account. Until then the two paths below are yours: the '
+      + 'interest form and a call are open to you now, and the note is yours '
+      + 'to forward.'));
+    col.appendChild(systemDirectBlock(h));
+    col.appendChild(copyBlock(h, 'hs-msg', healthSystemMessage(),
+      'Copy an intro to forward'));
+    col.appendChild(hsFunnelBlock(h));
+    return col;
+  }
+
   function systemCol(h) {
     var col = h('div', { class: 'asc-ref-card asc-ref-col' });
     col.appendChild(h('div', { class: 'asc-ref-title' }, 'Introduce a health system'));
+    // Only a KNOWN-unapproved account gets the locked column. Null means the
+    // standing read has not landed or did not answer, and an unknown answer
+    // renders the form the way it always did.
+    if (hsUnlocked === false) return systemColLocked(h, col);
     col.appendChild(h('div', { class: 'asc-ref-pitch' },
       'Tell us who to write to and we write in your name.'));
 

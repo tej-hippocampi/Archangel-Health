@@ -273,14 +273,21 @@ def test_mock_contributor_is_v4_approved():
 
 
 def test_mock_v4_locked_in_prod_with_default_password(monkeypatch):
-    """Security review: a known-default-credential sandbox must never grant read
-    access to real patient cases in production. V4 unlocks only when the operator
-    set a private ASCLEPIUS_MOCK_PASSWORD."""
+    """Security review, ESCALATED: locking V4 was not enough.
+
+    This test used to assert that a default-credential sandbox in production was
+    created but denied real cases. It was created, though, and it authenticated
+    on the live portal with a password published in this repo. The account is now
+    refused outright in that configuration, so the assertion moves from "exists
+    but locked" to "does not exist". V4 still unlocks only when the operator set a
+    private ASCLEPIUS_MOCK_PASSWORD, which is also what re-enables the account.
+
+    Full coverage of the refusal, including the already-provisioned case, lives in
+    tests/test_launch_auth_hardening.py."""
     from asclepius import auth as asc_auth
     monkeypatch.setenv("ENV", "production")
     monkeypatch.delenv("ASCLEPIUS_MOCK_PASSWORD", raising=False)
-    u = asc_auth.ensure_mock_contributor(_store())
-    assert u["real_data_approved"] == 0          # default creds in prod → locked
+    assert asc_auth.ensure_mock_contributor(_store()) is None   # default creds in prod → no account
     monkeypatch.setenv("ASCLEPIUS_MOCK_PASSWORD", "a-private-prod-password")
     u2 = asc_auth.ensure_mock_contributor(_store())
     assert u2["real_data_approved"] == 1         # custom password → unlocked

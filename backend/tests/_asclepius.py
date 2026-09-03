@@ -80,7 +80,26 @@ def uniq(n: int = 8) -> str:
 def fresh_store():
     """Rebind the process-wide store to a brand-new temp DB for test isolation."""
     path = os.path.join(_TMP, f"asclepius_{uuid.uuid4().hex}.db")
-    return asc_store.reset_store_for_tests(db_path=path)
+    store = asc_store.reset_store_for_tests(db_path=path)
+    _clear_process_caches()
+    return store
+
+
+def _clear_process_caches() -> None:
+    """Drop module-level caches that outlive a store swap.
+
+    A new database is not a new process. Anything memoised at import time still
+    describes the world the PREVIOUS test built, and the reconcile report is the
+    expensive example: it is a full blob-tree stat behind a TTL, so a test that
+    asks for it can be handed a neighbour's answer, computed against a directory
+    this test never wrote to. The cache is right in production and wrong across
+    a fixture boundary, so it is cleared here rather than weakened there.
+    """
+    try:
+        from routers import asclepius_admin as _admin
+        _admin._RECONCILE_CACHE.update({"report": None, "at": 0.0})
+    except Exception:  # pragma: no cover - import shape is not worth a hard fail
+        pass
 
 
 #: Roles for which a contributor tier is meaningful (mirrors

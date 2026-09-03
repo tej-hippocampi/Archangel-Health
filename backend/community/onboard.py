@@ -51,20 +51,34 @@ async def welcome_new_member(user: Dict[str, Any]) -> bool:
             return False  # already welcomed
 
         astore = get_asclepius_store()
-        if not astore.mark_community_welcomed(user_id):
-            return False  # lost the race — the other caller posts the welcome
 
         # Late imports: keep this module import-light so the approval hook can
         # import it without dragging the router in at module load.
         from community.router import member_map  # noqa: PLC0415
         from community.system_posts import post_system_message  # noqa: PLC0415
 
+        # Resolve the member BEFORE claiming the welcome, which is the opposite
+        # of the original order and the ordering that matters. Claiming first
+        # burns the one-time flag on somebody who is not in the community yet,
+        # and the flag is what every later caller checks: an applicant welcomed
+        # at signup would never be welcomed at approval, which is the one moment
+        # a physician actually walks into the room. A read cannot go wrong the
+        # way that write can.
+        #
+        # Idempotency is unchanged, because it never rested on the order. It
+        # rests on ``mark_community_welcomed`` being a guarded UPDATE that tells
+        # exactly one concurrent caller it won; two callers that both see a
+        # visible member still produce exactly one post.
         member = member_map().get(user_id)
         if not member:
-            # Not gate-visible (e.g. banned, or inactive) — flag stays set;
-            # a welcome for someone who cannot enter would be noise.
-            log.info("[onboard] user %s flagged welcomed but not community-visible", user_id)
+            # Not gate-visible: banned, inactive, or not yet a verified
+            # colleague. Introducing somebody who cannot open the door is noise
+            # in #introductions and an invitation the product then refuses.
+            log.info("[onboard] user %s not community-visible; no welcome", user_id)
             return False
+
+        if not astore.mark_community_welcomed(user_id):
+            return False  # lost the race: the other caller posts the welcome
 
         posted = await post_system_message(
             channel_slug=WELCOME_CHANNEL,

@@ -463,6 +463,109 @@ def test_a_health_system_that_predates_the_state_machine_keeps_uploading():
     assert r.status_code == 200, r.text
 
 
+def _provision(admin_client, store, organization, email):
+    """The OPERATOR door: an admin types an organization and an address."""
+    return admin_client.post(
+        f"{API}/admin/health-systems/provision",
+        json={"organization": organization, "email": email,
+              "purpose": "task_creation"},
+        headers=_admin_headers(store))
+
+
+def _mailed_passphrase(mail, to):
+    """The credential as the recipient can see it, out of the letter itself."""
+    letters = [m for m in mail if m["to"] == to]
+    assert letters, [m["to"] for m in mail]
+    codes = re.findall(r"<code>([^<]+)</code>", letters[-1]["body"])
+    return codes[1]          # the first cell is the username
+
+
+def test_an_operator_provisioned_organization_cannot_upload_until_it_signs(mail):
+    """The operator door was the way around the whole state machine.
+
+    ``/admin/health-systems/provision`` mints credentials and mails them, and it
+    used to write no onboarding state at all -- which NULL-collapses to ACTIVE.
+    So a name typed into an admin form opened the upload door on an organization
+    whose data licensing agreement nobody had ever seen, and the only trace was a
+    'no agreement on file' chip on a page the partner never looks at. §0.1.2 runs
+    the other way round: the signature is what opens the door.
+    """
+    store = _store()
+    admin_client = _client()
+    r = _provision(admin_client, store, "Provisioned General",
+                   "it@provisioned.example.org")
+    assert r.status_code == 200, r.text
+    assert r.json()["onboarding_state"] == "approved_awaiting_dla"
+    hs_id = r.json()["health_system"]["hs_id"]
+    assert store.get_health_system(hs_id)["onboarding_state"] == "approved_awaiting_dla"
+
+    client = _client()
+    login = client.post(f"{API}/hs/login", json={
+        "username": r.json()["username"],
+        "password": _mailed_passphrase(mail, "it@provisioned.example.org")})
+    assert login.status_code == 200, login.text
+    _rotate(client)
+
+    # Both doors that can be reached without an already-open session. The other
+    # two need a session id, and a session cannot be declared here at all --
+    # which is the point. `test_uploads_are_refused_in_every_state_except_active`
+    # covers all four for a door that was open and then closed.
+    data = _bundle()
+    refused = [
+        client.post(f"{API}/hs/uploads",
+                    files={"files": ("b.zip", data, "application/zip")}),
+        client.post(f"{API}/hs/uploads/sessions", json={
+            "filename": "b.zip", "size": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "content_type": "application/zip"}),
+    ]
+    assert [x.status_code for x in refused] == [403, 403]
+    # And the refusal says what to do, rather than reading as a permissions bug.
+    assert all("sign" in x.json()["detail"].lower() for x in refused), \
+        [x.json()["detail"] for x in refused]
+
+    # The way out is on the surface they are already looking at.
+    shown = client.get(f"{API}/hs/agreement")
+    assert shown.status_code == 200, shown.text
+    assert shown.json()["can_sign"] is True
+    assert _sign(client, sha=shown.json()["doc_sha256"]).status_code == 200
+    assert store.get_health_system(hs_id)["onboarding_state"] == "active"
+    assert _open_session(client, data)
+
+
+def test_re_provisioning_leaves_an_existing_organizations_state_alone(mail):
+    """The zero-backfill promise, at the operator door.
+
+    This endpoint is mostly used to ROTATE a password for a partner who already
+    has one, and those partners carry a NULL state meaning "here before any of
+    this existed, and uploading today". Closing their door on a password reset
+    would be the state machine breaking the one thing it promised not to, so the
+    state is written only for an organization the call actually created.
+    """
+    store = _store()
+    hs = store.ensure_health_system("Legacy Regional")
+    assert store.get_health_system(hs["hs_id"])["onboarding_state"] is None
+
+    # Same organization, typed the way a person types it. `ensure_health_system`
+    # reuses by LOWER(name), and the new-or-not question has to agree with it.
+    admin_client = _client()
+    r = _provision(admin_client, store, "  legacy   REGIONAL ",
+                   "it@legacy-regional.example.org")
+    assert r.status_code == 200, r.text
+    assert r.json()["health_system"]["hs_id"] == hs["hs_id"]
+    assert store.get_health_system(hs["hs_id"])["onboarding_state"] is None
+    # Reported as what it reads as, so an operator is not told a NULL is a state.
+    assert r.json()["onboarding_state"] == "active"
+
+    client = _client()
+    login = client.post(f"{API}/hs/login", json={
+        "username": r.json()["username"],
+        "password": _mailed_passphrase(mail, "it@legacy-regional.example.org")})
+    assert login.status_code == 200, login.text
+    _rotate(client)
+    assert _open_session(client, _bundle())
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  §4 — approve and decline
 # ════════════════════════════════════════════════════════════════════════════
