@@ -35,7 +35,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { API_BASE } from "@/lib/auth-api";
+import { API_BASE, apiHeaders } from "@/lib/auth-api";
 import * as authApi from "@/lib/auth-api";
 
 import OnboardingStyles from "./onboarding/OnboardingStyles";
@@ -188,7 +188,7 @@ function normalizeRoleLabel(raw: unknown): RoleLabel {
 function api(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: apiHeaders({ "Content-Type": "application/json", ...(init?.headers ?? {}) }),
   });
 }
 
@@ -685,7 +685,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       }
       const r = await fetch(`${API_BASE}/api/tenant/${encodeURIComponent(slug)}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ email, password }),
       });
       const body = await readResponseJson(r);
@@ -826,7 +826,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         form.append("token", token);
         form.append("file", file);
         const r = await fetch(`${API_BASE}/api/onboarding/asclepius/cv`, {
-          method: "POST", body: form,
+          method: "POST", body: form, headers: apiHeaders(),
         });
         if (!r.ok) {
           const body = await readResponseJson(r);

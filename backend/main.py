@@ -2795,7 +2795,41 @@ async def asclepius_portal():
 # one browser. The middleware 404s every ``/sandbox/*`` path while the realm is
 # dark (``ASCLEPIUS_SANDBOX_ADMIN_PASSWORD`` unset), and this guard repeats it
 # so the pages cannot be reached by a route the middleware did not see.
-_SANDBOX_SHELL_TAG = "<script>window.__REALM='sandbox';</script>"
+# Besides naming the realm, the tag (a) wraps ``window.fetch`` so EVERY
+# same-page request carries the realm header — the page modules send it from
+# their api() helpers too, and this catches any raw fetch a future module
+# forgets — and (b) paints the realm banner (§3.1) before any module runs:
+# top of viewport, lime, not dismissible, naming the sandbox admin. The
+# banner is in the shell rather than in each page's JS so that it is on every
+# sandbox page by construction, and on screen even when a page's own script
+# fails to load. The doctor portal / provider / buyer / community pages get
+# the thinner version; /sandbox/admin gets the full one.
+_SANDBOX_SHELL_JS = """
+window.__REALM='sandbox';
+(function(){
+  var f=window.fetch;
+  window.fetch=function(u,o){o=Object.assign({},o||{});var h=new Headers(o.headers||{});
+    h.set('X-Asclepius-Realm','sandbox');o.headers=h;return f.call(window,u,o);};
+  function paint(){
+    if(document.getElementById('ascRealmBanner'))return;
+    var full=location.pathname.indexOf('/sandbox/admin')===0;
+    var b=document.createElement('div');
+    b.id='ascRealmBanner';b.setAttribute('role','status');b.setAttribute('data-realm','sandbox');
+    b.style.cssText='position:sticky;top:0;z-index:2147483647;background:#c6f542;color:#111;'
+      +'font:600 '+(full?'14px':'12px')+'/1.4 system-ui,sans-serif;text-align:center;'
+      +'padding:'+(full?'8px 12px':'4px 12px')+';letter-spacing:.02em;border-bottom:2px solid #1a1a1a;';
+    b.textContent='SANDBOX · nothing here reaches real users';
+    var who=document.createElement('span');who.id='ascRealmBannerAdmin';b.appendChild(who);
+    document.body.insertBefore(b,document.body.firstChild);
+    f.call(window,'/api/asclepius/sandbox/status',{headers:{'X-Asclepius-Realm':'sandbox'}})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(s){if(s&&s.admin_email){who.textContent=' · '+s.admin_email;}})
+      .catch(function(){});
+  }
+  if(document.body){paint();}else{document.addEventListener('DOMContentLoaded',paint);}
+})();
+"""
+_SANDBOX_SHELL_TAG = "<script>" + _SANDBOX_SHELL_JS + "</script>"
 
 
 def _sandbox_shell(html: str) -> HTMLResponse:
@@ -6695,6 +6729,25 @@ def _member_country_codes() -> list:
 
 
 @app.on_event("startup")
+async def startup_sandbox_admin():
+    """Sandbox PRD §2: when the realm is switched on, its admin account exists
+    in the SANDBOX store from the first boot, so the seed endpoint has someone
+    to call it. Nothing here touches a live file; the realm is scoped for the
+    one call. Guarded so a sandbox problem can never take startup down."""
+    try:
+        if _realm.enabled():
+            from asclepius import sandbox_seed as _sb_seed  # noqa: PLC0415
+
+            with _realm.scoped(_realm.SANDBOX):
+                _sb_seed.ensure_sandbox_admin()
+            _auth_logger.info("[sandbox] realm ON — admin ensured at /sandbox/admin")
+        else:
+            _auth_logger.info("[sandbox] realm OFF (%s unset)", _realm.ADMIN_PASSWORD_VAR)
+    except Exception:
+        _auth_logger.warning("[sandbox] admin bootstrap failed", exc_info=True)
+
+
+@app.on_event("startup")
 async def startup_community():
     """Asclepius Community (Community PRD): init the standalone store (seeds the
     three fixed channels) and start the mention/announcement email-digest loop.
@@ -7072,6 +7125,11 @@ app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
 app.include_router(asclepius_admin_router)
 app.include_router(asclepius_buyer_router)
+# Sandbox PRD §2–§4: seed / accounts / outbox / reset / snapshot copy. Every
+# route is under /api/asclepius/sandbox, which the realm middleware treats as
+# the sandbox realm (and 404s while the realm is dark).
+from routers.asclepius_sandbox import router as asclepius_sandbox_router  # noqa: E402
+app.include_router(asclepius_sandbox_router)
 app.include_router(asclepius_verify_router)
 app.include_router(asclepius_review_router)
 app.include_router(asclepius_payments_router)

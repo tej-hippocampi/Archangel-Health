@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-import { API_BASE } from "@/lib/auth-api";
+import { API_BASE, apiHeaders } from "@/lib/auth-api";
 import { npiWarning } from "@/lib/npi";
 
 import {
@@ -1513,7 +1513,7 @@ function useCredentialConfig(): CredentialConfig {
   const [cfg, setCfg] = useState<CredentialConfig>(CREDENTIAL_CONFIG_FALLBACK);
   useEffect(() => {
     let live = true;
-    fetch(`${API_BASE}/api/onboarding/credential-config`)
+    fetch(`${API_BASE}/api/onboarding/credential-config`, { headers: apiHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (live && data && Array.isArray(data.countries) && data.countries.length) {
@@ -1590,6 +1590,7 @@ function CvUploadField({
       form.append("file", file);
       const res = await fetch("/api/onboarding/asclepius/cv", {
         method: "POST",
+        headers: apiHeaders(),
         body: form,
       });
       if (!res.ok) {
