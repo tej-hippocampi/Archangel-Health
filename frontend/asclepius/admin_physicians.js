@@ -52,6 +52,8 @@
   let readyOnly = false;
   let rootEl = null;            // the section body we were mounted into
   let rootCtx = null;
+  let introCache = null;        // last /admin/intro-meetings payload
+  let introErr = null;
 
   // ─── Vocabulary (four-state verification; tier words) ─────
   // A missing case here does not throw — it silently renders "Unassigned"
@@ -323,15 +325,18 @@
 
     let approvedErr = null;
     let pendingErr = null;
-    // Both in flight together. Each failure is contained to its own tab: an
+    introErr = null;
+    // All three in flight together. Each failure is contained to its own tab: an
     // operator must never lose the roster because the verification queue is
     // down, or lose the queue because the roster is.
-    const [approvedRes, pendingRes] = await Promise.all([
+    const [approvedRes, pendingRes, introRes] = await Promise.all([
       api('/admin/physicians').catch((e) => { approvedErr = errText(e); return null; }),
       loadPending(api).catch((e) => { pendingErr = errText(e); return null; }),
+      api('/admin/intro-meetings').catch((e) => { introErr = errText(e); return null; }),
     ]);
     if (approvedRes) cache = approvedRes;
     if (pendingRes) pendingCache = pendingRes;
+    if (introRes) introCache = introRes;
 
     const approved = (((cache || {}).physicians) || [])
       .filter((p) => p.verification_status === 'approved');
@@ -355,8 +360,12 @@
     // mid-wizard signups in it made it say "7 waiting" when two accounts could
     // actually be decided: false urgency on the only signal there is.
     const decidableCount = pendingRows.filter((r) => r.kind === 'queued').length;
-    container.appendChild(tabStrip(ctx, approved.length, decidableCount,
-                                   approvedErr, pendingErr));
+    // The count on the intro-call chip is the SCHEDULED ones, for the same
+    // reason: it is the number of calls still owed an outcome, which is the
+    // only thing on that tab an operator can act on.
+    const introCount = ((introCache || {}).counts || {}).scheduled || 0;
+    container.appendChild(tabStrip(ctx, approved.length, decidableCount, introCount,
+                                   approvedErr, pendingErr, introErr));
     // Above the tabs on purpose: an account in here is invisible in BOTH of
     // them, so a banner inside a tab would be hidden by the same bug it reports.
     const misfiled = misfiledCard(ctx, container);
@@ -366,6 +375,14 @@
     const unfiled = unfiledCard(ctx, container);
     if (unfiled) container.appendChild(unfiled);
 
+    if (activeTab === 'intro') {
+      if (introErr) {
+        container.appendChild(errorCard(h, 'The intro calls could not be loaded: ' + introErr));
+        return;
+      }
+      renderIntroTab(container, ctx);
+      return;
+    }
     if (activeTab === 'pending') {
       if (pendingErr) {
         container.appendChild(errorCard(h, 'The pending queue could not be loaded: ' + pendingErr));
@@ -547,11 +564,16 @@
       h('div', { class: 'asc-inline-error' }, message)));
   }
 
-  function tabStrip(ctx, nApproved, nPending, approvedErr, pendingErr) {
+  function tabStrip(ctx, nApproved, nPending, nIntro, approvedErr, pendingErr, introError) {
     const { h } = ctx;
     return h('div', { class: 'asc-phys-chips' }, [
       ['approved', 'Approved and Labeling', nApproved, false, approvedErr],
       ['pending', 'Pending for Review', nPending, true, pendingErr],
+      // The stage BEFORE an application exists. It sits after the other two
+      // because it is read least often, and it is here rather than in its own
+      // section because it is the same operator loop one step earlier: these
+      // people become the rows in Pending.
+      ['intro', 'Intro Calls', nIntro, true, introError],
     ].map(([id, label, n, urgent, failed]) => {
       const el = h('button', {
         type: 'button',
@@ -815,6 +837,170 @@
    * Two fields render: name and specialty. Everything else about a candidate
    * is one click away, and putting it here made the queue a table nobody could
    * scan. */
+  /* ═══ Intro calls (Gap U7) ════════════════════════════════════════════════
+   *
+   * The stage of the funnel that had no screen: a founder takes the call by
+   * hand, and until this tab existed the only record of it was their calendar.
+   *
+   * TWO BUTTONS PER ROW, NEVER ONE. "Held" sends the physician their
+   * application link and the one-pager; "No show" sends nothing. Offering only
+   * the sending one would make the outcome of every call the operator did not
+   * get round to marking indistinguishable from a call that happened, which is
+   * how somebody who never joined receives "great speaking with you".
+   *
+   * Which buttons a row offers comes from `available_outcomes` on the server,
+   * not from this file re-deriving the transition table. Two surfaces that each
+   * decide whether a no-show can still be marked held will eventually disagree.
+   */
+  const INTRO_BADGE = {
+    scheduled: 'asc-badge-amber',   // amber = owed an answer, same as an overdue queue row
+    held: 'asc-badge-green',
+    no_show: 'asc-badge-gray',
+    cancelled: 'asc-badge-gray',
+  };
+
+  function renderIntroTab(container, ctx) {
+    const { h } = ctx;
+    const data = introCache || {};
+    const rows = data.meetings || [];
+    container.appendChild(introForm(ctx));
+    if (!rows.length) {
+      container.appendChild(h('div', { class: 'asc-card' },
+        h('div', { class: 'asc-card-head' },
+          h('div', { class: 'asc-card-title' }, 'Intro calls (0)')),
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-empty' },
+            'No intro calls logged yet. Log one above when you book it, then '
+            + 'mark it held once you have taken it.'))));
+      return;
+    }
+    container.appendChild(h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' },
+        h('div', { class: 'asc-card-title' }, 'Intro calls (' + rows.length + ')'),
+        // The count that says the follow-up machinery is actually running.
+        h('span', { class: 'asc-dim' },
+          ((data.counts || {}).followups_sent || 0) + ' follow-ups sent')),
+      h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
+        h('thead', {}, h('tr', {},
+          h('th', {}, 'Who'), h('th', {}, 'Specialty'), h('th', {}, 'When'),
+          h('th', {}, 'Outcome'), h('th', {}, 'Follow-up'), h('th', {}, ''))),
+        h('tbody', {}, rows.map((r) => introRow(ctx, r)))))));
+  }
+
+  function introRow(ctx, r) {
+    const { h, fmtDate } = ctx;
+    const when = r.scheduled_at || r.created_at;
+    return h('tr', {},
+      h('td', {}, h('strong', {}, r.full_name || r.email),
+        r.full_name ? h('div', { class: 'asc-dim' }, r.email) : null),
+      h('td', {}, r.specialty || '—'),
+      h('td', {}, when ? (typeof fmtDate === 'function' ? fmtDate(when) : when) : '—'),
+      h('td', {}, h('span', {
+        class: 'asc-badge ' + (INTRO_BADGE[r.status] || 'asc-badge-gray'),
+      }, r.status_label || r.status)),
+      // A held call whose follow-up did not queue is the one row worth
+      // noticing, so this says which of the two it is rather than showing a
+      // tick for "held".
+      h('td', {}, r.followup_sent
+        ? h('span', { class: 'asc-badge asc-badge-green' }, 'Sent')
+        : '—'),
+      h('td', {}, (r.available_outcomes || []).map(
+        (o) => introOutcomeBtn(ctx, r, o))));
+  }
+
+  const INTRO_OUTCOME_LABELS = {
+    held: 'Mark held',
+    no_show: 'No show',
+    cancelled: 'Cancelled',
+  };
+
+  function introOutcomeBtn(ctx, r, outcome) {
+    const { h, api, toast } = ctx;
+    const btn = h('button', {
+      type: 'button',
+      // Only the sending action is primary. A no-show is a correction, and
+      // giving it equal weight beside the button that mails somebody is how it
+      // gets pressed by reflex.
+      class: 'asc-btn asc-btn-sm '
+        + (outcome === 'held' ? 'asc-btn-primary' : 'asc-btn-ghost'),
+      style: 'margin-right:6px',
+      title: outcome === 'held'
+        ? 'Sends their application link and the one-pager.'
+        : 'Records the outcome. Sends nothing.',
+    }, INTRO_OUTCOME_LABELS[outcome] || outcome);
+    btn.addEventListener('click', () => {
+      btn.setAttribute('disabled', '');
+      api('/admin/intro-meetings/' + encodeURIComponent(r.meeting_id) + '/outcome',
+          { method: 'POST', body: { outcome: outcome } })
+        .then((res) => {
+          if (toast) toast((res && res.message) || 'Recorded.');
+          introCache = null;
+          rerender();
+        })
+        .catch((e) => {
+          btn.removeAttribute('disabled');
+          if (toast) toast(errText(e), 'error');
+        });
+    });
+    return btn;
+  }
+
+  /* Logging a call sends NOTHING. It opens in 'scheduled', which is the state
+     that means we do not yet know what happened. */
+  function introForm(ctx) {
+    const { h, api, toast } = ctx;
+    const name = h('input', { class: 'asc-input', type: 'text',
+                              placeholder: 'Ada Lovelace' });
+    const email = h('input', { class: 'asc-input', type: 'email',
+                               placeholder: 'ada@hospital.org' });
+    const specialty = h('input', { class: 'asc-input', type: 'text',
+                                   placeholder: 'nephrology' });
+    const when = h('input', { class: 'asc-input', type: 'text',
+                              placeholder: '2026-09-10 10:00 PT' });
+    const submit = h('button', { type: 'button', class: 'asc-btn asc-btn-primary asc-btn-sm' },
+                     'Log the call');
+    submit.addEventListener('click', () => {
+      const addr = (email.value || '').trim();
+      if (!addr) { if (toast) toast('An email address is required.', 'error'); return; }
+      submit.setAttribute('disabled', '');
+      api('/admin/intro-meetings', { method: 'POST', body: {
+        email: addr, full_name: (name.value || '').trim(),
+        specialty: (specialty.value || '').trim(),
+        scheduled_at: (when.value || '').trim(),
+      } }).then(() => {
+        if (toast) toast('Logged. Nothing was sent.');
+        introCache = null;
+        rerender();
+      }).catch((e) => {
+        submit.removeAttribute('disabled');
+        if (toast) toast(errText(e), 'error');
+      });
+    });
+    const booking = ((introCache || {}).booking_url) || '';
+    return h('div', { class: 'asc-card' },
+      h('div', { class: 'asc-card-head' },
+        h('div', { class: 'asc-card-title' }, 'Log an intro call'),
+        booking
+          ? h('a', { class: 'asc-btn asc-btn-ghost asc-btn-sm', href: booking,
+                     target: '_blank', rel: 'noopener' }, 'Booking link')
+          : null),
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-form-row' },
+          h('div', { class: 'asc-field' },
+            h('label', { class: 'asc-label' }, 'Name'), name),
+          h('div', { class: 'asc-field' },
+            h('label', { class: 'asc-label' }, 'Email'), email)),
+        h('div', { class: 'asc-form-row' },
+          h('div', { class: 'asc-field' },
+            h('label', { class: 'asc-label' }, 'Specialty'), specialty),
+          h('div', { class: 'asc-field' },
+            h('label', { class: 'asc-label' }, 'When'), when)),
+        submit,
+        h('div', { class: 'asc-dim', style: 'margin-top:10px' },
+          'Logging a call sends nothing. Marking it held sends their '
+          + 'application link and the one-pager.')));
+  }
+
   function renderPendingTab(container, ctx, rows) {
     const { h } = ctx;
     if (!rows.length) {
