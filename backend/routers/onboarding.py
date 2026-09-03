@@ -2,6 +2,7 @@
 
 import hashlib
 import html
+import json
 import logging
 import os
 import string
@@ -11,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import secrets
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from fastapi import Form
+from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -326,6 +328,77 @@ async def credential_config():
             "Staatsexamen", "Other",
         ],
     }
+
+
+@router.get("/asclepius/one-pager.pdf")
+async def asclepius_one_pager():
+    """The physician one-pager, as sent after a founder's intro call.
+
+    PUBLIC AND TOKENLESS, on purpose. It is collateral: the same document for
+    everyone, carrying nothing about any person, and it is linked from an email
+    to somebody who has no account and no way to authenticate. Putting a token
+    on it would mean the one artifact a physician wants to forward to a
+    colleague is the one they cannot.
+
+    Served inline rather than as an attachment so it opens in the browser tab
+    the physician clicked from. The filename still rides along for a save.
+    """
+    from asclepius import one_pager as asc_one_pager
+
+    try:
+        pdf, source = await run_in_threadpool(asc_one_pager.pdf_bytes)
+    except asc_one_pager.OnePagerError:
+        log.exception("the physician one-pager could not be rendered")
+        raise HTTPException(
+            status_code=503,
+            detail="That document could not be produced just now.")
+    return Response(
+        content=pdf, media_type="application/pdf",
+        headers={
+            "Content-Disposition":
+                f'inline; filename="{asc_one_pager.pdf_filename()}"',
+            # Which document actually went out. A founder who set the override
+            # env var and got the rendered default anyway can see that here
+            # without reading logs.
+            "X-Asclepius-One-Pager-Source": source,
+            "Cache-Control": "public, max-age=300",
+        },
+    )
+
+
+@router.post("/asclepius/calendar-webhook", include_in_schema=False)
+async def asclepius_calendar_webhook(request: Request):
+    """Fold a Calendly booking, cancellation or no-show into the intro funnel.
+
+    OFF unless BOTH ``ASCLEPIUS_CALENDAR_SYNC`` is on and a signing key is set,
+    and a 404 rather than a 503 when off: an endpoint that announces itself as
+    "configured wrong" is an endpoint somebody comes back to.
+
+    This can create a scheduled meeting and it can record a cancellation or a
+    no-show. It cannot mark one held, which is the property that keeps a machine
+    out of the one decision that mails a physician. See
+    ``asclepius/calendar_sync.py``.
+    """
+    from asclepius import calendar_sync  # noqa: PLC0415
+    from asclepius.store import get_store  # noqa: PLC0415
+
+    if not calendar_sync.enabled():
+        raise HTTPException(status_code=404, detail="Not found.")
+    raw = await request.body()
+    try:
+        calendar_sync.verify_signature(
+            request.headers.get("calendly-webhook-signature") or "", raw)
+    except calendar_sync.SignatureError as exc:
+        log.warning("calendar webhook rejected: %s", exc)
+        raise HTTPException(status_code=401, detail="Bad signature.") from exc
+    try:
+        event = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Body is not JSON.") from exc
+    if not isinstance(event, dict):
+        raise HTTPException(status_code=422, detail="Body is not an event.")
+    result = await run_in_threadpool(calendar_sync.apply_event, get_store(), event)
+    return {"ok": True, **result}
 
 
 @router.get("/session")
