@@ -2767,6 +2767,25 @@ async def asclepius_portal():
     return HTMLResponse(content=shell)
 
 
+@app.get("/asclepius/admin", response_class=HTMLResponse)
+async def asclepius_admin_console():
+    """Asclepius Operations — the admin console, on its own page (PRD-F R1).
+
+    Served unauthenticated exactly like ``/asclepius`` above, and for the same
+    reason: the HTML is a static shell with no data in it. The page boots by
+    calling ``/auth/me`` and renders a sign-in gate for a session that is not
+    an operator's, but that gate is honesty rather than security. Every admin
+    API this page calls is gated server-side by ``require_admin``, and none of
+    that moved. Splitting the console out of the physician bundle is bundle
+    hygiene and surface clarity; the authorization boundary was and remains the
+    server.
+
+    No signup-url injection: nobody joins Archangel through the console."""
+    html_path = os.path.join(os.path.dirname(__file__), "../frontend/asclepius/admin.html")
+    with open(html_path) as f:
+        return HTMLResponse(content=f.read())
+
+
 @app.get("/asclepius/v5/annotate", response_class=HTMLResponse)
 async def asclepius_v5_annotate_page():
     """Asclepius V5 — clinical RL trajectory annotation surface (Clinical RL
