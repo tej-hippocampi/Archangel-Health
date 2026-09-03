@@ -35,9 +35,12 @@ log = logging.getLogger("community.newsletter")
 
 #: Bot posts worth putting in an email. A welcome or a task announcement is
 #: already its own notification; these are the ones nobody was told about.
+#: ``poll`` is here because the weekly discussion prompt became one. The
+#: collector only ever looks at bot-authored rows, so a member's poll cannot
+#: reach the email through this.
 _CONTENT_KINDS = (
     cmorning.KIND_EVENTS, cmorning.KIND_NEWS, cmorning.KIND_OPPORTUNITIES,
-    cmorning.KIND_BRIEF, cmorning.KIND_DISCUSSION,
+    cmorning.KIND_BRIEF, cmorning.KIND_DISCUSSION, cmorning.KIND_POLL,
     "digest_news", "digest_papers",
 )
 
@@ -58,17 +61,32 @@ def _since_iso(hours: int = 24) -> str:
 
 
 def _member_channels(member: Dict[str, Any], channels: List[Dict[str, Any]]) -> List[str]:
-    """The rooms this doctor is actually in."""
+    """The rooms this doctor is actually in.
+
+    The ``staff_only`` skip is first and applies to everyone, staff included.
+    This is the mail path, and a staff-only room's content is not something to
+    put in an outgoing email at all: the in-app channel is where it is read, and
+    the failure mode of getting this wrong is a physician receiving the team's
+    internal digest in their inbox.
+    """
     specialty = (member.get("specialty") or "").strip().lower()
     country = (member.get("country") or "").strip().upper()
+    subspecialties = set(member.get("subspecialties") or ())
+    city = (member.get("city") or "").strip()
     out = []
     for ch in channels:
+        if ch.get("staff_only"):
+            continue
         grp = ch.get("grp") or "core"
         if grp == "core":
             out.append(ch["slug"])
         elif grp == "specialty" and (ch.get("specialty") or "").strip().lower() == specialty:
             out.append(ch["slug"])
         elif grp == "country" and (ch.get("country") or "").strip().upper() == country:
+            out.append(ch["slug"])
+        elif grp == "subspecialty" and (ch.get("subspecialty") or "").strip() in subspecialties:
+            out.append(ch["slug"])
+        elif grp == "city" and city and (ch.get("city") or "").strip() == city:
             out.append(ch["slug"])
     return out
 
