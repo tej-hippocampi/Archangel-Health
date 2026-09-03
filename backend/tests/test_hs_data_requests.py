@@ -13,6 +13,7 @@ they are guaranteed to compose.
 from __future__ import annotations
 
 import base64
+import hashlib
 import sys
 import uuid
 from pathlib import Path
@@ -547,12 +548,18 @@ def test_a_closed_request_id_is_a_400_that_says_to_send_it_anyway():
 
 def test_the_chunked_door_takes_the_same_tag_and_refuses_the_same_ids():
     """A gate applied at one door and forgotten at another is not a gate, it is
-    a detour sign. The chunked declare validates identically."""
+    a detour sign. The chunked declare validates identically, and the tag has
+    to survive the WHOLE door: parked on the session at declare, copied onto
+    the upload row at complete. Asserting only the session half would pass with
+    the complete-side copy deleted, and the admin's who-answered view reads the
+    upload rows, not the sessions."""
     store = _store()
     hs = _make_org(state="active")
     request_id = _create_request(_client(), store).json()["request"]["id"]
     portal = _sign_in(hs["hs_id"])
-    body = {"filename": "big.zip", "size": 4096, "sha256": "a" * 64,
+    data = b'{"cases": []}' * 300
+    body = {"filename": "big.zip", "size": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
             "content_type": "application/zip"}
 
     bad = portal.post(f"{API}/hs/uploads/sessions",
@@ -562,10 +569,20 @@ def test_the_chunked_door_takes_the_same_tag_and_refuses_the_same_ids():
     ok = portal.post(f"{API}/hs/uploads/sessions",
                      json={**body, "request_id": request_id})
     assert ok.status_code == 200, ok.text
-    session = store.get_upload_session(ok.json()["session_id"])
+    session_id = ok.json()["session_id"]
+    session = store.get_upload_session(session_id)
     # Parked on the SESSION, so what the upload answers is fixed at declare and
     # cannot be renamed by whoever completes it minutes later.
     assert session["request_id"] == request_id
+
+    put = portal.put(
+        f"{API}/hs/uploads/sessions/{session_id}/parts/1", content=data,
+        headers={"X-Chunk-SHA256": hashlib.sha256(data).hexdigest()})
+    assert put.status_code == 200, put.text
+    done = portal.post(f"{API}/hs/uploads/sessions/{session_id}/complete")
+    assert done.status_code == 200, done.text
+    tagged = store.list_uploads_for_request(request_id)
+    assert done.json()["upload_id"] in [u["upload_id"] for u in tagged]
 
 
 def test_the_detail_view_tallies_tagged_uploads_per_health_system():
@@ -609,6 +626,44 @@ def test_the_admin_list_reports_how_the_broadcast_actually_went(sent):
     listed = admin.get(f"{API}/admin/hs-requests/{request_id}",
                        headers=_admin_headers(store)).json()["request"]
     assert listed["delivery"] == {"pending": 0, "sent": 2, "failed": 0}
+
+
+def test_retry_failed_flips_failed_rows_back_to_pending_and_only_those(sent):
+    """A failed outbox row used to be terminal: re-broadcasting enqueues
+    nothing because every idempotency key already exists, so one transport
+    outage permanently under-delivered the request. Retry flips exactly the
+    failed rows back to pending for the next drain, and touches nothing sent."""
+    store = _store()
+    _make_org(state="active", members=("a@x.org", "b@x.org"))
+    admin = _client()
+    request_id = _create_request(admin, store).json()["request"]["id"]
+    headers = _admin_headers(store)
+
+    sent.ok = False
+    _drain()
+    r = admin.post(f"{API}/admin/hs-requests/{request_id}/retry-failed",
+                   headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["retried"] == 2
+    assert r.json()["delivery"] == {"pending": 2, "sent": 0, "failed": 0}
+
+    sent.ok = True
+    _drain()
+    listed = admin.get(f"{API}/admin/hs-requests/{request_id}",
+                       headers=headers).json()["request"]
+    assert listed["delivery"] == {"pending": 0, "sent": 2, "failed": 0}
+
+    # Nothing left to retry, and sent rows stay sent.
+    again = admin.post(f"{API}/admin/hs-requests/{request_id}/retry-failed",
+                       headers=headers)
+    assert again.json()["retried"] == 0
+    assert again.json()["delivery"] == {"pending": 0, "sent": 2, "failed": 0}
+
+    assert admin.post(f"{API}/admin/hs-requests/hsreq-nope/retry-failed",
+                      headers=headers).status_code == 404
+    anon = _client()
+    assert anon.post(f"{API}/admin/hs-requests/{request_id}/retry-failed"
+                     ).status_code in (401, 403)
 
 
 # ════════════════════════════════════════════════════════════════════════════

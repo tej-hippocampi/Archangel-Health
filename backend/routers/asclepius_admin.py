@@ -2292,6 +2292,31 @@ async def close_hs_data_request(
             "request": _hs_request_view(store, store.get_hs_data_request(request_id))}
 
 
+@router.post("/hs-requests/{request_id}/retry-failed")
+async def retry_failed_hs_request_notifications(
+    request_id: str, admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Flip this request's failed letters back to pending, for the shared drain
+    to re-attempt on its next tick.
+
+    Without this a failed outbox row is terminal: re-broadcasting enqueues
+    nothing because every idempotency key already exists, so one transport
+    outage permanently under-delivered a request the operator believes went
+    out. Only rows that FAILED are touched; sent stays sent, and a retry that
+    fails again just lands back here.
+    """
+    store = _store()
+    if not store.get_hs_data_request(request_id):
+        raise HTTPException(status_code=404, detail="No such data request.")
+    retried = store.retry_failed_hs_request_notifications(request_id)
+    if retried:
+        store.log_event(entity_type="hs_data_request", entity_id=request_id,
+                        event_type="hs_data_request_retry", actor=admin["id"],
+                        payload={"retried": retried})
+    return {"ok": True, "retried": retried,
+            "delivery": _hs_request_delivery_counts(store, request_id)}
+
+
 # ═══ Admin Launch PRD §5.1 — invite a physician into Asclepius Community ══════
 #
 # "Slack" is our own community (store.py: the community IS our Slack). This

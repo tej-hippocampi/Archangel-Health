@@ -91,6 +91,22 @@
   white-space: pre-wrap;
   max-width: 62ch;
 }
+.prv-request-actions { margin-top: 8px; }
+
+/* The "Answering: <request>" chip, directly above the drop zone: the one
+   place the partner sees which request the next upload will be tagged with. */
+.prv-answering {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip);
+  background: var(--card);
+}
 
 .prv-grid {
   display: grid;

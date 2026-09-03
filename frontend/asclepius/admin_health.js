@@ -331,9 +331,31 @@
       if (r.details) {
         body.appendChild(h('div', { class: 'asc-hs-lead-message' }, r.details));
       }
-      body.appendChild(h('div', { class: 'asc-dim', style: 'font-size:12px' },
+      const deliveryLine = h('div', { class: 'asc-dim', style: 'font-size:12px' },
         'Emailed ' + (d.sent || 0) + ' · waiting to send ' + (d.pending || 0) +
-        ' · failed ' + (d.failed || 0)));
+        ' · failed ' + (d.failed || 0));
+      if (d.failed > 0) {
+        // Failed rows are otherwise terminal: re-broadcasting enqueues nothing
+        // because every idempotency key already exists. This flips them back
+        // to pending for the shared drain's next tick.
+        const retryBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+                                       style: 'margin-left: var(--sp-1)' },
+                           'Retry failed (' + d.failed + ')');
+        retryBtn.addEventListener('click', async () => {
+          retryBtn.disabled = true;
+          try {
+            const res = await api('/admin/hs-requests/' + encodeURIComponent(r.id) +
+                                  '/retry-failed', { method: 'POST' });
+            toast('Queued ' + (res.retried || 0) + ' to retry.', 'success');
+            render(listContainer.parentNode, ctx);
+          } catch (e) {
+            retryBtn.disabled = false;
+            toast(e.message || 'Could not retry those.', 'error');
+          }
+        });
+        deliveryLine.appendChild(retryBtn);
+      }
+      body.appendChild(deliveryLine);
 
       const uploadsLine = h('div', { class: 'asc-dim', style: 'font-size:12px' }, 'Loading replies…');
       body.appendChild(uploadsLine);

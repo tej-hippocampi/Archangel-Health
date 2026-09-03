@@ -159,6 +159,12 @@
   // In-memory copy of the current portal profile (from /hs/me).
   let currentUser = null;
 
+  // The open data request the partner chose to answer, or null. Carried on
+  // both upload doors (multipart form field and chunked declare body) so the
+  // upload is recorded as a response to that request. Visible state: the
+  // "Answering:" chip above the drop zone renders exactly this variable.
+  let answeringRequest = null;
+
   // Thrown for 401/403 so callers can trigger a bounce to login.
   class AuthError extends Error {}
 
@@ -481,6 +487,39 @@
   // A failure here is silent. The request list is a prompt, not a gate, and an
   // error banner above the upload control would read as "uploading is broken"
   // to a hospital IT contact who came here to send us a file.
+  //
+  // The "Answering:" chip sits directly above the drop zone so that at the
+  // moment files are dropped, the partner can see which request they will be
+  // recorded as answering. One click clears it: a wrong tag is worse than none.
+  function renderAnsweringChip() {
+    const drop = document.getElementById("prvDrop");
+    if (!drop) return;
+    let chip = document.getElementById("prvAnswering");
+    if (!answeringRequest) {
+      if (chip) chip.remove();
+      return;
+    }
+    if (!chip) {
+      chip = document.createElement("div");
+      chip.id = "prvAnswering";
+      chip.className = "prv-answering";
+      drop.parentNode.insertBefore(chip, drop);
+    }
+    clear(chip);
+    const label = document.createElement("span");
+    label.textContent = "Answering: " + (answeringRequest.title || "this request");
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "asc-btn-link";
+    clearBtn.textContent = "(clear)";
+    clearBtn.addEventListener("click", () => {
+      answeringRequest = null;
+      renderAnsweringChip();
+    });
+    chip.appendChild(label);
+    chip.appendChild(clearBtn);
+  }
+
   async function loadRequests() {
     const slot = document.getElementById("prvRequests");
     if (!slot) return;
@@ -497,6 +536,13 @@
     }
     const requests = (data && Array.isArray(data.requests)) ? data.requests : [];
     clear(slot);
+    // A refresh can close the request the partner had selected; a stale id
+    // would be refused at upload time, so drop the selection instead.
+    if (answeringRequest &&
+        !requests.some((r) => r.request_id === answeringRequest.id)) {
+      answeringRequest = null;
+      renderAnsweringChip();
+    }
     if (!requests.length) return;
 
     const card = document.createElement("section");
@@ -543,6 +589,22 @@
         details.textContent = r.details;
         body.appendChild(details);
       }
+      if (r.request_id) {
+        const actions = document.createElement("div");
+        actions.className = "prv-request-actions";
+        const pick = document.createElement("button");
+        pick.type = "button";
+        pick.className = "asc-btn asc-btn-subtle asc-btn-sm";
+        pick.textContent = "Send cases for this request";
+        pick.addEventListener("click", () => {
+          answeringRequest = { id: r.request_id, title: r.title || "" };
+          renderAnsweringChip();
+          const drop = document.getElementById("prvDrop");
+          if (drop) drop.focus();
+        });
+        actions.appendChild(pick);
+        body.appendChild(actions);
+      }
       card.appendChild(body);
     });
     slot.appendChild(card);
@@ -586,7 +648,10 @@
 
     let session = await apiPost("/hs/uploads/sessions", {
       filename: file.name, size: file.size, sha256: digest,
-      content_type: file.type || "application/octet-stream"
+      content_type: file.type || "application/octet-stream",
+      // The data request this answers, when one is selected. Parked on the
+      // session at declare, server-side, so it survives to complete.
+      request_id: answeringRequest ? answeringRequest.id : ""
     });
 
     // Already complete: the same bytes were sent before. Nothing to re-send.
@@ -663,6 +728,9 @@
 
     const form = new FormData();
     files.forEach((f) => form.append("files", f, f.name));
+    // Same optional tag as the chunked door, on the multipart field the
+    // backend already accepts. Absent when nothing is selected.
+    if (answeringRequest) form.append("request_id", answeringRequest.id);
 
     progress.hidden = false;
     progressLabel.textContent =

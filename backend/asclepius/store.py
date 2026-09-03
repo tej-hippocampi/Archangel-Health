@@ -4455,6 +4455,19 @@ class AsclepiusStore:
                 (error, notification_id),
             )
 
+    def retry_failed_hs_request_notifications(self, request_id: str) -> int:
+        """Flip every failed row for one request back to pending, so the next
+        drain re-attempts them. Returns how many rows were flipped. Without
+        this a failed row is terminal: re-broadcasting enqueues nothing because
+        every idempotency key already exists."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE hs_request_outbox SET status = 'pending' "
+                "WHERE request_id = ? AND status = 'failed'",
+                (request_id,),
+            )
+            return int(cur.rowcount)
+
     def set_upload_request(self, upload_id: str, request_id: Optional[str]) -> None:
         with self._conn() as conn:
             conn.execute(
