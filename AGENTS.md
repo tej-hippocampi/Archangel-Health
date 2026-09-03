@@ -81,25 +81,8 @@ Other words that carry meaning:
 - Email prints to stdout (`EMAIL_DEV_MODE=1`); nothing is delivered.
 - Four SQLite stores, not zero: `ASCLEPIUS_DB_PATH`, `COMMUNITY_DB_PATH`,
   `TEAM_DB_PATH`, and the export dir `ASCLEPIUS_EXPORT_DIR`.
-
-## The Sandbox *realm* (production) — not this sandbox
-
-`docs/asclepius/SANDBOX_REALM.md`. Different thing from the facts above: a
-second realm of the deployed product — `/sandbox/admin`, ten fake doctors, a
-fake admin — routed to `<name>_sandbox.db` / `<root>/sandbox/` files beside the
-live ones. Dark until `ASCLEPIUS_SANDBOX_ADMIN_PASSWORD` is set.
-
-- **Every store call is realm-scoped via `realm.current()`. Never instantiate a
-  store or open a DB path directly** — `asclepius.store.get_store()`,
-  `community.store.get_community_store()`, `team_store.get_team_store()` (or the
-  `app.state.*` proxies) return the CURRENT realm's instance.
-  `tests/test_sandbox_realm_plumbing.py` fails the build on any module-level
-  `TeamStore()` / `AsclepiusStore()` / `CommunityStore()`.
-- Sandbox paths are derived from the live ones; never add a `*_SANDBOX_*` path
-  variable (the only two are the passwords).
-- Money never leaves it (`mark_paid`, buyer deliveries → 403); email never
-  leaves it (the Outbox tab). `tests/test_sandbox_leak.py` asserts the live
-  admin can see none of it — run it after any change to an admin endpoint.
+- The **Sandbox realm** (`docs/asclepius/SANDBOX_REALM.md`, `/sandbox/admin`) is a different thing: a second realm of the
+  deployed product in `*_sandbox.db` files. Every store call is realm-scoped via `realm.current()`; never instantiate a store.
 
 ## How to work here
 
