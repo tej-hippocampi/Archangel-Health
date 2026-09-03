@@ -135,68 +135,13 @@
     }
   }
 
-  // ═══ Copyable ids (Export & Approval PRD §1.3) ════════════════════════════
-  // A case id you cannot copy is a case id you cannot use. Every table that
-  // rendered one truncated it — `text-overflow: ellipsis` with no `title`, or a
-  // JS `slice(0, 10) + '…'` — so an operator who wanted to paste `t-4f2a91…`
-  // into the export box had to go find it somewhere else, and on a split screen
-  // the column collapsed until the id was three characters wide.
-  //
-  // ONE helper, used everywhere an id renders: the earnings ledger, task
-  // routing, and the export tab's results. The full id is always in the DOM and
-  // always in the `title`; the copy button is the affordance that makes it
-  // usable, with a `document.execCommand` fallback for the browsers (and the
-  // insecure-origin cases) where `navigator.clipboard` is not there.
-  function copyTextToClipboard(text, onDone) {
-    const done = typeof onDone === 'function' ? onDone : () => {};
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => done(true), () => done(legacyCopy(text)));
-      return;
-    }
-    done(legacyCopy(text));
-  }
-
-  function legacyCopy(text) {
-    // A hidden, SELECTED input — the fallback the PRD asks for. Positioned off
-    // screen rather than `display:none`, because a hidden element cannot be
-    // selected and the copy silently does nothing.
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0';
-    document.body.appendChild(ta);
-    let ok = false;
-    try {
-      ta.select();
-      ta.setSelectionRange(0, text.length);
-      ok = document.execCommand('copy');
-    } catch (e) { ok = false; } finally { ta.remove(); }
-    return ok;
-  }
-
-  function copyableId(id, opts) {
-    const full = (id === null || id === undefined) ? '' : String(id);
-    if (!full) return h('span', { class: 'asc-dim', title: 'No id' }, '—');
-    const o = opts || {};
-    const btn = h('button', {
-      type: 'button', class: 'asc-id-copy',
-      title: 'Copy ' + full, 'aria-label': 'Copy ' + full,
-    }, '⧉');
-    btn.addEventListener('click', (ev) => {
-      // Ledger and roster rows are themselves clickable. Copying an id is not
-      // "open this row", and a copy that also navigates away is a copy the
-      // operator never gets to paste.
-      ev.stopPropagation();
-      ev.preventDefault();
-      copyTextToClipboard(full, (ok) => {
-        btn.textContent = ok ? 'Copied' : 'Press ⌘C';
-        btn.classList.add('is-copied');
-        setTimeout(() => { btn.textContent = '⧉'; btn.classList.remove('is-copied'); }, 1400);
-      });
-    });
-    return h('span', { class: 'asc-id' + (o.wrap ? ' is-wrap' : '') },
-      h('code', { class: 'asc-id-text', title: full }, full), btn);
-  }
+  // Copyable ids (Export & Approval PRD 1.3) live in the ADMIN bundle now.
+  // `copyableId` and its clipboard fallback moved to admin_shell.js with the
+  // rest of the console, and reach the section modules on the section ctx. Ids
+  // render only on the console, so the physician bundle carried an unused copy
+  // of the same three functions after the move. It is deleted rather than kept
+  // in step: the PRD asks for ONE id renderer, and two copies of it that
+  // nothing in this file calls are two implementations waiting to drift.
 
   const $ = (sel, root) => (root || document).querySelector(sel);
   const root = () => document.getElementById('ascRoot');
