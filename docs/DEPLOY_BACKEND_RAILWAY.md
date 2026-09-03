@@ -102,7 +102,21 @@ skips this section looks exactly like a community with nothing to say.
 Optional, all defaulting sensibly: `COMMUNITY_MORNING_HOUR_LOCAL` (7),
 `ARCHANGEL_HOME_TZ`, `COMMUNITY_COUNTRY_MIN_MEMBERS` /
 `COMMUNITY_SUBSPECIALTY_MIN_MEMBERS` / `COMMUNITY_CITY_MIN_MEMBERS` (3 each),
-`COMMUNITY_DISCUSSION_DOW` (2 = Wednesday). See `.env.example` for the rest.
+`COMMUNITY_SPECIALTY_REGION_MIN_MEMBERS` (5), `COMMUNITY_DISCUSSION_DOW`
+(2 = Wednesday). See `.env.example` for the rest.
+
+**Two things a person supplies, both optional, both silent until they do.**
+
+| What | How | Until then |
+|------|-----|------------|
+| The Archangel account's picture | Commit a PNG or JPEG at `backend/assets/community-persona.png`, or set `COMMUNITY_PERSONA_AVATAR` to a path on the volume | Bot posts render as the "AH" initials, exactly as they always have |
+| The weekend webinar | Set `COMMUNITY_WEBINAR_URL` to the join link | No recurring event is created at all; the startup log says so |
+
+The webinar link is deliberately the only switch: an event with a time and
+nowhere to go is worse than no event. Everything else about the series
+(`COMMUNITY_WEBINAR_TITLE`, `_DOW`, `_HOUR_LOCAL`, `_WEEKS_AHEAD`, `_HOST`) has
+a working default. `POST /internal/community/run-webinars` tops the series up on
+demand after changing any of them; it also runs on the morning tick.
 
 **b. Install the scheduler.** The hourly trigger is a GitHub Actions workflow.
 Copy `docs/asclepius/community-morning.workflow.yml` to
