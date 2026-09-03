@@ -495,6 +495,17 @@ function provisionalBannerEl() { return null; }
 // behaviour is exercised in test_first_run_dom.py.
 let firstRunChip = null;
 function firstRunChipEl() { return firstRunChip; }
+// Welcome package v2 §4.3 put a second onboarding surface on the dashboard: from
+// login 4 the chip is replaced by a banner. Stubbed to 'none' — no onboarding
+// surface at all — which is the state every assertion below is about; the mode
+// rule and the banner have their own tests in test_welcome_package_v2.py.
+// Setting `firstRunChip` above still exercises the chip, because any mode other
+// than 'banner' takes the chip branch.
+function firstRunMode() { return 'none'; }
+function firstRunBannerEl() { return null; }
+// The walkthrough holds document-level key handlers, so every navigation drops
+// them. A no-op here: this harness never starts the walkthrough.
+function teardownFirstRun() {}
 function renderScoreWidget() { return null; }
 function renderDashboardWidget() { return document.createElement('div'); }
 function renderDashboardEmpty() {
@@ -1109,6 +1120,11 @@ function renderAdminView() { calls.push('renderAdminView'); }
 function renderDashboardView() { calls.push('renderDashboardView'); }
 function renderEvalView() { calls.push('renderEvalView'); }
 function updateHeaderProgress() { calls.push('updateHeaderProgress'); }
+// Welcome package v2: the walkthrough and the re-entry page hold document-level
+// key handlers, so setPanel drops them on every navigation — otherwise a stray
+// Esc on the dashboard would defer a physician's remaining stops and move them.
+// Recorded rather than performed, so a navigation test can see it happened.
+function teardownFirstRun() { calls.push('teardownFirstRun'); }
 %(payload)s
 """
 
