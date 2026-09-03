@@ -9,8 +9,8 @@ from typing import Any, Optional
 from anthropic import Anthropic, AsyncAnthropic
 
 from ai.model_config import (
-    APP_AI_CONFIG_VERSION, SAMPLING_PARAMS, accepts_sampling_params, active_provider,
-    api_model_id, emits_thinking, resolve, resolve_provider, UnknownProvider,
+    APP_AI_CONFIG_VERSION, SAMPLING_PARAMS, accepts_sampling_params, api_model_id,
+    emits_thinking, fake_llm_enabled, resolve, resolve_provider,
 )
 from team_store import TeamStore
 
@@ -427,9 +427,12 @@ async def call_llm(
     **overrides: Any,
 ) -> tuple[Any, dict[str, Any]]:
     kwargs, cfg = _build_kwargs(role, system, messages, overrides)
-    # "fake" when ASCLEPIUS_LLM_PROVIDER=fake, else the model's real vendor. The id
-    # is still resolved, so a garbage model raises UnknownProvider either way.
-    provider = active_provider(cfg["model"])
+    # Resolve the real vendor FIRST so a garbage model id still raises
+    # UnknownProvider under the fake, then let the switch override the transport.
+    # Written inline (rather than via model_config.active_provider) so that
+    # resolve_provider remains the monkeypatch seam tests already use to pin a
+    # provider — test_asclepius_two_frontier patches exactly this name.
+    provider = "fake" if fake_llm_enabled() else resolve_provider(cfg["model"])
     t0 = time.monotonic()
     timeout = _llm_timeout_sec()
 
@@ -534,7 +537,7 @@ def call_llm_sync(
     **overrides: Any,
 ) -> tuple[Any, dict[str, Any]]:
     kwargs, cfg = _build_kwargs(role, system, messages, overrides)
-    provider = active_provider(cfg["model"])
+    provider = "fake" if fake_llm_enabled() else resolve_provider(cfg["model"])
     t0 = time.monotonic()
     if provider == "fake":
         from ai.fake_llm import build_response, latency_ms

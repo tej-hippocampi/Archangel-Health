@@ -38,6 +38,8 @@ a real transport.
 import os
 import tempfile
 
+import pytest
+
 os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 os.environ.setdefault("EMAIL_DEV_MODE", "1")
 
@@ -54,3 +56,41 @@ os.environ.setdefault("COMMUNITY_DB_PATH", os.path.join(_asclepius_tmp, "communi
 # skipped. setdefault, so a run that deliberately wants a real provider
 # (the `llm-smoke` workflow) just exports ASCLEPIUS_LLM_PROVIDER itself.
 os.environ.setdefault("ASCLEPIUS_LLM_PROVIDER", "fake")
+
+
+# ── Tests that must NOT see the fake transport ───────────────────────────────
+# Two kinds of test legitimately need the fake switched off:
+#
+#   * transport tests — they monkeypatch llm_client._aclient / _sclient and
+#     assert on what the REAL provider leg does with kwargs, retries and
+#     timeouts. The fake short-circuits before any of that.
+#   * offline-degradation tests — they assert a caller degrades gracefully when
+#     there is NO model available. With the fake on there IS one, so the call
+#     succeeds and the degradation path is never taken.
+#
+# Both are opted out HERE rather than by editing the tests, so the harness rule
+# "do not touch test content" holds and the whole list is readable in one place.
+# Entry is either a module basename (whole file) or "module::test_name".
+_NO_FAKE_LLM = {
+    # Whole module: every test in it drives the real Anthropic/OpenAI legs
+    # through a mocked SDK client.
+    "test_llm_versioning.py",
+
+    # Real-transport specifics.
+    "test_asclepius_two_frontier.py::test_llm_timeout_does_not_retry",
+
+    # Offline degradation — the assertion IS "no model, so skip/fall back".
+    "test_asclepius_case_gen.py::test_generate_case_degrades_offline",
+    "test_asclepius_hardcase.py::test_hardness_judge_degrades_offline",
+    "test_asclepius_router.py::test_reasoning_pregrade_degrades_to_unlabeled_heuristic",
+    "test_asclepius_router.py::test_reasoning_split_returns_ordered_steps",
+}
+
+
+@pytest.fixture(autouse=True)
+def _fake_llm_opt_out(request, monkeypatch):
+    """Turn the fake transport off for the tests listed in _NO_FAKE_LLM."""
+    module = os.path.basename(str(request.node.fspath))
+    if module in _NO_FAKE_LLM or f"{module}::{request.node.name}" in _NO_FAKE_LLM:
+        monkeypatch.delenv("ASCLEPIUS_LLM_PROVIDER", raising=False)
+    yield
