@@ -25,6 +25,7 @@ import logging
 import os
 import re
 import zipfile
+import realm as _realm
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -90,14 +91,16 @@ def _export_root_path() -> Path:
         the check silently misses. The default here IS ``/tmp/asclepius-exports``,
         so that is the one path this probe must never fail to recognise.
     """
-    return Path(os.path.abspath(
-        os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports"))
+    return Path(os.path.abspath(_realm.paths(_realm.LIVE)["exports"]))
 
 
 def export_root() -> Path:
     """The export dir, created and ready to write into. Real filesystem use only —
-    a durability check wants ``_export_root_path`` instead."""
-    root = Path(os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports").resolve()
+    a durability check wants ``_export_root_path`` instead.
+
+    Realm-scoped (Sandbox PRD §1.1): a sandbox export is built under
+    ``<root>/sandbox/`` so a sandbox bundle never sits beside a live one."""
+    root = Path(_realm.paths()["exports"]).resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 

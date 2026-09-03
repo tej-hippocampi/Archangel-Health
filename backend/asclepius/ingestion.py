@@ -34,6 +34,7 @@ import subprocess
 import tempfile
 import time
 import zipfile
+import realm as _realm
 from pathlib import Path
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
@@ -131,13 +132,14 @@ def _default_ingest_dir() -> Path:
     reports as a spurious 410 "already purged". Placing the ingest dir next to
     the DB file means a raw blob is exactly as durable as its DB row. Mirrors
     ``AsclepiusStore``'s DB-path resolution so the two never diverge."""
-    db_path = os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "asclepius.db")
+    db_path = _realm.live_asclepius_db()
     return Path(os.path.dirname(os.path.abspath(db_path))) / "asclepius-ingest"
 
 
 def quarantine_root() -> Path:
-    root = Path(os.getenv("ASCLEPIUS_INGEST_DIR") or _default_ingest_dir()).resolve()
+    # Realm-scoped (Sandbox PRD §1.1): sandbox raw blobs land under
+    # ``<ingest root>/sandbox/``, derived from the live root.
+    root = Path(_realm.paths()["ingest"]).resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 
@@ -150,8 +152,7 @@ def _ingest_root_path() -> Path:
     like ``/run`` raises PermissionError instead of returning "not durable" — the very
     answer the check exists to give (PRD I-0 §F1) — and ``.resolve()`` rewrites e.g.
     ``/tmp`` to its real target so the ephemeral-prefix match silently misses."""
-    return Path(os.path.abspath(
-        os.getenv("ASCLEPIUS_INGEST_DIR") or str(_default_ingest_dir())))
+    return Path(os.path.abspath(_realm.paths(_realm.LIVE)["ingest"]))
 
 
 _EXECUTABLE_EXTS = (".exe", ".dll", ".so", ".sh", ".bat", ".cmd", ".ps1", ".msi",

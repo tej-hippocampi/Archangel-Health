@@ -26,6 +26,8 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
+import realm as _realm
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -544,11 +546,19 @@ _PRD_2_SEQUENCE_GATE = f"""(
 
 
 class AsclepiusStore:
-    def __init__(self, db_path: Optional[str] = None):
-        base_dir = os.path.dirname(__file__)
-        # default lives next to the package, i.e. backend/asclepius.db
-        default_path = os.path.join(os.path.dirname(base_dir), "asclepius.db")
-        self.db_path = db_path or os.getenv("ASCLEPIUS_DB_PATH") or default_path
+    def __init__(self, db_path: Optional[str] = None, *, read_only: bool = False):
+        # The default is the LIVE realm's file; ``get_store()`` passes the
+        # current realm's path explicitly (Sandbox PRD §1.2). Resolution rules
+        # live in ``realm.live_asclepius_db`` so the two can never disagree.
+        self.db_path = db_path or _realm.live_asclepius_db()
+        # Read-only stores exist for ONE caller: ``realm.read_live()``, the
+        # sandbox snapshot copy (§4). No mkdir, no WAL pragma, no schema init:
+        # a read-only handle must not be able to touch the live file at all,
+        # and ``?mode=ro`` (see ``_conn``) makes sqlite refuse a write even if
+        # some code path tried.
+        self.read_only = bool(read_only)
+        if self.read_only:
+            return
         # Create the parent dir so ASCLEPIUS_DB_PATH can point straight into a
         # mounted persistent volume (e.g. /data/asclepius.db) on first boot.
         parent = os.path.dirname(os.path.abspath(self.db_path))
@@ -563,10 +573,20 @@ class AsclepiusStore:
         self._init_schema()
 
     # ─── Connection ──────────────────────────────────────────────────────────
+    def _connect_uri(self) -> str:
+        """The sqlite URI a read-only store opens. Public so the test that pins
+        ``?mode=ro`` on the live snapshot connection reads the same string the
+        connection is made with."""
+        from pathlib import Path as _Path
+        return f"{_Path(os.path.abspath(self.db_path)).as_uri()}?mode=ro"
+
     def _conn(self) -> sqlite3.Connection:
         # busy_timeout: wait (don't error) if another request holds the write
         # lock — FastAPI serves requests from a threadpool against one file.
-        conn = sqlite3.connect(self.db_path, timeout=30)
+        if self.read_only:
+            conn = sqlite3.connect(self._connect_uri(), uri=True, timeout=30)
+        else:
+            conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA busy_timeout = 30000")
@@ -14053,19 +14073,48 @@ def _db_storage_durable() -> tuple:
     return True, f"database directory {db_dir} is durable and writable"
 
 
-# ─── Process-wide singleton ───────────────────────────────────────────────────
-_STORE: Optional[AsclepiusStore] = None
+# ─── One store per realm (Sandbox PRD §1.2) ───────────────────────────────────
+# Keyed on ``realm.current()``: a request in the sandbox realm gets a store
+# over ``asclepius_sandbox.db`` and can never reach the live file, because
+# there is no code path that hands it the live instance. Migrations run on
+# first open per realm, so the sandbox DB always carries the live schema.
+_STORES: Dict[str, AsclepiusStore] = {}
+_STORES_LOCK = threading.Lock()
 
 
 def get_store() -> AsclepiusStore:
-    global _STORE
-    if _STORE is None:
-        _STORE = AsclepiusStore()
-    return _STORE
+    r = _realm.current()
+    store = _STORES.get(r)
+    if store is None:
+        with _STORES_LOCK:
+            store = _STORES.get(r)
+            if store is None:
+                store = AsclepiusStore(db_path=_realm.paths(r)["asclepius"])
+                _STORES[r] = store
+    return store
 
 
 def reset_store_for_tests(db_path: Optional[str] = None) -> AsclepiusStore:
-    """Rebuild the singleton against a fresh DB path (test helper only)."""
-    global _STORE
-    _STORE = AsclepiusStore(db_path=db_path)
-    return _STORE
+    """Rebuild the CURRENT realm's store against a fresh DB path (test helper
+    only). Tests run in the live realm unless they enter ``realm.scoped``."""
+    r = _realm.current()
+    store = AsclepiusStore(db_path=db_path or _realm.paths(r)["asclepius"])
+    with _STORES_LOCK:
+        _STORES[r] = store
+    return store
+
+
+def bound_db_path(r: str) -> str:
+    """The file the realm ``r``'s store is (or would be) bound to. Differs from
+    ``realm.paths(r)`` only when the suite has rebound a realm to a temp file —
+    which is exactly when ``realm.read_live`` must follow the binding, not the
+    env, or the snapshot copy would read a database no test wrote to."""
+    store = _STORES.get(_realm.validate(r))
+    return store.db_path if store is not None else _realm.paths(r)["asclepius"]
+
+
+def drop_store_for_realm(r: str) -> None:
+    """Forget the cached store for ``r`` so the next ``get_store`` reopens the
+    file. Used by ``Reset sandbox`` after it deletes the sandbox DB."""
+    with _STORES_LOCK:
+        _STORES.pop(_realm.validate(r), None)

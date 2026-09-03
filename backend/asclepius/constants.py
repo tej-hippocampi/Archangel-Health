@@ -1005,18 +1005,12 @@ def asset_store() -> str:
     the DIRECTORY of the durable DB (``ASCLEPIUS_DB_PATH``) + ``/assets`` → the code
     tree (last resort, ephemeral). Co-locating with the DB keeps real images on the
     SAME persistent volume as their references, so they survive a redeploy."""
-    explicit = os.getenv("ASCLEPIUS_ASSET_STORE", "").strip()
-    if explicit:
-        return explicit
-    data_dir = os.getenv("ASCLEPIUS_DATA_DIR", "").strip()
-    if data_dir:
-        return os.path.join(data_dir, "assets")
-    db_path = os.getenv("ASCLEPIUS_DB_PATH", "").strip()
-    if db_path:
-        return os.path.join(os.path.dirname(os.path.abspath(db_path)) or ".", "asclepius_assets")
-    # Last resort: next to the package (EPHEMERAL — a container redeploy loses these).
-    # Warned once at startup (see asclepius.assets.warn_ephemeral_store).
-    return os.path.join(os.path.dirname(__file__), "_assetstore")
+    # The resolution order lives in ``realm.live_asset_root`` (Sandbox PRD
+    # §1.1) so the sandbox derivation and this live answer can never diverge.
+    # This is the LIVE root regardless of the current realm; realm-aware
+    # callers go through ``asclepius.assets._store_root``.
+    from realm import live_asset_root  # noqa: PLC0415 — realm has no deps
+    return live_asset_root()
 
 
 # ─── PRD I-0 §F1: the ONE definition of "this path does not survive a redeploy" ──

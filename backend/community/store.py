@@ -23,6 +23,7 @@ import os
 import sqlite3
 import threading
 import uuid
+import realm as _realm
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -124,9 +125,9 @@ def _utcnow_iso() -> str:
 
 class CommunityStore:
     def __init__(self, db_path: Optional[str] = None):
-        base_dir = os.path.dirname(os.path.dirname(__file__))  # backend/
-        default_path = os.path.join(base_dir, "community.db")
-        self.db_path = db_path or os.getenv("COMMUNITY_DB_PATH") or default_path
+        # Default is the LIVE realm's file; ``get_community_store`` passes the
+        # current realm's path explicitly (Sandbox PRD §1.2).
+        self.db_path = db_path or _realm.live_community_db()
         parent = os.path.dirname(os.path.abspath(self.db_path))
         if parent:
             os.makedirs(parent, exist_ok=True)
@@ -1761,23 +1762,34 @@ class CommunityStore:
         return [dict(r) for r in rows]
 
 
-# ─── Process-wide singleton ───────────────────────────────────────────────────
+# ─── One store per realm (Sandbox PRD §1.2) ───────────────────────────────────
 _store_lock = threading.Lock()
-_store: Optional[CommunityStore] = None
+_stores: Dict[str, CommunityStore] = {}
 
 
 def get_community_store() -> CommunityStore:
-    global _store
-    if _store is None:
+    r = _realm.current()
+    store = _stores.get(r)
+    if store is None:
         with _store_lock:
-            if _store is None:
-                _store = CommunityStore()
-    return _store
+            store = _stores.get(r)
+            if store is None:
+                store = CommunityStore(db_path=_realm.paths(r)["community"])
+                _stores[r] = store
+    return store
 
 
 def reset_community_store_for_tests(db_path: Optional[str] = None) -> CommunityStore:
-    """Rebind the singleton to a fresh DB (mirrors ``reset_store_for_tests``)."""
-    global _store
+    """Rebind the CURRENT realm's store to a fresh DB (mirrors
+    ``asclepius.store.reset_store_for_tests``)."""
+    r = _realm.current()
     with _store_lock:
-        _store = CommunityStore(db_path=db_path)
-    return _store
+        store = CommunityStore(db_path=db_path or _realm.paths(r)["community"])
+        _stores[r] = store
+    return store
+
+
+def drop_community_store_for_realm(r: str) -> None:
+    """Forget the cached store for ``r`` (``Reset sandbox``)."""
+    with _store_lock:
+        _stores.pop(_realm.validate(r), None)

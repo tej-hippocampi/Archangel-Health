@@ -147,7 +147,8 @@ from auth import (
 )
 import auth as auth_module
 from onboarding_emails import build_doctor_verification_email, build_task_notification_email
-from team_store import TeamStore, set_team_store
+from team_store import TeamStore, get_team_store, set_team_store  # noqa: F401
+import realm as _realm
 from preop_survey import (
     WINDOW_SURVEY_DAY,
     compute_window_tier,
@@ -235,12 +236,15 @@ if os.getenv("FORCE_HTTPS_REDIRECT", "0").strip().lower() in ("1", "true", "yes"
 
 _patient_store: dict = {}
 app.state.patient_store = _patient_store
-_team_store = TeamStore()
+# Sandbox PRD §1.2: NOT a pinned instance. ``_team_store`` is referenced ~140
+# times in this module and handed to routers as ``app.state.team_store``; every
+# one of those now resolves the CURRENT realm's TeamStore at call time through
+# this proxy, so a sandbox request writes ``team_sandbox.db`` and a live one
+# writes ``team.db`` with no call site knowing the difference. ``team_store
+# .get_team_store`` keeps one instance per realm, and the suite rebinds the
+# live one with ``set_team_store``.
+_team_store = _realm.RealmProxy(get_team_store, "TeamStore")
 app.state.team_store = _team_store
-# Background work (the Onboarding v2 nudge sweep) has no request to reach
-# app.state through. Bind THIS instance rather than letting it build a second
-# one, so both see the same database — including the temp one the suite swaps in.
-set_team_store(_team_store)
 
 # ─── Asclepius — Expert Evaluation Portal (standalone, isolated) ──────────────
 # Own SQLite DB + own auth; never touches team.db or the clinical RBAC.
@@ -250,8 +254,13 @@ try:
     from asclepius.auth import ensure_admin_from_env as _ensure_asclepius_admin
     from asclepius.auth import ensure_mock_contributor as _ensure_asclepius_mock
 
-    _asclepius_store = _get_asclepius_store()
+    # Same proxy pattern as ``_team_store`` above: ``app.state.asclepius_store``
+    # is read by routers and loops that have no request context of their own,
+    # and each of them must land in the realm it is running in.
+    _asclepius_store = _realm.RealmProxy(_get_asclepius_store, "AsclepiusStore")
     app.state.asclepius_store = _asclepius_store
+    # Boot-time seeding is a LIVE-realm concern; the sandbox is seeded on demand
+    # (Sandbox PRD §2) and never at import.
     _seed_asclepius_admin(_asclepius_store)
     # Idempotently (re)provision the operator's admin from env on every boot, so
     # setting ASCLEPIUS_ADMIN_EMAIL/PASSWORD works even after the table is seeded
@@ -6624,7 +6633,7 @@ async def startup_community():
         from community import notify as _cnotify
         from community.router import resolve_member_for_notify as _resolve_member
 
-        app.state.community_store = _get_cstore()
+        app.state.community_store = _realm.RealmProxy(_get_cstore, "CommunityStore")
         # Country channels exist for the countries that have members. The
         # roster lives on the asclepius plane, so it is read here and passed
         # in: the community store must not query users itself.
