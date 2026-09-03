@@ -1,0 +1,36 @@
+Document index: 33
+Document type: clinical note
+Service date: 2026-06-20
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted Sign & Mnemonic areas (green redactions) and facility address/phone in footer.
+
+CONTENT
+----------------------------------------
+Nutrition progress notes (Page 2 of 2)
+
+Entry 1 — 20.06.2026, 11:00 am:
+- Patient has been visited
+- Counseling done
+- Orally allowed
+- On soft diet
+- Tolerating well
+- Stay hydrated
+
+Entry 2 — 20/06/2026, 8:00 pm:
+- Patient has been visited
+- Comorbid as asked
+- Counseling done
+- Orally allowed
+- No any food allergy
+- Tolerating well on soft diet
+- Recommended Regular diet instead
+- Tolerating well
+- Keep hydrated
+
+Entry 3 — 21.06.2026, 10:00 am:
+- Patient has been visited
+- Comorbids asked
+- Counselling done
+- Orally allowed
+- On soft diet
+- Stay hydrated

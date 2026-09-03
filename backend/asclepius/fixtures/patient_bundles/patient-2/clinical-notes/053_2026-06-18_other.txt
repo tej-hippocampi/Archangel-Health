@@ -1,0 +1,21 @@
+Document index: 53
+Document type: other
+Service date: 2026-06-18
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility name, patient ID block, and signatures omitted.
+
+CONTENT
+----------------------------------------
+INTAKE / OUT-PUT RECORD SHEET. Date 18/06/2026.
+Intake:
+0800: Tea 100; urine Pass
+0900–1000: PLW 100 each; urine Pass at 1000
+1200: urine Pass
+1300: PO ~300 ml
+1700: handwritten lab/med note (partially illegible: Pen / VNF / Na / NM / BNP)
+2000: PO 0
+2100–2200: 1/2 R/L ~120 ml/hr; urine Pass at 2200; Total C/O parenteral 240
+2300–0400: parenteral ~120 ml/hr; 0100 urine Pass
+0300: Tea 20 ml; 0400 Juice 200 ml, stool SNP; 0500 parenteral 40 ml, PO total 220
+Night parenteral total ~760; PO night ~220
+24h totals — Intake: Parenteral 1000, Oral 520, Grand 1520; Output urine Pass, Grand Pass

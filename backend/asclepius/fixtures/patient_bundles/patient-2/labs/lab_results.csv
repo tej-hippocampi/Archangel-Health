@@ -1,0 +1,306 @@
+service_date,panel,test_name,loinc,value,unit,reference_range,flag,source_image_index
+2025-09-08,LFT,Alkaline Phosphatase,6768-6,362,U/L,Male 80-270; Female 65-240; pediatric ranges also printed,H,20
+2025-09-08,LFT,Bilirubin (Total),1975-2,1.1,mg/dl,Adults up to 1.2; pediatric ranges also printed,,20
+2025-09-08,LFT,C-Reactive Protein,,4.9,mg/L (ref < 10.0) [checkmark],,,20
+2025-09-08,LFT,Collection,,29,-Sep-2025,,,20
+2025-09-08,LFT,Gamma GT,2324-2,72,U/L (Male 8-61; Female 5-36) [H; circled],,,20
+2025-09-08,LFT,Report,,29,-Sep-2025,,,20
+2025-09-08,LFT,SGPT,1742-6,97,U/L,Male up to 45; Female up to 35,H,20
+2025-09-08,CBC/hematology,Basophils,706-2,00,%,<1,,21
+2025-09-08,CBC/hematology,Collection,,29,-Sep-2025,,,21
+2025-09-08,CBC/hematology,Eosinophils,713-8,03,%,1-6,,21
+2025-09-08,CBC/hematology,Haematocrit,4544-3,36.8,% (37.4 - 52.0) [LOW],,,21
+2025-09-08,CBC/hematology,Haemoglobin,718-7,11.9,gm/dl (13.0 - 18.0) [LOW],,,21
+2025-09-08,CBC/hematology,Lymphocytes,736-9,14,% (20-45) [LOW],,,21
+2025-09-08,CBC/hematology,M.C.H.,785-6,23.0,PG (27.0 - 32.0) [LOW],,,21
+2025-09-08,CBC/hematology,M.C.H.C.,785-6,32.3,%,31.0 - 35.0,,21
+2025-09-08,CBC/hematology,M.C.V.,787-2,71.2,FL (77.0 - 95.0) [LOW],,,21
+2025-09-08,CBC/hematology,Monocytes,5905-5,03,%,2-10,,21
+2025-09-08,CBC/hematology,Neutrophils,770-8,80,% (40-75) [HIGH],,,21
+2025-09-08,CBC/hematology,Platelet Count,777-3,128,10^3/uL (150 - 450) [LOW],,,21
+2025-09-08,CBC/hematology,R.B.C.,789-8,5.17,10^6/uL,4.5 - 6.5,,21
+2025-09-08,CBC/hematology,Report,,29,-Sep-2025,,,21
+2025-09-08,CBC/hematology,Specimen,,blood,,sample brought from external facility,,21
+2025-09-08,CBC/hematology,W.B.C.,6690-2,15.8,10^3/uL (4.8 - 10.8) [HIGH],,,21
+2025-09-12,serology/viral,Anti HCV Antibody,,Test Value 47.9; Cut Off 1.00; Result Reactive [hand-underlined],,,,13
+2025-09-12,serology/viral,Booking,,12,/09/2025 10:44:15,,,13
+2025-09-12,serology/viral,Collection,,12,/09/2025 10:44:41,,,13
+2025-09-12,serology/viral,HbsAg,5196-1,Test Value 0.215; Cut Off 1.00; Result Non-Reactive [hand-underlined],,,,13
+2025-09-12,serology/viral,Reporting,,12,/09/2025 12:49:25,,,13
+2025-09-12,serology/viral,Suggestions,,"Borderline tests repeat with fresh sample; Reactive results follow with confirmatory Core HCV, NAT, or PCR; Non-reactive usually no further action unless recent exposure/suspicion then HCV RNA/NAT/PCR advised.",,,,13
+2025-09-12,tumor marker,Alpha Feto Protein,,50.2,UI/Ml (ref: Less than 7.0) [result circled in blue ink],,,14
+2025-09-12,tumor marker,Booking,,12,/09/2025 10:44:15,,,14
+2025-09-12,tumor marker,Collection,,12,/09/2025 10:44:41,,,14
+2025-09-12,tumor marker,Reporting,,12,/09/2025 12:50:01,,,14
+2025-09-12,urinalysis,Bacteria,,FEW /HPF,,,,15
+2025-09-12,urinalysis,Bilirubin,1975-2,+2,,Negative,,15
+2025-09-12,urinalysis,Blood,3094-0,+1 Ery/ul,,Negative,,15
+2025-09-12,urinalysis,Casts,,NIL,,,,15
+2025-09-12,urinalysis,Crystals,,NIL,,,,15
+2025-09-12,urinalysis,Dates,,Booking/Collection/Reporting 12/09/2025,,,,15
+2025-09-12,urinalysis,Epithelial Cells,,NIL,,,,15
+2025-09-12,urinalysis,Glucose,,NEGATIVE mg/dl,,Negative,,15
+2025-09-12,urinalysis,Ketone Bodies,,NEGATIVE,,Negative,,15
+2025-09-12,urinalysis,Nitrite,,NEGATIVE,,Negative,,15
+2025-09-12,urinalysis,Other,,AMORPHOUS = +1,,,,15
+2025-09-12,urinalysis,Protein,,+1 mg/dl (Negative) [+1 circled],,,,15
+2025-09-12,urinalysis,Pus Cells,,6,-8 /HPF,0-4,,15
+2025-09-12,urinalysis,Reaction pH,,5.0,,5-8,,15
+2025-09-12,urinalysis,Red Blood Cells,789-8,2,-4 /HPF,0 - 2,,15
+2025-09-12,urinalysis,Specific Gravity,,1.025,,1.005 - 1.025,,15
+2025-09-12,urinalysis,Urobilinogen,,+2 mg/dl,,Negative,,15
+2025-09-12,coagulation,Booking,,12,/09/2025 10:44:15,,,16
+2025-09-12,coagulation,Collection,,12,/09/2025 10:44:41,,,16
+2025-09-12,coagulation,Control,,13.0,Sec,,,16
+2025-09-12,coagulation,INR,6301-6,1.15,,0.9 - 1.5,,16
+2025-09-12,coagulation,Prothrombin Time,5902-2,15.0,Sec (10 - 15) [blue checkmark],,,16
+2025-09-12,coagulation,Reporting,,12,/09/2025 11:27:13,,,16
+2025-09-12,other lab,Albumin (Serum),1751-7,3.1,g/dL (Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6) [low vs >60Y range; hand-underlined with check],,,17
+2025-09-12,other lab,Booking,,12,/09/2025 10:44:15,,,17
+2025-09-12,other lab,Collection,,12,/09/2025 10:44:41,,,17
+2025-09-12,other lab,Creatinine Serum,2160-0,0.98,mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4) [hand-underlined with check],,,17
+2025-09-12,other lab,Reporting,,12,/09/2025 12:15:32,,,17
+2025-09-12,RFT/renal,Booking,,12,/09/2025 10:44:15,,,88
+2025-09-12,RFT/renal,Collection,,12,/09/2025 10:44:41,,,88
+2025-09-12,RFT/renal,Creatinine Serum,2160-0,0.98,mg/dL,,,88
+2025-09-12,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,88
+2025-09-12,RFT/renal,Reporting,,12,/09/2025 12:15:32,,,88
+2025-09-12,coagulation,Booking,,12,/09/2025 10:44:15,,,89
+2025-09-12,coagulation,Collection,,12,/09/2025 10:44:41,,,89
+2025-09-12,coagulation,Control,,13.0,Sec,,,89
+2025-09-12,coagulation,INR,6301-6,1.15,,0.9 - 1.5,,89
+2025-09-12,coagulation,Prothrombin Time,5902-2,15.0,Sec,10 - 15,,89
+2025-09-12,coagulation,Reporting,,12,/09/2025 11:27:13,,,89
+2025-09-12,serology/viral,Cut Off Value,,1.00,,,,90
+2025-09-12,serology/viral,HbsAg Test Value,718-7,0.215,,,,90
+2025-09-12,serology/viral,Normal Range,,Non-reactive,,,,90
+2025-09-12,serology/viral,Reporting,,12,/09/2025 12:49:13,,,90
+2025-09-12,serology/viral,Result,,Non-Reactive,,,,90
+2025-09-12,urinalysis,Bacteria,,FEW /HPF,,,,91
+2025-09-12,urinalysis,Bilirubin,1975-2,+2,,Negative,,91
+2025-09-12,urinalysis,Blood,3094-0,+1 Ery/ul,,Negative,,91
+2025-09-12,urinalysis,Booking,,12,/09/2025 10:44:15,,,91
+2025-09-12,urinalysis,Casts,,NIL,,,,91
+2025-09-12,urinalysis,Collection,,12,/09/2025 10:44:41,,,91
+2025-09-12,urinalysis,Crystals,,NIL,,,,91
+2025-09-12,urinalysis,Epithelial Cells,,NIL,,,,91
+2025-09-12,urinalysis,Glucose,,NEGATIVE mg/dl,,Negative,,91
+2025-09-12,urinalysis,Ketone Bodies,,NEGATIVE,,Negative,,91
+2025-09-12,urinalysis,Nitrite,,NEGATIVE,,Negative,,91
+2025-09-12,urinalysis,Other,,AMORPHOUS=+1,,,,91
+2025-09-12,urinalysis,Protein,,+1 mg/dl,,Negative,,91
+2025-09-12,urinalysis,Pus Cells,,6,-8 /HPF,0-4,,91
+2025-09-12,urinalysis,Reaction pH,,5.0,,5-8,,91
+2025-09-12,urinalysis,Red Blood Cells,789-8,2,-4 /HPF,0-2,,91
+2025-09-12,urinalysis,Reporting,,12,/09/2025 12:46:05,,,91
+2025-09-12,urinalysis,Specific Gravity,,1.025,,1.005 - 1.025,,91
+2025-09-12,urinalysis,Urobilinogen,,+2 mg/dl,,Negative,,91
+2025-09-12,LFT,4-14 Years,,3.8,-5.4,,,92
+2025-09-12,LFT,> 60 Years,,3.2,-4.6,,,92
+2025-09-12,LFT,Adult,,3.5,-5.2,,,92
+2025-09-12,LFT,Albumin,1751-7,3.1,g/dL,,,92
+2025-09-12,LFT,Booking/Collection/Reporting,,12,/09/2025,,,92
+2025-09-12,LFT,Newborn 2-4 Days,,2.2,-4.4,,,92
+2025-09-12,serology/viral,Advice,,Correlate clinically with patient history. Anti HCV Antibody Reactive.,,,,93
+2025-09-12,serology/viral,Booking,,12,/09/2025 10:44:15,,,93
+2025-09-12,serology/viral,Collection,,12,/09/2025 10:44:41,,,93
+2025-09-12,serology/viral,Cut Off Value,,1.00,,,,93
+2025-09-12,serology/viral,Reporting,,12,/09/2025 12:49:25,,,93
+2025-09-12,serology/viral,Result,,Reactive,,,,93
+2025-09-12,serology/viral,Test Value,,47.9,,,,93
+2025-09-12,tumor marker,Alpha Feto Protein,,50.2,UI/MI,,,94
+2025-09-12,tumor marker,Booking,,12,/09/2025 10:44:15,,,94
+2025-09-12,tumor marker,Collection,,12,/09/2025 10:44:41,,,94
+2025-09-12,tumor marker,Normal Ranges,,Less then 7.0,,,,94
+2025-09-12,tumor marker,Reporting,,12,/09/2025 12:50:01,,,94
+2025-09-12,RFT/renal,Booking,,12,/09/2025 10:44:15,,,95
+2025-09-12,RFT/renal,Collection,,12,/09/2025 10:44:41,,,95
+2025-09-12,RFT/renal,Creatinine Serum,2160-0,0.98,mg/dL,,,95
+2025-09-12,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,95
+2025-09-12,RFT/renal,Reporting,,12,/09/2025 12:15:32,,,95
+2025-09-12,RFT/renal,Booking,,12,/09/2025 10:44:15,,,96
+2025-09-12,RFT/renal,Collection,,12,/09/2025 10:44:41,,,96
+2025-09-12,RFT/renal,Creatinine Serum,2160-0,0.98,mg/dL,,,96
+2025-09-12,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,96
+2025-09-12,RFT/renal,Reporting,,12,/09/2025 12:15:32,,,96
+2025-11-07,RFT/renal,Booking,,07,/11/2025 11:36:28,,,7
+2025-11-07,RFT/renal,Collection,,07,/11/2025 11:36:45,,,7
+2025-11-07,RFT/renal,Creatinine Serum,2160-0,1.1,mg/dL,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,7
+2025-11-07,RFT/renal,Reporting,,07,/11/2025 13:05:26,,,7
+2025-11-07,RFT/renal,Booking,,07,/11/2025 11:36:28,,,87
+2025-11-07,RFT/renal,Collection,,07,/11/2025 11:36:45,,,87
+2025-11-07,RFT/renal,Creatinine Serum,2160-0,1.1,mg/dL,,,87
+2025-11-07,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,87
+2025-11-07,RFT/renal,Reporting,,07,/11/2025 13:05:26,,,87
+2026-06-16,serology/viral,Booking,,16,/06/2026 16:26:48,,,76
+2026-06-16,serology/viral,Collection,,16,/06/2026 16:26:54,,,76
+2026-06-16,serology/viral,Comment,,HCV titer may fluctuate with latency and may fall below sensitivity; molecular result not comparable across labs with different assay sensitivity.,,,,76
+2026-06-16,serology/viral,Reporting,,20,/06/2026 15:43:04,,,76
+2026-06-16,serology/viral,Result,,9176000,IU/ml,,,76
+2026-06-16,serology/viral,Sample,,PCR - HCV RNA Quantitative,,,,76
+2026-06-16,LFT,Alkaline Phosphate,6768-6,129,U/L,Male: 270,,77
+2026-06-16,LFT,Bilirubin Direct,1968-7,0.4,mg/dL,up to 0.4,,77
+2026-06-16,LFT,Bilirubin Indirect,1971-1,0.4,mg/dL,0.0-0.80,,77
+2026-06-16,LFT,Bilirubin Total,1975-2,0.8,mg/dL,Adult ~0.1-1.0,,77
+2026-06-16,LFT,Booking,,16,/06/2026 14:42:57,,,77
+2026-06-16,LFT,Collection,,16,/06/2026 14:43:17,,,77
+2026-06-16,LFT,GAMMA GT,2324-2,96.6,U/L,Male: <55,H,77
+2026-06-16,LFT,Reporting,,16,/06/2026 15:48:57,,,77
+2026-06-16,LFT,SGOT/AST (Plain),1920-8,106,U/L,Male: 50,H,77
+2026-06-16,LFT,SGPT/ALT,1742-6,73.5,U/L,Male: 65,H,77
+2026-06-16,electrolytes,Bicarbonate,1963-8,25.5,mmol/L,20.0-29.0,,78
+2026-06-16,electrolytes,Booking,,16,/06/2026 14:42:57,,,78
+2026-06-16,electrolytes,Chloride,2075-0,107,mmol/L,96-106,H,78
+2026-06-16,electrolytes,Collection,,16,/06/2026 14:43:17,,,78
+2026-06-16,electrolytes,Potassium,2823-3,4.2,mmol/L,3.5-5.5,,78
+2026-06-16,electrolytes,Reporting,,16,/06/2026 15:48:57,,,78
+2026-06-16,electrolytes,Sodium,2951-2,143,mmol/L,135-145,,78
+2026-06-16,RFT/renal,Booking,,16,/06/2026 14:42:57,,,79
+2026-06-16,RFT/renal,Collection,,16,/06/2026 14:43:17,,,79
+2026-06-16,RFT/renal,Reporting,,16,/06/2026 15:48:57,,,79
+2026-06-16,RFT/renal,Urea,3094-0,39.1,mg/dL,10-50,,79
+2026-06-16,coagulation,Booking,,16,/06/2026 14:42:57,,,80
+2026-06-16,coagulation,Collection,,16,/06/2026 14:43:17,,,80
+2026-06-16,coagulation,Control,,12.0,Sec,,,80
+2026-06-16,coagulation,INR,6301-6,1.20,,0.9-1.5,,80
+2026-06-16,coagulation,Prothrombin Time,5902-2,14.5,Sec,10-15,,80
+2026-06-16,coagulation,Reporting,,16,/06/2026 15:35:48,,,80
+2026-06-16,RFT/renal,Booking,,16,/06/2026 14:42:57,,,81
+2026-06-16,RFT/renal,Collection,,16,/06/2026 14:43:17,,,81
+2026-06-16,RFT/renal,Creatinine Serum,2160-0,0.99,mg/dL,,,81
+2026-06-16,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,81
+2026-06-16,RFT/renal,Reporting,,16,/06/2026 15:48:57,,,81
+2026-06-16,tumor marker,Alpha Feto Protein,,>1000,UI/Ml,,,82
+2026-06-16,tumor marker,Booking,,16,/06/2026 14:42:57,,,82
+2026-06-16,tumor marker,Collection,,16,/06/2026 14:43:17,,,82
+2026-06-16,tumor marker,Normal Ranges,,Less then 7.0,,,,82
+2026-06-16,tumor marker,Reporting,,16,/06/2026 15:49:05,,,82
+2026-06-16,LFT,4-14 Years,,3.8,-5.4,,,83
+2026-06-16,LFT,> 60 Years,,3.2,-4.6,,,83
+2026-06-16,LFT,Adult,,3.5,-5.2,,,83
+2026-06-16,LFT,Albumin,1751-7,2.7,g/dL,,,83
+2026-06-16,LFT,Booking,,16,/06/2026 14:42:57,,,83
+2026-06-16,LFT,Collection,,16,/06/2026 14:43:17,,,83
+2026-06-16,LFT,Newborn 2-4 Days,,2.2,-4.4,,,83
+2026-06-16,LFT,Reporting,,16,/06/2026 15:48:57,,,83
+2026-06-16,RFT/renal,Booking,,16,/06/2026 14:42:57,,,84
+2026-06-16,RFT/renal,Collection,,16,/06/2026 14:43:17,,,84
+2026-06-16,RFT/renal,Creatinine Serum,2160-0,0.99,mg/dL,,,84
+2026-06-16,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,84
+2026-06-16,RFT/renal,Reporting,,16,/06/2026 15:48:57,,,84
+2026-06-16,CBC/hematology,Basophils,706-2,0.5,%,<1,,85
+2026-06-16,CBC/hematology,Booking,,16,/06/2026 14:42:57,,,85
+2026-06-16,CBC/hematology,Collection,,16,/06/2026 14:43:17,,,85
+2026-06-16,CBC/hematology,Eosinophils,713-8,5.0,%,1 - 6,,85
+2026-06-16,CBC/hematology,Hematocrit,4544-3,34.5,%,35.0-50.0,L,85
+2026-06-16,CBC/hematology,Hemoglobin,718-7,10.8,g/dl,12 - 16.5,L,85
+2026-06-16,CBC/hematology,Lymphocytes,736-9,22.3,%,20-45,,85
+2026-06-16,CBC/hematology,M.C.H,785-6,22.5,pg,24 - 29,L,85
+2026-06-16,CBC/hematology,M.C.H.C,786-4,31.3,g/dl,32 - 36,L,85
+2026-06-16,CBC/hematology,M.C.V,787-2,71.9,fl,76 - 96,L,85
+2026-06-16,CBC/hematology,Monocytes,5905-5,16.1,%,2 - 10,H,85
+2026-06-16,CBC/hematology,Neutrophils,770-8,56.1,%,40-75,,85
+2026-06-16,CBC/hematology,Platelets,777-3,128,x 10^9/l,150 - 400,L,85
+2026-06-16,CBC/hematology,R.B.Cs,789-8,4.80,10^12/L,4.0-5.2,,85
+2026-06-16,CBC/hematology,RDW-CV,788-0,15.7,%,11.0-16.0,,85
+2026-06-16,CBC/hematology,Reporting,,16,/06/2026 16:15:58,,,85
+2026-06-16,CBC/hematology,Total Leucocytes Count/TLC,6690-2,6.23,x 10^3/l,4 - 10,,85
+2026-06-16,tumor marker,Booking,,16,/06/2026 14:42:57,,,86
+2026-06-16,tumor marker,Collection,,16,/06/2026 14:43:17,,,86
+2026-06-16,tumor marker,Normal Ranges,,Cutt Off Value 28.4,,,,86
+2026-06-16,tumor marker,PIVKA-11,,154.9,ng/ml,,,86
+2026-06-16,tumor marker,Reporting,,16,/06/2026 15:22:37,,,86
+2026-06-18,electrolytes,Bicarbonate,1963-8,20.5,mmol/L,20.0-29.0,,74
+2026-06-18,electrolytes,Booking,,18,/06/2026 12:13:06,,,74
+2026-06-18,electrolytes,Chloride,2075-0,104,mmol/L,96-106,,74
+2026-06-18,electrolytes,Collection,,18,/06/2026 12:15:45,,,74
+2026-06-18,electrolytes,Potassium,2823-3,3.65,mmol/L,3.5-5.5,,74
+2026-06-18,electrolytes,Reporting,,18,/06/2026 13:04:38,,,74
+2026-06-18,electrolytes,Sodium,2951-2,138,mmol/L,135-145,,74
+2026-06-18,RFT/renal,Booking,,18,/06/2026 12:13:06,,,75
+2026-06-18,RFT/renal,Collection,,18,/06/2026 12:15:45,,,75
+2026-06-18,RFT/renal,Creatinine Serum,2160-0,0.89,mg/dL,,,75
+2026-06-18,RFT/renal,Ref,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,75
+2026-06-18,RFT/renal,Reporting,,18,/06/2026 13:27:56,,,75
+2026-06-20,CBC/hematology,Basophils,706-2,0.1,%,<1,,71
+2026-06-20,CBC/hematology,Booking,,20,/06/2026 05:38,approx,,71
+2026-06-20,CBC/hematology,Eosinophils,713-8,0.2,%,1-6,L,71
+2026-06-20,CBC/hematology,Hematocrit,4544-3,29.4,%,35.0-50.0,L,71
+2026-06-20,CBC/hematology,Hemoglobin,718-7,9.4,g/dl,12-16.5,L,71
+2026-06-20,CBC/hematology,Lymphocytes,736-9,3.8,%,20-45,L,71
+2026-06-20,CBC/hematology,M.C.H,785-6,22.8,pg,24-29,L,71
+2026-06-20,CBC/hematology,M.C.H.C,786-4,32.0,g/dl,32-36,,71
+2026-06-20,CBC/hematology,M.C.V,787-2,71.2,fl,76-96,L,71
+2026-06-20,CBC/hematology,Monocytes,5905-5,8.9,%,2-10,,71
+2026-06-20,CBC/hematology,Neutrophils,770-8,87.0,%,40-75,H,71
+2026-06-20,CBC/hematology,Platelets,777-3,72,x 10^9/l,150-400,L,71
+2026-06-20,CBC/hematology,R.B.Cs,789-8,4.13,10^12/L,4.0-5.2,,71
+2026-06-20,CBC/hematology,RDW-CV,788-0,15.6,%,11.0-16.0,,71
+2026-06-20,CBC/hematology,Reporting,,20,/06/2026 10:48,approx,,71
+2026-06-20,CBC/hematology,Total Leucocytes Count/TLC,6690-2,32.70,x 10^3/l,4-10,H,71
+2026-06-20,RFT/renal,Booking,,20,/06/2026 05:38:07,,,72
+2026-06-20,RFT/renal,Collection,,20,/06/2026 05:38:27,,,72
+2026-06-20,RFT/renal,Creatinine Serum,2160-0,1.92,mg/dL,,,72
+2026-06-20,RFT/renal,Ref,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,72
+2026-06-20,RFT/renal,Reporting,,20,/06/2026 06:49:17,,,72
+2026-06-20,electrolytes,Bicarbonate,1963-8,20,mmol/L,20.0-29.0,,73
+2026-06-20,electrolytes,Booking,,20,/06/2026 05:38:07,,,73
+2026-06-20,electrolytes,Chloride,2075-0,100,mmol/L,96-106,,73
+2026-06-20,electrolytes,Collection,,20,/06/2026 05:38:27,,,73
+2026-06-20,electrolytes,Potassium,2823-3,4.2,mmol/L,3.5-5.5,,73
+2026-06-20,electrolytes,Reporting,,20,/06/2026 06:49:17,,,73
+2026-06-20,electrolytes,Sodium,2951-2,133,mmol/L,135-145,L,73
+2026-06-21,other lab,Base Excess,1925-7,-6.4 mmol/L,,ref -2 to 3,L,65
+2026-06-21,other lab,Bicarbonate,1963-8,18.4,mmol/L,ref 19-24,L,65
+2026-06-21,other lab,Booking,,21,/06/2026 12:39:56,,,65
+2026-06-21,other lab,Collection,,21,/06/2026 12:40:14,,,65
+2026-06-21,other lab,Location,,IPD,,,,65
+2026-06-21,other lab,O2 Saturation,2708-6,93.9,%,ref 94-98,L,65
+2026-06-21,other lab,Reporting,,21,/06/2026 13:02:49,,,65
+2026-06-21,other lab,pCO2,2019-8,30.3,mmHg,ref 35-48,L,65
+2026-06-21,other lab,pH,2744-1,7.40,,ref 7.35-7.45,,65
+2026-06-21,other lab,pO2,2703-7,71.5,mmHg,ref 83-108,L,65
+2026-06-21,other lab,Booking,,21,/06/2026 10:43:46,,,66
+2026-06-21,other lab,CRP (C-reactive protein),,56.5,mg/L,ref < 7.90,H,66
+2026-06-21,other lab,Collection,,21,/06/2026 10:43:59,,,66
+2026-06-21,other lab,Reporting,,21,/06/2026 12:10:25,,,66
+2026-06-21,serology/viral,Booking,,21,/06/2026 10:43:46,,,67
+2026-06-21,serology/viral,Collection,,21,/06/2026 10:43:59,,,67
+2026-06-21,serology/viral,Dengue NS1 Ag,,Negative,,,,67
+2026-06-21,serology/viral,Reporting,,21,/06/2026 12:11:24,,,67
+2026-06-21,serology/viral,Booking,,21,/06/2026 10:43:46,,,68
+2026-06-21,serology/viral,Collection,,21,/06/2026 10:43:59,,,68
+2026-06-21,serology/viral,Plasmodium Falciparum,,Negative,,,,68
+2026-06-21,serology/viral,Plasmodium Vivax,,Negative,,,,68
+2026-06-21,serology/viral,Reporting,,21,/06/2026 14:28:06,,,68
+2026-06-21,other lab,- Procalcitonin < 0.5,,low risk of severe sepsis and/or septic shock,,,,69
+2026-06-21,other lab,- Procalcitonin > 2.0,,high risk of severe sepsis and/or septic shock,,,,69
+2026-06-21,other lab,Booking,,21,/06/2026 10:43:46,,,69
+2026-06-21,other lab,Collection,,21,/06/2026 10:43:59,,,69
+2026-06-21,other lab,PCT,33959-8,22.7,ng/mL,,,69
+2026-06-21,other lab,Reporting,,21,/06/2026 12:10:00,,,69
+2026-06-21,CBC/hematology,Basophils,706-2,0.6,%,<1,,70
+2026-06-21,CBC/hematology,Booking,,21,/06/2026 10:42:42,,,70
+2026-06-21,CBC/hematology,Collection,,21,/06/2026 10:42:54,,,70
+2026-06-21,CBC/hematology,Eosinophils,713-8,3.3,%,1-6,,70
+2026-06-21,CBC/hematology,Hematocrit,4544-3,31.5,%,35.0-50.0,L,70
+2026-06-21,CBC/hematology,Hemoglobin,718-7,10.0,g/dl,12-16.5,L,70
+2026-06-21,CBC/hematology,Lymphocytes,736-9,11.2,%,20-45,L,70
+2026-06-21,CBC/hematology,M.C.H,785-6,22.8,pg,24-29,L,70
+2026-06-21,CBC/hematology,M.C.H.C,786-4,31.7,g/dl,32-36,L,70
+2026-06-21,CBC/hematology,M.C.V,787-2,71.8,fl,76-96,L,70
+2026-06-21,CBC/hematology,Monocytes,5905-5,4.5,%,2-10,,70
+2026-06-21,CBC/hematology,Neutrophils,770-8,80.4,%,40-75,H,70
+2026-06-21,CBC/hematology,Platelets,777-3,150,x 10^9/l,150-400,,70
+2026-06-21,CBC/hematology,R.B.Cs,789-8,4.39,10^12/L,4.0-5.2,,70
+2026-06-21,CBC/hematology,RDW-CV,788-0,15.9,%,11.0-16.0,,70
+2026-06-21,CBC/hematology,Reporting,,21,/06/2026 13:10:40,,,70
+2026-06-21,CBC/hematology,Total Leucocytes Count/TLC,6690-2,8.60,x 10^3/l,4-10,,70
+2026-06-22,other lab,BE,,-5.0 mmol/L,,,,64
+2026-06-22,other lab,BE_ecf,,-6.4 mmol/L,,,,64
+2026-06-22,other lab,Electrolytes,,Na+ / K+ / Cl- — Not activated,,,,64
+2026-06-22,other lab,PCO2,2019-8,30.3,mmHg,-,,64
+2026-06-22,other lab,PO2,2703-7,71.5,mmHg,-,,64
+2026-06-22,other lab,SO2(c),,93.9,%,,,64
+2026-06-22,other lab,cHCO3-,,18.4,mmol/L,,,64
+2026-06-22,other lab,pH,2744-1,7.401,,,,64

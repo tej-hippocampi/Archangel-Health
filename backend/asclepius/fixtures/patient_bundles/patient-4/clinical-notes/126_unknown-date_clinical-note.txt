@@ -1,0 +1,20 @@
+Document index: 126
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility name/header, patient ID, provider names, signature; footer address/phones/email omitted
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS (Page 2 of 2)
+Time: 1:30 PM
+
+Seen by [provider redacted]
+
+- Add Neurobion into IVF
+- Off CPAP trial
+- (S) CPK [handwriting may read CPR]
+- Cont. cardiac meds
+- Tab Extor 5/160 x OD
+- Tab Ascard 75 mg x OD
+- Add Rivotril as advised by [provider redacted]

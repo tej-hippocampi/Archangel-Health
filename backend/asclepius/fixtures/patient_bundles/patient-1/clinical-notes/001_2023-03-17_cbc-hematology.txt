@@ -1,0 +1,23 @@
+Document index: 1
+Document type: CBC/hematology
+Service date: 2023-03-17
+Age on report: 39Y    Sex: M
+De-identification: name redacted (green marker), referring physician name omitted
+
+CONTENT
+----------------------------------------
+CP (Complete Blood Picture)
+HB: 12.9 gm/dL (13.0-17.0) [L]
+RBC: 5.1 x10^12/L (4.5-5.5)
+HCT: 41 % (40-50)
+MCV: 80 fL (80-100)
+MCH: 25 pg (27-32) [L]
+MCHC: 31 gm/dL (13-09-2033.5) [L]
+WBC: 5.4 x10e9/L (4.0-10.0)
+PLATELETS: 61 x10^9/L (150-400) [L]
+NEUTROPHILS: 71 % (40-80)
+LYMPHOCYTES: 18 % (20-40) [L]
+MONOCYTES: 8 % (2-10)
+EOSINOPHILS: 2 % (01-06)
+BASOPHILS: 1 % (0-1)
+Remarks: Hypochromic, anisocytosis. Thrombocytopenia.

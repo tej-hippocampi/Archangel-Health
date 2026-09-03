@@ -1,0 +1,18 @@
+Document index: 57
+Document type: other
+Service date: 2024-06-20
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility name/address/contacts, patient ID, and signatures omitted.
+
+CONTENT
+----------------------------------------
+INTAKE / OUT-PUT RECORD SHEET. Date 20/06/2024.
+Intake:
+Parenteral1: IV med/con 100 at 1000–1100; C/O 100
+Parenteral2: frequent 100 ml entries AM–evening; notes "in line of medication", "in drip", "slow flow";
+  2100 No medication; 0000 amount 200
+PO/NG: H2O 50 (0800), Juice 200 (0900), H2O 100 (1200/1400/1700/2200), Tea 100 (1800),
+  PLW ~100–300 overnight (2300 circled 300), PLW 100 (0500), 200W (0600)
+Output: Urine Pass at 0700, 1000, 1200, 1700, 2200, 0100, 0500
+Stool: Pass (0700, 0100, 0500); SNP (2100, 0300); ABNS (~1000)
+24h totals — Intake: Parenteral 1100 ml, Oral 750 ml, Grand 1850 ml; Output urine Pass, Grand Pass

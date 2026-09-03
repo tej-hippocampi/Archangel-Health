@@ -1,0 +1,30 @@
+Document index: 90
+Document type: CBC/hematology
+Service date: 2024-12-21
+Age on report: 45Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Hematology
+Booking: 21/12/2024 06:34:20
+Collection: 21/12/2024 06:34:45
+Reporting: 21/12/2024 06:59:38
+
+CBC:
+Hemoglobin: 13.8 g/dl (12 - 16.5)
+R.B.Cs: 4.80 10^12/L (4.0-5.2)
+Hematocrit: 39.6 % (35.0-50.0)
+M.C.V: 82.5 fl (76 - 96)
+M.C.H: 28.8 pg (24 - 29)
+M.C.H.C: 34.8 g/dl (32 - 36)
+RDW-CV: 13.8 % (11.0-16.0)
+Total Leucocytes Count/TLC: 8.69 x 10^3/l (4 - 10)
+Neutrophils: 64.1 % (40-75)
+Lymphocytes: 30.1 % (20-45)
+Monocytes: 3.8 % (2 - 10)
+Eosinophils: 1.9 % (1 - 6)
+Basophils: 0.1 % (<1)
+Platelets: 238 x 10^9/l (150 - 400)
+
+Morphology: NORMOCYTIC, NORMOCHROMIC

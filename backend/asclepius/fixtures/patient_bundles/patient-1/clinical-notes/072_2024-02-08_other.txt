@@ -1,0 +1,16 @@
+Document index: 72
+Document type: other
+Service date: 2024-02-08
+Age on report: 40Y    Sex: M
+De-identification: patient name, report no and facility/department names redacted/omitted
+
+CONTENT
+----------------------------------------
+ERCP / Endoscopy procedure report.
+Medication (Conscious Sedation): Propofol. Instrument: TJF 160 Olympus. Location: OPD.
+Indication for examination: Obstructive jaundice.
+Procedure technique: Scope passed up to D2.
+Finding: Previously placed blocked CBD stent removed. CBD cannulated, dye injected to reveal stricture at mid CBD. Another 10FR/10CM plastic stent placed for biliary drainage. Good biliary flow observed.
+Endoscopic diagnosis: S/P blocked CBD stent removed. ?D CBD stricture. Stenting.
+After endoscopy (medication): IVF + antibiotic.
+Recommendation: Keep NPO for 04 hours. Monitor for abdominal pain.

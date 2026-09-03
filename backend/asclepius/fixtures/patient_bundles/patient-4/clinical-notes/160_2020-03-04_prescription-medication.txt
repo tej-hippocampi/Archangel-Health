@@ -1,0 +1,20 @@
+Document index: 160
+Document type: prescription/medication
+Service date: 2020-03-04
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted administration initials/signatures
+
+CONTENT
+----------------------------------------
+Form: Medication Form (continuation)
+Date column: 04/03/2020
+
+Drugs & dosage / times / admin:
+- Tab Nebil 2.5 mg (1+0+0) — 1000 — administered
+- Tab Extor 5/160 (1+0+0) — 1000 — administered
+- Tab Hydralazine 25 mg (1+1+1) — 0600, 14:00, 2200 — administered
+- Tab Vita-6 (1+0+0) — 1000 — administered
+- RBS 6 hourly; Inj Humulin (R) sliding scale: 150→2 u, 200→4 u, 250→6 u, 300→8 u, 350→10 u, 400→12 u, +450
+- NG Feed Glucerna 3 scoops + 250 ml water 6 hourly — 0600, 1200, 1800, 2400 (0600/1200/1800 marked; 2400 blank)
+
+STAT DOSE section empty

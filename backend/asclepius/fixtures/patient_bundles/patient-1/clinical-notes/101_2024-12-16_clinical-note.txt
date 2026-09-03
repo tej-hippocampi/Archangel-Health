@@ -1,0 +1,20 @@
+Document index: 101
+Document type: clinical note
+Service date: 2024-12-16
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: Name, Address (city "Hyd" area), identifier field # fields redacted/omitted; green-marker redactions ignored.
+
+CONTENT
+----------------------------------------
+Handwritten clinical note (VITAL sheet).
+Vitals: BP 100/60; Wt 63 kg.
+Impression: Known case of Chronic PVT (portal vein thrombosis), Portal Biliopathy, deranged LFTs.
+Medications (handwritten, best reading):
+  Tab Motilium 1+0+1
+  Syp Ulsanic 2+0+2 x 5 days
+  T. Mofest
+  Cap DDR 60 1+0+1
+  T. Carvida (carvedilol) 6.25
+  T. Calbon (?)
+  Cap Urso (ursodeoxycholic acid) 250 1+1+1
+Note: EVBL performed.

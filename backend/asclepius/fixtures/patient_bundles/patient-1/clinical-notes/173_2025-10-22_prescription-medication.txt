@@ -1,0 +1,23 @@
+Document index: 173
+Document type: prescription/medication
+Service date: 2025-10-22
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: prescriber signature redacted (green marker)
+
+CONTENT
+----------------------------------------
+Physicians' Orders - Fresh Orders (RN sig column notes: CrCl 67 mL/min, wt 65 kg, Cr 1.22):
+- Keep on CPAP
+- Inj N/S I/V @ 100 mL/hr
+- Inj Meronem (meropenem) 1gm I/V x TDS
+- Inj Risek (omeprazole) 40mg I/V x OD
+- Inj Bofalgan (paracetamol) 1gm I/V x SOS
+- Inj Onset (ondansetron) 8mg I/V x SOS
+- Inj Norpine (noradrenaline) I/V @ 12 mL/hr (taper accordingly)
+- Tab Neo-K 2+2+2
+- Pass CVP line
+- Prop-up
+- Strict vital monitoring
+- Strict I/O charting
+- Tab Sodamint 2+2+2
+- Inj Vit-K x I/V x OD

@@ -1,0 +1,9 @@
+Document index: 83
+Document type: radiology report
+Service date: 2024-03-31
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: physician name printed on ultrasound images omitted
+
+CONTENT
+----------------------------------------
+Ultrasound abdomen images (3 panels). Labeled structures visualized: Spleen, Liver, biliary Stent, Gallbladder (GB) with Stone. Ultrasound modality, abdomen. (Image page accompanying the US abdomen narrative report.)

@@ -1,0 +1,12 @@
+Document index: 103
+Document type: radiology report
+Service date: 2023-06-27
+Age on report: 45Y    Sex: M
+De-identification: Removed patient name, identifier field/accession, facility name; kept age, sex, service date. Age on film reads 45Y (differs from other films in this batch labeled 65Y).
+
+CONTENT
+----------------------------------------
+CT film (Aquilion ONE): 1 scout/localizer of torso plus ~36 axial abdomen/pelvis slices (grid).
+Parameters include ~120kV with variable mA; timestamps around afternoon acquisition.
+Anatomy progression: upper abdomen (liver, stomach, spleen, lung bases/diaphragm) through kidneys/aorta/bowel to lower abdomen/upper pelvis with iliac bones.
+No written findings/impression on film.

@@ -1,0 +1,13 @@
+Document index: 69
+Document type: other lab
+Service date: 2021-08-26
+Age on report: 38Y    Sex: M
+De-identification: name/identifier field/invoice redacted; lab/accession numbers omitted
+
+CONTENT
+----------------------------------------
+Anti-HBc IgM (HBc IgM): Non-Reactive (ref: Non-Reactive)
+Anti-HBc II: Non-Reactive (ref: Non-Reactive)
+PT (Prothrombin Time): 10.9 seconds (ref 9.1 - 13.1 seconds)
+PT Control: 10.8 seconds
+INR: 1.01 (Normal: 0.8 - 1.2; Patient on Warfarin: 2.0 - 3.0)

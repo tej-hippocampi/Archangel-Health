@@ -1,0 +1,42 @@
+Document index: 133
+Document type: discharge summary
+Service date: 2026-06-19
+Age on report: 65Y    Sex: M
+De-identification: Admission no., consultant, patient name, ward, and diagnosis-line fields green-redacted in source; facility header not recorded; no identifier field/phone/address retained.
+
+CONTENT
+----------------------------------------
+DISCHARGE SUMMARY
+Admission date: 16/06/2026
+Discharge summary date: 19/06/2026
+Age: 65 years 9 months 8 days; Sex: Male
+Discharge status: Improved
+
+Presenting complaints:
+65 year old male patient presented here with complain of abdominal pain and generalized weakness.
+
+Relevant investigation: Attached
+
+Date of surgery / procedure noted:
+Microwave ablation of RT lobe of liver
+
+Pending reports: ...
+
+Medication on discharge:
+- Tab Carveda 6.25 mg 1-0-1
+- Tab Ganaton 1-0-1
+- Cap Esomol 40 mg 1-0-0
+- Tab Vida 0-0-1
+- Tab Tramapar 1-0-0 for pain
+
+Hospital course:
+He presented here with complain of abdominal pain and generalized weakness. Vitally stabilized. Relevant investigations were conducted. Meanwhile has been managed conservatively on antibiotics, painkillers, PPIs and antiemetics. After that, CT scan abdomen with contrast proceeded. Showed atypical hepatoma. With full consent, microwave ablation done. Now his condition is stable, hence discharged home.
+
+Operative procedure: (blank on form)
+
+Instruction on discharge:
+- Drink more fluids
+- Avoid constipation
+- Low salt diet
+
+Follow-up: After 7 days in OPD

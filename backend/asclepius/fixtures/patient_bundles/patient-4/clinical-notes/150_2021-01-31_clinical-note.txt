@@ -1,0 +1,36 @@
+Document index: 150
+Document type: clinical note
+Service date: 2021-01-31
+Age on report: 46Y    Sex: UNKNOWN
+De-identification: No name/identifier field/provider/facility on photographed portion; admission year kept as printed (2021)
+
+CONTENT
+----------------------------------------
+Part 2: To Be Filled By Nurse
+
+Admission:
+- Unit: Gastro HDU
+- Date of admission: 31/01/2021; Time: 2200 Hrs
+- Type: Emergency; Mode: Stretcher; ID Band: Applied
+- Information provided by: blank/dash
+
+Vital signs:
+- Age 46 Yrs; Temp 37.2°C; Pulse 82/min; RR 23/min; BP 140/70; O2 Sat 96%
+- Height/Weight: 00 (placeholders)
+- RBS 128 mg/dl (handwritten)
+
+Reason for admission: ALOC, vomiting; K/C DM HTN IHD, Alcoholic
+
+Infectious disease: None checked
+Isolation precautions: airborne/droplet/contact/standard marked through (slash/check pattern)
+
+Pain: No; Score 00
+
+Functional screening:
+- Cognition/LOC: Drowsy
+- Sensory: Tingling
+- Vision: Normal
+- Hearing: Impaired
+- Speech: unchecked
+- Musculoskeletal: Deformities
+- Assistive devices: Crutches

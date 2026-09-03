@@ -1,0 +1,12 @@
+Document index: 106
+Document type: radiology report
+Service date: 2025-12-29
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header; kept age, sex, service date, impression bullets.
+
+CONTENT
+----------------------------------------
+ULTRASOUND ABDOMEN — impression/summary page (same timestamp as index 105).
+
+- Left renal cyst.
+- Rest of abdomen appear unremarkable.

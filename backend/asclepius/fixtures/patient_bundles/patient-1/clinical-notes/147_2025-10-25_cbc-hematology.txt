@@ -1,0 +1,25 @@
+Document index: 147
+Document type: CBC/hematology
+Service date: 2025-10-25
+Age on report: 42Y    Sex: M
+De-identification: name/consultant/lab/identifier fieldredacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Hematology - CBC (Complete Blood Count)
+Hemoglobin: 13.6 g/dl (12 - 16.5)
+R.B.Cs: 5.12 10^12/L (4.0-5.2)
+Hematocrit: 41.3 % (35.0-50.0)
+M.C.V: 80.7 fl (76 - 96)
+M.C.H: 26.6 pg (24 - 29)
+M.C.H.C: 32.9 g/dl (32 - 36)
+RDW-CV: 16.0 % (11.0-16.0)
+Total Leucocytes Count/TLC: 14.64 x10^3/l (4 - 10) [H]
+Neutrophils: 80.1 % (40-75) [H]
+Lymphocytes: 11.5 % (20-45) [L]
+Monocytes: 8.1 % (2 - 10)
+Eosinophils: 0.0 % (1 - 6) [L]
+Basophils: 0.3 % (<1)
+Platelets: 85 x10^9/l (150 - 400) [L]
+Morphology: Normocytic, normochromic. Neutrophilic, leukocytosis. ? Bacterial infection. Platelets are low on smear ? cause
+Remarks: Advise clinical correlation

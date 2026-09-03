@@ -1,0 +1,16 @@
+Document index: 167
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: administering-nurse initials not transcribed
+
+CONTENT
+----------------------------------------
+Medication Form (Drugs & Dosage):
+- Inj N/S (normal saline) 1L I/V at 100 mL/hr
+- Inj Meronem (meropenem) 1g I/V x TDS over prolonged infusion
+- Inj Ezin (esomeprazole) 40mg I/V x OD
+- Inj Vit-K I/V x OD
+- Inj Bofalgan (paracetamol) I/V x SOS
+- Inj Hy-cortisone (hydrocortisone) 50mg I/V x 6 hourly
+STAT DOSE section: blank.

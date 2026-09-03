@@ -1,0 +1,12 @@
+Document index: 131
+Document type: coagulation
+Service date: 2025-10-22
+Age on report: 42Y    Sex: M
+De-identification: name/consultant redacted (green marker); ward/location not transcribed. No identifiers transcribed.
+
+CONTENT
+----------------------------------------
+PROTHROMBIN TIME (PT/INR) (Department of Hematology):
+Prothrombin Time: 14.6 Sec (10 - 15)
+INR: 1.2 (0.9 - 1.5)
+Control: 12.0 Sec

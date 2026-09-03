@@ -1,0 +1,25 @@
+Document index: 126
+Document type: radiology report
+Service date: 2025-09-12
+Age on report: 65Y    Sex: M
+De-identification: Same de-ID as 125; duplicate filename (1); identifiers omitted.
+
+CONTENT
+----------------------------------------
+Duplicate/near-duplicate of index 125.
+X-RAY CHEST PA VIEW
+Date/time: 12/09/2025 11:01:49
+
+Findings:
+- Bony cage normal.
+- No active pulmonary lesion, consolidation, collapse.
+- No mediastinal pathology seen.
+- Hilum appears normal.
+- The cardio and costophrenic angle are clear.
+- Both domes of diaphragm are normally raised.
+- Cardiac shadow is within normal limit.
+- Trachea is centrally placed.
+- Soft tissue appears normal.
+
+CONCLUSION:
+- Normal chest x-ray.

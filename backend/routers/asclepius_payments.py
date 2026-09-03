@@ -1158,6 +1158,99 @@ async def admin_release_earning_hold(
     return {"earning": updated}
 
 
+class ApproveEarningBody(BaseModel):
+    # Optional: an approval is the expected outcome and does not need defending
+    # the way a void does. Recorded when given.
+    note: str = Field("", max_length=500)
+
+
+#: Every way ``payments.approve_earning`` can refuse, and what the operator is
+#: told. A dict rather than a chain of ``if``s so a new refusal token cannot
+#: reach the console as a 500 — the mapping is total by construction, and
+#: ``test_export_approval_prd`` asserts it covers ``APPROVE_REFUSALS``.
+_APPROVE_HTTP: Dict[str, Dict[str, Any]] = {
+    "not_found": {"status_code": 404, "detail": "No such ledger row."},
+    "already_paid": {
+        "status_code": 409,
+        "detail": "That case has already been paid, which is past approved. "
+                  "Nothing to do."},
+    "already_approved": {
+        "status_code": 409,
+        "detail": "That case is already approved. Nothing was written twice."},
+    "voided": {
+        "status_code": 409,
+        "detail": "That case was voided. Re-approving a void is a reversal, not "
+                  "an approval — it is not available here."},
+    "quality_held": {
+        "status_code": 409,
+        "detail": "The payout algorithm proposed paying this case below the "
+                  "posted rate and is waiting on a decision. Release the hold "
+                  "first, then approve."},
+    "raced": {
+        "status_code": 409,
+        "detail": "That row is no longer awaiting approval — it was decided by "
+                  "someone else (or by the auto-approve sweep) a moment ago."},
+}
+
+
+@router.post(
+    "/api/asclepius/admin/earnings/{earning_id}/approve",
+    dependencies=[Depends(rate_limiter("asclepius_approve_earning", 60, 600))],
+)
+async def admin_approve_earning(
+    earning_id: str,
+    body: ApproveEarningBody,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Approve one case — the ledger AND the export gate, in one action.
+
+    THE POINT OF THIS ENDPOINT (PRD §1.1): before it existed there was no admin
+    action that moved a labeler's earning at all. `/release` decides a proposed
+    pay cut and `/void` declines to pay; neither approves. So an accrued row sat
+    reading "Pending review" with no button under it, waiting on a reviewer who
+    might never come, and even when one did the case still could not ship —
+    because approving the MONEY never touched `records.status`, which is the
+    only thing export reads.
+
+    Three writes, one meaning:
+
+    1. the ledger row moves ``accrued`` → ``approved`` (compare-and-set, so a
+       double-click cannot double-approve),
+    2. the submission and its records move to ``export_ready`` — but only from a
+       non-terminal state: an already-``exported`` case is never downgraded and a
+       ``rejected`` one is Void's business, not this route's,
+    3. an audit event, because this deliberately BYPASSES QA sampling and an
+       audit that does not say so is not an audit.
+
+    A row the payout algorithm has HELD is refused with a 409 pointing at
+    `/release`. That hold is the promise that an automated pay cut never applies
+    without a person deciding it, and approving through this route would apply
+    the reduced amount while looking like a plain approval.
+    """
+    store = _store()
+    result = asc_payments.approve_earning(
+        store, earning_id=earning_id, actor=admin["email"], note=body.note)
+    if not result["ok"]:
+        raise HTTPException(**_APPROVE_HTTP[result["refusal"]])
+
+    gate = result["gate"]
+    user_id = result.get("user_id")
+    return {
+        "ok": True,
+        "earning_id": earning_id,
+        "approved": True,
+        "row": result["row"],
+        "user_id": user_id,
+        # What happened to the EXPORT gate, in the same response. An operator who
+        # approves a case is entitled to know in one round trip whether it can
+        # now ship — that silence is the bug this PRD exists to fix.
+        "exportable": bool(gate["moved"]) or gate["outcome"] == "already",
+        "records_outcome": gate["outcome"],
+        "submission_status": gate["status"],
+        "totals": store.earnings_payable_for_user(user_id),
+    }
+
+
 class VoidEarningBody(BaseModel):
     # Required, and long enough to be a reason rather than a keystroke. Voiding a
     # doctor's pay must be attributable AND explicable — "x" is neither.
@@ -1205,17 +1298,28 @@ async def admin_void_earning(
     if result["reason_code"] == "not_found":
         raise HTTPException(status_code=404, detail="No such ledger row.")
 
+    gate = {"moved": False, "outcome": "not_a_case", "status": None}
     if result["changed"]:
+        # THE MIRROR (PRD §1.1). Approve moves the ledger and the export gate
+        # together; a void that moved only the ledger would leave a case we have
+        # declined to pay for still queued to ship. Non-terminal states only:
+        # an already-``exported`` case is with a buyer and cannot be recalled by
+        # a payment decision.
+        gate = asc_payments.apply_ledger_decision_to_records(
+            store, submission_id=asc_payments.submission_ref(
+                earning.get("kind"), earning.get("ref_id")),
+            decision="reject", reason="admin_voided", actor=admin["email"])
         store.log_event(
             entity_type="earning", entity_id=earning_id, event_type="earning_voided",
             actor=admin["email"],
             payload={"reason": reason, "kind": earning.get("kind"),
                      "ref_id": earning.get("ref_id"), "user_id": earning.get("user_id"),
                      "amount_cents": int(earning.get("amount_cents") or 0),
-                     "from_status": earning.get("status")},
+                     "from_status": earning.get("status"),
+                     "records_outcome": gate["outcome"]},
         )
-        log.warning("asclepius.payments: earning %s voided by %s (%s)",
-                    earning_id, admin["email"], reason)
+        log.warning("asclepius.payments: earning %s voided by %s (%s; records: %s)",
+                    earning_id, admin["email"], reason, gate["outcome"])
 
     user_id = earning.get("user_id")
     return {
@@ -1227,6 +1331,8 @@ async def admin_void_earning(
         "voided": bool(result["changed"]),
         "row": result["row"],
         "user_id": user_id,
+        "records_outcome": gate["outcome"],
+        "submission_status": gate["status"],
         "totals": store.earnings_payable_for_user(user_id),
     }
 

@@ -152,9 +152,16 @@ def _submit(store, task, evaluator_id, *, sub_id=None, verdict="A_better"):
 
 
 def _queue(store, evaluator_id, *, specialty="gastroenterology"):
-    """Task ids the labeler queue would offer, in priority order."""
+    """Task ids the LONGITUDINAL queue would offer, in priority order.
+
+    ``trajectory_only``, not ``real_only``, since the relabel (Longitudinal E2E
+    PRD §5.1 Group B). A trajectory point is real de-identified data, so it used
+    to fall into the V4 queue and be served as a static case — the right data as
+    the wrong product. The two flags now partition the real pool, and this helper
+    asks the queue that actually owns these tasks.
+    """
     sql, params = store.labeler_queue_sql(
-        evaluator_id=evaluator_id, specialty=specialty, real_only=True)
+        evaluator_id=evaluator_id, specialty=specialty, trajectory_only=True)
     with store._conn() as conn:
         return [dict(r)["task_id"] for r in conn.execute(sql, params).fetchall()]
 
@@ -427,13 +434,22 @@ def test_gate_is_per_evaluator_not_per_chart():
 
 
 def test_ordinary_tasks_are_unaffected_by_construction():
-    """``trajectory_id IS NULL`` comes first in the clause, so every V1–V4 task
-    short-circuits out of the subquery entirely."""
+    """``trajectory_id IS NULL`` comes first in the sequence-gate clause, so every
+    non-trajectory task short-circuits out of the subquery entirely.
+
+    Asked of the V4 queue, because that is where a real STATIC case lives since the
+    relabel — and the second assertion is the half that makes this a partition
+    rather than a rename: the same three tasks are absent from the V5 queue."""
     store = _store()
     plain = [store.insert_task(prompt=f"ordinary {i}", specialty="gastroenterology",
                                case=_traj_case(), max_labels=1) for i in range(3)]
-    served = _queue(store, "A")
-    assert {t["task_id"] for t in plain} <= set(served)
+    ids = {t["task_id"] for t in plain}
+    sql, params = store.labeler_queue_sql(
+        evaluator_id="A", specialty="gastroenterology", real_only=True)
+    with store._conn() as conn:
+        v4_served = {dict(r)["task_id"] for r in conn.execute(sql, params).fetchall()}
+    assert ids <= v4_served
+    assert not (ids & set(_queue(store, "A"))), "a static case is not longitudinal work"
 
 
 def test_a_trajectory_row_with_no_position_is_never_served():
@@ -508,13 +524,13 @@ def test_at_max_labels_1_the_first_physician_owns_the_walk_and_an_admin_can_rele
     _submit(store, points[0], "A")
     # B cannot start: point 0 is at capacity and everything later is gated on it.
     assert store.next_task_for_evaluator(
-        evaluator_id="B", specialty="gastroenterology", real_only=True) is None
+        evaluator_id="B", specialty="gastroenterology", trajectory_only=True) is None
     # The release is an explicit, priced decision — a second independent walk.
     assert store.flag_tasks_for_double_label(
         [{"task_id": points[0]["task_id"], "specialty": "gastroenterology",
           "current_rate": None}]) == [points[0]["task_id"]]
     got = store.next_task_for_evaluator(
-        evaluator_id="B", specialty="gastroenterology", real_only=True)
+        evaluator_id="B", specialty="gastroenterology", trajectory_only=True)
     assert got is not None and got["task_id"] == points[0]["task_id"]
 
 
@@ -1023,11 +1039,16 @@ def test_available_list_shows_only_the_next_openable_point():
     store = _store()
     _tid, points = _walk(store, n=4)
     user = _approved_user(store)
-    rows = client.get("/api/asclepius/tasks/available?portal_version=v4",
+    rows = client.get("/api/asclepius/tasks/available?portal_version=v5",
                       headers=A.headers_for(user)).json()["tasks"]
     traj = [t for t in rows if t.get("trajectory_id")]
     assert [t["task_id"] for t in traj] == [points[0]["task_id"]]
     assert traj[0]["sequence_index"] == 0
+    # And the V4 queue advertises none of them: a physician who chose "Real cases"
+    # must not be shown a card that belongs to a chart walk.
+    v4 = client.get("/api/asclepius/tasks/available?portal_version=v4",
+                    headers=A.headers_for(user)).json()["tasks"]
+    assert not [t for t in v4 if t.get("trajectory_id")]
 
 
 def test_the_export_annex_carries_the_reassembly_key_and_the_falsifier():

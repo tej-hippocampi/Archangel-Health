@@ -69,10 +69,76 @@ class ExportValidationError(ValueError):
     rejected wholesale (opt §2: no partial silent exports)."""
 
 
+def _export_root_path() -> Path:
+    """The configured export dir, made absolute WITHOUT creating or resolving it.
+
+    ``export_root`` adds the ``mkdir`` (and ``.resolve()``) for real filesystem use.
+    A durability *check* must do neither, for the two reasons
+    ``ingestion._ingest_root_path`` already spells out and this module had not
+    learned:
+
+      * **mkdir** turns "not durable" into an exception. Probing a path the
+        process cannot create — an unmounted ``/data`` on a non-root runner, a
+        root-owned ``/run`` — raises ``PermissionError`` instead of returning the
+        very answer the check exists to give. The endpoint catches it and reports
+        ``durable: false, "durability check raised: …"``, which is a DIFFERENT
+        claim from "this path is ephemeral": one says the export store will be
+        wiped, the other says we could not tell. The storage banner exists so an
+        operator can trust that difference.
+      * **resolve** rewrites a path through its symlinks, so ``/tmp`` on a system
+        where it links elsewhere no longer matches the ephemeral prefix list and
+        the check silently misses. The default here IS ``/tmp/asclepius-exports``,
+        so that is the one path this probe must never fail to recognise.
+    """
+    return Path(os.path.abspath(
+        os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports"))
+
+
 def export_root() -> Path:
+    """The export dir, created and ready to write into. Real filesystem use only —
+    a durability check wants ``_export_root_path`` instead."""
     root = Path(os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports").resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
+
+
+def export_storage_durable() -> tuple:
+    """(ok, detail) — will built bundles survive a redeploy?
+
+    ``ASCLEPIUS_EXPORT_DIR`` defaults to ``/tmp/asclepius-exports``, which is
+    erased on every deploy. The ``exports`` ROW survives (it is in the database),
+    so history keeps listing the batch — and its Download button then hands the
+    buyer an archive containing only ``batch.json``, because ``zip_export``
+    rebuilds what it can from the stored manifest and there is nothing else left.
+    A delivered buyer, following the link in the email we sent them, downloads a
+    dataset with no data in it.
+
+    **Reported, never fail-closed** — deliberately, unlike the database. A lost
+    bundle is RECOVERABLE: records are permanent and export is non-destructive,
+    so the batch can simply be cut again. Refusing to boot over something a
+    re-export fixes would trade a real outage for a recoverable inconvenience.
+    """
+    from asclepius.constants import (
+        path_is_ephemeral, path_under_declared_volume,
+    )
+
+    configured = (os.getenv("ASCLEPIUS_EXPORT_DIR") or "").strip()
+    # NOT ``export_root()`` — see ``_export_root_path``. This is a read-only probe.
+    path = str(_export_root_path())
+    if not configured:
+        return False, (
+            f"ASCLEPIUS_EXPORT_DIR is not set, so built bundles land in {path} "
+            "and are erased on every redeploy. Past exports stay listed in "
+            "history but download as an empty archive — including for a buyer "
+            "following the link we emailed them. Set it to a path on the volume "
+            "(e.g. /data/asclepius-exports).")
+    if path_under_declared_volume(path) is False:
+        return False, (f"{path} is not under the volume this platform mounted; "
+                       "built bundles are erased on every redeploy.")
+    if path_is_ephemeral(path):
+        return False, (f"{path} is on ephemeral storage; built bundles are "
+                       "erased on every redeploy.")
+    return True, f"export bundles durable ({path})"
 
 
 def _new_export_id() -> str:
@@ -187,6 +253,33 @@ def _counts(records: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 # ─── Filtering (opt §2) ───────────────────────────────────────────────────────
+def _trajectory_sort_key(rec: Dict[str, Any]) -> tuple:
+    """Order a walk's points by their position in it, and leave everything else
+    where it was (Longitudinal E2E PRD §5.3).
+
+    ``(0, "", 0)`` for a record with no trajectory, so every non-longitudinal
+    record sorts equal and Python's stable sort preserves the order they were
+    selected in. A walk sorts after them, grouped by ``trajectory_id`` and then by
+    ``sequence_index`` — never by ``captured_at``, which is when the PHYSICIAN
+    worked, not when the patient did.
+    """
+    payload = rec.get("payload") or {}
+    block = payload.get("trajectory") or {}
+    tid = block.get("trajectory_id") or payload.get("trajectory_id")
+    if not tid:
+        return (0, "", 0)
+    idx = block.get("sequence_index")
+    if idx is None:
+        idx = payload.get("sequence_index")
+    try:
+        idx = int(idx)
+    except (TypeError, ValueError):
+        # A point with no readable position sorts FIRST within its walk, where it
+        # is conspicuous, rather than last where it reads as the terminal point.
+        idx = -1
+    return (1, str(tid), idx)
+
+
 def _passes_filters(
     rec: Dict[str, Any],
     *,
@@ -201,6 +294,7 @@ def _passes_filters(
     case_source: Optional[str] = None,
     submission_id: Optional[str] = None,
     case_id: Optional[str] = None,
+    case_ids: Optional[set] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
     # Single-task scoping (Exports rework): export exactly one submission's
@@ -210,7 +304,24 @@ def _passes_filters(
         return False
     # Case scoping (PRD A Phase 5): a case IS a task — one case_id bundles every
     # submission + review on it. Accept the column or the payload mirror.
-    if case_id and rec.get("task_id") != case_id and payload.get("task_id") != case_id:
+    #
+    # ``case_ids`` WIDENS that to a set, and it exists for exactly one caller:
+    # V5 scope, where selecting one point of a chart walk must export the WHOLE
+    # walk (Longitudinal E2E PRD §5.3). A fragment of a trajectory is not a
+    # cheaper trajectory — point 7 with no point 6 has no state to have been
+    # reasoned from, and the buyer cannot reassemble what they paid for.
+    if case_ids is not None:
+        if (rec.get("task_id") not in case_ids
+                and payload.get("task_id") not in case_ids):
+            return False
+    elif case_id and rec.get("task_id") != case_id and payload.get("task_id") != case_id:
+        return False
+    # Multi-case scoping (PRD §2.1): the Export tab's Case scope accepts a LIST,
+    # because "the three cases I just approved" is one bundle and not three.
+    # Kept beside ``case_id`` rather than replacing it — the single-id form is
+    # ``export_by_case``'s frozen signature (Seam 2) and every caller of it.
+    if case_ids is not None and (
+            rec.get("task_id") not in case_ids and payload.get("task_id") not in case_ids):
         return False
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
         return False
@@ -423,6 +534,25 @@ def _synthetic_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
+def _case_provenance(records: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Where the CASES in this batch came from, counted (PRD §2.3).
+
+    Distinct from ``model_generated_question_count``, which is about where the
+    QUESTION came from. The two are independent axes and conflating them is what
+    made "synthetic_prompt_count" misread: a real de-identified chart with a
+    model-authored question is a real case, and a buyer paying real-case prices
+    is entitled to see that stated separately.
+
+    Keys are the ``case_source`` vocabulary (``real_deid`` / ``synthetic``) plus
+    ``unspecified`` for text records, which carry no case at all.
+    """
+    out: Dict[str, int] = {}
+    for r in records:
+        key = _rec_case_source(r) or "unspecified"
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
 def _seed_corpus_ratified(records: List[Dict[str, Any]]) -> Optional[bool]:
     """Tri-state ratification of the synthetic prompts in this batch:
     ``True`` (all synthetic records came from a clinician-ratified corpus),
@@ -496,6 +626,36 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
   credentialed specialist's work. Generated prompts are never auto-marked grounded."""
 
 
+def _longitudinal_scope_md(records: List[Dict[str, Any]]) -> str:
+    """The Composition line naming what a longitudinal batch actually contains
+    (Longitudinal E2E PRD §5.3): how many WALKS, and how many points across them.
+
+    Two numbers because they are never the same number and the pair is what the
+    artifact is priced on. "21 records" says nothing about whether that is two
+    complete chart walks or twenty-one unrelated fragments, and those are
+    different products at very different prices. Emitted only when the batch
+    carries a trajectory, so a V1–V4 datasheet is byte-for-byte unchanged.
+    """
+    walks: Dict[str, int] = {}
+    for rec in records:
+        payload = rec.get("payload") or {}
+        block = payload.get("trajectory") or {}
+        tid = block.get("trajectory_id") or payload.get("trajectory_id")
+        if tid:
+            walks[str(tid)] = walks.get(str(tid), 0) + 1
+    if not walks:
+        return ""
+    n_walks, n_points = len(walks), sum(walks.values())
+    return (
+        f"- Scope: **V5 longitudinal** · {n_walks} trajector"
+        f"{'y' if n_walks == 1 else 'ies'} · {n_points} point"
+        f"{'' if n_points == 1 else 's'}. Records are one line per POINT; the "
+        "reassembly key is `trajectory.trajectory_id` and the order is "
+        "`trajectory.sequence_index`. Never sort a walk on `captured_at` — that is "
+        "when the physician worked, not when the patient did."
+    )
+
+
 def _scope_section_md(scope: Optional[Dict[str, Any]]) -> str:
     """An auto-generated aggregate credential line for contributor/organization-
     scoped exports (spec §5), e.g. "All records labeled by an NPI-verified, board-
@@ -520,6 +680,44 @@ def _scope_section_md(scope: Optional[Dict[str, Any]]) -> str:
         "matched by `annotator_id_hashed`."
     )
     return "\n".join(lines)
+
+
+def _composition_scope_line(scope: Optional[Dict[str, Any]]) -> str:
+    """The one-line "how this bundle was cut" for the datasheet's Composition
+    section (PRD §2.3), e.g.
+
+        - Scope: **physician** · nephrology · 7 cases (annotator `3f9a…c1`)
+
+    A lab that receives a bundle needs to know it is a slice and which slice —
+    a per-physician cut and an everything cut have very different statistical
+    properties, and a datasheet that does not say which is a datasheet that
+    invites the wrong conclusion.
+
+    **The physician's NAME never appears here, or anywhere else in a bundle.**
+    Only ``annotator_id_hashed``, which is what the Further Credential Summary
+    matches on under NDA. This function reads only fields that are hashes or
+    counts; a caller that puts a name in ``scope`` is the bug, and
+    ``test_export_approval_prd`` asserts no bundle carries one.
+    """
+    if not scope:
+        return ""
+    bits: List[str] = []
+    stype = scope.get("type")
+    if stype:
+        bits.append(f"**{stype}**")
+    for key in ("specialty", "portal_version"):
+        if scope.get(key):
+            bits.append(str(scope[key]))
+    n = scope.get("case_count")
+    if isinstance(n, int):
+        bits.append(f"{n} case{'' if n == 1 else 's'}")
+    if not bits:
+        return ""
+    line = "- Scope: " + " · ".join(bits)
+    hashed = scope.get("annotator_id_hashed")
+    if hashed:
+        line += f" (annotator `{str(hashed)[:8]}…`)"
+    return line
 
 
 def _stance_semantics_md(records: List[Dict[str, Any]]) -> str:
@@ -600,8 +798,10 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - Total records: **{counts['total']}**
 {type_lines}
 - Specialties: {", ".join(specialties) or "n/a"}
-- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 classic · V2 assisted · V3 seamless synthetic · **V4 REAL de-identified cases**)
+- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 classic · V2 assisted · V3 seamless synthetic · **V4 REAL de-identified static cases** · **V5 REAL longitudinal chart walks**)
 - By modality: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_modality', {}).items())) or "n/a"} (text vs structured-multimodal case)
+{_composition_scope_line(scope)}
+{_longitudinal_scope_md(records)}
 {_scope_section_md(scope)}
 {_multimodal_section_md(records, counts)}
 {_synthetic_provenance_md(records)}
@@ -635,8 +835,14 @@ Training / evaluating medical LLMs (reward modeling, SFT, process supervision).
 
 ## Rights & privacy
 - `contains_phi: false` (asserted + residual-identifier scanned).
-- `ip_cleared: true`; `license` stamped on every record.
+- `ip_cleared: true`; `license: {_license_name()}` stamped on every record in
+  this batch (PRD §2.3 — commercial terms, stated on the artifact itself).
 """
+
+
+def _license_name() -> str:
+    from asclepius.constants import default_license
+    return default_license()
 
 
 def _outcome_verification_md(ov: Dict[str, Any]) -> str:
@@ -1369,6 +1575,7 @@ def export_by_case(
     *,
     created_by: Optional[str] = None,
     case_id: Optional[str] = None,
+    case_ids: Optional[List[str]] = None,
     specialty: Optional[str] = None,
     portal_version: Optional[str] = None,
     include_exported: bool = True,
@@ -1395,6 +1602,7 @@ def export_by_case(
         store,
         created_by=created_by,
         case_id=case_id,
+        case_ids=case_ids,
         specialty=specialty,
         portal_version=portal_version,
         include_exported=include_exported,
@@ -1429,6 +1637,7 @@ def build_export(
     scope: Optional[Dict[str, Any]] = None,
     submission_id: Optional[str] = None,
     case_id: Optional[str] = None,
+    case_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Assemble + persist an export batch from export-ready records.
 
@@ -1492,6 +1701,30 @@ def build_export(
             since=since,
             until=until,
         )
+    # ── V5 scope exports WHOLE trajectories (Longitudinal E2E PRD §5.3) ──────
+    # Selecting V5 with a case id means "the walk this point belongs to", not
+    # "this point". A thirteen-point chart sold as one artifact and delivered as
+    # point 7 alone is not a smaller delivery of the same thing: the value is the
+    # sequence, and a buyer cannot reassemble a walk they were given one link of.
+    #
+    # Scoped to the V5 selection deliberately. Widening every case-id export this
+    # way would change what V3 and V4 mean, and there a case IS a task.
+    #
+    # ``case_ids`` is a PARAMETER (the Export tab's multi-case scope), so this
+    # must not reset it — it may only WIDEN a single-case V5 selection into the
+    # walk that case belongs to. It read ``case_ids = None`` before this merge,
+    # which was harmless while the parameter did not exist and silently emptied
+    # every multi-case bundle the moment it did.
+    if portal_version == "v5" and case_id and not case_ids:
+        anchor = store.get_task(case_id) if hasattr(store, "get_task") else None
+        traj = (anchor or {}).get("trajectory_id")
+        if traj and hasattr(store, "trajectory_points"):
+            walk = store.trajectory_points(traj) or []
+            case_ids = {p.get("task_id") for p in walk} - {None}
+        # An anchor with no trajectory falls through to the ordinary single-case
+        # path rather than erroring: a V5 filter on a static case id is an empty
+        # slice, and "nothing matches these filters" is the honest answer.
+
     records = [
         r
         for r in candidates
@@ -1509,13 +1742,23 @@ def build_export(
             case_source=case_source,
             submission_id=submission_id,
             case_id=case_id,
+            case_ids=set(case_ids) if case_ids else None,
         )
     ]
     if not records:
         raise ValueError("No export-ready records match the selected filters.")
+    # ORDERED, and this is the product rather than tidiness. Point n's visible
+    # chart is the state before point n's decision and point n+1's contains what
+    # happened after it, so a walk delivered out of order reads as a contradictory
+    # patient. Records with no trajectory keep their existing relative order — the
+    # sort key is constant for them and Python's sort is stable.
+    records.sort(key=lambda r: _trajectory_sort_key(r))
 
     export_id = _new_export_id()
     exported_at = datetime.utcnow().isoformat()
+    # Resolved once per batch, not per record: one bundle ships under one license.
+    from asclepius.constants import default_license as _default_license
+    _license_terms = _default_license()
 
     # 1. Map + validate EVERY line before writing anything (fail loud, fail whole).
     lines: List[str] = []
@@ -1543,6 +1786,15 @@ def build_export(
         payload = dict(rec.get("payload") or {})
         payload.pop("record_id", None)
         payload["exported_at"] = exported_at
+        # THE LICENSE IN FORCE AT SHIP TIME (PRD §2.3). Packaging stamps the
+        # license when a record is captured, so the entire back catalogue carries
+        # ``CC-BY-NC-4.0-clinical-eval`` — NON-commercial, on data sold to train
+        # commercial models. Re-stamped here, at emit, for the same reason
+        # ``exported_at`` is: it is a property of THIS shipment. Nothing in the
+        # ``records`` table is rewritten (§0: no destructive migration), so a
+        # record's captured payload stays exactly as it was captured, and every
+        # line that leaves the building carries one consistent, correct license.
+        payload["license"] = _license_terms
         if "related_party" not in payload:
             _sid = rec.get("submission_id") or payload.get("submission_id")
             if _sid not in _rp_by_sid:
@@ -1805,6 +2057,7 @@ def build_export(
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
         "case_id": case_id,
+        "case_ids": sorted(case_ids) if case_ids else None,
     }
     content_hashes = {JSONL_NAME: _sha256_text(jsonl_text)}
     for name in companion_files:
@@ -1834,6 +2087,17 @@ def build_export(
         # modality, mime, license, provenance, path}. Empty for text-only batches.
         "image_assets": image_assets,
         "image_asset_count": len(image_assets),
+        # Renamed from ``synthetic_prompt_count`` (PRD §2.3). "Synthetic" reads,
+        # to a buyer, as "made-up case" — and it never meant that. It counts
+        # records whose QUESTION was model-authored; the case underneath may be a
+        # real de-identified chart. ``case_provenance`` sits beside it saying
+        # which, so "real case, model-generated question" reads as what it is
+        # instead of as a synthetic dataset.
+        "model_generated_question_count": len(_synthetic_records(emitted)),
+        "case_provenance": _case_provenance(emitted),
+        # The old key, kept alongside for one release so a buyer's ingest script
+        # written against it does not break on the rename. New consumers read
+        # ``model_generated_question_count``.
         "synthetic_prompt_count": len(_synthetic_records(emitted)),
         # Tri-state: true (all synthetic prompts from a ratified corpus), false
         # (some unratified — see datasheet warning), or null (no synthetic prompts).

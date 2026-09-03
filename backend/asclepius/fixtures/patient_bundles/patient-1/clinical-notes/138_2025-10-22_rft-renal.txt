@@ -1,0 +1,11 @@
+Document index: 138
+Document type: RFT/renal
+Service date: 2025-10-22
+Age on report: 42Y    Sex: M
+De-identification: name/consultant/identifier fieldredacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Biochemistry - Creatinine (Serum)
+Creatinine Serum: 1.22 mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4) [H]
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU) -- 003

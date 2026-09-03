@@ -1,0 +1,24 @@
+Document index: 139
+Document type: clinical note
+Service date: 2026-01-31
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility footer, all provider names, and signatures/stamps
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS (Page 1 of 2)
+
+Entry 1 — Time 07:30 PM:
+- MRI Brain done
+- Films shared with Neurophysician onboard [name redacted]
+- Case discussed with [provider redacted]
+- Stepping down in Gastro ward
+- When bed vacant in HDU, shift patient to Gastro HDU
+
+Entry 2 — Time 07:40 PM — Shifting Note (Gastro ward):
+- Currently vitally stable on room air with GCS E3 V3 M6 = 12/15
+- MRI Brain report & share with [Neurophysician redacted]
+- Strict BP & I/O x 1 hourly
+- Observe GCS, R/R & SpO2
+- Shift to Gastro HDU once bed vacant
+- Handover given to [Gastro provider redacted]

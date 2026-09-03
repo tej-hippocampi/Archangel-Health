@@ -1,0 +1,19 @@
+Document index: 48
+Document type: prescription/medication
+Service date: 2026-06-16
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility footer (URL/address/phone/email), ordered-by name, and all signatures/initials omitted. No patient name, age, or sex on form.
+
+CONTENT
+----------------------------------------
+MEDICATION FORM with multi-day admin grid.
+Date headers: 16/06/2026, 17/06/2026, 09/07, 10/7, 11/07, 21/06/2026.
+Scheduled:
+1. Tab Carneda/Casveda 6.25 mg 1-0-1 (10:00, 22:00) — given 16/06/2026 through 21/06/2026
+2. Tab Ganaton 50 mg 1-0-1 (10:00, 22:00) — given 16/06/2026 through 21/06/2026
+3. Cap Ezomol 40 mg 1-0-0 (10:00) — given through ~09/07; Hold ~10/7; Stop ~11/07
+4. Tab Colofec 1-0-1 (10:00, 22:00) — given through ~09/07; Hold from ~10/7
+5. Tab Vida 0-0-1 (22:00) — given through ~09/07; Hold from ~11/07
+6. Tab Tramapar 1-0-1 (10:00, 22:00) — given through ~09/07; Hold from ~11/07
+Red diagonal line across Hold sections for lower rows. Admin initials omitted.
+STAT DOSE: Bofalgan (paracetamol IV) — date 21/06/2026, time 07:00 am (ordered-by and signature redacted/omitted).

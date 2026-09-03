@@ -1,0 +1,31 @@
+Document index: 145
+Document type: urinalysis
+Service date: 2025-10-23
+Age on report: 42Y    Sex: M
+De-identification: name/consultant/identifier fieldredacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Parasitology - Urine DR
+Physical Examination:
+Quantity: 40 mL
+Color: Dark Yellow (ref Pale Yellow - Yellow)
+Appearance: S.Turbid (ref Clear)
+Chemical Examination:
+Specific Gravity: 1.020 (1.005 - 1.025)
+Reaction pH: 6.0 (5-8)
+Protein: +2 mg/dl (ref Negative)
+Glucose: Negative mg/dl (ref Negative)
+Ketone Bodies: Negative (ref Negative)
+Bilirubin: +1 (ref Negative)
+Urobilinogen: +1 mg/dl (ref Negative)
+Blood: +4 Ery/ul (ref Negative)
+Nitrite: Negative (ref Negative)
+Microscopic Examination:
+Pus Cells: 4-6 /HPF (0-4)
+Epithelial Cells: NIL /HPF
+Casts: Granular Cast 02 /HPF
+Crystals: NIL /HPF
+Bacteria: Few /HPF
+Red Blood Cells: 14-16 /HPF (0 - 2)
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU)--003

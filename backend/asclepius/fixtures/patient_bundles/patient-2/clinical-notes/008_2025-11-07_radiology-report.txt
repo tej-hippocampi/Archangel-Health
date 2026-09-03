@@ -1,0 +1,34 @@
+Document index: 8
+Document type: radiology report
+Service date: 2025-11-07
+Age on report: 65Y    Sex: M
+De-identification: Omitted patient name, identifier field, referring provider name
+
+CONTENT
+----------------------------------------
+Study: CT SCAN WHOLE ABDOMEN WITH CONTRAST
+
+HISTORY: K/c of CLD. Suspected HCC.
+
+TECHNIQUE: Axial images obtained after oral and intravenous contrast. Reconstructions in coronal and sagittal planes.
+
+FINDINGS:
+- Liver appears cirrhotic with irregular/undulating margins and coarse nodular parenchyma. Small hypodensity in segment VI without enhancement, likely simple hepatic cyst. No definite arterially enhancing lesion in either lobe. No abnormal washout to suggest hepatocellular carcinoma.
+- Gallbladder mildly thick-walled and edematous, likely reactionary. (Later line also states gallbladder appears normal without calculi — as printed.)
+- Portal vein mildly dilated measuring 1.6 cm. No portal venous thrombosis.
+- Spleen mildly enlarged and lobulated, measuring 13 cm CC length.
+- Pancreas: no parenchymal abnormality; peripancreatic fat planes preserved.
+- Adrenal glands within normal limits.
+- Both kidneys normal size/shape/position with normal enhancement; no mass or hydronephrosis.
+- Urinary bladder inadequately filled.
+- Prostate and seminal vesicles unremarkable.
+- Fecal-loaded large bowel; small bowel grossly unremarkable.
+- No ascites.
+- Few subcentimeter abdominopelvic lymph nodes, likely nonspecific.
+- Lung bases (lung windows): diffuse emphysematous changes.
+- Bony windows: degenerative changes in spine.
+
+IMPRESSION:
+Imaging features suggesting chronic liver disease. No arterially enhancing lesion identified in either lobe of liver. No abnormal washout seen to suggest hepatocellular carcinoma.
+
+(Blue ink underlines on: cirrhotic; simple hepatic cyst; enlarged; No ascites; and full impression sentences regarding no arterially enhancing lesion / no washout for HCC.)

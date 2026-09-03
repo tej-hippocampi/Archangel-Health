@@ -1,0 +1,18 @@
+Document index: 58
+Document type: radiology report
+Service date: unknown-date
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility/provider header (green redaction); sonologist and Ref. By blank/omitted; no identifier field/DOB/service date on this page
+
+CONTENT
+----------------------------------------
+Modality: Echocardiogram — STRUCTURAL INTERPRETATION (continuation page)
+
+Left Ventricle systolic function: Size and wall thickness normal. Left ventricular global systolic function normal. Visually estimated ejection fraction 55%.
+Left ventricle diastolic function: Mitral inflow shows pseudonormal E/A pattern. E/E' 16.
+Right Ventricle: Normal in size with normal systolic function.
+Left Atrium: Mildly dilated.
+Right Atrium: Normal in size.
+Aorta: Aortic root normal in size and appearance.
+Systemic Veins: Inferior vena cava normal in size and collapses normally with inspiration.
+Additional Findings: No pericardial effusion, LV clot, vegetation or shunt seen.

@@ -1,0 +1,22 @@
+Document index: 58
+Document type: other lab
+Service date: 2025-01-24
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name/identifier field/facility (green redaction); kept age, sex, service dates, clinical results
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+Panel: LFT (Liver Function Test)
+
+Booking: 24/01/2025 19:43:04
+Collection: 24/01/2025 19:50:48
+Reporting: 24/01/2025 20:58:28
+
+- Bilirubin Total: 0.2 mg/dL (Adult 0.1-1.0; pediatric day-of-life ranges also listed)
+- Bilirubin Direct: 0.1 mg/dL (Up to 0.4)
+- Bilirubin Indirect: 0.1 mg/dL (0.0-0.80)
+- SGOT/AST (Plain): 24 U/L (Male/Female: 50)
+- SGPT/ALT: 10 U/L (Male/Female/Infant: 65)
+- Alkaline Phosphate: 79 U/L (Male 270; Female 240; age-based pediatric ranges listed)
+- GAMMA GT: 48 U/L (Male <55; Female <38)

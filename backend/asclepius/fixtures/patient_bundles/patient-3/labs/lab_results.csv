@@ -1,0 +1,265 @@
+service_date,panel,test_name,loinc,value,unit,reference_range,flag,source_image_index
+2024-01-06,LFT,Alkaline Phosphate,6768-6,83,U/L,Male: 270; Female: 240; pediatric ranges listed,,50
+2024-01-06,LFT,Bilirubin Direct,1968-7,0.20,mg/dL,Up to 0.4,,50
+2024-01-06,LFT,Bilirubin Indirect,1971-1,0.16,mg/dL,0.0 - 0.80,,50
+2024-01-06,LFT,Bilirubin Total,1975-2,0.36,mg/dL,Adult: Up to 0.1-1.0; pediatric ranges listed on report,,50
+2024-01-06,LFT,GAMMA GT,2324-2,35,U/L,Male: < 55; Female: < 38,,50
+2024-01-06,LFT,SGOT/AST (Plain),1920-8,45,U/L,Male/Female: 50,,50
+2024-01-06,LFT,SGPT/ALT,1742-6,21,U/L,Male/Female/Infant: 65,,50
+2024-01-06,coagulation,Control,,13.0,sec,,,51
+2024-01-06,coagulation,INR,6301-6,1.26,,0.9 - 1.5,,51
+2024-01-06,coagulation,Prothrombin Time,5902-2,16.3,Sec,10 - 15,,51
+2024-01-06,CBC/hematology,Basophils,706-2,0.2,%,<1,,52
+2024-01-06,CBC/hematology,Eosinophils,713-8,1.1,%,1 - 6,,52
+2024-01-06,CBC/hematology,Hematocrit,4544-3,18.0,%,35.0 - 50.0,,52
+2024-01-06,CBC/hematology,Hemoglobin,718-7,5.4,g/dl,11.5 - 15.5,,52
+2024-01-06,CBC/hematology,Lymphocytes,736-9,10.0,%,20 - 45,,52
+2024-01-06,CBC/hematology,M.C.H,785-6,18.2,pg,24 - 29,,52
+2024-01-06,CBC/hematology,M.C.H.C,786-4,30.0,g/dl,32 - 36,,52
+2024-01-06,CBC/hematology,M.C.V,787-2,60.8,fl,76 - 96,,52
+2024-01-06,CBC/hematology,Monocytes,5905-5,11.2,%,2 - 10,,52
+2024-01-06,CBC/hematology,Neutrophils,770-8,77.5,%,40 - 75,,52
+2024-01-06,CBC/hematology,Platelets,777-3,44,x 10^9/l,150 - 400,,52
+2024-01-06,CBC/hematology,R.B.Cs,789-8,2.96,10^12/L,4.0 - 5.2,,52
+2024-01-06,CBC/hematology,RDW-CV,788-0,24.3,%,11.0 - 16.0,,52
+2024-01-06,CBC/hematology,Total Leucocytes Count/TLC,6690-2,5.29,x 10^3/l,4 - 10,,52
+2024-01-06,other lab,Albumin (Serum),1751-7,2.8,g/dL,,,53
+2024-01-06,other lab,Ref,,Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6,,,,53
+2024-01-06,RFT/renal,- Creatinine Serum,,2.2,mg/dL,,,54
+2024-01-06,RFT/renal,Ref,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,54
+2024-01-06,electrolytes,Bicarbonate,1963-8,15.5,mmol/L,20.0 - 29.0,,55
+2024-01-06,electrolytes,Chloride,2075-0,109,mmol/L,96 - 106,,55
+2024-01-06,electrolytes,Potassium,2823-3,5.4,mmol/L,3.5 - 5.5,,55
+2024-01-06,electrolytes,Sodium,2951-2,138,mmol/L,135 - 145,,55
+2024-01-06,other lab,CRP (C-REACTIVE PROTEIN),,16.9,mg/L,< 7.90,,56
+2024-01-07,CBC/hematology,Basophils,706-2,0.1,%,<1,,49
+2024-01-07,CBC/hematology,ESR,30341-2,31,mm/Hour,"Male 0 - 10, Female 0 - 18",,49
+2024-01-07,CBC/hematology,Eosinophils,713-8,1.4,%,1 - 6,,49
+2024-01-07,CBC/hematology,Hematocrit,4544-3,24.7,%,35.0 - 50.0,,49
+2024-01-07,CBC/hematology,Hemoglobin,718-7,7.6,g/dl,11.5 - 15.5,,49
+2024-01-07,CBC/hematology,Lymphocytes,736-9,7.3,%,20 - 45,,49
+2024-01-07,CBC/hematology,M.C.H,785-6,21.2,pg,24 - 29,,49
+2024-01-07,CBC/hematology,M.C.H.C,786-4,30.8,g/dl,32 - 36,,49
+2024-01-07,CBC/hematology,M.C.V,787-2,69.0,fl,76 - 96,,49
+2024-01-07,CBC/hematology,Monocytes,5905-5,5.9,%,2 - 10,,49
+2024-01-07,CBC/hematology,Neutrophils,770-8,85.4,%,40 - 75,,49
+2024-01-07,CBC/hematology,Platelets,777-3,60,x 10^9/l,150 - 400,,49
+2024-01-07,CBC/hematology,R.B.Cs,789-8,3.58,10^12/L,4.0 - 5.2,,49
+2024-01-07,CBC/hematology,RDW-CV,788-0,30.9,%,11.0 - 16.0,,49
+2024-01-07,CBC/hematology,Total Leucocytes Count/TLC,6690-2,3.56,x 10^3/l,4 - 10,,49
+2024-01-08,other lab,- Calcium,,8.1,mg/dL,8.6 - 10.3,,44
+2024-01-08,CBC/hematology,Basophils,706-2,0.3,%,<1,,45
+2024-01-08,CBC/hematology,ESR,30341-2,28,mm/Hour,"Male 0 - 10, Female 0 - 18",,45
+2024-01-08,CBC/hematology,Eosinophils,713-8,0.3,%,1 - 6,,45
+2024-01-08,CBC/hematology,Hematocrit,4544-3,34.0,%,35.0 - 50.0,,45
+2024-01-08,CBC/hematology,Hemoglobin,718-7,11.1,g/dl,11.5 - 15.5,,45
+2024-01-08,CBC/hematology,Lymphocytes,736-9,4.7,%,20 - 45,,45
+2024-01-08,CBC/hematology,M.C.H,785-6,23.7,pg,24 - 29,,45
+2024-01-08,CBC/hematology,M.C.H.C,786-4,32.6,g/dl,32 - 36,,45
+2024-01-08,CBC/hematology,M.C.V,787-2,72.6,fl,76 - 96,,45
+2024-01-08,CBC/hematology,Monocytes,5905-5,3.0,%,2 - 10,,45
+2024-01-08,CBC/hematology,Neutrophils,770-8,91.7,%,40 - 75,,45
+2024-01-08,CBC/hematology,Platelets,777-3,35,x 10^9/l,150 - 400,,45
+2024-01-08,CBC/hematology,R.B.Cs,789-8,4.68,10^12/L,4.0 - 5.2,,45
+2024-01-08,CBC/hematology,Total Leucocytes Count/TLC,6690-2,2.96,x 10^3/l,4 - 10,,45
+2024-01-08,RFT/renal,- Creatinine Serum,,1.6,mg/dL,,,46
+2024-01-08,RFT/renal,Ref,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,46
+2024-01-08,electrolytes,Bicarbonate,1963-8,16.7,mmol/L,20.0 - 29.0,,47
+2024-01-08,electrolytes,Chloride,2075-0,108,mmol/L,96 - 106,,47
+2024-01-08,electrolytes,Potassium,2823-3,5.2,mmol/L,3.5 - 5.5,,47
+2024-01-08,electrolytes,Sodium,2951-2,136,mmol/L,135 - 145,,47
+2024-01-08,RFT/renal,- Urea,,46,mg/dL,10 - 50,,48
+2024-01-09,RFT/renal,- Urea,,43,mg/dL,10 - 50,,40
+2024-01-09,CBC/hematology,Basophils,706-2,0.2,%,<1,,41
+2024-01-09,CBC/hematology,ESR,30341-2,30,mm/Hour,"Male 0 - 10, Female 0 - 18",,41
+2024-01-09,CBC/hematology,Eosinophils,713-8,0.0,%,1 - 6,,41
+2024-01-09,CBC/hematology,Hematocrit,4544-3,32.3,%,35.0 - 50.0,,41
+2024-01-09,CBC/hematology,Hemoglobin,718-7,10.2,g/dl,11.5 - 15.5,,41
+2024-01-09,CBC/hematology,Lymphocytes,736-9,5.7,%,20 - 45,,41
+2024-01-09,CBC/hematology,M.C.H,785-6,23.3,pg,24 - 29,,41
+2024-01-09,CBC/hematology,M.C.H.C,786-4,31.6,g/dl,32 - 36,,41
+2024-01-09,CBC/hematology,M.C.V,787-2,73.9,fl,76 - 96,,41
+2024-01-09,CBC/hematology,Monocytes,5905-5,9.6,%,2 - 10,,41
+2024-01-09,CBC/hematology,Neutrophils,770-8,84.5,%,40 - 75,,41
+2024-01-09,CBC/hematology,Platelets,777-3,46,x 10^9/l,150 - 400,,41
+2024-01-09,CBC/hematology,R.B.Cs,789-8,4.37,10^12/L,4.0 - 5.2,,41
+2024-01-09,CBC/hematology,Total Leucocytes Count/TLC,6690-2,4.06,x 10^3/l,4 - 10,,41
+2024-01-09,electrolytes,Bicarbonate,1963-8,16.2,mmol/L,20.0 - 29.0,,42
+2024-01-09,electrolytes,Chloride,2075-0,107,mmol/L,96 - 106,,42
+2024-01-09,electrolytes,Potassium,2823-3,5.5,mmol/L,3.5 - 5.5,,42
+2024-01-09,electrolytes,Sodium,2951-2,137,mmol/L,135 - 145,,42
+2024-01-09,RFT/renal,- Creatinine Serum,,1.5,mg/dL,,,43
+2024-01-09,RFT/renal,Ref,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,43
+2025-02-03,other lab,CRP,,10.7,mg/L,Normal Range: < 7.90,,36
+2025-02-03,RFT/renal,Creatinine Serum,2160-0,1.3,mg/dL,,,37
+2025-02-03,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,37
+2025-02-03,electrolytes,Bicarbonate,1963-8,15.2,mmol/L,20.0-29.0,,38
+2025-02-03,electrolytes,Chloride,2075-0,100,mmol/L,96 - 106,,38
+2025-02-03,electrolytes,Potassium,2823-3,4.7,mmol/L,3.5 - 5.5,,38
+2025-02-03,electrolytes,Sodium,2951-2,134,mmol/L,135 - 145,,38
+2025-02-03,RFT/renal,- Urea,,40,mg/dL,10 - 50,,39
+2025-02-06,RFT/renal,Urea,3094-0,40,mg/dL,Normal Range: 10 - 50,,31
+2025-02-06,electrolytes,Bicarbonate,1963-8,18.6,mmol/L,20.0-29.0,,33
+2025-02-06,electrolytes,Chloride,2075-0,104.1,mmol/L,96 - 106,,33
+2025-02-06,electrolytes,Potassium,2823-3,3.90,mmol/L,3.5 - 5.5,,33
+2025-02-06,electrolytes,Sodium,2951-2,135.0,mmol/L,135 - 145,,33
+2025-02-06,other lab,CRP,,3.10,mg/L,Normal Range: < 7.90,,34
+2025-02-06,CBC/hematology,Basophils,706-2,0.0,%,<1,,35
+2025-02-06,CBC/hematology,ESR,30341-2,41,mm/Hour,Male 0-10; Female 0-18,,35
+2025-02-06,CBC/hematology,Eosinophils,713-8,0.0,%,1 - 6,,35
+2025-02-06,CBC/hematology,Hematocrit,4544-3,29.1,%,35.0 - 50.0,,35
+2025-02-06,CBC/hematology,Hemoglobin,718-7,9.8,g/dl,11.5 - 15.5,,35
+2025-02-06,CBC/hematology,Lymphocytes,736-9,11.7,%,20 - 45,,35
+2025-02-06,CBC/hematology,M.C.H,785-6,27.7,pg,24 - 29,,35
+2025-02-06,CBC/hematology,M.C.H.C,786-4,33.7,g/dl,32 - 36,,35
+2025-02-06,CBC/hematology,M.C.V,787-2,82.2,fl,76 - 96,,35
+2025-02-06,CBC/hematology,Monocytes,5905-5,5.5,%,2 - 10,,35
+2025-02-06,CBC/hematology,Neutrophils,770-8,82.8,%,40 - 75,,35
+2025-02-06,CBC/hematology,Platelets,777-3,40,x 10^9/l,150 - 400,,35
+2025-02-06,CBC/hematology,R.B.Cs,789-8,3.54,10^12/L,4.0 - 5.2,,35
+2025-02-06,CBC/hematology,RDW-CV,788-0,19.2,%,11.0 - 16.0,,35
+2025-02-06,CBC/hematology,Total Leucocytes Count/TLC,6690-2,4.03,x 10^3/l,4 - 10,,35
+2025-06-28,RFT/renal,Creatinine Serum,2160-0,1.1,mg/dL,,,25
+2025-06-28,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,25
+2025-06-28,CBC/hematology,Basophils,706-2,0.3,%,<1,,26
+2025-06-28,CBC/hematology,ESR,30341-2,54,mm/Hour,Male 0 - 10; Female 0 - 18,,26
+2025-06-28,CBC/hematology,Eosinophils,713-8,1.0,%,1 - 6,,26
+2025-06-28,CBC/hematology,Hematocrit,4544-3,29.5,%,35.0 - 50.0,,26
+2025-06-28,CBC/hematology,Hemoglobin,718-7,9.8,g/dl,11.5 - 15.5,,26
+2025-06-28,CBC/hematology,Lymphocytes,736-9,12.8,%,20 - 45,,26
+2025-06-28,CBC/hematology,M.C.H,785-6,28.3,pg,24 - 29,,26
+2025-06-28,CBC/hematology,M.C.H.C,786-4,33.2,g/dl,32 - 36,,26
+2025-06-28,CBC/hematology,M.C.V,787-2,85.3,fl,76 - 96,,26
+2025-06-28,CBC/hematology,Monocytes,5905-5,9.3,%,2 - 10,,26
+2025-06-28,CBC/hematology,Neutrophils,770-8,76.6,%,40 - 75,,26
+2025-06-28,CBC/hematology,Platelets,777-3,61,x 10^9/l,150 - 400,,26
+2025-06-28,CBC/hematology,R.B.Cs,789-8,3.46,10^12/L,4.0 - 5.2,,26
+2025-06-28,CBC/hematology,RDW-CV,788-0,15.7,%,11.0 - 16.0,,26
+2025-06-28,CBC/hematology,Total Leucocytes Count/TLC,6690-2,5.92,x 10^3/l,4 - 10,,26
+2025-06-28,LFT,Albumin,1751-7,2.97,g/dL,,,27
+2025-06-28,LFT,Normal Ranges,,Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6,,,,27
+2025-06-28,LFT,Alkaline Phosphate,6768-6,110,U/L,Male: 270; Female: 240; pediatric ranges also listed,,28
+2025-06-28,LFT,Bilirubin Direct,1968-7,0.5,mg/dL,Up to 0.4,,28
+2025-06-28,LFT,Bilirubin Indirect,1971-1,0.2,mg/dL,0.0 - 0.80,,28
+2025-06-28,LFT,Bilirubin Total,1975-2,0.7,mg/dL,Adult Up to 0.1-1.0; pediatric neonatal ranges also listed,,28
+2025-06-28,LFT,GAMMA GT,2324-2,74.4,U/L,Male: <55; Female: <38,,28
+2025-06-28,LFT,SGOT/AST (Plain),1920-8,32.2,U/L,Male: 50; Female: 50,,28
+2025-06-28,LFT,SGPT/ALT,1742-6,27.3,U/L,Male: 65; Female: 65; Infant: 65,,28
+2025-06-28,electrolytes,Bicarbonate,1963-8,19.6,mmol/L,20.0-29.0,,29
+2025-06-28,electrolytes,Chloride,2075-0,102.4,mmol/L,96 - 106,,29
+2025-06-28,electrolytes,Potassium,2823-3,4.10,mmol/L,3.5 - 5.5,,29
+2025-06-28,electrolytes,Sodium,2951-2,133.3,mmol/L,135 - 145,,29
+2025-06-28,coagulation,Control,,13.0,sec,,,30
+2025-06-28,coagulation,INR,6301-6,1.25,,0.9 - 1.5,,30
+2025-06-28,coagulation,Prothrombin Time,5902-2,16.3,Sec,10-15,,30
+2025-06-28,RFT/renal,Urea,3094-0,33.9,mg/dL,Normal Range: 10 - 50,,32
+2025-06-29,urinalysis,Bacteria,,FEW /HPF,,,,21
+2025-06-29,urinalysis,Bilirubin,1975-2,NEGATIVE,,Negative,,21
+2025-06-29,urinalysis,Blood,3094-0,NEGATIVE Ery/ul,,Negative,,21
+2025-06-29,urinalysis,Casts,,NIL,,,,21
+2025-06-29,urinalysis,Crystals,,NIL,,,,21
+2025-06-29,urinalysis,Epithelial Cells,,4,-6 /HPF,,,21
+2025-06-29,urinalysis,Glucose,,NEGATIVE mg/dl,,Negative,,21
+2025-06-29,urinalysis,Ketone Bodies,,NEGATIVE,,Negative,,21
+2025-06-29,urinalysis,Nitrite,,NEGATIVE,,Negative,,21
+2025-06-29,urinalysis,Other,,NIL,,,,21
+2025-06-29,urinalysis,Protein,,NEGATIVE mg/dl,,Negative,,21
+2025-06-29,urinalysis,Pus Cells,,6,-8 /HPF,0-4,,21
+2025-06-29,urinalysis,Reaction pH,,5,,5-8,,21
+2025-06-29,urinalysis,Red Blood Cells,789-8,NIL,,0-2,,21
+2025-06-29,urinalysis,Specific Gravity,,1.010,,1.005 - 1.025,,21
+2025-06-29,urinalysis,Urobilinogen,,NORMAL mg/dl,,Negative,,21
+2025-06-29,RFT/renal,Urea,3094-0,59,mg/dL,Normal Range: 10 - 50,,22
+2025-06-29,RFT/renal,Creatinine Serum,2160-0,1.47,mg/dL,,,23
+2025-06-29,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,23
+2025-06-29,electrolytes,Bicarbonate,1963-8,17,mmol/L,20.0-29.0,,24
+2025-06-29,electrolytes,Chloride,2075-0,103,mmol/L,96 - 106,,24
+2025-06-29,electrolytes,Potassium,2823-3,5.1,mmol/L,3.5 - 5.5,,24
+2025-06-29,electrolytes,Sodium,2951-2,131,mmol/L,135 - 145,,24
+2025-07-01,RFT/renal,Urea,3094-0,51.4,mg/dL,10 - 50,H,18
+2025-07-01,electrolytes,Bicarbonate,1963-8,17.3,mmol/L,20.0-29.0,L,19
+2025-07-01,electrolytes,Chloride,2075-0,104,mmol/L,96 - 106,,19
+2025-07-01,electrolytes,Potassium,2823-3,3.8,mmol/L,3.5 - 5.5,,19
+2025-07-01,electrolytes,Sodium,2951-2,136,mmol/L,135 - 145,,19
+2025-07-01,RFT/renal,Creatinine Serum,2160-0,1.03,mg/dL,,,20
+2025-07-01,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,20
+2025-07-07,other lab,CRP,,17.9,mg/L,< 7.90,H,13
+2025-07-07,CBC/hematology,Basophils,706-2,0.4,%,<1,,14
+2025-07-07,CBC/hematology,ESR,30341-2,11,mm/Hour,Female 0 - 18,,14
+2025-07-07,CBC/hematology,Eosinophils,713-8,02,%,1 - 6,,14
+2025-07-07,CBC/hematology,Hematocrit,4544-3,22.8,%,35.0 - 50.0,L,14
+2025-07-07,CBC/hematology,Hemoglobin,718-7,7.5,g/dl,11.5 - 15.5,L,14
+2025-07-07,CBC/hematology,Lymphocytes,736-9,18,%,20 - 45,L,14
+2025-07-07,CBC/hematology,M.C.H,785-6,27.8,pg,24 - 29,,14
+2025-07-07,CBC/hematology,M.C.H.C,786-4,32.9,g/dl,32 - 36,,14
+2025-07-07,CBC/hematology,M.C.V,787-2,84.4,fl,76 - 96,,14
+2025-07-07,CBC/hematology,Monocytes,5905-5,10,%,2 - 10,,14
+2025-07-07,CBC/hematology,Neutrophils,770-8,70,%,40 - 75,,14
+2025-07-07,CBC/hematology,Platelets,777-3,78,x 10^9/l,150 - 400,L,14
+2025-07-07,CBC/hematology,R.B.Cs,789-8,2.70,10^12/L,4.0 - 5.2,L,14
+2025-07-07,CBC/hematology,RDW-CV,788-0,15.9,%,11.0 - 16.0,,14
+2025-07-07,CBC/hematology,Total Leucocytes Count/TLC,6690-2,4.66,x 10^3/l,4 - 10,,14
+2025-07-07,other lab,Amylase,1798-8,43.3,U/L,28-100,,15
+2025-07-07,coagulation,Control,,13.0,sec,,,16
+2025-07-07,coagulation,INR,6301-6,1.17,,0.9 - 1.5,,16
+2025-07-07,coagulation,Prothrombin Time,5902-2,15.3,Sec,10- 15,H,16
+2025-07-07,LFT,Alkaline Phosphate,6768-6,84,U/L,Female: 240; age-specific ranges also listed,,17
+2025-07-07,LFT,Bilirubin Direct,1968-7,0.4,mg/dL,Up to 0.4,,17
+2025-07-07,LFT,Bilirubin Indirect,1971-1,0.3,mg/dL,0.0 - 0.80,,17
+2025-07-07,LFT,Bilirubin Total,1975-2,0.7,mg/dL,Adult: 0.1-1.0,,17
+2025-07-07,LFT,GAMMA GT,2324-2,57.8,U/L,"Male: < 55, Female: < 38",H,17
+2025-07-07,LFT,SGOT/AST (Plain),1920-8,40.9,U/L,"Male: 50, Female: 50",,17
+2025-07-07,LFT,SGPT/ALT,1742-6,29.3,U/L,"Male: 65, Female: 65",,17
+2026-04-23,LFT,Alkaline Phosphate,6768-6,70.9,U/L,Female: 240; age-specific ranges also listed,,3
+2026-04-23,LFT,Bilirubin Direct,1968-7,0.5,mg/dL,Up to 0.4,H,3
+2026-04-23,LFT,Bilirubin Indirect,1971-1,0.5,mg/dL,0.0 - 0.80,,3
+2026-04-23,LFT,Bilirubin Total,1975-2,1.0,mg/dL,Adult: 0.1-1.0,,3
+2026-04-23,LFT,GAMMA GT,2324-2,52.6,U/L,"Male: < 55, Female: < 38",H,3
+2026-04-23,LFT,SGOT/AST (Plain),1920-8,51.1,U/L,"Male: 50, Female: 50",H,3
+2026-04-23,LFT,SGPT/ALT,1742-6,25.5,U/L,"Male: 65, Female: 65",,3
+2026-04-23,serology/viral,Plasmodium Falciparum,,Negative,,,,5
+2026-04-23,serology/viral,Plasmodium Vivax,,Negative,,,,5
+2026-04-23,coagulation,Control,,12.0,sec,,,6
+2026-04-23,coagulation,INR,6301-6,1.18,,0.9 - 1.5,,6
+2026-04-23,coagulation,Prothrombin Time,5902-2,14.2,Sec,10- 15,,6
+2026-04-23,other lab,Albumin,1751-7,2.9,g/dL,Adult: 3.5-5.2; > 60 Years: 3.2-4.6,L,7
+2026-04-23,CBC/hematology,Basophils,706-2,0.6,%,<1,,8
+2026-04-23,CBC/hematology,ESR,30341-2,110,mm/Hour,Female 0 - 18,H,8
+2026-04-23,CBC/hematology,Eosinophils,713-8,1.3,%,1 - 6,,8
+2026-04-23,CBC/hematology,Hematocrit,4544-3,23.1,%,35.0-50.0,L,8
+2026-04-23,CBC/hematology,Hemoglobin,718-7,7.6,g/dl,11.5 - 15.5,L,8
+2026-04-23,CBC/hematology,Lymphocytes,736-9,25.2,%,20-45,,8
+2026-04-23,CBC/hematology,M.C.H,785-6,29.7,pg,24 - 29,H,8
+2026-04-23,CBC/hematology,M.C.H.C,786-4,32.9,g/dl,32 - 36,,8
+2026-04-23,CBC/hematology,M.C.V,787-2,90.2,fl,76 - 96,,8
+2026-04-23,CBC/hematology,Monocytes,5905-5,12.9,%,2 - 10,H,8
+2026-04-23,CBC/hematology,Neutrophils,770-8,60.0,%,40-75,,8
+2026-04-23,CBC/hematology,Platelets,777-3,75,x 10^9/l,150 - 400,L,8
+2026-04-23,CBC/hematology,R.B.Cs,789-8,2.56,10^12/L,4.0-5.2,L,8
+2026-04-23,CBC/hematology,RDW-CV,788-0,15.7,%,11.0-16.0,,8
+2026-04-23,CBC/hematology,Total Leucocytes Count/TLC,6690-2,3.09,x 10^3/l,4 - 10,L,8
+2026-04-23,RFT/renal,Creatinine Serum,2160-0,1.11,mg/dL,Male: 0.7-1.2; Female: 0.5-0.9; Children: 0.3-0.8; Infant: 0.2-0.4,H,9
+2026-04-23,other lab,CRP,,18.5,mg/L,< 7.90,H,10
+2026-04-23,electrolytes,Bicarbonate,1963-8,20.6,mmol/L,20.0-29.0,,11
+2026-04-23,electrolytes,Chloride,2075-0,99,mmol/L,96 - 106,,11
+2026-04-23,electrolytes,Potassium,2823-3,3.8,mmol/L,3.5 - 5.5,,11
+2026-04-23,electrolytes,Sodium,2951-2,130,mmol/L,135 - 145,L,11
+2026-04-23,serology/viral,Dengue NS1 Ag,,Negative,,,,12
+2026-04-24,tumor marker,Alpha Feto Protein,,5.36,UI/MI,Less then 7.0,,1
+2026-04-24,urinalysis,Bacteria,,FEW /HPF,,,,2
+2026-04-24,urinalysis,Bilirubin,1975-2,NEGATIVE,,Negative,,2
+2026-04-24,urinalysis,Blood,3094-0,NEGATIVE Ery/ul,,Negative,,2
+2026-04-24,urinalysis,Casts,,NIL,,,,2
+2026-04-24,urinalysis,Crystals,,NIL,,,,2
+2026-04-24,urinalysis,Epithelial Cells,,2,-3 /HPF,,,2
+2026-04-24,urinalysis,Glucose,,NEGATIVE mg/dl,,Negative,,2
+2026-04-24,urinalysis,Ketone Bodies,,NEGATIVE,,Negative,,2
+2026-04-24,urinalysis,Nitrite,,NEGATIVE,,Negative,,2
+2026-04-24,urinalysis,Protein,,NEGATIVE mg/dl,,Negative,,2
+2026-04-24,urinalysis,Pus Cells,,1,-2 /HPF,0-4,,2
+2026-04-24,urinalysis,Reaction pH,,6.5,,5-8,,2
+2026-04-24,urinalysis,Red Blood Cells,789-8,NIL,,0 - 2,,2
+2026-04-24,urinalysis,Specific Gravity,,1.005,,1.005 - 1.025,,2
+2026-04-24,urinalysis,Urobilinogen,,NORMAL mg/dl,,Negative,,2
+2026-04-24,CBC/hematology,ABO BLOOD GROUP,,B,,,,4
+2026-04-24,CBC/hematology,Rh Factor,,POSITIVE,,,,4

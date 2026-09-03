@@ -1,0 +1,22 @@
+Document index: 50
+Document type: other
+Service date: 2026-06-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Patient ID header, facility branding, and shift signatures redacted/omitted. No age/sex visible.
+
+CONTENT
+----------------------------------------
+INTAKE / OUTPUT RECORD SHEET. Date 21/06/2026. Page 1 of 1.
+Intake (selected rows):
+0700: Parenteral1 Bafalsan/Perfalgan 100 ml; Parenteral2 RL-D 100; PO/NG H2O 100
+0800: Parenteral2 ~100
+0900: IV med 100 ml; Metallow/Metaclon 100; PO/NG H2O 100
+1000–1100: Parenteral2 100 each
+1200: IV med 200; Parenteral2 100; PO/NG 200
+1300: Parenteral2 100
+1400: Inj R/L-D 200; PO/NG H2O 150
+1500: ~30 ml PH (unclear)
+TOTAL C/O (~1600): Parenteral1 300; Parenteral2 700; PO/NG 550
+Output: 0700 stool Pass; 0900 urine Pass, vomitus/drainage/aspiration No, stool Pass; 1400 urine Pass.
+Rows 1700–0600 blank. 24-hour summary totals not filled.
+Shift signatures omitted.

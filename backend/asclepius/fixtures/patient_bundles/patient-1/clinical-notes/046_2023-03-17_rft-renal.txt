@@ -1,0 +1,10 @@
+Document index: 46
+Document type: RFT/renal
+Service date: 2023-03-17
+Age on report: 38Y    Sex: M
+De-identification: name redacted; lab number(s) omitted; "Not valid for medicolegal purpose" watermark noted
+
+CONTENT
+----------------------------------------
+Creatinine: 0.83 mg/dl (0.9-1.3) [L]
+Urea: 16.9 mg/dl (17-49) [L]

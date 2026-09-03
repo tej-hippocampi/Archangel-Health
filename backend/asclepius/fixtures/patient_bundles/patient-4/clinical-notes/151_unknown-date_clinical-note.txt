@@ -1,0 +1,30 @@
+Document index: 151
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No name/identifier field/DOB/facility visible; age not explicitly written (only Morse high-risk age criterion checkbox)
+
+CONTENT
+----------------------------------------
+Activity of Daily Living (all Patient Score 0 = Dependence):
+- Bathing, Dressing, Toileting, Transferring, Continence, Feeding — all 0
+- Total points: 00 (0 = very dependent; 6 = independent)
+
+Fall Factor Assessment (Morse Scale):
+- History of fall (immediate or within 3 months): Yes — 25
+- Secondary diagnosis: Yes — 15
+- Ambulatory aid (crutches/cane/walker): 15
+- IV/heparin/saline lock: No — 0
+- Gait/transferring: Normal / bed rest immobile — 0
+- Mental status: Oriented to own ability — 0
+- Total score: 55; High Risk (45 and higher) checked
+- High-risk criteria box also checked: Patients age 65 years or older
+
+Psychosocial / Economic:
+- Mood: Calm
+- Marital status: Married; Living with: Parents; Occupation: Unemployed
+- Substance abuse: No for Smoking, Smoking environment, Alcohol, Pan/Gutka, Tobacco, Nicotine
+
+Religious / Cultural / Spiritual:
+- Religion: Islam
+- Religious/cultural practices needed for care: No

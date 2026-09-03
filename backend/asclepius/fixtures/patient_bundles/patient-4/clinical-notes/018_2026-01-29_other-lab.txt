@@ -1,0 +1,15 @@
+Document index: 18
+Document type: other lab
+Service date: 2026-01-29
+Age on report: 46Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Booking: 29/01/2026 14:30:44
+Collection: 29/01/2026 14:30:55
+Reporting: 29/01/2026 15:12:36
+
+CPK (CREATINE PHOSPHOKINASE):
+CPK: 164 U/L (Men 38-174; Women 26-140)

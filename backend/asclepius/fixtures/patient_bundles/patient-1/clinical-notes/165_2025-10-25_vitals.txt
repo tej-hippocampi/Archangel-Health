@@ -1,0 +1,12 @@
+Document index: 165
+Document type: vitals
+Service date: 2025-10-25
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: patient identification block redacted (green marker)
+
+CONTENT
+----------------------------------------
+Intake / Out-Put Record Sheet (fluid balance), handwritten and largely faint.
+Intake: Parenteral Fluid columns with entries incl. NS (normal saline) 100ml/hr, and enteral feeds.
+Output: hourly urine, drainage columns. PONG type entries ~100-200 mL.
+Enteral/oral feeds noted (~90-100 mL entries).

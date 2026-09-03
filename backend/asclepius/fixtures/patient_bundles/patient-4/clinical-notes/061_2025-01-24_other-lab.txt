@@ -1,0 +1,15 @@
+Document index: 61
+Document type: other lab
+Service date: 2025-01-24
+Age on report: 45Y    Sex: M
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+Booking: 24/01/2025 12:21:13
+Collection: 24/01/2025 12:22:02
+Reporting: 24/01/2025 13:59:27
+
+CALCIUM (SERUM)
+- Calcium: 7.4 mg/dL (8.6 - 10.3) — low

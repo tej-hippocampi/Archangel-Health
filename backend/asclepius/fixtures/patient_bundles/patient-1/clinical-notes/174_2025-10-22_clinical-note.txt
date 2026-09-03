@@ -1,0 +1,16 @@
+Document index: 174
+Document type: clinical note
+Service date: 2025-10-22
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: consultant and physician names redacted (green marker)
+
+CONTENT
+----------------------------------------
+Physicians' Orders / ICU admission note:
+- ICU Consultant [name omitted] was taken on board.
+- Patient seen by Dr [name omitted].
+- Patient came in ER in hypotensive state with jaundice, fever. Initial BP = 80/50 mmHg.
+- Orders: Admit the patient in ICU.
+- Send Baselines + Blood culture, CXR, ECG, Trop I.
+- Rx: Inj Meronem 1g I/V x TDS; Inj Haemaccel 500ml - Bolus I/V x stat; Inj N/S 500ml I/V x stat; Inj Zofran 8mg I/V x stat; Inj Risek 40mg I/V x stat.
+- Counsel the attendants regarding the condition of patient and take primary [team/name omitted] on board.

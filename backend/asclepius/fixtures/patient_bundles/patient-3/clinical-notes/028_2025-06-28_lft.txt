@@ -1,0 +1,22 @@
+Document index: 28
+Document type: LFT
+Service date: 2025-06-28
+Age on report: 76Y    Sex: F
+De-identification: Green overlay obscured name/facility/IDs; omitted residual identifiers. Age kept as years; no exact DOB present. Timestamp seconds truncated by photo crop.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+
+Booking Date & Time: 28/06/2025 16:01 (seconds partially cut off at edge)
+Collection Date & Time: 28/06/2025 16:02 (seconds partially cut off at edge)
+Reporting Date & Time: 28/06/2025 16:52 (seconds partially cut off at edge)
+
+LFT (LIVER FUNCTION TEST)
+Bilirubin Total: 0.7 mg/dL (Adult Up to 0.1-1.0; pediatric neonatal ranges also listed)
+Bilirubin Direct: 0.5 mg/dL (Up to 0.4)
+Bilirubin Indirect: 0.2 mg/dL (0.0 - 0.80)
+SGOT/AST (Plain): 32.2 U/L (Male: 50; Female: 50)
+SGPT/ALT: 27.3 U/L (Male: 65; Female: 65; Infant: 65)
+Alkaline Phosphate: 110 U/L (Male: 270; Female: 240; pediatric ranges also listed)
+GAMMA GT: 74.4 U/L (Male: <55; Female: <38)

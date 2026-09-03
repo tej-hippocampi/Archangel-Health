@@ -1,0 +1,229 @@
+MEDICATION / ORDER LISTS (de-identified)
+============================================================
+
+--- Image 4 | UNKNOWN ---
+Medication schedule chart (Morning / Noon / Night; Before meal / After meal):
+
+1. Tab NEOPRAD 50mg — Morning, Night; Before meal
+2. Cap SOMERULE 40mg — Morning, Night; Before meal
+3. Cap VENTICORT 400mcg — Morning, Night
+4. Cap TIOVEEZ 18mcg — Noon
+5. Tab SUPRAVIT-M — Morning; After meal
+6. Syp Duphalac 30ml — Night; After meal
+7. Tab Spironol 25mg — Morning; After meal
+
+FOLLOW UP: handwritten note indicating 06 days (Urdu)
+
+--- Image 6 | UNKNOWN ---
+Medication schedule chart (Morning / Noon / Night; Before meal / After meal):
+
+1. Tab ITP 5mg — Morning 1, Noon 1, Night 1; Before meal
+2. Tab VOPRA 20mg — Morning 1, Night 1; Before meal
+3. Tab SPIRONIDE 20mg (handwriting uncertain: SPIRIDE/SPIRORIDE) — Morning 1; After meal
+4. Cap MINVIAN — note "6 dose"; Morning 1, Night 1
+5. Tab SUPRAVIT-M — Noon 1; After meal
+
+Handwritten note below table: POL
+FOLLOW UP section present (content not clinically useful beyond signature omitted)
+
+--- Image 10 | 2025-11-07 ---
+Encounter/prescription form
+Additional date noted on page: 12/11/2025
+
+Vitals:
+- Pulse: 96
+- BP: 120/80
+- Temp: 97.4
+- Wt: 67
+- Ht / BMI / Problem List: blank
+
+Medications (handwritten; some uncertain):
+- Cap Dex [likely Dex*] 60
+- Duphalac — 20 ml
+- Vitrum (on/oy — handwriting uncertain)
+- Duration note: circled 3 with Urdu for months (~3 months)
+
+--- Image 24 | UNKNOWN ---
+Prescription (Rx form; dosing columns Morning / Noon / Night; after/before meal columns present)
+
+Medications:
+- Tab Proglox 500 mg: 1 morning, 1 night
+- Tab Nospa forte: 1 morning, 1 noon, 1 night
+- Cap Ulvent 40 mg: 1 morning
+- Tab Panadol: 2 morning, 2 noon, 2 night
+
+Follow-up / advice:
+- CT scan chest
+- Precaution / avoid (Urdu instruction noted)
+
+--- Image 25 | 2025-11-16 ---
+Clinical / prescription form
+
+Presenting complaint: fever, cough, sore (throat partially illegible)
+Temp: N (normal)
+BP: 110/70
+Ordered labs fields blank (RBS, CBC+ESR, Urea, Creatinine, Sputum AFB, GeneXpert, Urine D/R, HCV, HBsAg, HIV)
+
+Medications:
+- Tab Valamid AL: once daily (xOD)
+- Tab/Syp Myanti-gel: 1 tsp
+- Cap Exocin 400 mg: 1x daily
+- Tab Zurbex: frequency mark present (partially unclear)
+- Syp Pulmonil: 2 - 2 - 2
+
+--- Image 44 | 2026-06-21 ---
+MEDICATION FORM. Date column: 21/06/2026. STAT DOSE section empty.
+1. Inj R/L D at 30 cc/hr — note: continue 24 hours
+2. Inj Meronem (meropenem) 1 g IV BD — times 10:00, 22:00
+3. Inj Ehimulong IV OD — time 10:00
+4. Inj Aminoleban IV OD — time 10:00
+5. Duphalac enema BD — times 10:00, 22:00
+6. Inj Tramal + Metailon (tramadol + metoclopramide) IV SOS — no times recorded
+
+--- Image 45 | 2026-06-21 ---
+MEDICATION FORM. Date grid header ~21/06/2026. STAT DOSE section blank.
+1. Inj Lasix (furosemide) 20 mg IV stat
+2. I/O charting (monitoring order)
+3. BiPAP <16/8 x SOS for WOB (work of breathing)
+4. Neb with Atem q4h — times 06:00, 10:00, 14:00, 18:00, 22:00, 02:00
+
+--- Image 46 | UNKNOWN ---
+MEDICATION FORM (Page 1 of 1). STAT DOSE section blank.
+Partial time/date notation near first row: ~7 12:36; vertical note "Continue".
+1. Inj R/L D 1 L IV at 30 cc/hr — Continue
+2. Inj Ceftro (ceftriaxone) 2 g IV OD — time 10:00; annotation "Switch" to next row
+3. Cap Ezim 40 mg PO OD — time 10:00
+4. Nebs with Aken TDS — times 0600, 1400, 2200 (red slash through row — discontinued)
+5. Syp Motilin 2-2-2 — times 0600, 1400, 2200; note NPO at 1400 (red slash — discontinued)
+6. Syp Duphalac 30 ml HS — time 22:00 (red slash — discontinued)
+Staff initials in admin boxes omitted.
+
+--- Image 47 | 2026-06-21 ---
+MEDICATION FORM. Date column header ~21/06/2026 (written as 12/26). STAT DOSE empty.
+Red diagonal line across injection rows in grid.
+1. Tab Casveda 6.25 mg 1-0-1 — times 10:00, 22:00
+2. Tab Colofac 1-0-1 — times 10:00, 22:00
+3. Tab Vida 0-0-1 — time 22:00
+4. Inj Tramal + Metaclo IV SOS
+5. Inj Meronem 1 g IV BD
+6. Inj Lasix 20 mg IV stat
+Admin-box initials omitted.
+
+--- Image 48 | 2026-06-16 ---
+MEDICATION FORM with multi-day admin grid.
+Date headers: 16/06/2026, 17/06/2026, 09/07, 10/7, 11/07, 21/06/2026.
+Scheduled:
+1. Tab Carneda/Casveda 6.25 mg 1-0-1 (10:00, 22:00) — given 16/06/2026 through 21/06/2026
+2. Tab Ganaton 50 mg 1-0-1 (10:00, 22:00) — given 16/06/2026 through 21/06/2026
+3. Cap Ezomol 40 mg 1-0-0 (10:00) — given through ~09/07; Hold ~10/7; Stop ~11/07
+4. Tab Colofec 1-0-1 (10:00, 22:00) — given through ~09/07; Hold from ~10/7
+5. Tab Vida 0-0-1 (22:00) — given through ~09/07; Hold from ~11/07
+6. Tab Tramapar 1-0-1 (10:00, 22:00) — given through ~09/07; Hold from ~11/07
+Red diagonal line across Hold sections for lower rows. Admin initials omitted.
+STAT DOSE: Bofalgan (paracetamol IV) — date 21/06/2026, time 07:00 am (ordered-by and signature redacted/omitted).
+
+--- Image 49 | 2026-06-19 ---
+MEDICATION FORM. Date columns: 10/07, 11/7, 21/06/2026. Red diagonal across some admin cells.
+Scheduled:
+1. Syp Motilium 2+2+2 — times 0600, 1400, 2200 — marked given 10–12/7
+2. Nebs with Atum — times 0600, 1400, 2200 — "done" noted on 11/7
+3. Glycerine supp 2 x TDS SOS — times 0600, 1400, 2200 — marked 10/07 and 11/7
+4. Inj R/L D 1 L IV OD and Inj Frama/Metaclon — marked 10–12/7
+5. Inj Ceftro 2 g IV OD at 10:00 — marked 10–12/7
+6. Inj Ezium 40 mg IV OD at 10:00 — marked 10/07 and 11/7; STOP on 12/7
+STAT DOSE:
+01. Inj Onset (ondansetron) 8 mg x stat — date 19-06-2026
+02. Duphalac enema x stat — date blank
+03. Inj Labetalol 2 cc — date 19/06/2026, time 18:30
+Ordered-by names and signatures omitted.
+
+--- Image 131 | 2026-04-27 ---
+Handwritten clinical note / prescription (combined).
+Date: 27-04-2026
+Age: 65
+
+Findings / exam:
+- Palmar erythema since 4 months
+
+Diagnosis (Δ):
+- Anti HCV + CLD
+
+Problem list:
+1. Fever (low grade)
+2. Abdominal pain
+3. Dyspnea
+4. Pedal paresthesia
+5. Weakness
+6. Malaise
+7. Constipation
+
+History:
+- Addiction: cigarettes (30 years)
+- S/H: N/S
+- F/H: HCV+ (no relative named)
+
+Vitals:
+- BP: 100/70 mmHg
+- Temp: 98.2 °F
+- Weight: 69.2 kg
+- RBS: 125
+- HT: 181 cm
+
+Medications:
+- Tab Carveda 6.25: 1/2 — 1/2
+- Cap Ezomor 40: 1 - 0 - 0
+- Tab Ganaton 150: 1 - 0 - 0
+- Tab Vitrum: 0 - 0 - 1
+- Delish milk: 4 + 4 + 4
+- Syp Domel: 2 + 2 + 2
+
+Advice:
+- HCV PCR
+- EGD R/O varices
+- Follow-up ~6 days (circled 6)
+
+--- Image 132 | 2026-04-27 ---
+Duplicate/near-duplicate of index 131.
+Handwritten clinical note / prescription (combined).
+Date: 27-04-2026
+Age: 65
+
+Findings / exam:
+- Palmar erythema since 4 months
+
+Diagnosis (Δ):
+- Anti HCV + CLD
+
+Problem list:
+1. Fever (low grade)
+2. Abdominal pain
+3. Dyspnea
+4. Pedal paresthesia
+5. Weakness
+6. Malaise
+7. Constipation
+
+History:
+- Addiction: cigarettes (30 years)
+- S/H: N/S
+- F/H: HCV+ (no relative named)
+
+Vitals:
+- BP: 100/70 mmHg
+- Temp: 98.2 °F
+- Weight: 69.2 kg
+- RBS: 125
+- HT: 181 cm
+
+Medications:
+- Tab Carveda 6.25: 1/2 — 1/2
+- Cap Ezomor 40: 1 - 0 - 0
+- Tab Ganaton 150: 1 - 0 - 0
+- Tab Vitrum: 0 - 0 - 1
+- Delish milk: 4 + 4 + 4
+- Syp Domel: 2 + 2 + 2
+
+Advice:
+- HCV PCR
+- EGD R/O varices
+- Follow-up ~6 days (circled 6)

@@ -1,0 +1,11 @@
+Document index: 135
+Document type: RFT/renal
+Service date: 2023-03-23
+Age on report: 39Y    Sex: M
+De-identification: name and identifier fieldNo. omitted (green marker + ID)
+
+CONTENT
+----------------------------------------
+Department of Biochemistry - Blood Urea Nitrogen (BUN)
+BUN: 11.6 mg/dL (6 - 20)
+Patient Location: OPD

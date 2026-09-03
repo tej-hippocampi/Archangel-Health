@@ -1,0 +1,41 @@
+Document index: 131
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: M
+De-identification: Omitted facility footer address/phones/email and signature; attendant relation kept as clinical/social context (brother)
+
+CONTENT
+----------------------------------------
+Systems review / consultant-style note (Page marked with HDU context)
+Additional timestamp on note: 10:58 am, 30/01/2026
+
+Known: DM, HTN, IHD (PCI 2024); alcoholic
+Impression: Delirium tremens?; Aspiration pneumonia??
+Event: 1 episode tonic-clonic seizure on 11/July/26
+
+NEURO: GCS 13/15 (E4 V3 M6); pupils B/L equal, reactive to light
+CARDIO: S1+S2; BP 130/80; Pulse 102 bpm
+RESP: B/L clear; RR 26; SpO2 96% on room air
+ABDO: Soft, NT; stool passed yesterday morning
+RENAL: Input 1920 ml; Output 1550 + 370 ml
+MUSCULO-SKELETAL: No bed sores
+ENDO: RBS 130 mg/dl @ 6 AM
+HAEM: No active bleeding
+ID: No fever spikes in last 24 hrs
+LINE/DRAINS: 18G (R) foot; 20G (L) arm
+NUTRITION: NPO
+Note: Attendant (brother) counseled
+
+Clinical summary:
+- Details as above
+- Likely delirium tremens; responded to benzodiazepines
+- Query drug-induced EPS?
+- Hemodynamically stable; currently on room air
+- No signs of aspiration
+
+Plan:
+- Tab Lorazepam 2 mg TDS x 3 days → then 2 mg BD x 1 day → stop if stable
+- Neuro review
+- Onset → SOS; check ECG for QTc
+- Start Ensure diet via NG tube
+- 5% D/S + I/V Neurobion

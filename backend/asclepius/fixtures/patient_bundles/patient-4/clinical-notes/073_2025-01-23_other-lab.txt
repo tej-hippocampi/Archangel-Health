@@ -1,0 +1,21 @@
+Document index: 73
+Document type: other lab
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Green redaction over facility/patient identifiers; name/identifier field/facility omitted
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+Booking: 23/01/2025 21:44:34
+Collection: 23/01/2025 21:45:21
+Reporting: 23/01/2025 22:49:03
+
+ARTERIAL BLOOD GASES (ABGs)
+- ABG's Measure at: 37 C
+- pH: 7.392 (7.35-7.45)
+- pCO2: 26.3 mmHg (35-48) — low
+- pO2: 95.4 mmHg (83-108)
+- O2 Saturation: 97.1 % (94-98)
+- Bicarbonate: 15.6 mmol/L (19 - 24) — low
+- Base Excess: -8.0 mmol/L (-2 - 3) — low

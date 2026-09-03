@@ -1,0 +1,24 @@
+Document index: 64
+Document type: other lab
+Service date: 2026-06-22
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: header identifiers already green-redacted; patient/facility/IDs omitted; sticker date 12/07/2026 noted but instrument print used for service_date
+
+CONTENT
+----------------------------------------
+Blood gas analyzer print (thermal slip). Instrument datetime printed as 05/07/2013 00:38 (interpreted as YY/MM/DD → 22/06/2026).
+
+Measured — Blood gas:
+PCO2: 30.3 mmHg (-)
+PO2: 71.5 mmHg (-)
+pH: 7.401
+
+Electrolytes: Na+ / K+ / Cl- — Not activated
+
+Calculated:
+BE: -5.0 mmol/L
+BE_ecf: -6.4 mmol/L
+SO2(c): 93.9 %
+cHCO3-: 18.4 mmol/L
+
+Note on slip: Ensure reference ranges match sample type.

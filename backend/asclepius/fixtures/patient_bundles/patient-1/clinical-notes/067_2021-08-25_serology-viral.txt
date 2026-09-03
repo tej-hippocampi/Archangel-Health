@@ -1,0 +1,13 @@
+Document index: 67
+Document type: serology/viral
+Service date: 2021-08-25
+Age on report: 38Y    Sex: M
+De-identification: name/registration/invoice numbers redacted (green marker) and omitted
+
+CONTENT
+----------------------------------------
+ANA PROFILE (ANA, AMA, ASMA) - Method: Immunofluorescence
+ANA (Antinuclear antibodies): Negative
+AMA (Anti-Mitochondrial antibodies): Negative
+ASMA (Anti-Smooth Muscle antibodies): Negative
+GPCA (Anti-Gastric parietal cell antibodies): Negative

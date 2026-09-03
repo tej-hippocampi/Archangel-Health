@@ -1,0 +1,30 @@
+Document index: 99
+Document type: CBC/hematology
+Service date: 2024-12-19
+Age on report: 45Y    Sex: M
+De-identification: Omitted name and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Hematology
+Booking: 19/12/2024 16:55:24
+Collection: 19/12/2024 16:55:47
+Reporting: 19/12/2024 17:38:31
+
+CBC:
+Hemoglobin: 13.8 g/dl (12 - 16.5)
+R.B.Cs: 4.78 10^12/L (4.0-5.2)
+Hematocrit: 40.9 % (35.0-50.0)
+M.C.V: 85.6 fl (76 - 96)
+M.C.H: 28.9 pg (24 - 29)
+M.C.H.C: 33.7 g/dl (32 - 36)
+RDW-CV: 14.0 % (11.0-16.0)
+Total Leucocytes Count/TLC: 13.19 x 10^3/l (4 - 10) [H]
+Neutrophils: 85.9 % (40-75) [H]
+Lymphocytes: 10.1 % (20-45) [L]
+Monocytes: 3.7 % (2 - 10)
+Eosinophils: 0.2 % (1 - 6) [L]
+Basophils: 0.1 % (<1)
+Platelets: 293 x 10^9/l (150 - 400)
+
+Morphology: NORMOCYTIC, NORMOCHROMIC; NEUTROPHILIC LEUKOCYTOSIS; POSSIBLY BACTERIAL INFECTION (tail of line partially cut off on photo)

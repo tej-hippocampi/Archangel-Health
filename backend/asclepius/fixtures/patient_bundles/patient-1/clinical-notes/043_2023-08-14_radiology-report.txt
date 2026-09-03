@@ -1,0 +1,11 @@
+Document index: 43
+Document type: radiology report
+Service date: 2023-08-14
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: on-image name/label banner redacted with green marker and omitted.
+
+CONTENT
+----------------------------------------
+Ultrasound image (abdomen) - two-panel grayscale sonographic film, no narrative report text on image.
+On-image measurement: Dist A = 173.7 mm (consistent with enlarged spleen ~17.3 cm).
+Machine annotations: MI 0.8, 6C1 probe, 4.0, 22 fps.

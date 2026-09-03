@@ -600,13 +600,26 @@ def _chat(prompt: str, completion: str) -> List[Dict[str, str]]:
 def _portal_version(submission: Dict[str, Any], payload: Dict[str, Any]) -> str:
     """Which evaluator flow produced this submission — the authoritative source
     is the submission row (stamped server-side); fall back to the payload for
-    pure packaging unit tests, then the default."""
-    from asclepius.constants import normalize_portal_version
+    pure packaging unit tests, then the default.
+
+    ``env`` is preserved rather than normalized, and this is not a nicety.
+    ``normalize_portal_version`` maps anything outside ``PORTAL_VERSIONS`` to the
+    DEFAULT, which is ``v3`` — so an agentic rollout that somehow reached this
+    function would be packaged, and shipped to a buyer, labelled as V3 synthetic
+    seamless work. It should never reach here (env rollouts live in ``env_runs``
+    and no submit path stamps ``env``), but the §5.2 migration can leave the value
+    on a historical row, and "should never happen" is exactly when a silent
+    relabel does the most damage. Returned as-is so the wrong provenance is
+    VISIBLE in the bundle rather than plausible.
+    """
+    from asclepius.constants import ENV_PORTAL_VERSION, normalize_portal_version
 
     ia = payload.get("independent_answer") or {}
-    return normalize_portal_version(
-        submission.get("portal_version") or payload.get("portal_version") or ia.get("portal_version")
-    )
+    claimed = (submission.get("portal_version") or payload.get("portal_version")
+               or ia.get("portal_version"))
+    if claimed == ENV_PORTAL_VERSION:
+        return ENV_PORTAL_VERSION
+    return normalize_portal_version(claimed)
 
 
 def _independent_kind(task: Dict[str, Any], ia: Dict[str, Any], portal_version: str) -> str:

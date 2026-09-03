@@ -1,0 +1,16 @@
+Document index: 36
+Document type: other lab
+Service date: 2025-02-03
+Age on report: 76Y    Sex: F
+De-identification: Green overlay obscured name/facility/IDs; omitted residual identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+
+Booking Date & Time: 03/02/2025 22:18:39
+Collection Date & Time: 03/02/2025 22:53:26
+Reporting Date & Time: 04/02/2025 02:36:32
+
+CRP (C- REACTIVE PROTEIN)
+CRP: 10.7 mg/L (Normal Range: < 7.90)

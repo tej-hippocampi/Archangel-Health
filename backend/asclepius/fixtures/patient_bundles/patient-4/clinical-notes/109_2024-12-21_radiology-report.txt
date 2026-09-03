@@ -1,0 +1,22 @@
+Document index: 109
+Document type: radiology report
+Service date: 2024-12-21
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header; kept age, sex, service date, valve/summary findings.
+
+CONTENT
+----------------------------------------
+Echo report — VALVES / SUMMARY.
+
+VALVES:
+- Aortic Valve: Thickened with normal mobility. Trace regurgitation.
+- Mitral Valve: Thickened with normal mobility. Trace regurgitation.
+- Pulmonic Valve: Normal in thickness and mobility.
+- Tricuspid Valve: Normal in thickness and mobility.
+
+SUMMARY:
+1. Normal size cardiac chambers.
+2. Moderate to severe left ventricular systolic dysfunction.
+3. Normal right ventricular systolic function.
+
+Note: Note patient was in tachycardia at the time of scan.

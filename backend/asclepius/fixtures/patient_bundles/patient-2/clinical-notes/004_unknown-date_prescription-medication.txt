@@ -1,0 +1,19 @@
+Document index: 4
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted provider name and clinic/address from faint letterhead; omitted signature/initials
+
+CONTENT
+----------------------------------------
+Medication schedule chart (Morning / Noon / Night; Before meal / After meal):
+
+1. Tab NEOPRAD 50mg — Morning, Night; Before meal
+2. Cap SOMERULE 40mg — Morning, Night; Before meal
+3. Cap VENTICORT 400mcg — Morning, Night
+4. Cap TIOVEEZ 18mcg — Noon
+5. Tab SUPRAVIT-M — Morning; After meal
+6. Syp Duphalac 30ml — Night; After meal
+7. Tab Spironol 25mg — Morning; After meal
+
+FOLLOW UP: handwritten note indicating 06 days (Urdu)

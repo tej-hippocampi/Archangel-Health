@@ -1,0 +1,22 @@
+Document index: 52
+Document type: other
+Service date: 2024-06-19
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Facility branding, patient ID, and shift signatures redacted/omitted. Date year/day digits partially ambiguous on photo.
+
+CONTENT
+----------------------------------------
+INTAKE / OUT-PUT RECORD SHEET. Date ~19/06/2024 (handwritten; digit ambiguous). Page 1 of 1. Rev #01 August 2024.
+Intake:
+0700–0800: PO H2O 100 each; urine Pass
+0900: PO Tab 100; urine Pass
+1400: PO 200
+1700: PO H2O 100
+1800: Inj Rocephin-like 100; Inj RL/D 50; PO H2O 100
+1900–2000: IV meds ~100 each; Half(D) noted; PO H2O 100
+2100–2200: Half(D) continue
+2300: Total C/O 300; PO H2O 100; urine Pass
+0000–0600: Parenteral2 ~50/hr; C/O at 0600 ~400; 0200 PO H2O 250, urine 750
+Stool: S.N. Pass / not passed notes overnight
+24h totals — Intake: Parenteral 750 ml, Oral 650 ml, Grand 1400 ml
+Output: Urine 750 ml; Vomitus/NG/Drainage/Others No; Grand 750 ml

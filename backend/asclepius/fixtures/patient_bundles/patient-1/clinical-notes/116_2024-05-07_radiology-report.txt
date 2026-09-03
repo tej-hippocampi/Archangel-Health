@@ -1,0 +1,12 @@
+Document index: 116
+Document type: radiology report
+Service date: 2024-05-07
+Age on report: 42Y    Sex: M
+De-identification: name, referring physician and sonologist name redacted; only age/sex/date and findings transcribed.
+
+CONTENT
+----------------------------------------
+CT SCAN ABDOMEN AND PELVIS (TRIPHASIC) WITH CONTRAST.
+Protocol: Multiple thin axial slices were acquired with I/V contrast administration. In addition, coronal and sagittal reformation was also carried out. No previous imaging is available for comparison.
+FINDINGS:
+Complete thrombosis of the main portal vein is noted with significant cavernous transformation at the porta hepatis. Periportal tracking of fluid is seen. Mild dilatation of the intrahepatic biliary channels is noted with CBD stent in place. Splenic vein is also dilated. Minimal pneumobilia is noted. Focal hypodensity is noted in segment IV of liver, may represent focal fat infiltration. Left lobe of liver is small in size, which is most likely congenital in etiology. No evidence of arterially enhancing lesion or area of washout seen in liver. Spleen appears significantly enlarged measuring 19.0 cm with multiple tiny nodules scattered throughout the splenic parenchyma. Gallbladder is contracted and appears edematous containing linear high density material, may represent calculus. Pancreas appears normal in size and texture. No peripancreatic fat stranding is noted. Pancreatic duct appears normal. Both kidneys appear normal in size. Minimal right-sided hydronephrosis and hydroureter is noted. No calculus is seen in right kidney or right ureter. No calculus, hydronephrosis or hydroureter is noted on left side. Both adrenal glands appear unremarkable. Stomach appears unremarkable. Small bowel loops appear unremarkable. No evidence of abnormal bowel wall dilatation or thickening is noted. Mild fecal loading of rectosigmoid colon is noted. Rest of the large bowel loops appear unremarkable. No evidence of abnormal bowel wall dilatation or thickening is noted. Urinary bladder is partially distended, however no calculus or mass is seen. Pelvic visceral organs appear unremarkable. No significant abdominal or pelvic lymphadenopathy is seen. No evidence of free fluid or pneumoperitoneum seen. Using appropriate lung window settings, visualized lung bases appear unremarkable. No evidence of soft tissue pulmonary nodule or pleural effusion on either side.

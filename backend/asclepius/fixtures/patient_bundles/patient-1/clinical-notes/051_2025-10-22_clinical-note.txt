@@ -1,0 +1,12 @@
+Document index: 51
+Document type: clinical note
+Service date: 2025-10-22
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: hospital/facility name omitted; patient name and identifier field# redacted
+
+CONTENT
+----------------------------------------
+PHYSICIAN ORDERS - Communication Note
+- Admit the patient and give first aid according to the complaint of the patient.
+- Rx: Inj Meronem 1g IV x TDS
+- Counsel the attendant regarding the condition of patient.

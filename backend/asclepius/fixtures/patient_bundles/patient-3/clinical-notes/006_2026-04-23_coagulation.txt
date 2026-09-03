@@ -1,0 +1,18 @@
+Document index: 6
+Document type: coagulation
+Service date: 2026-04-23
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility/patient identifiers under green redaction
+
+CONTENT
+----------------------------------------
+Department: Hematology
+Panel: PROTHROMBIN TIME (PT/INR)
+
+Booking: 23/04/2026 13:42:30
+Collection: 23/04/2026 13:42:52
+Reporting: 23/04/2026 14:53:26
+
+Prothrombin Time: 14.2 Sec (10- 15)
+INR: 1.18 (0.9 - 1.5)
+Control: 12.0 sec

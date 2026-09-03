@@ -1,0 +1,14 @@
+Document index: 61
+Document type: radiology report
+Service date: 2025-06-29
+Age on report: 77Y    Sex: F
+De-identification: Omitted patient name, sonologist, Ref. By, and signature/facility footer (green redactions)
+
+CONTENT
+----------------------------------------
+Modality: X-RAY CHEST PA VIEW
+Timestamp: 29/06/2025 14:32:24
+
+Findings:
+- Left upper lobe air space infiltrates likely infective in etiology
+- Adv clinical and laboratory correlation

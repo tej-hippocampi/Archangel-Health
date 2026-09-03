@@ -1,0 +1,31 @@
+Document index: 141
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted signature and ICU MO stamp; omitted facility email/contact footer fragments
+
+CONTENT
+----------------------------------------
+Form: Fresh Orders (Date/Time | Order, Signature, and Title | RN Signature - Time)
+Time: 12:03 PM
+
+Orders:
+- CPAP @ 10 cm H2O (for ↑ WOB)
+- Inj 5% D/Saline + 1 amp Neurobion I/V @ 40 ml/hr
+- Inj Tanzo 4.5 gm I/V x TDS
+- Inj Onset 8 mg I/V x SOS (TDS crossed out)
+- Inj Ezium 40 mg I/V x OD
+- Inj Profalgen 2 g I/V x SOS
+- Inj Dormicum I/V x SOS
+- Via NG: Glucerna 3 scoops in 250 ml water x 6 H°
+- Inj Lerace 500 mg I/V x BD
+- Neb c̄ Atem x 6 H°; Neb c̄ Clenil x BD
+- Inj Humulin-R S/C x sliding scale x TDS
+- Stop => Tab Lorazepam 2 mg x TDS -> for 3 days then BD
+- Tab Ascard 75 mg x OD
+- Tab Extor 5/160 mg x OD
+- Tab Vita-6 1 x OD
+- Tab Rivotril 0.5 mg x 1/2 x HS
+- Tab Nebil 2.5 mg x OD
+
+Form footer: August 2024, Rev # 01, Page 1 of 1; PTO noted

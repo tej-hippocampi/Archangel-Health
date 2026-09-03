@@ -1,0 +1,12 @@
+Document index: 21
+Document type: prescription/medication
+Service date: 2023-06-18
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: prescriber/patient header redacted (green marker)
+
+CONTENT
+----------------------------------------
+Cap. Urso 500 mg — 1+0+1
+Tab. Carveda 6.25 mg — 1+0+0
+Tab. Vosogon 20 mg — 1+0+1
+Charity milk 4 scoops/day

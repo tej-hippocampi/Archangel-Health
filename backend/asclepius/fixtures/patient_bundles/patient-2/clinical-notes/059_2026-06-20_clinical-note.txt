@@ -1,0 +1,27 @@
+Document index: 59
+Document type: clinical note
+Service date: 2026-06-20
+Age on report: 65Y    Sex: M
+De-identification: Patient name, all physician/nurse names and signatures omitted. Age/sex retained from note text. No facility/identifier field/DOB recorded.
+
+CONTENT
+----------------------------------------
+Nursing progress / receiving notes (DATE / TIME / NOTES).
+
+20/06/2026 08:00 — Receiving note: Patient received by morning from night shift. Vitals stable.
+GCS 15/15. IV line passed. R/L-D intact in position. Under physician care (name omitted).
+
+20/06/2026 16:00 — Receiving note: 65-year-old male received from morning shift. GCS 15/15.
+Diagnosis/complaints: abdominal pain, loose stool. On room air; vitals stable; no active complaint.
+Under physician care (name omitted).
+
+20/06/2026 22:00 — Receiving note: Received from evening shift. Vitally stable. Fully mobilized and oriented.
+Admitted with C/O abdominal pain, fever, and loose stool. Spontaneous breathing on room air;
+no active complaint. Under physician care (name omitted).
+
+21/06/2026 01:00 — Receiving notes: Condition better but vitally unstable; fever on-off.
+Event: Shifted per physician advice — ECG done; magnesium 2 g; Pan IV cannula; sent for ABGs;
+back-to-back nebulization; maintain saturation; on oxygen RD.
+
+21/06/2026 08:00 — Receiving note: On O2 support. All medication done. ABGs done. Patient stable.
+(Staff name omitted.)

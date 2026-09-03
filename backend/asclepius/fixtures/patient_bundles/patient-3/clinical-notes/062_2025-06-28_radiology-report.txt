@@ -1,0 +1,21 @@
+Document index: 62
+Document type: radiology report
+Service date: 2025-06-28
+Age on report: 77Y    Sex: F
+De-identification: Omitted patient name, facility header, and referring physician (green redactions)
+
+CONTENT
+----------------------------------------
+Modality: ULTRASOUND ABDOMEN (PORTABLE)
+Timestamp: 28/06/2025 20:13:45
+
+LIVER: Normal in size; increased echotexture & irregular outlines. No focal mass. IHVs & ducts not dilated. P.V=1.1 cm; CBD not dilated.
+Impression: Chronic Liver Disease
+G. BLADDER: Normal; no focal mass or calculus.
+SPLEEN: Enlarged, 13.7 cm; no focal mass.
+Impression: Splenomegaly
+PANCREAS: Could not be visualized due to overlying gas-filled bowel loops.
+RIGHT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+LEFT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+U. BLADDER: Normal; no focal mass or calculus.
+Bowel loops not dilated. Mild ascites seen at time of scan.

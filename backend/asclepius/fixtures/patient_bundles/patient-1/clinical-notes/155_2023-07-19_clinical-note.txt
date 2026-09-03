@@ -1,0 +1,24 @@
+Document index: 155
+Document type: clinical note
+Service date: 2023-07-19
+Age on report: UNKNOWN    Sex: M
+De-identification: patient name redacted (green marker), identifier field # omitted
+
+CONTENT
+----------------------------------------
+Handwritten gastroenterology/hepatology clinical note.
+- Known case of Portal Biliopathy since 2018 + Portal HTN
+- 1st presentation with hematemesis
+- On Endoscopy (2018): Small varices. Bleeding ulcer in stomach. Duodenitis
+- Hep B: NR (non-reactive)
+- Anti HCV: NR (non-reactive)
+- Thrombocytopenic since 2018
+- Developed obstructive jaundice in Dec 2023 -> T.Bili: 17
+- ERCP done in Jan'24 -> Plastic stent placed
+- Fibroscan (2024): F0-F1 fibrosis
+- TB (total bilirubin) dropped to 5
+- Currently: increasing jaundice -> Current Total Bili: 9.4 (raised)
+- U/S abdomen (2024): Normal size of liver, Splenomegaly, Cavernoma formation around PV (portal vein)
+- CT-Scan (Dec'23): Cavernoma formation of portal vein, Portal vein thrombosis???, Multiple varices + Splenomegaly, No liver cirrhosis
+- Rx: Cap Urso 500mg 1+0+1; Tab Carveda 3.125mg 1+0+1; Cap Risek 40mg 1+0+0
+- Plan: Review CD of CT-Scan to check vascularity for possible shunt surgery; Discuss in MDT for shunt surgery; Repeat ERCP for biliary decompression

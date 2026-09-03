@@ -41,6 +41,56 @@ Health system onboarding (OTP and invite emails) requires **`SENDGRID_API_KEY`**
 - **In-memory data**: All patient data resets on server restart. The demo patient `maria_001` is re-seeded on every startup.
 - **CORS for the deployed landing**: the backend allowlists origins from `ALLOWED_ORIGINS` (or `BASE_URL`+`LANDING_URL`), plus a baked-in regex for `https://archangelhealth.ai` and its subdomains (`ALLOWED_ORIGIN_REGEX` to override — see `backend/http_security.py`). If sign-in from a new landing domain fails with a "Cannot reach the backend API" error, add that origin to `ALLOWED_ORIGINS` on the backend host (Railway).
 
+### Is the data actually going to survive? (`docs/asclepius/IS_MY_DATA_SAFE.md`)
+
+The failure that makes every other guarantee moot: no volume attached, so a
+redeploy erases every account, task, submission and payout row — silently. Four
+stores must be on the volume (`ASCLEPIUS_DB_PATH`, `TEAM_DB_PATH`,
+`ASCLEPIUS_DATA_DIR`, and raw ingest, which follows the first). `ENV=production`
+then makes the app REFUSE TO BOOT on non-durable storage, which is the actual
+fix rather than a check.
+
+`GET /api/asclepius/admin/storage/durability` answers this live and cheaply
+(three syscalls, never cached), and the admin console renders a banner on every
+tab when a store is not durable **or** when the gate is unarmed. Do not make
+that endpoint expensive — `/storage/reconcile` is the heavy one, cached for 15
+minutes, and the split exists because the question "is my data safe?" has to be
+askable on every page load.
+
+### Export & approval (the three-status split)
+
+A submission used to carry three statuses that never talked to each other —
+`earnings.status`, `submissions.status`, `records.status` — and export reads only
+the third. A record ships iff `records.status ∈ {export_ready, exported}`, and
+the invariant is **one-directional**: approved money ⟹ exportable record, but
+NOT the converse (a clean, unsampled submission is exportable at capture, with no
+ledger row — `pipeline.process_submission`, protected by PRD §7).
+
+Four APPROVAL events move it — admin Approve, reviewer accept, the 14-day
+auto-approve, the QA tab — and all four also resolve the ledger; the first three
+converge on `payments.apply_ledger_decision_to_records`. **Exactly three code
+sites may write `export_ready`**; a fourth is a bug, and
+`test_exactly_three_code_paths_can_make_a_record_exportable` pins the set. Full
+notes: `docs/asclepius/EXPORT_AND_APPROVAL.md`.
+
+`Data → Export` is one page with five scopes, all resolved by
+`_resolve_case_slice` — preview and bundle call the same function, so they cannot
+disagree about what ships. The buyer CRM is retired and its tables are kept
+(`docs/asclepius/BUYER_CRM_RETIRED.md`); the delivery rail is untouched.
+
+A boot sweep (`asclepius/export_backfill.py`) makes already-paid-but-unshippable
+cases exportable. It is idempotent and additive, and it takes the §0
+no-data-loss snapshot around ITSELF (a by-hand before/after cannot work — the
+script ships with the change). The verdict renders at the top of the Export tab,
+and is also at `GET /api/asclepius/admin/export/migration-report`.
+
+**Nothing on the migration or approval path may delete.**
+`test_the_migration_cannot_delete_anything` parses the SQL out of every function
+those paths reach and fails on `DELETE FROM` / `DROP TABLE` / `DROP COLUMN` /
+`TRUNCATE` / `REPLACE INTO`. If you add a store call to that path, add it to
+`_migration_write_path()` — a writer absent from that list is a writer nobody
+proved is non-destructive.
+
 ### The onboarding demo video
 
 The ~73 MB demo is **not in the repo** and must not be added to it. It lives in
@@ -94,4 +144,8 @@ These are **dev-time references only** — they are not wired into the product r
 | `/admin/audit/eligibility` | GET | TEAM audit log viewer |
 | `/api/asclepius/assets/onboarding-demo` | GET | Onboarding demo video (Range/206, auth or media ticket) |
 | `/api/asclepius/admin/assets/onboarding-demo` | POST | Admin: upload/replace the demo video |
+| `/api/asclepius/admin/earnings/{id}/approve` | POST | Admin: approve one case — ledger **and** export gate together |
+| `/api/asclepius/admin/export/case-preview` | GET | Export slice preview, incl. what is EXCLUDED and why |
+| `/api/asclepius/admin/export/approve` | POST | Approve every unapproved submission the preview listed |
+| `/api/asclepius/admin/export/case-bundle` | POST | Build the bundle (optionally + send to a buyer) |
 | `/docs` | GET | Swagger UI |

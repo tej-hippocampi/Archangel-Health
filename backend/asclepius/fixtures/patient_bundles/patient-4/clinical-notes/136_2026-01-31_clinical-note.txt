@@ -1,0 +1,24 @@
+Document index: 136
+Document type: clinical note
+Service date: 2026-01-31
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility name/header and patient ID (green-redacted); signature area not transcribed
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS
+Time: 11:45 AM
+NEURO-PHYSICIAN NOTE
+
+Pt seen and examined
+- GCS improving
+- GCS: M5–6 V3 E3 = 12/15
+- Pupils: PERL (PERRL)
+- Moves all four limbs
+
+A/P:
+- CSF D/R → (N)
+- Get MRI brain with contrast
+- Cont Rivotril 0.5 mg ½ + ½
+- + Lerace 500 1+1
+- Shift out after MRI done

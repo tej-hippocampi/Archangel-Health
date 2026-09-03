@@ -96,9 +96,13 @@ def independent_capture_kind(portal_version, independent_mode):
     pv = normalize_portal_version(portal_version)
     if pv == "v1":
         return "full"
-    if pv in ("v3", "v4"):
-        # V4 (real cases) behaves EXACTLY like V3 — the flow is identical, only
-        # the data differs (EHR PRD §9.5).
+    if pv in ("v3", "v4", "v5"):
+        # V4 (real cases) and V5 (one point of a real chart walk) behave EXACTLY
+        # like V3 — the flow is identical, only the data differs (EHR PRD §9.5;
+        # Longitudinal E2E PRD §5.1). Adding v5 here is not a new policy: it keeps
+        # a longitudinal point on the same capture kind the V4 case it was cut from
+        # would have had, instead of falling through to the V2 branch and silently
+        # upgrading every chart-walk point to a premium blind-gold capture.
         return "full" if independent_mode == "full" else "instinct"
     return normalize_independent_mode(independent_mode)
 
@@ -119,30 +123,42 @@ def independent_capture_kind(portal_version, independent_mode):
 # Stage-1 prompt review and the packaged record TYPES are identical across all
 # versions. The version is stamped onto every submission + record so buyers/admin
 # can segment by provenance. V3 is the recommended default for new sessions.
-#   ``v5`` environments — the AGENTIC / RL-environment tier (Clinical RL
-#                      Environments PRD). An agent *acts inside* a case over
-#                      multiple steps (read/act tools) and is scored on its
-#                      trajectory + end state; a board-certified physician
-#                      annotates the trajectory step-by-step. V1–V4 are
-#                      single-turn (case → answer → grade); V5 is interactive.
-#                      Every new V5 surface gates on ``portal_version == "v5"``
-#                      (NEVER ``isAssisted()``); V1–V4 stay byte-for-byte
-#                      unchanged. V5 lives in its OWN ``env_runs`` table and its
-#                      own ``/environments`` routes — it never touches the
-#                      single-turn task queue.
+#   ``v5`` longitudinal — the V3/V4 flow over ONE POINT of a real chart walk
+#                      (Longitudinal Cases PRD; Longitudinal E2E PRD §5). The
+#                      chart is truncated at encounter *k*, the physician commits
+#                      to an assessment, a plan, and what they expect to see next
+#                      — then the record's own encounter *k+1* is revealed and
+#                      grades the prediction. Real data, like V4, but SEQUENTIAL:
+#                      the points of one walk share a ``trajectory_id`` and are
+#                      sealed in order. Still SINGLE-TURN (case → commit →
+#                      reveal); only the ENV tier below is interactive.
+#
+# **V5 used to mean the agentic environments tier.** It no longer does. The
+# environments tier is ``env`` (below) — not a portal version, not in the version
+# dropdown, its own ``env_runs`` table and its own ``/environments`` routes. The
+# ``v5`` literal now means longitudinal everywhere, and a grep that finds "v5"
+# next to the word "environment" is a site this rename missed.
 PORTAL_VERSIONS = ("v1", "v2", "v3", "v4", "v5")
 DEFAULT_PORTAL_VERSION = "v3"
 
-# The SINGLE-TURN portal versions (case → answer → grade). V5 is the agentic tier
-# and is deliberately excluded here: the single-turn ``/taxonomy`` surface and its
-# queue must stay byte-for-byte unchanged, and V5 has its own ``/environments``
-# routes + queue. Use this (not ``PORTAL_VERSIONS``) anywhere the meaning is
-# "the single-turn evaluation flows".
-SINGLE_TURN_PORTAL_VERSIONS = ("v1", "v2", "v3", "v4")
+# The SINGLE-TURN portal versions (case → answer → grade).
+#
+# V5 IS one of them, and that is the whole point of the relabel: a longitudinal
+# decision point is answered in one turn — read the truncated chart, commit,
+# reveal — exactly like V3 and V4. It is not interactive; it is single-turn work
+# arranged in a sequence. The tier that is genuinely interactive is ``env``, and
+# ``env`` is not a portal version at all, so it cannot appear here.
+SINGLE_TURN_PORTAL_VERSIONS = ("v1", "v2", "v3", "v4", "v5")
 
 # Portal versions that get the ASSISTED capabilities (model pre-labeling, diff,
 # dictation, value-aware routing). V1 (classic) is deliberately excluded.
-ASSISTED_PORTAL_VERSIONS = ("v2", "v3", "v4")
+#
+# V5 is here because the client already treats it as assisted — ``isAssisted()``
+# is ``draftVersion() !== 'v1'`` — and a version the browser renders the assisted
+# UI for while the server routes it classically is two products disagreeing about
+# which one the physician is using. It also follows from what V5 IS: the V3/V4
+# seamless flow over one point of a chart walk, not a return to the classic form.
+ASSISTED_PORTAL_VERSIONS = ("v2", "v3", "v4", "v5")
 
 # The V4 wall (EHR PRD §9.5): a real (case_source="real_deid") task is a V4 task
 # and ONLY a V4 task; a synthetic task can never be V4. Enforced server-side in
@@ -150,24 +166,61 @@ ASSISTED_PORTAL_VERSIONS = ("v2", "v3", "v4")
 REAL_CASE_PORTAL_VERSION = "v4"
 SYNTHETIC_PORTAL_VERSIONS = ("v1", "v2", "v3")
 
+# The LONGITUDINAL wall (Longitudinal E2E PRD §5.1), the mirror of the V4 wall
+# above and enforced in the same three places. A trajectory point
+# (``trajectory_id IS NOT NULL``) is a V5 task and ONLY a V5 task; a task with no
+# trajectory can never be V5.
+#
+# Both walls are needed, not one: a trajectory point IS ``case_source='real_deid'``,
+# so before this constant existed an assigned longitudinal point would have been
+# served inside the V4 queue — the right data in the wrong product, single-labelled
+# and κ-excluded, sitting in a queue that assumes neither.
+LONGITUDINAL_PORTAL_VERSION = "v5"
+
 
 def normalize_portal_version(value):
     return value if value in PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
 
 
-# The agentic / RL-environment tier (Clinical RL Environments PRD). A V5 surface
-# is gated on this exact literal — never on ``isAssisted()`` / ASSISTED_PORTAL_VERSIONS.
-ENV_PORTAL_VERSION = "v5"
+# The agentic / RL-environment tier (Clinical RL Environments PRD).
+#
+# ``env``, NOT ``v5``. It is deliberately outside ``PORTAL_VERSIONS``: it is not a
+# version of the single-turn portal, it is a different KIND of work with its own
+# table (``env_runs``), its own routes (``/environments``) and its own export
+# pipeline. Keeping it out of the tuple is what makes "an env rollout can never be
+# stamped onto a single-turn submission" true by construction rather than by
+# vigilance — ``normalize_portal_version`` maps it to the default rather than
+# letting it through.
+#
+# ``is_env_portal_version`` compares against this constant and so needed no edit
+# when the literal moved; every call site that used it kept working, which is the
+# reason it was written that way in the first place.
+ENV_PORTAL_VERSION = "env"
+
+#: One release of grace. A client cached before the rename posts ``portal_version:
+#: 'v5'`` to an /environments route; refusing it would 400 an annotation a
+#: physician has already typed, for a string the page will stop sending as soon as
+#: it reloads. Accepted ONLY on the env surfaces, and never stamped — the value
+#: recorded is always ``ENV_PORTAL_VERSION``. Delete after one deploy cycle.
+ENV_LEGACY_PORTAL_VERSION = "v5"
 
 
-def is_env_portal_version(value) -> bool:
-    """The single source of truth for gating a V5 (agentic environment) surface.
+def is_env_portal_version(value, *, allow_legacy: bool = False) -> bool:
+    """The single source of truth for gating an ENV (agentic environment) surface.
     Matches the LITERAL declared value (like ``value_aware`` in the queue router),
-    so an absent/typo'd version never accidentally lights up the V5 tier."""
-    return value == ENV_PORTAL_VERSION
+    so an absent/typo'd version never accidentally lights up the env tier.
+
+    ``allow_legacy`` additionally accepts the pre-rename ``'v5'`` literal. Pass it
+    ONLY on an env route reading a client-supplied version, never anywhere that
+    decides what gets written: under the new meaning ``'v5'`` is longitudinal, and
+    an env surface that STORED it would file an agentic rollout as a chart walk.
+    """
+    if value == ENV_PORTAL_VERSION:
+        return True
+    return bool(allow_legacy) and value == ENV_LEGACY_PORTAL_VERSION
 
 
-# ─── V5 Clinical RL Environments — controlled vocabularies (PRD §1, §3, §7) ───
+# ─── ENV · Clinical RL Environments — controlled vocabularies (PRD §1, §3, §7) ───
 # Centaur's exact trajectory step ``type`` vocabulary. Do NOT deviate — the record
 # must be drop-in for their pipeline (PRD §1, §13).
 ENV_STEP_TYPES = ("thought", "tool_call", "observation", "final_output")
@@ -229,7 +282,7 @@ def env_max_steps() -> int:
     return max(2, _env_int("ASCLEPIUS_ENV_MAX_STEPS", 12))
 
 
-# ─── V5 reward composition weights (PRD §5) ───────────────────────────────────
+# ─── ENV reward composition weights (PRD §5) ───────────────────────────────────
 # The reward is base(deterministic) refined by rubric and/or outcome. Weights are
 # env-overridable so a buyer can re-weight the tiers WITHOUT a code change (each
 # triple is normalized, so partial overrides can't silently un-sum to 1.0).
@@ -261,7 +314,7 @@ def _normalized_weights(base: float, rubric: float, outcome: float) -> dict:
     return {"base": base / total, "rubric": rubric / total, "outcome": outcome / total}
 
 
-# ─── V5 answer-check strictness (PRD §5.1, anti-reward-hacking) ────────────────
+# ─── ENV answer-check strictness (PRD §5.1, anti-reward-hacking) ────────────────
 def env_answer_datum_match_ratio() -> float:
     """Fraction of a ``key_data`` datum's distinctive tokens that must appear for
     that decisive element to count as engaged. ``ASCLEPIUS_ENV_DATUM_MATCH`` (0.5)."""
@@ -551,12 +604,22 @@ INTERNAL_PROMPT_BANK = (
 )
 
 
+#: The license stamped on every shipped record, datasheet and eval pack.
+#:
+#: It was ``CC-BY-NC-4.0-clinical-eval`` until the export rework (PRD §2.3). NC
+#: means NON-COMMERCIAL, and this data is sold to frontier labs to train
+#: commercial models: a buyer's counsel reads "non-commercial" on the artifact
+#: they just paid for and the deal stops there. The name is our own terms, not a
+#: Creative Commons variant, because it is not one.
+DEFAULT_LICENSE = "archangel-commercial-v1"
+
+
 def default_license() -> str:
     """The rights/license string stamped on every record (opt §1.4).
 
     Env-overridable so a buyer-specific license can be set per deployment.
     """
-    return (os.getenv("ASCLEPIUS_LICENSE") or "CC-BY-NC-4.0-clinical-eval").strip()
+    return (os.getenv("ASCLEPIUS_LICENSE") or DEFAULT_LICENSE).strip()
 
 
 def default_ip_cleared() -> bool:

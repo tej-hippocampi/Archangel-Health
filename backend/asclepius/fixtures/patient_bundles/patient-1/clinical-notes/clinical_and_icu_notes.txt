@@ -1,0 +1,466 @@
+CLINICAL / ICU / DISCHARGE NOTES (de-identified)
+============================================================
+
+--- Image 19 | 2023-06-04 | clinical note ---
+Referral note: Referring patient, known case of Noncirrhotic Portal Hypertension with Portal Biliopathy, S/P ERCP + plasty/stenting. Kindly evaluate him for Shunt Surgery.
+
+--- Image 20 | 2023-03-29 | clinical note ---
+Procedure/endoscopy note (ward OPD).
+Indication (reason): Portal Hypertension / portal biliopathy.
+Co-morbidities (Viral Markers): N/R (non-reactive).
+Procedure category selected: E.R.C.P. with stenting (other options O.G.D., colonoscopy, sclerotherapy, banding, PEG, sigmoidoscopy, stent not selected).
+Pre-procedure labs (26 Dec): Hb = 13, Platelets = 71, TLC = 6.6.
+Imaging note: CBD ... cavernous transformation of portal vein, likely para(-choledochal varices).
+Procedure outcome: Could not cannulate as floppy ampulla; will redo after next week.
+Additional LFT panel noted: Bilirubin total ~17.34, Direct ~14.14, Indirect ~3.20, ALP ~224; Hb = 9.1, Platelets = 60.
+
+--- Image 23 | 2023-04-19 | clinical note ---
+ERCP pre-procedure / preparation instruction sheet with handwritten clinical notes.
+Header: "Viral Markers for Hep B & C / Others"
+Time of Procedure: 09:00:00 AM
+Preparation: CBC, PT/INR < 1.5 sec / Viral Marker; NPO for 10 hours; fresh Ultrasound Report Abdomen; bring one attendant.
+Note (handwritten): fitness within 1 week - GA Fitness, Cardiac Fitness, ECG, Echo.
+ECG -> Normal.
+Handwritten labs (2 Jan): Hb = 13.3, Plt = 70, INR = 1.16, Direct = 13.43, SGPT = 32, Alk/ALP = 154, Total Bili = 15.87 (approx values as written).
+Handwritten labs (26 Dec): Hb = 13, Plt = 71, TLC = 6.6, LFT: T.Bili = 17.34, Direct = 14.14, ALP = 224, GGT = 60.
+Handwritten clinical impression: ERCP done; cholecystitis; on CT Abdomen with contrast - cavernous transformation of portal vein due to portal vein thrombosis; extensive porto-portal collaterals; ? cholelithiasis.
+
+--- Image 31 | 2023-04-21 | discharge summary ---
+PATIENT DISCHARGE SUMMARY - Ward: Medical Unit-V, Bed #18
+1. Provisional Diagnosis: Post-ERCP pancreatitis
+2. Final Diagnosis: K85 Acute pancreatitis
+3. Presenting Complaint/History: Abdominal pain - 2 days
+4. Vitals: P: 91/pm, BP: 128/80 mmHg, T: A/F degC, RR: 18/pm
+5. Examination: Chest = NVB; GIT = soft, mild tenderness in epigastrium, gut sounds audible; CVS = S1+S2+0; CNS = 15/15
+6. Labs at presentation: Hb=11.5, MCV=79.8, TLC=6.7, N=79, Plat=52, CRP=62.8, PT=11.6, APTT=24.1, INR=1.1, BUN=12, Cr=0.7, Na=136, K=3.8, Cl=99, T.Billi=13.2, D.Billi=9.9, In.Billi=3.3, SGPT=22, Alk Ph=149, Amylase=471, lipase=620
+7. Labs in ward: Hb=11.1, MCV=84, TLC=5.3, Plat=47, CRP=61.9, PT=12, APTT=22.3, INR=1.15, BUN=10, Cr=0.6, T.Billi=13.2, SGPT=23, Alk Ph=141, Amylase=229
+8. Radiological Findings: None
+9. Surgical Procedure: None
+15. Medications on discharge (handwritten): Cef span (cefixime) 400mg 1x BD; Tab Carnid(?) 3.125 ... ; Tab Rise K(?); T. Urso (ursodeoxycholic acid) 250 ... BD
+Disposition: Discharged to home
+
+--- Image 50 | UNKNOWN | clinical note ---
+PATIENT PROGRESS - Shifting Note
+Patient is being shifted to Gastro HDU as advised by primary team, with following vitals.
+Known case of: HTN, Portal Biliopathy
+Septic Shock 2° to cholangitis; S/P ERCP
+Vitals:
+GCS: 15/15
+BP: 100/70 on Nor-epi 3-3 ml/hr
+Pulse: 84 bpm
+Temp: Afebrile
+RR: 22 br/min
+SPO2: 99% on Room Air
+RBS: 246 mg/dl @ 11:30 AM
+Echo: EF 55%, IVC normal collapsing
+(R) femoral CVP
+Plan:
+- Taper Nor-epinephrine accordingly
+- Continue PCT & LFTs
+- Continue Platelets
+- Get U/S Abdomen
+- BP monitoring x 24h
+- RBS, RR, SPO2 monitoring
+- I/O charting
+- Mobilize out of bed
+- Continue IV fluid
+- Continue Meronem
+- Continue Blood C/S
+- Follow fresh orders
+
+--- Image 51 | 2025-10-22 | clinical note ---
+PHYSICIAN ORDERS - Communication Note
+- Admit the patient and give first aid according to the complaint of the patient.
+- Rx: Inj Meronem 1g IV x TDS
+- Counsel the attendant regarding the condition of patient.
+
+--- Image 52 | 2025-10-22 | clinical note ---
+Integrated Initial Assessment Form (Part 1 - to be filled by doctor)
+Presenting complaints:
+- Jaundice (15 days, increased)
+- Vomiting (1 episode) 5 days back
+- Fever 2-3 days back
+- SOB since one day
+Known case of: NKDM (transcribed as written)
+History of presenting complaints: According to attendant, patient was in usual state of health 15 days back, then started having increasing yellowish discoloration of sclera and had above-mentioned complaints; ERCP planned for tomorrow, but patient developed septic shock likely secondary to septic cholangitis; being managed in ICU on line of septic shock.
+Review of symptoms: Fever (present), Vomiting (present), Jaundice
+Past medical history: H/O multiple ERCP (prior facilities)
+Family history: DM (+), HTN (+), Cancer (-), TB (-), Asthma (-)
+General examination:
+BP: 80/40 mmHg
+Temp: Afebrile
+R/R: 30 /min
+JVP: Normal
+O2 Sat: 96%
+GCS: 15/15
+Jaundice: present
+
+--- Image 53 | 2025-10-24 | clinical note ---
+ICU ROUTINE DOCUMENT
+Presenting complaint: 42 years old male, NKCM, presented with C/O:
+1) Jaundice  2) Vomiting  3) Fever  4) SOB
+Events: In ER -> low BP 80/40 -> N/saline + Hemaccel bolus + Noradrenaline (Nor-epi) started, low Sat, O2 inhalation started with Nebs. In ICU -> low BP, Nor-epi continued -> CVP line passed, raised RR -> NIV applied -> shifted to OT -> ERCP done.
+CT/MRI (07/05/2024): CT Abdomen + Pelvis -> portal vein with cavernous transformation, edema with cholelithiasis -> portal biliopathy, gallbladder involvement.
+Echo: EF 55%, IVC normal collapsing
+CXR: Done
+USG: -
+Urine R/E: Pus cells 4-6, granular casts, bacteria few, ketone +1, protein +2, pH 6.0, specific gravity
+C/S: Blood C/S sent
+Antibiotics: Inj Meronem
+
+--- Image 54 | 2025-10-23 | clinical note ---
+ICU ROUTINE DOCUMENT (FULL CODE)
+Presenting complaint: A 42 years old male, known case of HTN, cholangitis, multiple H/O ERCPs, presented with C/O:
+- Vomiting (01 episode) 5 days back
+- Fever (2-3 days back)
+- SOB (since 01 day)
+Events: In ER -> low BP 80/40 -> Nor-epinephrine support started, SpO2 94, O2 inhalation. In ICU -> low BP, Nor-epinephrine continued + CVP line passed in (L) femoral + raised R/R -> NIV applied.
+Echo: EF 55%, raised LA, LVDD (mild), Mild-Mod MR, Mod PAH, Mod TR, IVC with collapse
+CXR: Done
+USG: Not done
+Urine R/E: Awaited
+C/S: Blood C/S sent
+Analgesic: Inj Bofalgan 1gm IV x SOS
+Antibiotics: Inj Meronem
+
+--- Image 55 | UNKNOWN | clinical note ---
+Shifting Note
+Patient is being shifted to OT for ERCP as advised by primary team, with following vitals:
+BP: 120/80 mmHg on 5 ml/hr Nor-epi
+Pulse: 71 bpm
+Temp: Afebrile
+SPO2: 94% on Room Air
+GCS: 15/15
+
+--- Image 56 | 2025-10-23 | clinical note ---
+PATIENT PROGRESS - Follow Up Note
+Sepsis 2° to cholangitis. ERCP done today.
+Currently patient is on room air, maintaining Sats. General condition N/S.
+Vitals:
+BP: 120/70 mmHg
+Pulse: 70 b/m
+Temp: Afebrile
+SPO2: 93%
+O/E: CNS: GCS 15/15; CVS: S1+S2; Chest: B/L clear; P/A: soft, non-tender
+Plan:
+- Keep patient NPO for 24 hours
+- Strict vitals monitoring
+- DVT therapy
+- Counsel family
+- Continue treatment
+
+--- Image 58 | UNKNOWN | clinical note ---
+ICU Progress Note (systems-based) - Page 2 of 2
+Known case of HTN, Portal Biliopathy + Portal HTN. Septic Shock, S/P ERCP, 2° to cholangitis (blocked CBD stents).
+NEURO: GCS 15/15
+CARDIO: S1+S2 audible; BP 120/70; Pulse 84 bpm @ 3.3 ml/hr of Nor-epi
+RESP: RR 21 br/min; SPO2 100% on room air
+ABDO: mildly distended, rigid, A/S sluggish, stool not passed
+RENAL: Input 4276, Output 2840 (+1436)
+MUSCULOSKELETAL: No bed sores
+ENDO: RBS 174 mg/dl @ 7 AM
+HAEM: No active bleed
+ID: No fever spike
+LINE/DRAINS: (R) femoral CVP
+NUTRITION: Liquid/soft diet orally
+Plan:
+- Taper Nor-epi
+- Glycerine suppositories
+- Consult gastroenterology for further plan
+- Send PCT, LFTs, INR
+- Continue platelets
+- Plan for step down
+- BP monitoring x 24h
+- RBS & vitals monitoring
+- I/O charting
+
+--- Image 59 | UNKNOWN | clinical note ---
+ICU Progress Note (systems-based) - Page 2 of 2
+Known case of Portal Biliopathy + Portal HTN. Sepsis 2° to cholangitis?
+NEURO: GCS 15/15
+CARDIO: S1+S2 audible; BP 130/80 on Nor-epi @ 9 ml/hr; Pulse 73 bpm
+RESP: RR 28 br/min; CPAP @ 10 H2O = 2L O2
+ABDO: Soft, NT, stool not passed
+RENAL: Input 1420 - Output 1440 = -20 ml
+ENDO: RBS @ 7 AM = 106 mg/dl
+HAEM: No active bleeding
+ID: (R) femoral CVP; 2 fever spikes of 100° in night shift
+LINE/DRAINS: (R) femoral CVP
+Plan:
+- Taper Nor-epi
+- CPAP weaning trial
+- Update primary & discuss further plan
+- Send Urine DR
+- Send Blood C/S
+- Continue IVF
+
+--- Image 60 | 2025-10-22 | clinical note ---
+PATIENT TRIAGE / ER ASSESSMENT
+Complaint: A 42 y old male admitted in ER with C/O low blood pressures, SOB and generalized weakness since few days.
+History: Patient is known case of cholangitis and was initially admitted for procedure ERCP.
+On examination: Chest B/L clear; Abdomen soft non-tender + distended mildly; CVS/ECG S1+S2; CNS conscious.
+Vital signs: RBS 114 mg/dl; Pulse 117 b/min; Temp Afebrile; BP 80/50 mmHg; RR 20/min; SPO2 94%; GCS 15/15
+Investigations ordered: ECG + ABGs, CBC, U/C/E, LFT, PCT, Trop I, Blood cultures
+Referred from: With family
+Provisional diagnosis: Sepsis
+Transfer to: ICU
+ER Treatment & Procedure:
+- Inj NS 500ml IV x bolus
+- Inj Haemaccel 500ml IV x bolus
+- Inj Norpine 2 amp @ 8 drop/min -> 12 drops/min
+- Inj Zofran 8mg IV stat
+- Inj Risek 40mg IV stat
+- Inj Ceftro 2g IV stat
+- Inj Meronem 1g IV stat
+- Oxygen inhalation + nebulization
+Patient code: Full Code
+
+--- Image 61 | UNKNOWN | clinical note ---
+SYSTEMIC EXAMINATION
+Abdominal examination: Abdomen soft, non-tender
+Cardiovascular: Auscultation S1 present, S2 present; Heave nil
+CNS: Level of consciousness ALERT; oriented to time/place/person; recent memory intact; emotional state stable; speech normal; gait normal; cranial nerves intact
+Motor system: Bulk normal (all limbs); Tone normal (all limbs); Power 5/5 (all limbs); Reflexes normal; Plantars (lower limbs) present
+Coordination intact; sensory system intact; cortical senses intact
+Diagnosis: Septic Shock 2° Septic Cholangitis
+
+--- Image 74 | 2025-04-27 | clinical note ---
+Handwritten clinical note (best-effort transcription):
+- Patient has been reviewed
+- Comorbids asked
+- Counselling done
+- Orally allowed
+- On 1 pint (IV fluid)
+- Stay withheld
+
+--- Image 77 | UNKNOWN | clinical note ---
+Patient Progress note.
+Seen by [provider name omitted].
+Plan:
+- ERCP today
+- Take high risk consent
+
+--- Image 78 | UNKNOWN | clinical note ---
+Patient Progress note.
+Seen by [provider name omitted] (Gastro).
+- Shift to HDU
+- Get U/S abdomen
+
+--- Image 79 | UNKNOWN | clinical note ---
+Patient Progress note.
+Seen by [provider name omitted].
+- Step down to Gastro HDU
+- Mobilize out of bed
+- Discuss with [name omitted] about step down & inotropic support
+- Continue Meropenem
+- Continue PLT (platelets)
+
+--- Image 92 | 2024-03-31 | clinical note ---
+Handwritten clinical note (VITAL sheet).
+Vitals: BP 100/70; Wt 64 kg.
+Impression: Cavernoma ... S/P ERCP + stent.
+Medications (handwritten):
+  T. Mofest 1 tab
+  Cap Ursode(oxycholic acid) 1 tab
+  T. Liv-52 1 tab
+  T. Carvide(carvedilol) 6.25 1 tab
+Plan: Refer to Hepatobiliary for shunt surgery.
+
+--- Image 97 | 2024-01-08 | clinical note ---
+Handwritten clinical note.
+- Diagnosed case of Portal Biliopathy.
+- Stenting done -> patent.
+- Currently asymptomatic.
+- Continue same Rx (Carveda [carvedilol], Urso [ursodeoxycholic acid]).
+
+--- Image 99 | 2024-05-06 | clinical note ---
+Handwritten follow-up clinical note.
+Follow-up Case: Portal Biliopathy.
+ERCP + stenting done on 08/02/2024 -> stent blocked -> Repeat stenting done on 25/04/2023 (as written).
+OGD done -> Esophageal Varices, EVBL done.
+Current LFTs: TB (total bilirubin) improved 11.9 -> 8.3 (after stent replacement).
+Plan:
+  1. Review CT-Scan for possible shunt.
+  2. Repeat CT-Scan abdomen triphasic.
+Rx:
+  Cap Urso (ursodeoxycholic acid) 500mg 1+0+1
+  Tab Carved (carvedilol) 6.25mg 1+0+1
+
+--- Image 101 | 2024-12-16 | clinical note ---
+Handwritten clinical note (VITAL sheet).
+Vitals: BP 100/60; Wt 63 kg.
+Impression: Known case of Chronic PVT (portal vein thrombosis), Portal Biliopathy, deranged LFTs.
+Medications (handwritten, best reading):
+  Tab Motilium 1+0+1
+  Syp Ulsanic 2+0+2 x 5 days
+  T. Mofest
+  Cap DDR 60 1+0+1
+  T. Carvida (carvedilol) 6.25
+  T. Calbon (?)
+  Cap Urso (ursodeoxycholic acid) 250 1+1+1
+Note: EVBL performed.
+
+--- Image 155 | 2023-07-19 | clinical note ---
+Handwritten gastroenterology/hepatology clinical note.
+- Known case of Portal Biliopathy since 2018 + Portal HTN
+- 1st presentation with hematemesis
+- On Endoscopy (2018): Small varices. Bleeding ulcer in stomach. Duodenitis
+- Hep B: NR (non-reactive)
+- Anti HCV: NR (non-reactive)
+- Thrombocytopenic since 2018
+- Developed obstructive jaundice in Dec 2023 -> T.Bili: 17
+- ERCP done in Jan'24 -> Plastic stent placed
+- Fibroscan (2024): F0-F1 fibrosis
+- TB (total bilirubin) dropped to 5
+- Currently: increasing jaundice -> Current Total Bili: 9.4 (raised)
+- U/S abdomen (2024): Normal size of liver, Splenomegaly, Cavernoma formation around PV (portal vein)
+- CT-Scan (Dec'23): Cavernoma formation of portal vein, Portal vein thrombosis???, Multiple varices + Splenomegaly, No liver cirrhosis
+- Rx: Cap Urso 500mg 1+0+1; Tab Carveda 3.125mg 1+0+1; Cap Risek 40mg 1+0+0
+- Plan: Review CD of CT-Scan to check vascularity for possible shunt surgery; Discuss in MDT for shunt surgery; Repeat ERCP for biliary decompression
+
+--- Image 159 | 2025-10-21 | clinical note ---
+Handwritten Nurses Note (For Event Notes). Largely illegible; legible fragments:
+- Receiving note: patient with low blood pressure / hypotension, complicated by hypotension previously.
+- GCS 15/15; hypotension noted.
+- Noradrenaline (inotropic) support; blood pressure measurement recorded.
+- Morning shift / staff vitals check; patient on active complaints monitoring.
+- Reference to NS (normal saline) support, GCS 15.
+(Full details not legible.)
+
+--- Image 160 | UNKNOWN | vitals ---
+Critical Care Flow Sheet (ICU). Diagnosis line: cerebral/... ; CBR (complete bed rest).
+Glasgow Coma Scale: Eye 4, Verbal 5, Motor 6 (recorded serially).
+Respiratory rate series: 39, 34, 28, 30, 31, 34, 30, 32, 33.
+SpO2 series: 96, 98, 96, 94, 97, 96, 97, 98, 97, 98 (%).
+Pulse series: ~124-133 /min.
+Blood pressure (systolic/diastolic) plotted ~78-88 range.
+Temperature ~ (plotted, ~ up to 100 F noted).
+Noradrenaline infusions annotated on chart (e.g. 8mg/dl, ... mg/dl).
+
+--- Image 161 | UNKNOWN | vitals ---
+Intake / Out-Put Record Sheet (24-hour fluid balance chart). Mostly handwritten.
+Intake columns: Parenteral Fluid 1/2/3, enteral. Output columns: urine, vomitus, NG, drainage, stool.
+Legible totals (approximate): 24-hour intake grand total ~2000 mL; oral/NG and IV fluids recorded hourly.
+Individual hourly urine outputs recorded (values ~ 100-200 mL entries).
+
+--- Image 162 | 2025-10-22 | vitals ---
+Vital Signs Sheet (Date, Time, B/P mmHg, Resp bpm, Pulse b/min, SpO2%, Temp F):
+- 22/10/2025 1850: BP 80/50, Resp 20, Pulse 117, SpO2 94%, Temp 98F
+- 22/10/2025 1920: BP 60/40, Resp 20, Pulse 108, SpO2 96% (O2 36), Temp 98F
+- 22/10/2025 2000: BP 60/40, Resp 20, Pulse 102, SpO2 97% (O2 32), Temp 98F
+- 22/10/2025 2030: BP 70/40, Resp 22, Pulse 101, SpO2 97% (O2 32), Temp 98F
+- 22/10/2025 2100: BP 80/60, Resp 22, Pulse 98, SpO2 97% (O2 32), Temp 98F
+- 22/10/2025 2135: BP 100/60, Resp 22, Pulse 102, SpO2 95% (O2 36), Temp 98F
+- 24/10/2025 1:00pm: BP 137/75, Resp 22, Pulse 88, SpO2 96%, Temp 98F
+- 24/10/2025 1600: BP 100/70, Resp 20, Pulse 81, SpO2 97%, Temp A/F
+- 24/10/2025 2200: BP 100/60, Resp 20, Pulse 85, SpO2 98%, Temp A/F
+- 24/10/2025 2300: BP 110/70, Resp 20, Pulse 84, SpO2 98%, Temp A/F
+- 25/10/2025 0300: BP 90/60, Resp 20, Pulse 86, SpO2 98%, Temp A/F
+- 25/10/2025 0500: BP 90/60, Resp 20, Pulse 86, SpO2 99%, Temp 98.8F
+- 25/10/2025 0700am: BP 100/60, Resp 20, Pulse 84, SpO2 98%, Temp A/F
+- 25/10/2025 9:00: BP 130/70, Resp 20, Pulse 85, SpO2 98%, Temp 98F
+- 25/10/2025 9:30: BP 80/60
+- 25/10/2025 10:00: BP 80/60
+- 25/10/2025 1600: BP 90/60, Resp 20, Pulse 70, SpO2 97%, Temp A/F
+- 25/10/2025 2200: (row started, values blank)
+
+--- Image 163 | 2025-10-21 | clinical note ---
+Handwritten Nurses Notes; largely illegible cursive. Legible fragments:
+- Receiving note: patient received/shifted; complaints noted; kept on CBR (complete bed rest).
+- GCS / general condition, SpO2 monitored.
+- References to noradrenaline / inotropic support and NS (normal saline).
+- Vitals / shift handover documentation; blood c/s (culture/sensitivity) referenced.
+(Full narrative not legible.)
+
+--- Image 164 | 2025-10-24 | clinical note ---
+Head to Toe Assessment & Reassessment (nursing), serial columns (M/E):
+- Orientation: Oriented x3 (Time, Place, Person). GCS 15/15.
+- Oral cavity: mouth/tongue normal / moist.
+- Cardiac: S1/S2 normal.
+- Respiratory: Air entry bilaterally present (up-arrows); breath sounds normal.
+- Gastrointestinal: Abdomen soft; bowel sounds normal.
+- Genito-urinary: Stool passed; Foley's catheter in situ; urine color amber.
+- Musculoskeletal: No weakness upper/lower extremities; no deformities; Activity - Complete bed rest (CBR) / As tolerated (AAT); Up and about - No.
+- Bilateral vascular check: Radial pulse strong; capillary refill 2-3 seconds.
+- Skin: turgor normal; skin color pale; not cyanotic; skin temperature warm.
+
+--- Image 165 | 2025-10-25 | vitals ---
+Intake / Out-Put Record Sheet (fluid balance), handwritten and largely faint.
+Intake: Parenteral Fluid columns with entries incl. NS (normal saline) 100ml/hr, and enteral feeds.
+Output: hourly urine, drainage columns. PONG type entries ~100-200 mL.
+Enteral/oral feeds noted (~90-100 mL entries).
+
+--- Image 168 | 2025-10-24 | clinical note ---
+Nursing assessment (continuation) and Nursing Interventions, serial (M/E):
+- Skin breakdown check: no redness/breakdown; prominences intact; no bed sore.
+- Invasive Lines: CVP line present (site condition noted); no second line.
+- Peripheral Edema: hands - CVP line; feet - no pitting edema (No).
+- Drainage Bags: none / NG none.
+- Pain Assessment: pain score 0/10.
+Nursing Interventions:
+- Bath: sponge bath given.
+- Shampooing: no.
+- Mouth care: yes.
+- Back care: yes.
+- Catheter/Perineal care: yes.
+- Positioning: yes.
+- Safety check (side rails / ID band / call bell): all checked.
+- Deep breathing and coughing exercises: encouraged.
+- Diet: soft diet.
+- IV flush with 0.9% N/S: yes.
+
+--- Image 172 | 2025-10-22 | clinical note ---
+IV Cannulation Insertion Details:
+- 22/10/2025 1900, 18G, site R/H (right hand), condition Intact
+- 22/10/2025 1900, 18G, site L/H (left hand), condition Intact
+Medication Administration Record:
+- Inj N/Saline 2L I/V, time 1900
+- Inj Haemaccel 500ml I/V, time 1900
+- Inj Zofran (ondansetron) 8mg I/V, time 1920
+- Inj Risek (omeprazole) 40mg I/V, time 1930
+- Inj Ceftum (cefuroxime) 2G I/V, time 1930
+Nurses Notes:
+- 22/10/2025 1900 (Receiving Note): Patient came in ER with complaints of SOB and hypotension and generalized weakness. Patient GCS 15/15. Patient known case of [redacted].
+- 22/10/2025 1930 (Initial Note): Patient initial management done in ER. Labs sent; blood C/S sent to lab; all stat doses done in ER.
+- 22/10/2025 2135 (Shifting Note): Patient shifted to ICU for further management.
+
+--- Image 174 | 2025-10-22 | clinical note ---
+Physicians' Orders / ICU admission note:
+- ICU Consultant [name omitted] was taken on board.
+- Patient seen by Dr [name omitted].
+- Patient came in ER in hypotensive state with jaundice, fever. Initial BP = 80/50 mmHg.
+- Orders: Admit the patient in ICU.
+- Send Baselines + Blood culture, CXR, ECG, Trop I.
+- Rx: Inj Meronem 1g I/V x TDS; Inj Haemaccel 500ml - Bolus I/V x stat; Inj N/S 500ml I/V x stat; Inj Zofran 8mg I/V x stat; Inj Risek 40mg I/V x stat.
+- Counsel the attendants regarding the condition of patient and take primary [team/name omitted] on board.
+
+--- Image 175 | 2025-10-22 | clinical note ---
+Patient Progress note (handwritten):
+- Vitals: BP 80/50.
+- Assessment: Septic Shock secondary to (2°) Cholangitis; Obstructive Jaundice.
+- Plan/Rx (partly legible): Inj Meropenem to be used; Inj Haemaccel in stat; Inj N/S 500ml/hr (approx); Blood C/S + blood culture; If BP low then start Nor-epinephrine.
+
+--- Image 176 | 2025-10-24 | clinical note ---
+Nutrition & Food Service Department note.
+Diagnosis: Septic shock - secondary (2°) to Cholangitis.
+Entry 24-10-2025 (9:00pm):
+- Patient has been visited.
+- Comorbid asked.
+- Counseling done.
+- Orally allowed.
+- No food allergy.
+- Recommended soft diet.
+- Eat small and frequent meals.
+- Tolerating well.
+- Keep hydrated.
+Entry 25-10-2025 (4:00pm):
+- Patient has been visited.
+- Comorbid asked.
+- Counseling done.
+- Orally allowed.
+- No food allergy.
+- Given soft diet in meal.
+- Tolerating well.
+- Advised calorie-rich diet.
+- 2000 kcal/day advised.
+- Keep hydrated.

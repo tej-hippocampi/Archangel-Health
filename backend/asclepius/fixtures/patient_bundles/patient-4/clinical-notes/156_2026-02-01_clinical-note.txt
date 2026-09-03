@@ -1,0 +1,35 @@
+Document index: 156
+Document type: clinical note
+Service date: 2026-02-01
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted staff initials/signatures
+
+CONTENT
+----------------------------------------
+Patient Assessment (M = morning, E = evening), Date 01/02/2026:
+
+Skin breakdown:
+- Body check redness/breakdown / prominences: M NO/Intact; E NO
+- Bed sore staging/size: M NO; E NO
+
+Invasive lines:
+- Line 1: 18G both shifts; Insertion/redressed date written 02/03/2026 both; Site condition M √, E Clean
+- Line 2 / Other: NO
+
+Peripheral edema: Hands/Feet NO (M); E mostly blank/NO
+Drainage bags:
+- Type: M NG Tube/Feeding; E NG/Residue
+- Insertion date: 31/01/2026 both
+Pain score: M 0; E 00
+
+Nursing Interventions, Date 01/02/2026:
+- Bath: Sponge / Sponge Bath
+- Shampooing: NO / NO
+- Mouth care, Back care, Catheter/Perineal care, Positioning: Done both shifts
+- Safety check: Done / All intact
+- Deep breathing/coughing: -
+- Diet: NG Feed / N/G
+- IV flush with 0.9% N/S: Yes / yes
+- Any other: -
+
+Page 1 of 2

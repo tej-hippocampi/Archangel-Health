@@ -1,0 +1,33 @@
+Document index: 138
+Document type: clinical note
+Service date: 2026-01-31
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted signature (green-redacted); no patient name/identifier field/facility on page body
+
+CONTENT
+----------------------------------------
+Form continuation (Page 2 of 2; Rev # 00, September 2025)
+Time on note: 11:36 am
+
+NEURO: GCS E4 M5 V3 = 12/15 (alt read E4 M6 V3 13/15); plantars B/L ↓/flex; no neck rigidity
+CARDIO: EF 55%; hemodynamically stable
+RESP: B/L clear on room air
+ABDO: Soft NT; stool not passed
+RENAL: Output 1492 ml; Input ~769 ml; IVF @ 40 ml/hr
+MUSCULO-SKELETAL: No bedsores
+ENDO: RBS 202 mg/dl
+HAEM: No bleeding
+ID: No fever
+LINE/DRAINS: 20G (R) foot; 20G (L) arm
+NUTRITION: NG feeding
+
+Assessment: PRESS?? / drug-induced drowsiness
+
+Plan:
+- MRI brain with contrast
+- Discuss with psych regarding reducing Rivotril dose
+- Extor to be continued
+- Add Hydralazine 25 mg TDS SOS if BP remains high
+- Neuro to follow
+- Shift to floor by evening
+- Attendant updated

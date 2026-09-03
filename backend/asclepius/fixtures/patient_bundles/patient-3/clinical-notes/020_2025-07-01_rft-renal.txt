@@ -1,0 +1,17 @@
+Document index: 20
+Document type: RFT/renal
+Service date: 2025-07-01
+Age on report: 76Y    Sex: F
+De-identification: Green overlay already obscured name/facility/IDs in source photo; omitted any residual header identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+
+Booking Date & Time: 01/07/2025 12:32:35
+Collection Date & Time: 01/07/2025 12:32:57
+Reporting Date & Time: 01/07/2025 14:00:49
+
+CREATININE (SERUM)
+Creatinine Serum: 1.03 mg/dL
+Normal Ranges: Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4

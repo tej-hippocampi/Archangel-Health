@@ -1,0 +1,18 @@
+Document index: 164
+Document type: clinical note
+Service date: 2025-10-24
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: none present beyond staff initials (not transcribed)
+
+CONTENT
+----------------------------------------
+Head to Toe Assessment & Reassessment (nursing), serial columns (M/E):
+- Orientation: Oriented x3 (Time, Place, Person). GCS 15/15.
+- Oral cavity: mouth/tongue normal / moist.
+- Cardiac: S1/S2 normal.
+- Respiratory: Air entry bilaterally present (up-arrows); breath sounds normal.
+- Gastrointestinal: Abdomen soft; bowel sounds normal.
+- Genito-urinary: Stool passed; Foley's catheter in situ; urine color amber.
+- Musculoskeletal: No weakness upper/lower extremities; no deformities; Activity - Complete bed rest (CBR) / As tolerated (AAT); Up and about - No.
+- Bilateral vascular check: Radial pulse strong; capillary refill 2-3 seconds.
+- Skin: turgor normal; skin color pale; not cyanotic; skin temperature warm.

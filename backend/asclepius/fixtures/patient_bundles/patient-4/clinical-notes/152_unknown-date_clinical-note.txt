@@ -1,0 +1,41 @@
+Document index: 152
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: M
+De-identification: No name/identifier field/facility/DOB visible; omitted signature-like mark under peripheral line condition
+
+CONTENT
+----------------------------------------
+Form: Review of Systems
+
+Oral:
+- Mouth/Tongue: Normal
+- Gastric tubes (NG/NJ/PEG/JJ): Yes — noted "ICU"
+
+Skin: Appearance Pale; Temperature Warm; Integrity Intact
+
+Cardiac: Pulse Regular; Capillary refill <2 sec: Yes
+
+Respiratory:
+- Respiration Regular
+- On Oxygen: Yes — 5 litre/min
+- Respiratory assisted devices: No
+
+Elimination:
+- Bowel movement: Normal
+- Sign/symptoms: Vomiting
+- Urinary mode: Catheter — Foleys / Silicon; insertion date noted "ICU"
+
+Musculoskeletal:
+- ROM: RUL Active; RLL Active; LUL Passive; LLL Passive
+- Deformity: No; External fixator: No; Traction: No
+
+Obs/Gyn: Not applicable; Pregnancy No; LMP field note: Male
+
+Breast: Normal
+Sleep problem: No
+
+Others:
+- Central lines: No
+- Peripheral lines: Yes — 2 IV in situ @ R hand, L hand 20G/18G; condition mark present
+- Drains: No; condition Good

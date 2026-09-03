@@ -1,0 +1,18 @@
+Document index: 100
+Document type: electrolytes
+Service date: 2024-12-19
+Age on report: 45Y    Sex: M
+De-identification: Omitted name, ward/location fragment, and header identifiers (green-redacted); facility/identifier field/provider not transcribed
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Booking: 19/12/2024 16:55:24
+Collection: 19/12/2024 16:55:47
+Reporting: 19/12/2024 18:03:06
+
+ELECTROLYTES:
+Sodium: 131.3 mmol/L (135 - 145) [L]
+Potassium: 5.84 mmol/L (3.5 - 5.5) [H]
+Chloride: 93.4 mmol/L (96 - 106) [L]
+Bicarbonate: 8.4 mmol/L (20.0 - 29.0) [L]

@@ -1,0 +1,19 @@
+Document index: 171
+Document type: prescription/medication
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: prescriber signature/ID redacted (green marker)
+
+CONTENT
+----------------------------------------
+Physician Fresh Orders:
+- Inj N/S I/V @ 100 mL/hr
+- (Day 3) Inj Meronem (meropenem) 2g I/V x TDS
+- Inj Risek (omeprazole) 40mg I/V x OD
+- Inj Bofalgan (paracetamol) 1g I/V x SOS
+- Inj Onset (ondansetron) 8mg I/V x SOS
+- Inj Vit-K 10mg I/V x OD
+- Inj Nor-epinephrine I/V @ 3.3 mL/hr (taper accordingly)
+- Inj Hy-cortisone (hydrocortisone) 50mg I/V x 6H
+- Tab Neo-K 2+2+2
+- Tab Sodamint 300mg 2+2+2

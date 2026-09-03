@@ -1,0 +1,26 @@
+Document index: 119
+Document type: radiology report
+Service date: 2026-06-16
+Age on report: 65Y    Sex: M
+De-identification: Omitted redacted facility/patient/provider fields; kept age, sex, date, ultrasound findings/impression.
+
+CONTENT
+----------------------------------------
+ULTRASOUND ABDOMEN report (header/facility/provider green-redacted).
+Date: 16/06/2026 15:32:39; Male; 65 Year(s).
+
+LIVER: Shrunken, 11.5 cm; coarse heterogeneous echotexture with irregular margins; no focal mass; IHBD not dilated; portal vein patent, 0.9 cm.
+GALL BLADDER: Contracted; CBD normal caliber 0.3 cm.
+PANCREAS: Not visualized (overlying bowel gas).
+SPLEEN: Enlarged 13.3 cm; uniform echotexture; no mass/cyst.
+RIGHT KIDNEY: 10.8 cm; cortical thickness 1.3 cm; normal outline; no calculus/mass/hydronephrosis.
+LEFT KIDNEY: 10.9 cm; cortical thickness 1.7 cm; normal outline; no calculus/mass/hydronephrosis.
+URINARY BLADDER: Normally distended; normal wall thickness; no mass/calculus.
+Mild ascites; no para-aortic lymphadenopathy; bowel loops not dilated.
+PROSTATE: Enlarged 4.0 x 5.3 x 3.9 cm; weight 45 g; no focal mass.
+
+IMPRESSION:
+1. Coarse heterogeneous liver with irregular margins, splenomegaly & mild ascites suggesting chronic liver disease; clinical correlation & LFTs recommended.
+2. Prostatomegaly.
+3. Rest of scan unremarkable.
+Note on form: computer-generated report, signature not required.

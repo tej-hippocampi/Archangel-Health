@@ -1,0 +1,30 @@
+Document index: 153
+Document type: clinical note
+Service date: 2026-02-05
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted nursing staff name and signature fields (green redaction)
+
+CONTENT
+----------------------------------------
+Form: Orientation of the Unit
+
+Items provided on admission (checked): Hospital Dress, Blanket, Admission Pack
+Not checked: Information Booklet, Patient Bill of Rights, Others
+
+Orientation topics checked: Nursing call bell, Emergency call bell, Lights, Telephone, Bed controls & use of side rails, Meal time, Washroom
+
+Facility policies oriented (checked): Hospital Valuable policy; No home food/fruit allowed; Patient own medication policy; Visiting hours & visitor's policy; Doctor round timing; Smoking policy; Acceptance of gift policy
+Not checked: Prayer Area, Others
+
+Personal belongings: Eye glasses/contacts NA; Hearing aids/dentures/prosthesis/jewellery marked not applicable; Others NA
+Patient/family informed about valuable policy: unchecked
+
+Initial assessment sign-off:
+- Designation: RN
+- Date: 05/02/2026; Time: 2200
+- Checked by / Assistant Head Nurse: blank
+
+Discharge education section: all items unchecked (Diet, Take-home medication, Activity, Follow-up, Wound/drains, Alarming signs, Pain, Emergency contact, Physiotherapy, Oxygen, Equipment, Private nursing, Helpline, Others)
+Status indicators unchecked: Not Applicable, Patient Expired, DOR, LAMA, Improved
+
+Form corner mark: Aug 24

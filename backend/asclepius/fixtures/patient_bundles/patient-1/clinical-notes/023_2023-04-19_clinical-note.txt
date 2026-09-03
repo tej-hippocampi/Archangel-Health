@@ -1,0 +1,17 @@
+Document index: 23
+Document type: clinical note
+Service date: 2023-04-19
+Age on report: UNKNOWN    Sex: M
+De-identification: patient name/R.No./other identifiers redacted with green marker and omitted; provider signature area not transcribed.
+
+CONTENT
+----------------------------------------
+ERCP pre-procedure / preparation instruction sheet with handwritten clinical notes.
+Header: "Viral Markers for Hep B & C / Others"
+Time of Procedure: 09:00:00 AM
+Preparation: CBC, PT/INR < 1.5 sec / Viral Marker; NPO for 10 hours; fresh Ultrasound Report Abdomen; bring one attendant.
+Note (handwritten): fitness within 1 week - GA Fitness, Cardiac Fitness, ECG, Echo.
+ECG -> Normal.
+Handwritten labs (2 Jan): Hb = 13.3, Plt = 70, INR = 1.16, Direct = 13.43, SGPT = 32, Alk/ALP = 154, Total Bili = 15.87 (approx values as written).
+Handwritten labs (26 Dec): Hb = 13, Plt = 71, TLC = 6.6, LFT: T.Bili = 17.34, Direct = 14.14, ALP = 224, GGT = 60.
+Handwritten clinical impression: ERCP done; cholecystitis; on CT Abdomen with contrast - cavernous transformation of portal vein due to portal vein thrombosis; extensive porto-portal collaterals; ? cholelithiasis.

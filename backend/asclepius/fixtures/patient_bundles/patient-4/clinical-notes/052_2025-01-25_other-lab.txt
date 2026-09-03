@@ -1,0 +1,16 @@
+Document index: 52
+Document type: other lab
+Service date: 2025-01-25
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name/identifier field/facility (green redaction); kept age, sex, service dates, clinical results
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+
+Booking: 25/01/2025 21:03:06
+Collection: 25/01/2025 21:03:14
+Reporting: 25/01/2025 21:44:33
+
+Potassium (Serum):
+- Potassium: 4.07 mmol/L (3.5-5.5)

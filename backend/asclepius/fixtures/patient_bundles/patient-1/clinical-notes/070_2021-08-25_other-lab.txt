@@ -1,0 +1,11 @@
+Document index: 70
+Document type: other lab
+Service date: 2021-08-25
+Age on report: 38Y    Sex: M
+De-identification: name redacted; lab/accession numbers omitted
+
+CONTENT
+----------------------------------------
+Albumin: 4.8 (ref 3.5 - 5.2)
+Serum TSH: 2.3552 uIU/ml
+(Reference by age group: Birth-4 Days 1.0-39; 2 weeks-20 weeks 1.7-9.1; 21 weeks-20 years 0.7-6.4; Adult 21-54 years 0.4-4.2; Adult 55-87 years 0.5-8.9)

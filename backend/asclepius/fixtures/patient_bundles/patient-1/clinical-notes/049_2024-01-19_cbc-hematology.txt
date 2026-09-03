@@ -1,0 +1,24 @@
+Document index: 49
+Document type: CBC/hematology
+Service date: 2024-01-19
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name redacted; lab/branch name omitted
+
+CONTENT
+----------------------------------------
+Haematology - CBC ESR Profile
+Haemoglobin: 12.1 gm/dl (12.0-16.0)
+Haematocrit: 36.3 % (40-50) [L]
+R.B.C: 4.53 10^6/L (4.3-5.9)
+M.C.V: 80.0 FL (80-100)
+M.C.H: 28.4 PG (27-34)
+M.C.H.C: 35.5 g/dL (31-36)
+W.B.C: 6.2 10^3/UL (4.0-10.0)
+Neutrophils: 80.5 % (40-80) [H]
+Lymphocytes: 12.8 % (20-40) [L]
+Monocytes: 5.9 % (2-10)
+Eosinophils: 0.6 % (1-6) [L]
+Basophils: 0.2 % (<1)
+Platelet Count: 79 x10^9/L (150-450) [L]
+ESR: 10 mm/1Hr (0-25)
+Remarks: Normocytic, Normochromic. Platelets appear low on film. ? Cause. To follow with clinical history

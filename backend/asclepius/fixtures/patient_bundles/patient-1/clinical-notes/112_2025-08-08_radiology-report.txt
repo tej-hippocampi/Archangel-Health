@@ -1,0 +1,10 @@
+Document index: 112
+Document type: radiology report
+Service date: 2025-08-08
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: no identifiers present other than device/exam text; none transcribed.
+
+CONTENT
+----------------------------------------
+Ultrasound abdomen images (grayscale). ABD preset, MI 0.8, TIS 0.1, image series ID 20260425_175539.
+Findings labeled on images: gallbladder (GB) visualized; biliary STENT visualized. No narrative report text on this image (images only).

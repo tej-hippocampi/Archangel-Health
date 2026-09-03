@@ -1,0 +1,22 @@
+Document index: 38
+Document type: radiology report
+Service date: 2023-08-13
+Age on report: UNKNOWN    Sex: M
+De-identification: patient name, identifier field., and referral info present and redacted/omitted.
+
+CONTENT
+----------------------------------------
+ULTRASOUND ABDOMEN
+FINDINGS:
+Liver is normal in size with smooth outline and homogeneous texture. No focal lesion or dilated channel. CBD is normal in caliber.
+Main portal vein appears attenuated possibly secondary to chronic thrombosis associated with multiple collaterals in the region of porta hepatis along course of portal vein raising possibility of cavernous transformation of portal vein. CBD appears normal in diameter containing CBD stent associated with minimal prominence of central intrahepatic ducts possibly representing patency of stent.
+Gallbladder shows multiple calculi in its lumen, one of them measures 0.6 cms. No wall thickening or pericholecystic fluid seen.
+Pancreas is normal in size and echotexture with normal pancreatic duct.
+Spleen is enlarged in size measuring 17.3 cms containing multiple tiny calcific foci scattered throughout splenic parenchyma.
+Both kidneys are normal in size, shape and echotexture. No mass, calculus or hydronephrosis. Ureters are not dilated.
+Urinary bladder is normal in wall thickness. No evidence of calculus, mass, trabeculation or diverticulum.
+No ascites.
+CONCLUSION:
+- Main portal vein appears attenuated possibly secondary to chronic thrombosis associated with multiple collaterals in the region of porta hepatis along course of portal vein raising possibility of cavernous transformation of portal vein. CBD appears normal in diameter containing CBD stent associated with minimal prominence of central intrahepatic ducts possibly representing patency of stent. Advised contrast enhanced CT scan.
+- Cholelithiasis without cholecystitis.
+- Spleen is enlarged in size measuring 17.3 cms containing multiple tiny calcific foci scattered throughout splenic parenchyma.

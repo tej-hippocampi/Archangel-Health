@@ -1,0 +1,14 @@
+Document index: 100
+Document type: radiology report
+Service date: 2026-06-17
+Age on report: 65Y    Sex: M
+De-identification: Patient name, facility/hospital name, registration/accession IDs on film overlays omitted; service date aligned with film jacket 08/07/26.
+
+CONTENT
+----------------------------------------
+CT film sheet — axial abdomen/pelvis contrast CT (Aquilion ONE)
+Study: W/ABDOMEN CONTRAST, VENOUS PHASE
+Layout: 24 frames (4x6 grid), slices progressing upper abdomen through pelvis
+Technical (visible on overlays): ~120 kV / 125 mAs
+Visual content: liver, spleen, kidneys, bowel loops, iliac/pelvic bones with venous-phase contrast enhancement
+(Companion/near-related film sheet to index 99; no formal written impression)

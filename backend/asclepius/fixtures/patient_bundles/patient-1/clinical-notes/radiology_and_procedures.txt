@@ -1,0 +1,387 @@
+RADIOLOGY & PROCEDURE REPORTS (de-identified)
+============================================================
+
+--- Image 5 | 2023-03-20 | radiology report ---
+Ultrasound Abdomen
+LIVER: Normal in size with reduced echo pattern of parenchyma of liver. No focal mass seen in liver. No generalized infiltration seen. Intra hepatic biliary duct are not dilated. Diaphragm moves with respiration normally. Portal vein is normal measuring 1 cm.
+GALL BLADDER: Gall bladder appears thick walled showing multiple calculi seen within lumen. One of these measures 0.8 cm. Wall thickness measures 0.5 cm. Common bile duct appears normal. It measures 0.4cm. No calculus is seen.
+PANCREAS: Pancreas is normal size. Echo texture of pancreas is uniform throughout. No mass seen.
+SPLEEN: Spleen is enlarged size measuring 17 cm. Multiple granuloma are diffusely seen spleen.
+BOTH KIDNEYS: Both kidneys are normal in size, shape and position. Outline is smooth and well demarcated. Renal cortex has normal width throughout both kidneys. No mass or cyst seen. No renal parenchymal disease seen. No evidence of calculus or hydronephrosis on either side.
+RETROPERITONIUM: No evidence of para aortic lymphadenopathy.
+URINARY BLADDER: Urinary bladder has normal walls. No mass or calculus seen in urinary bladder.
+No ascites seen. No pleural effusion seen. Bowel loops are not dilated.
+CONCLUSION: Cholecystitis with cholelithiasis. Moderate splenomegaly with diffuse small granulomas. Needs lab co relation. Normal liver, portal vein, common bile duct, pancreas, both kidneys, retroperitonium and urinary bladder.
+
+--- Image 8 | 2023-06-20 | radiology report ---
+FIBROSCAN OF LIVER (SWM / Elastography of liver)
+Liver is normal in size measuring 14.5 cm, slightly with decreased echotexture. However no focal mass is seen. Intrahepatic ducts appear normal and intrahepatic veins appear normal. Portal vein measures ~1 cm.
+Spleen is measuring about 15.0 cm with decreased echopattern.
+No ascites seen at the time of scan.
+05 samples of SWM of liver taken:
+1) 1.47 m/sec
+2) 1.39 m/sec
+3) 1.43 m/sec
+4) 1.20 m/sec
+5) 1.81 m/sec
+Average: 1.47 m/sec
+CONCLUSION: The average fibrosis of the liver at various segments is 1.47 m/sec = F0-F1 fibrosis at SWM scoring.
+Staging reference: F0-F1 No significant <1.53 m/s (<7.0 kPa); F2 Significant 1.53-1.78 (7-9.5); F3 Advanced 1.78-1.87 (22-08-2009.5); F4 Cirrhosis >1.97 (>10.5).
+
+--- Image 9 | 2023-07-12 | radiology report ---
+Ultrasound Abdomen
+Liver: Normal in size, measuring 15.0cm with uniform echopattern & regular outlines. No focal mass seen. IHDs and IHVs are not dilated. Portal vein is normal.
+Gall bladder: shows multiple tiny calculi collectively measuring 2.3cm. CBD appears dilated measuring 0.8cm shows a tiny hyperechoic area measuring 0.3cm.
+Spleen: enlarged in size measuring 17.0cm. It shows multiple hypoechoic foci, suggestive of splenic granulomas.
+Pancreas: Appears normal. No focal mass seen. Pancreatic duct is normal.
+Right kidney: Normal in size & shape, measuring about 9.5 x 4.2 cm smooth outlines. No focal mass, calculus or hydronephrosis seen, renal parenchymal echogenicity is normal.
+Left kidney: Normal in size & shape, measuring about 9.8 x 4.0 cm smooth outlines. No focal mass, calculus or hydronephrosis seen, renal parenchymal echogenicity is normal.
+Urinary Bladder: Normal. No calculus or mass seen.
+No ascites is seen at the time of scan. Bowel loops are not dilated. No retro peritoneal lymphadenopathy is seen.
+Conclusion: Cholelithiasis. Splenic granulomas.
+
+--- Image 14 | 2023-07-12 | radiology report ---
+Ultrasound Abdomen images (GE Healthcare, L7 probe, 5.2 MHz).
+Measurement caliper (organ length): d2 = 17.09 cm; Vol = 1393 ml (consistent with enlarged spleen).
+Depth settings D 18.0 cm / 15.0 cm. Two grayscale abdominal ultrasound frames; no printed narrative findings on image.
+
+--- Image 38 | 2023-08-13 | radiology report ---
+ULTRASOUND ABDOMEN
+FINDINGS:
+Liver is normal in size with smooth outline and homogeneous texture. No focal lesion or dilated channel. CBD is normal in caliber.
+Main portal vein appears attenuated possibly secondary to chronic thrombosis associated with multiple collaterals in the region of porta hepatis along course of portal vein raising possibility of cavernous transformation of portal vein. CBD appears normal in diameter containing CBD stent associated with minimal prominence of central intrahepatic ducts possibly representing patency of stent.
+Gallbladder shows multiple calculi in its lumen, one of them measures 0.6 cms. No wall thickening or pericholecystic fluid seen.
+Pancreas is normal in size and echotexture with normal pancreatic duct.
+Spleen is enlarged in size measuring 17.3 cms containing multiple tiny calcific foci scattered throughout splenic parenchyma.
+Both kidneys are normal in size, shape and echotexture. No mass, calculus or hydronephrosis. Ureters are not dilated.
+Urinary bladder is normal in wall thickness. No evidence of calculus, mass, trabeculation or diverticulum.
+No ascites.
+CONCLUSION:
+- Main portal vein appears attenuated possibly secondary to chronic thrombosis associated with multiple collaterals in the region of porta hepatis along course of portal vein raising possibility of cavernous transformation of portal vein. CBD appears normal in diameter containing CBD stent associated with minimal prominence of central intrahepatic ducts possibly representing patency of stent. Advised contrast enhanced CT scan.
+- Cholelithiasis without cholecystitis.
+- Spleen is enlarged in size measuring 17.3 cms containing multiple tiny calcific foci scattered throughout splenic parenchyma.
+
+--- Image 40 | 2023-08-17 | other ---
+Endoscopy Suite - ERCP procedure report. Location: OPD.
+Medication (Conscious Sedation): INJ Dormicum 01 cc & INJ KI(?)... ; GI Trainee: NIL; Instrument: TJF 160 OLYMPUS
+INDICATION FOR EXAMINATION: Obstructive Jaundice
+PROCEDURE TECHNIQUE: Scope passed up to D2.
+(Handwritten) Esophagus: 3 columns of grade II varices.
+FINDING:
+Previously blocked CBD stent removed.
+Cholangiogram showed multiple filling defects (stones) with moderately dilated CBD.
+Sphincterotomy extended. Balloon sweep done, multiple stones removed. However there was CBD narrowing seen at mid and distal CBD suspicious of stricture.
+10FR/10CM plastic stent placed for biliary drainage.
+Free flow of bile seen.
+Pancreatic duct not opacified.
+ENDOSCOPIC DIAGNOSIS:
+S/P blocked CBD stent removed.
+Moderately dilated CBD with stones.
+S/P sphincterotomy + S/P balloon sweep.
+S/P stones removed.
+Narrowing at mid and distal CBD (suspicious of stricture).
+S/P stenting.
+AFTER ENDOSCOPY (Medication): Antibiotic. IV fluid.
+RECOMMENDATION: NPO for 4 hours. Monitor for abdominal pain.
+(Images: Sphincterotomy, CBD C-arm, CBD stones C-arm, CBD stones, Stent)
+
+--- Image 43 | 2023-08-14 | radiology report ---
+Ultrasound image (abdomen) - two-panel grayscale sonographic film, no narrative report text on image.
+On-image measurement: Dist A = 173.7 mm (consistent with enlarged spleen ~17.3 cm).
+Machine annotations: MI 0.8, 6C1 probe, 4.0, 22 fps.
+
+--- Image 44 | 2023-08-17 | other ---
+ERCP endoscopy procedure image sheet (photo panel), Location: OPD.
+Medication (Conscious Sedation): INJ Dormicum 01 cc & INJ KI(?)... ; GI Trainee: NIL; Instrument: TJF 160 OLYMPUS
+Labeled procedure images: Blocked stent; Sphincterotomy; CBD (C-arm); CBD stones (C-arm) x2; CBD stone; Stone removed; CBD stone; CBD stent placed.
+(Image panel documenting removal of blocked CBD stent, sphincterotomy, CBD stones on cholangiogram, stone removal, and placement of new CBD stent.)
+
+--- Image 47 | 2023-04-19 | radiology report ---
+ERCP REPORT (endoscopic images included)
+Unit: Medical V; Bed: OPD
+Indications: Cholelithiasis, portal vein thrombosis
+Medications: dormicum 2mg
+Procedure: ERCP
+Findings: stent in place
+
+--- Image 65 | 2023-03-24 | radiology report ---
+Examination: CT Scan Abdomen and Pelvis with contrast
+Clinical Indication: Obstructive LFTs for 15 days. ? CLD.
+Technique: Axial images obtained from abdomen and pelvis before and after IV contrast administration with reformatted coronal and sagittal images. No previous CT abdomen images available for comparison; ultrasound abdomen report dated 20/03/2023 also reviewed.
+Findings:
+Main portal vein is not separately seen. Instead, a bunch of multiple tortuous varices are seen at the porta in place of portal vein and its branches representing CAVERNOUS transformation of PORTAL VEIN (likely due to prior portal vein thrombosis).
+Multiple tortuous VARICES are seen at the porta, gall bladder wall and along pancreatic head, rectal wall and peri-rectal location. The porta varices are compressing CBD resulting in mild intrahepatic biliary dilatation representing PORTAL BILIOPATHY.
+Spleen is massively enlarged in size measuring 19 x 11 cm in length & width (axial images). Numerous tiny calcifications are also seen in entire splenic parenchyma.
+The liver is smaller in size showing lobulated and smooth margins likely secondary to portal hypertension. No liver cirrhosis. No focal hypervascular lesion is seen in liver with features suggesting hepatoma in current scan. IVC and hepatic veins are normally opacifying.
+Gall bladder is partially distended showing multiple hyperdense calculi and multiple varices in its walls.
+CBD, pancreas and bilateral adrenal glands appear normal. Both kidneys are showing normal parenchymal enhancement without mass or obstructive uropathy.
+Stomach, small and large bowel loops are normal without mass lesion, wall thickening or intestinal obstruction. Caecum, appendix and terminal ileum appear normal. No ileo-cecal TB or acute appendicitis is seen.
+
+--- Image 68 | UNKNOWN | radiology report ---
+CT abdomen report (continuation page - findings/conclusion).
+Findings:
+There is no abdominal or pelvic lymphadenopathy in current scan.
+The rest of the major abdominal vessels are normally enhancing by IV contrast.
+Urinary bladder, prostate and rectum appear normal.
+No ascites or pneumoperitoneum is seen.
+Using appropriate lung window settings, the visualized lungs appear normal.
+No pleural effusion is seen on either side in imaged chest.
+Using appropriate bone window settings, the visualized bones are normal. No suspicious focal lytic bony lesion is seen in imaged bones.
+CONCLUSION:
+- Above described findings represent CAVERNOUS transformation of PORTAL VEIN (likely due to prior portal vein thrombosis or vascular pathology) with extensive tortuous VARICES causing PORTAL BILIOPATHY (mild biliary obstruction) and massive splenomegaly representing portal hypertension in non-cirrhotic liver.
+- Cholelithiasis without acute cholecystitis in current scan.
+- No HCC, acute PVT/SMV thrombosis, ascites, abdomino-pelvic lymphadenopathy or metastatic disease in liver, imaged lungs & bones in current scan.
+
+--- Image 72 | 2024-02-08 | other ---
+ERCP / Endoscopy procedure report.
+Medication (Conscious Sedation): Propofol. Instrument: TJF 160 Olympus. Location: OPD.
+Indication for examination: Obstructive jaundice.
+Procedure technique: Scope passed up to D2.
+Finding: Previously placed blocked CBD stent removed. CBD cannulated, dye injected to reveal stricture at mid CBD. Another 10FR/10CM plastic stent placed for biliary drainage. Good biliary flow observed.
+Endoscopic diagnosis: S/P blocked CBD stent removed. ?D CBD stricture. Stenting.
+After endoscopy (medication): IVF + antibiotic.
+Recommendation: Keep NPO for 04 hours. Monitor for abdominal pain.
+
+--- Image 83 | 2024-03-31 | radiology report ---
+Ultrasound abdomen images (3 panels). Labeled structures visualized: Spleen, Liver, biliary Stent, Gallbladder (GB) with Stone. Ultrasound modality, abdomen. (Image page accompanying the US abdomen narrative report.)
+
+--- Image 84 | 2024-03-31 | radiology report ---
+Ultrasound Abdomen report.
+LIVER: Normal in size, shape, measures about 15.3 cm with uniform echopattern, regular outline. No evidence of any focal parenchymal abnormalities. IHD and IHV appear normal. Portal vein measures about 1.3 cm, shows multiple collaterals along portal vein representing cavernous transformation, no thrombus seen within it. IVC appears normal.
+G/BLADDER: Partially contracted, shows multiple calculi, largest one measures about 0.7 cm, with posterior shadowing. Stent seen appears to be in normal position. Visualized upper part of CBD measures about 0.5 cm.
+PANCREAS: Visualized head and body is normal in size and echopattern. No evidence of solid or cystic mass.
+SPLEEN: Enlarged in size, measures about 17.1 cm, normal shape and echopattern. Shows multiple calcific foci seen diffusely scattered. No focal mass or cyst seen. Splenic vein is not dilated.
+RIGHT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+LEFT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+Urinary bladder: Partially filled without calculus or mass.
+No lymphadenopathy seen.
+Bowel loops are not dilated, shows normal peristalsis. Gas loaded bowel loops seen in abdomen.
+No iliocecal lump / colonic mass seen at time of scan.
+No ascites seen.
+No pleural effusion seen.
+CONCLUSION: Cholelithiasis + Portal vein cavernous transformation + Splenomegaly with calcific foci.
+ADVISE: Liver profile + Clinical and lab correlation.
+
+--- Image 87 | 2024-04-25 | other ---
+ERCP / Endoscopy procedure report.
+Medication (Conscious Sedation): Propofol. Instrument: TJF 160 Olympus. Location: OPD.
+Indication for examination: Obstructive jaundice.
+Procedure technique: Scope passed up to D2.
+Finding: Previously blocked stent removed. Cholangiogram showed stricture at proximal mid CBD. Balloon sweep done to remove multiple small mushy stones. Sphincterotomy extended. Two CBD plastic stents - one was 10FR/10CM and other was 10FR/07 - placed for biliary drainage. Good biliary drainage seen. Free flow of bile seen. Pancreatic duct not opacified.
+Endoscopic diagnosis: S/P blocked CBD stent removed. ?D CBD stricture. S/P sphincterotomy. S/P balloon sweep. S/P mushy stones removed. S/P two stents placed.
+After endoscopy (medication): IVF + antibiotic (Inj Meropenem 1 G X stat).
+Recommendation: Keep NPO for 06 hours. Monitor for abdominal pain.
+
+--- Image 89 | 2024-01-24 | radiology report ---
+UPPER GI ENDOSCOPY REPORT
+Anesthesia: Midazolam 2mg
+Indication for Procedure: R/O Varices.
+Finding:
+Oral cavity: Looked normal.
+Vocal cords: Looked normal.
+Esophagus: There were four columns of grade 3 Esophageal varices with red wale markings, 04 bands applied.
+Stomach: Mild PHG / no fundal varix.
+Duodenum: D1 and D2 looked normal.
+Diagnosis: Esophageal Varices S/P EVBL/PHG.
+Rescope After 03 months.
+(Endoscopic images labeled: Esophageal Varices, Fundus, Antrum, Band Ligation)
+
+--- Image 90 | 2024-04-18 | radiology report ---
+UPPER GI ENDOSCOPY REPORT
+Anesthesia: Midazolam 2mg
+Indication for Procedure: Surveillance for Varices.
+Finding:
+Oral cavity: Looked normal.
+Vocal cords: Looked normal.
+Esophagus: There were three columns of grade 2-3 Esophageal varices with red wale markings, 04 band applied.
+Stomach: Moderate PHG, no Fundal varix.
+Duodenum: D1 and D2 looked normal.
+Diagnosis: Esophageal Varices/EVBL/PHG.
+RESCOPE AFTER 03 MONTHS.
+(Endoscopic images labeled: Esophageal varices, Fundus, Antrum, Band Ligation)
+
+--- Image 103 | 2025-08-08 | radiology report ---
+Ultrasound Abdomen report.
+LIVER: Normal in size, shape, measures about 14.5cm with slightly increased echopattern, regular outline. No evidence of any focal parenchymal abnormalities. Minimally dilated biliary channels. Collaterals seen at porta hepatis. Portal vein appears normal, no thrombus seen within it. IVC appears normal.
+G/BLADDER: Partially contracted. Shows at least two calculi, one of them measures about 1.2cm, with posterior shadowing. Advise rescan fasting for other stone and other pathology. Visualized upper part of CBD dilated measures about 0.8cm. Stent seen in CBD. No air space shadow seen (Pneumobilia).
+PANCREAS: Visualized head and body appear normal in size and echopattern. No evidence of solid or cystic mass.
+SPLEEN: Enlarged in size, measures about 16.0cm, normal shape and echopattern. Multiple hyperechoic foci scattered diffusely suggestive granuloma / other pathology. No focal mass or cyst seen. Splenic vein is not dilated.
+RIGHT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+LEFT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+Urinary bladder: Minimally filled.
+No lymphadenopathy seen.
+Bowel loops are not dilated, show normal peristalsis. Gas loaded bowel loops seen in abdomen.
+No iliocecal lump / colonic mass seen at time of scan.
+No ascites seen.
+No pleural effusion seen.
+
+--- Image 104 | 2024-12-16 | radiology report ---
+Ultrasound Abdomen report.
+LIVER: Normal in size, shape, measures about 15.0cm with mildly increased echopattern, regular outline. No evidence of any focal parenchymal abnormalities. IHD and IHV appear normal. Collaterals seen at porta hepatis. Portal vein appears normal, no thrombus seen within it. IVC appears normal.
+G/BLADDER: Partially contracted. Shows calculus seen in neck part measure about 1.2cm, with posteriors, and shows sludge. Advise rescan fasting for other stone and other pathology. CBD measure about 0.5cm. Stent seen in CBD, no any definite evidence of blockage seen.
+PANCREAS: Visualized head and body appear normal in size and echopattern. No evidence of solid or cystic mass.
+SPLEEN: Enlarged in size, measures about 15.8cm, normal shape and echopattern. Multiple hyperechoic foci scattered diffusely suggestive granuloma. No focal mass or cyst seen. Splenic vein is not dilated.
+RIGHT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+LEFT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction, with regular outline. No calculus, hydronephrosis or mass.
+Urinary bladder: Minimally filled.
+No lymphadenopathy seen.
+Bowel loops are not dilated, show normal peristalsis. Gas loaded bowel loops seen in abdomen.
+No iliocecal lump / colonic mass seen at time of scan.
+No ascites seen.
+No pleural effusion seen.
+ADVISE: Liver profile + Clinical and lab Correlation.
+
+--- Image 106 | 2025-01-31 | radiology report ---
+ERCP procedure report.
+Location: OPD.
+Medication (Conscious Sedation): PROPOFOL.
+Instrument: TJF 160 OLYMPUS.
+INDICATION FOR EXAMINATION (Procedure): Obstructive jaundice.
+PROCEDURE TECHNIQUE: Scope passed up to D2.
+FINDING:
+  Two columns of Grade-I non bandable esophageal varices.
+  Sphincterotized ampulla identified. Previously placed both stents were removed.
+  CBD cannulated selectively. Dye injected to reveal full of filling defects.
+  Balloon swept multiple times to remove all the sludge.
+  Cholangiogram showed clear CBD.
+  Two another 10cm/10FR plastic stents deployed.
+  Good flow of bile observed.
+ENDOSCOPIC DIAGNOSIS: Cholangitis + Previous stent removal + CBD clearance + Re-stenting.
+AFTER ENDOSCOPY (Medication): IV hydration. Inj: Meropenem 1G IV x STAT.
+RECOMMENDATION: NPO for 4 hours. Observe for abdominal pain.
+(Endoscopic images labeled: Cannulation, CBD (C-ARM), Balloon Sweep, Cholangiogram, Two CBD Stent's)
+
+--- Image 107 | 2024-12-31 | radiology report ---
+UPPER GI ENDOSCOPY REPORT
+Instrument: Olympus GIF 140.
+Time of Procedure: 7:30pm.
+Consent: Informed Consent Obtained.
+Sedation: 1.5cc Dormicum.
+Indication for Procedure: EVBL session.
+Extent of Examination: Up to D2.
+Vision Obtained: Good.
+Finding:
+  Oropharynx: Looked normal.
+  Esophagus: There were II columns of grade 2 Esophageal varices with red wale markings.
+  Stomach: Severe Portal Hypertensive gastropathy, No fundal varix seen.
+  Duodenum: D1 & D2 looked normal.
+Interventions Performed: Band ligation performed (02 bands applied).
+Complications: No any complication noted.
+Impression / Diagnosis: Esophageal Varices S/p EVBL / PHG.
+Plan / Recommendations: Rescope After 06 Months.
+(Endoscopic images labeled: Esophageal Varices, Fundus, Antrum, Band Ligation)
+
+--- Image 110 | 2024-12-16 | radiology report ---
+Ultrasound abdomen printed images (ABD, 3C-A probe, MI 0.8, TIS 0.1).
+Labeled views:
+  - Image with on-screen label "STENT" (biliary stent visualized) and an adjacent view with label "...ONE" (echogenic focus / stone).
+  - View labeled "Liver".
+  - View labeled "Spleen".
+No narrative findings text printed on the film beyond the anatomical labels.
+
+--- Image 111 | 2023-08-31 | radiology report ---
+Ultrasound Abdomen.
+LIVER: Normal in size, shape with uniform echopattern, regular outline. No evidence of any focal parenchymal abnormalities. IHD and IHV appear normal. Portal vein appears normal, no thrombus seen within it. (handwritten: partially canalized, shows multiple collaterals along portal veins representing cavernous transformation)
+G/BLADDER: Shows normal free lumen without calculus or mass or polyp with normal wall thickness. CBD appears normal. (handwritten: upper part 0.4 cm; stent seen, appears to be in normal position; shows few calculi, one of them 0.7 cm)
+PANCREAS: Visualized head and body appear normal in size and echopattern. No evidence of solid or cystic mass.
+SPLEEN: Normal in size, normal shape and echopattern. No focal mass or cyst seen. Splenic vein is not dilated. (handwritten: multiple calcific foci seen diffusely scattered in spleen; 17.0 cm)
+RIGHT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction with regular outline. No calculus, hydronephrosis or mass.
+LEFT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction with regular outline. No calculus, hydronephrosis or mass.
+Urinary bladder: Normal wall thickness. No calculus or mass. (handwritten: partially filled)
+No abdominal lymphadenopathy seen. Bowel loops are not dilated, show normal peristalsis. No iliocecal lump / colonic mass seen at time of scan. No ascites seen.
+Impression (handwritten): Portal vein cavernous transformation + cholelithiasis. Patent stent in CBD + splenomegaly with calcific foci.
+
+--- Image 112 | 2025-08-08 | radiology report ---
+Ultrasound abdomen images (grayscale). ABD preset, MI 0.8, TIS 0.1, image series ID 20260425_175539.
+Findings labeled on images: gallbladder (GB) visualized; biliary STENT visualized. No narrative report text on this image (images only).
+
+--- Image 116 | 2024-05-07 | radiology report ---
+CT SCAN ABDOMEN AND PELVIS (TRIPHASIC) WITH CONTRAST.
+Protocol: Multiple thin axial slices were acquired with I/V contrast administration. In addition, coronal and sagittal reformation was also carried out. No previous imaging is available for comparison.
+FINDINGS:
+Complete thrombosis of the main portal vein is noted with significant cavernous transformation at the porta hepatis. Periportal tracking of fluid is seen. Mild dilatation of the intrahepatic biliary channels is noted with CBD stent in place. Splenic vein is also dilated. Minimal pneumobilia is noted. Focal hypodensity is noted in segment IV of liver, may represent focal fat infiltration. Left lobe of liver is small in size, which is most likely congenital in etiology. No evidence of arterially enhancing lesion or area of washout seen in liver. Spleen appears significantly enlarged measuring 19.0 cm with multiple tiny nodules scattered throughout the splenic parenchyma. Gallbladder is contracted and appears edematous containing linear high density material, may represent calculus. Pancreas appears normal in size and texture. No peripancreatic fat stranding is noted. Pancreatic duct appears normal. Both kidneys appear normal in size. Minimal right-sided hydronephrosis and hydroureter is noted. No calculus is seen in right kidney or right ureter. No calculus, hydronephrosis or hydroureter is noted on left side. Both adrenal glands appear unremarkable. Stomach appears unremarkable. Small bowel loops appear unremarkable. No evidence of abnormal bowel wall dilatation or thickening is noted. Mild fecal loading of rectosigmoid colon is noted. Rest of the large bowel loops appear unremarkable. No evidence of abnormal bowel wall dilatation or thickening is noted. Urinary bladder is partially distended, however no calculus or mass is seen. Pelvic visceral organs appear unremarkable. No significant abdominal or pelvic lymphadenopathy is seen. No evidence of free fluid or pneumoperitoneum seen. Using appropriate lung window settings, visualized lung bases appear unremarkable. No evidence of soft tissue pulmonary nodule or pleural effusion on either side.
+
+--- Image 118 | 2025-10-20 | radiology report ---
+Ultrasound Abdomen.
+LIVER: Normal in size, shape; measures about 15.0 cm with decreased echopattern, regular outline. No evidence of any focal parenchymal abnormalities. IHD and IHV appear normal. Portal vein appears dilated 1.4 cm, shows multiple collaterals along portal vein representing cavernous transformation. No thrombus seen within it. IVC appears normal.
+G/BLADDER: Partially contracted, shows few calculi largest 0.8 cm. CBD measures 0.7 cm with thick wall. Stent seen in CBD. No air space shadow seen.
+PANCREAS: Visualized head and body is normal in size and echopattern. No evidence of solid or cystic mass.
+SPLEEN: Enlarged in size, measures 17.6 cm, normal shape and echopattern. No focal mass or cyst seen. Multiple calcific foci diffusely scattered. Splenic vein is not dilated.
+RIGHT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction with regular outline. No calculus, hydronephrosis or mass.
+LEFT KIDNEY: Normal in size, shape and echopattern, intact corticomedullary distinction with regular outline. No calculus, hydronephrosis or mass.
+Urinary bladder: Minimally filled.
+No abdominal lymphadenopathy seen. Bowel loops are not dilated, show normal peristalsis. Gas loaded bowel loops seen in abdomen. No iliocecal lump / colonic mass seen at time of scan. No ascites seen. No pleural effusion seen.
+
+--- Image 120 | 2024-05-07 | radiology report ---
+CT Abdomen/Pelvis (page 2/2 - impression). Using appropriate bone window settings, visualized skeleton appears unremarkable.
+IMPRESSION:
+Portal venous thrombosis with cavernous transformation at the porta hepatis as described above.
+Above described biliary dilatation may represent portal biliopathy. CBD stent is seen in place and minimal pneumobilia is noted, may represent stent patency; however, correlation with LFT is advised.
+Gallbladder edema with cholelithiasis.
+Focal hypodensity in segment IV of liver, may represent focal fat infiltration.
+Significant splenomegaly with tiny calcification, may represent Gamna-Gandy bodies.
+Minimal right-sided hydronephrosis and hydroureter noted.
+Fecal loading of rectosigmoid colon seen.
+Rest of the examination appears unremarkable.
+
+--- Image 125 | UNKNOWN | radiology report ---
+Ultrasound abdomen images (grayscale, dual-panel). Gray Map 5, uScan 3.
+Findings labeled on images: biliary STENT visualized; gallbladder (GB) with echogenic focus labeled "Stone". No narrative report text on this image (images only).
+
+--- Image 127 | 2024-05-07 | other ---
+Direct Service / procedure history list:
+ERCP stenting - 31/01/2025
+ERCP stenting - 25/04/2024
+ERCP stenting - 08/02/2024
+ERCP stenting - 17/08/2023
+
+--- Image 150 | 2025-10-24 | radiology report ---
+Ultrasound Abdomen (Portable)
+LIVER: Normal in size, shows increased echotexture & regular outlines. No focal mass is seen. IHVs & ducts are not dilated. P.V = 1.2 cm.
+G. BLADDER: Partially contracted, shows sludge & few calculi, larger one measures 0.8 cm, however no focal mass is seen.
+Impression: Cholelithiasis.
+CBD measures 0.8 cm shows stent in it.
+SPLEEN: Enlarged in size measures 14.7 cm. Shows multiple echogenic foci.
+Impression: Splenomegaly.
+PANCREAS: Could not be visualized due to overlying gas filled bowel loops.
+RIGHT KIDNEY: Appears normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+LEFT KIDNEY: Appears normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+U. BLADDER: Empty (shows bulb of foley's catheter) at the time of scan.
+Bowel loops are not dilated.
+Mild amount of ascites is seen at the time of scan.
+
+--- Image 154 | 2025-10-23 | radiology report ---
+ERCP (Endoscopic Retrograde Cholangiopancreatography) Report - Location: OT
+Medication (Conscious Sedation): Propofol
+Instrument: TJF 160 Olympus
+Indication for Examination (Procedure): Cholangitis
+Procedure Technique: Scope passed up to D2.
+Findings:
+- Previously placed two plastic stents removed.
+- Sphincterotized ampulla seen; CBD cannulated, contrast injected to reveal mild to moderate intra hepatic duct with narrowing at hilum.
+- Two 10FR/10CM and 10FR/12CM plastic stents placed for biliary drainage.
+- Good biliary drainage observed.
+- Pancreatic duct not opacified.
+Endoscopic Diagnosis:
+- S/P two blocked CBD stents removed.
+- Mild to moderate intra hepatic duct narrowing at hilum.
+- S/P two new plastic stents placed.
+Fluoroscopy (C-ARM) images labeled: CBD (C-ARM), Narrowing, Two CBD Stents.
+After Endoscopy (Medication): IVF 1 LTR x STAT; Inj: Meropenem 1G IV x STAT.
+Recommendation: Keep NPO for 06 hours. Monitor for abdominal pain.
+
+--- Image 158 | 2025-10-23 | radiology report ---
+Echocardiography report.
+VALVES:
+- Aortic Valve: Thickened with normal mobility.
+- Mitral Valve: Thickened with normal mobility. Mild to moderate regurgitation.
+- Pulmonic Valve: Normal in thickness and mobility.
+- Tricuspid Valve: Normal in thickness and mobility. Moderate regurgitation.
+- Pulmonary artery systolic pressure is 45 mmHg.
+SUMMARY:
+1. Mildly dilated left atrium.
+2. Preserved left ventricular systolic function.
+3. Normal right ventricular systolic function.
+4. Mild to moderate mitral regurgitation.
+5. Moderate tricuspid regurgitation.
+6. Moderate pulmonary artery hypertension.

@@ -1,0 +1,35 @@
+Document index: 26
+Document type: clinical note
+Service date: 2026-06-16
+Age on report: 65Y    Sex: M
+De-identification: Omitted patient name/IDs (green redactions) and facility address/phone/email in footer.
+
+CONTENT
+----------------------------------------
+Integrated Initial Assessment Form (Page 1 of 2)
+Time: 4:00 PM
+
+Presenting complaints: Abdominal pain; fever; loose motions
+Known case of: HCV+
+
+History of presenting complaints: Per patient, alright 1 week back; then developed abdominal pain and cramps; then loose motions; also low-grade fever.
+
+Review of symptoms (positive): Fever; Diarrhea; Abdominal pain
+
+Past medical history: Hepatic cyst on CT abdomen (07-11-2025)
+Past surgical history: N/S (non-significant)
+Personal/socioeconomic: Addiction — Smoking; Sleep — disturbed
+Drug history: none noted
+Family history: none noted
+Allergy: none noted
+
+Vitals:
+- Pulse: 80 b/min
+- BP: 110/70 mmHg
+- Temp: 98 F
+- RR: 16 b/min
+- O2 sat: 93%
+- GCS: 15/15
+
+General exam (positive): Pallor; volume depletion; koilonychia; cervical lymph nodes; axillary lymph nodes; sacral edema
+General exam (negative): Jaundice; cyanosis; clubbing; thyroid; inguinal lymph nodes; ankle edema; periorbital edema

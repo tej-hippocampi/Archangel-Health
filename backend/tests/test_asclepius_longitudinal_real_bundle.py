@@ -24,13 +24,16 @@ directions:
     there isn't one. That is the two-numbers rule doing its job, and it is also
     exactly how a lowered gate would mislead: the number that moves is the one
     quoted in a pitch, and the number that matters does not move at all.
-  * **The published yield was not measured here.** ``LONGITUDINAL_CASES.md``
-    quotes 59 encounters → 25 decision points → 21 verifiable, measured across
-    ``patient-1`` … ``patient-4``. Those charts are not in this repository. This
-    test is the only real-data measurement that lives with the code, and it says
-    the yield of the real chart we do have is zero — so the published figures are
-    inherited, not reproduced. A reader who assumes otherwise will over-promise
-    to a buyer.
+  * **This is not the chart the published yield comes from.**
+    ``LONGITUDINAL_CASES.md`` quotes the four ``patient-1`` … ``patient-4``
+    bundles, and those ARE in the repository now
+    (``asclepius/fixtures/patient_bundles/``), measured by
+    ``test_longitudinal_front_door.py`` at 55 encounters → 22 decision points →
+    18 verifiable. This file measures a DIFFERENT real chart and gets zero, which
+    is the more useful number to keep beside the code: yield is a property of the
+    chart, not of the pipeline, and a cross-sectional workup produces none of it
+    however good the gate is. A reader who generalises from either measurement to
+    a new partner's charts will over-promise to a buyer.
 
 If a future change makes this bundle produce points, that is not automatically
 progress: either the adapter learned to date the undated resources (real progress,

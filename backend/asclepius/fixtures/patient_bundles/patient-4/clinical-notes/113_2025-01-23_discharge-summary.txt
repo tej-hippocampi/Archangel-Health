@@ -1,0 +1,54 @@
+Document index: 113
+Document type: discharge summary
+Service date: 2025-01-23
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name (including name embedded in narrative), identifier field, admission no., consultant, ward name; kept age in years (printed also 45Y 6M 10D), sex, admission/discharge dates, clinical content.
+
+CONTENT
+----------------------------------------
+DISCHARGE SUMMARY
+
+Presenting Complaints:
+Patient aged 45 years presented in ER with complaints of:
+- SHORTNESS OF BREATH
+- FLANK PAIN
+
+Diagnosis: DIABETIC KETOACIDOSES (DKA)
+
+Relevant Investigation:
+CBC, ESR, UREA, CREATININE, ELECTROLYTES, LFT, AMYLASE, LIPASE, TROP-1, LACTATE LEVELS,
+ABGS, CXR, ULTRASOUND WHOLE ABDOME, ECHO.
+
+Hospital Course:
+Presented in ER with above-mentioned complaints. On initial assessment, RBS was high, and along with
+other labs which also suggested for DKA. Patient was shifted to ICU for critical management of DKA.
+After 48 hours of successful management, patient was shifted to ward for further observation.
+Today patient is ready for discharge amid his normal sugar levels and no symptoms.
+
+Treatment Given Hospital Stay:
+- INJ R/L PLAIN @ 60ML/HR
+- INJ MERONEUM 1GM IV TDS
+- INJ ZOPENT 40MG IV OD
+- INJ ONSET 8MG IV BD
+- INJ PROVAS 1GM IV SOS
+- INJ HUMILIN R FIXED 16 UNITS IN MORNING EVENING AND DINNER
+- INJ LANTUS 10 UNITS HS
+- INJ HUMILIN R SLIDING SCALE - BACKUP
+- TAB NEO-K 2+2+2
+- INJ NEUROBION IV OD
+- TAB ASCARD 75MG 1+0+0
+- TAB LIPIGET 20MG 0+0+1
+- TAB IMMODIUM 2 STAT
+- ENTEROGERMINA
+- SMECTA SACHET
+
+Instruction on Discharge:
+- TAKE MEDICATION ON TIME
+- AVOID FATTY AND SUGARY DIET
+- ENSURE TAKING MEAL WITHIN HOUR OF INSULIN
+- RBS MONITORING - THREE TIMES A DAY (MAKE CHART OF IT): before breakfast; 2 hours after lunch; 2 hours after dinner
+
+Date of Surgery / Operative Procedure / Follow-up: blank/dashes
+Pending Reports: NONE
+Medication on Discharge section: empty on this page
+RMO Initial: unsigned

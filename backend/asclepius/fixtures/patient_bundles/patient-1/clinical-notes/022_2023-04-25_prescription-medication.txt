@@ -1,0 +1,11 @@
+Document index: 22
+Document type: prescription/medication
+Service date: 2023-04-25
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: prescriber name / "Consultant Gastroenterologist & Hepatologist" letterhead name redacted (green marker)
+
+CONTENT
+----------------------------------------
+Tab. Vosogon 20 mg — 1+0+1 — 4 weeks
+Cap. Urso 250 mg — 1+0+1 — 4 weeks
+Tab. Carveda 6.25 mg — 1+0+0 (twice daily per Urdu note)

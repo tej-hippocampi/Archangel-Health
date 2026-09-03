@@ -1,0 +1,12 @@
+Document index: 140
+Document type: other lab
+Service date: 2025-10-22
+Age on report: 42Y    Sex: M
+De-identification: name/consultant/lab/identifier fieldredacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Chemical Pathology
+PCT (ICU) [Procalcitonin]: 52.1 ng/mL
+Reference note: Procalcitonin levels < 0.5 represent a low risk of severe sepsis and/or septic shock. Procalcitonin levels > 2.0 represent a high risk of severe sepsis and/or septic shock.
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU) -- 003

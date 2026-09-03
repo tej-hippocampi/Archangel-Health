@@ -1,0 +1,16 @@
+Document index: 1
+Document type: tumor marker
+Service date: 2026-04-24
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility/patient identifiers under green redaction; no identifier field/provider visible
+
+CONTENT
+----------------------------------------
+Department: Chemical Pathology
+Panel: ALFA FETO PROTEIN
+
+Booking: 24/04/2026 19:04:35
+Collection: 24/04/2026 19:04:46
+Reporting: 24/04/2026 20:43:45
+
+Alpha Feto Protein: 5.36 UI/MI (Less then 7.0)

@@ -76,6 +76,82 @@ def _invite_expiry_iso() -> str:
     return (datetime.now(timezone.utc) + timedelta(days=_invite_ttl_days())).isoformat()
 
 
+async def deliver_existing_export(
+    store: Any, *, export_id: str, buyer_email: str, label: str,
+    admin: Dict[str, Any], note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Drop an ALREADY-BUILT export into a buyer's workspace (PRD §5).
+
+    The Export tab's "Export + send to ▾". The buyer CRM is retired; this rail
+    is not — it is the one thing the CRM did that mattered, now attached to the
+    export itself rather than to a second, differently-filtered build.
+
+    Everything after the export is identical to ``send_buyer_delivery``:
+    provision-or-rotate the account, record the delivery, email the credentials.
+    The difference is only which export is delivered, so a buyer cannot receive
+    a bundle nobody previewed.
+
+    Raises ``HTTPException`` for the same refusals as the organization-scoped
+    route (no email transport, an email that belongs to a non-buyer account),
+    because those are the same mistakes with the same consequences.
+    """
+    if not _email_configured():
+        raise HTTPException(status_code=503,
+                            detail="Email is not configured (SendGrid or SMTP).")
+    export_row = store.get_export(export_id)
+    if export_row is None:
+        raise HTTPException(status_code=404, detail="That export does not exist.")
+    clash = store.get_user_by_email(buyer_email)
+    if clash and clash.get("role") != "buyer":
+        raise HTTPException(
+            status_code=409,
+            detail=(f"{buyer_email} already belongs to a non-buyer account "
+                    f"({clash.get('role')}). Use a different email for the buyer."))
+
+    existing = store.get_buyer_account_by_email(buyer_email)
+    issue_credentials = existing is None or bool(existing.get("must_reset_password"))
+    temp_password = generate_secure_password()
+    if issue_credentials:
+        buyer = store.provision_buyer(
+            email=buyer_email, password=temp_password, buyer_name=None, note=note,
+            invited_by=admin["id"], invite_expires_at=_invite_expiry_iso())
+    else:
+        buyer = existing
+
+    record_count = int(export_row.get("record_count") or 0)
+    delivery = store.record_buyer_delivery(
+        buyer_account_id=buyer["buyer_account_id"], buyer_email=buyer_email,
+        export_id=export_id, label=label, data_format="JSONL",
+        record_count=record_count, note=note, sent_by=admin["id"])
+
+    html_body = build_buyer_delivery_email(
+        workspace_url=_workspace_url(), email=buyer_email,
+        temporary_password=temp_password, buyer_name="",
+        datasets_label=label, data_format="JSONL", record_count=record_count,
+        note=note or "", invite_ttl_days=_invite_ttl_days(),
+        first_delivery=issue_credentials)
+    email_ok = await send_html_email(
+        buyer_email, "Your Archangel Health dataset is ready", html_body,
+        importance_headers=True)
+    store.log_event(entity_type="buyer_delivery", entity_id=delivery["delivery_id"],
+                    event_type="delivery_sent", actor=admin["id"],
+                    payload={"buyer_email": buyer_email, "export_id": export_id,
+                             "scope": export_row.get("scope"),
+                             "record_count": record_count, "email_ok": email_ok,
+                             "first_delivery": existing is None,
+                             "credentials_issued": issue_credentials})
+    return {
+        "delivery_id": delivery["delivery_id"],
+        "export_id": export_id,
+        "buyer_email": buyer_email,
+        "record_count": record_count,
+        "workspace_url": _workspace_url(),
+        "first_delivery": existing is None,
+        "credentials_issued": issue_credentials,
+        "email_sent": email_ok,
+    }
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  Admin — send a dataset to a buyer
 # ════════════════════════════════════════════════════════════════════════════

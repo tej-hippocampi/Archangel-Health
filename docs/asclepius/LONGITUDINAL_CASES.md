@@ -52,19 +52,34 @@ An **encounter** is a cluster of recorded activity separated by a gap of more th
 | recorded events | ≥ 8 |
 | resource types (labs / notes / studies / vitals) | ≥ 2 |
 
-Measured across `patient-1` … `patient-4`: **59 encounters → 25 decision points →
-21 verifiable ones.** Thirty-four fail, and they fail because they are
-single-date, few-event contacts.
+Measured across `patient-1` … `patient-4`: **55 encounters → 22 decision points →
+18 verifiable ones.** The rest fail, and they fail because they are single-date,
+few-event contacts.
 
-> **Where that number comes from, and where it does not.** Those four charts are
-> not in this repository — the figure is inherited from the PRD, not reproduced
-> here. The one real de-identified chart we do have,
-> `tests/fixtures/nephrology_pgnmid_bundle.json`, yields **zero** decision points:
-> it is a cross-sectional diagnostic workup, three of its four encounters are a
-> single lab draw, and the fourth misses the event floor 4-to-8. That measurement
-> is pinned in `test_asclepius_longitudinal_real_bundle.py`, including the
-> counterfactual that lowering the floor to admit it would still produce nothing
-> pairable. **Yield on a partner's charts is unverified until you run the plan
+> **Where that number comes from — corrected.** The four charts ARE in this
+> repository now (`asclepius/fixtures/patient_bundles/`), so the figure is
+> measured rather than inherited. Running the shipped ingestion path over them
+> gives 55 → 22 → 18; this document previously quoted **59 → 25 → 21** from the
+> PRD, measured elsewhere on copies we did not hold. Both are recorded because
+> the difference matters to anyone auditing a pitch: quote 55 / 22 / 18, which
+> `test_longitudinal_front_door.py` pins per chart so a gate change cannot move it
+> quietly.
+>
+> The difference is **not** gate drift. patient-1's thirteen-point walk — the
+> number the product is demoed on — reproduces exactly.
+>
+> `patient-2` quarantines on an ambiguous date token in an OCR annotation, and is
+> recoverable only through the documented override path. See the bundles' own
+> README; do not relax the date scan to admit it.
+>
+> The other real chart in the tree, `tests/fixtures/nephrology_pgnmid_bundle.json`,
+> yields **zero** decision points: it is a cross-sectional diagnostic workup,
+> three of its four encounters are a single lab draw, and the fourth misses the
+> event floor 4-to-8. That zero is pinned in
+> `test_asclepius_longitudinal_real_bundle.py`, including the counterfactual that
+> lowering the floor to admit it would still produce nothing pairable.
+>
+> **Yield on a NEW partner's charts is still unverified until you run the plan
 > (`dry_run: true`) against them.** Quote the gate, not the number.
 
 **Do not lower the gate to raise the count.** A repeat lab draw is not a decision,

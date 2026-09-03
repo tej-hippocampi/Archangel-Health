@@ -1,0 +1,26 @@
+Document index: 40
+Document type: clinical note
+Service date: 2026-06-17
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted staff initials/signatures; no patient name/identifier field/facility visible on page.
+
+CONTENT
+----------------------------------------
+Nursing Interventions chart (Page 1 of 2)
+Dates/shifts: 17/06/2026 and 18/06/2026 (Morning and Evening)
+
+Skin breakdown: No redness/breakdown; prominences intact; no bedsore — all shifts
+Invasive lines: 22G from 17/06/2026; site Intact (17/06/2026) / Good (18/06/2026); second line No
+Peripheral edema hands/feet: No all shifts
+Drainage bags: No / 0
+Pain score: 0 all shifts
+
+Nursing care:
+- Bath: Self all shifts
+- Mouth care / Back care / Catheter-perineal care: Self or Yes
+- Shampooing: No
+- Positioning: Self / Yes
+- Safety checks: All check OK / All Checked
+- Deep breathing and coughing: encouraged / Done on 17/06/2026
+- Diet: Soft diet throughout
+- IV flush with 0.9% N/S: No / -

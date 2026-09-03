@@ -1,0 +1,32 @@
+Document index: 21
+Document type: CBC/hematology
+Service date: 2025-09-08
+Age on report: 65Y    Sex: M
+De-identification: Omitted patient name, referring provider, lab/facility name/logo, accession/code, and external facility acronym; green-marker redactions ignored.
+
+CONTENT
+----------------------------------------
+Haematology — CBC Profile
+Collection: 29-Sep-2025
+Report: 29-Sep-2025
+Specimen: blood (sample brought from external facility)
+
+Haemoglobin: 11.9 gm/dl (13.0 - 18.0) [LOW]
+Haematocrit: 36.8 % (37.4 - 52.0) [LOW]
+R.B.C.: 5.17 10^6/uL (4.5 - 6.5)
+M.C.V.: 71.2 FL (77.0 - 95.0) [LOW]
+M.C.H.: 23.0 PG (27.0 - 32.0) [LOW]
+M.C.H.C.: 32.3 % (31.0 - 35.0)
+W.B.C.: 15.8 10^3/uL (4.8 - 10.8) [HIGH]
+Neutrophils: 80 % (40-75) [HIGH]
+Lymphocytes: 14 % (20-45) [LOW]
+Eosinophils: 03 % (1-6)
+Monocytes: 03 % (2-10)
+Basophils: 00 % (<1)
+Platelet Count: 128 10^3/uL (150 - 450) [LOW]
+
+Morphology / comments:
+- Hypochromia & Microcytosis
+- Platelets looking Reduced
+- WBC show Neutrophilic Leukocytosis
+Method note: automated haematology analyzer (instrument model omitted)

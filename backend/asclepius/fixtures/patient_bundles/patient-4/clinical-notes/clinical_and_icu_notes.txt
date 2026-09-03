@@ -1,0 +1,936 @@
+CLINICAL / ICU / DISCHARGE NOTES (de-identified)
+============================================================
+
+--- Image 113 | 2025-01-23 | discharge summary ---
+DISCHARGE SUMMARY
+
+Presenting Complaints:
+Patient aged 45 years presented in ER with complaints of:
+- SHORTNESS OF BREATH
+- FLANK PAIN
+
+Diagnosis: DIABETIC KETOACIDOSES (DKA)
+
+Relevant Investigation:
+CBC, ESR, UREA, CREATININE, ELECTROLYTES, LFT, AMYLASE, LIPASE, TROP-1, LACTATE LEVELS,
+ABGS, CXR, ULTRASOUND WHOLE ABDOME, ECHO.
+
+Hospital Course:
+Presented in ER with above-mentioned complaints. On initial assessment, RBS was high, and along with
+other labs which also suggested for DKA. Patient was shifted to ICU for critical management of DKA.
+After 48 hours of successful management, patient was shifted to ward for further observation.
+Today patient is ready for discharge amid his normal sugar levels and no symptoms.
+
+Treatment Given Hospital Stay:
+- INJ R/L PLAIN @ 60ML/HR
+- INJ MERONEUM 1GM IV TDS
+- INJ ZOPENT 40MG IV OD
+- INJ ONSET 8MG IV BD
+- INJ PROVAS 1GM IV SOS
+- INJ HUMILIN R FIXED 16 UNITS IN MORNING EVENING AND DINNER
+- INJ LANTUS 10 UNITS HS
+- INJ HUMILIN R SLIDING SCALE - BACKUP
+- TAB NEO-K 2+2+2
+- INJ NEUROBION IV OD
+- TAB ASCARD 75MG 1+0+0
+- TAB LIPIGET 20MG 0+0+1
+- TAB IMMODIUM 2 STAT
+- ENTEROGERMINA
+- SMECTA SACHET
+
+Instruction on Discharge:
+- TAKE MEDICATION ON TIME
+- AVOID FATTY AND SUGARY DIET
+- ENSURE TAKING MEAL WITHIN HOUR OF INSULIN
+- RBS MONITORING - THREE TIMES A DAY (MAKE CHART OF IT): before breakfast; 2 hours after lunch; 2 hours after dinner
+
+Date of Surgery / Operative Procedure / Follow-up: blank/dashes
+Pending Reports: NONE
+Medication on Discharge section: empty on this page
+RMO Initial: unsigned
+
+--- Image 114 | 2025-01-23 | discharge summary ---
+DISCHARGE SUMMARY — medication on discharge / follow-up page (continuation of index 113).
+
+Medication on Discharge / instructions:
+- INJ MERONEUM 1GM IV TDS (THREE TIMES A DAY) --- FOR 5 DAYS
+- CAP EZIUM 40MG 1+0+0
+- TAB ONSET 8MG 1+0+1
+- MUST TAKE MEAL WITHIN HALF HOUR OF INSULIN
+- INJ HUMILIN R: 16 UNITS BEFORE BREAKFAST; 16 UNITS BEFORE LUNCH; 16 UNITS BEFORE DINNER
+- INJ LANTUS 10 UNITS AT 8PM
+- TAB ASCARD 75MG 1+0+0
+- TAB LIPIGET 0+0+1
+
+Follow-up: AFTER 1 WEEK WITH [provider omitted] — ALONG WITH RBS MONITORING CHART
+
+Discharge status: Improved
+
+--- Image 115 | 2024-12-19 | discharge summary ---
+DISCHARGE SUMMARY
+
+Presenting Complaints: ABDOMINAL PAIN, NAUSEA, VOMITING
+Diagnosis: DYSPEPSIA/AGE
+
+Relevant investigations (as summarized):
+- CBC, UCE, TROP I: Normal
+- Amylase: 146
+- Lipase: 242
+- US Abdomen: Dilated pancreatic duct 0.6 cm
+- ECHO: EF 30-35% and moderate to severe left ventricular systolic dysfunction
+
+Hospital Course:
+Known case of HTN, DM, and IHD. Presented with generalized and severe abdominal pain, nausea, and vomiting.
+Vitally stable on examination; baseline tests performed and managed accordingly.
+Cardiac team consultation requested due to low EF (~30-35%); medications adjusted.
+Patient improved, tolerating well, and being discharged.
+
+Date of Surgery: NONE
+Operative Procedure: NONE
+
+Instruction on Discharge:
+- Stop Ascard on the day of tooth extraction (one day only), then restart the next day
+- Maintain medication compliance
+- Maintain hydration
+
+Medication on Discharge:
+- CAP RISEK 40MG 1+0+0
+- SYP MOTILIUM 2+2+2
+- TAB VONOZAN 20MG 1+0+0
+- TAB SULVORID 25MG 1+0+1
+- TAB ASCARD 75MG 1+0+0
+- TAB LIPIGET 20MG 0+0+1
+- TAB NEBIL 5MG 1+0+0
+- TAB TREATAN 4MG 0+0+1/2
+- TAB SPIROMIDE 40MG 1/2+0+0
+- TAB DAPA 10MG 1+0+0
+
+Follow-up: OPD after one week
+Status at Discharge: Improved
+
+--- Image 117 | 2026-01-28 | clinical note ---
+PATIENT TRIAGE / ER ASSESSMENT
+Time: 6:04 pm
+
+Complaint: Pt came with c/o ALOC since 11 am, 1 episode of vomiting.
+History: k/c of DM, HTN, IHD (2024 - PCI). Alcohol addict (24 years).
+H/o alcohol abuse last night & today morning.
+
+On Examination:
+- Chest: B/L crepts
+- Abdomen: soft; NIT
+- CVS/ECG Finding: S1+S2 audible
+- CNS: E4V1M5
+
+Obstetrics & Gynaecology: Not relevant (checked)
+
+Vital Signs:
+- RBS: 133 mg/dl
+- Pulse: 84 b/min
+- Temp: 100 F
+- BP: 160/100 mmHg
+- RR: 22 /min
+- SPO2: 84% on RA
+- GCS: 10/15
+
+Investigation Lab / Radiology ordered:
+ECG, ABGs, CBC, UCE, LFT, Albumin, PT/INR, Trop-I, Blood C/S, CXR,
+U/S Abdomen (Pending), Tracheal C/S
+
+Provisional Diagnosis: Aspiration Pneumonia
+
+ER Treatment & Procedure:
+- I/V cannulation
+- Inj Provas 1g I/V x stat
+- Inj Ezium 40mg I/V x stat
+- Inj Onset 8mg in 100ml N/S I/V x stat
+- Inj Tanzo 4.5g in 100ml N/S I/V x stat
+- Inj N/S 1000cc/hr + (1 amp Neurobion)
+- Neb with Atom / with clenil
+- Suctioning
+- Catheterization
+- CPAP applied (8 cmH2O)
+
+Disposition: Transfer to CCU (checked)
+
+--- Image 119 | 2026-01-28 | clinical note ---
+PART 1: TO BE FILLED BY DOCTOR
+Time: 8:00 pm
+Age field on form: blank
+
+Presenting Complaints:
+- (initial line crossed out / illegible)
+- Drowsiness (01 day)
+- H/o Alcohol abuse in morning
+
+Known Case Of: DM, HTN, IHD (PCI in 2024)
+
+History of Presenting Complaints:
+According to the attendant, patient was in usual state of health; had drink alcohol in morning at 8:00 am,
+then went for routine work as a farmer, then taken to hospital unconscious; also had 1 episode of fever (100°F),
+RBS 40 mg/dl. Then referred to another facility. Attendant said patient had nausea but did not vomit;
+patient had 2 episodes of vomiting yesterday.
+
+Past Medical History: Alcohol Intake (About 500ml/day)
+
+Review of Symptoms: Fever checked; other symptom boxes blank.
+
+Personal history: Normal sleep, Normal appetite. Alcohol addict (since 25 years of age), Smoker.
+
+Drug History (Currently Taking):
+- Tab Ascard 75mg
+- Entor 5/80
+- Tab Rivotril 2mg 1x HS
+- Mediap (Risperidone)
+- Citamed (name partially cut off at edge)
+
+Family History: DM (+), HTN (+), Cancer (-), TB (-), Asthma (-), Congenital Anomalies (-)
+Allergy: blank
+
+General Examination:
+- Pulse: 156 /Min
+- B.P.: 160/112 mm Hg
+- Temp: 100°F
+- R/R: 21 /Min
+- O2 SAT: 100
+- GCS: 10/15
+- Pallor/Jaundice/Cyanosis/Vol. Depletion/Clubbing/Koilonychia/Thyroid/Lymph nodes/Edema: marked negative/normal (vertical line through columns)
+
+--- Image 120 | UNKNOWN | clinical note ---
+Clinical examination form continuation (Page 2 of 2) — systems exam / diagnosis.
+
+Abdominal Examination:
+- Inspection/Palpation/Percussion/Auscultation note: Soft Non Tender
+- Liver, Spleen, Kidneys, Gut Sounds, Surgical Scar: blank
+
+Respiratory System: fields blank
+
+Cardiovascular (partially visible):
+- Thrill: nil/φ
+- Heave: nil/φ
+- Auscultation: S1 and S2 marked (notation as on form)
+
+Central Nervous System:
+- Level of Consciousness: DROWSY (checked)
+- Oriented To Time/Place/Person: N (No) for all
+- Signs of Meningeal Irritation Present: N (No)
+- Cranial Nerves: Intact
+- Memory/Emotional State/Speech/Gait: blank
+
+Motor System:
+- Bulk: UL RT N; UL LT N; LL RT N; LL LT ↑
+- Tone: UL RT ↑; UL LT ↑; LL blank
+- Plantaris: LL RT M; LL LT M
+- Reflexes / Power: blank
+
+Coordination: INTACT
+Sensory System: INTACT
+Cortical Senses: INTACT
+
+Diagnosis (handwritten, partially obscured by redaction at end):
+Seizures? 2º ?? Aspiration Pneumonia / Stroke/Aspiration Pneumonia (exact trailing text partially redacted)
+
+Comments of MO/SMO/Consultant and Name & Signature: redacted — not transcribed
+
+--- Image 121 | 2026-01-28 | clinical note ---
+Form: PATIENT PROGRESS
+Time: 8:30 pm
+
+Event Note:
+- Patient had 1 episode of fits.
+- Resolved by given Inj Dormicum.
+- [Neurophysician] taken on board.
+
+--- Image 122 | 2026-01-28 | clinical note ---
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 8:30 pm
+Review note
+
+Diagnoses / problems (triangle):
+- DM, HTN, H/O IHD (PCI in 2024)
+- Seizure
+- Aspiration Pneumonia
+
+G/C: Not satisfactory
+Currently: Hypertensive BP 160/112; Tachycardia HR 151; 1 episode of fits.
+
+Vitals:
+- HR: 150 b/min
+- BP: 160/112
+- RBS: 172 mg/dl
+
+O/E:
+- GCS: E4 V2 M6 (10/15) [or E4 V1 M5 — handwriting ambiguous]
+- CVS: S1 + S2
+- Chest: [unclear]
+- Abd: S.N.T. (soft, non-tender)
+
+Plan:
+1. Get U/S Abdomen done.
+2. (C) CXR.
+3. Get [neuro consult — name redacted] as pt had 1 episode of fits.
+4. (C) Labs: CBC, UCE, LFTs, Trop I, Pro-BNP.
+5. (C) Blood C/S + Tracheal C/S.
+6. Continue same Rx.
+7. I/O charting; vital monitoring.
+
+--- Image 123 | 2026-01-29 | clinical note ---
+Form: ICU ROUTINE DOCUMENT (Page 1 of 2)
+Time: 2:30 am
+Date of Admission: 28/01/2026
+ICU Day: 01
+Intubation / Extubation / Post-op day: —
+Header vitals box (BP, R/R, Pulse, Sat, Temp, Allergies, ABGs): blank
+
+Presenting complain:
+- 46-year-old alcoholic male
+- k/c HTN, DM2, IHD (hx of PCI in 2024)
+- Alcohol addict since 25 yr; hx of alcoholic abuse in morning
+- c/o ALOC (drowsiness) x 1 day + vomiting
+
+Events:
+- In ER: ALOC + ↓ sats ~84% + Temp 100°F + ↓ GCS 10/15 → NIV support CPAP @ 8 cm H2O + IV antibiotic, antiemetics + Nebs done
+- In ICU: continued ALOC (↓ GCS 10/15) + ↑ HR 151 bpm + fever → ECG done → 1 episode of fits → Inj Dormicum x stat → Neuro on board → CT brain done
+
+Investigations:
+- CT/MRI: Done → (C) report
+- ECHO: EF ~55%; IVC (N) collapsing
+- CXR: Requested
+- USG Abd: bowel loops not dilated; no ascites
+- Urine R/E: N/Done
+- C/S: Blood C/S + Tracheal C/S sent [facility omitted]
+
+Medications:
+- Analgesic: IV Perfalgan x SOS
+- Sedation: blank
+- Antibiotics: Inj Tanzo/Penzo 4.5 gm IV x TDS
+
+--- Image 124 | UNKNOWN | clinical note ---
+Form: ICU ROUTINE DOCUMENT (Page 2 of 2; Rev # 00, September 2025)
+Continuation systems exam / plan (pairs with index 123)
+
+Problem list (triangle): Aspiration Pneumonia; Seizures
+Medical history: k/c DM, HTN, IHD, Alcoholic
+
+NEURO:
+- GCS 10/15 (E4 V2 M4)
+- Pupils B/L equal, reactive to light
+- Plantars B/L mute
+- ↑ Tone
+
+CARDIO:
+- S1 + S2 audible
+- BP 140/90
+- Pulse 102 bpm
+
+RESP:
+- RR 20 br/min
+- Chest B/L crepts
+- SpO2 99%
+- CPAP @ 10 cm H2O with 2 L O2/min
+
+ABDO: Soft, NT; stool not passed
+RENAL: Input 980 ml; Output 890 ml
+MUSCULO-SKELETAL: No bed sores
+ENDO: RBS 260 mg/dl @ 6 AM; 4 units Humulin-R given
+HAEM: No active bleeding
+ID: 3 fever spikes of 100°F in last 12 hrs
+LINE/DRAINS: 20G (L) arm; 18G (R) foot
+NUTRITION: NG passed; NPO
+
+Plan:
+- IVF @ 40 ml/hr
+- Monitor RBS
+- w/f fits
+- Temp monitoring q4h
+- Cont. CPAP
+- Suction x SOS
+- Neurophysician R/v
+- Cardio opinion to continue cardiac meds
+
+--- Image 125 | UNKNOWN | clinical note ---
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 1:10 PM
+
+Seen by [provider redacted]
+
+- GCS improving — E4 V3 M6 = 13/15
+- Abnormal mouth movements for 2 yr — likely a movement disorder
+- No episode of seizure in last 12 hrs
+- CT Brain looks normal
+- Cont. Lerace 500 mg x BD
+- Tab Vita-6 x OD
+- Get MRI Brain (plain) with contrast once pt gets stable
+- For movement disorder: assess pt as out-patient in clinic
+- Tab Rivotril 0.5 mg x 1/2 x HS
+- (S) CPK
+- No upper or lower limb rigidity
+
+--- Image 126 | UNKNOWN | clinical note ---
+Form: PATIENT PROGRESS (Page 2 of 2)
+Time: 1:30 PM
+
+Seen by [provider redacted]
+
+- Add Neurobion into IVF
+- Off CPAP trial
+- (S) CPK [handwriting may read CPR]
+- Cont. cardiac meds
+- Tab Extor 5/160 x OD
+- Tab Ascard 75 mg x OD
+- Add Rivotril as advised by [provider redacted]
+
+--- Image 127 | UNKNOWN | clinical note ---
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 2:30 pm
+Communication Note:
+
+Communicated with [provider redacted] regarding cardiac meds.
+He advised:
+- Tab Ascard 75 x OD
+- Tab Extor 5/160 x OD
+- Tab Nebil 2.5 mg x OD
+
+Note: year on form appears written as 24 (as printed/handwritten).
+
+--- Image 128 | 2026-01-30 | clinical note ---
+Form: PATIENT PROGRESS
+Time: 4:45 pm
+
+Thanks for Psychiatric Consultation
+S/B [provider redacted]
+
+On:
+1. Risperdal / Risperidone
+2. Rivotril 2 mg
+
+Plan — Restart:
+- Risperdal 1/2 x BD
+- Tab Lorazepam 1 x HS
+- Rivotril 0.5 mg
+- if Restlessness → 1/2 — 0 — 1
+
+--- Image 129 | 2026-01-29 | clinical note ---
+Form: PATIENT PROGRESS
+Time: 5:00 pm
+Evening follow-up
+
+Problems (triangle):
+- k/c DM, HTN, IHD (H/o PCI in 2024)
+- Seizures
+- Aspiration Pneumonia
+
+G/C: Not satisfactory
+Currently: hemodynamically & vitally stable (GCS field blank)
+
+Vitals:
+- HR: 87
+- BP: 156/113
+- R/R: 21
+- RBS: 223 mg/dl
+
+O/E:
+- GCS: blank
+- CVS: S1 + S2
+- Chest: B/L clear
+- Abd: S.N.T.
+
+Plan:
+1. Continue IVF @ 40 ml/hr
+2. Continue Tazo / Tanzo
+3. Monitor GCS
+4. Give off CPAP trial
+5. CPK / CXR (items listed)
+6. Continue cardiac medications
+7. CST / CXR (as charted)
+
+--- Image 130 | 2026-01-30 | clinical note ---
+Form: ICU ROUTINE DOCUMENT
+Time: blank
+Date of Admission: 28-01-2026
+ICU Day: Day 02
+Intubation / Extubation / Post-op day: —
+Code status: Full CODE
+Header vitals box: blank
+
+Presenting complain:
+- 46 years old male
+- k/c HTN, DM, IHD S/P PCI (2024)
+- Alcoholic
+- Presented with ALOC for 1 day + vomiting
+
+Events:
+- In ER: ↑ BP, ↓ GCS, ↑ RR, ↓ sats — O2 inhalation + nebs + CPAP + Perfalgan/Botalgan
+- In ICU: ↑ BP, ↑ HR, fever 101°F, ↓ GCS — Perfalgan + sponging
+- 1 episode of fits — benzodiazepine + Neuro on board + meds
+- Cardio on board — BB + antiplatelet + CCB + ARB
+
+Investigations:
+- CT/MRI: CT brain plain done (report awaited)
+- ECHO: EF 55%; IVC (N) collapsing
+- CXR: Done
+- USG: Normal U/S Abd
+- Urine R/E: Glucose +3, Ketone +2, Pus cells 1-2, Bacteria few
+- C/S: Awaited (Blood + Urine + Tracheal C/S) [facility omitted]
+
+Medications:
+- Analgesic: Perfalgan/Botalgan 1 g I/V x SOS
+- Sedation: —
+- Antibiotics: Inj Tanzo
+
+--- Image 131 | UNKNOWN | clinical note ---
+Systems review / consultant-style note (Page marked with HDU context)
+Additional timestamp on note: 10:58 am, 30/01/2026
+
+Known: DM, HTN, IHD (PCI 2024); alcoholic
+Impression: Delirium tremens?; Aspiration pneumonia??
+Event: 1 episode tonic-clonic seizure on 11/July/26
+
+NEURO: GCS 13/15 (E4 V3 M6); pupils B/L equal, reactive to light
+CARDIO: S1+S2; BP 130/80; Pulse 102 bpm
+RESP: B/L clear; RR 26; SpO2 96% on room air
+ABDO: Soft, NT; stool passed yesterday morning
+RENAL: Input 1920 ml; Output 1550 + 370 ml
+MUSCULO-SKELETAL: No bed sores
+ENDO: RBS 130 mg/dl @ 6 AM
+HAEM: No active bleeding
+ID: No fever spikes in last 24 hrs
+LINE/DRAINS: 18G (R) foot; 20G (L) arm
+NUTRITION: NPO
+Note: Attendant (brother) counseled
+
+Clinical summary:
+- Details as above
+- Likely delirium tremens; responded to benzodiazepines
+- Query drug-induced EPS?
+- Hemodynamically stable; currently on room air
+- No signs of aspiration
+
+Plan:
+- Tab Lorazepam 2 mg TDS x 3 days → then 2 mg BD x 1 day → stop if stable
+- Neuro review
+- Onset → SOS; check ECG for QTc
+- Start Ensure diet via NG tube
+- 5% D/S + I/V Neurobion
+
+--- Image 132 | 2020-02-02 | clinical note ---
+Section: Consultant Notes / Other Communication / Opinion
+Time: 01:00 pm
+
+[Provider/role redacted] opinion:
+- (C) MRI report
+- Air Mattress
+
+Note: date handwritten as 02-02-2020 (as printed).
+
+--- Image 133 | UNKNOWN | clinical note ---
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 1:40 PM
+
+Seen by [provider redacted]
+- Get MRI Brain with contrast
+- Will plan for LP if pt does not improve within 24 hrs
+- Get psychiatrist opinion
+
+Note: year on form appears written as 24 (as printed/handwritten).
+
+--- Image 134 | 2026-01-30 | clinical note ---
+Form: PATIENT PROGRESS (Page 2 of 2)
+Time: 3:40 pm
+
+LP done under all aseptic means.
+- Sample handed over to [staff name redacted]
+- 2 cc send for D/R to [lab/facility redacted]
+- 2 cc kept in fridge
+- RBS at time of procedure: 113
+- Pt vitally stable after procedure
+
+--- Image 135 | 2026-01-30 | clinical note ---
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 5:42 pm
+E.F.U. (evening follow-up)
+
+G/C: Static
+A/I: Delirium / psychoses for now under Dormicum effect
+GCS: E3 M5 V2–3 (10–11/15)
+
+Vitals:
+- BP: 160/90 (manual)
+- P/R: 86 bpm
+- Temp: Afebrile
+- R/R: 20 br/min
+- SpO2: 97% on room air
+- RBS: 137 mg/dl
+- I/O: 840 / 340 ml (morning shift)
+
+History / problems:
+- Drug-induced delirium tremens?
+- Alcoholic since 24 yrs
+- DM, HTN, IHD; PCI in 2024
+- On admission: ↓ GCS; apparent GTC seizure observed 28/01/2026 in ICU
+
+Plan:
+1. Cont IVF / hr
+2. LP done → CSF D/R
+3. Psychiatric R/v done — confirm with [psychiatrist redacted]; follow advice
+4. MRI Brain in plan (hold for now)
+5. GCS x 1 hourly
+6. I/O charting
+
+Medication query:
+- Re Lorazepam & Rivotril: message sent to ICU consultant & [provider redacted]
+- Both are BZD — which one to continue, or both?
+
+--- Image 136 | 2026-01-31 | clinical note ---
+Form: PATIENT PROGRESS
+Time: 11:45 AM
+NEURO-PHYSICIAN NOTE
+
+Pt seen and examined
+- GCS improving
+- GCS: M5–6 V3 E3 = 12/15
+- Pupils: PERL (PERRL)
+- Moves all four limbs
+
+A/P:
+- CSF D/R → (N)
+- Get MRI brain with contrast
+- Cont Rivotril 0.5 mg ½ + ½
+- + Lerace 500 1+1
+- Shift out after MRI done
+
+--- Image 137 | 2026-01-31 | clinical note ---
+Form: ICU ROUTINE DOCUMENT
+Time: 2:30 pm
+Date of Admission: 28/01/2026
+ICU Day: 03
+Intubation / Extubation / Post-op day: —
+Header vitals box: blank
+
+Presenting complain:
+- 46 years old male
+- k/c HTN, DM, IHD S/P PCI in 2024
+- Known alcoholic since 25 yrs
+- c/o ↓ LOC for 01 day + vomiting
+
+Events:
+- In ER: ↑ BP + ↓ GCS + ↑ RR + ↓ Sat% → O2 inhalation + CPAP + IV Abx
+- In ICU: ↑ BP + ↑ HR + Fever 101°F → IV Perfalgan + 1 episode of fits → IV antiepileptic + Neuro on board → movement disorders → Cardio on board (β-blocker + antiplatelet) → Psych on board → LP done
+
+Investigations:
+- CT/MRI: CT brain plain — (C) report
+- ECHO: EF 55%; IVC (N) collapsing
+- CXR: Requested
+- USG: Done
+- Urine R/E: Glu +3, Ketone +2, pus cells 1–2, few bacteria
+- C/S: Blood + Urine + Tracheal C/S [facility omitted]
+
+Medications:
+- Analgesic: IV Perfalgan x SOS
+- Sedation: blank
+- Antibiotics: Inj Tanzo 4.5 gm IV x TDS
+
+--- Image 138 | 2026-01-31 | clinical note ---
+Form continuation (Page 2 of 2; Rev # 00, September 2025)
+Time on note: 11:36 am
+
+NEURO: GCS E4 M5 V3 = 12/15 (alt read E4 M6 V3 13/15); plantars B/L ↓/flex; no neck rigidity
+CARDIO: EF 55%; hemodynamically stable
+RESP: B/L clear on room air
+ABDO: Soft NT; stool not passed
+RENAL: Output 1492 ml; Input ~769 ml; IVF @ 40 ml/hr
+MUSCULO-SKELETAL: No bedsores
+ENDO: RBS 202 mg/dl
+HAEM: No bleeding
+ID: No fever
+LINE/DRAINS: 20G (R) foot; 20G (L) arm
+NUTRITION: NG feeding
+
+Assessment: PRESS?? / drug-induced drowsiness
+
+Plan:
+- MRI brain with contrast
+- Discuss with psych regarding reducing Rivotril dose
+- Extor to be continued
+- Add Hydralazine 25 mg TDS SOS if BP remains high
+- Neuro to follow
+- Shift to floor by evening
+- Attendant updated
+
+--- Image 139 | 2026-01-31 | clinical note ---
+Form: PATIENT PROGRESS (Page 1 of 2)
+
+Entry 1 — Time 07:30 PM:
+- MRI Brain done
+- Films shared with Neurophysician onboard [name redacted]
+- Case discussed with [provider redacted]
+- Stepping down in Gastro ward
+- When bed vacant in HDU, shift patient to Gastro HDU
+
+Entry 2 — Time 07:40 PM — Shifting Note (Gastro ward):
+- Currently vitally stable on room air with GCS E3 V3 M6 = 12/15
+- MRI Brain report & share with [Neurophysician redacted]
+- Strict BP & I/O x 1 hourly
+- Observe GCS, R/R & SpO2
+- Shift to Gastro HDU once bed vacant
+- Handover given to [Gastro provider redacted]
+
+--- Image 140 | 2026-02-01 | clinical note ---
+Form: PATIENT PROGRESS
+Time: 2:45 PM
+NEURO-PHYSICIAN NOTE
+
+Pt seen and examined
+- MRI brain + cervical looks (N)
+- CSF D/R — (N)
+- GCS improving
+- No seizure in last 48 hrs
+
+A/P:
+- CST
+- Get psychiatrist opinion
+- Chase MRI-brain report
+
+--- Image 145 | 2026-01-28 | clinical note ---
+Title: Neuro-Physician Note
+Time: 8:30 AM
+
+Clinical status:
+- Pt seen and examined
+- 1 episode of seizure in ICU
+- No H/O previous seizure / stroke
+- K/C DM, alcoholic, past e-
+- C/O ALOC since morning
+
+O/E:
+- GCS: M4 V1 E3 -> 9/15
+- Pupils: PERL
+- (R) gaze preference
+- Movement: L > R side of body on painful stimuli
+- Plantar: B/L mute
+
+A/P:
+- Seizure ? cause
+- Load e- Lerace 1 g stat followed by 500
+- Add T. Vita-6 1+0
+- Continue same treatment
+- I/V Dormicum / SOS
+- Monitor for seizure + GCS
+- Get CT-brain plain urgent
+- Send Ca, Mg
+
+Form: August 2024, Rev # 01, Page 1 of 1
+
+--- Image 146 | 2026-02-01 | clinical note ---
+Department form: Nutrition & Food Service
+Time: 11:30 am
+Diagnosis: DM, HTN, IHD, ALD, Alcoholic
+Findings / Height / Calories: blank
+
+Notes:
+- Patient has been visited
+- On NG feed
+
+--- Image 147 | 2026-01-31 | clinical note ---
+Form: Physiotherapy & Rehabilitation Services Progress Note
+
+Session 1 — 31/01/2026, 11:00 am:
+- Dx: DM, HTN, IHD (PCI), Aspiration pneumonia
+- Risk factor: B, C
+- Fall risk / fall protocol boxes blank
+- Interventions: PROM exercises of all 4 limbs; Approximation; Calf stretching; Ankle pumping; Pelvic rolling; AWB
+- Role: (PT)
+
+Session 2 — 31/01/2026, 6:10 pm:
+- Patient of Risk of Fall: YES
+- Risk factor: B, C
+- Fall Protocol Initiated: YES
+- Interventions: PROM exercise of all 4 limbs; Approximation; Calf stretching; Ankle pumping; Pelvic rolling; AWB
+- Role: (PT)
+
+Third session block empty
+
+--- Image 150 | 2021-01-31 | clinical note ---
+Part 2: To Be Filled By Nurse
+
+Admission:
+- Unit: Gastro HDU
+- Date of admission: 31/01/2021; Time: 2200 Hrs
+- Type: Emergency; Mode: Stretcher; ID Band: Applied
+- Information provided by: blank/dash
+
+Vital signs:
+- Age 46 Yrs; Temp 37.2°C; Pulse 82/min; RR 23/min; BP 140/70; O2 Sat 96%
+- Height/Weight: 00 (placeholders)
+- RBS 128 mg/dl (handwritten)
+
+Reason for admission: ALOC, vomiting; K/C DM HTN IHD, Alcoholic
+
+Infectious disease: None checked
+Isolation precautions: airborne/droplet/contact/standard marked through (slash/check pattern)
+
+Pain: No; Score 00
+
+Functional screening:
+- Cognition/LOC: Drowsy
+- Sensory: Tingling
+- Vision: Normal
+- Hearing: Impaired
+- Speech: unchecked
+- Musculoskeletal: Deformities
+- Assistive devices: Crutches
+
+--- Image 151 | UNKNOWN | clinical note ---
+Activity of Daily Living (all Patient Score 0 = Dependence):
+- Bathing, Dressing, Toileting, Transferring, Continence, Feeding — all 0
+- Total points: 00 (0 = very dependent; 6 = independent)
+
+Fall Factor Assessment (Morse Scale):
+- History of fall (immediate or within 3 months): Yes — 25
+- Secondary diagnosis: Yes — 15
+- Ambulatory aid (crutches/cane/walker): 15
+- IV/heparin/saline lock: No — 0
+- Gait/transferring: Normal / bed rest immobile — 0
+- Mental status: Oriented to own ability — 0
+- Total score: 55; High Risk (45 and higher) checked
+- High-risk criteria box also checked: Patients age 65 years or older
+
+Psychosocial / Economic:
+- Mood: Calm
+- Marital status: Married; Living with: Parents; Occupation: Unemployed
+- Substance abuse: No for Smoking, Smoking environment, Alcohol, Pan/Gutka, Tobacco, Nicotine
+
+Religious / Cultural / Spiritual:
+- Religion: Islam
+- Religious/cultural practices needed for care: No
+
+--- Image 152 | UNKNOWN | clinical note ---
+Form: Review of Systems
+
+Oral:
+- Mouth/Tongue: Normal
+- Gastric tubes (NG/NJ/PEG/JJ): Yes — noted "ICU"
+
+Skin: Appearance Pale; Temperature Warm; Integrity Intact
+
+Cardiac: Pulse Regular; Capillary refill <2 sec: Yes
+
+Respiratory:
+- Respiration Regular
+- On Oxygen: Yes — 5 litre/min
+- Respiratory assisted devices: No
+
+Elimination:
+- Bowel movement: Normal
+- Sign/symptoms: Vomiting
+- Urinary mode: Catheter — Foleys / Silicon; insertion date noted "ICU"
+
+Musculoskeletal:
+- ROM: RUL Active; RLL Active; LUL Passive; LLL Passive
+- Deformity: No; External fixator: No; Traction: No
+
+Obs/Gyn: Not applicable; Pregnancy No; LMP field note: Male
+
+Breast: Normal
+Sleep problem: No
+
+Others:
+- Central lines: No
+- Peripheral lines: Yes — 2 IV in situ @ R hand, L hand 20G/18G; condition mark present
+- Drains: No; condition Good
+
+--- Image 153 | 2026-02-05 | clinical note ---
+Form: Orientation of the Unit
+
+Items provided on admission (checked): Hospital Dress, Blanket, Admission Pack
+Not checked: Information Booklet, Patient Bill of Rights, Others
+
+Orientation topics checked: Nursing call bell, Emergency call bell, Lights, Telephone, Bed controls & use of side rails, Meal time, Washroom
+
+Facility policies oriented (checked): Hospital Valuable policy; No home food/fruit allowed; Patient own medication policy; Visiting hours & visitor's policy; Doctor round timing; Smoking policy; Acceptance of gift policy
+Not checked: Prayer Area, Others
+
+Personal belongings: Eye glasses/contacts NA; Hearing aids/dentures/prosthesis/jewellery marked not applicable; Others NA
+Patient/family informed about valuable policy: unchecked
+
+Initial assessment sign-off:
+- Designation: RN
+- Date: 05/02/2026; Time: 2200
+- Checked by / Assistant Head Nurse: blank
+
+Discharge education section: all items unchecked (Diet, Take-home medication, Activity, Follow-up, Wound/drains, Alarming signs, Pain, Emergency contact, Physiotherapy, Oxygen, Equipment, Private nursing, Helpline, Others)
+Status indicators unchecked: Not Applicable, Patient Expired, DOR, LAMA, Improved
+
+Form corner mark: Aug 24
+
+--- Image 154 | 2016-01-29 | vitals ---
+Form: Vital Signs Sheet (Height/Weight blank)
+Columns: Date | Time | B/P | Resp | Pulse | SPO2% | Temp | Pain Score | Name & Initial
+
+Entries (dates/times as printed; one row has date/time columns swapped):
+1. 29/01/2016 18:09 — BP 160/100; RR 22; Pulse 84; SPO2 84; Temp A/F; Pain 6
+2. 28/01/2026 07:30 pm — BP 110/70; RR 23; Pulse 130; SPO2 99%; Temp A/F; Pain -
+3. Date col 22:00 / Time col 01/02/2016 — BP 110/60; RR 21; Pulse 89; SPO2 94%; Temp 98.2; Pain 02
+4. 02/02/2016 07:00 — BP 140/90; RR 23; Pulse 92; SPO2 99%; Temp A/R; Pain 00
+5. 02/02/2016 03:30 — BP 140/80; RR 22; Pulse 95; SPO2 96%; Temp A/R; Pain 00
+6. 02/02/2016 6:00 AM — BP 130/80; RR 20; Pulse 94; SPO2 97%; Temp A/R; Pain -
+7. 01/02/2026 09:20 — BP 110/80; RR 20; Pulse 99; SPO2 100; Temp 98; Pain -
+8. 01/02/2026 14:20 — BP 110/80; RR 20; Pulse 79; SPO2 98; Temp 98.2; Pain -
+9. 02/02/2016 17:30 — BP 140/90; RR 21; Pulse 68; SPO2 96%; Temp A/R; Pain 00
+10. 02/02/2016 22:00 — BP 130/70; RR 21; Pulse 72; SPO2 98%; Temp A/R; Pain 00
+
+--- Image 156 | 2026-02-01 | clinical note ---
+Patient Assessment (M = morning, E = evening), Date 01/02/2026:
+
+Skin breakdown:
+- Body check redness/breakdown / prominences: M NO/Intact; E NO
+- Bed sore staging/size: M NO; E NO
+
+Invasive lines:
+- Line 1: 18G both shifts; Insertion/redressed date written 02/03/2026 both; Site condition M √, E Clean
+- Line 2 / Other: NO
+
+Peripheral edema: Hands/Feet NO (M); E mostly blank/NO
+Drainage bags:
+- Type: M NG Tube/Feeding; E NG/Residue
+- Insertion date: 31/01/2026 both
+Pain score: M 0; E 00
+
+Nursing Interventions, Date 01/02/2026:
+- Bath: Sponge / Sponge Bath
+- Shampooing: NO / NO
+- Mouth care, Back care, Catheter/Perineal care, Positioning: Done both shifts
+- Safety check: Done / All intact
+- Deep breathing/coughing: -
+- Diet: NG Feed / N/G
+- IV flush with 0.9% N/S: Yes / yes
+- Any other: -
+
+Page 1 of 2
+
+--- Image 157 | 2026-02-01 | clinical note ---
+Form: Head to Toe Assessment & Reassessment For Adult and Peads
+Mark (✓) for Yes, (-) for No, NA for Not Applicable
+Date 01/02/2026; columns M / E
+
+Orientation: *2 / *2; GCS 12/15 / 12/15
+Oral cavity: Mouth/tongue Dry / Dry; Coated/ulcer - / No; Others - / No
+Cardiac: Apical pulse - / No; Clarity S1/S2 Normal both
+Respiratory: Air entry bilaterally ↑↑ both; Breath sounds Normal / Normal
+GI: Abdomen Soft / Soft; Bowel sounds Normal / Normal
+GU: Stool Passed / Passed; Foley / Foley; Urine color Yellow / Yellow
+MSK: Weakness No / No; Deformities No / No; Activity CBR / CBR; AAT - / No
+Bilateral vascular: Radial Strong / Strong; Cap refill 2-3 sec / 2-3 sec
+Skin: Turgor normal / Normal; Color Pale / Pale; Temperature Warm / Warm
+
+--- Image 161 | 2016-02-01 | clinical note ---
+Form: Nurses Note (For Event Notes)
+Instructions: record procedures, invasive procedures, transfusions, events, meds, condition changes, drug reactions; do not leave blank space; write legibly with full name/designation
+
+Entries:
+- 01/02/2016 20:00 Receiving Note: Pt received from ICU; stepped down with ALOC, vomiting; K/C DM, HTN, IHD including CVA; IV lines maintained (L) hand and (R) foot 20G and 18G; Foley intake, NG intake; CBR; no skin breakdown/bedsores; NG feed 6 hourly; neb 6 hourly done; vitals stable; no active complaint; fluid continues 40 ml; all medication done
+- 02/02/2016 24:00 Event Note: Nebulization done and after 20 minutes feed given; continue double duty evening + night
+- 02/02/2016 02:00 Event Note: 4 hourly RBS checked 186 mg/dL
+- 02/02/2016 06:00 Event Note: Patient changed; stool passed; BD and TDS doses done; all tab given in feed
+- 02/02/2016 08:00 Receiving Note: Pt received from night staff; pt visit by physician (name omitted); NG feed inf. cont. on; no bed sore; no complaint; all dose done; 18G cannula in right foot
+- 02/02/2016 16:30 Receiving Note: Pt received from morning shift; vitals stable; NG feed / medications done; continue fluid; IV line maintained; no active complaint

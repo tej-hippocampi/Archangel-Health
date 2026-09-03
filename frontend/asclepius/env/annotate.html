@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asclepius ENV — Trajectory Annotation</title>
+  <!-- Reuse the console design system verbatim (PRD §7.6) — no new fonts/colors. -->
+  <link rel="stylesheet" href="/static/asclepius/clinical-fonts.css" />
+  <link rel="stylesheet" href="/static/asclepius/_tokens.css" />
+  <style>
+    /* ENV annotation surface — product scale, same palette + five laws (§7.6).
+       Accent semantics carry the trajectory: orange = model output ·
+       green = physician-authored · pink = critical/unsafe · lime = current step. */
+    * { box-sizing: border-box; }
+    body.env-body {
+      margin: 0; background: var(--canvas); color: var(--ink);
+      font-family: var(--sans); font-size: var(--t-body); line-height: var(--lh-body);
+      -webkit-font-smoothing: antialiased;
+    }
+    .env-chrome { font-family: var(--mono); font-size: var(--t-chrome);
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-faint); }
+    .env-header { position: sticky; top: 0; z-index: 20; background: var(--card);
+      border-bottom: 1px solid var(--hairline); padding: var(--sp-3) var(--sp-5);
+      display: flex; align-items: center; gap: var(--sp-4); }
+    .env-header h1 { font-size: var(--t-h3); margin: 0; font-weight: 600; }
+    .env-back { text-decoration: none; color: var(--ink-soft); font-size: 1.1rem;
+      border: 1px solid var(--hairline); border-radius: var(--r-chip);
+      width: 28px; height: 28px; display: inline-flex; align-items: center;
+      justify-content: center; flex: none; }
+    .env-back:hover { border-color: var(--hairline-strong); color: var(--ink); }
+    .env-progress { flex: 1; height: 4px; background: var(--card-in); border-radius: 999px; overflow: hidden; }
+    .env-progress > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .3s; }
+    .env-layout { display: grid; grid-template-columns: 340px 1fr; gap: var(--sp-5);
+      max-width: 1240px; margin: 0 auto; padding: var(--sp-5); align-items: start; }
+    @media (max-width: 900px) { .env-layout { grid-template-columns: 1fr; } }
+    /* sticky case-context panel (labs/notes/studies stay reachable, §7.6) */
+    .env-context { position: sticky; top: 72px; }
+    .c-card { background: var(--card); border: 1px solid var(--hairline);
+      border-radius: var(--r-md); box-shadow: var(--shadow-card); padding: var(--sp-4); }
+    .c-card + .c-card { margin-top: var(--sp-3); }
+    .c-card h3 { font-size: var(--t-sm); margin: 0 0 var(--sp-2); font-weight: 600; }
+    .env-kv { font-size: var(--t-sm); color: var(--ink-soft); }
+    .env-kv b { color: var(--ink); font-weight: 500; }
+    details.env-ctx-sec { margin-top: var(--sp-2); }
+    details.env-ctx-sec > summary { cursor: pointer; font-size: var(--t-sm); color: var(--ink-soft); }
+    pre.env-mono { font-family: var(--mono); font-size: var(--t-sm); white-space: pre-wrap;
+      background: var(--card-in); border-radius: var(--r-sm); padding: var(--sp-2); overflow-x: auto; }
+    /* the accordion — one step expanded at a time (§7.6) */
+    .env-step { border: 1px solid var(--hairline); border-radius: var(--r-md);
+      background: var(--card); box-shadow: var(--shadow-card); margin-bottom: var(--sp-2); overflow: hidden; }
+    .env-step.is-current { border-color: var(--lime-line); box-shadow: 0 0 0 3px var(--lime-wash); }
+    .env-step-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
+      cursor: pointer; }
+    .env-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+    .env-dot.model { background: var(--orange); }      /* orange = model output */
+    .env-dot.physician { background: var(--green); }    /* green = physician-authored */
+    .env-dot.critical { background: var(--pink); }      /* pink = critical/unsafe */
+    .env-steptype { min-width: 92px; }
+    .env-step-title { flex: 1; font-size: var(--t-sm); color: var(--ink); overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
+    .env-status-chip { font-size: var(--t-chrome); font-family: var(--mono); text-transform: uppercase;
+      letter-spacing: 0.06em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--hairline); color: var(--ink-faint); }
+    .env-status-chip.correct { color: var(--green-deep); border-color: var(--green-line); background: var(--green-wash); }
+    .env-status-chip.suboptimal { color: var(--orange-deep); border-color: var(--orange-line); background: var(--orange-wash); }
+    .env-status-chip.wrong { color: var(--pink-deep); border-color: var(--pink-line); background: var(--pink-wash); }
+    .env-step-body { padding: 0 var(--sp-4) var(--sp-4); display: none; }
+    .env-step.is-open .env-step-body { display: block; }
+    .env-model-out { border-left: 2px solid var(--orange-line); padding-left: var(--sp-3);
+      margin: var(--sp-2) 0 var(--sp-3); font-size: var(--t-sm); }
+    .env-model-out .env-chrome { color: var(--orange-deep); }
+    .env-label-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-2); }
+    .env-btn { font-family: var(--sans); font-size: var(--t-sm); border: 1px solid var(--hairline);
+      background: var(--card); color: var(--ink); border-radius: var(--r-chip); padding: 6px 14px; cursor: pointer; }
+    .env-btn:hover { border-color: var(--hairline-strong); }
+    .env-btn.sel-correct { background: var(--green-wash); border-color: var(--green-line); color: var(--green-deep); }
+    .env-btn.sel-suboptimal { background: var(--orange-wash); border-color: var(--orange-line); color: var(--orange-deep); }
+    .env-btn.sel-wrong { background: var(--pink-wash); border-color: var(--pink-line); color: var(--pink-deep); }
+    .env-btn.green.on { background: var(--green-wash); border-color: var(--green-line); color: var(--green-deep); }
+    .env-reveal { display: none; margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px dashed var(--hairline); }
+    .env-reveal.show { display: block; animation: envfade .25s ease; }
+    @keyframes envfade { from { opacity: 0; transform: translateY(-4px);} to {opacity:1; transform:none;} }
+    @media (prefers-reduced-motion: reduce) { .env-reveal.show { animation: none; } .env-progress > i { transition: none; } }
+    .env-field { margin-top: var(--sp-3); }
+    .env-field label { display: block; font-size: var(--t-sm); margin-bottom: 4px; }
+    .env-field label .info { color: var(--ink-faint); cursor: help; }
+    textarea, input[type=text] { width: 100%; font-family: var(--sans); font-size: var(--t-sm);
+      border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: var(--sp-2); background: var(--card); color: var(--ink); }
+    textarea:focus, input:focus { outline: none; border-color: var(--green-line); box-shadow: 0 0 0 3px var(--green-wash); }
+    .env-green-affordance { border-left: 2px solid var(--green-line); padding-left: var(--sp-3); }
+    .env-final { margin-top: var(--sp-4); }
+    .env-submit { background: var(--ink); color: var(--card); border: none; border-radius: var(--r-chip);
+      padding: 10px 22px; font-size: var(--t-body); cursor: pointer; }
+    .env-submit:hover { background: var(--ink-hover); }
+    .env-submit[disabled] { opacity: .4; cursor: not-allowed; }
+    .env-anchor-guard { font-size: var(--t-sm); color: var(--ink-faint); font-style: italic; }
+    .env-reward-num { font-family: var(--doto); font-size: 1.6rem; color: var(--green-deep); }
+    .env-pref { display: flex; gap: var(--sp-2); }
+    .env-empty { text-align: center; color: var(--ink-soft); padding: var(--sp-8); }
+  </style>
+</head>
+<body class="env-body">
+  <div class="env-header">
+    <a class="env-back" href="/asclepius" title="Back to the evaluation portal">←</a>
+    <span class="env-chrome">Asclepius · ENV</span>
+    <h1>Trajectory Annotation</h1>
+    <div class="env-progress" aria-label="steps reviewed"><i id="envBar"></i></div>
+    <span class="env-chrome" id="envProgressText">0 / 0</span>
+  </div>
+  <main id="envRoot" aria-live="polite">
+    <div class="env-empty">Loading…</div>
+  </main>
+  <script src="/static/asclepius/env/annotate.js" defer></script>
+</body>
+</html>

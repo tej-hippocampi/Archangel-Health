@@ -1,0 +1,22 @@
+Document index: 3
+Document type: LFT
+Service date: 2026-04-23
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility/patient identifiers under green redaction
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+Panel: LFT (LIVER FUNCTION TEST)
+
+Booking: 23/04/2026 13:42:30
+Collection: 23/04/2026 13:42:52
+Reporting: 23/04/2026 14:43:51
+
+Bilirubin Total: 1.0 mg/dL (Adult: 0.1-1.0)
+Bilirubin Direct: 0.5 mg/dL (Up to 0.4) [H]
+Bilirubin Indirect: 0.5 mg/dL (0.0 - 0.80)
+SGOT/AST (Plain): 51.1 U/L (Male: 50, Female: 50) [H]
+SGPT/ALT: 25.5 U/L (Male: 65, Female: 65)
+Alkaline Phosphate: 70.9 U/L (Female: 240; age-specific ranges also listed)
+GAMMA GT: 52.6 U/L (Male: < 55, Female: < 38) [H]

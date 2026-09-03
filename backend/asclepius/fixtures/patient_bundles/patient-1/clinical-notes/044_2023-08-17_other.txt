@@ -1,0 +1,12 @@
+Document index: 44
+Document type: other
+Service date: 2023-08-17
+Age on report: 39Y    Sex: M
+De-identification: patient name, identifier field, facility name/address/phone, and "procedure performed by" name redacted/omitted (phone omitted).
+
+CONTENT
+----------------------------------------
+ERCP endoscopy procedure image sheet (photo panel), Location: OPD.
+Medication (Conscious Sedation): INJ Dormicum 01 cc & INJ KI(?)... ; GI Trainee: NIL; Instrument: TJF 160 OLYMPUS
+Labeled procedure images: Blocked stent; Sphincterotomy; CBD (C-arm); CBD stones (C-arm) x2; CBD stone; Stone removed; CBD stone; CBD stent placed.
+(Image panel documenting removal of blocked CBD stent, sphincterotomy, CBD stones on cholangiogram, stone removal, and placement of new CBD stent.)

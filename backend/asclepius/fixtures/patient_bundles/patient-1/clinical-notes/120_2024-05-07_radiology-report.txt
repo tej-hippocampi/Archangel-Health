@@ -1,0 +1,18 @@
+Document index: 120
+Document type: radiology report
+Service date: 2024-05-07
+Age on report: 42Y    Sex: M
+De-identification: name, referring physician and sonologist name redacted (green marker). Only age/sex/date and impression transcribed.
+
+CONTENT
+----------------------------------------
+CT Abdomen/Pelvis (page 2/2 - impression). Using appropriate bone window settings, visualized skeleton appears unremarkable.
+IMPRESSION:
+Portal venous thrombosis with cavernous transformation at the porta hepatis as described above.
+Above described biliary dilatation may represent portal biliopathy. CBD stent is seen in place and minimal pneumobilia is noted, may represent stent patency; however, correlation with LFT is advised.
+Gallbladder edema with cholelithiasis.
+Focal hypodensity in segment IV of liver, may represent focal fat infiltration.
+Significant splenomegaly with tiny calcification, may represent Gamna-Gandy bodies.
+Minimal right-sided hydronephrosis and hydroureter noted.
+Fecal loading of rectosigmoid colon seen.
+Rest of the examination appears unremarkable.

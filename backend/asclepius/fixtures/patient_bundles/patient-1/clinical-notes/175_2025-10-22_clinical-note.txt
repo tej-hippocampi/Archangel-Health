@@ -1,0 +1,12 @@
+Document index: 175
+Document type: clinical note
+Service date: 2025-10-22
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: facility name (letterhead) and identifier field # omitted/redacted; signature/mnemonic not transcribed
+
+CONTENT
+----------------------------------------
+Patient Progress note (handwritten):
+- Vitals: BP 80/50.
+- Assessment: Septic Shock secondary to (2°) Cholangitis; Obstructive Jaundice.
+- Plan/Rx (partly legible): Inj Meropenem to be used; Inj Haemaccel in stat; Inj N/S 500ml/hr (approx); Blood C/S + blood culture; If BP low then start Nor-epinephrine.

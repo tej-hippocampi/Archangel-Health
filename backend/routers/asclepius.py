@@ -35,6 +35,7 @@ from starlette.concurrency import run_in_threadpool
 
 from asclepius import agreement as asc_agreement
 from asclepius import auth as asc_auth
+from asclepius import auto_generate as asc_auto_generate
 from asclepius import passwords as asc_passwords
 from asclepius import capabilities as asc_caps
 from asclepius import cases as asc_cases
@@ -59,7 +60,6 @@ from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
     ASCLEPIUS_ENGINE,
     ASCLEPIUS_TAXONOMY_VERSION,
-    BUYER_REQUEST_STATUSES,
     CREDENTIAL_SUMMARY_LEGAL_DISCLAIMER,
     CREDENTIAL_SUMMARY_WATERMARK,
     CONFIDENCE_LEVELS,
@@ -79,6 +79,7 @@ from asclepius.constants import (
     SINGLE_TURN_PORTAL_VERSIONS,
     DEFAULT_PORTAL_VERSION,
     ENV_PORTAL_VERSION,
+    LONGITUDINAL_PORTAL_VERSION,
     PREFERENCE_VARIANTS,
     REAL_CASE_PORTAL_VERSION,
     SYNTHETIC_PORTAL_VERSIONS,
@@ -126,10 +127,6 @@ from asclepius.constants import (
 from asclepius.schemas import (
     AscPortalHandoffConsumeRequest,
     ChangePasswordRequest,
-    BatchFromRequest,
-    BuyerIn,
-    BuyerRequestIn,
-    BuyerRequestStatusUpdate,
     CandidateGenRequest,
     CiteRequest,
     FirstRunUpdate,
@@ -2167,7 +2164,7 @@ def _autofill_specialty(user: Dict[str, Any]) -> str:
 
 def _value_aware_next(
     store: Any, user: Dict[str, Any], specialty: Optional[str], *, hard_only: bool = False,
-    real_only: bool = False, multimodal_only: bool = False,
+    real_only: bool = False, trajectory_only: bool = False, multimodal_only: bool = False,
     require_measured_difficulty: bool = False, min_empirical_difficulty: float = 0.0,
 ) -> Optional[Dict[str, Any]]:
     """Value-aware routing (Value-per-Minute PRD B3) — assisted flows. Serves the
@@ -2175,12 +2172,13 @@ def _value_aware_next(
     (their rolling median speed × each task's expected realized value). Ties break
     on the oldest task, preserving FIFO fairness within an equal-value cohort.
     ``hard_only`` (WS2) restricts the candidate set to hard cases (the V3 queue);
-    ``real_only`` is the V4 wall (EHR PRD §9.5); ``multimodal_only`` restricts V3
+    ``real_only`` is the V4 wall (EHR PRD §9.5); ``trajectory_only`` is the
+    longitudinal wall (Longitudinal E2E PRD §5.1); ``multimodal_only`` restricts V3
     to structured cases (the multimodal-by-default queue). The empirical-difficulty
     gate (PRD §9) restricts to live-measured-above-floor cases when required."""
     candidates = store.eligible_tasks_for_evaluator(
         evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
-        real_only=real_only, multimodal_only=multimodal_only,
+        real_only=real_only, trajectory_only=trajectory_only, multimodal_only=multimodal_only,
         require_measured_difficulty=require_measured_difficulty,
         min_empirical_difficulty=min_empirical_difficulty,
     )
@@ -2219,8 +2217,14 @@ def _query_next(
     # served into a v1/v2/v3 session, even by accident. V4 additionally requires
     # the contributor to be real-data approved (BAA/training) — an unapproved
     # evaluator asking for v4 gets an empty queue, never a real case.
+    #
+    # V5 (longitudinal) is real data too, so the SAME approval gate applies to it
+    # unchanged — a chart walk is more sensitive than a static real case, not less.
+    # The two flags then partition the real pool inside ``labeler_queue_sql``: V4
+    # gets the static cases, V5 gets the trajectory points, neither gets the other.
     real_only = portal_version == REAL_CASE_PORTAL_VERSION
-    if real_only and not user.get("real_data_approved"):
+    trajectory_only = portal_version == LONGITUDINAL_PORTAL_VERSION
+    if (real_only or trajectory_only) and not user.get("real_data_approved"):
         return None
     # V3 multimodal-by-default (ASCLEPIUS_V3_MULTIMODAL_ONLY, default on): the
     # seamless queue PREFERS structured cases (labs + EHR notes) — so whenever a
@@ -2239,13 +2243,14 @@ def _query_next(
     def _classic(specialty: Optional[str], mm_only: bool) -> Optional[Dict[str, Any]]:
         return store.next_task_for_evaluator(
             evaluator_id=user["id"], specialty=specialty, hard_only=hard_only,
-            real_only=real_only, multimodal_only=mm_only,
+            real_only=real_only, trajectory_only=trajectory_only, multimodal_only=mm_only,
             require_measured_difficulty=require_measured, min_empirical_difficulty=ed_floor,
         )
 
     def _pick(specialty: Optional[str], mm_only: bool) -> Optional[Dict[str, Any]]:
         return (_value_aware_next(store, user, specialty, hard_only=hard_only,
-                                  real_only=real_only, multimodal_only=mm_only,
+                                  real_only=real_only, trajectory_only=trajectory_only,
+                                  multimodal_only=mm_only,
                                   require_measured_difficulty=require_measured,
                                   min_empirical_difficulty=ed_floor)
                 if value_aware else _classic(specialty, mm_only))
@@ -2840,12 +2845,13 @@ async def available_tasks(
     serve_specialty = sel or (user.get("specialty") or None)
     hard_only = portal_version == "v3" and hard_only_generation()
     real_only = portal_version == REAL_CASE_PORTAL_VERSION
-    if real_only and not user.get("real_data_approved"):
-        return {"tasks": [], "count": 0,
+    trajectory_only = portal_version == LONGITUDINAL_PORTAL_VERSION
+    if (real_only or trajectory_only) and not user.get("real_data_approved"):
+        return {"tasks": [], "count": 0, "longitudinal_available": 0,
                 "served_portal_version": None, "continued_from": None}
     rows = store.eligible_tasks_for_evaluator(
         evaluator_id=user["id"], specialty=serve_specialty, hard_only=hard_only,
-        real_only=real_only, multimodal_only=False,
+        real_only=real_only, trajectory_only=trajectory_only, multimodal_only=False,
         require_measured_difficulty=require_measured_difficulty(),
         min_empirical_difficulty=min_empirical_difficulty(),
         limit=limit,
@@ -2854,6 +2860,10 @@ async def available_tasks(
     # real cases when the queue is empty, so a dashboard that said "0 available"
     # and then handed out a case on the next click would be the product knowing
     # something and not saying it. Same condition, same seed, same re-query.
+    # Seeding is a V4-only affair: the seed loads the three authored STATIC cases,
+    # and there is no equivalent for V5. A chart walk exists because an admin
+    # generated one from an uploaded chart and then routed it — there is nothing
+    # to fall back on, and an empty V5 queue is the correct answer, not a gap.
     if real_only and not rows and _ensure_v4_real_cases(store, user, serve_specialty):
         rows = store.eligible_tasks_for_evaluator(
             evaluator_id=user["id"], specialty=serve_specialty, hard_only=hard_only,
@@ -2874,6 +2884,11 @@ async def available_tasks(
     # exists to remove.
     served = portal_version if portal_version in SINGLE_TURN_PORTAL_VERSIONS else None
     continued_from = None
+    # V5 deliberately does NOT continue onto the synthetic queue. Continuation
+    # exists so a physician who has cleared the real backlog is not left staring at
+    # an empty screen — but a longitudinal walk is ASSIGNED work: an empty V5 queue
+    # means "nothing has been routed to you", and quietly handing over a synthetic
+    # case would answer a question the physician did not ask.
     if real_only and not rows:
         served = "v3"
         continued_from = REAL_CASE_PORTAL_VERSION
@@ -2905,7 +2920,31 @@ async def available_tasks(
     # always the one that was asked for. The dashboard names it on screen so a
     # physician who chose real patient data is told when they are being shown
     # synthetic work, rather than left to notice it inside a case.
+    # PRD §5.1 Group B — how many longitudinal points are ROUTED to this physician
+    # right now, whichever version they are currently looking at.
+    #
+    # The V5 tab renders only when this is non-zero, because V5 is assigned work:
+    # a walk reaches a physician exactly one way, an admin pressing Send, so a tab
+    # that appeared for everyone would be empty for almost everyone and would read
+    # as the product being broken. Counted through the SAME eligibility the queue
+    # uses — not a bare ``trajectory_id IS NOT NULL`` scan — so the number and the
+    # queue cannot disagree: it already accounts for the distribution gate, the
+    # sequence seal, capacity and independence.
+    longitudinal_available = 0
+    if user.get("real_data_approved"):
+        # COUNTED in SQL, not by materializing the rows. The obvious spelling —
+        # ``len(eligible_tasks_for_evaluator(...))`` — fetches the full task row
+        # for every candidate, which measured at 217 ms for a physician holding
+        # 200 routed points and was paid on EVERY dashboard load, including v3
+        # and v4 where this number is never read.
+        longitudinal_available = store.count_eligible_tasks_for_evaluator(
+            evaluator_id=user["id"], specialty=serve_specialty,
+            trajectory_only=True, multimodal_only=False,
+            require_measured_difficulty=require_measured_difficulty(),
+            min_empirical_difficulty=min_empirical_difficulty(),
+        )
     return {"tasks": tasks, "count": len(tasks),
+            "longitudinal_available": longitudinal_available,
             "served_portal_version": served if tasks else None,
             "continued_from": continued_from if tasks else None}
 
@@ -3108,6 +3147,83 @@ def _require_real_data_access(task: Dict[str, Any], user: Dict[str, Any]) -> Non
         )
 
 
+#: Which assignment roles satisfy the distribution gate on a READ.
+#:
+#: A reviewer is assigned ``role='review'`` and legitimately needs to open the
+#: case to review it, so a read admits either role. WRITING is different — see
+#: ``_LABEL_ROLES`` below.
+_READ_ROLES = ("label", "review")
+
+#: Which roles satisfy it on a WRITE (reveal, answers, submit).
+#:
+#: ``label`` only, matching ``store._PRD_ASSIGN_MINE`` exactly. The queue's
+#: predicate carries ``a.role = 'label'``, and if this did not, the URL and the
+#: draw would disagree about who may work a case — a reviewer could bank a label
+#: on a case the queue would never have offered them, and on a single-labelled
+#: trajectory point that consumes the assignee's one slot.
+_LABEL_ROLES = ("label",)
+
+
+def _require_distribution(store: Any, task: Dict[str, Any], user: Dict[str, Any],
+                          *, roles: tuple = _LABEL_ROLES) -> None:
+    """The distribution gate on DIRECT task access (PRD CASE-BATCHES §1).
+
+    An ``assigned_only`` task reaches only the people it was routed to. The
+    labeler queue enforces this in SQL (``store._PRD_CB_DISTRIBUTION``) — and
+    **a queue-only fix is not a fix**, for the same reason the sequence gate says
+    so one function below: the dashboard opens cases by id, the id is in the URL,
+    and a second tab is a second draw.
+
+    Found by executing the §4 routing checks rather than reading them. Before this
+    guard, an ``assigned_only`` trajectory point that had been generated and NOT
+    yet sent was invisible in every queue (correct) and simultaneously openable,
+    revealable and submittable by task id by any real-data-approved physician
+    (not correct). Point 0 of a walk clears the sequence gate by construction —
+    there are no earlier points — so nothing else stood in the way.
+
+    The damage is not only disclosure. Trajectory points are single-labelled, so
+    a stranger's submission consumes the point's one label: the walk an admin was
+    about to send is silently taken, the intended physician is then blocked by
+    capacity, and the batch screen still shows the walk as unrouted.
+
+    **403, not 409.** Unlike the sequence gate, this is an authorization failure
+    in the ordinary sense — the physician is not entitled to this case at all, and
+    no amount of finishing earlier work changes that. Telling them to "complete
+    the earlier points" would be false.
+
+    Admins and QA are exempt, as they are on the V4 wall: inspecting a case they
+    have not been assigned is the job. Reading forward is not a harm here the way
+    it is for the sequence gate — an admin opening an unrouted point destroys no
+    physician's prediction.
+    """
+    if (task.get("distribution") or "open") == "open":
+        return
+    if user.get("role") in ("admin", "qa_reviewer"):
+        return
+    for a in store.assignments_for_task(task["task_id"]):
+        if (a.get("user_id") == user.get("id")
+                and (a.get("role") or "label") in roles
+                and a.get("status") in ("offered", "claimed")):
+            return
+    # In-flight work survives a re-route. Sending a case to specific doctors flips
+    # it to ``assigned_only``, and an admin may do that while somebody is halfway
+    # through it — without this the physician's next click 403s and their blind
+    # capture is lost, which is a worse outcome than the one this gate prevents.
+    #
+    # This does NOT reopen the leak. A commit exists only if the physician passed
+    # through ``/reveal``, which is itself behind this gate, so nobody can
+    # manufacture one for a case they were never entitled to; it can only be held
+    # by someone who was entitled when they started.
+    if store.get_independent_commit(task["task_id"], user["id"]):
+        return
+    raise HTTPException(
+        status_code=403,
+        detail={"error": "not_routed_to_you",
+                "message": ("This case was not sent to you. Cases in a chart walk "
+                            "reach a physician only when an admin routes them."),
+                "task_id": task.get("task_id")})
+
+
 def _require_trajectory_sequence(store: Any, task: Dict[str, Any], user: Dict[str, Any]) -> None:
     """The sealed future on DIRECT task access (Longitudinal Cases PRD §9.1).
 
@@ -3229,6 +3345,7 @@ async def get_task(task_id: str,
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
     _require_trajectory_sequence(store, task, user)
+    _require_distribution(store, task, user, roles=_READ_ROLES)
     # The flow this task is actually graded in, derived from the TASK on the same
     # rule the submit path enforces. Opening a case from the dashboard list skips
     # /tasks/next, so without this the client stamped the draft from whatever
@@ -3258,6 +3375,7 @@ async def reveal_task_answers(
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)
     _require_trajectory_sequence(store, task, user)
+    _require_distribution(store, task, user)
     text = (body.text or "").strip()
     if not text:
         raise HTTPException(
@@ -3297,17 +3415,46 @@ async def reveal_task_answers(
 
 
 def _derive_portal_version(task: Dict[str, Any], claimed: Optional[str]) -> str:
-    """The V4 derivation wall (EHR PRD §9.5): the portal version stamped onto a
-    commit/submission is DERIVED from the task's ``case_source``, never trusted
-    from the client, at every stamping point (reveal, submit, stage-1 flags).
+    """The derivation wall (EHR PRD §9.5; Longitudinal E2E PRD §5.1): the portal
+    version stamped onto a commit/submission is DERIVED from the task, never
+    trusted from the client, at every stamping point (reveal, submit, stage-1
+    flags).
 
-      * real task (``case_source='real_deid'``) → always ``v4``. A client
-        explicitly claiming a SYNTHETIC version on a real case is a 400 — a
-        mislabel attempt, not a normalization case.
-      * synthetic/text task → the claimed version as before, except an explicit
-        ``v4`` claim is a 400 (a synthetic task can never be V4).
+    Three walls, one function, because they are one rule about what a task IS:
+
+      * trajectory point (``trajectory_id IS NOT NULL``) → always ``v5``. These are
+        real de-identified data AND sequential, and the sequence is what makes them
+        a different product: single-labelled, κ-excluded by construction, sealed in
+        order, sold as a chart walk. Stamping one ``v4`` would file a walk's points
+        as unrelated static cases in the buyer's bundle and lose the reassembly key.
+      * real static task (``case_source='real_deid'`` with no trajectory) → always
+        ``v4``, exactly as before.
+      * synthetic/text task → the claimed version, with an explicit ``v4`` or
+        ``v5`` claim a 400 (a synthetic task is neither).
+
+    ``env`` never appears here at all. An env rollout is not a submission — it
+    lives in ``env_runs`` — so a claim of it on this path is a client bug, and it
+    is REJECTED rather than normalized: quietly stamping it ``v3`` would attribute
+    agentic work to V3 and corrupt the buyer's provenance.
     """
+    is_trajectory = asc_trajectory.is_trajectory_point(task)
     is_real = (task.get("case_source") == "real_deid")
+    if is_trajectory:
+        # Claiming ANY other single-turn version on a trajectory point is a
+        # mislabel attempt, and it is refused for both directions of harm: v1–v3
+        # would put real patient data in a synthetic bundle, and v4 would break the
+        # walk apart. The wall is on the task's shape, so no client can talk its
+        # way past it.
+        if claimed is not None and claimed != LONGITUDINAL_PORTAL_VERSION:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This is a longitudinal (V5) decision point: portal_version "
+                    f"{claimed!r} is not valid for it. A point of a chart walk is "
+                    "graded only in the V5 flow."
+                ),
+            )
+        return LONGITUDINAL_PORTAL_VERSION
     if is_real:
         if claimed in SYNTHETIC_PORTAL_VERSIONS:
             raise HTTPException(
@@ -3318,24 +3465,42 @@ def _derive_portal_version(task: Dict[str, Any], claimed: Optional[str]) -> str:
                     "graded only in the V4 flow."
                 ),
             )
+        # A v5 claim on a real STATIC case is the mirror of the v4 claim below, and
+        # refused for the same reason: V5 means "a point in an ordered walk", and a
+        # case with no trajectory has no walk to be a point of.
+        if claimed == LONGITUDINAL_PORTAL_VERSION:
+            raise HTTPException(
+                status_code=400,
+                detail=("portal_version 'v5' is reserved for longitudinal decision "
+                        "points; this real case is not part of a trajectory."),
+            )
         return REAL_CASE_PORTAL_VERSION
     if claimed == REAL_CASE_PORTAL_VERSION:
         raise HTTPException(
             status_code=400,
             detail="portal_version 'v4' is reserved for real-case tasks; this task is synthetic.",
         )
-    # Single-turn stamping stays within v1–v4. V5 (the agentic tier) is a different
-    # KIND of task with its own /environments surface, queue, and env_runs table — it
-    # is never stamped onto a single-turn submission. An explicit v5 claim here is a
-    # client bug, so it is REJECTED rather than silently relabeled: quietly stamping
-    # it v3 would attribute agentic work to V3 and corrupt the buyer's provenance.
+    if claimed == LONGITUDINAL_PORTAL_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="portal_version 'v5' is reserved for longitudinal decision points; "
+                   "this task is synthetic and carries no trajectory.",
+        )
     if claimed == ENV_PORTAL_VERSION:
         raise HTTPException(
             status_code=400,
-            detail=("portal_version 'v5' is the agentic environments tier; it is not a "
-                    "single-turn evaluation flow. Use /api/asclepius/environments/*."),
+            detail=("portal_version 'env' is the agentic environments tier; it is not a "
+                    "single-turn evaluation flow and never stamps a submission. "
+                    "Use /api/asclepius/environments/*."),
         )
     pv = normalize_portal_version(claimed)
+    # v5 is single-turn now, so the tuple alone would let a synthetic task through
+    # as v5 if ``claimed`` somehow reached here — it cannot (the explicit claim is a
+    # 400 above and normalize only ever returns the claim or the default), and the
+    # guard stays anyway because this line is the last thing between a client string
+    # and a buyer-facing provenance field.
+    if pv in (REAL_CASE_PORTAL_VERSION, LONGITUDINAL_PORTAL_VERSION):
+        return DEFAULT_PORTAL_VERSION
     return pv if pv in SINGLE_TURN_PORTAL_VERSIONS else DEFAULT_PORTAL_VERSION
 
 
@@ -3349,6 +3514,7 @@ def _require_independent_commit(store: Any, task_id: str, user: Dict[str, Any]) 
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on answer-describing surfaces
     _require_trajectory_sequence(store, task, user)  # PRD 2 §9.1 sealed future
+    _require_distribution(store, task, user, roles=_READ_ROLES)  # CASE-BATCHES §1
     if not store.get_independent_commit(task_id, user["id"]):
         raise HTTPException(
             status_code=403,
@@ -3657,11 +3823,20 @@ async def submit(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     _require_real_data_access(task, user)  # V4 wall on the submit path
+    # CASE-BATCHES §1 on the submit path too, and this is the one that matters
+    # most: a trajectory point is single-labelled, so a submission from somebody
+    # it was never routed to consumes the point's one label and blocks the
+    # physician the admin actually chose.
     # PRD 2 §9.1 on the submit path too. Not belt-and-braces: a client that
     # obtained the case some other way (a stale tab, a hand-written POST) must not
     # be able to bank a label on an out-of-order point, because that submission is
     # what the NEXT point's gate reads to decide the walk has advanced.
     _require_trajectory_sequence(store, task, user)
+    # CASE-BATCHES §1 on the submit path too, and this is the one that matters
+    # most: a trajectory point is single-labelled, so a submission from somebody
+    # it was never routed to consumes the point's one label and blocks the
+    # physician the admin actually chose.
+    _require_distribution(store, task, user)
 
     # Stage-1 prompt validation gate (Eval Flow Upgrade §2): a clinician who
     # flagged the prompt as invalid never judged answers. Capture the flag for
@@ -4559,14 +4734,16 @@ async def create_export(
     body: ExportRequest, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
 ):
     store = _store()
-    # SINGLE_TURN only: this builds a V1–V4 preference/ideal-answer bundle. A V5
-    # (agentic trajectory) export is a different artifact with its own endpoint,
-    # /api/asclepius/environments/export — accepting 'v5' here would silently
-    # produce an empty V1–V4 bundle labeled as the agentic tier.
+    # SINGLE_TURN only: this builds a V1–V5 preference/ideal-answer bundle. V5
+    # (longitudinal) belongs here — a chart-walk point is a single-turn record with
+    # a trajectory annex, not a different artifact. What does NOT belong here is
+    # ``env``: an agentic rollout lives in ``env_runs`` with its own exporter, and
+    # accepting it would silently produce an empty single-turn bundle labelled as
+    # the agentic tier.
     if body.portal_version is not None and body.portal_version not in SINGLE_TURN_PORTAL_VERSIONS:
         raise HTTPException(
             status_code=400,
-            detail=("Invalid portal_version. V5 (agentic trajectories) exports via "
+            detail=("Invalid portal_version. ENV (agentic trajectories) exports via "
                     "/api/asclepius/environments/export?mode=raw|graded|expert."
                     if body.portal_version == ENV_PORTAL_VERSION else "Invalid portal_version"),
         )
@@ -5149,183 +5326,22 @@ async def credential_policy(_admin: Dict[str, Any] = Depends(asc_auth.require_ad
     }
 
 
-# ─── Buyers & buyer requests (opt §2.5) ───────────────────────────────────────
-@router.post("/buyers")
-async def create_buyer(body: BuyerIn, admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    store = _store()
-    buyer = store.create_buyer(
-        name=body.name, contact=body.contact, export_profile=body.export_profile, notes=body.notes
-    )
-    store.log_event(entity_type="buyer", entity_id=buyer["buyer_id"], event_type="buyer_created", actor=admin["id"])
-    return buyer
-
-
-@router.get("/buyers")
-async def list_buyers(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    return {"buyers": _store().list_buyers()}
-
-
-@router.post("/buyer-requests")
-async def create_buyer_request(
-    body: BuyerRequestIn, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
-):
-    store = _store()
-    if not store.get_buyer(body.buyer_id):
-        raise HTTPException(status_code=404, detail="Buyer not found")
-    if body.source not in TASK_SOURCES:
-        raise HTTPException(status_code=400, detail="Invalid source")
-    if body.grounding_mode not in GROUNDING_MODES:
-        raise HTTPException(status_code=400, detail="Invalid grounding_mode")
-    if body.independent_mode not in INDEPENDENT_MODES:
-        raise HTTPException(status_code=400, detail="Invalid independent_mode")
-    constraints = {
-        "specialty": body.specialty,
-        "difficulty": body.difficulty,
-        "capture_reasoning": body.capture_reasoning,
-        "grounding_mode": body.grounding_mode,
-        "independent_mode": body.independent_mode,
-        "volume": body.volume,
-        "max_labels": body.max_labels,
-    }
-    uploaded = [t.model_dump() for t in body.prompts]
-    req = store.create_buyer_request(
-        buyer_id=body.buyer_id,
-        source=body.source,
-        export_profile=body.export_profile,
-        constraints=constraints,
-        uploaded=uploaded,
-        note=body.note,
-        created_by=admin["id"],
-    )
-    store.log_event(
-        entity_type="buyer_request", entity_id=req["request_id"],
-        event_type="buyer_request_created", actor=admin["id"], payload={"buyer_id": body.buyer_id},
-    )
-    return req
-
-
-@router.get("/buyer-requests")
-async def list_buyer_requests(
-    buyer_id: Optional[str] = None, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
-):
-    return {"buyer_requests": _store().list_buyer_requests(buyer_id=buyer_id)}
-
-
-@router.get("/buyer-requests/{request_id}")
-async def get_buyer_request(request_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    req = _store().get_buyer_request(request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Buyer request not found")
-    return req
-
-
-@router.post("/buyer-requests/{request_id}/status")
-async def set_buyer_request_status(
-    request_id: str, body: BuyerRequestStatusUpdate, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
-):
-    store = _store()
-    if not store.get_buyer_request(request_id):
-        raise HTTPException(status_code=404, detail="Buyer request not found")
-    if body.status not in BUYER_REQUEST_STATUSES:
-        raise HTTPException(status_code=400, detail=f"status must be one of {list(BUYER_REQUEST_STATUSES)}")
-    store.update_buyer_request_status(request_id, body.status)
-    return {"request_id": request_id, "status": body.status}
-
-
-@router.post("/buyer-requests/{request_id}/batch")
-async def batch_from_request(
-    request_id: str, body: BatchFromRequest, background_tasks: BackgroundTasks,
-    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
-):
-    """Spin up a task batch from a buyer request in one step (opt §2.5).
-
-    Tasks inherit the request's constraints (incl. grounding_mode) and stamp the
-    request id + source into every record's provenance. With uploaded prompts we
-    grade exactly what the buyer sent; with constraints-only + ``count`` we invoke
-    the Seedmaker engine (still our prompts, their spec) — PRD §10."""
-    store = _store()
-    req = store.get_buyer_request(request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Buyer request not found")
-
-    c = req.get("constraints") or {}
-    source = req.get("source") or "internal_prompt_bank"
-    grounding_mode = c.get("grounding_mode") or "optional"
-    independent_mode = c.get("independent_mode") or DEFAULT_INDEPENDENT_MODE
-    capture_reasoning = bool(c.get("capture_reasoning"))
-    difficulty = c.get("difficulty") or "medium"
-    specialty = c.get("specialty") or "nephrology"
-    max_labels = int(c.get("max_labels") or 1)
-
-    # Prompts: those uploaded on the request + any passed at batch time.
-    uploaded = list(req.get("uploaded") or []) + [t.model_dump() for t in body.prompts]
-    created: List[str] = []
-    created_rows: List[Dict[str, Any]] = []
-
-    for t in uploaded:
-        prompt = (t.get("prompt") or "").strip()
-        if not prompt:
-            continue
-        task = store.insert_task(
-            prompt=prompt,
-            specialty=t.get("specialty") or specialty,
-            difficulty=t.get("difficulty") or difficulty,
-            capture_reasoning=bool(t.get("capture_reasoning", capture_reasoning)),
-            source=source,
-            candidate_answers=t.get("candidate_answers") or [],
-            max_labels=int(t.get("max_labels") or max_labels),
-            grounding_mode=t.get("grounding_mode") or grounding_mode,
-            independent_mode=t.get("independent_mode") or independent_mode,
-            buyer_request_id=request_id,
-            created_by=admin["id"],
-        )
-        created.append(task["task_id"])
-        created_rows.append(task)
-
-    # Constraints-only: invoke the Seedmaker engine to generate ``count`` validated
-    # tasks (prompt + 2 candidates) grounded in the seed corpus, stamped to this
-    # buyer request. Requires an LLM (503 if disabled — never ungated tasks).
-    gen_summary: Optional[Dict[str, Any]] = None
-    if body.count and not uploaded:
-        try:
-            gen_summary = await asc_generation.generate_tasks(
-                store,
-                specialty=specialty,
-                n=body.count,
-                capture_reasoning=capture_reasoning,
-                grounding_mode=grounding_mode,
-                independent_mode=independent_mode,
-                max_labels=max_labels,
-                buyer_request_id=request_id,
-                created_by=admin["id"],
-            )
-            gen_ids = gen_summary.get("created") or []
-            created.extend(gen_ids)
-            # generate_tasks was invoked with one specialty, so every id it
-            # returns carries it; no per-row lookup needed.
-            created_rows.extend({"task_id": tid, "specialty": specialty} for tid in gen_ids)
-        except asc_specialties.SpecialtyNotEnabled as exc:
-            raise HTTPException(status_code=400, detail={"error": "specialty_not_enabled", "message": str(exc)})
-        except asc_generation.GenerationDisabled as exc:
-            raise HTTPException(status_code=503, detail=str(exc))
-
-    store.update_buyer_request_status(request_id, "in_progress")
-    store.log_event(
-        entity_type="buyer_request", entity_id=request_id, event_type="batch_created",
-        actor=admin["id"], payload={"count": len(created)},
-    )
-    await _notify_new_tasks(
-        store, background_tasks, _notifiable(created_rows), admin_id=admin["id"]
-    )
-    out = {"request_id": request_id, "created": created, "count": len(created)}
-    if gen_summary is not None:
-        out["generation"] = {
-            "job_id": gen_summary.get("job_id"),
-            "accepted": gen_summary.get("accepted"),
-            "dropped": gen_summary.get("dropped"),
-            "shortfall": gen_summary.get("shortfall"),
-        }
-    return out
+# ─── Buyers & buyer requests — RETIRED (Export & Approval PRD §5) ─────────────
+# The buyer CRM is gone. `POST/GET /buyers`, `/buyer-requests*` and the
+# `renderAdminBuyers` screen behind them are removed: they were a second,
+# parallel place to describe a sale that nobody kept current, and the Export tab
+# now carries the only part of it that mattered — "build this bundle and send it
+# to this buyer" — attached to the export itself.
+#
+# THE TABLES STAY. `buyers` and `buyer_requests` are never dropped and their
+# rows are never deleted (§0, §5); they are historical records of real
+# conversations, and `tasks.buyer_request_id` still points into them, so records
+# packaged for a past request keep their provenance. See
+# docs/asclepius/BUYER_CRM_RETIRED.md.
+#
+# The delivery rail is untouched and fully supported: `buyer_accounts`,
+# `buyer_deliveries`, the buyer portal (`frontend/buyer/`,
+# `routers/asclepius_buyer.py`) and `POST /admin/buyer-deliveries`.
 
 
 # ─── Dashboard (admin) ────────────────────────────────────────────────────────
@@ -5921,6 +5937,21 @@ async def list_ingestion_uploads(
         # Whether every eligible case has become a task — the §3.2 "done" fold.
         u["task_creation_complete"] = bool(
             case_counts["promoted"] and not case_counts["ingested"])
+        # ═══ PRD LONGITUDINAL-E2E §3 — auto-generate, for the row ════════════
+        # Three separate facts, because they answer three different questions and
+        # collapsing them into one chip is how "why did nothing happen" becomes
+        # unanswerable on the screen that has to answer it:
+        #   armed    — the flag is on;
+        #   will_run — the flag is on AND the trigger is fully satisfied, so this
+        #              bundle builds itself the moment anything else changes;
+        #   has_run  — its one run is spent (it never fires twice).
+        u["auto_generate"] = bool(int(u.get("auto_generate") or 0))
+        u["auto_generate_will_run"] = asc_auto_generate.is_armed(u)
+        u["auto_generate_has_run"] = asc_auto_generate.has_run(u)
+        # A COUNT with the detail behind it, never a modal (§3): 22 points built
+        # out of 25 is a result, and a modal would present it as an error.
+        u["auto_generate_failures"] = asc_auto_generate.failure_summary(u)
+        u.pop("auto_generate_report", None)   # the summary above is what the row reads
         u.pop("raw_path", None)  # server-side path is not admin-relevant
     return {"uploads": uploads, "total": total, "limit": limit, "offset": offset,
             "counts": counts, "status": status}

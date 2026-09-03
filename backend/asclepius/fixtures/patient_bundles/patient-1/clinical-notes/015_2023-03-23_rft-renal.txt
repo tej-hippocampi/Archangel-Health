@@ -1,0 +1,12 @@
+Document index: 15
+Document type: RFT/renal
+Service date: 2023-03-23
+Age on report: 39Y    Sex: M
+De-identification: name, consultant, lab, and identifier fieldNo. redacted/omitted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Biochemistry
+Blood Urea Nitrogen (BUN): 11.6 mg/dL (6-20)
+Creatinine (Serum): 0.8 mg/dL (Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4)
+Patient Location: OPD

@@ -1,0 +1,16 @@
+Document index: 72
+Document type: RFT/renal
+Service date: 2026-06-20
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/facility redacted and omitted
+
+CONTENT
+----------------------------------------
+Department of Biochemistry — Creatinine
+Booking: 20/06/2026 05:38:07
+Collection: 20/06/2026 05:38:27
+Reporting: 20/06/2026 06:49:17
+
+Creatinine Serum: 1.92 mg/dL
+Ref: Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4
+Result [H] vs male range

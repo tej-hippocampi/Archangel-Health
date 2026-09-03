@@ -1,0 +1,26 @@
+Document index: 116
+Document type: other lab
+Service date: 2026-01-30
+Age on report: 46Y    Sex: M
+De-identification: Omitted patient name and provider fields (green redaction); kept age, sex, receive/report times, lab values and references.
+
+CONTENT
+----------------------------------------
+CSF DR (cerebrospinal fluid routine examination)
+
+A. PHYSICAL EXAMINATION:
+- Volume: 02 ml
+- Color: Colourless
+- Appearance: Clear
+- Coagulum: Not Present
+
+B. CHEMICAL EXAMINATION:
+- Proteins: 70.8 mg/dl (Reference: 15-45)
+- Sugar: 64.1 mg/dl (Reference: 45-70)
+
+C. MICROSCOPIC EXAMINATION:
+- White Blood Cells: 03 /cumm
+- Red Blood Cells: 05 /cmm
+- Cell Type: Mostly Lymphocytes
+- CSF for Gram Staining: No organisms are seen.
+- CSF for ZN Staining: No A.F.B is seen. (Negative)

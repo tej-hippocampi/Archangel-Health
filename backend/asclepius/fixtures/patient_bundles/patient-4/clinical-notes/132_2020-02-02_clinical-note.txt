@@ -1,0 +1,16 @@
+Document index: 132
+Document type: clinical note
+Service date: 2020-02-02
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted redacted provider names and facility footer address/phones; empty gut/stool/output table not clinically filled
+
+CONTENT
+----------------------------------------
+Section: Consultant Notes / Other Communication / Opinion
+Time: 01:00 pm
+
+[Provider/role redacted] opinion:
+- (C) MRI report
+- Air Mattress
+
+Note: date handwritten as 02-02-2020 (as printed).

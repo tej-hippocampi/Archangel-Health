@@ -1,0 +1,16 @@
+Document index: 49
+Document type: other lab
+Service date: 2025-04-26
+Age on report: 45Y    Sex: M
+De-identification: Omitted patient name/identifier field/facility (green redaction); kept age, sex, service dates, clinical results
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+
+Booking: 26/04/2025 13:10:30
+Collection: 26/04/2025 13:10:51
+Reporting: 26/04/2025 14:27:28
+
+AMYLASE (SERUM):
+- Amylase: 158 U/L (28-100) — above reference range

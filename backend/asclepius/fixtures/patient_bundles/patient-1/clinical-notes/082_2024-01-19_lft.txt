@@ -1,0 +1,15 @@
+Document index: 82
+Document type: LFT
+Service date: 2024-01-19
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name redacted; facility name omitted
+
+CONTENT
+----------------------------------------
+L.F.Ts (6 Para)
+Serum Bilirubin (Total): 2.20 mg/dl (0.10 - 1.00) [H]
+Serum Bilirubin (Direct): 1.17 mg/dl (<= 0.30) [H]
+Serum Bilirubin (Indirect): 1.03 mg/dl (0.25 - 0.9) [H]
+SGPT(ALT): 94 U/L (< 45) [H]
+Alkaline phosphatase: 595 U/L (42 - 129) [H]
+Gamma GT: 989 U/L (8 - 61) [H]

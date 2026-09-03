@@ -1,0 +1,23 @@
+Document index: 108
+Document type: radiology report
+Service date: 2025-01-23
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header; kept age, sex, service date, findings/conclusion (spelling as printed).
+
+CONTENT
+----------------------------------------
+X-RAY CHEST PA/AP VIEW
+
+Findings:
+- Bony cage normal.
+- No active pulmonary lesion, consolidation, collapse.
+- No mediastinal pathology seen.
+- Hilum appears normal.
+- The cardio and costeopherenic angle are clear.
+- Both domes of diaphragm are normally raised.
+- Cardiac shadow is within normal limit.
+- Trachea is centrally placed.
+- Soft tissue appears normal.
+
+CONCLUSION:
+- Normal chest x-ray.

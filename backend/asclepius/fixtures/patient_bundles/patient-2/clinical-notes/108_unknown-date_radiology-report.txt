@@ -1,0 +1,13 @@
+Document index: 108
+Document type: radiology report
+Service date: unknown-date
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name; kept age/sex; service date UNKNOWN (overlay unclear).
+
+CONTENT
+----------------------------------------
+CT film: 24 coronal contrast-enhanced abdomen/pelvis slices (4x6).
+Protocol: W/ABDOMEN CONTRAST VENOUS PHASE; Coronal; Aquilion ONE.
+Visible anatomy: spine, ribs, liver, kidneys, pelvic bones (iliac crests/hips), bowel; contrast highlighting vessels/organs.
+Date overlay on frames ambiguous in photograph.
+No written findings/impression on film.

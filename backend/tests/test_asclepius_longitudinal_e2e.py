@@ -410,7 +410,10 @@ def test_a_physician_walks_the_generated_chart_in_order_and_cannot_read_ahead():
     dh = A.headers_for(doc)
 
     def _cards():
-        return [t for t in client.get("/api/asclepius/tasks/available?portal_version=v4",
+        # v5, not v4, since the relabel (Longitudinal E2E PRD §5.1 Group B): a
+        # trajectory point is served by the LONGITUDINAL queue. Asking v4 for one
+        # now correctly returns nothing — the two queues partition the real pool.
+        return [t for t in client.get("/api/asclepius/tasks/available?portal_version=v5",
                                       headers=dh).json()["tasks"]
                 if t.get("trajectory_id") == gen["trajectory_id"]]
 

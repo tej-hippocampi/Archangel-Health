@@ -1,0 +1,11 @@
+Document index: 112
+Document type: radiology report
+Service date: 2026-06-17
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name; kept age, sex, service date.
+
+CONTENT
+----------------------------------------
+CT film (Aquilion ONE): axial series through pelvis and mid-thighs (pelvic bones, hips, femoral cross-sections); bottom row includes larger upper-abdomen/lower-chest slices (liver, stomach region, spine).
+Technical examples: 120kV; ~7.0mm; window W:400 L:40.
+No written radiological interpretation on film.

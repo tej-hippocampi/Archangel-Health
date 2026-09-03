@@ -5,8 +5,7 @@ verify: N accepted with full provenance; the server-side intended-flawed id is
 stripped from the blinded task; every gate (contamination / dedupe / off-specialty
 / unsafe / low-error-likelihood / low-revision-value / candidate-gen-failed /
 judge-failed) routes to ``dropped{reason}``; no-LLM disables generation; generated
-tasks package to grounded:false; the buyer-request spec-only path invokes the
-engine and stamps buyer_request_id; router auth + disabled-specialty 400; and the
+tasks package to grounded:false; spec-only generation stamps buyer_request_id; router auth + disabled-specialty 400; and the
 "did the doctor catch it" metric (caught_flaw + /stats flaw_catch_rate).
 """
 
@@ -411,25 +410,33 @@ def test_stats_exposes_flaw_catch_rate(monkeypatch):
     assert r.json()["flaw_catch_rate"]["rate"] == 1.0
 
 
-# ─── Buyer-request spec-only path invokes the engine ──────────────────────────
-def test_buyer_request_spec_only_invokes_engine(monkeypatch):
+# ─── Spec-only generation stamps buyer_request_id ─────────────────────────────
+# The buyer-request CRM endpoints were retired (Export & Approval PRD §5), but
+# `buyer_request_id` PROVENANCE was not: the tables stay, the column stays, and
+# a batch generated for a request must still carry it all the way into the
+# packaged record. Driven through the engine directly now that the CRM route
+# that used to drive it is gone. `tests/test_export_approval_prd.py` asserts the
+# retired endpoints 404.
+def test_spec_only_generation_stamps_buyer_request_id(monkeypatch):
     install_stubs(monkeypatch)
-    admin = A.make_user(_store(), role="admin")
-    buyer = client.post("/api/asclepius/buyers", json={"name": "LabCo"},
-                        headers=A.headers_for(admin)).json()
-    req = client.post("/api/asclepius/buyer-requests", json={
-        "buyer_id": buyer["buyer_id"], "source": "internal_prompt_bank",
-        "specialty": "nephrology", "difficulty": "hard",
-    }, headers=A.headers_for(admin)).json()
-    r = client.post(f"/api/asclepius/buyer-requests/{req['request_id']}/batch",
-                    json={"count": 2}, headers=A.headers_for(admin))
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert body["count"] == 2
-    assert body["generation"]["accepted"] == 2
-    # every generated task is stamped to the buyer request
     store = _store()
-    for tid in body["created"]:
+    admin = A.make_user(store, role="admin")
+    buyer = store.create_buyer(name="LabCo", contact=None, export_profile="default",
+                               notes=None)
+    req = store.create_buyer_request(
+        buyer_id=buyer["buyer_id"], source="internal_prompt_bank",
+        export_profile="default",
+        constraints={"specialty": "nephrology", "difficulty": "hard"},
+        uploaded=[], note=None, created_by=admin["id"])
+    summary = _run(asc_generation.generate_tasks(
+        store, specialty="nephrology", n=2, capture_reasoning=False,
+        grounding_mode="optional", max_labels=1,
+        buyer_request_id=req["request_id"], created_by=admin["id"]))
+    assert summary["accepted"] == 2
+    created = summary["created"]
+    assert len(created) == 2
+    # every generated task is stamped to the buyer request
+    for tid in created:
         assert store.get_task(tid)["buyer_request_id"] == req["request_id"]
 
 

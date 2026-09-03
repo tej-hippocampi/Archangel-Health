@@ -1,0 +1,16 @@
+Document index: 18
+Document type: RFT/renal
+Service date: 2025-07-01
+Age on report: 76Y    Sex: F
+De-identification: Omitted facility/patient identifiers under green redaction
+
+CONTENT
+----------------------------------------
+Department: Biochemistry
+Panel: UREA (BLOOD)
+
+Booking: 01/07/2025 12:32:35
+Collection: 01/07/2025 12:32:57
+Reporting: 01/07/2025 14:00:49
+
+Urea: 51.4 mg/dL (10 - 50) [H]

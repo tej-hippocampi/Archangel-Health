@@ -1,0 +1,15 @@
+Document index: 28
+Document type: other lab
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Green overlay already obscured name/facility/IDs in source photo; omitted residual header identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+
+Booking Date & Time: 28/01/2026 20:53:42
+Collection Date & Time: 28/01/2026 20:53:54
+Reporting Date & Time: 28/01/2026 22:50:40
+
+MAGNESIUM: 1.61 mg/dl (1.9 - 2.5) [below ref]

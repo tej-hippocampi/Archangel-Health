@@ -1,0 +1,27 @@
+Document index: 104
+Document type: radiology report
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Omitted facility/patient header and footer redactions; kept age, sex, service date, ultrasound findings.
+
+CONTENT
+----------------------------------------
+ULTRASOUND ABDOMEN (PORTABLE)
+
+LIVER: Normal in size shows uniform echotexture & regular outlines. No focal mass is seen.
+IHVs & ducts are not dilated. P.V is 1.0 cm & CBD not dilated.
+
+G. BLADDER: Partially contracted, however no focal mass or calculus is seen.
+
+SPLEEN: Normal in size measures 6.9 cm. No focal mass is seen.
+
+PANCREAS: Could not visualized due to overlying gas filled bowel loops.
+
+RIGHT KIDNEY: Appear normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+
+LEFT KIDNEY: Appear normal in size, shape & echopattern. No focal mass, calculus or hydronephrosis is seen.
+
+U. BLADDER: Empty (shows bulb of foley's catheter) at the time of scan.
+
+Bowel loops are not dilated.
+Ascites is not seen at the time of scan.

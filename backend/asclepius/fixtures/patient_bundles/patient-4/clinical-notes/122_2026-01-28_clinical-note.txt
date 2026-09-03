@@ -1,0 +1,39 @@
+Document index: 122
+Document type: clinical note
+Service date: 2026-01-28
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted facility logo/header, patient ID box, provider/signature (ICU stamp area), footer address/phones/email
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS (Page 1 of 2)
+Time: 8:30 pm
+Review note
+
+Diagnoses / problems (triangle):
+- DM, HTN, H/O IHD (PCI in 2024)
+- Seizure
+- Aspiration Pneumonia
+
+G/C: Not satisfactory
+Currently: Hypertensive BP 160/112; Tachycardia HR 151; 1 episode of fits.
+
+Vitals:
+- HR: 150 b/min
+- BP: 160/112
+- RBS: 172 mg/dl
+
+O/E:
+- GCS: E4 V2 M6 (10/15) [or E4 V1 M5 — handwriting ambiguous]
+- CVS: S1 + S2
+- Chest: [unclear]
+- Abd: S.N.T. (soft, non-tender)
+
+Plan:
+1. Get U/S Abdomen done.
+2. (C) CXR.
+3. Get [neuro consult — name redacted] as pt had 1 episode of fits.
+4. (C) Labs: CBC, UCE, LFTs, Trop I, Pro-BNP.
+5. (C) Blood C/S + Tracheal C/S.
+6. Continue same Rx.
+7. I/O charting; vital monitoring.

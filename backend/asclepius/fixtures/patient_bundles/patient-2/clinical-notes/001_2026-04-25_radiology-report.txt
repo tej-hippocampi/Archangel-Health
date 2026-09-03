@@ -1,0 +1,22 @@
+Document index: 1
+Document type: radiology report
+Service date: 2026-04-25
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted handwritten patient name; no facility/provider/identifier field visible on page
+
+CONTENT
+----------------------------------------
+Modality: Ultrasound Abdomen (text report)
+
+Liver: 13.0 cm in size, coarse echotexture; no intra or extra hepatic biliary duct dilatation; portal vein 1.1 cm; no focal mass; no free fluid in abdomen.
+Gall Bladder: Partially contracted; no stone seen.
+Right Kidney: Normal in size; no stone or hydronephrosis.
+Left Kidney: Normal in size; no calculus or hydronephrosis.
+Pancreas: Normal in size; no focal mass.
+Spleen: Normal in size; no focal mass.
+Urinary Bladder: Partially filled; no stone seen.
+
+IMPRESSION:
+- Liver shows coarse echotexture
+- Suggestive of C.L.D. (chronic liver disease)
+- No ascites seen

@@ -1,0 +1,11 @@
+Document index: 111
+Document type: radiology report
+Service date: 2026-06-17
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name; kept age, sex, service date.
+
+CONTENT
+----------------------------------------
+CT film (Aquilion ONE): ~24 axial slices; majority pelvis/upper thighs (femoral shafts in muscle), with a few larger upper-abdomen/lower-chest tiles (liver, heart/lung bases, spine).
+Labels: ABDOMEN CONTRAST VENOUS; ~120kV 125mAs; slice numbers in ~97–120 range noted on frames.
+Contrast-enhanced vessels visible. No written findings/impression on film.

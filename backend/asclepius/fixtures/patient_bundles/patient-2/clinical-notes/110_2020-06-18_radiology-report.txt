@@ -1,0 +1,13 @@
+Document index: 110
+Document type: radiology report
+Service date: 2020-06-18
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name; kept age, sex, and date as read from overlays.
+
+CONTENT
+----------------------------------------
+Monitor display: ~20 coronal CT abdomen/pelvis slices.
+Labels: W/ABDOMEN CONTRAST VENOUS PHASE Coronal; Aquilion ONE; params ~120kV 125mAs; HP55.0; viewer text Vitrea.
+Anatomy: liver, bowel loops, kidneys, aorta, spine, pelvic girdle.
+No written findings/impression on screen.
+Note: date overlay read as 2020.07.09 on this photo (may be OCR/lighting artifact vs adjacent films).

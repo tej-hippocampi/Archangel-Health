@@ -1,0 +1,22 @@
+Document index: 140
+Document type: clinical note
+Service date: 2026-02-01
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted provider name/signature (green-redacted); no patient ID/facility on photographed portion
+
+CONTENT
+----------------------------------------
+Form: PATIENT PROGRESS
+Time: 2:45 PM
+NEURO-PHYSICIAN NOTE
+
+Pt seen and examined
+- MRI brain + cervical looks (N)
+- CSF D/R — (N)
+- GCS improving
+- No seizure in last 48 hrs
+
+A/P:
+- CST
+- Get psychiatrist opinion
+- Chase MRI-brain report

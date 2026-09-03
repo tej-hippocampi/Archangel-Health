@@ -1,0 +1,17 @@
+Document index: 69
+Document type: radiology report
+Service date: 2024-01-08
+Age on report: 77Y    Sex: F
+De-identification: Omitted patient name/facility header (green redaction); sonologist/Ref. By blank/covered
+
+CONTENT
+----------------------------------------
+Modality: X-RAY LUMBER SPINE AP/LAT VIEW (spelling as printed)
+Timestamp: 08/01/2024 14:47:37
+
+Findings:
+- Loss of normal curvature of spine is seen
+- Muscular spasm?
+- Partial compression of T11, T12 with anterior wedging of T11 and narrowing of disc space
+- Old traumatic collapse?
+- Reduced bone density is seen

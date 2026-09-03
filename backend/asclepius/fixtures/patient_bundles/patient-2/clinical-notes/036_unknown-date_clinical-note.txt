@@ -1,0 +1,21 @@
+Document index: 36
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No patient/provider/facility identifiers visible on this page.
+
+CONTENT
+----------------------------------------
+Review of Systems
+
+Oral: Mouth/Tongue Normal; Sign/Symptom Asymptomatic; Gastric tubes No
+Skin: Appearance Normal; Temperature Normal; Integrity Intact
+Cardiac: Pulse Regular; Sign/Symptom Asymptomatic; Capillary refill <2 sec Yes
+Respiratory: Respiration Regular; Sign/Symptom Asymptomatic; Respiratory assisted devices No
+Elimination — Bowel: Bowel movement Normal; Others — Abd pain
+Elimination — Urinary: Appearance Clear; Sign/Symptoms Retention and Urgency; Mode Spontaneous
+Musculoskeletal: ROM Active all four limbs; No deformity; No external fixator; No traction
+Obs/Gyn: Not applicable
+Breast: Normal
+Sleep: Interrupted
+Others: Central lines No; Peripheral lines No; Drains No

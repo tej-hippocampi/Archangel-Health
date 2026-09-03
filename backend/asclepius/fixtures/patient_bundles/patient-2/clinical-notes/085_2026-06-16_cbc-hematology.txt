@@ -1,0 +1,29 @@
+Document index: 85
+Document type: CBC/hematology
+Service date: 2026-06-16
+Age on report: 65Y    Sex: M
+De-identification: Name, lab/identifier fieldnumbers, consultant, ward, facility header redacted (green) or omitted.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF HEMATOLOGY
+Booking: 16/06/2026 14:42:57
+Collection: 16/06/2026 14:43:17
+Reporting: 16/06/2026 16:15:58
+CP (CBC)
+Hemoglobin: 10.8 g/dl (12 - 16.5) [L]
+R.B.Cs: 4.80 10^12/L (4.0-5.2)
+Hematocrit: 34.5 % (35.0-50.0) [L]
+M.C.V: 71.9 fl (76 - 96) [L]
+M.C.H: 22.5 pg (24 - 29) [L]
+M.C.H.C: 31.3 g/dl (32 - 36) [L]
+RDW-CV: 15.7 % (11.0-16.0)
+Total Leucocytes Count/TLC: 6.23 x 10^3/l (4 - 10)
+Neutrophils: 56.1 % (40-75)
+Lymphocytes: 22.3 % (20-45)
+Monocytes: 16.1 % (2 - 10) [H]
+Eosinophils: 5.0 % (1 - 6)
+Basophils: 0.5 % (<1)
+Platelets: 128 x 10^9/l (150 - 400) [L]
+Morphology: HYPOCHROMIC, MICROCYTIC. PLATELETS ARE SLIGHTLY LOW ON SMEAR. ? CAUSE
+Remarks: ADVISE: CLINICAL CORRELATION

@@ -1,0 +1,13 @@
+Document index: 98
+Document type: radiology report
+Service date: 2026-06-17
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Referring physician name omitted; no patient name/age/sex/identifier field/facility name on jacket face.
+
+CONTENT
+----------------------------------------
+CT SCAN FILMS jacket — DEPARTMENT OF RADIOLOGY / COMPUTED TOMOGRAPHY IMAGING
+EXAM: CT Scan W/Abdomen Contrast (TriPhasic)
+DATE: 17/06/2026
+NO. OF FILMS: 04 films + 01 DVD
+(Near-duplicate photo of same film jacket as index 97; referring physician name omitted)

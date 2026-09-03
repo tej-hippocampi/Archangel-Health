@@ -1,0 +1,114 @@
+DE-IDENTIFIED CLINICAL SUMMARY — Patient patient-3
+============================================================
+Anonymous patient ID: patient-3-patient
+Sex: female
+Age (masked): 76Y  (exact DOB omitted; ages >89 reported as 89+)
+
+PRIMARY DIAGNOSES (auto-extracted from documents; review clinically):
+  - Anemia (first noted ~2024-01-06)
+  - Chronic liver disease / cirrhosis features (first noted ~2024-01-09)
+  - Ascites (first noted ~2024-06-18)
+  - Splenomegaly (first noted ~2025-06-28)
+  - Hypertension (first noted ~2026-04-23)
+  - Hepatic coarse echotexture (first noted ~2026-04-23)
+  - Diabetes mellitus (first noted ~2026-04-23)
+  - Jaundice / biliary obstruction (first noted ~2026-04-23)
+
+NOTE: All names, phones, MRNs, facility/provider identifiers omitted.
+Source images: 93 (tracked in _progress_seen_images.txt).
+
+DOCUMENT INDEX
+------------------------------------------------------------
+  [001] 2026-04-24  tumor marker
+  [002] 2026-04-24  urinalysis
+  [003] 2026-04-23  LFT
+  [004] 2026-04-24  CBC/hematology
+  [005] 2026-04-23  serology/viral
+  [006] 2026-04-23  coagulation
+  [007] 2026-04-23  other lab
+  [008] 2026-04-23  CBC/hematology
+  [009] 2026-04-23  RFT/renal
+  [010] 2026-04-23  other lab
+  [011] 2026-04-23  electrolytes
+  [012] 2026-04-23  serology/viral
+  [013] 2025-07-07  other lab
+  [014] 2025-07-07  CBC/hematology
+  [015] 2025-07-07  other lab
+  [016] 2025-07-07  coagulation
+  [017] 2025-07-07  LFT
+  [018] 2025-07-01  RFT/renal
+  [019] 2025-07-01  electrolytes
+  [020] 2025-07-01  RFT/renal
+  [021] 2025-06-29  urinalysis
+  [022] 2025-06-29  RFT/renal
+  [023] 2025-06-29  RFT/renal
+  [024] 2025-06-29  electrolytes
+  [025] 2025-06-28  RFT/renal
+  [026] 2025-06-28  CBC/hematology
+  [027] 2025-06-28  LFT
+  [028] 2025-06-28  LFT
+  [029] 2025-06-28  electrolytes
+  [030] 2025-06-28  coagulation
+  [031] 2025-02-06  RFT/renal
+  [032] 2025-06-28  RFT/renal
+  [033] 2025-02-06  electrolytes
+  [034] 2025-02-06  other lab
+  [035] 2025-02-06  CBC/hematology
+  [036] 2025-02-03  other lab
+  [037] 2025-02-03  RFT/renal
+  [038] 2025-02-03  electrolytes
+  [039] 2025-02-03  RFT/renal
+  [040] 2024-01-09  RFT/renal
+  [041] 2024-01-09  CBC/hematology
+  [042] 2024-01-09  electrolytes
+  [043] 2024-01-09  RFT/renal
+  [044] 2024-01-08  other lab
+  [045] 2024-01-08  CBC/hematology
+  [046] 2024-01-08  RFT/renal
+  [047] 2024-01-08  electrolytes
+  [048] 2024-01-08  RFT/renal
+  [049] 2024-01-07  CBC/hematology
+  [050] 2024-01-06  LFT
+  [051] 2024-01-06  coagulation
+  [052] 2024-01-06  CBC/hematology
+  [053] 2024-01-06  other lab
+  [054] 2024-01-06  RFT/renal
+  [055] 2024-01-06  electrolytes
+  [056] 2024-01-06  other lab
+  [057] 2026-04-23  radiology report
+  [058] UNKNOWN  radiology report
+  [059] UNKNOWN  radiology report
+  [060] 2026-04-23  radiology report
+  [061] 2025-06-29  radiology report
+  [062] 2025-06-28  radiology report
+  [063] 2025-02-03  radiology report
+  [064] 2025-02-03  radiology report
+  [065] 2025-06-28  radiology report
+  [066] 2024-06-18  radiology report
+  [067] 2024-06-18  radiology report
+  [068] 2024-01-08  radiology report
+  [069] 2024-01-08  radiology report
+  [070] 2024-01-06  radiology report
+  [071] 2025-07-07  discharge summary
+  [072] 2025-07-01  discharge summary
+  [073] 2025-02-06  discharge summary
+  [074] 2024-01-09  discharge summary
+  [075] 2026-04-23  clinical note
+  [076] 2026-04-23  clinical note
+  [077] 2026-04-23  clinical note / initial assessment
+  [078] UNKNOWN  clinical note / systemic examination
+  [079] 2026-04-24  clinical note / consultant notes
+  [080] 2026-04-23  nutrition progress note
+  [081] 2026-04-23  nursing assessment / admission
+  [082] UNKNOWN  nursing assessment / ADL
+  [083] 2026-04-23  nursing assessment / review of systems
+  [084] 2026-04-23  nursing assessment / unit orientation
+  [085] 2026-04-23  nursing notes / IV and medication record
+  [086] 2026-04-23  vital signs sheet
+  [087] 2026-04-23  nursing interventions chart
+  [088] 2026-04-23  nursing assessment / head-to-toe
+  [089] 2026-04-24  medication administration record
+  [090] 2024-04-24  medication administration record
+  [091] 2026-04-24  intake/output record
+  [092] 2026-04-23  intake/output record
+  [093] 2026-04-24  nursing notes

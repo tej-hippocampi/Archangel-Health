@@ -1,0 +1,15 @@
+Document index: 68
+Document type: serology/viral
+Service date: 2026-06-21
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/consultant/facility/location redacted and omitted
+
+CONTENT
+----------------------------------------
+Department of Hematology — ICT Malarial Parasite
+Booking: 21/06/2026 10:43:46
+Collection: 21/06/2026 10:43:59
+Reporting: 21/06/2026 14:28:06
+
+Plasmodium Vivax: Negative
+Plasmodium Falciparum: Negative

@@ -53,6 +53,13 @@ EXCLUDED = frozenset({"tests/test_asclepius_visual.py"})
 DEFAULT_WEIGHT = 2.0
 WEIGHTS: Dict[str, float] = {
     "tests/test_paired_review.py": 80.4,
+    # Longitudinal E2E PRD. Measured rather than left at DEFAULT_WEIGHT: the
+    # front-door file ingests four multi-MB real charts through the shipped
+    # pipeline, which is ~9x the default and would quietly unbalance its shard.
+    "tests/test_longitudinal_front_door.py": 18.0,
+    "tests/test_longitudinal_v5_relabel.py": 10.5,
+    "tests/test_longitudinal_e2e_routing.py": 8.0,
+    "tests/test_auto_generate_on_arrival.py": 7.2,
     "tests/test_verification_queue.py": 61.6,
     "tests/test_upload_scale.py": 48.6,
     "tests/test_routing_priority.py": 42.4,

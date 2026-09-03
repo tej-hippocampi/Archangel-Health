@@ -1,0 +1,20 @@
+Document index: 77
+Document type: LFT
+Service date: 2026-06-16
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/facility redacted and omitted
+
+CONTENT
+----------------------------------------
+Department of Biochemistry — LFT Profile
+Booking: 16/06/2026 14:42:57
+Collection: 16/06/2026 14:43:17
+Reporting: 16/06/2026 15:48:57
+
+Bilirubin Total: 0.8 mg/dL (Adult ~0.1-1.0)
+Bilirubin Direct: 0.4 mg/dL (up to 0.4)
+Bilirubin Indirect: 0.4 mg/dL (0.0-0.80)
+SGOT/AST (Plain): 106 U/L (Male: 50) [H]
+SGPT/ALT: 73.5 U/L (Male: 65) [H]
+Alkaline Phosphate: 129 U/L (Male: 270)
+GAMMA GT: 96.6 U/L (Male: <55) [H]

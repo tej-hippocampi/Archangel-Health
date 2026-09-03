@@ -1,0 +1,184 @@
+DE-IDENTIFIED CLINICAL SUMMARY — Patient patient-4
+============================================================
+Anonymous patient ID: patient-4-patient
+Sex: male
+Age (masked): 45Y  (exact DOB omitted; ages >89 reported as 89+)
+
+PRIMARY DIAGNOSES (auto-extracted from documents; review clinically):
+  - Cerebrovascular event / stroke features (first noted ~2016-02-01)
+  - Diabetes mellitus (first noted ~2016-02-01)
+  - Hypertension (first noted ~2016-02-01)
+  - Pancreatic enzyme elevation / pancreatitis workup (first noted ~2024-12-19)
+  - Ascites (first noted ~2024-12-19)
+  - Possible acute coronary syndrome workup (first noted ~2024-12-20)
+  - Portal hypertension / portal vein abnormality (first noted ~2025-12-29)
+  - Seizure disorder (first noted ~2026-01-28)
+  - Sinusitis (first noted ~2026-01-28)
+  - Jaundice / biliary obstruction (first noted ~2026-01-28)
+
+NOTE: All names, phones, MRNs, facility/provider identifiers omitted.
+Source images: 161 (tracked in _progress_seen_images.txt).
+
+DOCUMENT INDEX
+------------------------------------------------------------
+  [001] 2026-01-31  radiology report
+  [002] 2026-01-31  electrolytes
+  [003] 2026-01-31  electrolytes
+  [004] 2026-01-31  other lab
+  [005] 2026-01-31  electrolytes
+  [006] 2026-01-31  RFT/renal
+  [007] 2026-01-31  CBC/hematology
+  [008] 2026-01-31  other lab
+  [009] 2026-01-31  RFT/renal
+  [010] 2026-01-30  other lab
+  [011] 2026-01-30  other lab
+  [012] 2026-01-30  CBC/hematology
+  [013] 2026-01-30  RFT/renal
+  [014] 2026-01-30  electrolytes
+  [015] 2026-01-30  RFT/renal
+  [016] 2026-01-30  urinalysis
+  [017] 2026-01-29  other lab
+  [018] 2026-01-29  other lab
+  [019] 2026-01-29  other lab
+  [020] 2026-01-29  CBC/hematology
+  [021] 2026-01-29  RFT/renal
+  [022] 2026-01-29  electrolytes
+  [023] 2026-01-29  RFT/renal
+  [024] 2026-01-28  other lab
+  [025] 2026-01-28  other lab
+  [026] 2026-01-28  other lab
+  [027] 2026-01-28  other lab
+  [028] 2026-01-28  other lab
+  [029] 2026-01-28  other lab
+  [030] 2026-01-28  RFT/renal
+  [031] 2026-01-28  RFT/renal
+  [032] 2026-01-28  other lab
+  [033] 2026-01-28  electrolytes
+  [034] 2026-01-28  CBC/hematology
+  [035] 2026-01-28  coagulation
+  [036] 2026-01-28  other lab
+  [037] 2026-01-28  RFT/renal
+  [038] 2026-01-28  LFT
+  [039] 2025-12-29  coagulation
+  [040] 2026-01-28  coagulation
+  [041] 2025-12-29  other lab
+  [042] 2025-06-15  other lab
+  [043] 2025-12-29  other lab
+  [044] 2025-06-15  other lab
+  [045] 2025-06-15  other lab
+  [046] 2025-06-15  other lab
+  [047] 2025-04-26  other lab
+  [048] 2025-06-15  other lab
+  [049] 2025-04-26  other lab
+  [050] 2025-04-26  other lab
+  [051] 2025-04-26  other lab
+  [052] 2025-01-25  other lab
+  [053] 2025-04-26  other lab
+  [054] 2025-01-25  other lab
+  [055] 2025-01-25  other lab
+  [056] 2025-01-25  other lab
+  [057] 2025-01-24  other lab
+  [058] 2025-01-24  other lab
+  [059] 2025-01-24  other lab
+  [060] 2025-01-24  other lab
+  [061] 2025-01-24  other lab
+  [062] 2025-01-24  electrolytes
+  [063] 2025-01-24  coagulation
+  [064] 2025-01-24  coagulation
+  [065] 2025-01-24  coagulation
+  [066] 2025-01-24  other lab
+  [067] 2025-01-24  other lab
+  [068] 2025-01-24  RFT/renal
+  [069] 2025-01-24  electrolytes
+  [070] 2025-01-24  electrolytes
+  [071] 2025-01-24  RFT/renal
+  [072] 2025-01-24  other lab
+  [073] 2025-01-23  other lab
+  [074] 2025-01-23  electrolytes
+  [075] 2025-01-23  other lab
+  [076] 2025-01-23  other lab
+  [077] 2025-01-23  other lab
+  [078] 2025-01-23  urinalysis
+  [079] 2025-01-23  other lab
+  [080] 2025-01-23  other lab
+  [081] 2025-01-23  other lab
+  [082] 2025-01-23  LFT
+  [083] 2025-01-23  RFT/renal
+  [084] 2025-01-23  other lab
+  [085] 2025-01-23  CBC/hematology
+  [086] 2025-01-23  RFT/renal
+  [087] 2024-12-22  RFT/renal
+  [088] 2024-12-22  RFT/renal
+  [089] 2024-12-22  electrolytes
+  [090] 2024-12-21  CBC/hematology
+  [091] 2024-12-20  other lab
+  [092] 2024-12-20  other lab
+  [093] 2024-12-20  other lab
+  [094] 2024-12-20  electrolytes
+  [095] 2024-12-20  other lab
+  [096] 2024-12-19  LFT
+  [097] 2024-12-19  RFT/renal
+  [098] 2024-12-19  RFT/renal
+  [099] 2024-12-19  CBC/hematology
+  [100] 2024-12-19  electrolytes
+  [101] 2026-01-29  radiology report
+  [102] 2026-01-29  radiology report
+  [103] 2026-01-28  radiology report
+  [104] 2026-01-28  radiology report
+  [105] 2025-12-29  radiology report
+  [106] 2025-12-29  radiology report
+  [107] 2025-01-24  radiology report
+  [108] 2025-01-23  radiology report
+  [109] 2024-12-21  radiology report
+  [110] 2024-12-21  radiology report
+  [111] 2024-12-19  radiology report
+  [112] 2024-12-19  radiology report
+  [113] 2025-01-23  discharge summary
+  [114] 2025-01-23  discharge summary
+  [115] 2024-12-19  discharge summary
+  [116] 2026-01-30  other lab
+  [117] 2026-01-28  clinical note
+  [118] 2026-01-28  prescription/medication
+  [119] 2026-01-28  clinical note
+  [120] UNKNOWN  clinical note
+  [121] 2026-01-28  clinical note
+  [122] 2026-01-28  clinical note
+  [123] 2026-01-29  clinical note
+  [124] UNKNOWN  clinical note
+  [125] UNKNOWN  clinical note
+  [126] UNKNOWN  clinical note
+  [127] UNKNOWN  clinical note
+  [128] 2026-01-30  clinical note
+  [129] 2026-01-29  clinical note
+  [130] 2026-01-30  clinical note
+  [131] UNKNOWN  clinical note
+  [132] 2020-02-02  clinical note
+  [133] UNKNOWN  clinical note
+  [134] 2026-01-30  clinical note
+  [135] 2026-01-30  clinical note
+  [136] 2026-01-31  clinical note
+  [137] 2026-01-31  clinical note
+  [138] 2026-01-31  clinical note
+  [139] 2026-01-31  clinical note
+  [140] 2026-02-01  clinical note
+  [141] UNKNOWN  prescription/medication
+  [142] 2025-10-31  prescription/medication
+  [143] UNKNOWN  prescription/medication
+  [144] 2026-01-28  prescription/medication
+  [145] 2026-01-28  clinical note
+  [146] 2026-02-01  clinical note
+  [147] 2026-01-31  clinical note
+  [148] 2021-01-28  prescription/medication
+  [149] 2026-01-31  prescription/medication
+  [150] 2021-01-31  clinical note
+  [151] UNKNOWN  clinical note
+  [152] UNKNOWN  clinical note
+  [153] 2026-02-05  clinical note
+  [154] 2016-01-29  vitals
+  [155] UNKNOWN  prescription/medication
+  [156] 2026-02-01  clinical note
+  [157] 2026-02-01  clinical note
+  [158] 2022-03-04  prescription/medication
+  [159] 2020-03-04  prescription/medication
+  [160] 2020-03-04  prescription/medication
+  [161] 2016-02-01  clinical note

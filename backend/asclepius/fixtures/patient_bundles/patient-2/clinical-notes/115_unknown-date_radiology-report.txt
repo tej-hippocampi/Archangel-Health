@@ -1,0 +1,27 @@
+Document index: 115
+Document type: radiology report
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No name/facility/ID/date/age visible in cropped frame; none recorded.
+
+CONTENT
+----------------------------------------
+Printed report page (header/footer cropped): CT SCAN WHOLE ABDOMEN WITH CONTRAST (TRIPHASIC).
+
+CLINICAL DATA:
+Known case of HCC.
+Suspected CLD.
+
+SCANNING PROTOCOL:
+Multiple axial sections of abdomen acquired from base of lung down to symphysis pubis with and without IV contrast; coronal and sagittal reconstructions; oral contrast also given.
+
+FINDINGS:
+Liver: normal sized with irregular/undulating margins and coarse nodular parenchyma. Well-circumscribed atypical hypodense lesion in segment V measuring 2.2 x 2.1 cm without appreciable enhancement but with washout, likely atypical HCC. Another small hypodense lesion in segment VI measuring 0.6 x 0.6 cm with washout, likely regenerating/dysplastic nodule.
+No intra- or extrahepatic biliary duct dilatation.
+Portal vein ~1.7 cm; no portal venous thrombosis.
+Gallbladder mildly thick-walled and edematous, likely reactionary; no definite radiodense calculus; radiolucent calculus cannot be excluded on CT; no cholecystitis.
+Spleen normal size; few prominent perisplenic varices; no focal mass.
+Pancreas normal; no pancreatitis; no definite pancreatic lesion.
+Both adrenal glands normal.
+Both kidneys normal size/shape with normal enhancement and excretion; no radiodense calculus, cyst, or hydronephrosis.
+(Page continues; remainder not fully visible on this photo.)

@@ -1,0 +1,431 @@
+service_date,panel,test_name,loinc,value,unit,reference_range,flag,source_image_index
+2024-12-19,LFT,Alkaline Phosphate,6768-6,122,U/L,Male: 270; Female: 240; Children < 5 Yr: 60-321; 5-10 Yrs: 110-360; 10-12 Yrs: 103-373; 6 Days - 1 Yrs: <462,,96
+2024-12-19,LFT,Bilirubin Direct,1968-7,0.2,mg/dL,Up to 0.4,,96
+2024-12-19,LFT,Bilirubin Indirect,1971-1,0.5,mg/dL,0.0 - 0.80,,96
+2024-12-19,LFT,Bilirubin Total,1975-2,0.7,mg/dL,Adult: Up to 0.1-1.0; Children 0-1 Days: 2.0-6.0; Children 1-2 Days: 6.0-10.0; Children 3-5 Days: 4.0-8.0,,96
+2024-12-19,LFT,GAMMA GT,2324-2,137,U/L,Male: < 55; Female: < 38,H,96
+2024-12-19,LFT,SGOT/AST (Plain),1920-8,16,U/L,Male: 50; Female: 50,,96
+2024-12-19,LFT,SGPT/ALT,1742-6,10,U/L,Male: 65; Female: 65; Infant: 65,,96
+2024-12-19,RFT/renal,Urea,3094-0,35,mg/dL,10 - 50,,97
+2024-12-19,RFT/renal,Creatinine Serum,2160-0,0.97,mg/dL,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,98
+2024-12-19,CBC/hematology,Basophils,706-2,0.1,%,<1,,99
+2024-12-19,CBC/hematology,Eosinophils,713-8,0.2,%,1 - 6,L,99
+2024-12-19,CBC/hematology,Hematocrit,4544-3,40.9,%,35.0-50.0,,99
+2024-12-19,CBC/hematology,Hemoglobin,718-7,13.8,g/dl,12 - 16.5,,99
+2024-12-19,CBC/hematology,Lymphocytes,736-9,10.1,%,20-45,L,99
+2024-12-19,CBC/hematology,M.C.H,785-6,28.9,pg,24 - 29,,99
+2024-12-19,CBC/hematology,M.C.H.C,786-4,33.7,g/dl,32 - 36,,99
+2024-12-19,CBC/hematology,M.C.V,787-2,85.6,fl,76 - 96,,99
+2024-12-19,CBC/hematology,Monocytes,5905-5,3.7,%,2 - 10,,99
+2024-12-19,CBC/hematology,Neutrophils,770-8,85.9,%,40-75,H,99
+2024-12-19,CBC/hematology,Platelets,777-3,293,x 10^9/l,150 - 400,,99
+2024-12-19,CBC/hematology,R.B.Cs,789-8,4.78,10^12/L,4.0-5.2,,99
+2024-12-19,CBC/hematology,RDW-CV,788-0,14.0,%,11.0-16.0,,99
+2024-12-19,CBC/hematology,Total Leucocytes Count/TLC,6690-2,13.19,x 10^3/l,4 - 10,H,99
+2024-12-19,electrolytes,Bicarbonate,1963-8,8.4,mmol/L,20.0 - 29.0,L,100
+2024-12-19,electrolytes,Chloride,2075-0,93.4,mmol/L,96 - 106,L,100
+2024-12-19,electrolytes,Potassium,2823-3,5.84,mmol/L,3.5 - 5.5,H,100
+2024-12-19,electrolytes,Sodium,2951-2,131.3,mmol/L,135 - 145,L,100
+2024-12-20,other lab,Amylase,1798-8,146,U/L,28-100,H,91
+2024-12-20,other lab,Lipase,3040-3,242,U/L,13-60,H,92
+2024-12-20,other lab,Troponin I,10839-9,0.609,ng/mL,< 0.30,H,93
+2024-12-20,electrolytes,Bicarbonate,1963-8,20,mmol/L,20.0-29.0,,94
+2024-12-20,electrolytes,Chloride,2075-0,101,mmol/L,96 - 106,,94
+2024-12-20,electrolytes,Potassium,2823-3,4.0,mmol/L,3.5 - 5.5,,94
+2024-12-20,electrolytes,Sodium,2951-2,137,mmol/L,135 - 145,,94
+2024-12-20,other lab,Troponin I,10839-9,0.855,ng/mL,< 0.30,H,95
+2024-12-21,CBC/hematology,Basophils,706-2,0.1,%,<1,,90
+2024-12-21,CBC/hematology,Eosinophils,713-8,1.9,%,1 - 6,,90
+2024-12-21,CBC/hematology,Hematocrit,4544-3,39.6,%,35.0-50.0,,90
+2024-12-21,CBC/hematology,Hemoglobin,718-7,13.8,g/dl,12 - 16.5,,90
+2024-12-21,CBC/hematology,Lymphocytes,736-9,30.1,%,20-45,,90
+2024-12-21,CBC/hematology,M.C.H,785-6,28.8,pg,24 - 29,,90
+2024-12-21,CBC/hematology,M.C.H.C,786-4,34.8,g/dl,32 - 36,,90
+2024-12-21,CBC/hematology,M.C.V,787-2,82.5,fl,76 - 96,,90
+2024-12-21,CBC/hematology,Monocytes,5905-5,3.8,%,2 - 10,,90
+2024-12-21,CBC/hematology,Neutrophils,770-8,64.1,%,40-75,,90
+2024-12-21,CBC/hematology,Platelets,777-3,238,x 10^9/l,150 - 400,,90
+2024-12-21,CBC/hematology,R.B.Cs,789-8,4.80,10^12/L,4.0-5.2,,90
+2024-12-21,CBC/hematology,RDW-CV,788-0,13.8,%,11.0-16.0,,90
+2024-12-21,CBC/hematology,Total Leucocytes Count/TLC,6690-2,8.69,x 10^3/l,4 - 10,,90
+2024-12-22,RFT/renal,Creatinine Serum,2160-0,0.47,mg/dL,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,L,87
+2024-12-22,RFT/renal,Urea,3094-0,16,mg/dL,10 - 50,,88
+2024-12-22,electrolytes,Bicarbonate,1963-8,21.4,mmol/L,20.0-29.0,,89
+2024-12-22,electrolytes,Chloride,2075-0,98,mmol/L,96 - 106,,89
+2024-12-22,electrolytes,Potassium,2823-3,3.4,mmol/L,3.5 - 5.5,L,89
+2024-12-22,electrolytes,Sodium,2951-2,134,mmol/L,135 - 145,L,89
+2025-01-23,other lab,- ABG's Measure at,,37,C,,,73
+2025-01-23,other lab,- Base Excess,,-8.0 mmol/L (-2 - 3) — low,,,,73
+2025-01-23,other lab,- Bicarbonate,,15.6,mmol/L (19 - 24) — low,,,73
+2025-01-23,other lab,- O2 Saturation,,97.1,%,94-98,,73
+2025-01-23,other lab,- pCO2,,26.3,mmHg (35-48) — low,,,73
+2025-01-23,other lab,- pH,,7.392,,7.35-7.45,,73
+2025-01-23,other lab,- pO2,,95.4,mmHg,83-108,,73
+2025-01-23,electrolytes,- Bicarbonate,,10.0,mmol/L (20.0-29.0) — low,,,74
+2025-01-23,electrolytes,- Chloride,,110,mmol/L (96 - 106) — high,,,74
+2025-01-23,electrolytes,- Potassium,,3.0,mmol/L (3.5 - 5.5) — low,,,74
+2025-01-23,electrolytes,- Sodium,,147,mmol/L (135 - 145) — high,,,74
+2025-01-23,other lab,- CRP,,169,mg/L (< 7.90) — elevated,,,75
+2025-01-23,other lab,- Serum Lactate,,2.77,mmol/L (0.25-08-2021) — elevated,,,76
+2025-01-23,other lab,- PCT,,4.5,ng/mL,,,77
+2025-01-23,urinalysis,- Appearance,,CLEAR,,Clear,,78
+2025-01-23,urinalysis,- Bacteria,,NIL,,,,78
+2025-01-23,urinalysis,- Bilirubin,,NEGATIVE,,Negative,,78
+2025-01-23,urinalysis,- Blood,,2,+ Ery/ul,Negative,,78
+2025-01-23,urinalysis,- Casts,,GRANULAR CAST (02) /HPF,,,,78
+2025-01-23,urinalysis,- Color,,YELLOW,,Pale Yellow - Yellow,,78
+2025-01-23,urinalysis,- Crystals,,NIL,,,,78
+2025-01-23,urinalysis,- Epithelial Cells,,NIL,,,,78
+2025-01-23,urinalysis,- Glucose,,4,+ mg/dl,Negative,,78
+2025-01-23,urinalysis,- Ketone Bodies,,4,+,Negative,,78
+2025-01-23,urinalysis,- Nitrite,,NEGATIVE,,Negative,,78
+2025-01-23,urinalysis,- Protein,,2,+ mg/dl,Negative,,78
+2025-01-23,urinalysis,- Pus Cells,,2,-4 /HPF,0-4,,78
+2025-01-23,urinalysis,- Quantity,,40,mL,,,78
+2025-01-23,urinalysis,- Reaction pH,,5.0,,5-8,,78
+2025-01-23,urinalysis,- Red Blood Cells,,2,-3 /HPF,0-2,,78
+2025-01-23,urinalysis,- Specific Gravity,,1.020,,1.005 - 1.025,,78
+2025-01-23,urinalysis,- Urobilinogen,,NORMAL mg/dl,,Negative,,78
+2025-01-23,other lab,- ABG's Measure at,,37,C,,,79
+2025-01-23,other lab,- Base Excess,,-29.1 mmol/L (-2 -3) — low,,,,79
+2025-01-23,other lab,- Bicarbonate,,1.7,mmol/L (19 - 24) — low,,,79
+2025-01-23,other lab,- O2 Saturation,,96.7,%,94-98,,79
+2025-01-23,other lab,- pCO2,,6.6,mmHg (35-48) — low,,,79
+2025-01-23,other lab,- pH,,7.031,(7.35-7.45) — low,,,79
+2025-01-23,other lab,- pO2,,143.0,mmHg (83-108) — high,,,79
+2025-01-23,other lab,- Amylase,,359,U/L (28-100) — elevated,,,80
+2025-01-23,other lab,Lipase,3040-3,1221,U/L,13-60,H,81
+2025-01-23,LFT,Alkaline Phosphate,6768-6,161,U/L,Male: 270; Female: 240; Children < 5 Yr: 60-321; 5-10 Yrs: 110-360; 10-12 Yrs: 103-373; 6 Days - 1Yr: < 462,,82
+2025-01-23,LFT,Bilirubin Direct,1968-7,0.1,mg/dL,Up to 0.4,,82
+2025-01-23,LFT,Bilirubin Indirect,1971-1,0.2,mg/dL,0.0 - 0.80,,82
+2025-01-23,LFT,Bilirubin Total,1975-2,0.3,mg/dL,Adult: Up to 0.1-1.0; Children 0-1 Days: 2.0-6.0; Children 1-2 Days: 6.0-10.0; Children 3-5 Days: 4.0-8.0,,82
+2025-01-23,LFT,GAMMA GT,2324-2,62,U/L,Male: < 55; Female: < 38,H,82
+2025-01-23,LFT,SGOT/AST (Plain),1920-8,20,U/L,Male: 50; Female: 50,,82
+2025-01-23,LFT,SGPT/ALT,1742-6,10,U/L,Male: 65; Female: 65; Infant: 65,,82
+2025-01-23,RFT/renal,Urea,3094-0,43,mg/dL,10 - 50,,83
+2025-01-23,other lab,Troponin I,10839-9,<0.100,ng/mL,< 0.30,,84
+2025-01-23,CBC/hematology,Basophils,706-2,0.1,%,<1,,85
+2025-01-23,CBC/hematology,ESR,30341-2,79,mm/Hour,Male 0 - 10; Female 0 - 18,H,85
+2025-01-23,CBC/hematology,Eosinophils,713-8,2.0,%,1 - 6,,85
+2025-01-23,CBC/hematology,Hematocrit,4544-3,41.9,%,35.0 - 50.0,,85
+2025-01-23,CBC/hematology,Hemoglobin,718-7,13.5,g/dl,12 - 16.5,,85
+2025-01-23,CBC/hematology,Lymphocytes,736-9,6.3,%,20 - 45,L,85
+2025-01-23,CBC/hematology,M.C.H,785-6,29.3,pg,24 - 29,H,85
+2025-01-23,CBC/hematology,M.C.H.C,786-4,32.2,g/dl,32 - 36,,85
+2025-01-23,CBC/hematology,M.C.V,787-2,91.1,fl,76 - 96,,85
+2025-01-23,CBC/hematology,Monocytes,5905-5,7.7,%,2 - 10,,85
+2025-01-23,CBC/hematology,Neutrophils,770-8,83.9,%,40 - 75,H,85
+2025-01-23,CBC/hematology,Platelets,777-3,261,x 10^9/l,150 - 400,,85
+2025-01-23,CBC/hematology,R.B.Cs,789-8,4.60,10^12/L,4.0 - 5.2,,85
+2025-01-23,CBC/hematology,RDW-CV,788-0,14.3,%,11.0 - 16.0,,85
+2025-01-23,CBC/hematology,Total Leucocytes Count/TLC,6690-2,15.0,x 10^3/l,4 - 10,H,85
+2025-01-23,RFT/renal,Creatinine Serum,2160-0,1.2,mg/dL,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,86
+2025-01-24,other lab,- Bicarbonate,,20.7,mmol/L,20.0-29.0,,57
+2025-01-24,other lab,- Chloride,,108.5,mmol/L (96-106) — above reference range,,,57
+2025-01-24,other lab,- Potassium,,2.40,mmol/L (3.5-5.5) — below reference range,,,57
+2025-01-24,other lab,- Sodium,,142.2,mmol/L,135-145,,57
+2025-01-24,other lab,- Alkaline Phosphate,,79,U/L,Male 270; Female 240; age-based pediatric ranges listed,,58
+2025-01-24,other lab,- Bilirubin Direct,,0.1,mg/dL,Up to 0.4,,58
+2025-01-24,other lab,- Bilirubin Indirect,,0.1,mg/dL,0.0-0.80,,58
+2025-01-24,other lab,- Bilirubin Total,,0.2,mg/dL,Adult 0.1-1.0; pediatric day-of-life ranges also listed,,58
+2025-01-24,other lab,- GAMMA GT,,48,U/L,Male <55; Female <38,,58
+2025-01-24,other lab,- SGOT/AST (Plain),,24,U/L,Male/Female: 50,,58
+2025-01-24,other lab,- SGPT/ALT,,10,U/L,Male/Female/Infant: 65,,58
+2025-01-24,other lab,- ABG's Measure at,,37,C,,,59
+2025-01-24,other lab,- Base Excess,,-3.1 mmol/L,,-2 - +3,,59
+2025-01-24,other lab,- Bicarbonate,,19.9,mmol/L,19-24,,59
+2025-01-24,other lab,- O2 Saturation,,99.8,%,94-98,,59
+2025-01-24,other lab,- pCO2,,25.6,mmHg,35-48,,59
+2025-01-24,other lab,- pH,,7.510,,7.35-7.45,,59
+2025-01-24,other lab,- pO2,,204.5,mmHg,83-108,,59
+2025-01-24,other lab,- Albumin,,3.0,g/dL,,,60
+2025-01-24,other lab,- Normal ranges,,Newborn 2-4 Days 2.2-4.4; 4-14 Years 3.8-5.4; Adult 3.5-5.2; >60 Years 3.2-4.6,,,,60
+2025-01-24,other lab,- Calcium,,7.4,mg/dL (8.6 - 10.3) — low,,,61
+2025-01-24,electrolytes,- Magnesium,,1.40,mg/dl (1.9 - 2.5) — low,,,62
+2025-01-24,coagulation,- D-DIMER,,4.66,mg/L (Upto 0.5) — elevated,,,63
+2025-01-24,coagulation,- Control,,13.0,Sec,,,64
+2025-01-24,coagulation,- INR,,0.96,,0.9 - 1.5,,64
+2025-01-24,coagulation,- Prothrombin Time,,12.6,Sec,10 - 15,,64
+2025-01-24,coagulation,- Control,,13.0,Sec,,,65
+2025-01-24,coagulation,- INR,,0.96,,0.9 - 1.5,,65
+2025-01-24,coagulation,- Prothrombin Time,,12.6,Sec,10 - 15,,65
+2025-01-24,other lab,- Troponin I,,<0.100,ng/mL,Normal: < 0.30,,66
+2025-01-24,other lab,- Troponin I,,<0.100,ng/mL,Normal: < 0.30,,67
+2025-01-24,RFT/renal,- Urea,,40,mg/dL,10 - 50,,68
+2025-01-24,electrolytes,- Bicarbonate,,13.2,mmol/L (20.0-29.0) — low,,,69
+2025-01-24,electrolytes,- Chloride,,107,mmol/L (96 - 106) — slightly high,,,69
+2025-01-24,electrolytes,- Potassium,,2.6,mmol/L (3.5 - 5.5) — low,,,69
+2025-01-24,electrolytes,- Sodium,,142,mmol/L,135 - 145,,69
+2025-01-24,electrolytes,- Bicarbonate,,13.2,mmol/L (20.0 - 29.0) — low,,,70
+2025-01-24,electrolytes,- Chloride,,107,mmol/L (96 - 106) — slightly high,,,70
+2025-01-24,electrolytes,- Potassium,,2.6,mmol/L (3.5 - 5.5) — low,,,70
+2025-01-24,electrolytes,- Sodium,,142,mmol/L,135 - 145,,70
+2025-01-24,RFT/renal,- Creatinine Serum,,1.0,mg/dL,,,71
+2025-01-24,RFT/renal,Ref,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,71
+2025-01-24,other lab,- ABG's Measure at,,37,C,,,72
+2025-01-24,other lab,- Base Excess,,-2.0 mmol/L,,-2 - 3,,72
+2025-01-24,other lab,- Bicarbonate,,21.2,mmol/L,19 - 24,,72
+2025-01-24,other lab,- O2 Saturation,,99.2,%,94-98,,72
+2025-01-24,other lab,- pCO2,,31.0,mmHg (35-48) — low,,,72
+2025-01-24,other lab,- pH,,7.452,,7.35-7.45,,72
+2025-01-24,other lab,- pO2,,135.4,mmHg (83-108) — high,,,72
+2025-01-25,other lab,- Potassium,,4.07,mmol/L,3.5-5.5,,52
+2025-01-25,other lab,- Urea,,27,mg/dL,10-50,,54
+2025-01-25,other lab,- Basophils,,0.1,%,<1,,55
+2025-01-25,other lab,- ESR,,20,mm/Hour,Male 0-10; Female 0-18,,55
+2025-01-25,other lab,- Eosinophils,,0.7,%,1-6,,55
+2025-01-25,other lab,- Hematocrit,,29.4,%,35.0-50.0,,55
+2025-01-25,other lab,- Hemoglobin,,10.4,g/dl,12-16.5,,55
+2025-01-25,other lab,- Lymphocytes,,14.3,%,20-45,,55
+2025-01-25,other lab,- M.C.H,,29.8,pg,24-29,,55
+2025-01-25,other lab,- M.C.H.C,,35.4,g/dl,32-36,,55
+2025-01-25,other lab,- M.C.V,,84.2,fl,76-96,,55
+2025-01-25,other lab,- Monocytes,,10.4,%,2-10,,55
+2025-01-25,other lab,- Neutrophils,,74.5,%,40-75,,55
+2025-01-25,other lab,- Platelets,,115,x 10^9/l,150-400,,55
+2025-01-25,other lab,- R.B.Cs,,3.49,10^12/L,4.0-5.2,,55
+2025-01-25,other lab,- RDW-CV,,13.9,%,11.0-16.0,,55
+2025-01-25,other lab,- Total Leucocytes Count/TLC,,9.97,x 10^3/l,4-10,,55
+2025-01-25,other lab,- ABG's Measure at,,37,C,,,56
+2025-01-25,other lab,- Base Excess,,-2.8 mmol/L,,-2 - +3,,56
+2025-01-25,other lab,- Bicarbonate,,19.6,mmol/L,19-24,,56
+2025-01-25,other lab,- O2 Saturation,,99.7,%,94-98,,56
+2025-01-25,other lab,- pCO2,,26.6,mmHg,35-48,,56
+2025-01-25,other lab,- pH,,7.486,,7.35-7.45,,56
+2025-01-25,other lab,- pO2,,194.4,mmHg,83-108,,56
+2025-04-26,other lab,- Basophils,,0.6,%,<1,,47
+2025-04-26,other lab,- ESR,,07,mm/Hour,Male 0-10; Female 0-18,,47
+2025-04-26,other lab,- Eosinophils,,0.2,%,1-6,,47
+2025-04-26,other lab,- Hematocrit,,34.1,%,35.0-50.0,,47
+2025-04-26,other lab,- Hemoglobin,,11.0,g/dl,12-16.5,,47
+2025-04-26,other lab,- Lymphocytes,,23.3,%,20-45,,47
+2025-04-26,other lab,- M.C.H,,26.1,pg,24-29,,47
+2025-04-26,other lab,- M.C.H.C,,32.3,g/dl,32-36,,47
+2025-04-26,other lab,- M.C.V,,81.0,fl,76-96,,47
+2025-04-26,other lab,- Monocytes,,5.0,%,2-10,,47
+2025-04-26,other lab,- Neutrophils,,70.9,%,40-75,,47
+2025-04-26,other lab,- Platelets,,213,x 10^9/l,150-400,,47
+2025-04-26,other lab,- R.B.Cs,,4.21,10^12/L,4.0-5.2,,47
+2025-04-26,other lab,- RDW-CV,,13.5,%,11.0-16.0,,47
+2025-04-26,other lab,- Total Leucocytes Count/TLC,,9.06,x 10^3/l,4-10,,47
+2025-04-26,other lab,- Amylase,,158,U/L (28-100) — above reference range,,,49
+2025-04-26,other lab,- Creatinine Serum,,0.54,mg/dL,,,50
+2025-04-26,other lab,- Normal ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,50
+2025-04-26,other lab,- Bicarbonate,,18.7,mmol/L (20.0-29.0) — below reference range,,,51
+2025-04-26,other lab,- Chloride,,104,mmol/L,96-106,,51
+2025-04-26,other lab,- Potassium,,4.2,mmol/L,3.5-5.5,,51
+2025-04-26,other lab,- Sodium,,141,mmol/L,135-145,,51
+2025-04-26,other lab,- Alkaline Phosphate,,80.8,U/L,Male 270; Female 240; age-based pediatric ranges listed,,53
+2025-04-26,other lab,- Bilirubin Direct,,0.1,mg/dL,Up to 0.4,,53
+2025-04-26,other lab,- Bilirubin Indirect,,0.1,mg/dL,0.0-0.80,,53
+2025-04-26,other lab,- Bilirubin Total,,0.2,mg/dL,Adult 0.1-1.0; pediatric day-of-life ranges also listed,,53
+2025-04-26,other lab,- GAMMA GT,,41.1,U/L,Male <55; Female <38,,53
+2025-04-26,other lab,- SGOT/AST (Plain),,29.4,U/L,Male/Female: 50,,53
+2025-04-26,other lab,- SGPT/ALT,,13.4,U/L,Male/Female/Infant: 65,,53
+2025-06-15,other lab,- HBA1C,,11.46,%,,,42
+2025-06-15,other lab,- Normal ranges,,Non Diabetic 4.0-6.0; Pre Diabetic 6.5-7.0; Diabetic 7.0-8.0,,,,42
+2025-06-15,other lab,Reference,,American Diabetes Association (ADA).,,,,42
+2025-06-15,other lab,- Alkaline Phosphate,,95,U/L,Male 270; Female 240; age-based pediatric ranges listed,,44
+2025-06-15,other lab,- Bilirubin Direct,,0.2,mg/dL,Up to 0.4,,44
+2025-06-15,other lab,- Bilirubin Indirect,,0.1,mg/dL,0.0-0.80,,44
+2025-06-15,other lab,- Bilirubin Total,,0.3,mg/dL,Adult 0.1-1.0; pediatric day-of-life ranges also listed,,44
+2025-06-15,other lab,- GAMMA GT,,67,U/L,Male <55; Female <38,,44
+2025-06-15,other lab,- SGOT/AST (Plain),,23,U/L,Male/Female: 50,,44
+2025-06-15,other lab,- SGPT/ALT,,10,U/L,Male/Female/Infant: 65,,44
+2025-06-15,other lab,- Bicarbonate,,19.1,mmol/L (20.0-29.0) — below reference range,,,45
+2025-06-15,other lab,- Chloride,,96.5,mmol/L,96-106,,45
+2025-06-15,other lab,- Potassium,,3.68,mmol/L,3.5-5.5,,45
+2025-06-15,other lab,- Sodium,,136.8,mmol/L,135-145,,45
+2025-06-15,other lab,- Creatinine Serum,,0.7,mg/dL,,,46
+2025-06-15,other lab,- Normal ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,46
+2025-06-15,other lab,- Creatinine Serum,,0.7,mg/dL,,,48
+2025-06-15,other lab,- Normal ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,48
+2025-12-29,coagulation,Control,,12.0,Sec,,,39
+2025-12-29,coagulation,INR,6301-6,0.99,,0.9 - 1.5,,39
+2025-12-29,coagulation,Prothrombin Time,5902-2,11.9,Sec,10 - 15,,39
+2025-12-29,other lab,- HbsAg,,0.412,(Cut Off 1.00) — Non-Reactive,,,41
+2025-12-29,other lab,- HBA1C,,8.32,%,,,43
+2025-12-29,other lab,- Normal ranges,,Non Diabetic 4.0-6.0; Pre Diabetic 6.5-7.0; Diabetic 7.0-8.0,,,,43
+2025-12-29,other lab,Reference,,American Diabetes Association (ADA).,,,,43
+2026-01-28,other lab,- Cutoff 125 pg/mL,,negative predictive value 96.7%; positive predictive value 80.68.,,,,24
+2026-01-28,other lab,- NT proBNP values < 125 pg/mL,,Exclude cardiac dysfunction with a high level of certainty in patients with symptoms suggestive of congestive heart failure.,,,,24
+2026-01-28,other lab,- NT proBNP values > 125 pg/mL,,May indicate heart failure.,,,,24
+2026-01-28,other lab,ProBNP,,70.1,pg/mL,Normal: < 125,,24
+2026-01-28,other lab,CRP,,2.92,mg/L,< 7.90,,25
+2026-01-28,other lab,Calcium,,8.97,mg/dL,8.6 - 10.3,,26
+2026-01-28,other lab,Calcium,,8.97,mg/dL,8.6 - 10.3,,27
+2026-01-28,other lab,MAGNESIUM,,1.61,mg/dl (1.9 - 2.5) [below ref],,,28
+2026-01-28,other lab,- AMIKACIN,,S,,,,29
+2026-01-28,other lab,- CEFTAZIDIME,,S,,,,29
+2026-01-28,other lab,- CIPROFLOXACIN,,S,,,,29
+2026-01-28,other lab,- CO-TRIMOXAZOLE,,S,,,,29
+2026-01-28,other lab,- ERTAPENEM,,S,,,,29
+2026-01-28,other lab,- GENTAMYCIN,,S,,,,29
+2026-01-28,other lab,- IMIPENEM,,S,,,,29
+2026-01-28,other lab,- LEVOFLOXACIN,,S,,,,29
+2026-01-28,other lab,- MEROPENEM,,S,,,,29
+2026-01-28,other lab,- PIPERACILLIN / TAZOBACTAM,,S,,,,29
+2026-01-28,other lab,Gram Stain,,Gram negative rods,,,,29
+2026-01-28,other lab,Organism-1,,Aeromonas spp.,,,,29
+2026-01-28,other lab,Result KEYS,,(key legend cut off / not fully visible),,,,29
+2026-01-28,other lab,Specimen,,Tracheal Secretion,,,,29
+2026-01-28,RFT/renal,Creatinine Serum,2160-0,0.561,mg/dL,,,30
+2026-01-28,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,30
+2026-01-28,RFT/renal,Creatinine Serum,2160-0,0.561,mg/dL,,,31
+2026-01-28,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,31
+2026-01-28,other lab,- 4 - 14 Years,,3.8,-5.4,,,32
+2026-01-28,other lab,- > 60 Years,,3.2,-4.6,,,32
+2026-01-28,other lab,- Adult,,3.5,-5.2,,,32
+2026-01-28,other lab,- Newborn 2-4 Days,,2.2,-4.4,,,32
+2026-01-28,other lab,Albumin,1751-7,4.87,g/dL,,,32
+2026-01-28,electrolytes,Bicarbonate,1963-8,19.2,mmol/L (20.0 - 29.0) [slightly below ref],,,33
+2026-01-28,electrolytes,Chloride,2075-0,101.6,mmol/L,96 - 106,,33
+2026-01-28,electrolytes,Potassium,2823-3,4.25,mmol/L,3.5 - 5.5,,33
+2026-01-28,electrolytes,Sodium,2951-2,139.5,mmol/L,135 - 145,,33
+2026-01-28,CBC/hematology,Basophils,706-2,0.3,%,<1,,34
+2026-01-28,CBC/hematology,ESR,30341-2,QNS mm/Hour,,Male 0 - 10; Female 0 - 18,,34
+2026-01-28,CBC/hematology,Eosinophils,713-8,0.0,%,1 - 6,,34
+2026-01-28,CBC/hematology,Hematocrit,4544-3,36.4,%,35.0-50.0,,34
+2026-01-28,CBC/hematology,Hemoglobin,718-7,12.0,g/dl,12 - 16.5,,34
+2026-01-28,CBC/hematology,Lymphocytes,736-9,10.4,%,20-45,,34
+2026-01-28,CBC/hematology,M.C.H,785-6,28.7,pg,24 - 29,,34
+2026-01-28,CBC/hematology,M.C.H.C,786-4,33.0,g/dl,32 - 36,,34
+2026-01-28,CBC/hematology,M.C.V,787-2,87.1,fl,76 - 96,,34
+2026-01-28,CBC/hematology,Monocytes,5905-5,5.4,%,2 - 10,,34
+2026-01-28,CBC/hematology,Neutrophils,770-8,83.9,%,40-75,,34
+2026-01-28,CBC/hematology,Platelets,777-3,202,x 10^9/l,150 - 400,,34
+2026-01-28,CBC/hematology,R.B.Cs,789-8,4.18,10^12/L,4.0-5.2,,34
+2026-01-28,CBC/hematology,RDW-CV,788-0,15.7,%,11.0-16.0,,34
+2026-01-28,CBC/hematology,Total Leucocytes Count/TLC,6690-2,9.74,x 10^3/l,4 - 10,,34
+2026-01-28,coagulation,Control,,12.0,Sec,,,35
+2026-01-28,coagulation,INR,6301-6,0.96,,0.9 - 1.5,,35
+2026-01-28,coagulation,Prothrombin Time,5902-2,11.6,Sec,10 - 15,,35
+2026-01-28,other lab,Troponin I,10839-9,<0.100,ng/mL,< 0.30,,36
+2026-01-28,RFT/renal,Urea,3094-0,10.4,mg/dL,10 - 50,,37
+2026-01-28,LFT,Alkaline Phosphate,6768-6,85.6,U/L,Male: 270; Female: 240; Children <5 Yr 60-321; 5-10 Yrs 110-360; 10-12 Yrs 103-373; 6 Days-1 Yrs <462,,38
+2026-01-28,LFT,Bilirubin Direct,1968-7,0.2,mg/dL,Up to 0.4,,38
+2026-01-28,LFT,Bilirubin Indirect,1971-1,0.1,mg/dL,0.0 - 0.80,,38
+2026-01-28,LFT,Bilirubin Total,1975-2,0.3,mg/dL,Adult 0.1-1.0; Children 0-1 Days 2.0-6.0; 1-2 Days 6.0-10.0; 3-5 Days 4.0-8.0,,38
+2026-01-28,LFT,GAMMA GT,2324-2,98.5,U/L (Male: < 55; Female: < 38) [above male ref],,,38
+2026-01-28,LFT,SGOT/AST (Plain),1920-8,38.1,U/L,Male: 50; Female: 50,,38
+2026-01-28,LFT,SGPT/ALT,1742-6,13.9,U/L,Male: 65; Female: 65; Infant: 65,,38
+2026-01-28,coagulation,Control,,12.0,Sec,,,40
+2026-01-28,coagulation,INR,6301-6,0.96,,0.9 - 1.5,,40
+2026-01-28,coagulation,Location,,Intensive Care Unit (ICU) -- 007,,,,40
+2026-01-28,coagulation,Prothrombin Time,5902-2,11.6,Sec,10 - 15,,40
+2026-01-29,other lab,ABG's Measure at,,37,C,,,17
+2026-01-29,other lab,Base Excess,1925-7,-5.3 mmol/L,,-2 - 3,L,17
+2026-01-29,other lab,Bicarbonate,1963-8,18.6,mmol/L,19 - 24,L,17
+2026-01-29,other lab,O2 Saturation,2708-6,99.6,%,94-98,H,17
+2026-01-29,other lab,pCO2,2019-8,26.7,mmHg,35-48,L,17
+2026-01-29,other lab,pH,2744-1,7.461,,7.35-7.45,H,17
+2026-01-29,other lab,pO2,2703-7,181.6,mmHg,83-108,H,17
+2026-01-29,other lab,CPK,,164,U/L,Men 38-174; Women 26-140,,18
+2026-01-29,other lab,ABG's Measure at,,37,C,,,19
+2026-01-29,other lab,Base Excess,1925-7,-5.3 mmol/L,,-2 - 3,L,19
+2026-01-29,other lab,Bicarbonate,1963-8,18.6,mmol/L,19 - 24,L,19
+2026-01-29,other lab,O2 Saturation,2708-6,99.6,%,94-98,H,19
+2026-01-29,other lab,pCO2,2019-8,26.7,mmHg,35-48,L,19
+2026-01-29,other lab,pH,2744-1,7.461,,7.35-7.45,H,19
+2026-01-29,other lab,pO2,2703-7,181.6,mmHg,83-108,H,19
+2026-01-29,CBC/hematology,Basophils,706-2,0.4,%,<1,,20
+2026-01-29,CBC/hematology,ESR,30341-2,20,mm/Hour,"Male 0 - 10, Female 0 - 18",H,20
+2026-01-29,CBC/hematology,Eosinophils,713-8,0.1,%,1 - 6,L,20
+2026-01-29,CBC/hematology,Hematocrit,4544-3,33.7,%,35.0-50.0,L,20
+2026-01-29,CBC/hematology,Hemoglobin,718-7,11.2,g/dl,12 - 16.5,L,20
+2026-01-29,CBC/hematology,Lymphocytes,736-9,8.4,%,20-45,L,20
+2026-01-29,CBC/hematology,M.C.H,785-6,29.0,pg,24 - 29,,20
+2026-01-29,CBC/hematology,M.C.H.C,786-4,33.2,g/dl,32 - 36,,20
+2026-01-29,CBC/hematology,M.C.V,787-2,87.3,fl,76 - 96,,20
+2026-01-29,CBC/hematology,Monocytes,5905-5,3.1,%,2 - 10,,20
+2026-01-29,CBC/hematology,Neutrophils,770-8,88.0,%,40-75,H,20
+2026-01-29,CBC/hematology,Platelets,777-3,154,x 10^9/l,150 - 400,,20
+2026-01-29,CBC/hematology,R.B.Cs,789-8,3.86,10^12/L,4.0-5.2,L,20
+2026-01-29,CBC/hematology,RDW-CV,788-0,15.6,%,11.0-16.0,,20
+2026-01-29,CBC/hematology,Total Leucocytes Count/TLC,6690-2,8.41,x 10^3/l,4 - 10,,20
+2026-01-29,RFT/renal,Creatinine Serum,2160-0,0.662,mg/dL,,,21
+2026-01-29,RFT/renal,Normal Ranges,,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,,,,21
+2026-01-29,electrolytes,Bicarbonate,1963-8,17.8,mmol/L (20.0-29.0) [below ref],,,22
+2026-01-29,electrolytes,Chloride,2075-0,103,mmol/L,96 - 106,,22
+2026-01-29,electrolytes,Potassium,2823-3,4.0,mmol/L,3.5 - 5.5,,22
+2026-01-29,electrolytes,Sodium,2951-2,136,mmol/L,135 - 145,,22
+2026-01-29,RFT/renal,Urea,3094-0,19.9,mg/dL,10 - 50,,23
+2026-01-30,other lab,ABG's Measure at,,37,C,,,10
+2026-01-30,other lab,Base Excess,1925-7,-5.9 mmol/L,,-2 - 3,L,10
+2026-01-30,other lab,Bicarbonate,1963-8,18.6,mmol/L,19 - 24,L,10
+2026-01-30,other lab,O2 Saturation,2708-6,99.5,%,94-98,H,10
+2026-01-30,other lab,pCO2,2019-8,29.1,mmHg,35-48,L,10
+2026-01-30,other lab,pH,2744-1,7.422,,7.35-7.45,,10
+2026-01-30,other lab,pO2,2703-7,174.2,mmHg,83-108,H,10
+2026-01-30,other lab,ABG's Measure at,,37,C,,,11
+2026-01-30,other lab,Base Excess,1925-7,-2.0 mmol/L,,-2 - 3,,11
+2026-01-30,other lab,Bicarbonate,1963-8,23.5,mmol/L,19 - 24,,11
+2026-01-30,other lab,O2 Saturation,2708-6,26.5,%,94-98,L,11
+2026-01-30,other lab,pCO2,2019-8,42,mmHg,35-48,,11
+2026-01-30,other lab,pH,2744-1,7.35,,7.35-7.45,,11
+2026-01-30,other lab,pO2,2703-7,19,mmHg,83-108,L,11
+2026-01-30,CBC/hematology,Basophils,706-2,0.7,%,<1,,12
+2026-01-30,CBC/hematology,ESR,30341-2,05,mm/Hour,"Male 0 - 10, Female 0 - 18",,12
+2026-01-30,CBC/hematology,Eosinophils,713-8,2.8,%,1 - 6,,12
+2026-01-30,CBC/hematology,Hematocrit,4544-3,33.8,%,35.0-50.0,L,12
+2026-01-30,CBC/hematology,Hemoglobin,718-7,11.1,g/dl,12 - 16.5,L,12
+2026-01-30,CBC/hematology,Lymphocytes,736-9,14.0,%,20-45,L,12
+2026-01-30,CBC/hematology,M.C.H,785-6,28.7,pg,24 - 29,,12
+2026-01-30,CBC/hematology,M.C.H.C,786-4,32.8,g/dl,32 - 36,,12
+2026-01-30,CBC/hematology,M.C.V,787-2,87.3,fl,76 - 96,,12
+2026-01-30,CBC/hematology,Monocytes,5905-5,4.2,%,2 - 10,,12
+2026-01-30,CBC/hematology,Neutrophils,770-8,78.3,%,40-75,H,12
+2026-01-30,CBC/hematology,Platelets,777-3,150,x 10^9/l,150 - 400,,12
+2026-01-30,CBC/hematology,R.B.Cs,789-8,3.87,10^12/L,4.0-5.2,L,12
+2026-01-30,CBC/hematology,RDW-CV,788-0,15.6,%,11.0-16.0,,12
+2026-01-30,CBC/hematology,Total Leucocytes Count/TLC,6690-2,7.56,x 10^3/l,4 - 10,,12
+2026-01-30,RFT/renal,Creatinine Serum,2160-0,0.632,mg/dL,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,L,13
+2026-01-30,electrolytes,Bicarbonate,1963-8,19,mmol/L,20.0 - 29.0,L,14
+2026-01-30,electrolytes,Chloride,2075-0,104,mmol/L,96 - 106,,14
+2026-01-30,electrolytes,Potassium,2823-3,3.8,mmol/L,3.5 - 5.5,,14
+2026-01-30,electrolytes,Sodium,2951-2,139,mmol/L,135 - 145,,14
+2026-01-30,RFT/renal,Urea,3094-0,23,mg/dL,10 - 50,,15
+2026-01-30,urinalysis,Culture,,No growth after 48 hours' incubation.,,,,16
+2026-01-30,urinalysis,Specimen,,Urine,,,,16
+2026-01-30,urinalysis,Status stamp,,APPROVED,,,,16
+2026-01-30,other lab,- Appearance,,Clear,,,,116
+2026-01-30,other lab,- CSF for Gram Staining,,No organisms are seen.,,,,116
+2026-01-30,other lab,- CSF for ZN Staining,,No A.F.B is seen.,,Negative,,116
+2026-01-30,other lab,- Cell Type,,Mostly Lymphocytes,,,,116
+2026-01-30,other lab,- Coagulum,,Not Present,,,,116
+2026-01-30,other lab,- Color,,Colourless,,,,116
+2026-01-30,other lab,- Proteins,,70.8,mg/dl,Reference: 15-45,,116
+2026-01-30,other lab,- Red Blood Cells,,05,/cmm,,,116
+2026-01-30,other lab,- Sugar,,64.1,mg/dl,Reference: 45-70,,116
+2026-01-30,other lab,- Volume,,02,ml,,,116
+2026-01-30,other lab,- White Blood Cells,,03,/cumm,,,116
+2026-01-31,electrolytes,Magnesium,,2.01,mg/dl,1.9 - 2.5,,2
+2026-01-31,electrolytes,Calcium,,8.14,mg/dL,8.6 - 10.3,L,3
+2026-01-31,other lab,CRP,,30.7,mg/L,< 7.90,H,4
+2026-01-31,electrolytes,Bicarbonate,1963-8,19,mmol/L,20.0 - 29.0,L,5
+2026-01-31,electrolytes,Chloride,2075-0,101,mmol/L,96 - 106,,5
+2026-01-31,electrolytes,Potassium,2823-3,3.7,mmol/L,3.5 - 5.5,,5
+2026-01-31,electrolytes,Sodium,2951-2,136,mmol/L,135 - 145,,5
+2026-01-31,RFT/renal,Creatinine Serum,2160-0,0.668,mg/dL,Male 0.7-1.2; Female 0.5-0.9; Children 0.3-0.8; Infant 0.2-0.4,L,6
+2026-01-31,CBC/hematology,Basophils,706-2,0.3,%,<1,,7
+2026-01-31,CBC/hematology,Eosinophils,713-8,1.3,%,1 - 6,,7
+2026-01-31,CBC/hematology,Hematocrit,4544-3,35.6,%,35.0 - 50.0,,7
+2026-01-31,CBC/hematology,Hemoglobin,718-7,11.8,g/dl,12 - 16.5,L,7
+2026-01-31,CBC/hematology,Lymphocytes,736-9,11.8,%,20 - 45,L,7
+2026-01-31,CBC/hematology,M.C.H,785-6,28.7,pg,24 - 29,,7
+2026-01-31,CBC/hematology,M.C.H.C,786-4,33.1,g/dl,32 - 36,,7
+2026-01-31,CBC/hematology,M.C.V,787-2,86.6,fl,76 - 96,,7
+2026-01-31,CBC/hematology,Monocytes,5905-5,6.0,%,2 - 10,,7
+2026-01-31,CBC/hematology,Neutrophils,770-8,80.6,%,40 - 75,H,7
+2026-01-31,CBC/hematology,Platelets,777-3,145,x 10^9/l,150 - 400,L,7
+2026-01-31,CBC/hematology,R.B.Cs,789-8,4.11,10^12/L,4.0 - 5.2,,7
+2026-01-31,CBC/hematology,RDW-CV,788-0,15.5,%,11.0 - 16.0,,7
+2026-01-31,CBC/hematology,Total Leucocytes Count/TLC,6690-2,6.97,x 10^3/l,4 - 10,,7
+2026-01-31,other lab,ABG's Measure at,,37,C,,,8
+2026-01-31,other lab,Base Excess,1925-7,-8.7 mmol/L,,-2 - 3,L,8
+2026-01-31,other lab,Bicarbonate,1963-8,16.4,mmol/L,19 - 24,L,8
+2026-01-31,other lab,O2 Saturation,2708-6,76.8,%,94-98,L,8
+2026-01-31,other lab,pCO2,2019-8,28.2,mmHg,35-48,L,8
+2026-01-31,other lab,pH,2744-1,7.382,,7.35-7.45,,8
+2026-01-31,other lab,pO2,2703-7,43.2,mmHg,83-108,L,8
+2026-01-31,RFT/renal,Urea,3094-0,18.8,mg/dL,10 - 50,,9

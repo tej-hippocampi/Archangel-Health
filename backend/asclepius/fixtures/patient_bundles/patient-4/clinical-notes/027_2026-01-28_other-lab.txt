@@ -1,0 +1,18 @@
+Document index: 27
+Document type: other lab
+Service date: 2026-01-28
+Age on report: 46Y    Sex: M
+De-identification: Green overlay already obscured name/facility/IDs in source photo; omitted residual header identifiers. Age kept as years; no exact DOB present.
+
+CONTENT
+----------------------------------------
+DEPARTMENT OF BIOCHEMISTRY
+
+Booking Date & Time: 28/01/2026 20:53:42
+Collection Date & Time: 28/01/2026 20:53:54
+Reporting Date & Time: 28/01/2026 22:50:40
+
+CALCIUM (SERUM)
+Calcium: 8.97 mg/dL (8.6 - 10.3)
+
+Note: Near-duplicate capture of same calcium report as index 26.

@@ -1,0 +1,23 @@
+Document index: 62
+Document type: clinical note
+Service date: 2026-06-18
+Age on report: 65Y    Sex: M
+De-identification: patient name, provider names, and signatures omitted
+
+CONTENT
+----------------------------------------
+Progress / nursing receiving and event notes (continuation).
+
+18/06/2026 23:00 — Receiving note: 65Y male received from evening staff. Admitted with abdominal pain, fever, loose stools; known case of HCV. On room air with O2 support 2 L. Vitally stable. No active complaint.
+
+19/06/2026 08:00 — Receiving note: received from night shift. GCS 15/15. Vitally stable. No active complaint.
+
+19/06/2026 16:00 — Receiving note: 65Y male GCS 15/15 received from morning shift. On room air, vitally stable, no complaint.
+
+19/06/2026 20:00 — Receiving note: received from evening shift. Vitally unstable — BP screening 81/51 and 90/60; GCS 15/15. Body elevated. No bedsore. Whole body / pulse pressure noted as concerning (handwriting limited).
+
+20/06/2026 00:00 — Event note: Foley catheter insertion; then Foley cursed/issue (handwriting unclear).
+
+20/06/2026 05:00 — Event note: urine decreased — 75 ml.
+
+20/06/2026 06:00 — Overnight urine out; Foley change thereafter.

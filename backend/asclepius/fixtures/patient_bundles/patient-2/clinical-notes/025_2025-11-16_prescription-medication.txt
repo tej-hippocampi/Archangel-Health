@@ -1,0 +1,21 @@
+Document index: 25
+Document type: prescription/medication
+Service date: 2025-11-16
+Age on report: 20Y    Sex: UNKNOWN
+De-identification: Omitted patient name, provider, and facility/logo (green redactions). Age recorded as printed on form (20).
+
+CONTENT
+----------------------------------------
+Clinical / prescription form
+
+Presenting complaint: fever, cough, sore (throat partially illegible)
+Temp: N (normal)
+BP: 110/70
+Ordered labs fields blank (RBS, CBC+ESR, Urea, Creatinine, Sputum AFB, GeneXpert, Urine D/R, HCV, HBsAg, HIV)
+
+Medications:
+- Tab Valamid AL: once daily (xOD)
+- Tab/Syp Myanti-gel: 1 tsp
+- Cap Exocin 400 mg: 1x daily
+- Tab Zurbex: frequency mark present (partially unclear)
+- Syp Pulmonil: 2 - 2 - 2

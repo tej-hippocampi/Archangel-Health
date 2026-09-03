@@ -1,0 +1,20 @@
+Document index: 31
+Document type: discharge summary
+Service date: 2023-04-21
+Age on report: 38Y    Sex: M
+De-identification: patient name and other header identifiers redacted with green marker and omitted; surgeon name field blank/omitted.
+
+CONTENT
+----------------------------------------
+PATIENT DISCHARGE SUMMARY - Ward: Medical Unit-V, Bed #18
+1. Provisional Diagnosis: Post-ERCP pancreatitis
+2. Final Diagnosis: K85 Acute pancreatitis
+3. Presenting Complaint/History: Abdominal pain - 2 days
+4. Vitals: P: 91/pm, BP: 128/80 mmHg, T: A/F degC, RR: 18/pm
+5. Examination: Chest = NVB; GIT = soft, mild tenderness in epigastrium, gut sounds audible; CVS = S1+S2+0; CNS = 15/15
+6. Labs at presentation: Hb=11.5, MCV=79.8, TLC=6.7, N=79, Plat=52, CRP=62.8, PT=11.6, APTT=24.1, INR=1.1, BUN=12, Cr=0.7, Na=136, K=3.8, Cl=99, T.Billi=13.2, D.Billi=9.9, In.Billi=3.3, SGPT=22, Alk Ph=149, Amylase=471, lipase=620
+7. Labs in ward: Hb=11.1, MCV=84, TLC=5.3, Plat=47, CRP=61.9, PT=12, APTT=22.3, INR=1.15, BUN=10, Cr=0.6, T.Billi=13.2, SGPT=23, Alk Ph=141, Amylase=229
+8. Radiological Findings: None
+9. Surgical Procedure: None
+15. Medications on discharge (handwritten): Cef span (cefixime) 400mg 1x BD; Tab Carnid(?) 3.125 ... ; Tab Rise K(?); T. Urso (ursodeoxycholic acid) 250 ... BD
+Disposition: Discharged to home

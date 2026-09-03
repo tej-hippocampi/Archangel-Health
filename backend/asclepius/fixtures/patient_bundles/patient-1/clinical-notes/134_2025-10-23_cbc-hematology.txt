@@ -1,0 +1,27 @@
+Document index: 134
+Document type: CBC/hematology
+Service date: 2025-10-23
+Age on report: 42Y    Sex: M
+De-identification: name/consultant redacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Hematology - CBC & ESR
+Hemoglobin: 11.8 g/dl (12 - 16.5) [L]
+R.B.Cs: 4.41 10^12/L (4.0-5.2)
+Hematocrit: 35.6 % (35.0-50.0)
+M.C.V: 80.7 fl (76 - 96)
+M.C.H: 26.8 pg (24 - 29)
+M.C.H.C: 33.1 g/dl (32 - 36)
+RDW-CV: 15.8 % (11.0-16.0)
+Total Leucocytes Count/TLC: 23.02 x10^3/l (4 - 10) [H]
+Neutrophils: 91.5 % (40-75) [H]
+Lymphocytes: 4.1 % (20-45) [L]
+Monocytes: 4.4 % (20-45)
+Eosinophils: 0.0 % (2 - 10) [L]
+Basophils: 0.0 % (1 - 6)
+Platelets: 48 x10^9/l (150 - 400) [L]
+ESR: 66 mm/Hour (Male 0 - 10) [H]
+Morphology: Normocytic, normochromic. Neutrophilic, leukocytosis. ? Bacterial infection. Platelets are reduced on smear ? cause
+Remarks: Advise clinical correlation
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU) -- 003

@@ -1,0 +1,13 @@
+Document index: 77
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: patient identification block and provider name redacted and omitted
+
+CONTENT
+----------------------------------------
+Patient Progress note.
+Seen by [provider name omitted].
+Plan:
+- ERCP today
+- Take high risk consent

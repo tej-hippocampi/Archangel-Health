@@ -1,0 +1,27 @@
+Document index: 151
+Document type: CBC/hematology
+Service date: 2025-10-24
+Age on report: 42Y    Sex: M
+De-identification: name/consultant/identifier fieldredacted (green marker)
+
+CONTENT
+----------------------------------------
+Department of Hematology - CBC & ESR (duplicate/reprint of index 148)
+Hemoglobin: 14.3 g/dl (12 - 16.5)
+R.B.Cs: 5.40 10^12/L (4.0-5.2)
+Hematocrit: 43.5 % (35.0-50.0)
+M.C.V: 80.6 fl (76 - 96)
+M.C.H: 26.5 pg (24 - 29)
+M.C.H.C: 32.9 g/dl (32 - 36)
+RDW-CV: 16.2 % (11.0-16.0) [H]
+Total Leucocytes Count/TLC: 17.40 x10^3/l (4 - 10) [H]
+Neutrophils: 89.8 % (40-75) [H]
+Lymphocytes: 6.4 % (20-45) [L]
+Monocytes: 3.6 % (2 - 10)
+Eosinophils: 0.0 % (1 - 6) [L]
+Basophils: 0.2 % (<1)
+Platelets: 65 x10^9/l (150 - 400) [L]
+ESR: 39 mm/Hour (Male 0 - 10) [H]
+Morphology: Normocytic, normochromic. Neutrophilic, leukocytosis. Large platelets are seen. Platelets are low on smear ? cause
+Remarks: Advise clinical correlation
+Patient Location: IPD; Ward/Bed: Intensive Care Unit (ICU) -- 003

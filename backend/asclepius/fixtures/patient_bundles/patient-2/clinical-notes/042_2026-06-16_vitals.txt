@@ -1,0 +1,37 @@
+Document index: 42
+Document type: vitals
+Service date: 2026-06-16
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Staff name/initial column and signatures omitted. No patient name, identifier field, DOB, or facility name on sheet.
+
+CONTENT
+----------------------------------------
+VITAL SIGNS SHEET (Page 1 of 2). Height/Weight blank.
+Columns: Date, Time, B/P mmHg, Resp bpm, Pulse b/min, SPO2% (RA), Temp °F, Pain Score.
+(Name & Initial column omitted — staff identifiers.)
+
+16/06/2026 1600: BP 130/80, RR 18, Pulse 82, SpO2 98%, Temp A/F (afebrile), Pain 0/10
+16/06/2026 2200: BP 130/80, RR 19, Pulse 86, SpO2 97%, Temp A/F, Pain 0/10
+17/06/2026 0200: BP 120/70, RR 20, Pulse 85, SpO2 98%, Temp AF, Pain 00
+17/06/2026 0600: BP 120/70, RR 20, Pulse 84, SpO2 98%, Temp AF, Pain 00
+17/06/2026 1000: BP 110/70, RR 20, Pulse 79, SpO2 97%, Temp A/F, Pain 00
+17/06/2026 2200: BP 120/80, RR 20, Pulse 76, SpO2 98%, Temp A/F, Pain 00
+18/06/2026 10:00: BP 100/75, RR 21, Pulse 70, SpO2 99%, Temp A.F, Pain 0
+18/06/2026 1400: BP 110/70, RR 20, Pulse 79, SpO2 98%, Temp A/F, Pain 0
+18/06/2026 1600: BP 100/70, RR 20, Pulse 82, SpO2 96%, Temp A/F, Pain 00
+18/06/2026 2200: BP 130/80, RR 20, Pulse 83, SpO2 94%, Temp A/F, Pain 00
+18/06/2026 2300: BP 140/80, RR 20, Pulse 66, SpO2 94%, Temp 98.4°F, Pain 00
+19/06/2026 0600: BP 120/70, RR 20, Pulse 66, SpO2 94%, Temp 98.6°F, Pain 00
+19/06/2026 1000: BP 130/80, RR 20, Pulse 63, SpO2 95%, Temp 98.7°F, Pain 00
+19/06/2026 1600: BP 120/80, RR 20, Pulse 68, SpO2 96%, Temp A/F, Pain 00
+19/06/2026 0630: BP 100/40, RR 20, Pulse 88, SpO2 96%, Temp A/F, Pain 00
+19/06/2026 2300: BP 90/60, RR 20, Pulse 98, SpO2 96%, Temp AF, Pain —
+20/06/2026 0700: BP 100/60, RR 20, Pulse 88, SpO2 97%, Temp AF
+20/06/2026 0800: BP 110/70, RR 19, Pulse 90, SpO2 99%, Temp 98.7°F
+20/06/2026 1400: BP 120/80, RR 20, Pulse 89, SpO2 97%
+20/06/2026 1600: BP 120/70, RR 20, Pulse 84, SpO2 96%, Temp A/F
+20/06/2026 2200: BP 130/80, RR 24, Pulse 95, SpO2 97%
+20/06/2026 2300: BP 130/70, RR 22, Pulse 91, SpO2 96%, Temp A/F, Pain 0
+21/06/2026 0700: BP 100/70, RR 20, Pulse 96, SpO2 97%, Temp A/F, Pain 0
+21/06/2026 0900: BP 150/100, RR 20, Pulse 116, SpO2 93%, Temp 100°F, Pain 0
+21/06/2026 (time blank): Temp 102°F (highlighted/red)

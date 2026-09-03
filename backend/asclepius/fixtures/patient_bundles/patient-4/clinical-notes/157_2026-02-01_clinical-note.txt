@@ -1,0 +1,21 @@
+Document index: 157
+Document type: clinical note
+Service date: 2026-02-01
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted handwritten number at top right (possible ID); no name/facility/signature in filled section
+
+CONTENT
+----------------------------------------
+Form: Head to Toe Assessment & Reassessment For Adult and Peads
+Mark (✓) for Yes, (-) for No, NA for Not Applicable
+Date 01/02/2026; columns M / E
+
+Orientation: *2 / *2; GCS 12/15 / 12/15
+Oral cavity: Mouth/tongue Dry / Dry; Coated/ulcer - / No; Others - / No
+Cardiac: Apical pulse - / No; Clarity S1/S2 Normal both
+Respiratory: Air entry bilaterally ↑↑ both; Breath sounds Normal / Normal
+GI: Abdomen Soft / Soft; Bowel sounds Normal / Normal
+GU: Stool Passed / Passed; Foley / Foley; Urine color Yellow / Yellow
+MSK: Weakness No / No; Deformities No / No; Activity CBR / CBR; AAT - / No
+Bilateral vascular: Radial Strong / Strong; Cap refill 2-3 sec / 2-3 sec
+Skin: Turgor normal / Normal; Color Pale / Pale; Temperature Warm / Warm

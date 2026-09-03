@@ -1,0 +1,15 @@
+Document index: 159
+Document type: clinical note
+Service date: 2025-10-21
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: handwritten staff names/signatures not transcribed
+
+CONTENT
+----------------------------------------
+Handwritten Nurses Note (For Event Notes). Largely illegible; legible fragments:
+- Receiving note: patient with low blood pressure / hypotension, complicated by hypotension previously.
+- GCS 15/15; hypotension noted.
+- Noradrenaline (inotropic) support; blood pressure measurement recorded.
+- Morning shift / staff vitals check; patient on active complaints monitoring.
+- Reference to NS (normal saline) support, GCS 15.
+(Full details not legible.)

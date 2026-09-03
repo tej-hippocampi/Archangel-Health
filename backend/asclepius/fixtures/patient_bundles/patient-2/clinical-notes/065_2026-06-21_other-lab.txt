@@ -1,0 +1,21 @@
+Document index: 65
+Document type: other lab
+Service date: 2026-06-21
+Age on report: 65Y    Sex: M
+De-identification: name/identifier field/ward/consultant/facility redacted (green) and omitted
+
+CONTENT
+----------------------------------------
+Department of Biochemistry — Blood Gases / ABG
+Location: IPD
+Booking: 21/06/2026 12:39:56
+Collection: 21/06/2026 12:40:14
+Reporting: 21/06/2026 13:02:49
+
+ABGs measured at 37 C
+pH: 7.40 (ref 7.35-7.45)
+pCO2: 30.3 mmHg (ref 35-48) [L]
+pO2: 71.5 mmHg (ref 83-108) [L]
+O2 Saturation: 93.9 % (ref 94-98) [L]
+Bicarbonate: 18.4 mmol/L (ref 19-24) [L]
+Base Excess: -6.4 mmol/L (ref -2 to 3) [L]

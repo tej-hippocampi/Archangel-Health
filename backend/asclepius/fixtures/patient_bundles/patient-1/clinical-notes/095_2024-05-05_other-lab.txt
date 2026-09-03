@@ -1,0 +1,10 @@
+Document index: 95
+Document type: other lab
+Service date: 2024-05-05
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name, "identifier field", Branch, and Ward/Unit fields redacted/omitted.
+
+CONTENT
+----------------------------------------
+Chemical Pathology
+Serum Amylase: 155 U/I (28 - 100) [H]

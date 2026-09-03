@@ -1,0 +1,25 @@
+Document index: 57
+Document type: radiology report
+Service date: 2026-04-23
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility header, sonologist, referring provider, consultant cardiologist, cardiac sonographer names/signatures and credentials tied to providers
+
+CONTENT
+----------------------------------------
+Echocardiogram / Echo Report Summary
+Timestamp: 23/04/2026 14:27:37
+
+Aortic Valve: Thickened with normal mobility.
+Mitral Valve: Thickened calcified with normal mobility. Mild to moderate regurgitation.
+Pulmonic Valve: Normal in thickness and mobility.
+Tricuspid Valve: Normal in thickness and mobility. Mild regurgitation.
+Pulmonary artery systolic pressure: 35 mmHg.
+
+Summary:
+1. Mildly dilated left atrium.
+2. Normal left ventricular systolic function.
+3. Grade II left ventricular diastolic dysfunction.
+4. Normal right ventricular systolic function.
+5. Mild to moderate mitral regurgitation.
+6. Mild tricuspid regurgitation.
+7. Mild pulmonary artery hypertension.

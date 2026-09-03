@@ -1,0 +1,23 @@
+Document index: 56
+Document type: clinical note
+Service date: 2025-10-23
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: hospital name and patient identification redacted; provider names omitted
+
+CONTENT
+----------------------------------------
+PATIENT PROGRESS - Follow Up Note
+Sepsis 2° to cholangitis. ERCP done today.
+Currently patient is on room air, maintaining Sats. General condition N/S.
+Vitals:
+BP: 120/70 mmHg
+Pulse: 70 b/m
+Temp: Afebrile
+SPO2: 93%
+O/E: CNS: GCS 15/15; CVS: S1+S2; Chest: B/L clear; P/A: soft, non-tender
+Plan:
+- Keep patient NPO for 24 hours
+- Strict vitals monitoring
+- DVT therapy
+- Counsel family
+- Continue treatment

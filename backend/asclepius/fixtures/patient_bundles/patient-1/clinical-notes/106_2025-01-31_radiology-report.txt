@@ -1,0 +1,26 @@
+Document index: 106
+Document type: radiology report
+Service date: 2025-01-31
+Age on report: 41Y    Sex: M
+De-identification: patient name redacted; performing physician name omitted; GI Trainee: NIL retained (no name).
+
+CONTENT
+----------------------------------------
+ERCP procedure report.
+Location: OPD.
+Medication (Conscious Sedation): PROPOFOL.
+Instrument: TJF 160 OLYMPUS.
+INDICATION FOR EXAMINATION (Procedure): Obstructive jaundice.
+PROCEDURE TECHNIQUE: Scope passed up to D2.
+FINDING:
+  Two columns of Grade-I non bandable esophageal varices.
+  Sphincterotized ampulla identified. Previously placed both stents were removed.
+  CBD cannulated selectively. Dye injected to reveal full of filling defects.
+  Balloon swept multiple times to remove all the sludge.
+  Cholangiogram showed clear CBD.
+  Two another 10cm/10FR plastic stents deployed.
+  Good flow of bile observed.
+ENDOSCOPIC DIAGNOSIS: Cholangitis + Previous stent removal + CBD clearance + Re-stenting.
+AFTER ENDOSCOPY (Medication): IV hydration. Inj: Meropenem 1G IV x STAT.
+RECOMMENDATION: NPO for 4 hours. Observe for abdominal pain.
+(Endoscopic images labeled: Cannulation, CBD (C-ARM), Balloon Sweep, Cholangiogram, Two CBD Stent's)

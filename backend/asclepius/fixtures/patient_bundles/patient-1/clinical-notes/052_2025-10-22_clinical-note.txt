@@ -1,0 +1,27 @@
+Document index: 52
+Document type: clinical note
+Service date: 2025-10-22
+Age on report: 42Y    Sex: M
+De-identification: patient name/identification redacted; prior hospital names in past history omitted
+
+CONTENT
+----------------------------------------
+Integrated Initial Assessment Form (Part 1 - to be filled by doctor)
+Presenting complaints:
+- Jaundice (15 days, increased)
+- Vomiting (1 episode) 5 days back
+- Fever 2-3 days back
+- SOB since one day
+Known case of: NKDM (transcribed as written)
+History of presenting complaints: According to attendant, patient was in usual state of health 15 days back, then started having increasing yellowish discoloration of sclera and had above-mentioned complaints; ERCP planned for tomorrow, but patient developed septic shock likely secondary to septic cholangitis; being managed in ICU on line of septic shock.
+Review of symptoms: Fever (present), Vomiting (present), Jaundice
+Past medical history: H/O multiple ERCP (prior facilities)
+Family history: DM (+), HTN (+), Cancer (-), TB (-), Asthma (-)
+General examination:
+BP: 80/40 mmHg
+Temp: Afebrile
+R/R: 30 /min
+JVP: Normal
+O2 Sat: 96%
+GCS: 15/15
+Jaundice: present

@@ -1,0 +1,19 @@
+Document index: 99
+Document type: clinical note
+Service date: 2024-05-06
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: patient name (handwritten) omitted; multiple green-marker redactions ignored.
+
+CONTENT
+----------------------------------------
+Handwritten follow-up clinical note.
+Follow-up Case: Portal Biliopathy.
+ERCP + stenting done on 08/02/2024 -> stent blocked -> Repeat stenting done on 25/04/2023 (as written).
+OGD done -> Esophageal Varices, EVBL done.
+Current LFTs: TB (total bilirubin) improved 11.9 -> 8.3 (after stent replacement).
+Plan:
+  1. Review CT-Scan for possible shunt.
+  2. Repeat CT-Scan abdomen triphasic.
+Rx:
+  Cap Urso (ursodeoxycholic acid) 500mg 1+0+1
+  Tab Carved (carvedilol) 6.25mg 1+0+1

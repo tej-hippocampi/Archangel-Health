@@ -1,0 +1,12 @@
+Document index: 109
+Document type: radiology report
+Service date: 2023-06-18
+Age on report: 65Y    Sex: M
+De-identification: Removed patient name, accession/ID, facility name, timestamps; kept age, sex, service date.
+
+CONTENT
+----------------------------------------
+Monitor display: ~18 coronal CT slices (3x6) of abdomen/pelvis.
+Protocol: W/ABDOMEN CONTRAST venous phase coronal reconstructions; Aquilion ONE.
+Anatomy: liver, spleen, lung bases; kidneys and contrast-opacified aorta; bowel loops; urinary bladder; pelvic bones.
+No written findings/impression on screen.

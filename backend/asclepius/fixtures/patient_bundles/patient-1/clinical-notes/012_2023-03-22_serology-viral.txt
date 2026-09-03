@@ -1,0 +1,10 @@
+Document index: 12
+Document type: serology/viral
+Service date: 2023-03-22
+Age on report: 39Y    Sex: UNKNOWN
+De-identification: name/header redacted (green marker), ward/unit and facility omitted
+
+CONTENT
+----------------------------------------
+Haematology
+Coombs Test (Direct): Negative

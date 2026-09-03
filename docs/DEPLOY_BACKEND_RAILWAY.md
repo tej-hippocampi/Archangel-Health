@@ -31,6 +31,11 @@ Optional (add when you have them): `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `A
 
 ## 4. Attach a volume — REQUIRED, or every deploy wipes your data
 
+> **Checking this afterwards:** the admin console shows a banner on every tab
+> when any store is not on the volume, or when `ENV=production` is not set to
+> keep it that way. `docs/asclepius/IS_MY_DATA_SAFE.md` is the short runbook.
+
+
 **Skip this and the app still works perfectly, right up until your first
 redeploy erases every account, patient episode, audit record and in-flight
 physician signup.** Nothing errors. The screens just go quiet, which reads like
@@ -51,6 +56,7 @@ Mount path: `/data`. (Any path works except `/app`, which is the code.)
 | `TEAM_DB_PATH` | `/data/team.db` | Every patient episode, intake form, care-team message, audit sign-in record, health system, and physician mid-onboarding (Admin › Physicians › **Signups**) |
 | `ASCLEPIUS_DB_PATH` | `/data/asclepius.db` | Every physician account, task, submission, review and payout row |
 | `ASCLEPIUS_DATA_DIR` | `/data` | V4 case images (asset store lands at `/data/assets`) |
+| `ASCLEPIUS_EXPORT_DIR` | `/data/asclepius-exports` | Built export bundles. Without it they land in `/tmp`; history still lists the batch and its download becomes an empty archive — including for a buyer following the link we emailed |
 
 The raw-ingest directory needs no variable: it defaults to sitting beside
 `ASCLEPIUS_DB_PATH`, so setting that puts partner uploads on the volume too.

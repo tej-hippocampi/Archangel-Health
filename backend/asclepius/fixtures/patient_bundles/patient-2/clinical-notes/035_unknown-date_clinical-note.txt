@@ -1,0 +1,39 @@
+Document index: 35
+Document type: clinical note
+Service date: unknown-date
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: No names, identifier field, facility, or dates on this page; no identifiers transcribed.
+
+CONTENT
+----------------------------------------
+Nursing assessment (continuation)
+
+Activity of Daily Living (scores Independence=1 / Dependence=0):
+- Bathing: 0 (needs help)
+- Dressing: 0 (needs help)
+- Toileting: 0 (needs help)
+- Transferring: 0 (needs help)
+- Continence: 0 (partially or totally incontinent)
+- Feeding: 0 (needs partial/total help)
+- Total points: 0 (very dependent)
+
+Fall Factor Assessment (Morse Scale):
+- History of fall: 0 (No)
+- Secondary diagnosis: 0 (No)
+- Ambulatory aid: 0 (None / bed rest / wheelchair / nurse assist)
+- IV / heparin / saline lock: 0 (No)
+- Gait / transferring: 0 (Normal / bed rest immobile)
+- Mental status: 0 (Oriented to own ability)
+- Total score: 0
+- Risk category: Low Risk (0-22)
+
+Psychosocial / Economic:
+- Psychological: Calm
+- Marital status: Married
+- Living with: Spouse and Children (11 children noted)
+- Occupation: Self-employed
+- Substance abuse: No for smoking, smoking environment, alcohol, pan/gutka, tobacco, nicotine
+
+Religious/Cultural/Spiritual:
+- Religion: Islam
+- Religious/cultural practices part of care: No

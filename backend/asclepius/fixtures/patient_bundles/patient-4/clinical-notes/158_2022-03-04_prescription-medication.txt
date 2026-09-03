@@ -1,0 +1,18 @@
+Document index: 158
+Document type: prescription/medication
+Service date: 2022-03-04
+Age on report: UNKNOWN    Sex: UNKNOWN
+De-identification: Omitted nurse initials/signatures in administration cells
+
+CONTENT
+----------------------------------------
+Form: Medication Form
+Date column: 04/03/2022
+
+Drugs & dosage / scheduled times / admin status:
+- Inj 5% dextrose/saline + (1) Neurobion IV @ 40 ml/hr — Continuous (noted "Continuy")
+- Inj Tanzo 4.5 mg IV x TDS — 0600, 1400, 2200 — administered (initialed)
+- Inj Ezium 40 mg IV x OD — 1000 — administered
+- Inj Onset 8 mg IV x SOS — SOS — blank
+- Inj Bofalgan IV x SOS — SOS — blank
+- Tab Rivotril 0.5 (0+0+1) — 2200 — administered

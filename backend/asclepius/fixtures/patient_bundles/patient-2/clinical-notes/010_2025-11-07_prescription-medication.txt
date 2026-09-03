@@ -1,0 +1,23 @@
+Document index: 10
+Document type: prescription/medication
+Service date: 2025-11-07
+Age on report: 65Y    Sex: M
+De-identification: Omitted patient name, identifier field, signature/initials
+
+CONTENT
+----------------------------------------
+Encounter/prescription form
+Additional date noted on page: 12/11/2025
+
+Vitals:
+- Pulse: 96
+- BP: 120/80
+- Temp: 97.4
+- Wt: 67
+- Ht / BMI / Problem List: blank
+
+Medications (handwritten; some uncertain):
+- Cap Dex [likely Dex*] 60
+- Duphalac — 20 ml
+- Vitrum (on/oy — handwriting uncertain)
+- Duration note: circled 3 with Urdu for months (~3 months)

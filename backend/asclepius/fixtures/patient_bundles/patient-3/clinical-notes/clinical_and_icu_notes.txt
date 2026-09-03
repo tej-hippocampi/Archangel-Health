@@ -1,0 +1,238 @@
+CLINICAL / ICU / DISCHARGE NOTES (de-identified)
+============================================================
+
+--- Image 71 | 2025-07-07 | discharge summary ---
+Discharge Summary
+Admission Date: 07/07/2025
+Discharge Summary Date: 07/07/2025
+Age printed: 76 Year(s), 8 Month(s), 29 Day(s)
+
+Presenting Complaints: Flank pain radiating to back
+Diagnosis: K/C OF DCLD / HCV
+
+Relevant Investigation: CBC, LFT, PT/INR, S.AMYLASE, CRP (names listed; values not on this page)
+
+Hospital Course / inpatient meds:
+- INJ RISEK 40MG
+- INJ ONSET 8MG
+- INJ TRAMAL + INJ METACLON
+- INJ CEFTRO 2G
+
+Date of Surgery: —
+Operative Procedure: —
+Pending Reports: —
+Instruction on Discharge: TAKE MEDICATIONS AS PRESCRIBED
+Follow-up: AFTER 15 DAYS
+Discharge Status: Improved
+
+Medication on Discharge:
+- CAP EZIUM 40MG 1+0+0
+- TAB FOLIC ACID 1+1
+- TAB MOTILIUM 1+1+1
+- SYP DUPHALAC 30ML XHS
+- TAB CARVEDA 6.25MG 1/2 + 1/2
+- TAB RIFIXA 550 1+0+1
+- TAB TRAMAPAR 1+1+1
+- DEEP HEAT CREAM
+- TAB DRATE 150MG ONCE A WEEK
+- CAP INDROP D 200000 ONCE IN 15 DAYS
+
+--- Image 72 | 2025-07-01 | discharge summary ---
+Discharge Summary
+Admission Date: 28/06/2025
+Discharge Summary Date: 01/07/2025
+
+Presenting Complaints:
+- ABDOMINAL PAIN
+- BACKACHE
+- ABDOMINAL DISTENSION
+- FEVER
+
+Diagnosis:
+- BRONCHIECTASIS
+- K/C HCV / DCLD
+
+Relevant Investigation:
+- HB: 9.8
+- TLC: 5.92
+- PLATS: 61
+- ALBUMIN: 2.97
+- CREATININE: 1.1
+- NA: 133; K: 4.1; CL: 102; HCO3: 19.6
+- UREA: 33.3
+- PT: 16.3; INR: 1.25
+- LFTs listed (specific values not fully captured on page)
+
+Hospital Course: Presented with above complaints; relevant investigations and X-rays done; managed with IV antibiotics, PPI, antiemetics, analgesics; known HCV/DCLD with related meds given; improved; discharged on oral medications.
+Date of Surgery: N/A
+Operative Procedure: N/A
+
+Medication on Discharge:
+- TAB MOFEST 400MG 1+0+0 (5 DAYS)
+- TAB FOLIC ACID 1 X OD
+- TAB EZIUM 40MG 1+0+0
+- TAB MOTILIUM 1+0+1
+- SYP DUPHALAC 30ML X HS
+- TAB CARVEDA 6.25 1+0+1
+- TAB RIFAXA 550MG 1+0+1
+- TAB PANADOL 1 X SOS
+
+Instruction on Discharge: TAKE MEDICATIONS ON TIME
+Follow-up: FOLLOW UP AFTER 1 WEEK
+Discharge Status: Improved
+
+--- Image 73 | 2025-02-06 | discharge summary ---
+Discharge Summary
+Admission Date: 03/02/2025
+Discharge Summary Date: 06/02/2025
+
+Presenting Complaints (as printed):
+- COUGH
+- FEVER
+- K/C HCV PSE -REVERSED
+- IDA, VERTEBRAL
+
+Diagnosis:
+- UPPER RESPIRATORY TRACT INFECTION
+- HCV DCLD
+
+Relevant Investigation:
+- HB 10.4
+- PLT 3.8
+- TLC 64
+- CREAT 1.3
+- UREA 40
+- ELECTROLYTES NA 134 K 4.7
+
+Hospital Course: Managed conservatively with fluids, PPI, nebulization, antibiotics, cough syrup and hydrocortisone; ECG and CXR done.
+Date of Surgery: N/A
+Operative Procedure: N/A
+Pending Reports: SPUTUM STUDIES GENE EXPERT AND AFB
+
+Medication on Discharge:
+- TAB MOFEST 400MG 1-0-0
+- NEB ATEM 4 HOURLY
+- TAB DELTACORT 2-2-0
+- TAB CARVEDA 6.25 MG 1/2-0-1/2
+- TAB NUBEROL 1-0-1
+- SYP PHYLLINE 1-1-1
+- TAB AEROKAST 10MG 1-0-0
+- SYP LILAC 30ML 1-0-0
+- VOLTRAL GEL
+- NILSTAT ORAL DROPS 4 TIMES
+
+Instruction on Discharge: TAKE MEDICATION ON TIME; PHYSIOTHERAPY SHOULDER VISIT AFTER 2 WEEKS IN OPD
+Follow-up: AFTER ONE WEEK
+Discharge Status: DOR
+
+--- Image 74 | 2024-01-09 | discharge summary ---
+Discharge Summary
+Admission Date: 06/01/2024
+Discharge Summary Date: 09/01/2024
+
+Presenting Complaints: 75 years old female admitted with right abdominal pain, generalized weakness, anemia; no history of melena and hematemesis.
+
+Diagnosis (as printed):
+- IRON DEFICIENCY ANEMIA, AKI
+- DISC COMPRESSION
+- K/C HCV, DECOMPENSATED CIRRHOSIS
+
+Relevant Investigation:
+- HB 10.2, TLC 4.0, PLATELETS 30
+- CREATININE 1.5; CALCIUM 8.1; UREA 46
+- NA 136, K 5.2, CL 108, BICARB 16.7
+- ALBUMIN 2.8
+- PT 16.3, INR 1.2
+- T.BILIRUBIN 0.36; DIRECT 0.20; INDIRECT 0.16
+- AST 45, ALT 21, ALP 83, GGT 35
+- CRP 16.9
+- ULTRASOUND ABDOMEN: NORMAL
+
+Hospital Course: HB 5.4 on admission baseline labs; no melena/hematemesis; after 2 pint PCV transfusion HB 11.0 then next day HB 10.2; endoscopy advised but family refused; inpatient meds included INJ EZIUM 40MG IV OD, INJ ONSET 8MG IV OD, TAB NUBEROL PRN pain, INJ CEFTRO 2G IV OD, INJ TRAMAL + METACLON IV OD, TAB SOFTIN 10MG 1-0-0, SYP DUPHALAC 30ML HS, TAB OSONATE D 1-0-0.
+
+Date of Surgery: —
+Operative Procedure: —
+Pending Reports: —
+
+Medication on Discharge:
+- CAP CEFSPAN 400MG 1-0-0 FOR 5 DAYS
+- TAB SOFTIN 10MG 0-0-1
+- CAP EZIUM 40MG 1-0-0
+- TAB OSONATE D 1-0-0
+- TAB NUBEROL 1-0-0
+- TAB MOTILIUM 1-1-1
+- TAB DRATE ONCE WEEKLY BEFORE BREAKFAST
+- SYP DUPHALAC 30ML HS
+- INJ INDROP-D 200000IU 1 STAT
+
+Instruction on Discharge: NEUROPHYSICIAN REVIEW ADVISE FOR DISC COMPRESSION
+Follow-up: AFTER 15 DAYS
+Discharge Status: DOR
+
+--- Image 75 | 2026-04-23 | clinical note ---
+Form: PATIENT TRIAGE / ER ASSESSMENT (Page 1 of 2; form rev Aug 2024 Rev #01)
+Date: 23/04/2026  Time: 1pm
+Patient Referred From: With Family (checked)
+
+Complaint: Admitted to ER with abdominal pain and loose stool for 1 week.
+History: Fever on/off for 15 days; backache and cough for 1 month; K/c HTN, HCV, DCLD.
+
+Vitals:
+- RBS: 137 mg/dL
+- Pulse: 76 b/min
+- Temp: 100°F
+- BP: 100/60 mmHg
+- RR: 20 /min
+- SPO2: 100%
+- GCS: 15/15
+
+Investigations ordered: ECG, CBC, U/C/E, LFT, PT/INR, S-Albumin, MP ICT, Dengue NS1, CRP, CXR, U/S Abdomen.
+
+On Examination:
+- Chest: B/L wheeze
+- Abdomen: Soft, non-tender (SNT)
+- CVS: S1+S2+0
+- CNS: Intact
+- Obstetrics & Gynaecology: Not relevant
+
+ER Treatment & Procedure:
+- IV Cannulation
+- Nebulization with atem + clinil
+- Inj. Risek 40mg IV stat
+- Inj. Nospa IV stat
+- Inj. Flagyl 100ml IV stat
+- Inj. Bofalgan IV stat
+- Inj. R/L 500ml IV stat
+
+Disposition: Transfer to Isolation (unit/room number redacted)
+
+--- Image 76 | 2026-04-23 | clinical note ---
+Form: PHYSICIAN ORDERS
+Date: 23/04/2026  Time: 2:00 pm
+
+Active/past conditions noted: HCV CLD (decompensated); PSE; UGIB; HTN; COPD; CAD; DM; TB; EGD few years back.
+Negative/absent: ascites (marked X); malaria; urinary symptoms; hematemesis; hemoptysis (null marks).
+
+Presenting complaints (CO):
+- Altered sleep pattern
+- Fever >2 weeks
+- Cough / SOB for 2 weeks
+- Abdomen: cramps and occasional diarrhea
+
+Impression: Seems pneumonia
+
+Exam:
+- Chest: Coarse crepitations L lower > R lower
+- Abdomen: Soft, NT; no rebound
+- GCS 15/15
+- Vitals: Stable; febrile
+
+Workup plan: CTP Score; U/S Abd; ECG; CXR; Echo; CURB-65
+
+Orders:
+1. Inj R/L at 60 ml/h
+2. Inj Ceftriaxone 2gm IV OD
+3. Inj Avelox 400mg IV OD
+4. Nebs atom + clenil every 6 hours
+5. Inj Aminoleban 500mg IV OD (handwriting ambiguous; transcribed as Aminoleban)
+6. Inj Provas 1gm IV SOS

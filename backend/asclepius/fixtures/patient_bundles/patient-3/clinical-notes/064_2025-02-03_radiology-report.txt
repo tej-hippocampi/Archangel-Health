@@ -1,0 +1,21 @@
+Document index: 64
+Document type: radiology report
+Service date: 2025-02-03
+Age on report: 77Y    Sex: F
+De-identification: Omitted facility/header (green redaction); sonologist/Ref. By blank/omitted
+
+CONTENT
+----------------------------------------
+Modality: ULTRASOUND ABDOMEN (Portable)
+Timestamp: 03/02/2025 21:04:45
+
+LIVER: Normal in size; increased echopattern & slightly irregular outlines. No focal mass. IHVs & ducts not dilated. P.V=1.0 cm; CBD not dilated.
+Impression: Liver Parenchymal Disease
+G. BLADDER: Contracted at time of scan.
+SPLEEN: Upper limit normal, 12.0 cm; no focal mass.
+PANCREAS: Visualized part (body) appears normal; no focal mass.
+RIGHT KIDNEY: Normal size, shape & echopattern; no focal mass, calculus or hydronephrosis.
+LEFT KIDNEY: Small in size, 7.6 x 2.7 cm; no focal mass, calculus or hydronephrosis.
+Impression: Small Left Kidney
+U. BLADDER: Normal; no focal mass or calculus.
+Bowel loops not dilated. Ascites not seen.

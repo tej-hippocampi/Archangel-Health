@@ -1,0 +1,30 @@
+Document index: 40
+Document type: other
+Service date: 2023-08-17
+Age on report: 39Y    Sex: M
+De-identification: patient name, address, referring physician, and "procedure performed by" name/signature redacted with green marker and omitted.
+
+CONTENT
+----------------------------------------
+Endoscopy Suite - ERCP procedure report. Location: OPD.
+Medication (Conscious Sedation): INJ Dormicum 01 cc & INJ KI(?)... ; GI Trainee: NIL; Instrument: TJF 160 OLYMPUS
+INDICATION FOR EXAMINATION: Obstructive Jaundice
+PROCEDURE TECHNIQUE: Scope passed up to D2.
+(Handwritten) Esophagus: 3 columns of grade II varices.
+FINDING:
+Previously blocked CBD stent removed.
+Cholangiogram showed multiple filling defects (stones) with moderately dilated CBD.
+Sphincterotomy extended. Balloon sweep done, multiple stones removed. However there was CBD narrowing seen at mid and distal CBD suspicious of stricture.
+10FR/10CM plastic stent placed for biliary drainage.
+Free flow of bile seen.
+Pancreatic duct not opacified.
+ENDOSCOPIC DIAGNOSIS:
+S/P blocked CBD stent removed.
+Moderately dilated CBD with stones.
+S/P sphincterotomy + S/P balloon sweep.
+S/P stones removed.
+Narrowing at mid and distal CBD (suspicious of stricture).
+S/P stenting.
+AFTER ENDOSCOPY (Medication): Antibiotic. IV fluid.
+RECOMMENDATION: NPO for 4 hours. Monitor for abdominal pain.
+(Images: Sphincterotomy, CBD C-arm, CBD stones C-arm, CBD stones, Stent)
