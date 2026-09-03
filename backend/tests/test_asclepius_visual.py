@@ -753,3 +753,150 @@ def test_the_case_toggle_is_one_horizontal_control_that_never_moves(browser, pag
         )
     finally:
         pg.close()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  The admin console (PRD-F R9)
+#
+#  The console is its own page now, so the harness for it loads the SHIPPED
+#  bundles and lets them boot rather than extracting renderers and re-assembling
+#  them. The two general guards above run against it because they are general:
+#  an off-palette control or a capitalize rule Title-Casing prose is exactly as
+#  wrong on an operator's screen as on a physician's, and until this PR the
+#  console had no rendered-appearance coverage at all.
+# ═════════════════════════════════════════════════════════════════════════════
+@pytest.fixture(scope="module")
+def admin_page_url(tmp_path_factory) -> str:
+    return "file://" + str(harness.build_admin(tmp_path_factory.mktemp("asc_admin")))
+
+
+@pytest.fixture
+def admin_page(browser, admin_page_url):
+    pg = browser.new_page(viewport={"width": 1280, "height": 1000})
+    errors: list = []
+    pg.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
+    pg.on("console", lambda m: errors.append(f"console.{m.type}: {m.text}")
+          if m.type == "error" else None)
+    pg.goto(admin_page_url)
+    try:
+        pg.wait_for_selector(".asc-pcard", timeout=5000)
+    except Exception as exc:                                      # noqa: BLE001
+        pg.close()
+        raise AssertionError(
+            "the admin harness rendered nothing — the console never produced "
+            f".asc-pcard. Console: {errors}"
+        ) from exc
+    pg.errors = errors                                            # type: ignore[attr-defined]
+    yield pg
+    pg.close()
+
+
+def test_the_admin_harness_actually_booted_the_console(admin_page):
+    """Same reason as the portal's harness-sanity test: if this page ever comes
+    up blank, every assertion below passes vacuously, because empty collections
+    satisfy "no offenders"."""
+    assert admin_page.locator(".asc-admin-bar").is_visible()
+    assert admin_page.locator(".asc-admin-tab").count() == 6
+    assert admin_page.locator(".asc-pcard").count() == 6
+    assert not admin_page.errors, admin_page.errors
+
+
+def test_no_off_palette_colour_is_painted_on_the_console(admin_page):
+    """The console shares the product's tokens and forks no palette. A blue
+    here would be the same two things it is on the physician surface: a
+    user-agent default that escaped, or a token from another product."""
+    painted = _blue_pixels(admin_page.screenshot(full_page=True))
+    assert painted <= _BLUE_PIXEL_TOLERANCE, (
+        f"{painted} off-palette blue pixels are painted on the admin console "
+        f"(tolerance {_BLUE_PIXEL_TOLERANCE} for antialiasing)."
+    )
+    declared = admin_page.evaluate(
+        """(props) => {
+          const out = [];
+          for (const el of document.querySelectorAll('*')) {
+            const cs = getComputedStyle(el);
+            for (const p of props) {
+              const v = cs[p];
+              if (v) out.push({
+                sel: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
+                       ? '.' + el.className.trim().split(/\\s+/).join('.') : ''),
+                prop: p, value: v,
+              });
+            }
+          }
+          return out;
+        }""",
+        list(_COLOUR_PROPS),
+    )
+    blues = [d for d in declared if _is_off_palette_blue(d["value"])]
+    assert not blues, (
+        "off-palette colour declared on the console:\n  "
+        + "\n  ".join(f"{d['sel']} {d['prop']}: {d['value']}" for d in blues[:12])
+    )
+
+
+def test_no_capitalize_rule_mangles_a_sentence_on_the_console(admin_page):
+    """The console is denser in prose than the portal — card subtitles, empty
+    states, the reasons a control is refused — so it has more surface for this
+    defect, not less."""
+    offenders = admin_page.evaluate(
+        """() => {
+          const out = [];
+          for (const el of document.querySelectorAll('*')) {
+            if (getComputedStyle(el).textTransform !== 'capitalize') continue;
+            const own = Array.from(el.childNodes)
+              .filter((n) => n.nodeType === 3).map((n) => n.nodeValue).join('').trim();
+            if (own.split(/\\s+/).filter(Boolean).length > 2) {
+              out.push({ sel: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
+                           ? '.' + el.className.trim().split(/\\s+/).join('.') : ''), text: own });
+            }
+          }
+          return out;
+        }"""
+    )
+    assert not offenders, (
+        "text-transform: capitalize is Title-Casing prose on the console:\n  "
+        + "\n  ".join(f"{o['sel']}: {o['text']!r}" for o in offenders)
+    )
+
+
+def test_the_card_gallery_is_a_grid_and_not_a_column(admin_page):
+    """R7's whole claim is that the roster is a WALL of cards, and the way that
+    silently stops being true is the grid collapsing: a mistyped
+    ``minmax()``, a card that overflows its track, or a stray ``width: 100%``
+    turns six cards into six full-width rows. Nothing in the source says
+    "column" when that happens, and the DOM is identical either way — only the
+    geometry differs, which is why this assertion lives here.
+
+    Mutation-checked against ``grid-template-columns: 1fr``.
+    """
+    tops = admin_page.evaluate(
+        """() => Array.from(document.querySelectorAll('.asc-pcard'))
+             .map((el) => { const r = el.getBoundingClientRect();
+                            return { top: Math.round(r.top), left: Math.round(r.left),
+                                     width: Math.round(r.width) }; })"""
+    )
+    assert len(tops) == 6
+    first_row = [c for c in tops if c["top"] == tops[0]["top"]]
+    assert len(first_row) >= 2, (
+        "the card gallery collapsed to a single column at 1280px: every card "
+        f"is on its own row ({tops})"
+    )
+    # And a card is a card, not a banner: at this width the grid should fit
+    # three or four across, so no single card may take the full content width.
+    content = admin_page.evaluate(
+        "() => Math.round(document.querySelector('.asc-gallery').getBoundingClientRect().width)")
+    assert max(c["width"] for c in tops) < content * 0.6, (
+        "a gallery card is nearly the full content width, which is a collapsed "
+        "grid wearing a grid's markup")
+
+
+def test_the_console_never_scrolls_horizontally(admin_page):
+    """An operator scrolling sideways to reach a control is the failure mode the
+    old eleven-column table had, and the masthead is a flex row that would
+    reintroduce it the first time a tab label grows."""
+    overflow = admin_page.evaluate(
+        """() => ({ doc: document.documentElement.scrollWidth,
+                    view: document.documentElement.clientWidth })"""
+    )
+    assert overflow["doc"] <= overflow["view"] + 1, overflow

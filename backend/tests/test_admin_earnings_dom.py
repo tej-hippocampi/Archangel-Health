@@ -10,9 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 
 _FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
-_PORTAL_JS = _FRONTEND / "asclepius.js"
+# PRD-F moved the console shell into its own bundle on its own page. The IA it
+# asserts is unchanged; only the file that holds it moved.
+_PORTAL_JS = _FRONTEND / "admin_shell.js"
 _MONEY_JS = _FRONTEND / "admin_earnings.js"
-_INDEX = _FRONTEND / "index.html"
+_ADMIN_HTML = _FRONTEND / "admin.html"
 
 
 
@@ -40,7 +42,8 @@ def _strip_js_comments(source: str) -> str:
 def test_the_console_has_four_sections_and_the_old_ids_still_route():
     src = _PORTAL_JS.read_text(encoding="utf-8")
     # Admin Launch §1.1 renames the LABELS; the state keys 'work' and 'money'
-    # are read in ~12 places and must not move.
+    # are read in ~12 places and must not move. PRD-F added Community and
+    # Referrals beside them and renamed nothing.
     for pair in ("['physicians', 'Physicians']", "['work', 'Tasks']",
                  "['money', 'Money and Metrics']", "['data', 'Data']"):
         assert pair in src, pair
@@ -52,7 +55,7 @@ def test_the_console_has_four_sections_and_the_old_ids_still_route():
 
 
 def test_the_money_module_is_registered_and_mounted():
-    assert "admin_earnings.js" in _INDEX.read_text(encoding="utf-8")
+    assert "admin_earnings.js" in _ADMIN_HTML.read_text(encoding="utf-8")
     src = _PORTAL_JS.read_text(encoding="utf-8")
     assert "window.AdminEarningsSection" in src
     assert "renderAdminMoneySection" in src

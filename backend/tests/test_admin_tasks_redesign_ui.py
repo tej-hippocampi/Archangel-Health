@@ -36,7 +36,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 _FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
 _SHIM = pathlib.Path(__file__).resolve().parent / "_asclepius_dom.js"
-JS = (_FRONTEND / "asclepius.js").read_text()
+# PRD-F moved the console out of the physician bundle. These pages are the same
+# code they were, in a new file; every assertion below is unchanged.
+JS = (_FRONTEND / "admin_shell.js").read_text()
+PORTAL_JS = (_FRONTEND / "asclepius.js").read_text()
 CSS = "\n".join((_FRONTEND / f).read_text()
                 for f in ("asclepius.css", "admin.css", "_base.css", "_tokens.css"))
 
@@ -602,14 +605,16 @@ def test_grade_real_survived_the_removal_of_the_tasks_table():
     "Load REAL de-identified cases (V4)",
 ])
 def test_the_removed_cards_are_gone_from_the_client(gone):
-    assert gone not in JS, f"{gone!r} is still rendered"
+    """Checked against BOTH bundles: the console moved to its own file in
+    PRD-F, and a card that came back on either surface is the same defect."""
+    assert gone not in JS + PORTAL_JS, f"{gone!r} is still rendered"
 
 
 @pytest.mark.parametrize("dead", ["loadTasksTable", "loadSeedCorpus", "loadGenerationJobs"])
 def test_the_helpers_that_only_served_removed_cards_are_deleted(dead):
     """Dead render code outlives its card and is the thing a later reader
     restores by accident."""
-    assert dead not in JS
+    assert dead not in JS + PORTAL_JS
 
 
 def test_frontier_model_failures_lives_on_metrics():

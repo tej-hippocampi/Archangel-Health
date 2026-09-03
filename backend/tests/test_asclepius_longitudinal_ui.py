@@ -40,6 +40,11 @@ CSS_PATH = _FRONTEND / "asclepius.css"
 DOM_SHIM = pathlib.Path(__file__).resolve().parent / "_asclepius_dom.js"
 
 JS = JS_PATH.read_text(encoding="utf-8")
+# The admin half of this feature (the plan modal, the density line) moved to
+# the console's own bundle with PRD-F. Same renderers, different file, so the
+# extractors below look in both rather than pinning either.
+ADMIN_JS = (_FRONTEND / "admin_shell.js").read_text(encoding="utf-8")
+_SOURCES = (JS, ADMIN_JS)
 CSS = CSS_PATH.read_text(encoding="utf-8")
 
 _LINE_COMMENT = re.compile(r"^\s*//.*$", re.M)
@@ -73,10 +78,13 @@ def _extract_function(src: str, name: str) -> str:
 
 
 def _body_of(name: str) -> str:
-    return _extract_function(JS, name)
+    for src in _SOURCES:
+        if f"function {name}(" in src:
+            return _extract_function(src, name)
+    raise AssertionError(f"no bundle defines {name}")
 
 
-JS_CODE = _code(JS)
+JS_CODE = _code(JS + "\n" + ADMIN_JS)
 
 
 def _run_node(script: str) -> dict:
@@ -139,7 +147,7 @@ def _const(name: str) -> str:
 
 
 def _harness(names, body: str) -> dict:
-    funcs = "\n".join(_extract_function(JS, n) for n in names)
+    funcs = "\n".join(_body_of(n) for n in names)
     return _run_node(
         _PRELUDE.format(dom=str(DOM_SHIM), funcs=funcs, consts=_const("SELF_SCORE_CHOICES"))
         + "\n" + body)
