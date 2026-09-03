@@ -2583,6 +2583,46 @@ class TeamStore:
             )
             return int(cur.lastrowid)
 
+    def list_lead_submissions(
+        self,
+        *,
+        source: Optional[str] = None,
+        limit: int = 50,
+        before_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Landing lead submissions, newest first, for the admin console.
+
+        The table has been write-only since it was created: every submission is
+        an attestation about authority over de-identified data, which makes it a
+        legal audit trail, and an audit trail nobody can read is a file nobody
+        keeps. This is the reader.
+
+        Keyset paging on ``id`` rather than OFFSET because a form that is still
+        accepting submissions shifts every offset under the reader, so page two
+        would repeat rows page one already showed.
+
+        ``user_agent`` and ``client_ip`` are stored but NOT returned. They exist
+        for abuse forensics on a public form, and the console's job is to show
+        an operator who wrote in and what they said.
+        """
+        clauses = []
+        params: List[Any] = []
+        if source:
+            clauses.append("source = ?")
+            params.append(source)
+        if before_id is not None:
+            clauses.append("id < ?")
+            params.append(int(before_id))
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        params.append(max(1, min(int(limit), 200)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, source, email, message, created_at FROM lead_submissions"
+                + where + " ORDER BY id DESC LIMIT ?",
+                tuple(params),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_latest_preop_intake_submission(self, patient_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(

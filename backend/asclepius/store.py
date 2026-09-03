@@ -3201,6 +3201,78 @@ class AsclepiusStore:
                 "CREATE INDEX IF NOT EXISTS idx_task_notify_status ON task_notify_outbox(status)"
             )
 
+            # ── Health-system data requests (broadcast + outbox) ─────────────
+            # "We need 100 nephrology cases", sent to every partner who has
+            # signed and may upload. A request is an INVITATION, not a lock:
+            # several partners may answer one request and the admin approves
+            # what fulfils it, so there is no claiming state here and none is
+            # coming. ``status`` is open/fulfilled/withdrawn and closing is a
+            # human act, which is why ``closed_reason`` is stored rather than
+            # inferred.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_data_requests (
+                    id            TEXT PRIMARY KEY,
+                    title         TEXT NOT NULL,
+                    specialty     TEXT NOT NULL,
+                    case_count    INTEGER NOT NULL,
+                    due_date      TEXT,
+                    details       TEXT,
+                    status        TEXT NOT NULL DEFAULT 'open',
+                    created_by    TEXT NOT NULL,
+                    created_at    TEXT NOT NULL,
+                    closed_at     TEXT,
+                    closed_reason TEXT
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_hs_data_requests_status "
+                "ON hs_data_requests(status, created_at)"
+            )
+            # The same durable-outbox shape as task_notify_outbox, for the same
+            # reason and drained on the same tick: one broadcast is up to
+            # (partners x members) letters, which must never run inline in the
+            # admin's request, and a worker that dies mid-send has to leave the
+            # tail recoverable rather than lost. The idempotency key is what
+            # makes re-broadcasting a request enqueue nothing.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_request_outbox (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    request_id      TEXT NOT NULL,
+                    hs_id           TEXT NOT NULL,
+                    recipient_email TEXT NOT NULL,
+                    status          TEXT NOT NULL DEFAULT 'pending',
+                    send_attempts   INTEGER NOT NULL DEFAULT 0,
+                    last_error      TEXT,
+                    sent_at         TEXT,
+                    created_at      TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_hs_request_outbox_status "
+                "ON hs_request_outbox(status)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_hs_request_outbox_request "
+                "ON hs_request_outbox(request_id)"
+            )
+            # Which request an upload answers, when it answers one at all.
+            # Nullable and it stays nullable: most uploads predate or ignore
+            # every request, and a partner who just sends us data must not meet
+            # a new precondition because a broadcast feature shipped.
+            if "request_id" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN request_id TEXT")
+            # The chunked door declares a session first and produces the upload
+            # minutes later, so the request it answers is parked on the session
+            # and copied across at complete. Carrying it any other way would
+            # mean trusting the completing request to re-name it.
+            if "request_id" not in cols("ingest_upload_sessions"):
+                conn.execute("ALTER TABLE ingest_upload_sessions ADD COLUMN request_id TEXT")
+
             # Onboarding v2 §0.1: platform media — one row per named SLOT
             # ('onboarding_demo' is the only one today), pointing at a blob in
             # the content-addressed asset store. The bytes never live here; a
@@ -4634,6 +4706,154 @@ class AsclepiusStore:
                 "send_attempts = send_attempts + 1 WHERE id = ?",
                 (error, notification_id),
             )
+
+    # ─── Health-system data requests + their broadcast outbox ────────────────
+    #: The two ways a request stops being open. Both are an operator's decision,
+    #: which is why neither is derived: a request whose case count is met is not
+    #: fulfilled until a person says the cases were good enough to take.
+    HS_REQUEST_CLOSE_REASONS = ("fulfilled", "withdrawn")
+
+    def create_hs_data_request(
+        self, *, title: str, specialty: str, case_count: int,
+        due_date: Optional[str], details: Optional[str], created_by: str,
+    ) -> Dict[str, Any]:
+        rid = _new_id("hsreq")
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO hs_data_requests
+                  (id, title, specialty, case_count, due_date, details,
+                   status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                """,
+                (rid, title, specialty, int(case_count), due_date or None,
+                 details or None, created_by, _utcnow_iso()),
+            )
+        return self.get_hs_data_request(rid) or {}
+
+    def get_hs_data_request(self, request_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_data_requests WHERE id = ?", (request_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_hs_data_requests(self, *, status: Optional[str] = None,
+                              limit: int = 200) -> List[Dict[str, Any]]:
+        """Newest first. ``status=None`` means every request, which is what the
+        admin side wants: a closed request stays queryable forever because it is
+        the record of what we asked for and when."""
+        with self._conn() as conn:
+            if status:
+                rows = conn.execute(
+                    "SELECT * FROM hs_data_requests WHERE status = ? "
+                    "ORDER BY created_at DESC, id DESC LIMIT ?", (status, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM hs_data_requests "
+                    "ORDER BY created_at DESC, id DESC LIMIT ?", (limit,),
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    def close_hs_data_request(self, request_id: str, *, reason: str) -> bool:
+        """Close an OPEN request. Returns False if it was already closed, so a
+        double click is a no-op rather than a second close that overwrites the
+        first one's reason and timestamp."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE hs_data_requests SET status = ?, closed_at = ?, "
+                "closed_reason = ? WHERE id = ? AND status = 'open'",
+                (reason, _utcnow_iso(), reason, request_id),
+            )
+            return bool(cur.rowcount)
+
+    def enqueue_hs_request_notification(
+        self, *, idempotency_key: str, request_id: str, hs_id: str,
+        recipient_email: str,
+    ) -> Optional[int]:
+        """Insert a pending outbox row, deduped on ``idempotency_key`` (one letter
+        per member per organization per request). Returns the new row id, or None
+        if this (request, organization, recipient) was already enqueued."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO hs_request_outbox
+                  (idempotency_key, request_id, hs_id, recipient_email,
+                   status, created_at)
+                VALUES (?, ?, ?, ?, 'pending', ?)
+                """,
+                (idempotency_key, request_id, hs_id, recipient_email, _utcnow_iso()),
+            )
+            return int(cur.lastrowid) if cur.rowcount else None
+
+    def list_pending_hs_request_notifications(self, limit: int = 500) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_request_outbox WHERE status = 'pending' "
+                "ORDER BY created_at ASC, id ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def list_hs_request_outbox(self, request_id: str) -> List[Dict[str, Any]]:
+        """Every outbox row for one request, whatever its status. The admin's
+        delivery tally reads this; nothing else should, because a pending row is
+        an intent and only ``sent`` is a fact."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_request_outbox WHERE request_id = ? "
+                "ORDER BY id ASC", (request_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def mark_hs_request_notification_sent(self, notification_id: int) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_request_outbox SET status = 'sent', sent_at = ?, "
+                "send_attempts = send_attempts + 1 WHERE id = ?",
+                (_utcnow_iso(), notification_id),
+            )
+
+    def mark_hs_request_notification_failed(self, notification_id: int, error: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_request_outbox SET status = 'failed', last_error = ?, "
+                "send_attempts = send_attempts + 1 WHERE id = ?",
+                (error, notification_id),
+            )
+
+    def set_upload_request(self, upload_id: str, request_id: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET request_id = ? WHERE upload_id = ?",
+                (request_id or None, upload_id),
+            )
+
+    def set_upload_session_request(self, session_id: str,
+                                   request_id: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_upload_sessions SET request_id = ? WHERE session_id = ?",
+                (request_id or None, session_id),
+            )
+
+    def list_uploads_for_request(self, request_id: str,
+                                 *, limit: int = 500) -> List[Dict[str, Any]]:
+        """Every upload tagged with this request, newest first, across partners.
+        The admin's fulfilment view groups these by health system; grouping in
+        SQL would need a second query to name the systems anyway."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_uploads WHERE request_id = ? "
+                "ORDER BY created_at DESC LIMIT ?", (request_id, limit),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["files"] = json.loads(d.pop("files_json") or "[]")
+            out.append(d)
+        return out
 
     # ─── Real EHR ingestion (EHR PRD §4, §5, §8) ─────────────────────────────
     def create_upload_link(

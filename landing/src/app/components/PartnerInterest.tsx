@@ -9,6 +9,7 @@ import {
   TextField,
 } from "./onboarding/primitives";
 import * as authApi from "@/lib/auth-api";
+import { PARTNER_BOOKING_URL } from "../config";
 
 /**
  * /partner — the link that goes at the bottom of the health-system one-pager.
@@ -26,12 +27,11 @@ import * as authApi from "@/lib/auth-api";
  * the onboarding primitives that /join already uses.
  */
 
-/* The connected Calendly account: "Quick Meeting", 20 minutes, Google Meet.
-   The `month` param is carried through as given. Calendly treats it as the
-   month to OPEN on rather than the only month it will show, and pages forward
-   on its own, so a month in the past does not strand anyone. */
-const CALENDLY_BASE =
-  "https://calendly.com/aryaabhatia-berkeley/new-meeting?month=2026-03";
+/* The booking link comes from the shared landing config, which reads
+   VITE_CALENDLY_URL and falls back to the constant this file used to hold.
+   Moved out because a second component shipped its own hardcoded Calendly
+   account and neither copy knew about the other. */
+const CALENDLY_BASE = PARTNER_BOOKING_URL;
 
 function calendlyUrl(name: string, email: string): string {
   const q = new URLSearchParams();

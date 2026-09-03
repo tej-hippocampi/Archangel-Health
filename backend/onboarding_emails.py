@@ -2147,15 +2147,34 @@ def build_hs_access_email(*, organization: str, full_name: str, username: str,
 
 
 def build_hs_member_added_email(*, organization: str, added_by: str, username: str,
-                                temp_password: str, portal_url: str) -> str:
+                                temp_password: str, portal_url: str,
+                                awaiting_dla: bool = False) -> str:
     """Email 2 of 5: a colleague added you.
 
     Names who added them in the subject line and again in the first sentence. An
     unexpected credentials email from a company you have not heard of is
     indistinguishable from a phishing attempt; the name of a colleague is the
     single thing that makes it legible.
+
+    ``awaiting_dla`` closes a hole in the letter trail rather than adding a
+    flourish. Email 3 goes to every member the moment the organization is
+    approved; a member added AFTER that moment never existed when it was sent,
+    so they arrive holding credentials and no idea that a contract is sitting
+    unsigned. Same wording as ``build_hs_dla_request_email`` on purpose: two
+    descriptions of one agreement is how a signer decides they are being asked
+    for two things.
     """
     who = (added_by or "").strip() or "A colleague"
+    agreement = ""
+    if awaiting_dla:
+        agreement = (
+            _p("One thing is outstanding for your organization: the data "
+               "licensing agreement is rendered and waiting for a signature. "
+               "One person with signing authority signs it, once, on behalf of "
+               f"{_strong(organization)}. Uploading unlocks the moment it is "
+               "signed.")
+            + _cta(portal_url, "Read and sign →")
+        )
     body = (
         _eyebrow("Your portal access")
         + _h1(f"{html.escape(who)} added you.")
@@ -2164,6 +2183,7 @@ def build_hs_member_added_email(*, organization: str, added_by: str, username: s
         + _MISSION_BLOCK
         + _credentials_card(username=username, temp_password=temp_password)
         + _cta(portal_url, "Open your portal →")
+        + agreement
         + _bookmark_line(portal_url)
         + _SIGNED_OFF
     )
@@ -2257,6 +2277,47 @@ def build_hs_uploads_open_email(*, organization: str, portal_url: str,
         + _SIGNED_OFF
     )
     return _shell(subject=f"Uploads are open for {organization}", body_html=body)
+
+
+def build_hs_data_request_email(*, title: str, specialty_label: str,
+                                case_count: int, due_date: str, details: str,
+                                portal_url: str) -> str:
+    """A data request, to every member of every partner who may upload.
+
+    A plain what-we-need letter and nothing more: the specialty, the number, the
+    date, and whatever the operator typed. It says outright that several partners
+    are being asked and that we confirm what we take, because a request that
+    reads as exclusive turns an invitation into a race, and the first partner to
+    reply would be the only one who ever answered a second one.
+    """
+    noun = "case" if case_count == 1 else "cases"
+    rows = [
+        ("Specialty", specialty_label, False),
+        ("How many", f"{case_count} {noun}", False),
+    ]
+    if (due_date or "").strip():
+        rows.append(("Useful by", due_date.strip()[:10], True))
+    detail_block = ""
+    if (details or "").strip():
+        detail_block = _p(html.escape(details.strip()).replace("\n", "<br>"))
+    body = (
+        _eyebrow("Data request")
+        + _h1(html.escape(title))
+        + _p("We are looking for de-identified cases from our partner health "
+             "systems, and this is what we need right now.")
+        + _inset_card(_detail_rows(rows))
+        + detail_block
+        + _cta(portal_url, "Upload in your portal →")
+        + _p("Several partners are being asked for this, and more than one may "
+             "send cases. Nothing is reserved and nothing is first come first "
+             "served: our team reviews what arrives and confirms what we accept. "
+             "If you have nothing that fits, no reply is needed.",
+             muted=True, small=True)
+        + _p("Please make sure data is de-identified and date-shifted before it "
+             "reaches us.", muted=True, small=True)
+        + _SIGNED_OFF
+    )
+    return _shell(subject=f"Data request: {title}", body_html=body)
 
 
 def build_hs_application_alert(*, organization: str, hs_id: str, full_name: str,

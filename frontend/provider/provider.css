@@ -67,6 +67,31 @@
   max-width: 62ch;
 }
 
+/* What we have asked this organization for. One block per request, hairline
+   separated, sitting above the drop zone. Deliberately quiet: it is a prompt,
+   not an alert, and a partner who has nothing that fits should be able to
+   ignore it and upload whatever they came here to upload. */
+.prv-request { border-top: 1px solid var(--asc-line); }
+.prv-request:first-of-type { border-top: 0; }
+.prv-request-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.prv-request-meta {
+  font-size: 13px;
+  color: var(--asc-muted);
+}
+.prv-request-details {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--asc-muted);
+  white-space: pre-wrap;
+  max-width: 62ch;
+}
+
 .prv-grid {
   display: grid;
   grid-template-columns: 1.6fr 1fr;
@@ -277,6 +302,28 @@ body.prv-has-rail .prv-main { padding-left: calc(var(--asc-rail-w, 220px) + 8px)
   font-size: 13.5px;
   line-height: 1.6;
   color: var(--asc-muted);
+  max-width: 52ch;
+}
+/* The accrual line sits under the money stats and must not read as one of
+   them: a rule above it, and a size below the stat values, so a count is never
+   mistaken at a glance for a figure. */
+.prv-accrual {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--asc-line);
+}
+.prv-accrual-line {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.prv-accrual-note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-faint);
   max-width: 52ch;
 }
 

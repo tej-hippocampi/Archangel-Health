@@ -467,7 +467,85 @@
 
     refreshBtn.addEventListener("click", () => loadHistory());
 
+    loadRequests();
     loadHistory();
+  }
+
+  // ─── What we have asked this organization for ───────────────
+  //
+  // Above the drop zone because it is the reason a partner is on this screen
+  // when they are on it for a reason. Rendered only when something is open: a
+  // permanent "no open requests" panel is a permanent reminder of an absence,
+  // and this screen's job is to make sending data feel easy.
+  //
+  // A failure here is silent. The request list is a prompt, not a gate, and an
+  // error banner above the upload control would read as "uploading is broken"
+  // to a hospital IT contact who came here to send us a file.
+  async function loadRequests() {
+    const slot = document.getElementById("prvRequests");
+    if (!slot) return;
+    let data;
+    try {
+      data = await apiGet("/hs/requests");
+    } catch (e) {
+      // Including a 403, which `apiJson` reports as an AuthError. The upload
+      // screen is only reached by an account that may upload, so a refusal here
+      // means the ORGANIZATION's state changed under an open session -- and
+      // bouncing that partner to a login form over a panel they never asked for
+      // would read as being signed out for no reason.
+      return;
+    }
+    const requests = (data && Array.isArray(data.requests)) ? data.requests : [];
+    clear(slot);
+    if (!requests.length) return;
+
+    const card = document.createElement("section");
+    card.className = "asc-card prv-requests";
+    const head = document.createElement("div");
+    head.className = "asc-card-head";
+    const headInner = document.createElement("div");
+    const title = document.createElement("div");
+    title.className = "asc-card-title";
+    title.textContent = requests.length === 1
+      ? "We are looking for data"
+      : "We are looking for data (" + requests.length + " requests)";
+    const sub = document.createElement("div");
+    sub.className = "asc-card-sub";
+    // Straight from the server. The "several partners may answer" line is the
+    // one thing every request has to say, and it should not be possible to ship
+    // a client that forgets it.
+    sub.textContent = data.how_it_works || "";
+    headInner.appendChild(title);
+    headInner.appendChild(sub);
+    head.appendChild(headInner);
+    card.appendChild(head);
+
+    requests.forEach((r) => {
+      const body = document.createElement("div");
+      body.className = "asc-card-pad prv-request";
+      const line = document.createElement("div");
+      line.className = "prv-request-head";
+      const name = document.createElement("strong");
+      name.textContent = r.title || "";
+      const meta = document.createElement("span");
+      meta.className = "prv-request-meta";
+      meta.textContent = [
+        r.specialty,
+        r.case_count + (r.case_count === 1 ? " case" : " cases"),
+        r.due_date ? "useful by " + r.due_date : ""
+      ].filter(Boolean).join(" · ");
+      line.appendChild(name);
+      line.appendChild(meta);
+      body.appendChild(line);
+      if (r.details) {
+        const details = document.createElement("div");
+        details.className = "prv-request-details";
+        details.textContent = r.details;
+        body.appendChild(details);
+      }
+      card.appendChild(body);
+    });
+    slot.appendChild(card);
   }
 
   // ══════════════════════════════════════════════════════════
@@ -1494,6 +1572,8 @@
     summaryEl.appendChild(summaryStat("Paid", formatMoney(s.paid_cents)));
     summaryEl.appendChild(summaryStat("Awaiting payment", formatMoney(s.pending_cents)));
 
+    renderAccrual(data.accrual || {});
+
     renderInvoices(data.invoices || []);
 
     const rows = data.payouts || [];
@@ -1532,6 +1612,29 @@
       [when, what, period, status, amount].forEach((td) => tr.appendChild(td));
       bodyEl.appendChild(tr);
     });
+  }
+
+  // The one line between "we took your data" and "we paid you for it". A
+  // partner whose upload was accepted six weeks ago and whose ledger still reads
+  // zero has no way, without this, to tell acceptance from loss.
+  //
+  // COUNTS ONLY, and the server does the subtraction. Turning a count into a
+  // figure here would be this page inventing a price, which is the one thing
+  // §15 forbids and the one thing a finance contact would quote back at us.
+  function renderAccrual(accrual) {
+    const host = document.getElementById("prvPayoutAccrual");
+    if (!host) return;
+    const waiting = Number(accrual.awaiting_pricing || 0);
+    if (waiting <= 0) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    document.getElementById("prvPayoutAccrualLine").textContent =
+      waiting + (waiting === 1 ? " upload accepted" : " uploads accepted") +
+      " and awaiting pricing";
+    document.getElementById("prvPayoutAccrualNote").textContent =
+      accrual.note || "";
   }
 
   // What we have BILLED, as distinct from what we have PAID above. Drafts never

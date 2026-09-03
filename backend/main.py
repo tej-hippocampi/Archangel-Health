@@ -6689,12 +6689,18 @@ def _start_asclepius_task_notify_loop() -> None:
 
     Distinct from ``_task_notification_loop``, which drains the CareGuide/team
     patient-task queue on the other plane. Same idea, different outbox.
+
+    Drains the health-system data-request outbox on the same tick, deliberately
+    rather than from a second timer: two loops is two things that can silently
+    stop, and the second one stopping would be invisible until an operator asked
+    why a broadcast nobody received had no replies.
     """
     global _asclepius_task_notify_task
     if _asclepius_task_notify_task is not None and not _asclepius_task_notify_task.done():
         return
 
     async def _run() -> None:
+        from asclepius import hs_request_notify as _asc_hs_request_notify
         from asclepius import task_notify as _asc_task_notify
 
         while True:
@@ -6706,6 +6712,7 @@ def _start_asclepius_task_notify_loop() -> None:
                 # Sending is blocking (SendGrid over requests), so keep it off
                 # the event loop.
                 await asyncio.to_thread(_asc_task_notify.drain_outbox, store)
+                await asyncio.to_thread(_asc_hs_request_notify.drain_outbox, store)
             except Exception:  # pragma: no cover -- the loop must survive
                 _auth_logger.warning(
                     "[asclepius] task-notify drain failed", exc_info=True

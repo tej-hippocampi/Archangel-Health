@@ -194,3 +194,116 @@ def test_the_ledger_has_no_column_that_could_hold_a_payment_credential():
     bad = [n for n in names
            if re.search(r"bank|account_number|routing|iban|swift|tax_id|ssn|ein", n, re.I)]
     assert not bad, f"hs_payouts grew a payment-credential column: {bad}"
+
+
+# ─── Accrual: what we have taken, before anyone has priced it ────────────────
+
+def _accept_uploads(hs_id, count):
+    """Uploads the pipeline has finished with, which is what `accepted` means to
+    a partner. Inserted directly because the accrual line is about the state the
+    INGESTION pipeline lands on, not about how the bytes got here."""
+    store = _store()
+    for _ in range(count):
+        up = store.insert_ingest_upload(
+            link_id="hs-portal", partner_id=hs_id, filename="bundle.zip",
+            sha256=uuid.uuid4().hex * 2, size_bytes=1024, raw_path=None,
+            source_ip=None)
+        store.set_upload_health_system(up["upload_id"], hs_id)
+        store.update_ingest_upload(up["upload_id"], status="ingested")
+
+
+def test_accepted_uploads_are_visible_before_anything_is_priced():
+    """Pricing is manual and can take weeks. Without this line, a partner whose
+    data we accepted reads a ledger of zero and cannot tell acceptance from
+    loss, which is the support email this whole page exists to prevent."""
+    client, hs = _partner()
+    _accept_uploads(hs["hs_id"], 3)
+    accrual = client.get("/api/asclepius/hs/payouts").json()["accrual"]
+    assert accrual["accepted_uploads"] == 3
+    assert accrual["ledger_entries"] == 0
+    assert accrual["awaiting_pricing"] == 3
+
+
+def test_the_accrual_line_promises_no_amount():
+    """The one thing this line must never do. Nobody has priced these uploads,
+    so a figure here would be a number we invented on a page a hospital's
+    finance contact reads, and it would be quoted back at us."""
+    client, hs = _partner()
+    _accept_uploads(hs["hs_id"], 2)
+    accrual = client.get("/api/asclepius/hs/payouts").json()["accrual"]
+    assert not any(k.endswith("_cents") for k in accrual)
+    assert "$" not in accrual["note"]
+    # It says who does the pricing, so the reader knows what they are waiting on.
+    assert "prices" in accrual["note"] and "not an amount owed" in accrual["note"]
+
+
+def test_pricing_an_upload_closes_the_gap_it_opened():
+    """The line is a GAP, not a running total. An accepted upload that has been
+    turned into a ledger entry is no longer awaiting anything, and a line that
+    kept counting it would tell a partner they are owed for it twice."""
+    client, hs = _partner()
+    admin, headers = _admin_client()
+    _accept_uploads(hs["hs_id"], 2)
+    for ref in ("INV-1", "INV-2"):
+        assert admin.post(f"{ADMIN_BASE}/{hs['hs_id']}/payouts", headers=headers,
+                          json={"amount_cents": 50000, "external_ref": ref}
+                          ).status_code == 200
+    accrual = client.get("/api/asclepius/hs/payouts").json()["accrual"]
+    assert accrual["accepted_uploads"] == 2 and accrual["ledger_entries"] == 2
+    assert accrual["awaiting_pricing"] == 0
+
+
+def test_more_ledger_entries_than_uploads_never_goes_negative():
+    """An operator may price one upload into several rows, or record a payment
+    that predates the portal. Neither is an error, and neither may render as
+    "-2 uploads accepted and awaiting pricing"."""
+    client, hs = _partner()
+    admin, headers = _admin_client()
+    _accept_uploads(hs["hs_id"], 1)
+    for ref in ("INV-A", "INV-B", "INV-C"):
+        admin.post(f"{ADMIN_BASE}/{hs['hs_id']}/payouts", headers=headers,
+                   json={"amount_cents": 1000, "external_ref": ref})
+    accrual = client.get("/api/asclepius/hs/payouts").json()["accrual"]
+    assert accrual["awaiting_pricing"] == 0
+
+
+def test_the_accrual_counts_only_this_organizations_uploads():
+    """The same property the ledger holds: the route takes no identifier, so
+    neither may anything derived from it. A count that leaked across tenants
+    would tell one hospital how busy another one is."""
+    a_client, a_hs = _partner("Alpha Accrual")
+    b_client, b_hs = _partner("Beta Accrual")
+    _accept_uploads(a_hs["hs_id"], 4)
+    assert a_client.get("/api/asclepius/hs/payouts").json()["accrual"][
+        "accepted_uploads"] == 4
+    assert b_client.get("/api/asclepius/hs/payouts").json()["accrual"][
+        "accepted_uploads"] == 0
+
+
+# ─── The line as rendered ────────────────────────────────────────────────────
+
+PORTAL_DIR = Path(__file__).resolve().parents[2] / "frontend" / "provider"
+
+
+def test_the_portal_renders_the_accrual_line_and_hides_it_when_there_is_no_gap():
+    """Source-level, following ``test_hs_signin_split``: there is no jsdom here,
+    and what actually breaks is somebody deleting the branch that hides the line.
+    "0 uploads accepted and awaiting pricing" is a sentence that only worries the
+    reader, so the zero case must stay hidden rather than merely read oddly."""
+    js = (PORTAL_DIR / "provider.js").read_text(encoding="utf-8")
+    assert "renderAccrual(data.accrual || {})" in js, "the line is never rendered"
+    assert "awaiting_pricing" in js
+    assert "and awaiting pricing" in js
+    assert "host.hidden = true" in js, "the zero case is not hidden"
+    # Counts only. The page must not turn a count into a figure of its own.
+    assert "formatMoney(accrual" not in js
+
+
+def test_every_class_the_accrual_line_uses_has_a_rule():
+    """A class with no rule renders as unstyled text in the middle of a money
+    page, which is exactly where it reads as a bug rather than as a line."""
+    css = (PORTAL_DIR / "provider.css").read_text(encoding="utf-8")
+    html = (PORTAL_DIR / "index.html").read_text(encoding="utf-8")
+    for cls in ("prv-accrual", "prv-accrual-line", "prv-accrual-note"):
+        assert f"class=\"{cls}\"" in html, f"{cls} is not on any element"
+        assert f".{cls}" in css, f"{cls} has no rule in provider.css"

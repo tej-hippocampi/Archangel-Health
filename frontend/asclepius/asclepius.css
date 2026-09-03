@@ -4351,6 +4351,39 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   margin: var(--sp-2) 0 var(--sp-3);
 }
 
+/* ─── Partner leads and data requests ──────────────────────────────────────
+   Both are lists of blocks separated by a hairline rather than tables: a lead
+   carries a paragraph of prose an organization typed, and a request carries
+   free text an operator typed, and neither survives a table column. Same
+   separator treatment as .asc-hs-signup above, for the same reason. */
+.asc-hs-lead { border-top: 1px solid var(--hairline); }
+.asc-hs-lead:first-of-type { border-top: 0; }
+.asc-hs-lead-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+/* Their words, unwrapped and unshortened: a submission is an attestation
+   about authority over data, and a truncated attestation is not one. */
+.asc-hs-lead-message {
+  color: var(--ink-soft);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  margin-bottom: var(--sp-2);
+}
+
+.asc-hs-request { border-top: 1px solid var(--hairline); }
+.asc-hs-request:first-of-type { border-top: 0; }
+.asc-hs-request-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
 @media (max-width: 760px) {
   .asc-hs-intake-row { grid-template-columns: 1fr; gap: 2px; }
 }
