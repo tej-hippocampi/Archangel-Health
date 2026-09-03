@@ -84,6 +84,17 @@ def _reviewer():
     return store.get_user_by_id(u["id"])
 
 
+def _sign(doc):
+    """Sign the contributor agreement as this physician. A 'false' finding is
+    only recordable against a signed version (no terms, no consequence), so
+    every test that records one signs first, the way a real labeler has."""
+    r = client.post("/api/asclepius/me/agreement/sign",
+                    json={"typed_name": "Dr. Test Signer", "signed_initials": "TS",
+                          "consent_esign": True},
+                    headers=A.headers_for(doc))
+    assert r.status_code == 200, r.text
+
+
 def _create_task(admin_h):
     body = {
         "specialty": "nephrology", "difficulty": "hard", "capture_reasoning": False,
@@ -277,6 +288,7 @@ def test_a_falsely_attested_case_is_voided_rather_than_paid():
     physician must never see a number move without an explanation."""
     admin_h = A.headers_for(_admin())
     doc = _labeler()
+    _sign(doc)
     sid, _ = _submit(_create_task(admin_h), doc,
                      prompt_review={"reviewed": True, "verdict": "valid",
                                     "attest_clinically_valid": True})
@@ -302,6 +314,7 @@ def test_a_finding_recorded_before_the_ledger_row_exists_still_bites():
     a case slip through whenever an admin was faster than an Earnings page."""
     admin_h = A.headers_for(_admin())
     doc = _labeler()
+    _sign(doc)
     sid, _ = _submit(_create_task(admin_h), doc,
                      prompt_review={"reviewed": True, "verdict": "valid",
                                     "attest_clinically_valid": True})
@@ -320,6 +333,7 @@ def test_an_accepting_verdict_never_restores_a_falsely_attested_case():
     that the case should never have been labelled at all."""
     admin_h = A.headers_for(_admin())
     doc = _labeler()
+    _sign(doc)
     sid, _ = _submit(_create_task(admin_h), doc,
                      prompt_review={"reviewed": True, "verdict": "valid",
                                     "attest_clinically_valid": True})
@@ -340,6 +354,7 @@ def test_a_payment_already_settled_is_never_restated():
     in the sweep is the guarantee, and this is the test that holds it."""
     admin_h = A.headers_for(_admin())
     doc = _labeler()
+    _sign(doc)
     sid, _ = _submit(_create_task(admin_h), doc,
                      prompt_review={"reviewed": True, "verdict": "valid",
                                     "attest_clinically_valid": True})
@@ -412,6 +427,7 @@ def test_the_finding_records_who_decided_and_why():
     admin = _admin()
     admin_h = A.headers_for(admin)
     doc = _labeler()
+    _sign(doc)
     sid, _ = _submit(_create_task(admin_h), doc,
                      prompt_review={"reviewed": True, "verdict": "valid"})
     r = client.post(f"/api/asclepius/admin/submissions/{sid}/validity-finding",
@@ -429,6 +445,7 @@ def test_the_sweep_is_idempotent_over_a_falsely_attested_case():
     second row or move a row that is already decided."""
     admin_h = A.headers_for(_admin())
     doc = _labeler()
+    _sign(doc)
     sid, _ = _submit(_create_task(admin_h), doc,
                      prompt_review={"reviewed": True, "verdict": "valid"})
     client.post(f"/api/asclepius/admin/submissions/{sid}/validity-finding",
@@ -437,3 +454,60 @@ def test_the_sweep_is_idempotent_over_a_falsely_attested_case():
         asc_payments.reconcile_task_accruals(_store())
     rows = _task_rows(_earnings(doc))
     assert len(rows) == 1 and rows[0]["status"] == "void"
+
+
+# ─── No signed agreement, no agreement-backed consequence ────────────────────
+def test_a_false_finding_is_refused_when_the_physician_never_signed():
+    """The void cites the contributor agreement. A physician whose
+    validity_agreement_version is NULL never signed one, so there are no terms
+    to hold the attestation against, and recording the finding anyway would be
+    a pay cut citing a document its subject never saw."""
+    admin_h = A.headers_for(_admin())
+    doc = _labeler()   # deliberately unsigned
+    sid, _ = _submit(_create_task(admin_h), doc,
+                     prompt_review={"reviewed": True, "verdict": "valid",
+                                    "attest_clinically_valid": True})
+    assert _store().get_submission(sid)["validity_agreement_version"] is None
+
+    r = client.post(f"/api/asclepius/admin/submissions/{sid}/validity-finding",
+                    json={"finding": "false", "note": "The case is impossible."},
+                    headers=admin_h)
+    assert r.status_code == 409, r.text
+    assert _store().get_submission(sid)["validity_finding"] is None
+    # And the pay is untouched: the case still accrues normally.
+    rows = _task_rows(_earnings(doc))
+    assert len(rows) == 1 and rows[0]["status"] == "accrued"
+
+
+def test_an_explicit_override_still_lets_an_admin_record_the_finding():
+    """The refusal is a guard, not a dead end. An admin who has decided the
+    in-product attestation copy alone is enough says so explicitly, and the
+    finding then lands with its ordinary consequence."""
+    admin_h = A.headers_for(_admin())
+    doc = _labeler()   # unsigned
+    sid, _ = _submit(_create_task(admin_h), doc,
+                     prompt_review={"reviewed": True, "verdict": "valid",
+                                    "attest_clinically_valid": True})
+    r = client.post(f"/api/asclepius/admin/submissions/{sid}/validity-finding",
+                    json={"finding": "false", "note": "Impossible presentation.",
+                          "override_unsigned": True},
+                    headers=admin_h)
+    assert r.status_code == 200, r.text
+    assert _store().get_submission(sid)["validity_finding"] == "false"
+    rows = _task_rows(_earnings(doc))
+    assert len(rows) == 1 and rows[0]["status"] == "void"
+
+
+def test_an_upheld_finding_never_needs_a_signature():
+    """'Upheld' carries no consequence: it records that somebody looked and it
+    was fine. Refusing it on an unsigned physician would leave their cases
+    permanently un-reviewable for no one's protection."""
+    admin_h = A.headers_for(_admin())
+    doc = _labeler()   # unsigned
+    sid, _ = _submit(_create_task(admin_h), doc,
+                     prompt_review={"reviewed": True, "verdict": "valid",
+                                    "attest_clinically_valid": True})
+    r = client.post(f"/api/asclepius/admin/submissions/{sid}/validity-finding",
+                    json={"finding": "upheld"}, headers=admin_h)
+    assert r.status_code == 200, r.text
+    assert _store().get_submission(sid)["validity_finding"] == "upheld"

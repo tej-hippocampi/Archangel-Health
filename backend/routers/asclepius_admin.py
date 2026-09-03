@@ -2238,6 +2238,13 @@ class ValidityFindingBody(BaseModel):
 
     finding: str = Field(..., pattern="^(false|upheld)$")
     note: Optional[str] = Field(None, max_length=2000)
+    #: A 'false' finding voids pay citing the contributor agreement, so it is
+    #: refused when the submission's ``validity_agreement_version`` is NULL:
+    #: that physician never signed the terms the consequence comes from. This
+    #: flag is the deliberate exception. An admin who has decided the in-product
+    #: attestation copy alone is enough to hold the physician to sets it
+    #: explicitly, and the refusal message names it so the choice is theirs.
+    override_unsigned: bool = False
 
 
 @router.post("/submissions/{submission_id}/validity-finding")
@@ -2268,6 +2275,21 @@ async def record_validity_finding(
     sub = store.get_submission(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="No such submission.")
+    # A 'false' finding voids pay under the contributor agreement, and a NULL
+    # validity_agreement_version means this physician never signed one: there
+    # are no terms to hold the attestation against, so the finding is refused
+    # rather than producing a pay cut that cites a document its subject never
+    # saw. The attested check keeps the unattested case on the store's own
+    # refusal below, which is the more specific of the two answers.
+    if (body.finding == "false" and sub.get("validity_attested")
+            and sub.get("validity_agreement_version") is None
+            and not body.override_unsigned):
+        raise HTTPException(
+            status_code=409,
+            detail="This physician never signed the contributor agreement, so "
+                   "there are no signed terms to find the attestation false "
+                   "under. Pass override_unsigned to record it anyway, on the "
+                   "in-product attestation language alone.")
     row = store.record_validity_finding(
         submission_id, finding=body.finding, actor=admin.get("email") or admin.get("id"),
         note=(body.note or None))
@@ -2285,7 +2307,9 @@ async def record_validity_finding(
         actor=admin.get("email") or admin.get("id"),
         payload={"finding": body.finding, "task_id": sub.get("task_id"),
                  "evaluator_id": sub.get("evaluator_id"),
-                 "agreement_version": sub.get("validity_agreement_version")})
+                 "agreement_version": sub.get("validity_agreement_version"),
+                 # The override is a named choice, so the audit trail carries it.
+                 **({"override_unsigned": True} if body.override_unsigned else {})})
     return {
         "submission_id": submission_id,
         "validity_attested": row.get("validity_attested"),

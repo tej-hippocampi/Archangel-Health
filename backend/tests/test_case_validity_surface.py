@@ -126,13 +126,35 @@ def test_the_attestation_is_sent_as_a_tri_state_and_never_coerced():
     assert "!!d.prompt_review.attest_clinically_valid" not in block
 
 
-def test_rejecting_goes_out_through_the_ordinary_submit_path():
-    """The backend's Stage-1 flag branch runs before it validates a verdict or a
-    rubric, so a half-filled case rejects cleanly and produces zero records. A
-    second bespoke endpoint would be a second definition of what a rejection
+def test_rejecting_posts_directly_and_never_rides_the_gated_submit_path():
+    """The staged submit path client-gates on required state (confidence_set,
+    the attestation itself) that is still unset exactly where this card mounts,
+    so routing the rejection through submitEvaluation() made the button a
+    silent no-op. Rejecting mirrors flagPrompt: a direct POST to /submissions,
+    where the backend's Stage-1 flag branch runs before it validates a verdict
+    or a rubric, so a half-filled case rejects cleanly and produces zero
+    records. No second bespoke endpoint: one definition of what a rejection
     does."""
     assert "'flagged'" in REJECT
-    assert "submitEvaluation()" in REJECT
+    assert "'/submissions'" in REJECT
+    assert "buildSubmissionPayload" in REJECT
+    # The two client gates that swallowed the click must never come back.
+    assert "submitEvaluation" not in REJECT
+    assert "confidence_set" not in REJECT
+    # And it finishes like a flag does: the draft dies and the next task loads,
+    # instead of the case sitting half-rejected in the workspace.
+    assert "clearDraft" in REJECT
+    assert "renderEvalView" in REJECT
+
+
+def test_unchecking_withdraws_the_attestation_instead_of_asserting_false():
+    """Check-then-uncheck means "I am no longer asserting", not "I assert the
+    opposite". Recording an explicit false there would invent a statement a
+    finding could later be made against, and nulling the Stage-1 verdict would
+    erase the prompt-gate answer the physician DID give."""
+    assert "box.checked ? true : null" in CARD
+    assert re.search(r"pr\.verdict = box\.checked \? 'valid' :", CARD)
+    assert "verdictBeforeAttest" in CARD
 
 
 # ─── Paint ───────────────────────────────────────────────────────────────────

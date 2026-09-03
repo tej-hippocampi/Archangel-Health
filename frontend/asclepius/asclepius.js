@@ -6184,10 +6184,16 @@
 
     const box = h('input', { type: 'checkbox', class: 'asc-validity-check' });
     box.checked = pr.attest_clinically_valid === true;
+    // The Stage-1 verdict as it stood before this checkbox touched it, so an
+    // uncheck restores the prompt-gate answer instead of erasing it.
+    const verdictBeforeAttest = pr.verdict;
     box.addEventListener('change', () => {
-      pr.attest_clinically_valid = box.checked;
+      // Unchecking is "I am no longer asserting", not "I assert the opposite":
+      // an explicit false is a statement a finding could be made against, and
+      // the physician never made it. Null keeps the tri-state honest.
+      pr.attest_clinically_valid = box.checked ? true : null;
       pr.reviewed = true;
-      pr.verdict = box.checked ? 'valid' : null;
+      pr.verdict = box.checked ? 'valid' : verdictBeforeAttest;
       pr.reviewed_at = new Date().toISOString();
       saveDraft();
       updateSubmitState();
@@ -6218,7 +6224,13 @@
       h('div', { class: 'asc-validity-out' }, reject));
   }
 
-  function rejectCaseAsInvalid() {
+  async function rejectCaseAsInvalid() {
+    // The practice case is deliberately valid; rejecting it would otherwise
+    // POST a REAL submission (this path bypasses the tutorial submit branch).
+    if (tutorialActive()) {
+      toast('This is the practice case: it’s deliberately valid. Attest and continue instead.', 'info');
+      return;
+    }
     const d = state.draft;
     d.prompt_review = d.prompt_review || {};
     d.prompt_review.attest_clinically_valid = false;
@@ -6226,10 +6238,26 @@
     d.prompt_review.verdict = 'flagged';
     d.prompt_review.reviewed_at = new Date().toISOString();
     saveDraft();
-    // Straight through the ordinary submit path. The backend's Stage-1 branch
-    // reads the flagged verdict before it validates a verdict or a rubric, so a
-    // half-filled case rejects cleanly and produces zero records.
-    submitEvaluation();
+    if (state.submitting) return;
+    state.submitting = true;
+    try {
+      // Straight to POST /submissions, mirroring flagPrompt. The gated submit
+      // path would swallow the rejection: this card mounts exactly where the
+      // staged flow's required state (confidence, the attestation itself) is
+      // still unset, and those client gates early-return without a request.
+      // The backend's Stage-1 branch reads the flagged verdict before it
+      // validates a verdict or a rubric, so a half-filled case rejects cleanly
+      // and produces zero records.
+      await api('/submissions', { method: 'POST', body: buildSubmissionPayload() });
+      clearDraft(d.task_id);
+      stopTimer();
+      toast('Case rejected as not clinically valid. Loading the next task', 'success');
+      renderEvalView();
+    } catch (e) {
+      if (e.status !== 401) toast('Could not reject the case: ' + e.message, 'error');
+    } finally {
+      state.submitting = false;
+    }
   }
 
   // ── Expected trajectory (Longitudinal Cases §3.3, field 3) ─────────────────
