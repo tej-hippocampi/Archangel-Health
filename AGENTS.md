@@ -31,7 +31,7 @@ Five things that look dead and are not. Check before you delete.
   is the live auth surface and reads `team_store` — ~170 references in that file.
 - `backend/routers/tenant_portal.py:36` serves live tenant sign-in
   (`/{slug}/auth/login`), separate from `/api/auth`.
-- `/api/demo/sign-in-routes` at `backend/main.py:3121` is live and covered by
+- `/api/demo/sign-in-routes` at `backend/main.py:3140` is live and covered by
   `tests/test_demo_and_patient_update.py:29`.
 - `backend/prompts/registry.py` is a hub: six non-test modules import it, and
   `ai/llm_client.py:_record` calls `prompt_meta` on every single LLM call.

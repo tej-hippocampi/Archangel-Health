@@ -85,6 +85,42 @@ def main() -> int:
     elif "AGENTS.md" not in CLAUDE.read_text():
         problems.append("CLAUDE.md does not reference AGENTS.md")
 
+    # Verify the map's OWN file:line citations. AGENTS.md is the landmine list;
+    # a landmine pointing at the wrong line is worse than no landmine, and these
+    # numbers drift whenever main moves. Found in practice: after merging 92
+    # commits from main, /api/demo/sign-in-routes had moved 3121 -> 3140.
+    #
+    # The file+range check is exact and has no false positives. The CONTENT check
+    # is deliberately narrow: only a plain code identifier (letters, digits, _, .)
+    # is used as evidence. Route globs like `/api/auth/*` and the citation string
+    # itself are not identifiers and are never matched against a source line —
+    # attributing prose-embedded symbols precisely is unreliable, and a checker
+    # that cries wolf gets deleted.
+    citation = re.compile(r"`?([A-Za-z0-9_./-]+\.(?:py|js|css|ya?ml|json))`?:(\d+)")
+    identifier = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]{3,}$")
+    for cell in text.replace("|", "\n").splitlines():
+        for rel, lineno in citation.findall(cell):
+            target = None
+            for base in (ROOT, ROOT / "backend", ROOT / "frontend"):
+                if (base / rel).is_file():
+                    target = base / rel
+                    break
+            if target is None:
+                problems.append(f"AGENTS.md cites {rel}:{lineno}, which is not a file")
+                continue
+            body = target.read_text(encoding="utf-8", errors="replace").splitlines()
+            n = int(lineno)
+            if not (1 <= n <= len(body)):
+                problems.append(f"AGENTS.md cites {rel}:{lineno}; the file has "
+                                f"{len(body)} lines")
+                continue
+            symbols = {t for t in re.findall(r"`([^`]+)`", cell)
+                       if identifier.match(t) and not t.endswith((".py", ".js", ".css"))}
+            if symbols and not any(t in body[n - 1] for t in symbols):
+                problems.append(
+                    f"AGENTS.md cites {rel}:{lineno} for {sorted(symbols)}, but that "
+                    f"line reads: {body[n - 1].strip()[:60]!r}")
+
     for name in RETIRED:
         if (SKILLS / name).exists():
             problems.append(
