@@ -197,6 +197,31 @@ def test_the_community_summary_is_a_count_and_says_which_window_it_counted():
         assert isinstance(body["totals"][count], int), count
 
 
+def test_a_case_room_message_is_not_a_community_post_in_the_summary():
+    """WHY: DM and case-room messages share ``community_messages`` with the
+    public channels. A private consult that bumps the posts total, or that
+    occupies a slot in the LIMITed recent/unanswered lists, is private traffic
+    leaking into an admin surface and crowding public posts out of it. The
+    room itself still counts, as a room."""
+    store = _store()
+    doc = _member(store)
+    cstore = community_store.get_community_store()
+
+    before = client.get(API + "/admin/community/summary", headers=_admin()).json()
+
+    room = cstore.get_or_create_case_room("task:summary-leak", [doc["id"]])
+    msg = cstore.insert_message(channel_id=room["id"], author_user_id=doc["id"],
+                                body="Anything odd about this case?")
+
+    after = client.get(API + "/admin/community/summary", headers=_admin()).json()
+    assert after["totals"]["posts"] == before["totals"]["posts"], (
+        "a case-room message was counted as a community post")
+    assert after["totals"]["voices"] == before["totals"]["voices"]
+    assert all(m["id"] != msg["id"] for m in after["recent"])
+    assert all(q["id"] != msg["id"] for q in after["unanswered"])
+    assert after["totals"]["case_rooms"] == before["totals"]["case_rooms"] + 1
+
+
 def test_the_summary_counts_an_unanswered_question_and_stops_counting_it_on_a_reply():
     """WHY: the unanswered list is the only item on the community tab that is a
     JOB rather than a statistic, so it has to be right in both directions. A

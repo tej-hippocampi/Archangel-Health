@@ -179,6 +179,6 @@ def test_no_assistant_or_model_call_lives_on_the_console():
     # the persona, with the channel allow-list and the announce rule already
     # right; a second would be a second place to get the fan-out wrong.
     community = (_FRONTEND / "admin_community.js").read_text(encoding="utf-8")
-    assert "'/asclepius/community'" in community
+    assert "'/community'" in community
     assert "/admin/community/post" not in community, (
         "the persona composer belongs to community.js, once")

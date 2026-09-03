@@ -3938,7 +3938,9 @@ async def community_activity_summary(
             "       COUNT(DISTINCT author_user_id) AS voices, "
             "       SUM(CASE WHEN parent_message_id IS NOT NULL THEN 1 ELSE 0 END) AS replies "
             "  FROM community_messages "
-            " WHERE created_at >= ? AND deleted_at IS NULL", (since,)).fetchone())
+            " WHERE created_at >= ? AND deleted_at IS NULL "
+            "   AND channel_id IN (SELECT id FROM community_channels)",
+            (since,)).fetchone())
 
         reactions = conn.execute(
             "SELECT COUNT(*) AS n FROM community_reactions WHERE created_at >= ?",
@@ -3948,6 +3950,7 @@ async def community_activity_summary(
             "SELECT id, channel_id, author_user_id, body, created_at, parent_message_id "
             "  FROM community_messages "
             " WHERE deleted_at IS NULL "
+            "   AND channel_id IN (SELECT id FROM community_channels) "
             " ORDER BY id DESC LIMIT 12").fetchall()]
 
         # A question with nothing under it. LIKE '%?%' rather than a regex
@@ -3958,6 +3961,7 @@ async def community_activity_summary(
             "  FROM community_messages m "
             " WHERE m.parent_message_id IS NULL "
             "   AND m.deleted_at IS NULL "
+            "   AND m.channel_id IN (SELECT id FROM community_channels) "
             "   AND m.created_at >= ? "
             "   AND m.author_user_id != ? "
             "   AND m.body LIKE '%?%' "

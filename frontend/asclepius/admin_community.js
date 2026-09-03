@@ -20,7 +20,7 @@
 (function () {
   'use strict';
 
-  const COMMUNITY_URL = '/asclepius/community';
+  const COMMUNITY_URL = '/community';
 
   let view = { data: null, err: null, busy: false };
 
