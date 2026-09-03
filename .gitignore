@@ -45,3 +45,6 @@ landing/dist/
 
 # Stray local asset store (V4 image blobs) — never commit
 backend/asclepius/_assetstore/
+
+# the sidecar the inventory script writes beside its report
+docs/asclepius/EXPORT_MIGRATION_INVENTORY.md.runs.json

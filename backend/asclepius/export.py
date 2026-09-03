@@ -75,6 +75,44 @@ def export_root() -> Path:
     return root
 
 
+def export_storage_durable() -> tuple:
+    """(ok, detail) — will built bundles survive a redeploy?
+
+    ``ASCLEPIUS_EXPORT_DIR`` defaults to ``/tmp/asclepius-exports``, which is
+    erased on every deploy. The ``exports`` ROW survives (it is in the database),
+    so history keeps listing the batch — and its Download button then hands the
+    buyer an archive containing only ``batch.json``, because ``zip_export``
+    rebuilds what it can from the stored manifest and there is nothing else left.
+    A delivered buyer, following the link in the email we sent them, downloads a
+    dataset with no data in it.
+
+    **Reported, never fail-closed** — deliberately, unlike the database. A lost
+    bundle is RECOVERABLE: records are permanent and export is non-destructive,
+    so the batch can simply be cut again. Refusing to boot over something a
+    re-export fixes would trade a real outage for a recoverable inconvenience.
+    """
+    from asclepius.constants import (
+        path_is_ephemeral, path_under_declared_volume,
+    )
+
+    configured = (os.getenv("ASCLEPIUS_EXPORT_DIR") or "").strip()
+    path = str(export_root())
+    if not configured:
+        return False, (
+            f"ASCLEPIUS_EXPORT_DIR is not set, so built bundles land in {path} "
+            "and are erased on every redeploy. Past exports stay listed in "
+            "history but download as an empty archive — including for a buyer "
+            "following the link we emailed them. Set it to a path on the volume "
+            "(e.g. /data/asclepius-exports).")
+    if path_under_declared_volume(path) is False:
+        return False, (f"{path} is not under the volume this platform mounted; "
+                       "built bundles are erased on every redeploy.")
+    if path_is_ephemeral(path):
+        return False, (f"{path} is on ephemeral storage; built bundles are "
+                       "erased on every redeploy.")
+    return True, f"export bundles durable ({path})"
+
+
 def _new_export_id() -> str:
     return "exp-" + datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")
 
@@ -201,6 +239,7 @@ def _passes_filters(
     case_source: Optional[str] = None,
     submission_id: Optional[str] = None,
     case_id: Optional[str] = None,
+    case_ids: Optional[set] = None,
 ) -> bool:
     payload = rec.get("payload") or {}
     # Single-task scoping (Exports rework): export exactly one submission's
@@ -211,6 +250,13 @@ def _passes_filters(
     # Case scoping (PRD A Phase 5): a case IS a task — one case_id bundles every
     # submission + review on it. Accept the column or the payload mirror.
     if case_id and rec.get("task_id") != case_id and payload.get("task_id") != case_id:
+        return False
+    # Multi-case scoping (PRD §2.1): the Export tab's Case scope accepts a LIST,
+    # because "the three cases I just approved" is one bundle and not three.
+    # Kept beside ``case_id`` rather than replacing it — the single-id form is
+    # ``export_by_case``'s frozen signature (Seam 2) and every caller of it.
+    if case_ids is not None and (
+            rec.get("task_id") not in case_ids and payload.get("task_id") not in case_ids):
         return False
     if difficulty and (payload.get("context") or {}).get("difficulty") != difficulty:
         return False
@@ -423,6 +469,25 @@ def _synthetic_records(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
+def _case_provenance(records: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Where the CASES in this batch came from, counted (PRD §2.3).
+
+    Distinct from ``model_generated_question_count``, which is about where the
+    QUESTION came from. The two are independent axes and conflating them is what
+    made "synthetic_prompt_count" misread: a real de-identified chart with a
+    model-authored question is a real case, and a buyer paying real-case prices
+    is entitled to see that stated separately.
+
+    Keys are the ``case_source`` vocabulary (``real_deid`` / ``synthetic``) plus
+    ``unspecified`` for text records, which carry no case at all.
+    """
+    out: Dict[str, int] = {}
+    for r in records:
+        key = _rec_case_source(r) or "unspecified"
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
 def _seed_corpus_ratified(records: List[Dict[str, Any]]) -> Optional[bool]:
     """Tri-state ratification of the synthetic prompts in this batch:
     ``True`` (all synthetic records came from a clinician-ratified corpus),
@@ -522,6 +587,44 @@ def _scope_section_md(scope: Optional[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _composition_scope_line(scope: Optional[Dict[str, Any]]) -> str:
+    """The one-line "how this bundle was cut" for the datasheet's Composition
+    section (PRD §2.3), e.g.
+
+        - Scope: **physician** · nephrology · 7 cases (annotator `3f9a…c1`)
+
+    A lab that receives a bundle needs to know it is a slice and which slice —
+    a per-physician cut and an everything cut have very different statistical
+    properties, and a datasheet that does not say which is a datasheet that
+    invites the wrong conclusion.
+
+    **The physician's NAME never appears here, or anywhere else in a bundle.**
+    Only ``annotator_id_hashed``, which is what the Further Credential Summary
+    matches on under NDA. This function reads only fields that are hashes or
+    counts; a caller that puts a name in ``scope`` is the bug, and
+    ``test_export_approval_prd`` asserts no bundle carries one.
+    """
+    if not scope:
+        return ""
+    bits: List[str] = []
+    stype = scope.get("type")
+    if stype:
+        bits.append(f"**{stype}**")
+    for key in ("specialty", "portal_version"):
+        if scope.get(key):
+            bits.append(str(scope[key]))
+    n = scope.get("case_count")
+    if isinstance(n, int):
+        bits.append(f"{n} case{'' if n == 1 else 's'}")
+    if not bits:
+        return ""
+    line = "- Scope: " + " · ".join(bits)
+    hashed = scope.get("annotator_id_hashed")
+    if hashed:
+        line += f" (annotator `{str(hashed)[:8]}…`)"
+    return line
+
+
 def _stance_semantics_md(records: List[Dict[str, Any]]) -> str:
     """Datasheet copy for quick-stance captures (Speed Optimization §1) — only
     emitted when the batch actually carries stance-mode records."""
@@ -602,6 +705,7 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - Specialties: {", ".join(specialties) or "n/a"}
 - By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 classic · V2 assisted · V3 seamless synthetic · **V4 REAL de-identified cases**)
 - By modality: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_modality', {}).items())) or "n/a"} (text vs structured-multimodal case)
+{_composition_scope_line(scope)}
 {_scope_section_md(scope)}
 {_multimodal_section_md(records, counts)}
 {_synthetic_provenance_md(records)}
@@ -635,8 +739,14 @@ Training / evaluating medical LLMs (reward modeling, SFT, process supervision).
 
 ## Rights & privacy
 - `contains_phi: false` (asserted + residual-identifier scanned).
-- `ip_cleared: true`; `license` stamped on every record.
+- `ip_cleared: true`; `license: {_license_name()}` stamped on every record in
+  this batch (PRD §2.3 — commercial terms, stated on the artifact itself).
 """
+
+
+def _license_name() -> str:
+    from asclepius.constants import default_license
+    return default_license()
 
 
 def _outcome_verification_md(ov: Dict[str, Any]) -> str:
@@ -1369,6 +1479,7 @@ def export_by_case(
     *,
     created_by: Optional[str] = None,
     case_id: Optional[str] = None,
+    case_ids: Optional[List[str]] = None,
     specialty: Optional[str] = None,
     portal_version: Optional[str] = None,
     include_exported: bool = True,
@@ -1395,6 +1506,7 @@ def export_by_case(
         store,
         created_by=created_by,
         case_id=case_id,
+        case_ids=case_ids,
         specialty=specialty,
         portal_version=portal_version,
         include_exported=include_exported,
@@ -1429,6 +1541,7 @@ def build_export(
     scope: Optional[Dict[str, Any]] = None,
     submission_id: Optional[str] = None,
     case_id: Optional[str] = None,
+    case_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Assemble + persist an export batch from export-ready records.
 
@@ -1509,6 +1622,7 @@ def build_export(
             case_source=case_source,
             submission_id=submission_id,
             case_id=case_id,
+            case_ids=set(case_ids) if case_ids else None,
         )
     ]
     if not records:
@@ -1516,6 +1630,9 @@ def build_export(
 
     export_id = _new_export_id()
     exported_at = datetime.utcnow().isoformat()
+    # Resolved once per batch, not per record: one bundle ships under one license.
+    from asclepius.constants import default_license as _default_license
+    _license_terms = _default_license()
 
     # 1. Map + validate EVERY line before writing anything (fail loud, fail whole).
     lines: List[str] = []
@@ -1543,6 +1660,15 @@ def build_export(
         payload = dict(rec.get("payload") or {})
         payload.pop("record_id", None)
         payload["exported_at"] = exported_at
+        # THE LICENSE IN FORCE AT SHIP TIME (PRD §2.3). Packaging stamps the
+        # license when a record is captured, so the entire back catalogue carries
+        # ``CC-BY-NC-4.0-clinical-eval`` — NON-commercial, on data sold to train
+        # commercial models. Re-stamped here, at emit, for the same reason
+        # ``exported_at`` is: it is a property of THIS shipment. Nothing in the
+        # ``records`` table is rewritten (§0: no destructive migration), so a
+        # record's captured payload stays exactly as it was captured, and every
+        # line that leaves the building carries one consistent, correct license.
+        payload["license"] = _license_terms
         if "related_party" not in payload:
             _sid = rec.get("submission_id") or payload.get("submission_id")
             if _sid not in _rp_by_sid:
@@ -1805,6 +1931,7 @@ def build_export(
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
         "case_id": case_id,
+        "case_ids": sorted(case_ids) if case_ids else None,
     }
     content_hashes = {JSONL_NAME: _sha256_text(jsonl_text)}
     for name in companion_files:
@@ -1834,6 +1961,17 @@ def build_export(
         # modality, mime, license, provenance, path}. Empty for text-only batches.
         "image_assets": image_assets,
         "image_asset_count": len(image_assets),
+        # Renamed from ``synthetic_prompt_count`` (PRD §2.3). "Synthetic" reads,
+        # to a buyer, as "made-up case" — and it never meant that. It counts
+        # records whose QUESTION was model-authored; the case underneath may be a
+        # real de-identified chart. ``case_provenance`` sits beside it saying
+        # which, so "real case, model-generated question" reads as what it is
+        # instead of as a synthetic dataset.
+        "model_generated_question_count": len(_synthetic_records(emitted)),
+        "case_provenance": _case_provenance(emitted),
+        # The old key, kept alongside for one release so a buyer's ingest script
+        # written against it does not break on the rename. New consumers read
+        # ``model_generated_question_count``.
         "synthetic_prompt_count": len(_synthetic_records(emitted)),
         # Tri-state: true (all synthetic prompts from a ratified corpus), false
         # (some unratified — see datasheet warning), or null (no synthetic prompts).

@@ -147,6 +147,70 @@
       else el.appendChild(document.createTextNode(String(c)));
     }
   }
+
+  // ═══ Copyable ids (Export & Approval PRD §1.3) ════════════════════════════
+  // A case id you cannot copy is a case id you cannot use. Every table that
+  // rendered one truncated it — `text-overflow: ellipsis` with no `title`, or a
+  // JS `slice(0, 10) + '…'` — so an operator who wanted to paste `t-4f2a91…`
+  // into the export box had to go find it somewhere else, and on a split screen
+  // the column collapsed until the id was three characters wide.
+  //
+  // ONE helper, used everywhere an id renders: the earnings ledger, task
+  // routing, and the export tab's results. The full id is always in the DOM and
+  // always in the `title`; the copy button is the affordance that makes it
+  // usable, with a `document.execCommand` fallback for the browsers (and the
+  // insecure-origin cases) where `navigator.clipboard` is not there.
+  function copyTextToClipboard(text, onDone) {
+    const done = typeof onDone === 'function' ? onDone : () => {};
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => done(legacyCopy(text)));
+      return;
+    }
+    done(legacyCopy(text));
+  }
+
+  function legacyCopy(text) {
+    // A hidden, SELECTED input — the fallback the PRD asks for. Positioned off
+    // screen rather than `display:none`, because a hidden element cannot be
+    // selected and the copy silently does nothing.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0';
+    document.body.appendChild(ta);
+    let ok = false;
+    try {
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+    } catch (e) { ok = false; } finally { ta.remove(); }
+    return ok;
+  }
+
+  function copyableId(id, opts) {
+    const full = (id === null || id === undefined) ? '' : String(id);
+    if (!full) return h('span', { class: 'asc-dim', title: 'No id' }, '—');
+    const o = opts || {};
+    const btn = h('button', {
+      type: 'button', class: 'asc-id-copy',
+      title: 'Copy ' + full, 'aria-label': 'Copy ' + full,
+    }, '⧉');
+    btn.addEventListener('click', (ev) => {
+      // Ledger and roster rows are themselves clickable. Copying an id is not
+      // "open this row", and a copy that also navigates away is a copy the
+      // operator never gets to paste.
+      ev.stopPropagation();
+      ev.preventDefault();
+      copyTextToClipboard(full, (ok) => {
+        btn.textContent = ok ? 'Copied' : 'Press ⌘C';
+        btn.classList.add('is-copied');
+        setTimeout(() => { btn.textContent = '⧉'; btn.classList.remove('is-copied'); }, 1400);
+      });
+    });
+    return h('span', { class: 'asc-id' + (o.wrap ? ' is-wrap' : '') },
+      h('code', { class: 'asc-id-text', title: full }, full), btn);
+  }
+
   const $ = (sel, root) => (root || document).querySelector(sel);
   const root = () => document.getElementById('ascRoot');
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
@@ -8882,6 +8946,17 @@
   function adminSectionCtx() {
     return {
       h, api, clear, toast, loadingCard, downloadBlob, fmtDate,
+      // One id renderer for every admin section (PRD §1.3).
+      copyableId, copyTextToClipboard,
+      // The export history list and the contributor/credential browser both
+      // used to live inside the Export tab's own `history` sub-view. That view
+      // is gone (PRD §2); they render under the builder instead, so the section
+      // module needs a handle on them.
+      exportHistory: loadExportsHistory,
+      contributorBrowser: (card) => {
+        state.browse.export = { level: 'orgs', org: null, idHashed: null, contributor: null };
+        renderOrgContribBrowser(card, 'export');
+      },
       specialtyResolver, specialtyBlockReason: SPECIALTY_BLOCK_REASON,
       // Avatars are bearer-authenticated, so a section cannot just set an
       // <img src>. One shared loader rather than each section reaching for
@@ -8951,13 +9026,83 @@
       }));
 
     const body = h('div', { id: 'ascAdminBody' });
-    setRoot(h('div', { class: 'asc-wrap' }, subnav, body));
+    // Above everything, on every admin tab (see refreshStorageBanner).
+    const storageBanner = h('div', { id: 'ascStorageBanner' });
+    setRoot(h('div', { class: 'asc-wrap' }, subnav, storageBanner, body));
     refreshQaBadge();
+    refreshStorageBanner();
 
     if (state.adminTab === 'physicians') renderAdminPhysiciansSection(body);
     else if (state.adminTab === 'work') renderAdminWorkSection(body);
     else if (state.adminTab === 'money') renderAdminMoneySection(body);
     else if (state.adminTab === 'data') renderAdminDataSection(body);
+  }
+
+  /* ═══ Is this deployment going to keep the data? ══════════════════════════
+   *
+   * If the volume is not attached, NOTHING ELSE ON THIS CONSOLE MATTERS. Every
+   * physician account, task, submission, review and payout row is erased on the
+   * next redeploy, and the screens go quiet rather than erroring — which reads
+   * as "nobody signed up", not as "the database was deleted". That is the
+   * failure this banner exists to make impossible to miss.
+   *
+   * The server has checked this at boot for a long time and said so in a log
+   * line. A log line is only read by someone who already suspects a problem, so
+   * it is exactly the wrong medium for a failure whose whole signature is that
+   * nobody suspects anything. This puts the same verdict where an operator
+   * already is, on every admin tab, and says what to change.
+   *
+   * Two states are worth shouting about:
+   *   NOT DURABLE   — data is being destroyed on each deploy, right now.
+   *   GATE UNARMED  — durable today, but ENV is not 'production', so the app
+   *                   will happily boot onto ephemeral storage after any future
+   *                   variable change. Today's green is luck, not a guarantee.
+   * Fully durable AND armed renders nothing: a banner that is always there is a
+   * banner nobody reads. */
+  async function refreshStorageBanner() {
+    const host = document.getElementById('ascStorageBanner');
+    if (!host) return;
+    let s;
+    try { s = await api('/admin/storage/durability'); } catch (e) { return; }
+    if (!host.isConnected && !document.getElementById('ascStorageBanner')) return;
+    clear(host);
+    if (s.all_durable && s.gate_armed) return;
+
+    const broken = (s.stores || []).filter((x) => !x.durable);
+    const critical = broken.filter((x) => x.severity !== 'recoverable');
+    if (critical.length) {
+      host.appendChild(h('div', { class: 'asc-card', style: 'margin-bottom:14px' },
+        h('div', { class: 'asc-card-pad' },
+          h('div', { class: 'asc-inline-error' },
+            'THIS DEPLOYMENT IS DESTROYING ITS DATA ON EVERY REDEPLOY. '
+            + critical.length + ' of ' + (s.stores || []).length
+            + ' stores are not on a persistent volume — every account, task, '
+            + 'submission and payout row written since the last deploy is lost '
+            + 'at the next one, silently.'),
+          h('ul', {}, broken.map((x) => h('li', {},
+            h('strong', {}, x.store), ' — ', x.detail))),
+          s.remedy ? h('div', { class: 'asc-card-sub', style: 'margin-top:8px' },
+            s.remedy) : null)));
+      return;
+    }
+    // Nothing irreplaceable is at risk. Two lesser problems still get said —
+    // separately, because conflating "your database is being deleted" with
+    // "re-cut that bundle" is how an operator learns to ignore both.
+    const notes = [];
+    broken.forEach((x) => notes.push(x.detail));
+    if (!s.gate_armed) {
+      notes.push('The fail-closed boot gate is OFF (ENV is not "production"), '
+        + 'so nothing would stop this app from booting onto ephemeral storage '
+        + 'after a future variable change — it would accept data and destroy '
+        + 'it, with no warning. Set ENV=production and it refuses to start '
+        + 'instead.');
+    }
+    if (!notes.length) return;
+    host.appendChild(h('div', { class: 'asc-card', style: 'margin-bottom:14px' },
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-warn' },
+          'Nothing irreplaceable is at risk — but this is not fully safe yet.'),
+        h('ul', {}, notes.map((n) => h('li', {}, n))))));
   }
 
   // Sub-tab strip shared by the three restructured sections.
@@ -9360,10 +9505,12 @@
       });
       const prev = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' }, 'Preview');
       prev.addEventListener('click', () => preview(r.task_id));
+      // The case id, copyable (PRD §1.3): Task Routing is where an operator
+      // first SEES a case id, and the Export tab is where they have to type it.
       const label = (r.trajectory_id && r.sequence_index != null)
         ? h('span', {}, h('span', { class: 'asc-mono' }, '#' + r.sequence_index), ' ',
-            h('span', { class: 'asc-dim asc-mono' }, r.task_id))
-        : h('span', { class: 'asc-mono' }, r.task_id);
+            copyableId(r.task_id))
+        : copyableId(r.task_id);
       // Gold sits in the SYNTHETIC class — its case_source is not real_deid, and
       // that is what batch_overview counts on. The chip is how it stays visible
       // as physician-authored without inventing a fourth rail item that would
@@ -9823,19 +9970,20 @@
     else sectionModuleMissing(inner, 'The Health Systems section');
   }
 
-  // Export: what can we sell, and how do we cut it. By-case is the primary
-  // view; buyer relationships and past export batches stay reachable beside it.
+  // Export: ONE PAGE (Export & Approval PRD §2). The subnav is gone — there is
+  // no `bycase` / `buyers` / `history` split any more, because three sub-tabs
+  // meant four ways to cut a bundle in three places, none of which agreed about
+  // what was going to ship. The builder, its preview (including what is being
+  // EXCLUDED and why) and the history now render top to bottom in one view.
+  //
+  // `renderAdminBuyers` is no longer mounted: the buyer CRM is retired and its
+  // tables are kept (docs/asclepius/BUYER_CRM_RETIRED.md). The delivery rail
+  // lives on as "Export + send to ▾" inside the builder.
   function renderAdminExportSection(body) {
     clear(body);
-    body.appendChild(adminSubnav('export', [
-      ['bycase', 'Export by case'], ['buyers', 'Buyers & Requests'], ['history', 'Export history'],
-    ]));
     const inner = h('div', {});
     body.appendChild(inner);
-    const sub = state.adminSub.export;
-    if (sub === 'buyers') renderAdminBuyers(inner);
-    else if (sub === 'history') renderAdminExports(inner);
-    else if (window.AdminExportSection) window.AdminExportSection.render(inner, adminSectionCtx());
+    if (window.AdminExportSection) window.AdminExportSection.render(inner, adminSectionCtx());
     else sectionModuleMissing(inner, 'The Export section');
   }
 
@@ -9916,7 +10064,7 @@
           ident.organization ? h('div', { class: 'asc-card-sub' }, ident.organization) : null,
           ident.email ? h('div', { class: 'asc-card-sub asc-mono' }, ident.email) : null);
         tbody.appendChild(h('tr', {},
-          h('td', { class: 'asc-mono' }, (s.submission_id || '').slice(0, 12)),
+          h('td', { class: 'asc-cell-id' }, copyableId(s.submission_id)),
           contribCell,
           h('td', {}, s.verdict || 'n/a'),
           h('td', {}, reasons.length
@@ -11681,502 +11829,32 @@
     return btn;
   }
 
-  // ─── Admin: Buyers & Requests ──────────────────────────────────────────────
-  function renderAdminBuyers(body) {
-    clear(body);
-    const tax = state.taxonomy;
+  // ─── Admin: Buyers & Requests — REMOVED (Export & Approval PRD §5) ─────────
+  // `renderAdminBuyers` and the buyer-request forms that lived here are gone
+  // with the endpoints behind them (`/buyers`, `/buyer-requests*`). The tables
+  // stay and their rows are untouched — see docs/asclepius/BUYER_CRM_RETIRED.md.
+  // The one part that mattered, "build a bundle and send it to a buyer", is now
+  // the Export tab's `Export + send to ▾`, attached to the export it actually
+  // built rather than to a second, differently-filtered one.
 
-    // Create buyer
-    const bName = h('input', { class: 'asc-input', placeholder: 'Acme Frontier Labs' });
-    const bContact = h('input', { class: 'asc-input', placeholder: 'contact@acme.ai' });
-    const bProfile = selectFrom(profileNames(), 'default');
-    const bNotes = h('input', { class: 'asc-input', placeholder: 'Notes (optional)' });
-    const bStatus = h('div', {});
-    const buyerCard = h('div', { class: 'asc-card' },
-      h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'New buyer')),
-      h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-form-row' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Name'), bName),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Contact'), bContact)),
-        h('div', { class: 'asc-form-row' },
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Default export profile'), bProfile),
-          h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Notes'), bNotes)),
-        h('button', {
-          class: 'asc-btn asc-btn-primary', onClick: async () => {
-            clear(bStatus);
-            if (!bName.value.trim()) { bStatus.appendChild(h('div', { class: 'asc-inline-error' }, 'Name is required.')); return; }
-            try {
-              await api('/buyers', { method: 'POST', body: { name: bName.value.trim(), contact: bContact.value.trim(), export_profile: bProfile.value, notes: bNotes.value.trim() } });
-              bStatus.appendChild(h('div', { class: 'asc-inline-ok' }, 'Buyer created.'));
-              bName.value = bContact.value = bNotes.value = '';
-              renderAdminBuyers(body);
-            } catch (e) { bStatus.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-          },
-        }, 'Create buyer'),
-        bStatus));
+  // `refreshExportReadyCount` and `quickExportAll` / `approveAllAndExport` are
+  // REMOVED with the Export-history sub-view that hosted them (PRD §2). The
+  // headline count they maintained ("142 records waiting") was the number that
+  // could not be trusted: it counted export-ready records and said nothing about
+  // the submissions sitting unapproved behind them. The Export builder's preview
+  // is its replacement, and it reports both halves.
 
-    // ── Primary flow: export selected organizations and send to a buyer ──────
-    const sendCard = h('div', { class: 'asc-card', id: 'ascSendToBuyer' }, loadingCard('Loading organizations…'));
-    const deliveriesCard = h('div', { class: 'asc-card', id: 'ascBuyerDeliveries' }, loadingCard('Loading deliveries…'));
-    body.appendChild(sendCard);
-    body.appendChild(deliveriesCard);
-
-    const buyersListCard = h('div', { class: 'asc-card', id: 'ascBuyersList' }, loadingCard('Loading buyers…'));
-    const reqCard = h('div', { class: 'asc-card', id: 'ascReqForm' }, loadingCard('Loading…'));
-    const reqListCard = h('div', { class: 'asc-card', id: 'ascReqList' }, loadingCard('Loading requests…'));
-
-    body.appendChild(h('div', { class: 'asc-cols-2' }, buyerCard, buyersListCard));
-    body.appendChild(reqCard);
-    body.appendChild(reqListCard);
-
-    loadSendToBuyer();
-    loadBuyerDeliveries();
-    loadBuyersAndRequests();
-  }
-
-  // Send-to-buyer: pick organizations (checkbox multi-select) + a time window +
-  // a data format, then deliver to a buyer's secure workspace.
-  async function loadSendToBuyer() {
-    const card = document.getElementById('ascSendToBuyer');
-    if (!card) return;
-    let orgs = [];
-    try { orgs = (await api('/organizations')).organizations || []; }
-    catch (e) { clear(card); card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message))); return; }
-    clear(card);
-    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
-      h('div', { class: 'asc-card-title' }, 'Export & send data to a buyer'),
-      h('div', { class: 'asc-card-sub' }, 'Select one or more organizations, choose a time window and format, then deliver the dataset straight to a buyer’s secure workspace.'))));
-
-    if (!orgs.length) { card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-card-sub' }, 'No organizations with data yet.'))); return; }
-
-    const selected = new Set();
-    const rows = orgs.map((o) => {
-      const cb = h('input', { type: 'checkbox' });
-      cb.addEventListener('change', () => { if (cb.checked) selected.add(o.organization); else selected.delete(o.organization); syncSummary(); });
-      return h('label', { class: 'asc-checkbox-row', style: 'padding:8px 0;border-bottom:1px solid var(--asc-line)' },
-        cb,
-        h('span', { style: 'flex:1' },
-          h('span', { style: 'font-weight:600' }, o.organization),
-          h('span', { class: 'asc-card-sub' }, '  ' + o.contributor_count + ' contributor(s) · ' + o.record_count + ' record(s)')));
-    });
-
-    // Time window (Pacific): all time / this week / today. Output is always JSONL.
-    const winSel = selectFrom(['all time', 'this week', 'today'], 'all time');
-    const summary = h('div', { class: 'asc-card-sub', style: 'margin:10px 0' });
-    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send to buyer');
-    function syncSummary() {
-      summary.textContent = selected.size
-        ? (selected.size + ' organization(s) selected: ' + Array.from(selected).join(', '))
-        : 'No organizations selected.';
-      if (selected.size) sendBtn.removeAttribute('disabled'); else sendBtn.setAttribute('disabled', '');
-    }
-    sendBtn.setAttribute('disabled', '');
-    sendBtn.addEventListener('click', () => {
-      if (!selected.size) return;
-      const scope = {};
-      if (winSel.value === 'today') scope.since = windowSinceISO(0);
-      else if (winSel.value === 'this week') scope.since = windowSinceISO(6);
-      openSendToBuyerModal(Array.from(selected), scope, winSel.value);
-    });
-
-    card.appendChild(h('div', { class: 'asc-card-pad' },
-      h('div', { class: 'asc-form-row', style: 'align-items:flex-end' },
-        h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Time window (Pacific)'), winSel),
-        h('div', { class: 'asc-field', style: 'margin-bottom:0' }, h('label', { class: 'asc-label' }, 'Data format'),
-          h('div', { class: 'asc-badge asc-badge-gray', style: 'align-self:start;padding:8px 12px' }, 'JSONL'))),
-      h('div', { style: 'margin-top:14px' }, h('label', { class: 'asc-label' }, 'Organizations'), h('div', {}, rows)),
-      summary,
-      sendBtn));
-    syncSummary();
-  }
-
-  function openSendToBuyerModal(orgs, scope, windowLabel) {
-    const overlay = h('div', { class: 'call-team-overlay is-open', onClick: (e) => { if (e.target === overlay) overlay.remove(); } });
-    const name = h('input', { class: 'asc-input', placeholder: 'Acme Frontier Labs' });
-    const email = h('input', { class: 'asc-input', type: 'email', placeholder: 'buyer@acme.ai' });
-    const fmt = h('input', { class: 'asc-input', value: 'JSONL', readonly: 'readonly' });
-    const notes = h('textarea', { class: 'asc-textarea', placeholder: 'Additional notes for the buyer (optional)' });
-    const status = h('div', { style: 'margin-top:10px' });
-    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary' }, 'Send to buyer');
-    sendBtn.addEventListener('click', async () => {
-      clear(status);
-      if (!name.value.trim()) { status.appendChild(h('div', { class: 'asc-inline-error' }, 'Buyer name is required.')); return; }
-      if (!email.value.trim()) { status.appendChild(h('div', { class: 'asc-inline-error' }, 'Buyer email is required.')); return; }
-      sendBtn.setAttribute('disabled', ''); sendBtn.textContent = 'Sending…';
-      try {
-        const r = await api('/admin/buyer-deliveries', { method: 'POST', body: Object.assign({
-          buyer_name: name.value.trim(), buyer_email: email.value.trim(),
-          organizations: orgs, profile: 'default',
-          note: notes.value.trim() || null,
-        }, scope) });
-        overlay.remove();
-        toast('Sent ' + (r.record_count || 0) + ' record(s) to ' + r.buyer_email + (r.email_sent ? '. Email delivered.' : ', but email failed.'), r.email_sent ? 'success' : 'info');
-        loadBuyerDeliveries();
-      } catch (e) {
-        clear(status);
-        const msg = e.status === 400 ? (e.message || 'Nothing to export for that selection/window.')
-          : (e.status === 503 ? 'Email is not configured. Set SendGrid/SMTP (or EMAIL_DEV_MODE=1 for local).'
-          : (e.status === 422 ? 'Export blocked: ' + e.message : (e.message || 'Send failed')));
-        status.appendChild(h('div', { class: 'asc-inline-error' }, msg));
-        sendBtn.removeAttribute('disabled'); sendBtn.textContent = 'Send to buyer';
-      }
-    });
-    const popup = h('div', { class: 'call-team-popup', style: 'max-width:560px', onClick: (e) => e.stopPropagation() },
-      h('div', { class: 'call-team-title' }, 'Send to buyer'),
-      h('div', { class: 'call-team-sub' }, orgs.length + ' organization(s) · ' + windowLabel + ' · JSONL'),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Buyer name'), name),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Buyer email'), email),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Data format'), fmt),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Additional notes'), notes),
-      h('div', { class: 'asc-label-hint' }, 'The buyer receives an email with login credentials and a link to their secure workspace. Every dataset you send to this email appears in that workspace.'),
-      status,
-      h('div', { style: 'display:flex;gap:10px;margin-top:14px' },
-        sendBtn,
-        h('button', { class: 'asc-btn asc-btn-ghost', style: 'margin-left:auto', onClick: () => overlay.remove() }, 'Cancel')));
-    overlay.appendChild(popup);
-    document.body.appendChild(overlay);
-  }
-
-  async function loadBuyerDeliveries() {
-    const card = document.getElementById('ascBuyerDeliveries');
-    if (!card) return;
-    try {
-      const data = await api('/admin/buyer-deliveries');
-      const deliveries = data.deliveries || [];
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Delivery history (' + deliveries.length + ')')));
-      if (!deliveries.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No datasets delivered yet.'))); return; }
-      const verMix = (bpv) => { const keys = Object.keys(bpv || {}); return keys.length ? keys.sort().map((k) => ascVerLabel(k) + ' ' + bpv[k]).join(' · ') : 'n/a'; };
-      const rows = deliveries.map((d) => h('tr', {},
-        h('td', {}, fmtDate(d.sent_at)),
-        h('td', { class: 'asc-mono' }, d.buyer_email),
-        h('td', { style: 'max-width:220px' }, d.label || 'n/a'),
-        h('td', {}, String(d.record_count != null ? d.record_count : 'n/a')),
-        h('td', {}, d.data_format || 'n/a'),
-        h('td', {}, verMix(d.by_portal_version))));
-      card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['Sent (PT)', 'Buyer', 'Organizations', 'Records', 'Format', 'Version'].map((c) => h('th', {}, c)))),
-        h('tbody', {}, rows))));
-    } catch (e) {
-      clear(card);
-      card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, e.message)));
-    }
-  }
-
-  async function loadBuyersAndRequests() {
-    let buyers = [], requests = [];
-    try { buyers = (await api('/buyers')).buyers || []; } catch (e) { /* */ }
-    try { requests = (await api('/buyer-requests')).buyer_requests || []; } catch (e) { /* */ }
-
-    // Buyers list
-    const bl = document.getElementById('ascBuyersList');
-    if (bl) {
-      clear(bl);
-      bl.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Buyers (' + buyers.length + ')')));
-      if (!buyers.length) bl.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No buyers yet.')));
-      else bl.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['Name', 'Contact', 'Profile'].map((c) => h('th', {}, c)))),
-        h('tbody', {}, buyers.map((b) => h('tr', {},
-          h('td', {}, b.name), h('td', {}, b.contact || 'n/a'), h('td', {}, b.export_profile || 'default')))))));
-    }
-
-    // Request form
-    const rf = document.getElementById('ascReqForm');
-    if (rf) renderBuyerRequestForm(rf, buyers);
-
-    // Requests list
-    const rl = document.getElementById('ascReqList');
-    if (rl) {
-      clear(rl);
-      rl.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Buyer requests (' + requests.length + ')')));
-      if (!requests.length) rl.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No buyer requests yet.')));
-      else {
-        const tbody = h('tbody', {}, requests.map((r) => {
-          const c = r.constraints || {};
-          return h('tr', {},
-            h('td', { class: 'asc-mono' }, (r.request_id || '').slice(0, 10)),
-            h('td', {}, r.source || 'n/a'),
-            h('td', {}, (c.specialty || 'n/a') + ' / ' + (c.difficulty || 'n/a')),
-            h('td', {}, c.grounding_mode === 'required' ? h('span', { class: 'asc-badge asc-badge-amber' }, 'required') : 'optional'),
-            h('td', {}, h('span', { class: 'asc-badge asc-badge-gray' }, r.status || 'new')),
-            h('td', {}, h('button', { class: 'asc-btn-link', onClick: () => openBatchDialog(r) }, 'New batch')));
-        }));
-        rl.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-          h('thead', {}, h('tr', {}, ['ID', 'Source', 'Spec / Diff', 'Grounding', 'Status', ''].map((c) => h('th', {}, c)))),
-          tbody)));
-      }
-    }
-  }
-
-  function renderBuyerRequestForm(card, buyers) {
-    clear(card);
-    const tax = state.taxonomy;
-    card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {}, h('div', { class: 'asc-card-title' }, 'New buyer request'),
-      h('div', { class: 'asc-card-sub' }, 'Define constraints and (optionally) attach prompts to grade.'))));
-    if (!buyers.length) {
-      card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-inline-error' }, 'Create a buyer first.')));
-      return;
-    }
-    const buyerSel = h('select', { class: 'asc-select' }, ...buyers.map((b) => h('option', { value: b.buyer_id }, b.name)));
-    const sourceSel = selectFrom(tax.task_sources || ['internal_prompt_bank', 'lab_supplied'], 'internal_prompt_bank');
-    const profileSel = selectFrom(profileNames(), 'default');
-    const specInput = h('input', { class: 'asc-input', placeholder: 'nephrology' });
-    const diffSel = selectFrom(['', 'easy', 'medium', 'hard'], '');
-    const groundSel = selectFrom(tax.grounding_modes || ['optional', 'required'], 'optional');
-    const captureCb = h('input', { type: 'checkbox' });
-    const volInput = h('input', { class: 'asc-input', type: 'number', min: '0', placeholder: 'e.g. 50' });
-    const maxLabels = h('input', { class: 'asc-input', type: 'number', min: '1', value: '1' });
-    const promptsTa = h('textarea', { class: 'asc-textarea', placeholder: 'Optional prompts JSON: [{"prompt":"…","candidate_answers":[…]}]', style: 'font-family:ui-monospace,Menlo,monospace;font-size:12px' });
-    const note = h('input', { class: 'asc-input', placeholder: 'Note (optional)' });
-    const status = h('div', {});
-
-    card.appendChild(h('div', { class: 'asc-card-pad' },
-      h('div', { class: 'asc-form-row-3' },
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Buyer'), buyerSel),
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Source'), sourceSel),
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Export profile'), profileSel)),
-      h('div', { class: 'asc-form-row-3' },
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Specialty'), specInput),
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Difficulty'), diffSel),
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Grounding mode'), groundSel)),
-      h('div', { class: 'asc-form-row-3' },
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Volume'), volInput),
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Max labels / task'), maxLabels),
-        h('div', { class: 'asc-field' }, h('label', { class: 'asc-checkbox-row', style: 'margin-top:26px' }, captureCb, 'Capture reasoning'))),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Prompts ', h('span', { class: 'asc-label-hint' }, '(optional JSON)')), promptsTa),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Note'), note),
-      h('button', {
-        class: 'asc-btn asc-btn-primary', onClick: async () => {
-          clear(status);
-          let prompts = [];
-          if (promptsTa.value.trim()) {
-            try { const p = JSON.parse(promptsTa.value); prompts = Array.isArray(p) ? p : (p.tasks || p.prompts || [p]); }
-            catch (e) { status.appendChild(h('div', { class: 'asc-inline-error' }, 'Prompts JSON invalid: ' + e.message)); return; }
-          }
-          const reqBody = {
-            buyer_id: buyerSel.value, source: sourceSel.value, export_profile: profileSel.value,
-            specialty: specInput.value.trim() || null, difficulty: diffSel.value || null,
-            capture_reasoning: captureCb.checked, grounding_mode: groundSel.value,
-            volume: volInput.value ? parseInt(volInput.value, 10) : null,
-            max_labels: parseInt(maxLabels.value || '1', 10), prompts, note: note.value.trim() || null,
-          };
-          try {
-            await api('/buyer-requests', { method: 'POST', body: reqBody });
-            status.appendChild(h('div', { class: 'asc-inline-ok' }, 'Buyer request created.'));
-            loadBuyersAndRequests();
-          } catch (e) { status.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-        },
-      }, 'Create request'),
-      status));
-  }
-
-  function openBatchDialog(req) {
-    const overlay = h('div', { class: 'call-team-overlay is-open', onClick: (e) => { if (e.target === overlay) overlay.remove(); } });
-    const c = req.constraints || {};
-    const countInput = h('input', { class: 'asc-input', type: 'number', min: '0', value: String(c.volume || 5) });
-    const promptsTa = h('textarea', { class: 'asc-textarea', placeholder: 'Optional prompts JSON (or prompts+responses). Leave empty to use the internal bank with the count above.', style: 'font-family:ui-monospace,Menlo,monospace;font-size:12px' });
-    const status = h('div', {});
-    const popup = h('div', { class: 'call-team-popup', style: 'max-width:560px', onClick: (e) => e.stopPropagation() },
-      h('div', { class: 'call-team-title' }, 'New batch from request'),
-      h('div', { class: 'call-team-sub' }, 'Request ' + (req.request_id || '').slice(0, 10) + ' · source ' + (req.source || 'n/a')),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'From internal bank: count'), countInput),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'From uploaded prompts ', h('span', { class: 'asc-label-hint' }, '(optional JSON, overrides count)')), promptsTa),
-      status,
-      h('div', { style: 'display:flex;gap:10px;margin-top:8px' },
-        h('button', {
-          class: 'asc-btn asc-btn-primary', onClick: async () => {
-            clear(status);
-            let prompts = [];
-            if (promptsTa.value.trim()) {
-              try { const p = JSON.parse(promptsTa.value); prompts = Array.isArray(p) ? p : (p.tasks || p.prompts || [p]); }
-              catch (e) { status.appendChild(h('div', { class: 'asc-inline-error' }, 'Prompts JSON invalid: ' + e.message)); return; }
-            }
-            const reqBody = { count: parseInt(countInput.value || '0', 10), prompts };
-            try {
-              const res = await api('/buyer-requests/' + req.request_id + '/batch', { method: 'POST', body: reqBody });
-              toast('Batch created: ' + res.count + ' task(s)', 'success');
-              overlay.remove();
-              loadBuyersAndRequests();
-            } catch (e) { status.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); }
-          },
-        }, 'Create batch'),
-        h('button', { class: 'asc-btn asc-btn-ghost', onClick: () => overlay.remove() }, 'Cancel')));
-    overlay.appendChild(popup);
-    document.body.appendChild(overlay);
-  }
-
-  // ─── Admin: QA queue ───────────────────────────────────────────────────────
-  // (QA Queue tab removed from the admin console. The QA pipeline still runs
-  // server-side; the Exports tab surfaces a one-click "approve pending & export".)
-
-  // ─── Admin: Exports ────────────────────────────────────────────────────────
-  // One-click export. Default packages the fresh (export_ready) backlog; when
-  // there's none left but records have already shipped, re-export everything so
-  // the bundle is always retrievable. Downloads the training-ready zip.
-  async function quickExportAll(btn, statusBox, includeExported) {
-    const orig = btn.textContent;
-    btn.setAttribute('disabled', '');
-    btn.textContent = 'Packaging…';
-    clear(statusBox);
-    try {
-      const manifest = await api('/exports', {
-        method: 'POST',
-        body: { profile: 'default', include_exported: !!includeExported },
-      });
-      const n = manifest.record_count != null ? manifest.record_count : 0;
-      statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
-        'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + '. Downloading…'));
-      await downloadExport(manifest.export_id);
-      loadExportsHistory();
-      refreshExportReadyCount();
-    } catch (e) {
-      const msg = e.status === 400
-        ? 'Nothing to export yet. Complete an evaluation first.'
-        : (e.status === 422 ? 'Schema validation failed: ' + e.message : (e.message || 'Export failed'));
-      statusBox.appendChild(h('div', { class: 'asc-inline-error' }, msg));
-    } finally {
-      btn.removeAttribute('disabled');
-      btn.textContent = orig;
-    }
-  }
-
-  // Approve everything stuck in QA, then export: the "label -> export now" path.
-  async function approveAllAndExport(btn, statusBox) {
-    const orig = btn.textContent;
-    btn.setAttribute('disabled', '');
-    btn.textContent = 'Approving QA…';
-    clear(statusBox);
-    try {
-      const res = await api('/qa/approve-all', { method: 'POST' });
-      const k = res.approved != null ? res.approved : 0;
-      statusBox.appendChild(h('div', { class: 'asc-inline-ok' },
-        'Approved ' + k + ' submission' + (k === 1 ? '' : 's') + ' from QA. Exporting…'));
-      await quickExportAll(btn, statusBox, false);
-    } catch (e) {
-      statusBox.appendChild(h('div', { class: 'asc-inline-error' }, e.message || 'Approve failed'));
-      btn.removeAttribute('disabled');
-      btn.textContent = orig;
-    }
-  }
-
-  // Reflect the live backlog and explain a 0 ("in QA" / "already exported" / "no data").
-  async function refreshExportReadyCount() {
-    const countEl = document.getElementById('ascExportReadyCount');
-    const noteEl = document.getElementById('ascExportReadyNote');
-    const btn = document.getElementById('ascQuickExportBtn');
-    const statusBox = () => document.getElementById('ascQuickExportStatus');
-    if (!countEl || !btn) return;
-    let s;
-    try { s = await api('/stats'); } catch (e) { return; }
-    const waiting = s.exportable_records || 0;
-    const exported = s.exported_records || 0;
-    const total = s.total_records || 0;
-    const qaPending = s.qa_pending || 0;
-    countEl.textContent = String(waiting);
-    btn.removeAttribute('disabled');
-    if (noteEl) clear(noteEl);
-    if (waiting > 0) {
-      btn.textContent = '⬇ Export all ready records';
-      btn.onclick = () => quickExportAll(btn, statusBox(), false);
-      if (noteEl && qaPending > 0) noteEl.appendChild(h('span', {},
-        '(' + qaPending + ' more submission' + (qaPending === 1 ? ' is' : 's are') + ' in QA review. Approve in the QA Queue tab to add them.)'));
-    } else if (qaPending > 0) {
-      // The usual reason a just-labeled submission isn't exportable: it was
-      // sampled/flagged into QA. Let the admin release + export in one click.
-      btn.textContent = '✓ Approve ' + qaPending + ' pending & export';
-      btn.onclick = () => approveAllAndExport(btn, statusBox());
-      if (noteEl) noteEl.appendChild(h('span', {},
-        qaPending + ' submission' + (qaPending === 1 ? '' : 's') + ' from your evaluators ' +
-        (qaPending === 1 ? 'is' : 'are') + ' held in QA review (quality sampling). Approve to make ' +
-        (qaPending === 1 ? 'it' : 'them') + ' exportable, or review individually in the QA Queue tab.'));
-    } else if (exported > 0) {
-      btn.textContent = '⬇ Re-export all records (' + exported + ')';
-      btn.onclick = () => quickExportAll(btn, statusBox(), true);
-      if (noteEl) noteEl.appendChild(h('span', {},
-        'All ' + exported + ' record' + (exported === 1 ? '' : 's') + ' already exported. Re-package to download again, or grab any prior bundle from the history below.'));
-    } else {
-      btn.textContent = '⬇ Export all ready records';
-      btn.setAttribute('disabled', '');
-      btn.onclick = null;
-      if (noteEl) noteEl.appendChild(h('span', {},
-        total === 0
-          ? 'No completed evaluations yet. Once a clinician submits one, it appears here to export.'
-          : 'Nothing ready to export right now.'));
-    }
-  }
-
-  function renderAdminExports(body) {
-    clear(body);
-    state.browse.export = { level: 'orgs', org: null, idHashed: null, contributor: null };
-
-    // ── One-click export (the common path) ──────────────────────────────────
-    const quickStatus = h('div', { id: 'ascQuickExportStatus', style: 'margin-top:12px' });
-    const quickBtn = h('button', {
-      class: 'asc-btn asc-btn-primary asc-btn-lg', id: 'ascQuickExportBtn', disabled: true,
-    }, '⬇ Export all ready records');
-    const quickCard = h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-card-title' }, 'Ready to export'),
-      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
-        'Records that are completed and QA-cleared, packaged as a training-ready bundle ',
-        h('span', { class: 'asc-mono' }, '(records.jsonl'), ' + data dictionary, datasheet & quality report).'),
-      h('div', { style: 'display:flex;align-items:center;gap:16px;flex-wrap:wrap' },
-        h('div', { style: 'font-size:34px;font-weight:700;line-height:1', id: 'ascExportReadyCount' }, '…'),
-        h('span', { class: 'asc-label-hint' }, 'record(s) waiting'),
-        quickBtn),
-      h('div', { class: 'asc-label-hint', id: 'ascExportReadyNote', style: 'margin-top:10px' }),
-      quickStatus);
-    body.appendChild(quickCard);
-    refreshExportReadyCount();
-
-    // ── Export by product version cohort filter (V1 / V2 / V3) ──────────────
-    const cohortStatus = h('div', { style: 'margin-top:12px' });
-    const cohortSel = selectFrom(['both', 'v3', 'v2', 'v1'], 'both');
-    const cohortInclExported = h('input', { type: 'checkbox' });
-    const cohortBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '⬇ Export cohort');
-    cohortBtn.addEventListener('click', async () => {
-      const sel = cohortSel.value;
-      const orig = cohortBtn.textContent;
-      cohortBtn.setAttribute('disabled', ''); cohortBtn.textContent = 'Packaging…';
-      clear(cohortStatus);
-      try {
-        const body2 = { profile: 'default', include_exported: cohortInclExported.checked };
-        if (sel !== 'both') body2.portal_version = sel;
-        const manifest = await api('/exports', { method: 'POST', body: body2 });
-        const n = manifest.record_count != null ? manifest.record_count : 0;
-        const bpv = (manifest.counts || {}).by_portal_version || {};
-        const mix = Object.keys(bpv).map((k) => k + ':' + bpv[k]).join(' · ') || 'n/a';
-        cohortStatus.appendChild(h('div', { class: 'asc-inline-ok' },
-          'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + ' (' + mix + '). Downloading…'));
-        await downloadExport(manifest.export_id);
-        loadExportsHistory();
-        refreshExportReadyCount();
-      } catch (e) {
-        const msg = e.status === 400
-          ? 'No records match that version/filter yet.'
-          : (e.status === 422 ? 'Schema validation failed: ' + e.message : (e.message || 'Export failed'));
-        cohortStatus.appendChild(h('div', { class: 'asc-inline-error' }, msg));
-      } finally { cohortBtn.removeAttribute('disabled'); cohortBtn.textContent = orig; }
-    });
-    body.appendChild(h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-card-title' }, 'Export by product version'),
-      h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
-        'Package a single cohort: V2 (assisted), V1 (classic), or both. Every record is also stamped with its source version.'),
-      h('div', { class: 'asc-form-row', style: 'align-items:flex-end' },
-        h('div', { class: 'asc-field', style: 'margin-bottom:0' },
-          h('label', { class: 'asc-label' }, 'Product version'), cohortSel),
-        h('label', { class: 'asc-checkbox-row', style: 'margin-bottom:0' }, cohortInclExported, 'Re-include already-exported'),
-        cohortBtn),
-      cohortStatus));
-
-    // ── Contributors (by organization → contributor → profile) ──────────────
-    const contribCard = h('div', { class: 'asc-card', id: 'ascContribBrowser' });
-    body.appendChild(contribCard);
-    renderOrgContribBrowser(contribCard, 'export');
-
-    const historyCard = h('div', { class: 'asc-card', id: 'ascExportHistory' }, loadingCard('Loading export history…'));
-    body.appendChild(historyCard);
-    loadExportsHistory();
-  }
+  // `renderAdminExports` — the old "Export history" sub-view — is REMOVED
+  // (Export & Approval PRD §2). It carried four separate ways to cut a bundle
+  // (quick-export-all, an export-by-version cohort, a per-contributor export,
+  // and the history list), none of which previewed what would actually ship.
+  // All four are now scopes of the ONE Export builder in admin_export.js:
+  //   quick export all  -> scope "All"
+  //   version cohort    -> scope "Version"
+  //   per contributor   -> scope "Physician"
+  // The history list itself (`loadExportsHistory`) and the contributor browser
+  // (which is also where a Further Credential Summary is generated) survive and
+  // are mounted UNDER the builder via `adminSectionCtx`.
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  Contributors browser: shared org → contributor drill-down used by both the
@@ -12192,11 +11870,17 @@
   }
 
   function browseTitle(mode) {
-    return mode === 'export' ? 'Contributors: export by organization' : 'Metrics by organization & contributor';
+    return mode === 'export'
+      ? 'Contributors & credential summaries'
+      : 'Metrics by organization & contributor';
   }
   function browseSub(mode) {
+    // Not a competing export surface — the builder above is that, and its
+    // Physician scope covers the per-contributor cut. What only lives HERE is
+    // the organization-wide cut and the Further Credential Summary: the NDA
+    // dossier a buyer asks for when they want to verify who labelled their data.
     return mode === 'export'
-      ? 'Browse every contributor by organization. Export all the data an organization labelled, or open a contributor to export their data or generate a credential verification summary.'
+      ? 'Browse every contributor by organization. Export everything one organization labelled, or open a contributor to generate a Further Credential Summary (released under NDA / non-circumvention).'
       : 'Drill from overall metrics into a single organization, then a single contributor, including when they last labelled.';
   }
 
@@ -12480,7 +12164,6 @@
       statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + '. Downloading…'));
       await downloadExport(manifest.export_id);
       loadExportsHistory();
-      refreshExportReadyCount();
     } catch (e) {
       clear(statusBox);
       const msg = e.status === 400 ? 'No export-ready records for this organization yet.'
@@ -12500,7 +12183,6 @@
       statusBox.appendChild(h('div', { class: 'asc-inline-ok' }, 'Packaged ' + n + ' record' + (n === 1 ? '' : 's') + '. Downloading…'));
       await downloadExport(manifest.export_id);
       loadExportsHistory();
-      refreshExportReadyCount();
     } catch (e) {
       clear(statusBox);
       const msg = e.status === 400 ? 'No export-ready records for this contributor yet.'
@@ -12581,37 +12263,71 @@
     } catch (e) { if (e.status !== 401) toast('Download failed: ' + (e.message || ''), 'error'); }
   }
 
-  async function loadExportsHistory() {
-    const card = document.getElementById('ascExportHistory');
+  /* Export history, rendered under the builder (PRD §2.4).
+   *
+   * Takes the card rather than looking one up by id: it used to be the tail of
+   * the Export-history sub-tab, and it is now mounted by the export section
+   * module. The id lookup stays as the fallback so nothing that called it with
+   * no argument breaks.
+   *
+   * The SCOPE column is new. An export row could say how many records it
+   * carried and never what slice it was, so "which batch did the nephrology
+   * cases go out in?" had no answer. Rows written before `exports.scope_json`
+   * existed render as `legacy` — their scope is genuinely unknown and inventing
+   * one would be worse than saying so. Nothing is re-generated. */
+  function scopeCell(x) {
+    const sc = x.scope;
+    if (!sc || !sc.type) {
+      return h('span', {
+        class: 'asc-dim',
+        title: 'Built before exports recorded their scope. The bundle is intact; '
+             + 'only the label is unknown.',
+      }, 'legacy');
+    }
+    const parts = [sc.type];
+    if (sc.case_ids && sc.case_ids.length) {
+      parts.push(sc.case_ids.length === 1 ? sc.case_ids[0]
+                                          : sc.case_ids.length + ' cases');
+    }
+    if (sc.specialty) parts.push(sc.specialty);
+    if (sc.portal_version) parts.push(sc.portal_version);
+    // A physician-scoped export is labelled by HASH here for the same reason
+    // the bundle is: the name never travels with the data (PRD §2.1).
+    if (sc.annotator_id_hashed) parts.push(String(sc.annotator_id_hashed).slice(0, 10) + '…');
+    return h('span', { class: 'asc-scope-tag' }, parts.join(' · '));
+  }
+
+  async function loadExportsHistory(cardEl) {
+    const card = cardEl || document.getElementById('ascExportHistory');
     if (!card) return;
     clear(card);
     card.appendChild(loadingCard('Loading export history…'));
     try {
-      const data = await api('/exports');
+      const [data, delivered] = await Promise.all([
+        api('/exports'),
+        // Delivery status per export (§2.4). Best-effort: history is still
+        // history if the delivery list is unavailable.
+        api('/admin/buyer-deliveries').catch(() => ({ deliveries: [] })),
+      ]);
       const exports = data.exports || [];
+      const sentTo = {};
+      ((delivered && delivered.deliveries) || []).forEach((d) => {
+        if (d.export_id) sentTo[d.export_id] = d.buyer_email || 'a buyer';
+      });
       clear(card);
       card.appendChild(h('div', { class: 'asc-card-head' }, h('div', { class: 'asc-card-title' }, 'Export history (' + exports.length + ')')));
       if (!exports.length) { card.appendChild(h('div', { class: 'asc-empty' }, h('p', {}, 'No exports yet.'))); return; }
-      const verLabel = (v) => ({ v4: 'V4', v3: 'V3', v2: 'V2', v1: 'V1' }[v] || v);
-      const versionCell = (x) => {
-        const m = x.manifest || {};
-        const filt = (m.filters || {}).portal_version;
-        if (filt) return verLabel(filt) + ' only';
-        const bpv = (m.counts || {}).by_portal_version || {};
-        const keys = Object.keys(bpv);
-        if (!keys.length) return 'n/a';
-        if (keys.length === 1) return verLabel(keys[0]);
-        return keys.sort().map((k) => k + ' ' + bpv[k]).join(' · '); // mixed
-      };
       const rows = exports.map((x) => h('tr', {},
-        h('td', { class: 'asc-mono' }, (x.export_id || '').slice(0, 12)),
-        h('td', {}, x.profile || 'n/a'),
-        h('td', {}, versionCell(x)),
+        h('td', { class: 'asc-cell-id' }, copyableId(x.export_id)),
+        h('td', {}, scopeCell(x)),
         h('td', {}, String(x.record_count != null ? x.record_count : (x.count != null ? x.count : 'n/a'))),
         h('td', {}, fmtDate(x.created_at)),
+        h('td', {}, sentTo[x.export_id]
+          ? h('span', { class: 'asc-dim' }, 'sent to ' + sentTo[x.export_id])
+          : h('span', { class: 'asc-dim' }, '—')),
         h('td', {}, h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: () => downloadExport(x.export_id) }, '⬇ Download'))));
       card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
-        h('thead', {}, h('tr', {}, ['ID', 'Profile', 'Version', 'Records', 'Created', ''].map((c) => h('th', {}, c)))),
+        h('thead', {}, h('tr', {}, ['ID', 'Scope', 'Records', 'Created', 'Delivery', ''].map((c) => h('th', {}, c)))),
         h('tbody', {}, rows))));
     } catch (e) {
       clear(card);

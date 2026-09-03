@@ -6479,6 +6479,24 @@ async def startup_team_scheduler():
             )
     except Exception:
         _auth_logger.warning("[ingestion] startup durability/recovery check failed", exc_info=True)
+    # Export/approval migration (Export & Approval PRD §4): cases we already
+    # approved or paid for whose records never became export_ready. Idempotent —
+    # a second boot finds nothing — and additive: statuses move forward, no row
+    # is deleted or renamed. Runs here because this deployment has no migration
+    # step, and off the event loop because it walks the ledger.
+    try:
+        from asclepius import export_backfill as _asc_export_backfill
+
+        _asc_store_bf = getattr(app.state, "asclepius_store", None)
+        if _asc_store_bf is not None:
+            async def _backfill_export_ready_at_boot() -> None:
+                report = await asyncio.to_thread(
+                    _asc_export_backfill.run_once_at_boot, _asc_store_bf)
+                app.state.asclepius_export_backfill = report
+
+            asyncio.create_task(_backfill_export_ready_at_boot())
+    except Exception:
+        _auth_logger.warning("[export] approval backfill could not start", exc_info=True)
     if not _disable_public_demo_account():
         _ensure_demo_doctor()
     await _seed_demo_mode_data()

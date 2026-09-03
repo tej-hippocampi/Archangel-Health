@@ -58,7 +58,6 @@ from asclepius.constants import (
     ASCLEPIUS_CONFIG_VERSION,
     ASCLEPIUS_ENGINE,
     ASCLEPIUS_TAXONOMY_VERSION,
-    BUYER_REQUEST_STATUSES,
     CREDENTIAL_SUMMARY_LEGAL_DISCLAIMER,
     CREDENTIAL_SUMMARY_WATERMARK,
     CONFIDENCE_LEVELS,
@@ -125,10 +124,6 @@ from asclepius.constants import (
 from asclepius.schemas import (
     AscPortalHandoffConsumeRequest,
     ChangePasswordRequest,
-    BatchFromRequest,
-    BuyerIn,
-    BuyerRequestIn,
-    BuyerRequestStatusUpdate,
     CandidateGenRequest,
     CiteRequest,
     FirstRunUpdate,
@@ -4969,183 +4964,22 @@ async def credential_policy(_admin: Dict[str, Any] = Depends(asc_auth.require_ad
     }
 
 
-# ─── Buyers & buyer requests (opt §2.5) ───────────────────────────────────────
-@router.post("/buyers")
-async def create_buyer(body: BuyerIn, admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    store = _store()
-    buyer = store.create_buyer(
-        name=body.name, contact=body.contact, export_profile=body.export_profile, notes=body.notes
-    )
-    store.log_event(entity_type="buyer", entity_id=buyer["buyer_id"], event_type="buyer_created", actor=admin["id"])
-    return buyer
-
-
-@router.get("/buyers")
-async def list_buyers(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    return {"buyers": _store().list_buyers()}
-
-
-@router.post("/buyer-requests")
-async def create_buyer_request(
-    body: BuyerRequestIn, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
-):
-    store = _store()
-    if not store.get_buyer(body.buyer_id):
-        raise HTTPException(status_code=404, detail="Buyer not found")
-    if body.source not in TASK_SOURCES:
-        raise HTTPException(status_code=400, detail="Invalid source")
-    if body.grounding_mode not in GROUNDING_MODES:
-        raise HTTPException(status_code=400, detail="Invalid grounding_mode")
-    if body.independent_mode not in INDEPENDENT_MODES:
-        raise HTTPException(status_code=400, detail="Invalid independent_mode")
-    constraints = {
-        "specialty": body.specialty,
-        "difficulty": body.difficulty,
-        "capture_reasoning": body.capture_reasoning,
-        "grounding_mode": body.grounding_mode,
-        "independent_mode": body.independent_mode,
-        "volume": body.volume,
-        "max_labels": body.max_labels,
-    }
-    uploaded = [t.model_dump() for t in body.prompts]
-    req = store.create_buyer_request(
-        buyer_id=body.buyer_id,
-        source=body.source,
-        export_profile=body.export_profile,
-        constraints=constraints,
-        uploaded=uploaded,
-        note=body.note,
-        created_by=admin["id"],
-    )
-    store.log_event(
-        entity_type="buyer_request", entity_id=req["request_id"],
-        event_type="buyer_request_created", actor=admin["id"], payload={"buyer_id": body.buyer_id},
-    )
-    return req
-
-
-@router.get("/buyer-requests")
-async def list_buyer_requests(
-    buyer_id: Optional[str] = None, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)
-):
-    return {"buyer_requests": _store().list_buyer_requests(buyer_id=buyer_id)}
-
-
-@router.get("/buyer-requests/{request_id}")
-async def get_buyer_request(request_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
-    req = _store().get_buyer_request(request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Buyer request not found")
-    return req
-
-
-@router.post("/buyer-requests/{request_id}/status")
-async def set_buyer_request_status(
-    request_id: str, body: BuyerRequestStatusUpdate, admin: Dict[str, Any] = Depends(asc_auth.require_admin)
-):
-    store = _store()
-    if not store.get_buyer_request(request_id):
-        raise HTTPException(status_code=404, detail="Buyer request not found")
-    if body.status not in BUYER_REQUEST_STATUSES:
-        raise HTTPException(status_code=400, detail=f"status must be one of {list(BUYER_REQUEST_STATUSES)}")
-    store.update_buyer_request_status(request_id, body.status)
-    return {"request_id": request_id, "status": body.status}
-
-
-@router.post("/buyer-requests/{request_id}/batch")
-async def batch_from_request(
-    request_id: str, body: BatchFromRequest, background_tasks: BackgroundTasks,
-    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
-):
-    """Spin up a task batch from a buyer request in one step (opt §2.5).
-
-    Tasks inherit the request's constraints (incl. grounding_mode) and stamp the
-    request id + source into every record's provenance. With uploaded prompts we
-    grade exactly what the buyer sent; with constraints-only + ``count`` we invoke
-    the Seedmaker engine (still our prompts, their spec) — PRD §10."""
-    store = _store()
-    req = store.get_buyer_request(request_id)
-    if not req:
-        raise HTTPException(status_code=404, detail="Buyer request not found")
-
-    c = req.get("constraints") or {}
-    source = req.get("source") or "internal_prompt_bank"
-    grounding_mode = c.get("grounding_mode") or "optional"
-    independent_mode = c.get("independent_mode") or DEFAULT_INDEPENDENT_MODE
-    capture_reasoning = bool(c.get("capture_reasoning"))
-    difficulty = c.get("difficulty") or "medium"
-    specialty = c.get("specialty") or "nephrology"
-    max_labels = int(c.get("max_labels") or 1)
-
-    # Prompts: those uploaded on the request + any passed at batch time.
-    uploaded = list(req.get("uploaded") or []) + [t.model_dump() for t in body.prompts]
-    created: List[str] = []
-    created_rows: List[Dict[str, Any]] = []
-
-    for t in uploaded:
-        prompt = (t.get("prompt") or "").strip()
-        if not prompt:
-            continue
-        task = store.insert_task(
-            prompt=prompt,
-            specialty=t.get("specialty") or specialty,
-            difficulty=t.get("difficulty") or difficulty,
-            capture_reasoning=bool(t.get("capture_reasoning", capture_reasoning)),
-            source=source,
-            candidate_answers=t.get("candidate_answers") or [],
-            max_labels=int(t.get("max_labels") or max_labels),
-            grounding_mode=t.get("grounding_mode") or grounding_mode,
-            independent_mode=t.get("independent_mode") or independent_mode,
-            buyer_request_id=request_id,
-            created_by=admin["id"],
-        )
-        created.append(task["task_id"])
-        created_rows.append(task)
-
-    # Constraints-only: invoke the Seedmaker engine to generate ``count`` validated
-    # tasks (prompt + 2 candidates) grounded in the seed corpus, stamped to this
-    # buyer request. Requires an LLM (503 if disabled — never ungated tasks).
-    gen_summary: Optional[Dict[str, Any]] = None
-    if body.count and not uploaded:
-        try:
-            gen_summary = await asc_generation.generate_tasks(
-                store,
-                specialty=specialty,
-                n=body.count,
-                capture_reasoning=capture_reasoning,
-                grounding_mode=grounding_mode,
-                independent_mode=independent_mode,
-                max_labels=max_labels,
-                buyer_request_id=request_id,
-                created_by=admin["id"],
-            )
-            gen_ids = gen_summary.get("created") or []
-            created.extend(gen_ids)
-            # generate_tasks was invoked with one specialty, so every id it
-            # returns carries it; no per-row lookup needed.
-            created_rows.extend({"task_id": tid, "specialty": specialty} for tid in gen_ids)
-        except asc_specialties.SpecialtyNotEnabled as exc:
-            raise HTTPException(status_code=400, detail={"error": "specialty_not_enabled", "message": str(exc)})
-        except asc_generation.GenerationDisabled as exc:
-            raise HTTPException(status_code=503, detail=str(exc))
-
-    store.update_buyer_request_status(request_id, "in_progress")
-    store.log_event(
-        entity_type="buyer_request", entity_id=request_id, event_type="batch_created",
-        actor=admin["id"], payload={"count": len(created)},
-    )
-    await _notify_new_tasks(
-        store, background_tasks, _notifiable(created_rows), admin_id=admin["id"]
-    )
-    out = {"request_id": request_id, "created": created, "count": len(created)}
-    if gen_summary is not None:
-        out["generation"] = {
-            "job_id": gen_summary.get("job_id"),
-            "accepted": gen_summary.get("accepted"),
-            "dropped": gen_summary.get("dropped"),
-            "shortfall": gen_summary.get("shortfall"),
-        }
-    return out
+# ─── Buyers & buyer requests — RETIRED (Export & Approval PRD §5) ─────────────
+# The buyer CRM is gone. `POST/GET /buyers`, `/buyer-requests*` and the
+# `renderAdminBuyers` screen behind them are removed: they were a second,
+# parallel place to describe a sale that nobody kept current, and the Export tab
+# now carries the only part of it that mattered — "build this bundle and send it
+# to this buyer" — attached to the export itself.
+#
+# THE TABLES STAY. `buyers` and `buyer_requests` are never dropped and their
+# rows are never deleted (§0, §5); they are historical records of real
+# conversations, and `tasks.buyer_request_id` still points into them, so records
+# packaged for a past request keep their provenance. See
+# docs/asclepius/BUYER_CRM_RETIRED.md.
+#
+# The delivery rail is untouched and fully supported: `buyer_accounts`,
+# `buyer_deliveries`, the buyer portal (`frontend/buyer/`,
+# `routers/asclepius_buyer.py`) and `POST /admin/buyer-deliveries`.
 
 
 # ─── Dashboard (admin) ────────────────────────────────────────────────────────
