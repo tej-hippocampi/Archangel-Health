@@ -35,13 +35,23 @@ sends — it prints to stdout — so this also removes any chance of a test reac
 a real transport.
 """
 
+import hashlib
 import os
 import tempfile
 
 os.environ.setdefault("RATE_LIMIT_ENABLED", "0")
 os.environ.setdefault("EMAIL_DEV_MODE", "1")
 
-_asclepius_tmp = os.path.join(tempfile.gettempdir(), "asclepius_suite")
+# Keyed on the checkout this file lives in, because the suite databases used to
+# sit at one fixed path shared by every checkout on the machine. Two pytest runs
+# in sibling git worktrees then blocked each other on the same SQLite file, and
+# the symptom was a multi-minute hang rather than an error, which reads as a
+# deadlock in whatever code was under test. Sharing WITHIN a checkout is kept:
+# that is the behavior the "_suite" databases were built around.
+_checkout_key = hashlib.sha256(
+    os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..")).encode()
+).hexdigest()[:12]
+_asclepius_tmp = os.path.join(tempfile.gettempdir(), f"asclepius_suite_{_checkout_key}")
 os.makedirs(_asclepius_tmp, exist_ok=True)
 os.environ.setdefault("ASCLEPIUS_DB_PATH", os.path.join(_asclepius_tmp, "asclepius_suite.db"))
 os.environ.setdefault("ASCLEPIUS_EXPORT_DIR", os.path.join(_asclepius_tmp, "exports"))
