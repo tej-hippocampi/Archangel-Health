@@ -251,6 +251,40 @@ def test_a_physician_who_already_has_an_account_is_not_sent_an_application_link(
     assert _queued(store, existing["email"]) == []
 
 
+# ─── The copy ────────────────────────────────────────────────────────────────
+
+#: The banned glyph, written as an escape so this file can assert its absence
+#: without containing one.
+_EM_DASH = "\u2014"
+
+
+def test_the_follow_up_holds_house_style():
+    """Same rule the referral email is held to. It is the first thing a
+    physician reads from us after meeting us."""
+    from onboarding_emails import build_intro_followup_email
+
+    html = build_intro_followup_email(
+        full_name="Ada Lovelace", onboarding_url="https://landing.test/onboard/t",
+        one_pager_url="https://api.test/api/onboarding/asclepius/one-pager.pdf")
+    assert _EM_DASH not in html
+    # The entities the atoms escape, printed literally, is a bug caught in
+    # review on a sibling builder once already.
+    assert "&amp;middot;" not in html
+    assert "&amp;rarr;" not in html
+
+
+def test_the_follow_up_opens_on_the_conversation_not_on_who_we_are():
+    """The difference between this and the cold invite. Explaining Archangel to
+    somebody we just spent twenty minutes with reads as a mail merge."""
+    from onboarding_emails import build_intro_followup_email
+
+    html = build_intro_followup_email(
+        full_name="Ada Lovelace", onboarding_url="https://landing.test/onboard/t",
+        one_pager_url="https://api.test/one-pager.pdf")
+    assert "Great speaking with you, Ada." in html
+    assert "You have been invited" not in html
+
+
 # ─── Access ──────────────────────────────────────────────────────────────────
 
 def test_the_meeting_surface_is_admin_only(env):

@@ -673,7 +673,7 @@ def build_intro_followup_email(
             muted=True,
             small=True,
         )
-        + _founder_signoff("— Tej & Aryaa, co-founders")
+        + _founder_signoff("Tej and Aryaa, co-founders")
     )
     return _shell(subject="Your Archangel Health application link", body_html=body)
 
