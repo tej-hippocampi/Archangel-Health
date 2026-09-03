@@ -1282,12 +1282,24 @@ def _quality_terms(store, submission_id: str, verdicts: Optional[str]) -> Dict[s
 # permanently unshippable — and nothing anywhere said so.
 #
 # After PRD §3 a record ships iff `records.status ∈ {export_ready, exported}`,
-# and exactly FOUR events set it: admin Approve, reviewer accept, the 14-day
-# auto-approve, and the QA tab. All four resolve the ledger too, and the first
-# three reach the records table through THIS function. (The QA tab writes both
-# in ``pipeline.apply_qa_decision``, which predates this and is the shape this
-# function copies.) A fifth path is a bug; ``test_export_approval_prd`` enumerates
-# the four and asserts each writes both tables.
+# and the invariant this adds is ONE-DIRECTIONAL:
+#
+#     approved money  ⟹  exportable record        (what was broken; fixed here)
+#     exportable record  ⇏  approved money        (by design — see below)
+#
+# Four APPROVAL events reach the records table, and the first three come through
+# THIS function: admin Approve, reviewer accept, the 14-day auto-approve, and the
+# QA tab (which writes both in ``pipeline.apply_qa_decision``, the shape this
+# function copies). All four resolve the ledger.
+#
+# They are not the only way a record becomes exportable, and claiming otherwise
+# would be wrong. ``pipeline.process_submission`` puts a clean, unsampled
+# submission straight to ``export_ready`` at capture, with no ledger row in
+# existence — that predates all of this and PRD §7 protects it explicitly. So
+# three code sites in total can write ``export_ready``; a FOURTH is a bug.
+# ``test_exactly_three_code_paths_can_make_a_record_exportable`` pins the set,
+# and ``test_the_four_paths_all_write_both_tables`` asserts each APPROVAL path
+# moves both tables.
 
 #: Where an approval may move a submission FROM. A whitelist, not a blacklist:
 #: ``exported`` must never be downgraded (it has already shipped), ``rejected``

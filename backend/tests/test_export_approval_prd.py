@@ -426,6 +426,87 @@ def test_the_four_paths_all_write_both_tables():
         assert st["records"] == {"export_ready"}, name
 
 
+def test_exactly_three_code_paths_can_make_a_record_exportable():
+    """The honest version of the "four paths" rule (PRD §3).
+
+    An audit of this branch found the prose overclaiming. There are FIVE events
+    that make a record exportable, reaching the table through THREE code sites:
+
+      1. ``payments.apply_ledger_decision_to_records`` — the convergent one this
+         PRD added, serving admin Approve, reviewer accept, the 14-day
+         auto-approve, and the §4 backfill. All of these resolve the ledger.
+      2. ``pipeline.apply_qa_decision``  — the QA tab.
+      3. ``pipeline.process_submission`` — the AUTO-VALIDATION HAPPY PATH: a
+         clean, unsampled submission is export_ready at capture, with no ledger
+         involvement at all. It predates this work and PRD §7 says explicitly not
+         to touch it.
+
+    So the invariant this PRD establishes is ONE-DIRECTIONAL:
+
+        approved money  ⟹  exportable record          (what was broken, now fixed)
+        exportable record  ⇏  approved money          (the happy path; by design)
+
+    Claiming the converse would be wrong, and worse, would invite someone to
+    "fix" the pipeline into withholding every clean submission behind a payment
+    decision — which is not what anyone asked for.
+
+    This test pins the set of writers. A fourth site appearing is either a real
+    fifth path (a bug) or a deliberate change that should update this list.
+    """
+    import ast
+    import pathlib
+
+    backend = pathlib.Path(__file__).resolve().parent.parent
+    found = set()
+    for rel in ("asclepius/payments.py", "asclepius/pipeline.py",
+                "asclepius/export_backfill.py", "asclepius/store.py",
+                "routers/asclepius.py", "routers/asclepius_admin.py",
+                "routers/asclepius_payments.py", "routers/asclepius_review.py"):
+        path = backend / rel
+        if not path.exists():
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            if not (isinstance(fn, ast.Attribute)
+                    and fn.attr == "update_records_status_for_submission"):
+                continue
+            # Only calls that can write export_ready. A literal 'needs_qa' or
+            # 'rejected' is not a way to make something shippable.
+            for arg in node.args[1:]:
+                if isinstance(arg, ast.Constant) and arg.value == "export_ready":
+                    found.add(f"{rel}:{node.lineno}")
+                elif not isinstance(arg, ast.Constant):
+                    # A variable — payments' single convergent writer, whose
+                    # target is 'export_ready' or 'rejected'.
+                    found.add(f"{rel}:{node.lineno}")
+
+    assert len(found) == 3, (
+        "the set of code paths that can make a record exportable changed: "
+        f"{sorted(found)}. If that is deliberate, make sure the new one also "
+        "resolves the ledger, and update this test and PRD §3.")
+    files = sorted({f.split(":")[0] for f in found})
+    assert files == ["asclepius/payments.py", "asclepius/pipeline.py"], files
+
+
+def test_the_happy_path_makes_a_record_exportable_without_any_ledger_row():
+    """The direction the PRD does NOT claim, asserted so nobody later "fixes" it.
+
+    A clean, unsampled submission is exportable the moment it is captured, with
+    no earning row at all. That is deliberate and predates this work (PRD §7
+    protects the auto-validation pipeline); the bug this PRD fixed was the other
+    direction — money approved, record stranded.
+    """
+    admin_h = _admin_h()
+    ev = _evaluator()
+    _tid, sid = _submit(admin_h, ev)
+    st = _statuses(sid)
+    assert st["records"] == {"export_ready"}
+    assert st["ledger"] is None, "no ledger row exists yet, and the case still ships"
+
+
 def test_a_review_session_earning_has_no_case_to_ship():
     """Only a task earning is one case. A review session spans several and a
     referral bounty is not casework — neither may touch a records row."""

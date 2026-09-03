@@ -45,11 +45,28 @@ maps refusals to HTTP. One action, three writes, one meaning:
 from non-terminal states only.
 
 **The convergence rule** (`payments.apply_ledger_decision_to_records`): a record
-ships iff `records.status ∈ {export_ready, exported}`, and exactly four events
-set it — admin Approve, reviewer accept, the 14-day auto-approve, and the QA tab.
-All four also resolve the ledger. `tests/test_export_approval_prd.py::
-test_the_four_paths_all_write_both_tables` enumerates them. **A fifth path is a
-bug.**
+ships iff `records.status ∈ {export_ready, exported}`. Four APPROVAL events move
+it — admin Approve, reviewer accept, the 14-day auto-approve, the QA tab — and
+all four also resolve the ledger; the first three converge on this one function.
+`test_the_four_paths_all_write_both_tables` asserts each moves both tables.
+
+**The invariant is one-directional, and the prose here used to overclaim it.**
+
+```
+approved money     ⟹  exportable record     ← what was broken; this fixed it
+exportable record  ⇏  approved money        ← by design, and older than this PRD
+```
+
+A clean, unsampled submission is `export_ready` the moment it is captured, with
+no ledger row in existence — `pipeline.process_submission`, which PRD §7
+explicitly protects. Saying "only four events make a record exportable" would
+invite someone to "fix" that into withholding every clean submission behind a
+payment decision, which is not what anyone asked for.
+
+So: **three code sites** may write `export_ready` — the convergent function
+above, `pipeline.apply_qa_decision`, and the happy path.
+`test_exactly_three_code_paths_can_make_a_record_exportable` pins the set by
+parsing the call sites, so a genuine fourth cannot appear quietly.
 
 Two of those four are new behavior: the 14-day auto-approve and a reviewer's
 accept used to pay a case and leave it permanently unshippable.

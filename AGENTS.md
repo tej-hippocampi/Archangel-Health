@@ -61,12 +61,17 @@ askable on every page load.
 
 A submission used to carry three statuses that never talked to each other —
 `earnings.status`, `submissions.status`, `records.status` — and export reads only
-the third. **A record ships iff `records.status ∈ {export_ready, exported}`, and
-exactly four events set it**: admin Approve, reviewer accept, the 14-day
-auto-approve, and the QA tab. All four go through
-`payments.apply_ledger_decision_to_records`, all four also resolve the ledger,
-and `tests/test_export_approval_prd.py` enumerates them. **Do not add a fifth
-path.** Full notes: `docs/asclepius/EXPORT_AND_APPROVAL.md`.
+the third. A record ships iff `records.status ∈ {export_ready, exported}`, and
+the invariant is **one-directional**: approved money ⟹ exportable record, but
+NOT the converse (a clean, unsampled submission is exportable at capture, with no
+ledger row — `pipeline.process_submission`, protected by PRD §7).
+
+Four APPROVAL events move it — admin Approve, reviewer accept, the 14-day
+auto-approve, the QA tab — and all four also resolve the ledger; the first three
+converge on `payments.apply_ledger_decision_to_records`. **Exactly three code
+sites may write `export_ready`**; a fourth is a bug, and
+`test_exactly_three_code_paths_can_make_a_record_exportable` pins the set. Full
+notes: `docs/asclepius/EXPORT_AND_APPROVAL.md`.
 
 `Data → Export` is one page with five scopes, all resolved by
 `_resolve_case_slice` — preview and bundle call the same function, so they cannot
