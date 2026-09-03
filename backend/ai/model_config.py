@@ -113,6 +113,59 @@ def resolve_provider(model_id: str) -> str:
     raise UnknownProvider(f"cannot resolve provider for model id: {model_id!r}")
 
 
+# ─── Fake provider (Fake LLM Provider PRD §1) ────────────────────────────────
+# One switch: ``ASCLEPIUS_LLM_PROVIDER=fake`` makes every LLM call return a
+# deterministic, schema-valid fixture instead of reaching a real API, so the app,
+# the suite and the generation jobs all run in a sandbox that holds no key.
+#
+# The switch deliberately does NOT live inside ``resolve_provider``. That function
+# answers "which vendor owns this model id?" and several callers depend on the
+# real answer even when the transport is faked:
+#   * ``constants.baseline_pairing_ok`` requires the two baseline models to resolve
+#     to two DIFFERENT vendors — the pairing IS the product. A global override
+#     collapses both to "fake" and fails startup validation in the very sandbox
+#     this feature exists to enable.
+#   * ``baselines._provider_of`` / ``rollout._provider_of`` stamp the vendor onto
+#     stored records for comparability; "fake" there would corrupt the A/B trail.
+#   * ``test_asclepius_two_frontier`` asserts UnknownProvider for a garbage id.
+# So ``resolve_provider`` stays pure and ``active_provider`` — which only the two
+# transport seams call — carries the override.
+def fake_llm_enabled() -> bool:
+    """True when the fake transport is switched on."""
+    return (os.getenv("ASCLEPIUS_LLM_PROVIDER", "") or "").strip().lower() == "fake"
+
+
+def active_provider(model_id: str) -> str:
+    """The provider the TRANSPORT should use for this call: ``"fake"`` when the fake
+    switch is on, else the model's real vendor.
+
+    The model id is still resolved first, so a typo'd id raises
+    :class:`UnknownProvider` in the sandbox exactly as it would in production —
+    the fake replaces the transport, never the config validation."""
+    real = resolve_provider(model_id)  # raises UnknownProvider on garbage ids
+    return "fake" if fake_llm_enabled() else real
+
+
+class FakeProviderInProduction(RuntimeError):
+    """``ASCLEPIUS_LLM_PROVIDER=fake`` while ``ENV=production``."""
+
+
+def assert_fake_llm_not_in_production() -> None:
+    """Refuse to run the fake transport in production (Fake LLM Provider PRD §2).
+
+    A fake in production is a silent data-corruption machine: every judge passes,
+    every extraction returns a fixture, and the rows land in the same tables real
+    clinical output does — indistinguishable after the fact. Fail loudly at boot
+    instead."""
+    if fake_llm_enabled() and (os.getenv("ENV") or "").strip().lower() == "production":
+        raise FakeProviderInProduction(
+            "ASCLEPIUS_LLM_PROVIDER=fake is set while ENV=production. The fake LLM "
+            "transport returns canned fixtures — running it in production would write "
+            "fabricated clinical output into real tables. Unset ASCLEPIUS_LLM_PROVIDER "
+            "(and supply ANTHROPIC_API_KEY / OPENAI_API_KEY), or unset ENV=production."
+        )
+
+
 # Model families that can accept an image input (V4 Image Embedding PRD §5.1). The
 # current frontier ids (gpt-5, claude-opus/sonnet/haiku 4.x, o-series) are all
 # vision-capable; a legacy/text-only id must degrade the case to needs_baseline
@@ -257,3 +310,12 @@ def resolve(role: str) -> dict[str, Any]:
     if env_model:
         cfg["model"] = env_model
     return cfg
+
+
+# The guard runs at IMPORT time, which is what "refuse to boot" means in practice:
+# every entry point (main.py, the workers, the scripts) imports this module long
+# before it serves a request, so a production process carrying the fake switch dies
+# at startup with the message above rather than quietly fabricating clinical output.
+# It lives here rather than in main.py's startup so that any importer — a worker or
+# a one-off script that never touches main — is covered by the same check.
+assert_fake_llm_not_in_production()

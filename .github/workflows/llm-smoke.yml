@@ -1,0 +1,91 @@
+name: LLM smoke (real models)
+
+# Fake LLM Provider PRD §3 — real-model testing lives HERE, not in a sandbox.
+#
+# The development sandbox holds no API key by design (ASCLEPIUS_LLM_PROVIDER=fake
+# covers every LLM path deterministically). The one thing a fake cannot tell you is
+# whether the real vendors still answer the way the prompts expect — so that check
+# runs in CI, where the key is a GitHub secret that never leaves GitHub.
+#
+# workflow_dispatch ONLY. It spends real tokens against real models, so it is never
+# on push or pull_request: an agent pushes a branch, a human clicks Run.
+on:
+  workflow_dispatch:
+    inputs:
+      specialty:
+        description: Specialty to generate against
+        default: nephrology
+        type: string
+      n:
+        description: How many cases to generate (keep small — this spends tokens)
+        default: "2"
+        type: string
+      ref:
+        description: Branch or SHA to run (defaults to the branch you dispatch from)
+        default: ""
+        type: string
+
+concurrency:
+  group: llm-smoke
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Confirm the fake is OFF
+        # A smoke test that silently ran against the fake would report a green
+        # real-model check while touching no model at all — the exact false
+        # negative this workflow exists to prevent.
+        env:
+          ASCLEPIUS_LLM_PROVIDER: ""
+        run: |
+          test -z "${ASCLEPIUS_LLM_PROVIDER}" || {
+            echo "::error::ASCLEPIUS_LLM_PROVIDER must be empty for the real-model smoke"
+            exit 1
+          }
+
+      - name: Run the multimodal smoke
+        working-directory: backend
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ASCLEPIUS_DB_PATH: ${{ runner.temp }}/smoke.db
+          ASCLEPIUS_EXPORT_DIR: ${{ runner.temp }}/smoke-exports
+        run: |
+          set -euo pipefail
+          if [ -z "${ANTHROPIC_API_KEY}" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret is not set on this repository"
+            exit 1
+          fi
+          python3 scripts/smoke_multimodal.py \
+            --specialty "${{ inputs.specialty }}" \
+            --n "${{ inputs.n }}" 2>&1 | tee "${RUNNER_TEMP}/smoke-report.txt"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-smoke-report
+          path: ${{ runner.temp }}/smoke-report.txt
+          if-no-files-found: warn
