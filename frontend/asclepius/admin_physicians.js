@@ -651,6 +651,16 @@
            * work" was answerable only by opening physicians one at a time. */
           h('th', { title: 'Running quality score across graded cases. Internal.' },
             'Score'),
+          /* Task Pipeline PRD C4. Two questions the roster could not answer:
+           * how fast this physician works, and how consistently they agree with
+           * the colleague who labelled the same case. Both numbers already
+           * existed in the backend and neither reached a screen. Internal, like
+           * the score beside them: no physician sees either one. */
+          h('th', { title: 'Median time on a case across their timed submissions. Internal.' },
+            'Median time'),
+          h('th', { title: "Cohen's kappa against their co-labelers, over the same "
+                           + 'blinded pool the reported agreement uses. Internal.' },
+            'Agreement'),
           /* Real-data approval was API-only: the flag gates the entire V4 real
            * de-identified queue, and the only way to grant it was curl. So the
            * real cases sat in the queue while every physician's picker showed
@@ -673,6 +683,37 @@
     return h('div', { style: 'display:flex;gap:6px;align-items:center' }, badges);
   }
 
+  /* The roster's null placeholder, written as an escape rather than the glyph
+   * so the source stays ASCII. Same character the score column has always
+   * rendered: an unmeasured physician must not read as a measured bad one. */
+  const NULL_CELL = '\u2014';
+
+  /* Median seconds as minutes and seconds. An operator comparing physicians
+   * reads "7m 20s" instantly and has to do arithmetic on "440". */
+  function minutesSeconds(v) {
+    if (v === null || v === undefined || isNaN(v)) return NULL_CELL;
+    const total = Math.round(Number(v));
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return mins ? mins + 'm ' + secs + 's' : secs + 's';
+  }
+
+  /* Kappa to two decimals with its n beside it. The n is not decoration: it is
+   * the difference between "they disagree with colleagues" and "we have not
+   * measured them yet", and a bare number cannot say which. Below the minimum
+   * pair count the server sends null and this renders the placeholder plus the
+   * count, so the screen says "not yet" rather than nothing at all. */
+  function agreementCell(h, p) {
+    const n = (p.kappa_n === null || p.kappa_n === undefined) ? 0 : Number(p.kappa_n);
+    const label = n === 1 ? '1 pair' : n + ' pairs';
+    if (p.kappa === null || p.kappa === undefined || isNaN(p.kappa)) {
+      return h('span', { title: 'Not reportable yet: ' + label },
+        NULL_CELL + (n ? ' (' + label + ')' : ''));
+    }
+    return h('span', { title: label + ' compared' },
+      Number(p.kappa).toFixed(2) + ' (' + label + ')');
+  }
+
   function approvedRow(ctx, p) {
     const { h } = ctx;
     const communityCell = h('td', {});
@@ -692,6 +733,8 @@
       h('td', { class: 'asc-mono' },
         (p.contributor_score === null || p.contributor_score === undefined)
           ? '—' : String(Math.round(Number(p.contributor_score)))),
+      h('td', { class: 'asc-mono' }, minutesSeconds(p.median_seconds)),
+      h('td', { class: 'asc-mono' }, agreementCell(h, p)),
       realDataCell,
       communityCell,
       actionCell);

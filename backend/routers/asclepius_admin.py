@@ -909,6 +909,11 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
     counts = {"all": 0, "pending": 0, "labelers": 0, "reviewers": 0,
               "unassigned": 0}
     score_by_user = store.contributor_scores_by_user()
+    # Task Pipeline PRD C1/D5: both in BATCH, for the reason stated on
+    # ``contributor_score`` below: this is a roster of everyone, and the per-user
+    # variants of these two are a query per physician.
+    median_by_user = store.evaluator_median_seconds_by_user()
+    kappa_by_user = store.evaluator_kappa_by_user()
     for u in _physician_users(store):
         tier = u.get("tier")
         verification = u.get("verification_status")
@@ -957,6 +962,18 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             # here reads as a physician who does bad work rather than one whose
             # first case is still in the queue.
             "contributor_score": score_by_user.get(u["id"]),
+            # How long they take and how consistently they agree (PRD C3). Both
+            # are None until measured, and both are ADMIN-ONLY: no physician
+            # sees their speed or their agreement, on the same rule that keeps
+            # the contributor score internal (C5).
+            #
+            # None here is load-bearing in the same way it is for the score
+            # above: a physician with no timed submission is unmeasured, not
+            # fast, and one below the kappa minimum is unmeasured, not a bad
+            # rater. ``kappa_n`` ships alongside so the screen can say which.
+            "median_seconds": median_by_user.get(u["id"]),
+            "kappa": (kappa_by_user.get(u["id"]) or {}).get("kappa"),
+            "kappa_n": (kappa_by_user.get(u["id"]) or {}).get("n"),
         })
     # Accounts with a doctor's credentials and an operator's role. Not part of
     # ``physicians`` or ``counts`` — they are not supply until someone decides
@@ -2544,12 +2561,16 @@ async def admin_reassign_point(
         raise HTTPException(status_code=404, detail="Unknown user_id.")
 
     revoked = []
+    # Who lost the point, not just which assignment row did. The case room's
+    # membership is keyed on people, so the swap needs the user ids (PRD B5).
+    revoked_user_ids = []
     for a in store.assignments_for_task(body.task_id):
         if a.get("role") == "label" and a.get("status") in ("offered", "claimed"):
             if a.get("user_id") == body.user_id:
                 continue                     # already theirs; nothing to revoke
             store.set_assignment_status(a["assignment_id"], "revoked")
             revoked.append(a["assignment_id"])
+            revoked_user_ids.append(a["user_id"])
     row = store.upsert_assignment(
         task_id=body.task_id, user_id=body.user_id, role="label",
         assigned_by=admin["email"])
@@ -2560,7 +2581,7 @@ async def admin_reassign_point(
                  "sequence_index": task.get("sequence_index"),
                  "to_user_id": body.user_id, "revoked": revoked})
     notified = asc_route_notify.notify_reassigned(
-        store, task=task, doctor=new_doctor)
+        store, task=task, doctor=new_doctor, replaced_user_ids=revoked_user_ids)
     return {"trajectory_id": trajectory_id, "task_id": body.task_id,
             "assignment_id": row["assignment_id"], "revoked": revoked,
             "notified": notified, "chain": store.trajectory_chain(trajectory_id)}
