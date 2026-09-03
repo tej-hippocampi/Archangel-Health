@@ -4178,6 +4178,13 @@ async def create_export(
         raise HTTPException(status_code=400, detail="Invalid modality")
     if body.case_source is not None and body.case_source not in asc_cases.CASE_SOURCES:
         raise HTTPException(status_code=400, detail="Invalid case_source")
+    # An exclusive commitment with no holder cannot be checked against anything on
+    # a later export, so it would silently protect nobody. Refuse it at the door.
+    if body.exclusive and not (body.licensed_to or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="An exclusive licence needs licensed_to (the buyer holding it).",
+        )
     try:
         manifest = asc_export.build_export(
             store,
@@ -4199,7 +4206,19 @@ async def create_export(
             include_mock=body.include_mock,
             note=body.note,
             include_exported=body.include_exported,
+            licensed_to=body.licensed_to,
+            license_label=body.license_label,
+            license_exclusivity=(asc_export.EXCLUSIVE if body.exclusive
+                                 else asc_export.NON_EXCLUSIVE),
+            license_expires_at=body.license_expires_at,
+            license_note=body.license_note,
         )
+    except asc_export.ExclusiveLicenseConflict as exc:
+        # 409, not 422: the batch is well-formed and the data is fine. What is
+        # wrong is a promise we already made to somebody else, and the operator
+        # needs the licence id in front of them to decide what to do about it.
+        raise HTTPException(status_code=409,
+                            detail={"message": str(exc), "conflicts": exc.conflicts})
     except asc_export.ExportValidationError as exc:
         # A mapped line failed the buyer profile schema — fail the batch loudly.
         raise HTTPException(status_code=422, detail=str(exc))
@@ -4560,6 +4579,9 @@ def _build_scoped_export(
             until=getattr(body, "until", None),
             submission_id=getattr(body, "submission_id", None),
         )
+    except asc_export.ExclusiveLicenseConflict as exc:
+        raise HTTPException(status_code=409,
+                            detail={"message": str(exc), "conflicts": exc.conflicts})
     except asc_export.ExportValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     except asc_profiles.ProfileError as exc:
