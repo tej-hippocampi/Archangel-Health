@@ -101,6 +101,22 @@ jobs:
           echo "shard ${{ matrix.shard }}/$CI_TOTAL_SHARDS — $(echo "$FILES" | wc -l) file(s)"
           pytest -q --durations=10 $FILES
 
+  agents-md:
+    # Engineering Harness PRD H1 — the agent's first read of the repo must be true.
+    # Seconds to run, and it would have caught the AGENTS.md that described
+    # "CareGuide" with "No database" for as long as it sat on main.
+    name: AGENTS.md is current
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Check AGENTS.md
+        working-directory: backend
+        run: python3 scripts/check_agents_md.py
+
   keyless:
     # Fake LLM Provider PRD §4 — the proof that the sandbox rule actually holds.
     #
