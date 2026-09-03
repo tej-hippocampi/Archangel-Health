@@ -46,3 +46,11 @@ os.makedirs(_asclepius_tmp, exist_ok=True)
 os.environ.setdefault("ASCLEPIUS_DB_PATH", os.path.join(_asclepius_tmp, "asclepius_suite.db"))
 os.environ.setdefault("ASCLEPIUS_EXPORT_DIR", os.path.join(_asclepius_tmp, "exports"))
 os.environ.setdefault("COMMUNITY_DB_PATH", os.path.join(_asclepius_tmp, "community_suite.db"))
+
+# ── Fake LLM transport (Fake LLM Provider PRD §2) ────────────────────────────
+# The suite runs with NO API key. Every LLM path returns a deterministic,
+# schema-valid fixture instead of reaching a real vendor, so generation, judging
+# and extraction paths are genuinely exercised rather than stubbed per file or
+# skipped. setdefault, so a run that deliberately wants a real provider
+# (the `llm-smoke` workflow) just exports ASCLEPIUS_LLM_PROVIDER itself.
+os.environ.setdefault("ASCLEPIUS_LLM_PROVIDER", "fake")

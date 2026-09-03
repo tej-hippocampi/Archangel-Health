@@ -9,8 +9,8 @@ from typing import Any, Optional
 from anthropic import Anthropic, AsyncAnthropic
 
 from ai.model_config import (
-    APP_AI_CONFIG_VERSION, SAMPLING_PARAMS, accepts_sampling_params, api_model_id,
-    emits_thinking, resolve, resolve_provider, UnknownProvider,
+    APP_AI_CONFIG_VERSION, SAMPLING_PARAMS, accepts_sampling_params, active_provider,
+    api_model_id, emits_thinking, resolve, resolve_provider, UnknownProvider,
 )
 from team_store import TeamStore
 
@@ -427,11 +427,23 @@ async def call_llm(
     **overrides: Any,
 ) -> tuple[Any, dict[str, Any]]:
     kwargs, cfg = _build_kwargs(role, system, messages, overrides)
-    provider = resolve_provider(cfg["model"])  # raises UnknownProvider on garbage ids
+    # "fake" when ASCLEPIUS_LLM_PROVIDER=fake, else the model's real vendor. The id
+    # is still resolved, so a garbage model raises UnknownProvider either way.
+    provider = active_provider(cfg["model"])
     t0 = time.monotonic()
     timeout = _llm_timeout_sec()
 
     async def _do():
+        if provider == "fake":
+            # Inside _do() so the fake is subject to the same timeout as a real
+            # call — FAKE_LLM_LATENCY_MS can therefore exercise the timeout path.
+            from ai.fake_llm import build_response, latency_ms
+
+            ms = latency_ms()
+            if ms:
+                await asyncio.sleep(ms / 1000.0)
+            return build_response(role=role, purpose=purpose, system=system,
+                                  messages=messages, kwargs=kwargs)
         if provider == "openai":
             return await _openai_create_async(cfg["model"], system, messages,
                                               kwargs.get("max_tokens"), kwargs.get("temperature"))
@@ -522,9 +534,17 @@ def call_llm_sync(
     **overrides: Any,
 ) -> tuple[Any, dict[str, Any]]:
     kwargs, cfg = _build_kwargs(role, system, messages, overrides)
-    provider = resolve_provider(cfg["model"])
+    provider = active_provider(cfg["model"])
     t0 = time.monotonic()
-    if provider == "openai":
+    if provider == "fake":
+        from ai.fake_llm import build_response, latency_ms
+
+        ms = latency_ms()
+        if ms:
+            time.sleep(ms / 1000.0)
+        resp = build_response(role=role, purpose=purpose, system=system,
+                              messages=messages, kwargs=kwargs)
+    elif provider == "openai":
         resp = _openai_create_sync(cfg["model"], system, messages,
                                    kwargs.get("max_tokens"), kwargs.get("temperature"))
     else:
