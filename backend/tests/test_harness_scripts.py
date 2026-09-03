@@ -387,3 +387,52 @@ def test_export_audit_rejects_malformed_jsonl(tmp_path):
     proc = run("export_audit.py", str(b))
     assert proc.returncode == 2
     assert "not valid JSON" in proc.stderr
+
+
+# ─── H5: lint_test_names.py ──────────────────────────────────────────────────
+
+def test_every_test_added_by_this_branch_reads_as_a_sentence():
+    """H5.4: the failure message should tell an agent WHICH RULE broke."""
+    proc = run("lint_test_names.py", "--files",
+               str(BACKEND / "tests" / "test_fake_llm_provider.py"),
+               str(BACKEND / "tests" / "test_harness_scripts.py"))
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_name_lint_rejects_a_one_word_test_name(tmp_path):
+    f = tmp_path / "test_lazy.py"
+    f.write_text("def test_queue():\n    assert True\n")
+    proc = run("lint_test_names.py", "--files", str(f))
+    assert proc.returncode == 1
+    assert "test_queue" in proc.stderr
+
+
+def test_name_lint_accepts_a_name_that_states_a_rule(tmp_path):
+    f = tmp_path / "test_good.py"
+    f.write_text("def test_v4_queue_never_serves_a_trajectory_point():\n    assert True\n")
+    assert run("lint_test_names.py", "--files", str(f)).returncode == 0
+
+
+def test_name_lint_is_advisory_over_the_existing_suite():
+    """Existing names are reported, never failed — rewriting hundreds of old
+    names is churn with no reader."""
+    assert run("lint_test_names.py", "--all").returncode == 0
+
+
+# ─── H4: the subagent definitions ────────────────────────────────────────────
+
+def test_builder_and_auditor_agents_are_defined():
+    agents = BACKEND.parent / ".claude" / "agents"
+    for name in ("builder", "auditor"):
+        f = agents / f"{name}.md"
+        assert f.is_file(), f"missing {f}"
+        text = f.read_text()
+        assert text.startswith("---"), "agent needs YAML frontmatter"
+        assert f"name: {name}" in text
+
+
+def test_auditor_is_told_not_to_fix_what_it_finds():
+    """An auditor that fixes becomes the author, and then nobody is auditing."""
+    text = (BACKEND.parent / ".claude" / "agents" / "auditor.md").read_text()
+    assert "Do not fix" in text
+    assert "no findings must say what was checked" in text
