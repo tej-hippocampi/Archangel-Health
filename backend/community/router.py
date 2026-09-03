@@ -537,16 +537,39 @@ def _container_of(msg: Dict[str, Any]) -> tuple:
     return ("channel", channel) if channel else (None, None)
 
 
+def _is_case_room(dm: Optional[Dict[str, Any]]) -> bool:
+    return (dm or {}).get("kind") == cstore_mod.CommunityStore.ROOM_KIND
+
+
+def _dm_access(user: Dict[str, Any], dm: Optional[Dict[str, Any]]) -> bool:
+    """May this account reach this conversation at all?
+
+    Two rules, and the second is a deliberate, narrow exception to the first.
+
+    A two-party DM is its participants' and nobody else's, admins included.
+    A CASE ROOM is the routed team plus Archangel admins (PRD D3): the room
+    exists so founders can step into a stuck case, which is a capability a
+    read-only exception could not deliver. Its intro says so out loud, and case
+    CONTENT is forbidden in there precisely because the room is not private.
+    """
+    if not dm:
+        return False
+    if user["id"] in _cstore().dm_participants(dm):
+        return True
+    return _is_case_room(dm) and user.get("role") == "admin"
+
+
 def _require_message_access(user: Dict[str, Any], msg: Dict[str, Any]) -> tuple:
     """THE visibility rule for anything reached by message id (edit, delete,
     react, thread, attachment download): channel messages are visible to every
-    member; a DM message is visible ONLY to its two participants — including
-    to admins, who have no read access to others' private conversations. A
-    non-participant gets the same 404 as a nonexistent message (no oracle)."""
+    member; a DM message is visible ONLY to its participants, admins included:
+    they have no read access to others' private conversations, except on a case
+    room (``_dm_access``). A non-participant gets the same 404 as a
+    nonexistent message (no oracle)."""
     kind, container = _container_of(msg)
     if kind is None:
         raise HTTPException(status_code=404, detail="Message not found")
-    if kind == "dm" and user["id"] not in (container["user_a"], container["user_b"]):
+    if kind == "dm" and not _dm_access(user, container):
         raise HTTPException(status_code=404, detail="Message not found")
     return kind, container
 
@@ -625,7 +648,7 @@ async def _emit_message_event(event_type: str, serialized: Dict[str, Any],
     participants (never the broadcast — PRD-level privacy invariant)."""
     event = {"type": event_type, "message": serialized}
     if dm:
-        await hub.send_to_users([dm["user_a"], dm["user_b"]], event)
+        await hub.send_to_users(_cstore().dm_participants(dm), event)
     else:
         await hub.broadcast(event)
 
@@ -927,7 +950,7 @@ async def delete_message(
         "parent_message_id": msg.get("parent_message_id"),
     }
     if kind == "dm":
-        await hub.send_to_users([container["user_a"], container["user_b"]], event)
+        await hub.send_to_users(cstore.dm_participants(container), event)
     else:
         await hub.broadcast(event)
     return {"ok": True, "id": message_id}
@@ -965,7 +988,7 @@ async def toggle_reaction(
         "reactions": reactions,
     }
     if kind == "dm":
-        await hub.send_to_users([container["user_a"], container["user_b"]], event)
+        await hub.send_to_users(cstore.dm_participants(container), event)
     else:
         await hub.broadcast(event)
     return {"ok": True, "added": added, "reactions": reactions}
@@ -1089,15 +1112,37 @@ async def badge(user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_us
 # (``hub.send_to_users``) so a DM never rides the broadcast.
 def _dm_or_404(dm_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
     dm = _cstore().get_dm(dm_id)
-    if not dm or user["id"] not in (dm["user_a"], dm["user_b"]):
+    if not _dm_access(user, dm):
         raise HTTPException(status_code=404, detail="Conversation not found")
     return dm
+
+
+def _room_title(dm: Dict[str, Any]) -> str:
+    return (dm.get("title") or "").strip() or "Case room"
 
 
 def _dm_summary(dm: Dict[str, Any], user_id: str,
                 members: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     from community.system_posts import SYSTEM_MEMBER, SYSTEM_USER_ID  # noqa: PLC0415
 
+    base = {
+        "id": dm["id"],
+        "last_message_id": dm.get("last_message_id"),
+        "last_message_at": dm.get("last_message_at"),
+        "unread": int(dm.get("unread") or 0),
+    }
+    if _is_case_room(dm):
+        # A room is named by its case, and ``peer`` is populated with that name
+        # rather than left out: every existing client renders a conversation by
+        # its peer's display name, and a room with no peer would render as an
+        # anonymous ghost in all of them.
+        roster = [public_member(members.get(uid)) for uid
+                  in (dm.get("participants") or _cstore().room_participants(dm["id"]))]
+        title = _room_title(dm)
+        return dict(base, kind=cstore_mod.CommunityStore.ROOM_KIND, title=title,
+                    case_ref=dm.get("case_ref"),
+                    participants=[m for m in roster if m],
+                    peer=dict(SYSTEM_MEMBER, display_name=title, initials="CR"))
     peer_id = dm["user_b"] if dm["user_a"] == user_id else dm["user_a"]
     # The Archangel bot is a virtual author: never a users row, never in
     # member_map. ``_serialize_messages`` has always special-cased it for the
@@ -1107,13 +1152,7 @@ def _dm_summary(dm: Dict[str, Any], user_id: str,
     # an anonymous, deleted-looking conversation telling them to go do work.
     peer = (dict(SYSTEM_MEMBER) if peer_id == SYSTEM_USER_ID
             else members.get(peer_id))
-    return {
-        "id": dm["id"],
-        "peer": public_member(peer) or dict(_GHOST_MEMBER),
-        "last_message_id": dm.get("last_message_id"),
-        "last_message_at": dm.get("last_message_at"),
-        "unread": int(dm.get("unread") or 0),
-    }
+    return dict(base, kind="dm", peer=public_member(peer) or dict(_GHOST_MEMBER))
 
 
 @router.get("/dms")
@@ -1207,11 +1246,16 @@ async def post_dm_message(
     })
     cstore.set_read(user["id"], dm["id"], msg["id"])
 
-    peer_id = dm["user_b"] if dm["user_a"] == user["id"] else dm["user_a"]
-    cnotify.enqueue_dm(cstore, recipient_id=peer_id, message=msg)
+    # Everyone in the conversation except the author. On a two-party DM that is
+    # the peer, exactly as before; on a room it is the rest of the case team, so
+    # the room rides the DM unread and digest plumbing with no second path.
+    participants = cstore.dm_participants(dm)
+    for recipient_id in participants:
+        if recipient_id != user["id"]:
+            cnotify.enqueue_dm(cstore, recipient_id=recipient_id, message=msg)
 
     serialized = _serialize_messages([msg], member_map(), None, dm_id=dm["id"])[0]
-    await hub.send_to_users([dm["user_a"], dm["user_b"]],
+    await hub.send_to_users(participants,
                             {"type": "message.created", "message": serialized})
     return serialized
 
@@ -1631,14 +1675,16 @@ async def community_ws(websocket: WebSocket):
                 name = me_member.get("display_name") or "Someone"
                 dm_field = event.get("dm")
                 if isinstance(dm_field, str) and dm_field.startswith("dm-"):
-                    # DM typing relays ONLY to the conversation peer.
+                    # DM typing relays ONLY inside the conversation: the peer on
+                    # a two-party DM, the rest of the case team in a room.
                     dm = _cstore().get_dm(dm_field)
-                    if dm and user["id"] in (dm["user_a"], dm["user_b"]):
-                        peer = dm["user_b"] if dm["user_a"] == user["id"] else dm["user_a"]
-                        await hub.send_to_users([peer], {
-                            "type": "typing", "dm": dm_field,
-                            "user_id": user["id"], "name": name,
-                        })
+                    members_here = _cstore().dm_participants(dm) if dm else []
+                    if dm and user["id"] in members_here:
+                        await hub.send_to_users(
+                            [u for u in members_here if u != user["id"]], {
+                                "type": "typing", "dm": dm_field,
+                                "user_id": user["id"], "name": name,
+                            })
                     continue
                 slug = str(event.get("channel") or "")[:64]
                 thread_root = event.get("thread_root")
