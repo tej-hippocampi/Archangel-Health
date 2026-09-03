@@ -3417,6 +3417,22 @@ class AsclepiusStore:
         with self._conn() as conn:
             return [dict(r) for r in conn.execute(sql, tuple(args)).fetchall()]
 
+    def intro_meeting_by_booking_ref(self, booking_ref: str) -> Optional[Dict[str, Any]]:
+        """The meeting a scheduling tool's booking id points at, if we hold one.
+
+        How the calendar webhook recognises a cancellation as belonging to a
+        booking it already saw created, rather than opening a second row.
+        """
+        ref = (booking_ref or "").strip()
+        if not ref:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM intro_meetings WHERE booking_ref = ? "
+                "ORDER BY created_at DESC LIMIT 1", (ref,)
+            ).fetchone()
+            return dict(row) if row else None
+
     def latest_intro_meeting_for_email(self, email: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
