@@ -3750,11 +3750,86 @@ class AsclepiusStore:
             asked[field] = stamp
             blob["fields"] = asked
             blob["last_sent_at"] = stamp
+            # A claim means there is something to ask after all, so any
+            # nothing-to-ask marker from an earlier sweep is stale.
+            blob.pop("nothing_to_ask_at", None)
             cur = conn.execute(
                 "UPDATE users SET profile_nudge_json = ? WHERE id = ?",
                 (json.dumps(blob), user_id),
             )
             return cur.rowcount > 0
+
+    def mark_profile_nothing_to_ask(self, user_id: str) -> bool:
+        """Record that a sweep looked at this profile and found no gap.
+
+        A complete profile is never stamped, so without this it sorts as
+        never-nudged forever and a rosterful of complete profiles occupies
+        every batch while the physicians with real gaps wait behind the cap.
+        The due-list sorts marked rows behind everyone else instead. The
+        marker is ordering only, never a filter: the sweep still re-derives
+        the gap whenever a marked row comes round, and a successful claim
+        (``stamp_profile_nudge``) clears it, so a profile that later loses a
+        field rejoins the front of the queue.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT profile_nudge_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            try:
+                blob = json.loads(row["profile_nudge_json"] or "{}")
+                if not isinstance(blob, dict):
+                    blob = {}
+            except (TypeError, ValueError):
+                blob = {}
+            if blob.get("nothing_to_ask_at"):
+                return False
+            blob["nothing_to_ask_at"] = (
+                datetime.utcnow().replace(microsecond=0).isoformat())
+            cur = conn.execute(
+                "UPDATE users SET profile_nudge_json = ? WHERE id = ?",
+                (json.dumps(blob), user_id),
+            )
+            return cur.rowcount > 0
+
+    def list_profiles_needing_nudge(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Approved physicians who might be asked about one profile gap.
+
+        Candidates, not decisions: whether anything is actually missing is a
+        question about the credential blob and the avatar, which the caller
+        answers with the same completeness rule the profile page renders. This
+        query only narrows to the population the question is worth asking of,
+        which is people who were approved (a pending applicant is being chased
+        about their application, not their subspecialties) and who can be
+        mailed.
+
+        Ordered by how long it has been since we last said anything, longest
+        first, with the never-nudged ahead of everyone. A stable created_at
+        ordering would hand the same fifty rows to every sweep forever and
+        starve the rest of the roster the moment the population outgrew the
+        batch cap.
+
+        Rows the sweep has marked ``nothing_to_ask_at`` sort behind everyone,
+        for the same starvation reason from the other side: a complete profile
+        is never stamped, so without the marker it reads as never-nudged and
+        permanently claims the front of every batch.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users "
+                "WHERE verification_status = 'approved' "
+                "  AND COALESCE(active, 1) = 1 "
+                "  AND role = 'evaluator' "
+                "  AND email IS NOT NULL AND email != '' "
+                "ORDER BY (json_extract(COALESCE(profile_nudge_json, '{}'),"
+                "  '$.nothing_to_ask_at') IS NOT NULL) ASC, "
+                "COALESCE("
+                "  json_extract(COALESCE(profile_nudge_json, '{}'), '$.last_sent_at'), ''"
+                ") ASC, created_at ASC LIMIT ?",
+                (max(1, limit),),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def monthly_submission_counts(self, user_id: str, *, months: int = 12
                                   ) -> List[Dict[str, Any]]:
@@ -3771,6 +3846,49 @@ class AsclepiusStore:
                 (user_id, max(1, months)),
             ).fetchall()
         return [{"month": r["month"], "count": r["n"]} for r in rows][::-1]
+
+    def current_day_streak(self, user_id: str, *, today: Optional[str] = None) -> int:
+        """Consecutive days ending today (or yesterday) with a submission.
+
+        Computed at READ time from ``submissions.created_at`` rather than kept
+        as a counter, because a stored streak is a second source of truth that
+        goes wrong exactly when it matters: a missed cron, a backfilled
+        submission or a restart leaves a number on somebody's profile that
+        their own history contradicts.
+
+        Yesterday still counts as alive. A physician who worked last night and
+        has not opened the portal yet this morning has not broken anything, and
+        a streak that resets at midnight punishes the timezone rather than the
+        behaviour.
+        """
+        day = today or datetime.utcnow().date().isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT substr(created_at, 1, 10) AS d FROM submissions "
+                "WHERE evaluator_id = ? AND created_at IS NOT NULL "
+                "  AND substr(created_at, 1, 10) <= ? "
+                "ORDER BY d DESC LIMIT 400",
+                (user_id, day),
+            ).fetchall()
+        days = [r["d"] for r in rows if r["d"]]
+        if not days:
+            return 0
+        try:
+            cursor = datetime.strptime(day, "%Y-%m-%d").date()
+        except ValueError:
+            return 0
+        newest = days[0]
+        if newest != cursor.isoformat():
+            cursor = cursor - timedelta(days=1)
+            if newest != cursor.isoformat():
+                return 0
+        streak = 0
+        for d in days:
+            if d != cursor.isoformat():
+                break
+            streak += 1
+            cursor = cursor - timedelta(days=1)
+        return streak
 
     # ── Tier ─────────────────────────────────────────────────────────────────
 
@@ -7340,8 +7458,10 @@ class AsclepiusStore:
     def evaluator_self_stats(self, evaluator_id: str) -> Dict[str, Any]:
         """Real, personal counts for the dashboard's own tracking widget: total
         cases this evaluator has completed, how many in the last 7 days, and
-        when they last submitted one. No earnings/streak data exists anywhere
-        in this schema, so this stays limited to what's actually true."""
+        when they last submitted one. No earnings data exists anywhere in this
+        schema, so this stays limited to what's actually true. The day streak
+        is real but is not stored either; ``current_day_streak`` derives it
+        from submission timestamps at read time."""
         week_cutoff = (datetime.utcnow().replace(microsecond=0) - timedelta(days=7)).isoformat()
         with self._conn() as conn:
             total = conn.execute(

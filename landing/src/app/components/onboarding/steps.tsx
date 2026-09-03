@@ -134,6 +134,12 @@ export type Credentials = {
   specialtyNiche: string;
   subspecialties: string[];
   practiceSettings: string[];
+  /* Where they practise, city only. A PLACE, not a region-of-origin proxy:
+     the never-collect list below rules out practice region as a scoring input,
+     and this is never scored. It exists because colleagues find each other
+     locally, and the community's city rooms have no other way to know which
+     room a physician belongs in. */
+  practiceCity: string;
   currentlyActive: boolean | null;
   yearsInActivePractice: string;
   languages: string[];
@@ -242,6 +248,7 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     specialtyNiche: "",
     subspecialties: [],
     practiceSettings: [],
+    practiceCity: "",
     currentlyActive: null,
     yearsInActivePractice: "",
     languages: [],
@@ -2578,6 +2585,14 @@ export function Step5Credentials({
         onChange={(v) => set({ practiceSettings: v })}
         placeholder="e.g. academic, private practice"
         suggestions={PRACTICE_SETTING_SUGGESTIONS}
+      />
+      <TextField
+        label="City you practise in"
+        optional
+        value={c.practiceCity}
+        onChange={(v) => set({ practiceCity: v })}
+        placeholder="e.g. Boston"
+        hint="Optional. Used to put you in the right city room with colleagues nearby. It is never part of how your application is assessed."
       />
       <ChipMultiSelect
         label="Languages spoken"

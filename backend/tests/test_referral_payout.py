@@ -720,3 +720,91 @@ def test_the_bounty_survives_the_verification_routes_writing_the_funnel_again():
     assert funnel["referrals"][0]["bounty_state"] == "earned"
     assert funnel["referrals"][0]["status_sentence"] == "Completed first case"
     assert len(_bounties_for(referrer)) == 1
+
+
+# ═══ The split, pinned ═══════════════════════════════════════════════════════
+#
+# $50 to the referrer, $25 to the physician they referred. The Sep 1 meeting was
+# read as reversing that, and the founder's decision was to keep it as it is,
+# because the meeting is ambiguous on the point (two of its three references
+# match the numbers below) and because these are the amounts already promised on
+# a live referral page. The tie breaks toward not silently restating what
+# physicians have been told.
+#
+# These tests exist because that decision is a DECISION, not an accident.
+# Anybody who reads the meeting notes and flips the constants will land here,
+# and the docstrings are the argument they should have to answer first.
+def test_the_referrer_is_paid_the_larger_half():
+    """The referrer is the scarce input. A well-connected physician who will
+    spend their reputation introducing colleagues is worth more to us than the
+    marginal signup, and the ask has to be worth making."""
+    assert asc_payments.referral_bounty_cents() == 5000
+
+
+def test_the_referred_physician_is_paid_the_activation_half():
+    """The first accepted case is where somebody stays or is never seen again,
+    which is what this half is buying."""
+    assert asc_payments.referee_bonus_cents() == 2500
+
+
+def test_a_settled_referral_accrues_both_halves_at_those_amounts():
+    """End to end, through the one trigger that pays either side. A default
+    that is right in isolation and wrong at the point of accrual is the version
+    of this bug that reaches a ledger."""
+    referrer = _physician()
+    email = _email()
+    _refer(referrer, email, name="Dr Whitfield")
+    invitee = _signup(email, full_name="Dr A. Whitfield")
+    _approved_task(invitee, "sub-1")
+    asc_payments.accrue_referral_bounty(_store(), referred_user_id=invitee["id"])
+
+    bounty = _bounties_for(referrer)
+    assert len(bounty) == 1 and bounty[0]["amount_cents"] == 5000
+
+    bonus = [e for e in _store().earnings_for_user(invitee["id"])
+             if e["kind"] == asc_payments.KIND_REFEREE_BONUS]
+    assert len(bonus) == 1 and bonus[0]["amount_cents"] == 2500
+
+
+def test_moving_either_rate_leaves_already_stamped_rows_alone():
+    """What makes the split safe to revisit at all. Both amounts are stamped on
+    the ledger row at accrual, so a future decision about the numbers moves
+    future accruals and cannot restate a payment somebody has already been
+    promised."""
+    referrer = _physician()
+    email = _email()
+    _refer(referrer, email)
+    invitee = _signup(email)
+    _approved_task(invitee, "sub-1")
+    asc_payments.accrue_referral_bounty(_store(), referred_user_id=invitee["id"])
+
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setenv("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", "2500")
+        monkey.setenv("ASCLEPIUS_REFEREE_BONUS_CENTS", "5000")
+        assert asc_payments.referral_bounty_cents() == 2500
+        assert asc_payments.referee_bonus_cents() == 5000
+
+        assert _bounties_for(referrer)[0]["amount_cents"] == 5000
+        bonus = [e for e in _store().earnings_for_user(invitee["id"])
+                 if e["kind"] == asc_payments.KIND_REFEREE_BONUS]
+        assert bonus[0]["amount_cents"] == 2500
+    finally:
+        monkey.undo()
+
+
+def test_a_new_referral_accrues_at_whatever_the_rate_is_now():
+    """The other half of the same property. Stamping history must not freeze
+    the future, or a rate change would be unshippable."""
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setenv("ASCLEPIUS_REFERRAL_BOUNTY_CENTS", "7500")
+        referrer = _physician()
+        email = _email()
+        _refer(referrer, email)
+        invitee = _signup(email)
+        _approved_task(invitee, "sub-1")
+        asc_payments.accrue_referral_bounty(_store(), referred_user_id=invitee["id"])
+        assert _bounties_for(referrer)[0]["amount_cents"] == 7500
+    finally:
+        monkey.undo()
