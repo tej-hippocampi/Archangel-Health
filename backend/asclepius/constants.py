@@ -1449,3 +1449,17 @@ CREDENTIAL_SUMMARY_LEGAL_DISCLAIMER = (
     "Ideally the same protections also appear in a signed NDA + Master Services "
     "Agreement with each buyer and in your contributor agreement."
 )
+
+
+# ─── Payouts: the Stripe Connect Express rail (Payments Rail PRD §A1) ─────────
+def stripe_enabled() -> bool:
+    """Whether the Stripe Connect Express payout rail is live.
+
+    Default **OFF**, and that default is the product decision rather than a
+    convenience: money movement needs a Stripe account with Connect enabled and
+    a completed KYC review, and neither is a thing a deploy can do. While this is
+    off the ledger behaves exactly as it did before the rail existed, the
+    bank-link card stays the disabled placeholder, and the webhook route is not
+    observable at all. ``ASCLEPIUS_STRIPE_ENABLED=1`` plus ``STRIPE_SECRET_KEY``
+    and ``STRIPE_WEBHOOK_SECRET`` is the whole go-live switch."""
+    return os.getenv("ASCLEPIUS_STRIPE_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")

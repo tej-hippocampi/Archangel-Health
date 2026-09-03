@@ -32,6 +32,38 @@ Optional (add when you have them): `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `A
 The empirical-difficulty flags are their own staged decision and have their own
 table in **4b** below. Set them there, not here.
 
+### Physician payouts (Stripe Connect Express)
+
+Leave these alone until you actually want money to move. The rail ships dark:
+with `ASCLEPIUS_STRIPE_ENABLED` unset or `0`, the portal shows the same
+"coming soon" bank card it shows today, no Stripe call is made, and
+`/api/asclepius/stripe/webhook` returns 404.
+
+| Variable | Value |
+|----------|--------|
+| `ASCLEPIUS_STRIPE_ENABLED` | `0` (default). `1` only after the two steps below |
+| `STRIPE_SECRET_KEY` | Restricted key with Connect + Transfers write access |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...`, from the endpoint you register in Stripe |
+
+Before flipping the flag, two things have to happen outside this repo:
+
+1. **Enable Connect on the Stripe account and clear KYC.** Express accounts
+   cannot be created, and transfers cannot settle, until Stripe has approved
+   the platform account. No deploy can do this for you.
+2. **Register the webhook endpoint** at
+   `POST https://YOUR-APP.up.railway.app/api/asclepius/stripe/webhook`,
+   subscribed to `account.updated`, `transfer.created`, `transfer.updated`,
+   `transfer.reversed`. Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
+
+Turning the flag on with either key missing fails loudly at the first Stripe
+call. That is deliberate: a payout rail that silently does nothing looks
+identical to one that is working until a physician asks where their money is.
+
+We never store a bank account number, routing number, SSN, EIN or TIN. Stripe
+collects tax identity during Express onboarding and files the 1099-NECs; this
+codebase keeps the connected account id and a status string, and a test greps
+the tree to keep it that way.
+
 ## 4. Attach a volume — REQUIRED, or every deploy wipes your data
 
 > **Checking this afterwards:** the admin console shows a banner on every tab

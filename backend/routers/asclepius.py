@@ -1594,6 +1594,142 @@ async def register_bank_link_interest(
     return {"ok": True, "bank_link_status": "coming_soon"}
 
 
+# ═══ PAYMENTS RAIL §B: Connect Express onboarding ════════════════════════════
+#
+# Deliberately beside the interest route above rather than on the payments
+# router: these are the same card, in two states of the world, and a reader who
+# finds one should find the other. They keep this router's rule that a
+# doctor-facing route scopes from the SESSION and names nobody.
+#
+# WITH THE FLAG OFF BOTH ROUTES ARE THE PLACEHOLDER, byte for byte. Not "close
+# to it" and not "a 404": a client cannot tell from any response that a rail
+# exists, which is what makes shipping this dark safe. ``start`` while dark even
+# registers interest, because a physician who taps a bank-link button before
+# banking is live is exactly who the waiting list is for.
+def _bank_link_dark(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
+    """The pre-rail answer, identical to POST /me/bank-link/interest."""
+    if not (user.get("bank_link_status") or "").strip():
+        store.set_bank_link_status(user["id"], "coming_soon")
+        store.log_event(entity_type="user", entity_id=user["id"],
+                        event_type="bank_link_interest", actor=user["id"])
+    return {"ok": True, "bank_link_status": "coming_soon"}
+
+
+@router.post(
+    "/me/bank-link/start",
+    dependencies=[Depends(rate_limiter("asclepius_bank_link_start", 20, 600))],
+)
+async def start_bank_link(
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+):
+    """Begin (or resume) Stripe Connect Express onboarding for THIS physician.
+
+    Two different kinds of idempotency, and the difference is the whole design:
+
+    * the ACCOUNT is created once, ever. A second account for the same
+      physician is a second place their bank details could live and a payout
+      destination that silently stops matching the one they onboarded.
+    * the LINK is minted fresh on every call, because account links are
+      single-use and expire in minutes. Storing one would hand a physician a
+      dead URL and no way to ask for another.
+
+    Nothing about the bank account comes back through here. Stripe hosts the
+    form; we get an id and a redirect.
+    """
+    from asclepius import stripe_rail                      # noqa: PLC0415
+    from asclepius import referrals as _asc_referrals      # noqa: PLC0415
+
+    store = _store()
+    if not stripe_rail.enabled():
+        return _bank_link_dark(store, user)
+
+    row = store.get_user_by_id(user["id"]) or user
+    account_id = (row.get("stripe_account_id") or "").strip()
+    if not account_id:
+        created = stripe_rail.create_express_account(
+            email=row.get("email"), user_id=row["id"])
+        store.set_stripe_account_id(row["id"], created)
+        # Re-read rather than trusting what we just created. The write is
+        # guarded on the column being NULL, so a physician who double-tapped
+        # has one winner and one orphan, and the row is the arbiter. The orphan
+        # holds no bank details (nobody ever onboarded into it) but it must not
+        # become the destination we transfer to.
+        row = store.get_user_by_id(row["id"]) or row
+        account_id = (row.get("stripe_account_id") or created).strip()
+        if account_id != created:
+            log.warning("asclepius.bank_link: discarded duplicate Connect account "
+                        "for user %s, keeping the stored one", row["id"])
+        else:
+            store.log_event(entity_type="user", entity_id=row["id"],
+                            event_type="bank_link_account_created", actor=row["id"])
+
+    status = (row.get("bank_link_status") or "").strip()
+    if status not in (stripe_rail.ACTIVE, stripe_rail.RESTRICTED):
+        # coming_soon and NULL both mean "has not started". A physician who is
+        # already active is re-linking, and demoting them to onboarding would
+        # make the earnings surface claim they cannot be paid while they can.
+        status = stripe_rail.ONBOARDING
+        store.set_bank_link_status(row["id"], status)
+
+    link = stripe_rail.create_account_link(
+        account_id, portal_url=_asc_referrals.portal_base())
+    return {"ok": True, "bank_link_status": status,
+            "url": link.get("url"), "expires_at": link.get("expires_at")}
+
+
+@router.get("/me/bank-link")
+async def get_bank_link(
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+):
+    """Where this physician's payouts stand, read live from Stripe.
+
+    ``payouts_enabled`` is fetched at the moment of the question and thrown
+    away, never cached. A stored copy of compliance state is stale the instant
+    Stripe updates it, and the version of that bug that matters is the one where
+    we tell a physician they are good to be paid after Stripe has decided
+    otherwise.
+
+    A Stripe read that fails degrades to the stored status rather than 500ing:
+    the physician's own earnings page should not go blank because an upstream
+    API is slow. A MISCONFIGURED rail still raises, because that is an operator
+    problem and hiding it is how a dark rail stays dark unnoticed.
+    """
+    from asclepius import stripe_rail                      # noqa: PLC0415
+
+    store = _store()
+    if not stripe_rail.enabled():
+        return {"ok": True, "bank_link_status": "coming_soon"}
+
+    row = store.get_user_by_id(user["id"]) or user
+    status = (row.get("bank_link_status") or "").strip() or stripe_rail.COMING_SOON
+    account_id = (row.get("stripe_account_id") or "").strip()
+    if not account_id:
+        return {"ok": True, "bank_link_status": status, "connected": False,
+                "payouts_enabled": False}
+
+    try:
+        account = stripe_rail.retrieve_account(account_id)
+    except stripe_rail.RailUnavailable:
+        raise
+    except Exception:
+        log.exception("asclepius.bank_link: live account read failed for %s", row["id"])
+        return {"ok": True, "bank_link_status": status, "connected": True,
+                "payouts_enabled": None, "live": False}
+
+    live_status = stripe_rail.status_for_account(account)
+    if live_status != status:
+        # The webhook is the primary path for this transition; this write is the
+        # backstop for a delivery we never received. Same value either way, so
+        # the two cannot disagree about what the account is.
+        store.set_bank_link_status(row["id"], live_status)
+        store.log_event(entity_type="user", entity_id=row["id"],
+                        event_type="bank_link_status_changed", actor=None,
+                        payload={"from": status, "to": live_status, "source": "read"})
+        status = live_status
+    return {"ok": True, "bank_link_status": status, "connected": True, "live": True,
+            **stripe_rail.account_public_state(account)}
+
+
 # ─── Tutorial — Calibration Case 1 ───────────────────────────────────────────
 # The practice case is a fully VIRTUAL task: assembled in memory from
 # ``tutorial_case.py``, never inserted into ``tasks``, its submission never
