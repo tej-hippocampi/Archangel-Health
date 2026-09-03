@@ -842,14 +842,30 @@ FIRST_RUN_STOPS = ("welcome", "start", "practice", "community", "earnings", "man
 class FirstRunUpdate(BaseModel):
     """PATCH /me/first-run — one transition on the caller's own walkthrough.
 
-    ``done`` and ``skip`` both close a stop; the distinction is kept because it
-    is the difference between "they saw the community" and "they chose not to",
-    and §6 requires that a skip never nags again. ``dismiss`` collapses the whole
-    checklist without marking the remaining stops as done, which is what the
-    "You're all set" line and the quiet dashboard chip read from.
+    ``done`` closes a stop for good; it is monotonic and it is the only outcome a
+    REQUIRED stop (welcome, start, practice) accepts.
+
+    ``defer`` is Welcome package v2 §1's replacement for ``skip`` on the three
+    OPTIONAL stops, and the difference is the whole point of that PRD: a skip was
+    terminal, so the product asked once and then never again, while a defer means
+    "asked, declined this session" and may be rewritten every session. ``defer``
+    against a required stop is a 400 — there is no skip control on those screens,
+    and a client that invents one is refused rather than obeyed.
+
+    ``defer_all`` is the re-entry page's "Go to my cases": every optional stop
+    still open is deferred in one call, so leaving is one request rather than
+    three racing ones.
+
+    ``skip`` is kept ONLY as a compatibility alias for a cached client still
+    running the previous bundle — it behaves as ``defer`` on an optional stop and
+    is refused on a required one. Removing it outright would 422 every physician
+    with a stale tab open during the deploy.
+
+    ``dismiss`` collapses the whole checklist without marking the remaining stops
+    done, which is what the "You're all set" line reads from.
     """
 
-    action: Literal["done", "skip", "dismiss", "reset"]
+    action: Literal["done", "skip", "defer", "defer_all", "dismiss", "reset"]
     stop: Optional[Literal[FIRST_RUN_STOPS]] = None  # type: ignore[valid-type]
 
 

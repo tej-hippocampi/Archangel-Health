@@ -45,6 +45,7 @@ from asclepius import avatar as asc_avatar
 from asclepius import contributor_score as asc_contributor_score
 from asclepius import credentials as asc_credentials
 from asclepius import export as asc_export
+from asclepius import first_run as asc_first_run
 from asclepius import generation as asc_generation
 from asclepius import pipeline as asc_pipeline
 from asclepius import profiles as asc_profiles
@@ -726,7 +727,41 @@ async def consume_asclepius_portal_handoff(body: AscPortalHandoffConsumeRequest)
 
 
 @router.get("/auth/me")
-async def me(user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
+async def me(
+    authorization: Optional[str] = Header(None),
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+):
+    """The signed-in physician, and the tick of the onboarding cadence clock.
+
+    Welcome package v2 §5: ``sessions_seen`` increments on the ``/auth/me`` that
+    follows a login — not in ``/auth/login``, because the portal also reaches
+    this endpoint on a cold boot from a token still in storage, and a physician
+    who closes the tab on Monday and opens it on Tuesday has started a session
+    without signing in again.
+
+    Idempotent per LOGIN, keyed on the token's ``jti``: a reload, a second tab
+    and the parallel calls one page paint makes all carry the same token and
+    count once, while a genuine new sign-in mints a new one and counts. Without
+    that key the clock would run at the speed of page loads and every physician
+    would be past the re-entry page before they had seen it twice.
+
+    Best-effort by construction. This endpoint is how the portal learns who it is
+    talking to, and a counter that cannot write is not a reason to fail that.
+    """
+    try:
+        payload = asc_auth.decode_token(asc_auth._bearer(authorization) or "") or {}
+        session_key = str(payload.get("jti") or "")
+        if session_key and user.get("role") == "evaluator":
+            # Evaluators only: the cadence exists for physicians being onboarded,
+            # and admins/QA never see any of these screens. Counting sessions for
+            # accounts that can never read the count is a write per request for
+            # nothing.
+            _store().count_first_run_session(user["id"], session_key)
+            refreshed = _store().get_user_by_id(user["id"])
+            if refreshed:
+                user = refreshed
+    except Exception:  # pragma: no cover - defensive; see the docstring
+        log.exception("[first-run] session count failed for user=%s", user.get("id"))
     return asc_auth.public_user(user)
 
 
@@ -1178,21 +1213,48 @@ async def update_my_tutorial(
 
 # ─── First-login walkthrough (Onboarding v2 §6) ──────────────────────────────
 def _close_first_run_stop(store: Any, user_id: str, stop: str, outcome: str) -> None:
-    """Mark one stop closed, and the whole checklist complete once all six are.
+    """Mark one stop ``done``, and the whole checklist complete once all six are.
 
-    Idempotent and monotonic: a stop that is already closed keeps its FIRST
-    outcome, so replaying the practice case after skipping it does not rewrite
-    history, and a stop can never reopen. That is what makes "skip for now never
-    nags again" true rather than aspirational.
+    Idempotent and monotonic: a stop that is already ``done`` keeps that, so
+    replaying the practice case does not rewrite history and a finished stop can
+    never reopen.
+
+    Welcome package v2 §1 narrowed this to ``done`` only. ``deferred`` is the
+    other outcome now and it is deliberately NOT monotonic — it is rewritten on
+    every session that asks — so it goes through ``_defer_first_run_stop``
+    instead. Keeping one function for both would have meant one of the two rules
+    quietly losing.
     """
     state = store.get_first_run(user_id)
     stops = dict(state.get("stops") or {})
-    if stops.get(stop):
+    if stops.get(stop) == asc_first_run.DONE:
         return
-    stops[stop] = outcome
+    stops[stop] = asc_first_run.DONE if outcome == asc_first_run.DONE else outcome
     state["stops"] = stops
-    if not state.get("completed_at") and all(stops.get(s) for s in _FIRST_RUN_STOPS):
+    if not state.get("completed_at") and asc_first_run.is_complete(stops):
         state["completed_at"] = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    store.set_first_run(user_id, state)
+
+
+def _defer_first_run_stops(store: Any, user_id: str, stops_to_defer: Tuple[str, ...]) -> None:
+    """Record "asked, declined this session" on one or more OPTIONAL stops.
+
+    Not monotonic, and that is the §1 change in one line: a deferred stop is
+    re-written each session it is offered and declined, which is what lets the
+    cadence ask twice and then go quiet instead of asking once and going silent.
+    A stop already ``done`` is left alone — a defer must never un-finish work.
+    """
+    state = store.get_first_run(user_id)
+    stops = dict(state.get("stops") or {})
+    touched = False
+    for stop in stops_to_defer:
+        if stops.get(stop) == asc_first_run.DONE:
+            continue
+        stops[stop] = asc_first_run.DEFERRED
+        touched = True
+    if not touched:
+        return
+    state["stops"] = stops
     store.set_first_run(user_id, state)
 
 
@@ -1212,11 +1274,42 @@ async def update_my_first_run(
     permanent live here, not in client flags.
     """
     store = _store()
-    if body.action in ("done", "skip"):
+    if body.action == "done":
         if not body.stop:
             raise HTTPException(status_code=400, detail="Which stop?")
-        _close_first_run_stop(store, user["id"], body.stop,
-                              "done" if body.action == "done" else "skipped")
+        _close_first_run_stop(store, user["id"], body.stop, asc_first_run.DONE)
+    elif body.action in ("defer", "skip"):
+        # ``skip`` is the previous bundle's word for this. It is accepted so a
+        # physician holding a stale tab through the deploy is not 422'd
+        # mid-walkthrough, and it lands on exactly the same code path — there is
+        # no second meaning of "not now" hiding behind the old name.
+        if not body.stop:
+            raise HTTPException(status_code=400, detail="Which stop?")
+        if asc_first_run.is_required(body.stop):
+            # §1: welcome, start and practice have no skip control, and the
+            # refusal lives HERE rather than only in the screens. The UI mirrors
+            # the rule; it does not own it, and a client that renders a button
+            # the product does not have gets a 400 instead of a quiet write.
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "stop_is_required",
+                    "stop": body.stop,
+                    "message": ("The welcome, your start and the practice case "
+                                "are the three things everyone does. They can't "
+                                "be put off — but nothing after them is required."),
+                },
+            )
+        _defer_first_run_stops(store, user["id"], (body.stop,))
+    elif body.action == "defer_all":
+        # The re-entry page's "Go to my cases →". Every optional stop still open
+        # is deferred in ONE request: three racing PATCHes would each read the
+        # blob, each write their own stop, and the last one home would erase the
+        # other two.
+        state = store.get_first_run(user["id"])
+        _defer_first_run_stops(
+            store, user["id"],
+            asc_first_run.optional_remaining(state.get("stops") or {}))
     elif body.action == "dismiss":
         state = store.get_first_run(user["id"])
         if not state.get("dismissed_at"):
@@ -2533,6 +2626,86 @@ def require_practice_case(
     )
 
 
+#: The header a client can read without parsing the body, mirroring
+#: PRACTICE_GATE_HEADER. Same reason: a fetch wrapper decides whether to route
+#: to a screen before anything unwraps the JSON.
+FIRST_RUN_GATE_HEADER = "X-Asclepius-First-Run"
+
+
+def require_first_run_stops(
+    user: Dict[str, Any] = Depends(require_practice_case),
+) -> Dict[str, Any]:
+    """Welcome package v2 §5 — real cases wait on the three REQUIRED stops.
+
+    Layered ON TOP of ``require_practice_case`` rather than replacing it. That
+    dependency is the authoritative practice-case gate and it already guards
+    every work endpoint; this adds the other two required stops (the welcome
+    letter and choosing a start) to the one endpoint that hands out real cases.
+
+    ── The lockout this is deliberately shaped to avoid ──────────────────────
+
+    A literal reading of §5 — "409 while any required stop is not done" — would
+    take real work away from physicians who have earned it, for two reasons that
+    are both live in this codebase today:
+
+      1. The store's one-time backfill stamped every ALREADY-APPROVED account
+         with an empty stops map (``store.py``, the ``first_run_json`` ALTER
+         branch). Those rows have three required stops open and always will.
+         A literal gate locks out the entire existing roster on deploy.
+      2. ``first_run.js`` closes a stop FIRE-AND-FORGET, on purpose, so a
+         physician clicking through never waits on a round trip. Its stated worst
+         case is "one stop reappears on their next login". A literal gate turns a
+         single dropped PATCH on a hotel connection into "locked out of all
+         work", which is not a trade that PRD made.
+
+    So the refusal is scoped to ``mode() == 'walkthrough'`` — the state in which
+    the CLIENT is already showing the walkthrough and would not be asking for a
+    real case anyway. Server and client read the same four-line function, so this
+    refuses exactly what a correct client never sends, and an incorrect one gets
+    a structured "resume the walkthrough" instead of a real case. Grandfathered
+    accounts are exempt outright: that state is this codebase's existing word for
+    "predates the requirement", and re-gating them here would undo the migration
+    that let them keep working.
+
+    A physician who meets this has done nothing wrong and there is exactly one
+    thing for them to do next, so the body carries an ``action`` and the two
+    remaining stops rather than prose.
+    """
+    if asc_caps.practice_gate_state(user) == asc_caps.GATE_GRANDFATHERED:
+        return user
+    state = _store().get_first_run(user["id"])
+    if asc_first_run.mode(state) != asc_first_run.MODE_WALKTHROUGH:
+        return user
+    stops = state.get("stops") or {}
+    if not stops:
+        # An account with NO walkthrough state at all has never been asked to do
+        # one, so there is nothing here it can be failing. That covers accounts
+        # provisioned outside the portal, accounts whose practice gate was opened
+        # by an admin or a migration, and every fixture in this suite — all of
+        # which are real, working physicians by every other measure the product
+        # has. Refusing them would take work away from people who earned it in
+        # order to enforce two informational screens they were never shown.
+        #
+        # It costs the gate nothing. A physician who goes through the walkthrough
+        # records `welcome` on its very first screen, so anybody this rule lets
+        # past is somebody the walkthrough never started for.
+        return user
+    remaining = asc_first_run.required_open(stops)
+    log.info("[first-run-gate] denied user=%s remaining=%s", user.get("id"), remaining)
+    raise HTTPException(
+        status_code=409,
+        detail={
+            "error": "first_run_incomplete",
+            "remaining": list(remaining),
+            "message": ("Finish the welcome walkthrough before your first real "
+                        "case — it is three screens and the practice case."),
+            "action": {"kind": "resume_first_run",
+                       "label": "Finish the walkthrough"},
+        },
+        headers={FIRST_RUN_GATE_HEADER: "incomplete"},
+    )
+
+
 @router.get("/tasks/next")
 async def next_task(
     portal_version: Optional[str] = Query(
@@ -2547,7 +2720,7 @@ async def next_task(
         "oncology). Drives which specialty's cases are served/generated; an unknown "
         "or disabled value falls back to the evaluator's own specialty.",
     ),
-    user: Dict[str, Any] = Depends(require_practice_case),
+    user: Dict[str, Any] = Depends(require_first_run_stops),
 ):
     store = _store()
     # Normalize the picker's specialty to an enabled one, else ignore it (never

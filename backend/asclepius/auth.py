@@ -266,10 +266,11 @@ def _first_run_public(user: Dict[str, Any]) -> Dict[str, Any]:
     bad read is one extra walkthrough, and the worst cost of a raise is a
     physician who cannot open the portal.
     """
+    from asclepius import first_run as asc_first_run  # noqa: PLC0415
     from asclepius.store import AsclepiusStore  # noqa: PLC0415
 
-    empty = {"version": AsclepiusStore.FIRST_RUN_VERSION, "stops": {},
-             "completed_at": None, "dismissed_at": None}
+    version = AsclepiusStore.FIRST_RUN_VERSION
+    empty = _project_first_run(asc_first_run.normalize(None, version=version))
     raw = user.get("first_run_json")
     if not raw:
         return empty
@@ -278,14 +279,27 @@ def _first_run_public(user: Dict[str, Any]) -> Dict[str, Any]:
     except (ValueError, TypeError):
         return empty
     if not isinstance(parsed, dict) or \
-            int(parsed.get("version") or 0) != AsclepiusStore.FIRST_RUN_VERSION:
+            int(parsed.get("version") or 0) != version:
         return empty
-    stops = parsed.get("stops")
+    return _project_first_run(asc_first_run.normalize(parsed, version=version))
+
+
+def _project_first_run(state: Dict[str, Any]) -> Dict[str, Any]:
+    """The normalized state, minus the bookkeeping the portal has no use for.
+
+    ``last_session_counted`` is a token id. It is an idempotency key for the
+    server's own counter and nothing on screen reads it, so it does not go into
+    a payload that is returned on every request and lands in every client's
+    memory. ``sessions_seen`` DOES ship: it is the cadence clock, and
+    ``first_run.js`` cannot choose between the re-entry page and the banner
+    without it.
+    """
     return {
-        "version": AsclepiusStore.FIRST_RUN_VERSION,
-        "stops": stops if isinstance(stops, dict) else {},
-        "completed_at": parsed.get("completed_at"),
-        "dismissed_at": parsed.get("dismissed_at"),
+        "version": state["version"],
+        "stops": state["stops"],
+        "sessions_seen": state["sessions_seen"],
+        "completed_at": state["completed_at"],
+        "dismissed_at": state["dismissed_at"],
     }
 
 

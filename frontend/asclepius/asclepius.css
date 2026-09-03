@@ -4814,6 +4814,7 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 @media (max-width: 1100px) {
   .asc-route-grid { grid-template-columns: 1fr; }
   .asc-route-panel { position: static; }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Onboarding v2 §6 — the first-login walkthrough, and §0.1's password rotation.
@@ -4872,18 +4873,29 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   margin-top: 28px;
   flex-wrap: wrap;
 }
+/* §3, "the skip is a real action": a dark-pattern onboarding hides its skip as
+   11px of grey text. This is a visible secondary button with the SAME hit target
+   as the primary beside it — same padding, same height, same radius — and only
+   the fill tells them apart. The physician is a specialist volunteering time;
+   the product's job is to get out of the way, legibly. */
 .asc-fr-skip {
-  background: none;
-  border: 0;
-  padding: 8px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border-radius: var(--r-chip);
+  border: 1px solid rgba(26, 27, 26, 0.4);
+  background: transparent;
   font: inherit;
   font-size: 14px;
-  color: var(--asc-muted);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  font-weight: 500;
+  color: var(--asc-text);
   cursor: pointer;
+  transition: background .16s cubic-bezier(.4, 0, .2, 1),
+              border-color .16s cubic-bezier(.4, 0, .2, 1);
 }
-.asc-fr-skip:hover { color: var(--asc-text); }
+.asc-fr-skip:hover { background: var(--card-in); }
 .asc-fr-quiet-link {
   display: inline-block;
   margin-top: 6px;
@@ -5197,11 +5209,28 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-fr-check-item.is-done .asc-fr-check-label { color: var(--ink-faint); }
 .asc-fr-check-item.is-current .asc-fr-check-label { color: var(--asc-text); }
 .asc-fr-check-label { flex: 1; }
-.asc-fr-check-note {
+/* The retired check-note rule rendered the word "skipped". Welcome package v2
+   §4.1 replaces it with "later" — the state is `deferred` now, which is a thing
+   the physician has not done yet rather than one they declined for good, and the
+   checklist should not tell them otherwise. Mono and muted, per §4.1. */
+.asc-fr-later {
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.05em;
   color: var(--ink-faint);
+}
+/* The tiny OPTIONAL rule between the required rows and the optional ones. It is
+   what explains, without a sentence, why three of these screens have no way past
+   and three do. */
+.asc-fr-eyebrow {
+  margin: 10px 0 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  list-style: none;
 }
 .asc-fr-check-exit {
   margin-top: 14px;
@@ -5257,6 +5286,129 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   color: var(--asc-muted);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Welcome package v2 §4.2 / §4.3 — the re-entry page and the dashboard banner.
+
+   The two are ONE flow at different volumes: logins 2 and 3 get the page, login
+   4 onwards gets the banner, and the banner's button opens the page. Nothing
+   here is ever a modal and nothing here animates — §3, "nothing animates on a
+   re-entry page; the physician has seen it before".
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* One centred column. The walkthrough's stage is two columns with the checklist
+   on the right; this is a short interstitial and carries no checklist, so the
+   rail would be a 280px hole. */
+.asc-fr-stage-solo { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.asc-fr-reentry {
+  max-width: 560px;
+  width: 100%;
+}
+.asc-fr-reentry .asc-fr-title { margin-bottom: 10px; }
+
+.asc-fr-reentry-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 22px 0 4px;
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.asc-fr-reentry-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--asc-surface);
+  font: inherit;
+  font-size: 14px;
+  color: var(--asc-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms cubic-bezier(.4, 0, .2, 1);
+}
+.asc-fr-reentry-row:last-child { border-bottom: 0; }
+.asc-fr-reentry-row:hover { background: var(--card-in); }
+.asc-fr-reentry-ring {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--asc-line-strong);
+  border-radius: 50%;
+}
+.asc-fr-reentry-label { flex: 1 1 auto; }
+/* §3: tabular figures on every count, so "1 min" and "3 min" do not shift the
+   column they sit in. */
+.asc-fr-reentry-time {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.asc-fr-reentry-go {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--asc-muted);
+}
+.asc-fr-reentry-row:hover .asc-fr-reentry-go { color: var(--asc-text); }
+
+/* §4.3 — the dashboard banner. 56px, passive, not dismissible. */
+.asc-fr-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 56px;
+  margin: 0 0 20px;
+  padding: 12px 18px;
+  background: var(--asc-surface);
+  border: 1px solid var(--asc-line);
+  /* The house rule on single-sided borders: the accent edge squares off rather
+     than curving away from the border it sits inside. */
+  border-left: 3px solid var(--lime-wash);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.asc-fr-banner-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+/* Six dots, not a bar: it reads at a glance and there is no percentage to do
+   arithmetic on. */
+.asc-fr-banner-dots { display: inline-flex; gap: 4px; }
+.asc-fr-banner-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--asc-line-strong);
+}
+.asc-fr-banner-dot.is-done { background: var(--asc-text); }
+.asc-fr-banner-count {
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--asc-text);
+}
+.asc-fr-banner-rest {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* §3: motion is 150–200ms and it respects the physician's setting. A stage that
+   slides for someone who asked it not to is not a nicety, it is a symptom. */
+@media (prefers-reduced-motion: reduce) {
+  .asc-fr-reentry-row,
+  .asc-fr-skip,
+  .asc-fr-choice { transition: none; }
+}
+
 @media (max-width: 900px) {
   .asc-fr-stage { grid-template-columns: minmax(0, 1fr); padding: 28px 16px 64px; }
   .asc-fr-panel { padding: 28px 22px; }
@@ -5264,6 +5416,11 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   /* On a narrow screen the checklist goes UNDER the stop rather than sticking:
      a sticky card in a single column covers the thing it is reporting on. */
   .asc-fr-checklist { position: static; }
+  /* The banner stacks rather than squeezing the remaining-stops line to nothing;
+     its button goes full width so it keeps a real hit target. */
+  .asc-fr-banner { flex-direction: column; align-items: stretch; gap: 12px; }
+  .asc-fr-banner .asc-btn { width: 100%; }
+  .asc-fr-banner-rest { white-space: normal; }
 }
 
 /* ── §0.1: the temporary password is rotated at first sign-in. ── */

@@ -687,8 +687,18 @@ def test_an_unknown_address_still_gets_the_generic_401(client: TestClient):
 # walkthrough
 # ═════════════════════════════════════════════════════════════════════════════
 
-def test_first_run_persists_per_stop_and_a_skip_is_permanent(client: TestClient):
-    """§8: first_run_json persists per stop across devices; skip is permanent."""
+def test_first_run_persists_per_stop_and_a_defer_is_not_permanent(client: TestClient):
+    """§8: first_run_json persists per stop across devices.
+
+    Welcome package v2 §1 REPLACED this test's original second half. It used to
+    assert that a skip was permanent and could never upgrade to ``done``, which
+    is precisely the rule that made the walkthrough ask about the optional stops
+    exactly once and then go silent forever. The outcome is ``deferred`` now, it
+    means "asked, declined this session", and finishing the stop later — from the
+    re-entry page, the banner, or the dashboard chip — has to be allowed to write
+    ``done`` over it. What stays permanent is ``done``: see the monotonic case
+    below and ``test_a_required_stop_cannot_be_deferred``.
+    """
     store = fresh_store()
     u = make_user(store)
     c = TestClient(app)
@@ -699,18 +709,88 @@ def test_first_run_persists_per_stop_and_a_skip_is_permanent(client: TestClient)
     assert r.json()["first_run"]["stops"] == {"welcome": "done"}
 
     r = c.patch("/api/asclepius/me/first-run",
-                json={"action": "skip", "stop": "community"}, headers=headers_for(u))
-    assert r.json()["first_run"]["stops"]["community"] == "skipped"
+                json={"action": "defer", "stop": "community"}, headers=headers_for(u))
+    assert r.json()["first_run"]["stops"]["community"] == "deferred"
 
     # Server-side, so a different device (a fresh token, no client state) sees it.
     r = c.get("/api/asclepius/auth/me", headers=headers_for(u))
-    assert r.json()["first_run"]["stops"] == {"welcome": "done", "community": "skipped"}
+    assert r.json()["first_run"]["stops"] == {"welcome": "done", "community": "deferred"}
 
-    # A skip never reopens, and never silently upgrades to 'done'.
+    # A deferred stop is still open work: finishing it later records 'done'.
     c.patch("/api/asclepius/me/first-run",
             json={"action": "done", "stop": "community"}, headers=headers_for(u))
     r = c.get("/api/asclepius/auth/me", headers=headers_for(u))
-    assert r.json()["first_run"]["stops"]["community"] == "skipped"
+    assert r.json()["first_run"]["stops"]["community"] == "done"
+
+    # ...and 'done' does NOT decay back to deferred on a later ask.
+    c.patch("/api/asclepius/me/first-run",
+            json={"action": "defer", "stop": "community"}, headers=headers_for(u))
+    r = c.get("/api/asclepius/auth/me", headers=headers_for(u))
+    assert r.json()["first_run"]["stops"]["community"] == "done"
+
+
+def test_a_required_stop_cannot_be_deferred(client: TestClient):
+    """§1/§5: welcome, start and practice have no skip control, and the refusal
+    is the SERVER's — a client that invents one is refused, not obeyed."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    for stop in ("welcome", "start", "practice"):
+        for action in ("defer", "skip"):
+            r = c.patch("/api/asclepius/me/first-run",
+                        json={"action": action, "stop": stop}, headers=headers_for(u))
+            assert r.status_code == 400, (stop, action, r.text)
+            assert r.json()["detail"]["error"] == "stop_is_required"
+    # Nothing was written by any of those refusals.
+    fr = c.get("/api/asclepius/auth/me", headers=headers_for(u)).json()["first_run"]
+    assert fr["stops"] == {}
+
+
+def test_the_old_skip_word_still_defers_an_optional_stop(client: TestClient):
+    """A physician holding a stale tab through the deploy must not be 422'd
+    mid-walkthrough, so 'skip' is kept as an alias for 'defer'."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    r = c.patch("/api/asclepius/me/first-run",
+                json={"action": "skip", "stop": "manual"}, headers=headers_for(u))
+    assert r.status_code == 200, r.text
+    assert r.json()["first_run"]["stops"]["manual"] == "deferred"
+
+
+def test_defer_all_closes_every_remaining_optional_stop(client: TestClient):
+    """§4.2: leaving the re-entry page is ONE request, not three racing ones."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    c.patch("/api/asclepius/me/first-run",
+            json={"action": "done", "stop": "community"}, headers=headers_for(u))
+    r = c.patch("/api/asclepius/me/first-run",
+                json={"action": "defer_all"}, headers=headers_for(u))
+    assert r.status_code == 200, r.text
+    stops = r.json()["first_run"]["stops"]
+    # The finished one is untouched; the other two are deferred. Required stops
+    # are never swept up by this — they are not optional and have no defer.
+    assert stops["community"] == "done"
+    assert stops["earnings"] == "deferred"
+    assert stops["manual"] == "deferred"
+    assert "welcome" not in stops and "start" not in stops and "practice" not in stops
+
+
+def test_deferring_every_optional_stop_does_not_complete_the_checklist(client: TestClient):
+    """§1: 'Deferred stops never complete it.' This is the bug that made the
+    walkthrough never return — the old model marked the set complete as soon as
+    every stop carried ANY outcome."""
+    store = fresh_store()
+    u = make_user(store)
+    c = TestClient(app)
+    for stop in ("welcome", "start", "practice"):
+        c.patch("/api/asclepius/me/first-run",
+                json={"action": "done", "stop": stop}, headers=headers_for(u))
+    c.patch("/api/asclepius/me/first-run",
+            json={"action": "defer_all"}, headers=headers_for(u))
+    fr = c.get("/api/asclepius/auth/me", headers=headers_for(u)).json()["first_run"]
+    assert fr["completed_at"] is None
 
 
 def test_closing_all_six_stops_completes_the_checklist(client: TestClient):

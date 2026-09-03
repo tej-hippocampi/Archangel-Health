@@ -480,6 +480,14 @@
   // Tasks re-enters the existing header view (eval or admin); Guide renders the
   // in-portal Instruction Manual. Community never routes here: it opens a tab.
   function setPanel(dest) {
+    // The walkthrough and the re-entry page hold DOCUMENT-level key handlers
+    // (Esc closes the demo player; Esc leaves the re-entry page). Navigating away
+    // through the rail replaces the screen without telling the module, so those
+    // handlers would outlive the screen they belong to — and a stray Esc on the
+    // dashboard would then defer a physician's remaining stops and bounce them
+    // somewhere they did not ask to go. Teardown is idempotent, so calling it on
+    // every navigation is cheaper than reasoning about which ones need it.
+    teardownFirstRun();
     if (dest === 'community') { openCommunity(); return; }
     // PRD-1 §2.1: the expert review console is a VIEW IN THIS SHELL, not a
     // second page in a new tab. It keeps the rail, the session and the design
@@ -1652,7 +1660,15 @@
     // link and leave it in the URL to fire on some later reload. Admins, QA
     // reviewers and advisors are excluded here rather than inside the module:
     // the role is the shell's knowledge, the checklist is the module's.
-    if (firstRunPending()) { startFirstRun(); return; }
+    // Welcome package v2 §2: ONE function decides what a login sees, and the
+    // shell branches on its answer instead of on a yes/no. 'walkthrough' opens
+    // the stops; 'reentry' is the short interstitial logins 2 and 3 get once the
+    // required stops are done; 'banner' and 'none' put nothing in the way at all
+    // — a physician who has done the practice case reaches Start new case in one
+    // click, on every login, forever.
+    const frMode = firstRunMode();
+    if (frMode === 'walkthrough') { startFirstRun(); return; }
+    if (frMode === 'reentry') { openFirstRunReentry(); return; }
     // An advisor lands on the dashboard, not inside the tutorial. Being dropped
     // straight into a case is right for a physician whose first job is to learn
     // the interface; someone here to look around should be shown the product
@@ -1844,8 +1860,13 @@
       openCommunity,
       setPanel,
       // Leaving the walkthrough is a normal navigation, not a dismissal: the
-      // open stops stay open and the dashboard chip brings them back.
-      exit: () => { state.view = 'home'; state.panel = 'tasks'; renderDashboardView(); },
+      // open stops stay open and the dashboard chip brings them back. Same
+      // teardown as setPanel, and for the same reason — this is the other way
+      // out of a screen that holds document-level key handlers.
+      exit: () => {
+        teardownFirstRun();
+        state.view = 'home'; state.panel = 'tasks'; renderDashboardView();
+      },
     };
   }
 
@@ -1866,11 +1887,48 @@
     window.FirstRunWalkthrough.resume(firstRunCtx());
   }
 
-  /** True when this session still has walkthrough stops open. */
+  /** What this login should see: 'walkthrough' | 'reentry' | 'banner' | 'none'.
+   *
+   *  The module owns the rule (§2) and this owns the ROLE question — admins, QA
+   *  reviewers and advisors see none of these screens, and that is the shell's
+   *  knowledge, not the checklist's. Same split as before; only the vocabulary
+   *  got richer than a boolean. */
+  function firstRunMode() {
+    if (!window.FirstRunWalkthrough || !state.user) return 'none';
+    if (state.user.role !== 'evaluator' || isAdvisor()) return 'none';
+    return window.FirstRunWalkthrough.mode(state.user);
+  }
+
+  /** True when this session still has walkthrough stops open — i.e. any stop not
+   *  `done`. Kept for the chip, which reports progress rather than deciding
+   *  which screen to paint; `firstRunMode()` is what routes. */
   function firstRunPending() {
-    return !!(window.FirstRunWalkthrough && state.user
-      && state.user.role === 'evaluator' && !isAdvisor()
-      && window.FirstRunWalkthrough.shouldRun(state.user));
+    return firstRunMode() !== 'none';
+  }
+
+  /** Drop the walkthrough's document-level listeners. Safe to call at any time,
+   *  including before the module has ever been started. */
+  function teardownFirstRun() {
+    if (!window.FirstRunWalkthrough) return;
+    try { window.FirstRunWalkthrough.teardown(); } catch (e) { /* never block navigation */ }
+  }
+
+  /** True while the first pass through the tour is unfinished — some stop with
+   *  no outcome at all. What the practice case's hand-back asks, because after
+   *  passing it a physician should carry on through the tour on their FIRST
+   *  login and land on their dashboard on any later replay. */
+  function firstRunTourPending() {
+    if (!window.FirstRunWalkthrough || !state.user) return false;
+    if (state.user.role !== 'evaluator' || isAdvisor()) return false;
+    if (window.FirstRunWalkthrough.mode(state.user) === 'none') return false;
+    return window.FirstRunWalkthrough.tourPending(state.user);
+  }
+
+  /** §4.2 — the re-entry page. Reached on logins 2 and 3, and from the banner's
+   *  button, so the two are the same flow at different volumes. */
+  function openFirstRunReentry() {
+    if (!window.FirstRunWalkthrough) { renderDashboardView(); return; }
+    window.FirstRunWalkthrough.reentry(firstRunCtx());
   }
 
   // ─── Login screen ────────────────────────────────────────────────────────--
@@ -2417,8 +2475,12 @@
     // §6 re-entry: a quiet chip, never a modal ambush. It reports and it waits;
     // ignoring it costs nothing, and it disappears the moment the last stop
     // closes or the physician dismisses the checklist on the finish card.
-    const frChip = firstRunChipEl();
-    if (frChip) wrap.appendChild(frChip);
+    // §4.3: on the dashboard, from login 4 onwards, the chip is replaced by the
+    // banner — one door, not two, and the banner is the one that can carry the
+    // progress. On every other screen, and in every earlier mode, the chip is
+    // still the chip.
+    const frEntry = firstRunMode() === 'banner' ? firstRunBannerEl() : firstRunChipEl();
+    if (frEntry) wrap.appendChild(frEntry);
     wrap.appendChild(h('div', { class: 'asc-dash-head' },
       h('div', {},
         h('h2', { class: 'asc-dash-hello' }, 'Your dashboard'),
@@ -2528,6 +2590,43 @@
     cols.appendChild(side);
     wrap.appendChild(cols);
     setRoot(wrap);
+  }
+
+  /** §4.3 — the quiet dashboard banner. Login 4 onwards, optional stops left.
+   *
+   *  Six dots rather than a bar: it reads at a glance and there is no percentage
+   *  to do arithmetic on. Tabular figures on the count so the digits do not
+   *  jitter as it climbs. It is 56px tall, it is NOT a modal, and it is not
+   *  dismissible — it goes away by being finished. A physician who never wants
+   *  it will never notice it; one who does has a door.
+   *
+   *  Its button opens the re-entry page, so the banner and the page are the same
+   *  flow at different volumes rather than two competing onboarding surfaces. */
+  function firstRunBannerEl() {
+    const p = window.FirstRunWalkthrough.progress(state.user);
+    const remaining = window.FirstRunWalkthrough.remaining(state.user);
+    const dots = h('span', { class: 'asc-fr-banner-dots', 'aria-hidden': 'true' });
+    for (let i = 0; i < p.total; i += 1) {
+      dots.appendChild(h('span', {
+        class: 'asc-fr-banner-dot' + (i < p.done ? ' is-done' : ''),
+      }));
+    }
+    return h('div', {
+      class: 'asc-fr-banner',
+      // A region, not an alert: it must never steal focus or interrupt a screen
+      // reader mid-sentence. It is the "quiet" §3 asks for.
+      role: 'region', 'aria-label': 'Onboarding progress',
+    },
+      h('div', { class: 'asc-fr-banner-main' },
+        dots,
+        h('span', { class: 'asc-fr-banner-count' },
+          'Onboarding · ' + p.done + ' of ' + p.total),
+        h('span', { class: 'asc-fr-banner-rest' },
+          remaining.length ? remaining.join(' · ') + ' remaining' : '')),
+      h('button', {
+        class: 'asc-btn asc-btn-primary', type: 'button',
+        onClick: () => openFirstRunReentry(),
+      }, 'Finish onboarding'));
   }
 
   /** "Finish setup · 3 of 6", or null when there is nothing left to finish. */
@@ -13794,7 +13893,12 @@
     if (!wasReplay && window.FirstRunWalkthrough) {
       api('/auth/me').then((u) => {
         if (u) state.user = u;
-        if (firstRunPending()) resumeFirstRun(); else renderDashboardView();
+        // Carry on through the tour only while it is genuinely unfinished — some
+        // stop with no outcome at all. `firstRunPending()` is the wrong question
+        // here now that `deferred` keeps a stop open: it would walk a physician
+        // who replayed the practice case months later back through an onboarding
+        // they already declined, which is the nagging §2 removed.
+        if (firstRunTourPending()) resumeFirstRun(); else renderDashboardView();
       }).catch(() => renderDashboardView());
     } else {
       renderDashboardView();
@@ -13927,12 +14031,12 @@
         // physician on a dashboard halfway through being introduced to the
         // product. Only on a PASS: a failed attempt has not finished the stop,
         // and resuming would move them past the one thing they still owe.
-        if (firstRunPending()) { resumeFirstRun(); return; }
+        if (firstRunTourPending()) { resumeFirstRun(); return; }
         renderDashboardView();
       } },
       isAdvisor() ? 'Back to the dashboard'
         : !passed ? 'Take it again'
-          : firstRunPending() ? 'Keep going →' : 'Start real cases →');
+          : firstRunTourPending() ? 'Keep going →' : 'Start real cases →');
 
     const card = h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-tour-chrome' },
