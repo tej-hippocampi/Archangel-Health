@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Asclepius Operations</title>
-  <!-- Console design system — self-hosted fonts + shared tokens, no network
+  <!-- Console design system: self-hosted fonts + shared tokens, no network
        fonts. The SAME four sheets the physician portal loads, deliberately:
        this page is the product flipped, not a second design system. admin.css
        adds the console chrome and nothing else; it forks no palette. -->
@@ -35,8 +35,8 @@
        What this page deliberately does NOT load: first_run.js, earnings.js,
        review.js, case_panel.js, onboarding.js, referral.js. Those are the
        physician's own experience. The one that would have been arguable is
-       case_panel.js — the Routing preview shows a case — and it is not needed:
-       renderCasePanelReadOnly builds that preview itself and always did.
+       case_panel.js, because the Routing preview shows a case, and it is not
+       needed: renderCasePanelReadOnly builds that preview itself and always did.
 
        manual-content.js is not loaded either: the Guide is a physician
        surface and the shell reads nothing from window.ASC_MANUAL. -->

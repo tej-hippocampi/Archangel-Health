@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Asclepius Operations — the admin console, as its own page.
+   Asclepius Operations: the admin console, as its own page.
 
    Until PRD-F the console lived inside asclepius.js. Every physician who
    opened the portal downloaded roughly 3,600 lines of admin code they could
@@ -355,7 +355,7 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
-     THE MASTHEAD — "the product, flipped"
+     THE MASTHEAD: "the product, flipped"
 
      The physician's chrome is paper: a light header over a light workspace,
      with a progress bar for the one case in front of them. An operator is
@@ -419,8 +419,8 @@
   }
 
   /* ─── The gate (R4) ────────────────────────────────────────────────────────
-   * A physician who lands here is told what is true — this needs admin
-   * credentials — rather than shown a console whose every fetch 401s. The
+   * A physician who lands here is told what is true (this needs admin
+   * credentials) rather than shown a console whose every fetch 401s. The
    * distinction between "no session" and "wrong session" matters: the first
    * is a form to fill in, the second is a door that will not open for the
    * account they are holding, and printing a sign-in form at somebody already

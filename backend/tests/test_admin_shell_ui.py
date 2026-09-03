@@ -8,7 +8,7 @@ shipped ``admin_shell.js`` is loaded under the DOM shim, booted against a
 stubbed API as an admin, and then clicked.
 
 Every section module is stubbed with a spy rather than loaded, deliberately:
-what is under test here is the SHELL — which tab mounts which section, which
+what is under test here is the SHELL: which tab mounts which section, which
 state key each one sets, and whether the cross-links still land where an
 operator expects. The sections have their own suites.
 
@@ -261,7 +261,7 @@ def test_the_qa_badge_still_rides_on_the_tasks_tab():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  The cross-links (R8) — the routes operators actually navigate by
+#  The cross-links (R8): the routes operators actually navigate by
 # ═════════════════════════════════════════════════════════════════════════════
 def test_open_batches_for_lands_on_task_routing_with_the_doctor_preselected():
     """WHY: R8. Routing from a physician's row is entered from the roster and
@@ -356,7 +356,7 @@ def test_the_referrals_tab_reaches_the_health_system_funnel():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-#  R7 — the card gallery, with the real renderer
+#  R7: the card gallery, with the real renderer
 # ═════════════════════════════════════════════════════════════════════════════
 def test_the_gallery_renders_one_card_per_physician_with_tier_as_a_word():
     """WHY: the roster's standing vocabulary rules are the documented
