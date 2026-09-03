@@ -408,21 +408,36 @@ async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
             log.info("[spotlight] nothing in the pool, no post")
             return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "quiet", "posted": 0}
 
-        item = pool[0]
-        posted = await post_system_message(
-            channel_slug=SPOTLIGHT_CHANNEL,
-            body=_spotlight_body(item),
-            kind=SPOTLIGHT_KIND,
-            cards=[_spotlight_card(item)],
-        )
-        if posted is None:
-            raise RuntimeError("system post was skipped (channel or PHI gate)")
-        cstore.mark_content_items([item["id"]], status=SPOTLIGHT_STATUS,
-                                  posted_message_id=posted["id"])
-        cstore.finish_digest_run(run_id, ok=True, items_fetched=len(pool), items_posted=1)
-        log.info("[spotlight] posted %r (message %s)", item.get("title"), posted["id"])
-        return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "posted", "posted": 1,
-                "message_id": posted["id"]}
+        for item in pool:
+            posted = await post_system_message(
+                channel_slug=SPOTLIGHT_CHANNEL,
+                body=_spotlight_body(item),
+                kind=SPOTLIGHT_KIND,
+                cards=[_spotlight_card(item)],
+            )
+            if posted is not None:
+                cstore.mark_content_items([item["id"]], status=SPOTLIGHT_STATUS,
+                                          posted_message_id=posted["id"])
+                cstore.finish_digest_run(run_id, ok=True, items_fetched=len(pool),
+                                         items_posted=1)
+                log.info("[spotlight] posted %r (message %s)",
+                         item.get("title"), posted["id"])
+                return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "posted",
+                        "posted": 1, "message_id": posted["id"]}
+            # None means either the channel is gone or this item's text tripped
+            # the PHI gate. A missing channel fails the run outright. A gated
+            # item must leave the pool before we move on: 'skipped' rows stay
+            # spotlight candidates, so without a terminal status the same story
+            # would be re-picked and re-fail every tick for its whole window.
+            channel = cstore.get_channel_by_slug(SPOTLIGHT_CHANNEL)
+            if not channel or not channel.get("is_active", 1):
+                raise RuntimeError("system post was skipped (channel missing or inactive)")
+            cstore.mark_content_items([item["id"]], status="blocked")
+            log.warning("[spotlight] item %s (%r) blocked by the PHI gate, "
+                        "trying the next candidate", item["id"], item.get("title"))
+        cstore.finish_digest_run(run_id, ok=True, items_fetched=len(pool), items_posted=0)
+        log.info("[spotlight] every candidate was gated, no post")
+        return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "quiet", "posted": 0}
     except Exception as exc:
         cstore.finish_digest_run(run_id, ok=False, error=str(exc)[:500])
         log.warning("[spotlight] run failed: %s", exc, exc_info=True)

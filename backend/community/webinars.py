@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
+from community import phi_gate
 from community.store import get_community_store
 from community.system_posts import SYSTEM_USER_ID, post_system_message
 
@@ -157,6 +158,15 @@ async def ensure_upcoming(*, now: Optional[datetime] = None) -> Dict[str, Any]:
     """
     if not enabled():
         return {"ok": True, "created": 0, "reason": "no_join_url"}
+
+    # PHI gate on the free text before anything is stored, same rule as the
+    # HTTP create-event route: title, description and host are operator
+    # supplied env strings, and a row written by the bot must clear the same
+    # bar as one written by an admin.
+    blob = " \n ".join(x for x in [title(), description(), host()] if x)
+    if phi_gate.scan_text(blob):
+        log.error("[webinars] event text tripped the PHI gate, nothing created")
+        return {"ok": False, "created": 0, "reason": "phi_detected"}
 
     cstore = get_community_store()
     channel = cstore.get_channel_by_slug(WEBINAR_CHANNEL)
