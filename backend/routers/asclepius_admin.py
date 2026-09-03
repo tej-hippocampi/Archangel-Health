@@ -52,6 +52,7 @@ def _store():
 # provider router cannot import this module to reach them. Re-exported here so
 # every call site and test that reaches them through this router is unchanged.
 from asclepius import dla as asc_dla  # noqa: E402
+from asclepius import hs_billing  # noqa: E402
 from asclepius import hs_provisioning as asc_hs_provisioning  # noqa: E402
 from asclepius import hs_states  # noqa: E402
 from asclepius.portal_accounts import (  # noqa: E402,F401
@@ -3359,6 +3360,165 @@ async def void_health_system_payout(
     store.log_event(entity_type="health_system", entity_id=hs_id,
                     event_type="payout_voided", actor=admin["email"],
                     payload={"payout_id": payout_id, "reason": reason})
+    return row
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  THE ACCRUAL RAIL
+#
+#  The routes above record what an operator DECIDED to pay. These four are
+#  about what the arithmetic says is DUE: agree a price, read the ledger it
+#  produces, roll the open rows into an invoice, and record the settlement when
+#  the transfer clears. See asclepius/hs_billing.py for why the unit is an
+#  accepted bundle, why no price is baked in, and why no bank detail is stored.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class HsDataRateRequest(BaseModel):
+    #: Cents per accepted upload bundle. ``None`` clears the price back to
+    #: unpriced, which is the state every organization starts in.
+    rate_cents: Optional[int] = None
+
+
+class HsInvoiceRunRequest(BaseModel):
+    period: str
+    description: Optional[str] = None
+
+
+class HsSettlementRequest(BaseModel):
+    #: The treasury side's reference for the transfer, and the IDEMPOTENCY KEY.
+    #: A double-submitted form replays a no-op rather than settling twice.
+    settlement_ref: str
+    invoice_id: Optional[str] = None
+    accrual_ids: Optional[List[str]] = None
+
+
+class HsAccrualVoidRequest(BaseModel):
+    reason: str
+
+
+@router.post("/health-systems/{hs_id}/data-rate", include_in_schema=False)
+async def set_health_system_data_rate(
+    hs_id: str, body: HsDataRateRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Agree what one accepted bundle is worth for this organization.
+
+    Setting a rate reconciles immediately, so an operator who prices a partner
+    sees the backlog they just priced rather than waiting for that partner to
+    open their portal. Nothing already accrued moves: every ledger row carries
+    its own stamped rate, and this decides the next one.
+    """
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    try:
+        store.set_health_system_data_rate(
+            hs_id, rate_cents=body.rate_cents, set_by=admin["email"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    counts = hs_billing.reconcile_accruals(store, hs_id=hs_id)
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="hs_data_rate_set", actor=admin["email"],
+                    payload={"rate_cents": body.rate_cents,
+                             "accrued": counts["accrued"]})
+    return {"rate_cents": body.rate_cents, "reconciled": counts,
+            "summary": store.hs_accrual_summary(hs_id)}
+
+
+@router.get("/health-systems/{hs_id}/accruals", include_in_schema=False)
+async def list_health_system_accruals(
+    hs_id: str, _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """The ledger, reconciled on read exactly as the partner's own page does, so
+    an operator and a partner are never looking at two different backlogs."""
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    hs_billing.reconcile_accruals(store, hs_id=hs_id)
+    return {"rate_cents": hs_billing.rate_for(store, hs_id),
+            "unit": hs_billing.ACCRUAL_UNIT,
+            "rail": hs_billing.SETTLEMENT_RAIL,
+            "summary": store.hs_accrual_summary(hs_id),
+            "accruals": store.list_hs_accruals(hs_id)}
+
+
+@router.post("/health-systems/{hs_id}/accruals/invoice", include_in_schema=False)
+async def invoice_health_system_accruals(
+    hs_id: str, body: HsInvoiceRunRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Roll everything currently accrued into one invoice for a period."""
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    period = (body.period or "").strip()
+    if not period:
+        raise HTTPException(status_code=400, detail="Name the period this invoice covers.")
+    hs_billing.reconcile_accruals(store, hs_id=hs_id)
+    result = hs_billing.invoice_open_accruals(
+        store, hs_id=hs_id, period=period, created_by=admin["email"],
+        description=body.description)
+    if result is None:
+        # Two different nothings, one answer: no open accruals, or a period
+        # already invoiced. Both mean "this call created no invoice", and a 409
+        # for the second would invite a retry that must not succeed.
+        raise HTTPException(
+            status_code=409,
+            detail="Nothing open to invoice for that period.")
+    return result
+
+
+@router.post("/health-systems/{hs_id}/accruals/settle", include_in_schema=False)
+async def settle_health_system_accruals(
+    hs_id: str, body: HsSettlementRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Record that a transfer cleared. Moves no money and stores no credential.
+
+    The response distinguishes a first submit from a replay, because those are
+    different facts and an operator who cannot tell them apart submits again.
+    """
+    store = _store()
+    if not store.get_health_system(hs_id):
+        raise HTTPException(status_code=404, detail="Health system not found")
+    try:
+        return hs_billing.record_settlement(
+            store, hs_id=hs_id, settlement_ref=body.settlement_ref,
+            actor=admin["email"], accrual_ids=body.accrual_ids,
+            invoice_id=body.invoice_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/health-systems/{hs_id}/accruals/{accrual_id}/void",
+             include_in_schema=False)
+async def void_health_system_accrual(
+    hs_id: str, accrual_id: str, body: HsAccrualVoidRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Cancel a row that should never have been written, with a reason on it.
+
+    A voided row stays in the table and stays excluded from reconciliation, so
+    the sweep cannot read its absence from the live totals as work it has not
+    noticed and write it back next time somebody opens the page.
+    """
+    store = _store()
+    existing = store.get_hs_accrual(accrual_id)
+    if not existing or existing["hs_id"] != hs_id:
+        raise HTTPException(status_code=404, detail="No such accrual.")
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400,
+                            detail="Give a reason for cancelling this accrual.")
+    if existing["status"] == "settled":
+        # Money that cleared is a fact. A ledger that can void it retroactively
+        # is one whose totals stop meaning anything.
+        raise HTTPException(status_code=409,
+                            detail="That accrual has already settled.")
+    row = store.void_hs_accrual(accrual_id, reason=reason, by=admin["email"])
+    store.log_event(entity_type="health_system", entity_id=hs_id,
+                    event_type="hs_accrual_voided", actor=admin["email"],
+                    payload={"accrual_id": accrual_id, "reason": reason})
     return row
 
 

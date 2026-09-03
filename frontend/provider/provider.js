@@ -1572,6 +1572,8 @@
     summaryEl.appendChild(summaryStat("Paid", formatMoney(s.paid_cents)));
     summaryEl.appendChild(summaryStat("Awaiting payment", formatMoney(s.pending_cents)));
 
+    renderRail(data.rail || {});
+
     renderAccrual(data.accrual || {});
 
     renderInvoices(data.invoices || []);
@@ -1612,6 +1614,35 @@
       [when, what, period, status, amount].forEach((td) => tr.appendChild(td));
       bodyEl.appendChild(tr);
     });
+  }
+
+  // What is owed, what is billed, what has cleared. The three states an
+  // obligation passes through, so a partner can reconcile their own records
+  // against ours without asking anyone.
+  //
+  // HIDDEN ENTIRELY UNTIL A PRICE EXISTS, and that is the rule this block is
+  // really about. Three zeroes on a money page read as "you are owed nothing",
+  // which is a different and false statement from "nobody has priced your data
+  // yet". The unpriced case is what the accrual count line below already says
+  // honestly, so this one stays out of its way.
+  //
+  // The server does every sum. This page turns cents into dollars and nothing
+  // else: arithmetic here would be a second answer to a question the ledger has
+  // already answered.
+  function renderRail(rail) {
+    const host = document.getElementById("prvPayoutRail");
+    if (!host) return;
+    if (!rail.priced) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    const stats = document.getElementById("prvPayoutRailStats");
+    clear(stats);
+    stats.appendChild(summaryStat("Accrued", formatMoney(rail.accrued_cents)));
+    stats.appendChild(summaryStat("Invoiced", formatMoney(rail.invoiced_cents)));
+    stats.appendChild(summaryStat("Settled", formatMoney(rail.settled_cents)));
+    document.getElementById("prvPayoutRailNote").textContent = rail.note || "";
   }
 
   // The one line between "we took your data" and "we paid you for it". A

@@ -40,6 +40,7 @@ from ratelimit import client_ip, global_rate_limiter, rate_limiter
 from asclepius import auth as asc_auth
 from asclepius import dla as asc_dla
 from asclepius import hs_access
+from asclepius import hs_billing
 from asclepius import hs_provisioning as asc_hs_provisioning
 from asclepius import hs_states
 from asclepius import ingestion as asc_ingestion
@@ -1971,6 +1972,18 @@ async def hs_payouts(
     """
     store = _store()
     hs_id = portal_user["hs_id"]
+    # Reconciled on read, scoped to THIS organization, exactly as the physician
+    # Earnings page reconciles its own ledger. Idempotent by construction (the
+    # ledger's UNIQUE constraint, not a check this route performs), scoped so a
+    # partner opening their page costs their own backlog and nobody else's, and
+    # a no-op entirely while the organization is unpriced. A partner who reads
+    # this page ten seconds after an upload is accepted should see it.
+    try:
+        hs_billing.reconcile_accruals(store, hs_id=hs_id)
+    except Exception:
+        # A ledger write must never cost a partner the ability to READ their
+        # ledger. The next open reconciles what this one missed.
+        log.exception("hs payouts: accrual reconciliation failed for %s", hs_id)
     rows = store.list_hs_payouts(hs_id)
     # DRAFTS ARE FILTERED OUT, not renamed. A draft is a number an operator is
     # still deciding about, and showing a hospital's finance contact an amount
@@ -1984,19 +1997,30 @@ async def hs_payouts(
     # cannot tell them different numbers.
     upload_summary = _hs_upload_summary(
         [_hs_upload_view(u) for u in store.list_uploads_for_health_system(hs_id)])
+    rail = hs_billing.partner_rail(store, hs_id)
+    # An accepted upload with a ledger row of EITHER kind is no longer awaiting
+    # anything. Before the accrual rail existed only a hand-entered payout could
+    # close this gap; counting accruals here is what stops a fully accrued
+    # partner from being told their data is still waiting to be priced.
+    priced_entries = money["count"] + rail["count"]
     return {
         "currency": "usd",
         "summary": money,
+        # What is owed, what is billed, what has cleared. Beside the payout
+        # summary rather than merged into it: that block is money we have
+        # RECORDED PAYING, this one is money the arithmetic says is DUE, and a
+        # page that adds them together would double-count a settled quarter.
+        "rail": rail,
         # Deliberately beside the money summary rather than inside it: nothing in
         # here is currency, and a count that lands in a block the page formats as
         # dollars is how "3" becomes "$0.03".
         "accrual": {
             "accepted_uploads": upload_summary["accepted"],
-            "ledger_entries": money["count"],
+            "ledger_entries": priced_entries,
             # What the line actually renders. Computed server-side so the page
             # has no arithmetic of its own to get wrong, and floored at zero
             # because an operator may price one upload into several ledger rows.
-            "awaiting_pricing": max(0, upload_summary["accepted"] - money["count"]),
+            "awaiting_pricing": max(0, upload_summary["accepted"] - priced_entries),
             "note": _HS_ACCRUAL_NOTE,
         },
         "payouts": [_hs_payout_view(r) for r in rows],
