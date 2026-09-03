@@ -25,7 +25,7 @@ import logging
 import os
 import re
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -92,6 +92,122 @@ def _export_root_path() -> Path:
     """
     return Path(os.path.abspath(
         os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports"))
+
+
+# ─── Exclusivity (audit U5) ───────────────────────────────────────────────────
+# The one constraint the founder placed on otherwise-unrestricted reuse of
+# incoming data: "unless they have the licensing agreement, that doesn't mean you
+# can go sell it to 5 other people unless they didn't pay exclusively." So an
+# export carries an optional licence, and a licence is either exclusive or not.
+EXCLUSIVE = "exclusive"
+NON_EXCLUSIVE = "non_exclusive"
+LICENCE_TERMS = (EXCLUSIVE, NON_EXCLUSIVE)
+
+
+class ExclusiveLicenseConflict(ValueError):
+    """This batch contains records already promised exclusively to someone else.
+
+    Carries ``conflicts`` (one entry per blocking licence: licence id, buyer,
+    originating export, overlap count and a sample of overlapping record ids) so
+    the operator is told WHICH agreement is in the way rather than that the export
+    failed. Nothing is written and no record is marked exported when this raises."""
+
+    def __init__(self, message: str, conflicts: List[Dict[str, Any]]):
+        super().__init__(message)
+        self.conflicts = conflicts
+
+
+def _conflict_message(conflicts: List[Dict[str, Any]], licensed_to: Optional[str]) -> str:
+    parts = []
+    for c in conflicts:
+        who = c.get("buyer_label") or c.get("buyer_key")
+        sample = ", ".join(c.get("overlap_sample") or [])
+        expiry = c.get("expires_at") or "no expiry"
+        parts.append(
+            f"licence {c['license_id']} (exclusive to {who}, from export "
+            f"{c['export_id']}, {expiry}) covers {c['overlap_count']} of these "
+            f"records, including {sample}"
+        )
+    who_for = f" to {licensed_to}" if licensed_to else ""
+    return (
+        f"Export refused{who_for}: it overlaps an exclusive licence held by another "
+        "buyer. " + "; ".join(parts) + ". Release or narrow the licence, or narrow "
+        "this cut, before exporting."
+    )
+
+
+def validate_license_expiry(value: Optional[str]) -> Optional[str]:
+    """Vet ``license_expires_at`` at the API boundary, before anything is written.
+
+    Expiry is enforced by LEXICAL comparison against naive-UTC ISO stamps
+    (``expires_at > now`` in ``store.exclusive_license_conflicts``), so a
+    malformed value like '12/31/2026' sorts before every current stamp and reads
+    as already expired: the licence records fine and then silently never blocks
+    anyone. Refusing it at the door is the only moment somebody is looking.
+
+    Returns the string to store: as typed for naive dates/datetimes, converted
+    to naive UTC for offset-aware ones (an offset kept verbatim would be
+    compared as if it were UTC and enforce the wrong instant). Raises
+    ValueError, which every export boundary turns into a 400, on a value
+    ``fromisoformat`` cannot parse.
+    """
+    if value is None or not str(value).strip():
+        return None
+    text = str(value).strip()
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError(
+            "license_expires_at must be an ISO date or datetime "
+            f"(for example 2027-01-31 or 2027-01-31T00:00:00), got {text!r}."
+        ) from None
+    if parsed.tzinfo is not None:
+        return parsed.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
+    return text
+
+
+def enforce_exclusivity(
+    store: Any, record_ids: List[str], *, licensed_to: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Refuse a batch that would re-sell records already committed exclusively.
+
+    Enforced at RECORD level, not bundle level, because the meeting that asked for
+    this also decided data may be split and recombined: a check that only knows
+    about whole bundles is defeated by re-cutting the same records under a
+    different filter, which is the ordinary way an export gets built here.
+
+    ``licensed_to`` is the buyer this batch is going to. When it matches the
+    holder of the exclusive licence, the export proceeds: a buyer re-taking
+    delivery of their own exclusive data breaches nothing. When it is None we
+    cannot show the batch is going to the holder, so the conflict stands.
+
+    WHAT THIS DELIBERATELY DOES NOT COVER, and why.
+
+    1. Identity is ``record_id``, so exclusivity attaches to the exported
+       artifacts, not to the underlying clinical content. If a THIRD physician
+       labels a case after that case shipped exclusively, their record is a new
+       record and does not conflict. Blocking it would be the wrong default:
+       a partial cut of a multi-labeler case is a normal thing to sell, and
+       auto-blocking every sibling record would silently stop legitimate sales
+       with no way for the operator to see why. The commitment therefore stores
+       its ``case_ids`` too, so the admin register can show which cases are
+       touched and a human can make that call. Whether a sibling label counts as
+       the same data is a contract question, not a code question.
+
+    2. Only builders that route through ``build_export`` are gated. The V5
+       agentic-trajectory export (``/api/asclepius/environments/export``) and the
+       gold-set export are separate artifact builders over separate tables, and
+       neither reads or writes the records table this register is keyed on. They
+       are ungated today, and closing that needs its own identity scheme rather
+       than a call added here.
+
+    3. Aggregate statistics computed store-wide (Cohen's kappa, the quality
+       report, the failure taxonomy) are not gated, because they are derived
+       numbers over the whole corpus rather than the licensed records."""
+    conflicts = store.exclusive_license_conflicts(record_ids, buyer_key=licensed_to)
+    if conflicts:
+        raise ExclusiveLicenseConflict(_conflict_message(conflicts, licensed_to), conflicts)
+    return conflicts
 
 
 def export_root() -> Path:
@@ -1638,6 +1754,11 @@ def build_export(
     submission_id: Optional[str] = None,
     case_id: Optional[str] = None,
     case_ids: Optional[List[str]] = None,
+    licensed_to: Optional[str] = None,
+    license_exclusivity: str = NON_EXCLUSIVE,
+    license_label: Optional[str] = None,
+    license_expires_at: Optional[str] = None,
+    license_note: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Assemble + persist an export batch from export-ready records.
 
@@ -1667,7 +1788,15 @@ def build_export(
     ``include_mock`` (default OFF) is the ONLY way mock/sandbox-contributor records
     enter a batch. By default every record whose annotator is a mock contributor is
     hard-excluded, so a demo on the live portal never contaminates a shipped
-    training batch (internal demo tool)."""
+    training batch (internal demo tool).
+
+    ``licensed_to`` names the buyer this batch is licensed to and, with
+    ``license_exclusivity='exclusive'``, records an exclusive commitment over
+    exactly the records that ship. Exclusivity is opt-in per deal: the default is
+    non-exclusive, which is what every existing caller gets and which changes
+    nothing. Whether or not this batch declares a licence, it is refused if it
+    would re-ship records already committed exclusively to a DIFFERENT buyer
+    (``ExclusiveLicenseConflict``)."""
     prof = profiles.load_profile(profile)
     profile_name = prof.get("name") or profile
 
@@ -1886,6 +2015,16 @@ def build_export(
         raise ValueError(
             f"No records match the buyer profile {profile_name!r} record types."
         )
+
+    # Exclusivity gate (audit U5). Placed here and not earlier because ``emitted``
+    # is the first point at which we know precisely which records would leave the
+    # building: ``records`` still contains lines the buyer profile drops. Placed
+    # here and not later because nothing below this point is undoable. The next
+    # statement creates the bundle directory, and after that the records are
+    # marked exported and the submissions move on.
+    licensed_key = (licensed_to or "").strip().lower() or None
+    emitted_ids = [r["record_id"] for r in emitted]
+    enforce_exclusivity(store, emitted_ids, licensed_to=licensed_key)
 
     out_dir = export_root() / export_id
     out_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -2124,6 +2263,20 @@ def build_export(
         "dir_path": str(out_dir),
         "destination": "local_disk",  # future seam: a cloud writer pushes here.
     }
+    # Licensing terms travel WITH the bundle, and only when there are terms. An
+    # undeclared export writes the same manifest keys it always has, so nothing
+    # already in flight sees a changed file; a licensed one carries the buyer and
+    # the exclusivity on the copy that actually leaves the building, which is the
+    # copy a dispute is argued over.
+    license_id: Optional[str] = None
+    if licensed_key:
+        license_id = "lic-" + export_id[4:] if export_id.startswith("exp-") else "lic-" + export_id
+        manifest["licensing"] = {
+            "license_id": license_id,
+            "licensed_to": license_label or licensed_key,
+            "exclusivity": (EXCLUSIVE if license_exclusivity == EXCLUSIVE else NON_EXCLUSIVE),
+            "expires_at": license_expires_at,
+        }
     (out_dir / MANIFEST_NAME).write_text(
         json.dumps(_shippable_manifest(manifest), indent=2, ensure_ascii=False),
         encoding="utf-8",
@@ -2148,6 +2301,29 @@ def build_export(
         dir_path=str(out_dir),
         manifest=manifest,
     )
+    if licensed_key and license_id:
+        store.create_export_license(
+            license_id=license_id,
+            export_id=export_id,
+            buyer_key=licensed_key,
+            buyer_label=license_label,
+            exclusivity=(EXCLUSIVE if license_exclusivity == EXCLUSIVE else NON_EXCLUSIVE),
+            record_ids=emitted_ids,
+            case_ids=sorted({(r.get("task_id") or (r.get("payload") or {}).get("task_id"))
+                             for r in emitted} - {None}),
+            expires_at=license_expires_at,
+            note=license_note,
+            created_by=created_by,
+        )
+        store.log_event(
+            entity_type="export", entity_id=export_id, event_type="export_licensed",
+            actor=created_by,
+            payload={"license_id": license_id, "buyer_key": licensed_key,
+                     "exclusivity": (EXCLUSIVE if license_exclusivity == EXCLUSIVE
+                                     else NON_EXCLUSIVE),
+                     "record_count": len(emitted_ids),
+                     "expires_at": license_expires_at},
+        )
     store.log_event(
         entity_type="export", entity_id=export_id, event_type="export_built",
         actor=created_by, payload={"record_count": len(emitted), "filters": filters},

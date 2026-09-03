@@ -189,6 +189,12 @@ class CaseBundleRequest(BaseModel):
     # Optional delivery in the same action (PRD §5): build the bundle and drop it
     # in a buyer's workspace. None = build and download only.
     buyer_email: Optional[str] = None
+    # Licensing (audit U5). Both optional: a cut built to look at, or to hand to a
+    # buyer under the ordinary non-exclusive terms, declares neither and behaves
+    # exactly as it did before.
+    licensed_to: Optional[str] = None
+    exclusive: bool = False
+    license_expires_at: Optional[str] = None
 
 
 class ApproveForExportRequest(BaseModel):
@@ -749,6 +755,16 @@ async def export_case_bundle(
         # correctly-ordered deploy — but a legible failure beats an AttributeError.
         raise HTTPException(status_code=503,
                             detail="Case-centric export is unavailable in this build.")
+    if body.exclusive and not (body.licensed_to or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="An exclusive licence needs a buyer in 'Licensed to'.")
+    # Expiry is enforced lexically against ISO stamps, so a malformed value would
+    # read as already expired and the exclusive would silently never block.
+    try:
+        license_expires_at = asc_export.validate_license_expiry(body.license_expires_at)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     case_ids = scope_json.get("case_ids") or None
     try:
         res = export_by_case(
@@ -759,9 +775,19 @@ async def export_case_bundle(
             portal_version=(portal_version if s["scope"] == "version" else None),
             annotator_id_hashed=(scope_json.get("annotator_id_hashed")),
             include_exported=True, note=note,
+            # Licensing (audit U5): recorded on the export row; an exclusive cut
+            # also freezes its record-level membership in the register.
+            licensed_to=body.licensed_to or None,
+            license_exclusivity=(asc_export.EXCLUSIVE if body.exclusive
+                                 else asc_export.NON_EXCLUSIVE),
+            license_expires_at=license_expires_at,
+            license_note=note,
             # Carried into the datasheet's Composition section (PRD §2.3) so a
             # lab knows how the bundle was cut. Hashes and counts only.
             scope=scope_json)
+    except asc_export.ExclusiveLicenseConflict as exc:
+        raise HTTPException(status_code=409,
+                            detail={"message": str(exc), "conflicts": exc.conflicts})
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except asc_export.ExportValidationError as exc:
@@ -795,6 +821,7 @@ async def export_case_bundle(
         "bundle_count": 1,
         "scope": scope_json,
         "delivery": delivery,
+        "licensing": res.get("licensing"),
     }
 
 
@@ -816,6 +843,78 @@ def _scope_label(scope_json: Dict[str, Any]) -> str:
     if stype == "physician":
         return f"Physician · {str(scope_json.get('annotator_id_hashed') or '')[:12]}"
     return "All exportable records"
+
+
+# ─── Exclusive commitments register (audit U5) ───────────────────────────────
+# Lives beside the export builder rather than in a surface of its own, because
+# the question it answers ("can I sell this?") is asked while cutting a bundle,
+# not on a separate screen somebody remembers to visit.
+class LicenseReleaseRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+@router.get("/export/exclusivity")
+async def export_exclusivity(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """What is exclusively committed, to whom, and over how much.
+
+    Live commitments first (those are the ones that block a cut), then the ended
+    ones, which are kept because "we were exclusive to them until March" is the
+    fact a dispute turns on."""
+    store = _store()
+    active = store.list_export_licenses(exclusivity="exclusive", active_only=True)
+    everything = store.list_export_licenses(exclusivity="exclusive")
+    active_ids = {lic["license_id"] for lic in active}
+    ended = [lic for lic in everything if lic["license_id"] not in active_ids]
+
+    def _row(lic: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "license_id": lic["license_id"],
+            "export_id": lic["export_id"],
+            "buyer": lic.get("buyer_label") or lic["buyer_key"],
+            "buyer_key": lic["buyer_key"],
+            "record_count": lic.get("record_count") or 0,
+            "case_count": len(lic.get("case_ids") or []),
+            "expires_at": lic.get("expires_at"),
+            "status": lic.get("status"),
+            "note": lic.get("note"),
+            "created_at": lic.get("created_at"),
+            "released_at": lic.get("released_at"),
+            "release_reason": lic.get("release_reason"),
+        }
+
+    return {
+        "active": [_row(lic) for lic in active],
+        "ended": [_row(lic) for lic in ended],
+        "committed_record_count": sum(lic.get("record_count") or 0 for lic in active),
+        "non_exclusive_count": len(store.list_export_licenses(
+            exclusivity="non_exclusive")),
+    }
+
+
+@router.post("/export/exclusivity/{license_id}/release")
+async def release_export_exclusivity(
+    license_id: str,
+    body: LicenseReleaseRequest,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """End an exclusive commitment so its records can be sold again. The row is
+    kept and marked released rather than deleted, because deleting it destroys the
+    only record that the promise ever existed."""
+    store = _store()
+    lic = store.get_export_license(license_id)
+    if not lic:
+        raise HTTPException(status_code=404, detail="No such licence.")
+    if lic.get("status") != "active":
+        raise HTTPException(status_code=409, detail="That licence is already released.")
+    released = store.release_export_license(
+        license_id, released_by=admin["id"], reason=body.reason)
+    store.log_event(entity_type="export", entity_id=lic["export_id"],
+                    event_type="export_license_released", actor=admin["id"],
+                    payload={"license_id": license_id, "buyer_key": lic["buyer_key"],
+                             "record_count": lic.get("record_count"),
+                             "reason": body.reason})
+    return {"license_id": license_id, "status": (released or {}).get("status"),
+            "freed_record_count": lic.get("record_count") or 0}
 
 
 # ─── Storage durability + reconciliation (PRD I-0 §F2/§F4) ───────────────────

@@ -740,6 +740,18 @@ class ExportRequest(BaseModel):
     note: Optional[str] = None
     # Re-include already-shipped records so the bundle can be re-downloaded.
     include_exported: bool = False
+    # Licensing (audit U5). ``licensed_to`` is the buyer identity this cut is
+    # licensed to (an email or account key, matched case-insensitively).
+    # ``exclusive`` is opt-in per deal and requires ``licensed_to``: an exclusive
+    # commitment with nobody to hold it is not a commitment. Leaving both unset is
+    # the historical behavior and records nothing.
+    licensed_to: Optional[str] = None
+    license_label: Optional[str] = None
+    exclusive: bool = False
+    # ISO timestamp. NULL means perpetual: an exclusive with no end date blocks
+    # every future overlapping cut until somebody releases it.
+    license_expires_at: Optional[str] = None
+    license_note: Optional[str] = None
 
 
 # ─── Buyers & buyer requests (opt §2.5) ───────────────────────────────────────
@@ -858,6 +870,12 @@ class BuyerDeliveryRequest(BaseModel):
     data_format: Optional[str] = None
     note: Optional[str] = None
     include_exported: bool = True
+    # Exclusivity (audit U5). A delivery always knows its buyer, so it always
+    # records a licence; this flag decides whether that licence blocks the same
+    # records from reaching anyone else. Off by default, so every delivery made
+    # before and after this lands behaves the same unless somebody says otherwise.
+    exclusive: bool = False
+    license_expires_at: Optional[str] = None
 
 
 class TutorialStateUpdate(BaseModel):
