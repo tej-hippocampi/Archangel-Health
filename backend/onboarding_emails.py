@@ -31,6 +31,7 @@ Client compatibility:
 from __future__ import annotations
 
 import html
+import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -335,7 +336,22 @@ def _last_name(full_or_last: str) -> str:
 #: Onboarding v2 §4.4 §4: the founders meet every physician one on one. One
 #: constant, because it appears in the welcome email and the walkthrough and the
 #: two must never drift.
+#:
+#: This is the DEFAULT, not the answer. Read it through
+#: ``founder_intro_booking_url()`` so an environment can move the booking link
+#: without a deploy; a link that only a code change can update is a link that is
+#: wrong for however long the next deploy takes.
 FOUNDER_INTRO_CALENDLY = "https://calendly.com/tejpatel-berkeley/intro-with-tej-patel"
+
+
+def founder_intro_booking_url() -> str:
+    """Where a physician books the founders' intro call.
+
+    Resolved per call rather than frozen into a default argument, because a
+    default argument is evaluated once at import and would ignore the
+    environment for the life of the process.
+    """
+    return (os.getenv("ASCLEPIUS_INTRO_BOOKING_URL") or "").strip() or FOUNDER_INTRO_CALENDLY
 
 
 # ─── Public builders ────────────────────────────────────────────────────────
@@ -608,6 +624,58 @@ def build_asclepius_admin_invite_email(
         )
     )
     return _shell(subject="Your Archangel Health onboarding link", body_html=body)
+
+
+def build_intro_followup_email(
+    *,
+    full_name: str,
+    onboarding_url: str,
+    one_pager_url: str,
+) -> str:
+    """The email a founder's intro call ends with (Gap U7).
+
+    A SIBLING OF ``build_asclepius_admin_invite_email`` above, and the
+    difference between them is the whole reason this exists. That one is a cold
+    first touch to somebody who has never heard of us. This one goes to somebody
+    we just spent twenty minutes with, so it opens by referring to the
+    conversation rather than by explaining who we are, and it carries the two
+    things the meeting said should go out together: the application link and the
+    one-pager.
+
+    BOTH LINKS ARE REQUIRED ARGUMENTS with no defaults. A follow-up that
+    silently omitted one of them would still look like a perfectly good email,
+    which is the failure mode worth designing out.
+    """
+    body = (
+        _eyebrow("After our call · Asclepius")
+        + _h1(f"Great speaking with you, {html.escape(_first_name(full_name))}.")
+        + _p(
+            "Thanks for the time. Here is the link to apply, and the one-pager we "
+            "talked through, so you have both in one place."
+        )
+        + _cta(onboarding_url, "Start your application →")
+        + _p(
+            "It takes about fifteen minutes: your identity, your credentials, the "
+            "contributor agreement, and one practice case. Your answers are saved "
+            "as you go, so you can stop and come back.",
+            muted=True,
+            small=True,
+        )
+        + _section_label("The one-pager")
+        + _p(
+            "Everything we covered, in one page you can forward to a colleague: "
+            f'<a href="{html.escape(one_pager_url, quote=True)}" '
+            f'style="color:{_GREEN_DEEP};">Asclepius for physicians (PDF)</a>.'
+        )
+        + _p(
+            "If anything we discussed looks different on the page, tell us on this "
+            "thread. We would rather hear it than not.",
+            muted=True,
+            small=True,
+        )
+        + _founder_signoff("— Tej & Aryaa, co-founders")
+    )
+    return _shell(subject="Your Archangel Health application link", body_html=body)
 
 
 def build_asclepius_complete_email(
@@ -1134,7 +1202,7 @@ def build_application_welcome_email(
     email: str,
     temp_password: str,
     sign_in_url: str,
-    calendly_url: str = FOUNDER_INTRO_CALENDLY,
+    calendly_url: str = "",
 ) -> str:
     """§4.4 — sent on admin approval. Carries the credentials.
 
@@ -1170,7 +1238,7 @@ def build_application_welcome_email(
         + _p("We meet every physician one on one — it&rsquo;s the part of this we like "
              "most. Book 20 minutes with us: about the mission, the platform, your "
              "specialty, or anything else. We&rsquo;d genuinely love to learn from you.")
-        + _cta(calendly_url, "Book 20 minutes")
+        + _cta(calendly_url or founder_intro_booking_url(), "Book 20 minutes")
         + _founder_signoff("— Tej & Aryaa, co-founders")
     )
     return _shell(subject=subject, body_html=body)

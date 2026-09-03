@@ -3318,6 +3318,170 @@ class AsclepiusStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sub_validity_finding "
                          "ON submissions(validity_finding)")
 
+            # ── The founders' intro call (Gap U7) ────────────────────────────
+            # The physician funnel is outreach -> intro call -> onboarding link
+            # plus a one-pager -> application. Every stage of that had state in
+            # the product except the call, which lived only in a founder's
+            # calendar. So "did we meet this doctor, and did we follow up" was
+            # a question the product could not answer, and the follow-up was a
+            # hand-written email or nothing.
+            #
+            # A TABLE RATHER THAN COLUMNS ON THE INVITE ROW, and the reason is
+            # the ordering. The team-store invite row comes into existence when
+            # a link is MINTED, and the whole point of this feature is that the
+            # link is minted after the call. There is no row to hang a
+            # scheduled meeting on. It is also in the other database, so a
+            # stamp there could not be written beside the queued mail here.
+            #
+            # `status` has four values and no default of convenience:
+            # 'scheduled' means the outcome is UNKNOWN, and unknown must never
+            # read as held -- that is the difference between a follow-up and a
+            # follow-up sent to somebody who never showed up.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS intro_meetings (
+                    meeting_id        TEXT PRIMARY KEY,
+                    email             TEXT NOT NULL,      -- lowercased; the person
+                    full_name         TEXT,
+                    specialty         TEXT,
+                    organization      TEXT,
+                    status            TEXT NOT NULL DEFAULT 'scheduled',
+                                      -- scheduled|held|no_show|cancelled
+                    scheduled_at      TEXT,               -- when the call is booked for
+                    booking_ref       TEXT,               -- external calendar/booking id or url
+                    outcome_at        TEXT,               -- when the outcome was recorded
+                    outcome_by        TEXT,               -- admin user id
+                    onboarding_url    TEXT,               -- the link the follow-up carried
+                    followup_queued_at TEXT,              -- the send happened once, here
+                    one_pager_version TEXT,
+                    note              TEXT,
+                    created_by        TEXT,
+                    created_at        TEXT NOT NULL,
+                    updated_at        TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_intro_meetings_email "
+                         "ON intro_meetings(email)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_intro_meetings_status "
+                         "ON intro_meetings(status, scheduled_at)")
+
+    # ─── The founders' intro call (Gap U7) ───────────────────────────────────
+    # Persistence only. WHICH transitions are legal lives in
+    # ``asclepius/intro_meeting.py``, and every mutator here takes the set of
+    # statuses it is allowed to move from, so the policy is stated once in a
+    # pure function instead of being half here and half in a router.
+
+    def create_intro_meeting(
+        self, *, email: str, full_name: str = "", specialty: str = "",
+        organization: str = "", scheduled_at: Optional[str] = None,
+        booking_ref: str = "", note: str = "", created_by: str = "",
+    ) -> Dict[str, Any]:
+        """Record that a founder has an intro call with this person.
+
+        Opens in 'scheduled', which means the outcome is UNKNOWN. Nothing is
+        sent by creating one.
+        """
+        meeting_id = str(uuid.uuid4())
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO intro_meetings (meeting_id, email, full_name, specialty, "
+                " organization, status, scheduled_at, booking_ref, note, created_by, "
+                " created_at, updated_at) VALUES (?,?,?,?,?,'scheduled',?,?,?,?,?,?)",
+                (meeting_id, (email or "").lower().strip(), (full_name or "").strip() or None,
+                 (specialty or "").strip() or None, (organization or "").strip() or None,
+                 (scheduled_at or "").strip() or None, (booking_ref or "").strip() or None,
+                 (note or "").strip() or None, created_by or None, now, now),
+            )
+        return self.get_intro_meeting(meeting_id) or {}
+
+    def get_intro_meeting(self, meeting_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM intro_meetings WHERE meeting_id = ?", (meeting_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_intro_meetings(self, *, status: Optional[str] = None,
+                            limit: int = 200) -> List[Dict[str, Any]]:
+        """Newest first, because the call somebody just finished is the one they
+        came to this screen to act on."""
+        sql = "SELECT * FROM intro_meetings"
+        args: List[Any] = []
+        if status:
+            sql += " WHERE status = ?"
+            args.append(status)
+        sql += " ORDER BY COALESCE(scheduled_at, created_at) DESC LIMIT ?"
+        args.append(int(limit))
+        with self._conn() as conn:
+            return [dict(r) for r in conn.execute(sql, tuple(args)).fetchall()]
+
+    def latest_intro_meeting_for_email(self, email: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM intro_meetings WHERE email = ? "
+                "ORDER BY created_at DESC LIMIT 1", ((email or "").lower().strip(),)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def record_intro_meeting_outcome(
+        self, meeting_id: str, *, outcome: str, allowed_from: Sequence[str],
+        actor: str = "",
+    ) -> bool:
+        """Move a meeting to an outcome. True only when THIS call moved it.
+
+        A guarded UPDATE rather than a read-then-write, for the same reason
+        ``stamp_onboarding_nudge`` is one: two founders pressing the same button
+        at the same moment must not both believe they were the one who marked it
+        held, because the caller that believes it is the one that sends.
+        """
+        placeholders = ",".join("?" for _ in allowed_from)
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"UPDATE intro_meetings SET status = ?, outcome_at = ?, outcome_by = ?, "
+                f"updated_at = ? WHERE meeting_id = ? AND status IN ({placeholders})",
+                (outcome, _utcnow_iso(), actor or None, _utcnow_iso(), meeting_id,
+                 *allowed_from),
+            )
+            return cur.rowcount > 0
+
+    def claim_intro_followup_link(self, meeting_id: str, onboarding_url: str) -> str:
+        """Attach the application link to this meeting, once, and return the one
+        that is now attached.
+
+        Returns the EXISTING url when there already is one, so a second
+        mark-held cannot mail a physician a different link from the first. The
+        cost of losing this race is one unused invite row, not a second email:
+        the outbox key is what makes the send singular.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE intro_meetings SET onboarding_url = ?, updated_at = ? "
+                "WHERE meeting_id = ? AND (onboarding_url IS NULL OR onboarding_url = '')",
+                (onboarding_url, _utcnow_iso(), meeting_id),
+            )
+            row = conn.execute(
+                "SELECT onboarding_url FROM intro_meetings WHERE meeting_id = ?",
+                (meeting_id,)).fetchone()
+        return str((row["onboarding_url"] if row else "") or "")
+
+    def stamp_intro_followup_queued(self, meeting_id: str, *,
+                                    one_pager_version: str = "") -> None:
+        """Record that the follow-up went into the outbox. First stamp wins.
+
+        COALESCE rather than a bare assignment: this is a record of WHEN the
+        physician was written to, and a retry that rewrote it would erase the
+        only evidence of how long they waited.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE intro_meetings SET followup_queued_at = COALESCE(followup_queued_at, ?), "
+                "one_pager_version = COALESCE(one_pager_version, ?), updated_at = ? "
+                "WHERE meeting_id = ?",
+                (_utcnow_iso(), one_pager_version or None, _utcnow_iso(), meeting_id),
+            )
+
     # ─── Platform media (Onboarding v2 §0.1) ──────────────────────────────────
     def set_platform_media(
         self,

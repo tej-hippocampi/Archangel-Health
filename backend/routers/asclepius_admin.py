@@ -29,6 +29,8 @@ from onboarding_emails import build_asclepius_invite_email
 from asclepius import auth as asc_auth
 from asclepius import capabilities as asc_caps
 from asclepius import ingestion as asc_ingestion
+from asclepius import intro_meeting as asc_intro
+from asclepius import one_pager as asc_one_pager
 from asclepius import payments as asc_payments
 from asclepius import route_notify as asc_route_notify
 from asclepius import trajectory as asc_trajectory
@@ -1655,6 +1657,163 @@ async def resend_signup_link(
                     payload={"email": email, "org": org_name or None, "rotated": rotated})
     return {"ok": True, "email": email, "expires_at": expires_at, "rotated": rotated,
             "message": f"A fresh onboarding link is on its way to {email}."}
+
+
+# ─── The founders' intro call (Gap U7) ───────────────────────────────────────
+# The funnel is outreach, then a call a founder takes by hand, then the
+# onboarding link plus the one-pager, then the application. Everything except
+# the call already had state in the product. These three endpoints give it some:
+# a meeting is logged, an outcome is recorded, and exactly one of those outcomes
+# sends anything.
+#
+# The policy (which transitions are legal, what a held meeting sends) lives in
+# ``asclepius/intro_meeting.py``. This router does the two things a router can
+# do that the policy module cannot: mint the onboarding link out of the tenant
+# store, and refuse the request when the caller asked for something the policy
+# does not allow.
+
+class IntroMeetingCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(default="", max_length=200)
+    specialty: str = Field(default="", max_length=120)
+    organization: str = Field(default="", max_length=200)
+    #: When the call is booked for. A free string rather than a datetime because
+    #: it is copied off whatever calendar the founder actually uses, and a
+    #: parser that rejects their paste is a parser that gets worked around.
+    scheduled_at: str = Field(default="", max_length=64)
+    #: Whatever identifies the booking on the outside: a Calendly event URL, a
+    #: Google Calendar event id. Opaque here. It is the seam a real calendar
+    #: integration would attach to, and recording it now costs nothing.
+    booking_ref: str = Field(default="", max_length=500)
+    note: str = Field(default="", max_length=2000)
+
+
+class IntroMeetingOutcome(BaseModel):
+    #: held | no_show | cancelled. Validated against the policy module rather
+    #: than by a Literal, so the two cannot drift.
+    outcome: str = Field(min_length=1, max_length=32)
+
+
+@router.get("/intro-meetings", include_in_schema=False)
+async def list_intro_meetings(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    """Every intro call the product knows about, newest first."""
+    store = _store()
+    rows = [asc_intro.view(m) for m in store.list_intro_meetings()]
+    return {
+        "meetings": rows,
+        "counts": {
+            "scheduled": sum(1 for r in rows if r["status"] == asc_intro.SCHEDULED),
+            "held": sum(1 for r in rows if r["status"] == asc_intro.HELD),
+            "no_show": sum(1 for r in rows if r["status"] == asc_intro.NO_SHOW),
+            "followups_sent": sum(1 for r in rows if r["followup_sent"]),
+        },
+        # Where the product tells somebody to book. Config-backed, surfaced so
+        # an admin can copy the link that is actually live rather than the one
+        # they remember.
+        "booking_url": asc_intro.booking_url(),
+        "states": [{"value": s, "label": asc_intro.STATE_LABELS[s]} for s in asc_intro.STATES],
+    }
+
+
+@router.post("/intro-meetings", include_in_schema=False)
+async def create_intro_meeting(
+    body: IntroMeetingCreate,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Log an intro call. Sends nothing: it opens in 'scheduled'."""
+    store = _store()
+    email = str(body.email).lower().strip()
+    meeting = store.create_intro_meeting(
+        email=email, full_name=body.full_name, specialty=body.specialty,
+        organization=body.organization, scheduled_at=body.scheduled_at,
+        booking_ref=body.booking_ref, note=body.note, created_by=admin["id"],
+    )
+    store.log_event(entity_type="intro_meeting", entity_id=meeting["meeting_id"],
+                    event_type="intro_meeting_scheduled", actor=admin["id"],
+                    payload={"email": email})
+    return {"ok": True, "meeting": asc_intro.view(meeting)}
+
+
+@router.post("/intro-meetings/{meeting_id}/outcome", include_in_schema=False)
+async def record_intro_meeting_outcome(
+    meeting_id: str,
+    body: IntroMeetingOutcome,
+    request: Request,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Say what happened on the call, and send the follow-up if it happened.
+
+    ONE OUTCOME SENDS. 'no_show' and 'cancelled' record the truth and mail
+    nobody, which is the point of having them: the alternative is a funnel where
+    the absence of a flag reads as attendance and a physician who never joined
+    gets "great speaking with you".
+
+    Marking held twice sends once, and it is belt and braces rather than one
+    guard. The status transition is a guarded UPDATE, so one caller claims it.
+    The link is claimed the same way, so the second caller mails the same URL if
+    it mails anything. And the send itself goes through the durable outbox on a
+    key derived from the meeting id, so the row is INSERT OR IGNOREd. A double
+    click cannot produce two emails even if it beats both of the first two.
+    """
+    store = _store()
+    outcome = (body.outcome or "").strip().lower()
+    if not asc_intro.is_outcome(outcome):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Not an outcome: {body.outcome!r}. "
+                   f"Expected one of {', '.join(asc_intro.OUTCOMES)}.")
+    meeting = store.get_intro_meeting(meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="No such intro meeting.")
+
+    claimed = store.record_intro_meeting_outcome(
+        meeting_id, outcome=outcome, allowed_from=asc_intro.allowed_from(outcome),
+        actor=admin["id"])
+    meeting = store.get_intro_meeting(meeting_id) or meeting
+    if not claimed and meeting.get("status") != outcome:
+        raise HTTPException(
+            status_code=409,
+            detail=f"That meeting is already marked "
+                   f"{asc_intro.STATE_LABELS.get(str(meeting.get('status')), 'recorded')}.")
+    if claimed:
+        store.log_event(entity_type="intro_meeting", entity_id=meeting_id,
+                        event_type=f"intro_meeting_{outcome}", actor=admin["id"],
+                        payload={"email": meeting.get("email")})
+
+    if outcome != asc_intro.SENDS_FOLLOWUP:
+        return {"ok": True, "meeting": asc_intro.view(meeting), "followup_queued": False,
+                "message": "Recorded. Nothing was sent."}
+
+    # A physician we already provisioned does not need an application link, and
+    # mailing them one invites them to start a second funnel. Held is still the
+    # truth about the call, so it stays recorded.
+    email = (meeting.get("email") or "").strip()
+    if store.get_user_by_email(email):
+        return {"ok": True, "meeting": asc_intro.view(meeting), "followup_queued": False,
+                "message": "Marked held. They already have an account, so no "
+                           "application link was sent."}
+
+    url = (meeting.get("onboarding_url") or "").strip()
+    if not url:
+        ts = _team_store(request)
+        invite = ts.create_health_system_invite(
+            invite_base_url=_landing_base(), director_email=email, product="asclepius")
+        url = store.claim_intro_followup_link(meeting_id, invite["onboarding_url"])
+
+    queued = asc_intro.queue_followup(
+        store, meeting=meeting, onboarding_url=url,
+        one_pager_href=asc_intro.one_pager_url())
+    store.stamp_intro_followup_queued(
+        meeting_id, one_pager_version=asc_one_pager.CURRENT_VERSION)
+    meeting = store.get_intro_meeting(meeting_id) or meeting
+    return {
+        "ok": True,
+        "meeting": asc_intro.view(meeting),
+        "followup_queued": bool(queued),
+        "message": ("The application link and the one-pager are on their way to "
+                    f"{email}.") if queued else
+                   "Marked held. That follow-up had already been sent.",
+    }
 
 
 # ─── Health system detail: the pipeline in explicit buckets ──────────────────
