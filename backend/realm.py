@@ -337,45 +337,101 @@ def resolve_for_request(*, path: str, header: Optional[str], token_claim: Option
     return implied or LIVE, None
 
 
+#: Query-string parameters that may carry a JWT in lieu of a header: the media
+#: ticket a ``<video>`` element sends, and the bearer token a WebSocket may
+#: pass. Neither element can set a header, so the realm is read from the token
+#: itself here.
+_QUERY_TOKEN_PARAMS = ("ticket", "token")
+#: A WebSocket ticket is opaque (an in-memory single-use nonce), so the client
+#: names the realm beside it; the ticket is then checked against that realm at
+#: redemption (``community.router._redeem_ws_ticket``).
+_QUERY_REALM_PARAM = "realm"
+
+
+def claim_from_scope(scope: Any) -> Dict[str, Optional[str]]:
+    """Everything the middleware reads off an ASGI scope, as one dict:
+    ``header`` (X-Asclepius-Realm), ``claim`` (the realm claim of whichever
+    token the request carries — bearer, HS cookie, or a JWT in ``?ticket=`` /
+    ``?token=``), and ``query_realm`` (``?realm=`` on a WebSocket). Pure, so
+    the rules are unit-testable with a synthetic scope."""
+    header = None
+    bearer = None
+    cookie_blob = ""
+    for key, val in scope.get("headers", []) or []:
+        if key == b"x-asclepius-realm":
+            header = val.decode("latin-1", "ignore")
+        elif key == b"authorization":
+            raw = val.decode("latin-1", "ignore")
+            if raw.lower().startswith("bearer "):
+                bearer = raw.split(" ", 1)[1].strip()
+        elif key == b"cookie":
+            cookie_blob += ("; " if cookie_blob else "") + val.decode("latin-1", "ignore")
+    claim = _peek_claim(bearer) if bearer else None
+    if claim is None and cookie_blob:
+        try:
+            from http.cookies import SimpleCookie  # noqa: PLC0415
+
+            jar = SimpleCookie()
+            jar.load(cookie_blob)
+            morsel = jar.get(HS_COOKIE)
+            if morsel and morsel.value:
+                claim = _peek_claim(morsel.value)
+        except Exception:
+            claim = None
+    query_realm = None
+    raw_qs = scope.get("query_string") or b""
+    if raw_qs:
+        try:
+            from urllib.parse import parse_qs  # noqa: PLC0415
+
+            qs = parse_qs(raw_qs.decode("latin-1", "ignore"), keep_blank_values=False)
+        except Exception:
+            qs = {}
+        if claim is None:
+            for name in _QUERY_TOKEN_PARAMS:
+                for candidate in qs.get(name, []):
+                    if candidate.count(".") == 2:      # looks like a JWT; opaque tickets are skipped
+                        claim = _peek_claim(candidate)
+                        if claim is not None:
+                            break
+                if claim is not None:
+                    break
+        for candidate in qs.get(_QUERY_REALM_PARAM, []):
+            try:
+                query_realm = validate(candidate)
+                break
+            except RealmError:
+                continue
+    return {"header": header, "claim": claim, "query_realm": query_realm}
+
+
 class RealmMiddleware:
     """Pure-ASGI (so the ContextVar is visible to the route handler and to the
     background tasks that run inside the response). Sets the realm once per
-    HTTP request from, in order of authority: the bearer / HS-cookie token's
-    ``realm`` claim, the ``/sandbox/*`` path, the ``X-Asclepius-Realm`` header.
+    HTTP request — and per WebSocket connection — from, in order of
+    authority: the token's ``realm`` claim (bearer, HS cookie, or a JWT in
+    ``?ticket=`` / ``?token=``), the ``/sandbox/*`` path, the
+    ``X-Asclepius-Realm`` header, and on a WebSocket the ``?realm=`` param.
     """
 
     def __init__(self, app: Any) -> None:
         self.app = app
 
     async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
-        if scope.get("type") != "http":
+        kind = scope.get("type")
+        if kind not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
-        header = None
-        bearer = None
-        cookie_blob = ""
-        for key, val in scope.get("headers", []) or []:
-            if key == b"x-asclepius-realm":
-                header = val.decode("latin-1", "ignore")
-            elif key == b"authorization":
-                raw = val.decode("latin-1", "ignore")
-                if raw.lower().startswith("bearer "):
-                    bearer = raw.split(" ", 1)[1].strip()
-            elif key == b"cookie":
-                cookie_blob += ("; " if cookie_blob else "") + val.decode("latin-1", "ignore")
-        claim = _peek_claim(bearer) if bearer else None
-        if claim is None and cookie_blob:
-            try:
-                from http.cookies import SimpleCookie  # noqa: PLC0415
-
-                jar = SimpleCookie()
-                jar.load(cookie_blob)
-                morsel = jar.get(HS_COOKIE)
-                if morsel and morsel.value:
-                    claim = _peek_claim(morsel.value)
-            except Exception:
-                claim = None
-        r, error = resolve_for_request(path=scope.get("path") or "", header=header, token_claim=claim)
+        found = claim_from_scope(scope)
+        header = found["header"]
+        if kind == "websocket" and header is None and found["query_realm"] is not None:
+            header = found["query_realm"]
+        r, error = resolve_for_request(path=scope.get("path") or "", header=header,
+                                       token_claim=found["claim"])
+        if error is not None and kind == "websocket":
+            # No HTTP response to send on a socket; refuse the handshake.
+            await send({"type": "websocket.close", "code": 4401})
+            return
         if error is not None:
             status, code = error
             from starlette.responses import JSONResponse  # noqa: PLC0415

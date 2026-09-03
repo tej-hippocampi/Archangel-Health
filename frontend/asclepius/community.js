@@ -1960,7 +1960,9 @@
     const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
     let ws;
     try {
-      ws = new WebSocket(proto + location.host + API + '/ws?ticket=' + encodeURIComponent(ticket));
+      // The socket cannot carry a header, so the realm rides beside the ticket;
+      // the server binds the ticket to the realm it was minted in.
+      ws = new WebSocket(proto + location.host + API + '/ws?ticket=' + encodeURIComponent(ticket) + '&realm=' + REALM);
     } catch (e) { startPolling(); return; }
     state.ws = ws;
     ws.onopen = () => {

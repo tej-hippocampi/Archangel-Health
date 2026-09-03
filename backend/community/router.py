@@ -1542,23 +1542,30 @@ _ws_tickets_lock = __import__("threading").Lock()
 def _mint_ws_ticket(user_id: str) -> str:
     import secrets as _secrets
     import time as _time
+    import realm as _realm  # noqa: PLC0415
     ticket = _secrets.token_urlsafe(24)
     now = _time.monotonic()
     with _ws_tickets_lock:
         # opportunistic prune so the map cannot grow unboundedly
-        for t in [t for t, (_u, exp) in _ws_tickets.items() if exp < now]:
+        for t in [t for t, entry in _ws_tickets.items() if entry[1] < now]:
             _ws_tickets.pop(t, None)
-        _ws_tickets[ticket] = (user_id, now + _WS_TICKET_TTL_SEC)
+        # Sandbox PRD §1.3: the ticket is bound to the realm it was minted in.
+        # The map is process-global, so without this a sandbox ticket could be
+        # redeemed on a live socket (or vice versa).
+        _ws_tickets[ticket] = (user_id, now + _WS_TICKET_TTL_SEC, _realm.current())
     return ticket
 
 
 def _redeem_ws_ticket(ticket: str) -> Optional[str]:
     import time as _time
+    import realm as _realm  # noqa: PLC0415
     with _ws_tickets_lock:
         entry = _ws_tickets.pop(ticket, None)  # single use
     if not entry:
         return None
-    user_id, expires = entry
+    user_id, expires, minted_in = entry
+    if minted_in != _realm.current():
+        return None   # a ticket authenticates only in the realm it was minted in
     return user_id if _time.monotonic() <= expires else None
 
 

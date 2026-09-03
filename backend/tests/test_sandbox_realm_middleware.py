@@ -214,3 +214,66 @@ def test_sandbox_shells_are_the_same_html_tagged(sandbox_on, path):
     assert "window.__REALM='sandbox'" in r.text
     # The tag lands in <head>, before every deferred script.
     assert r.text.index("window.__REALM") < r.text.index("</head>")
+
+
+# ─── Tokens that cannot ride in a header (§1.3) ──────────────────────────────
+def _scope(kind="http", *, headers=(), query=b"", path="/api/x"):
+    return {"type": kind, "path": path, "query_string": query,
+            "headers": [(k.encode(), v.encode()) for k, v in headers]}
+
+
+def test_claim_from_scope_reads_bearer_cookie_query_token_and_ws_realm(two_realms):
+    sb, live = two_realms["sb_token"], two_realms["live_token"]
+    assert realm.claim_from_scope(_scope(headers=[("authorization", "Bearer " + sb)]))["claim"] == "sandbox"
+    assert realm.claim_from_scope(_scope(headers=[("cookie", f"{realm.HS_COOKIE}={live}")]))["claim"] == "live"
+    # A <video> element's ?ticket= and a WebSocket's ?token= carry a JWT.
+    assert realm.claim_from_scope(_scope(query=("ticket=" + sb).encode()))["claim"] == "sandbox"
+    assert realm.claim_from_scope(_scope("websocket", query=("token=" + sb).encode()))["claim"] == "sandbox"
+    # An opaque WS ticket carries no claim; the client names the realm beside it.
+    found = realm.claim_from_scope(_scope("websocket", query=b"ticket=opaque-nonce&realm=sandbox"))
+    assert found["claim"] is None and found["query_realm"] == "sandbox"
+    # Bearer wins over a query token; a bad ?realm= is ignored.
+    found = realm.claim_from_scope(_scope(headers=[("authorization", "Bearer " + live)],
+                                          query=("ticket=" + sb + "&realm=nope").encode()))
+    assert found["claim"] == "live" and found["query_realm"] is None
+    assert realm.claim_from_scope(_scope(headers=[("x-asclepius-realm", "sandbox")]))["header"] == "sandbox"
+
+
+def test_websocket_ticket_is_bound_to_the_realm_it_was_minted_in(sandbox_on):
+    from community import router as croute
+    with realm.scoped("sandbox"):
+        t = croute._mint_ws_ticket("u-sandbox")
+    assert croute._redeem_ws_ticket(t) is None            # live socket: refused (and consumed)
+    with realm.scoped("sandbox"):
+        t2 = croute._mint_ws_ticket("u-sandbox")
+        assert croute._redeem_ws_ticket(t2) == "u-sandbox"
+    t3 = croute._mint_ws_ticket("u-live")
+    with realm.scoped("sandbox"):
+        assert croute._redeem_ws_ticket(t3) is None
+
+
+def test_websocket_scope_with_a_live_token_on_a_sandbox_realm_is_refused(two_realms):
+    """The middleware closes the handshake (4401) instead of answering HTTP."""
+    import asyncio
+    sent = []
+
+    async def app(scope, receive, send):  # never reached
+        sent.append("app")
+
+    async def send(msg):
+        sent.append(msg)
+
+    mw = realm.RealmMiddleware(app)
+    scope = _scope("websocket", query=("token=" + two_realms["live_token"] + "&realm=sandbox").encode(),
+                   path="/api/community/ws")
+    asyncio.run(mw(scope, None, send))
+    assert sent == [{"type": "websocket.close", "code": 4401}]
+    # And a consistent one goes through, in the sandbox realm.
+    seen = {}
+
+    async def app2(scope, receive, send):
+        seen["realm"] = realm.current()
+
+    scope = _scope("websocket", query=("ticket=opaque&realm=sandbox").encode(), path="/api/community/ws")
+    asyncio.run(realm.RealmMiddleware(app2)(scope, None, send))
+    assert seen["realm"] == "sandbox"
