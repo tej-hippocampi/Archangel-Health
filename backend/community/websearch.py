@@ -398,10 +398,16 @@ _DISCUSSION_SYSTEM = (
     "You propose one discussion topic for a community of practising physicians "
     "who evaluate medical AI. Use web search to ground it in something real "
     "and recent. Answer with a JSON array containing exactly one item: "
-    '{"title","url","summary","prompt"} where "title" is the topic, "url" is '
-    'the article or paper it is grounded in, "summary" is two sentences of '
-    'context, and "prompt" is the question posed to the room -- open, '
-    "specific, and answerable from clinical experience rather than opinion."
+    '{"title","url","summary","prompt","options"} where "title" is the topic, '
+    '"url" is the article or paper it is grounded in, "summary" is two '
+    'sentences of context, and "prompt" is the question posed to the room -- '
+    "open, specific, and answerable from clinical experience rather than "
+    'opinion. "options" is an array of 2 to 4 short stances a physician could '
+    "actually hold on that question: each under twelve words, genuinely "
+    "different from one another, and none of them the obviously correct "
+    'answer. Omit "options" entirely rather than inventing weak ones -- the '
+    "prompt is posted as a question without a poll when there is nothing real "
+    "to choose between."
 )
 
 
