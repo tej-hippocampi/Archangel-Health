@@ -801,63 +801,103 @@ def test_the_admin_harness_actually_booted_the_console(admin_page):
     assert not admin_page.errors, admin_page.errors
 
 
+#: The console tabs this file drives. Physicians, Community and Referrals mount
+#: their real sections in the harness; the other three are stubbed, so driving
+#: them would screenshot an empty body and dilute the guards rather than widen
+#: them.
+_DRIVEN_TABS = ("Physicians", "Community", "Referrals")
+
+
+def _open_tab(page, label: str) -> None:
+    """Click a console tab and wait for its section to paint.
+
+    The wait is on the section's own first element rather than a sleep: a guard
+    that screenshots mid-render measures whatever happened to be on screen,
+    which is the most expensive kind of flake to diagnose.
+    """
+    page.get_by_role("button", name=label, exact=False).first.click()
+    marker = {"Physicians": ".asc-pcard", "Community": ".asc-comm-tile",
+              "Referrals": ".asc-subnav-btn"}[label]
+    page.wait_for_selector(marker, timeout=5000)
+
+
 def test_no_off_palette_colour_is_painted_on_the_console(admin_page):
     """The console shares the product's tokens and forks no palette. A blue
     here would be the same two things it is on the physician surface: a
-    user-agent default that escaped, or a token from another product."""
-    painted = _blue_pixels(admin_page.screenshot(full_page=True))
-    assert painted <= _BLUE_PIXEL_TOLERANCE, (
-        f"{painted} off-palette blue pixels are painted on the admin console "
-        f"(tolerance {_BLUE_PIXEL_TOLERANCE} for antialiasing)."
-    )
-    declared = admin_page.evaluate(
-        """(props) => {
-          const out = [];
-          for (const el of document.querySelectorAll('*')) {
-            const cs = getComputedStyle(el);
-            for (const p of props) {
-              const v = cs[p];
-              if (v) out.push({
-                sel: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
-                       ? '.' + el.className.trim().split(/\\s+/).join('.') : ''),
-                prop: p, value: v,
-              });
-            }
-          }
-          return out;
-        }""",
-        list(_COLOUR_PROPS),
-    )
-    blues = [d for d in declared if _is_off_palette_blue(d["value"])]
-    assert not blues, (
-        "off-palette colour declared on the console:\n  "
-        + "\n  ".join(f"{d['sel']} {d['prop']}: {d['value']}" for d in blues[:12])
-    )
+    user-agent default that escaped, or a token from another product.
+
+    Swept across the tabs that mount a real section, because the defect this
+    catches is a per-component one: an un-themed native control on one screen
+    says nothing about the next."""
+    for label in _DRIVEN_TABS:
+        _open_tab(admin_page, label)
+        painted = _blue_pixels(admin_page.screenshot(full_page=True))
+        assert painted <= _BLUE_PIXEL_TOLERANCE, (
+            f"{painted} off-palette blue pixels are painted on the console's "
+            f"{label} tab (tolerance {_BLUE_PIXEL_TOLERANCE} for antialiasing)."
+        )
+        declared = admin_page.evaluate(
+            """(props) => {
+              const out = [];
+              for (const el of document.querySelectorAll('*')) {
+                const cs = getComputedStyle(el);
+                for (const p of props) {
+                  const v = cs[p];
+                  if (v) out.push({
+                    sel: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
+                           ? '.' + el.className.trim().split(/\\s+/).join('.') : ''),
+                    prop: p, value: v,
+                  });
+                }
+              }
+              return out;
+            }""",
+            list(_COLOUR_PROPS),
+        )
+        blues = [d for d in declared if _is_off_palette_blue(d["value"])]
+        assert not blues, (
+            f"off-palette colour declared on the console's {label} tab:\n  "
+            + "\n  ".join(f"{d['sel']} {d['prop']}: {d['value']}" for d in blues[:12])
+        )
 
 
 def test_no_capitalize_rule_mangles_a_sentence_on_the_console(admin_page):
-    """The console is denser in prose than the portal — card subtitles, empty
-    states, the reasons a control is refused — so it has more surface for this
-    defect, not less."""
-    offenders = admin_page.evaluate(
-        """() => {
-          const out = [];
-          for (const el of document.querySelectorAll('*')) {
-            if (getComputedStyle(el).textTransform !== 'capitalize') continue;
-            const own = Array.from(el.childNodes)
-              .filter((n) => n.nodeType === 3).map((n) => n.nodeValue).join('').trim();
-            if (own.split(/\\s+/).filter(Boolean).length > 2) {
-              out.push({ sel: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
-                           ? '.' + el.className.trim().split(/\\s+/).join('.') : ''), text: own });
-            }
-          }
-          return out;
-        }"""
-    )
-    assert not offenders, (
-        "text-transform: capitalize is Title-Casing prose on the console:\n  "
-        + "\n  ".join(f"{o['sel']}: {o['text']!r}" for o in offenders)
-    )
+    """The console is denser in prose than the portal -- card subtitles, empty
+    states, the reason a control is refused -- so it has more surface for this
+    defect, not less.
+
+    Swept across the driven tabs for a second reason: the roster is mostly
+    names and numbers, and a guard run only there has almost no sentence to be
+    wrong about. The Community tab is where the console's prose lives."""
+    seen_prose = 0
+    for label in _DRIVEN_TABS:
+        _open_tab(admin_page, label)
+        result = admin_page.evaluate(
+            """() => {
+              const out = [];
+              let prose = 0;
+              for (const el of document.querySelectorAll('*')) {
+                const own = Array.from(el.childNodes)
+                  .filter((n) => n.nodeType === 3).map((n) => n.nodeValue).join('').trim();
+                const words = own.split(/\\s+/).filter(Boolean).length;
+                if (words > 2) prose += 1; else continue;
+                if (getComputedStyle(el).textTransform !== 'capitalize') continue;
+                out.push({ sel: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
+                             ? '.' + el.className.trim().split(/\\s+/).join('.') : ''), text: own });
+              }
+              return { offenders: out, prose };
+            }"""
+        )
+        seen_prose += result["prose"]
+        assert not result["offenders"], (
+            f"text-transform: capitalize is Title-Casing prose on the {label} tab:\n  "
+            + "\n  ".join(f"{o['sel']}: {o['text']!r}" for o in result["offenders"])
+        )
+    # Without this the whole guard is vacuous the day the harness stops
+    # rendering: zero sentences satisfy "no sentence is mangled".
+    assert seen_prose >= 10, (
+        f"only {seen_prose} multi-word strings painted across the console; this "
+        "guard needs prose to be wrong about")
 
 
 def test_the_card_gallery_is_a_grid_and_not_a_column(admin_page):
