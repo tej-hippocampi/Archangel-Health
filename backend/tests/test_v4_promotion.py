@@ -893,13 +893,37 @@ def test_an_empty_v4_queue_seeds_itself_rather_than_showing_nothing():
     assert (body["task"].get("case") or {}).get("case_source") == "real_deid"
 
 
+def _assert_no_real_case_served(body):
+    """The real-data wall is about REAL charts, so assert that.
+
+    These tests used to assert ``task is None``, which is stricter than the wall:
+    it also required the v4 queue to be EMPTY. That held only because, with no
+    API key, no synthetic task could ever be generated. Since
+    ASCLEPIUS_LLM_PROVIDER=fake (Fake LLM Provider PRD §2) an earlier test in the
+    same shard can generate one, and the endpoint correctly serves it — synthetic
+    content was never behind the real-data wall.
+
+    Verified directly while making this change: on a clean store an unapproved
+    physician is served nothing while all three real_deid cases sit in the store;
+    with one synthetic task present it is served THAT, never a real chart.
+    """
+    task = body["task"]
+    if task is None:
+        return
+    real_ids = {v4_cases.v4_task_id(e["case_id"]) for e in v4_cases.V4_REAL_CASES}
+    assert task["task_id"] not in real_ids, (
+        f"an unapproved physician was served REAL case {task['task_id']}")
+    assert (task.get("case") or {}).get("case_source") != "real_deid", (
+        f"an unapproved physician was served a real chart: {task['task_id']}")
+
+
 def test_an_unapproved_physician_never_sees_a_v4_real_case():
     st = _store()
     v4_cases.load_v4_cases(st)
     headers = A.headers_for(_evaluator("nephrology", real=False))
     body = client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=nephrology",
                       headers=headers).json()
-    assert body["task"] is None
+    _assert_no_real_case_served(body)
 
 
 def test_the_admin_load_endpoint_reports_holds_alongside_loads():
@@ -1580,8 +1604,9 @@ def test_the_fan_out_widens_visibility_and_nothing_else():
     headers = A.headers_for(_evaluator("oncology", real=False))
     assert client.get("/api/asclepius/tasks/available?portal_version=v4&specialty=oncology",
                       headers=headers).json()["count"] == 0
-    assert client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=oncology",
-                      headers=headers).json()["task"] is None
+    _assert_no_real_case_served(
+        client.get("/api/asclepius/tasks/next?portal_version=v4&specialty=oncology",
+                   headers=headers).json())
 
 
 def test_the_access_report_names_the_gate_that_is_actually_shut():
