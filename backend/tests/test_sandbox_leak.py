@@ -268,6 +268,12 @@ def test_the_leak_test(realms, monkeypatch, capsys):
             errors.append(f"{route.path} -> {resp.status_code}")
         responses.append((route.path, resp.status_code, resp.text or "", sent))
 
+    # The sweep primed the fifteen-minute storage-reconcile cache (a process-
+    # wide dict) with a report over the suite's shared live asset tree. Drop
+    # it so a later durability test measures its own fixture, not this one.
+    from routers import asclepius_admin as _adm
+    _adm._RECONCILE_CACHE.clear()
+
     # A hit is a LEAK when the id (a) exists only in the sandbox — re-checked
     # AFTER the sweep, because some live GETs create deterministic fixture rows
     # (gold cases) whose ids the sandbox also minted, and a row that now exists

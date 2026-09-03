@@ -759,8 +759,10 @@
 
   function loadAvatarBlob(url) {
     if (avatarBlobCache[url] !== undefined) return Promise.resolve(avatarBlobCache[url]);
+    // Same shape as asclepius.js's loadAvatarBlob (extracted by a node
+    // harness): no helper call; the sandbox shell's fetch wrapper stamps the realm.
     return fetch(url, {
-      headers: realmHeaders(state.token ? { Authorization: 'Bearer ' + state.token } : {}),
+      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
     }).then((res) => (res.ok ? res.blob() : null))
       .then((blob) => {
         const objectUrl = blob ? URL.createObjectURL(blob) : null;

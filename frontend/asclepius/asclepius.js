@@ -8562,8 +8562,12 @@
   function loadAvatarBlob(url) {
     if (avatarBlobCache[url]) return Promise.resolve(avatarBlobCache[url]);
     if (avatarBlobPending[url]) return avatarBlobPending[url];
+    // No realmHeaders() here on purpose: this function is extracted and run
+    // standalone by tests/test_portal_ux.py's node harness, where the helper
+    // does not exist. In the sandbox the /sandbox/* shell's fetch wrapper
+    // stamps the realm header on this request like on every other.
     const inflight = fetch(url, {
-      headers: realmHeaders(state.token ? { Authorization: 'Bearer ' + state.token } : {}),
+      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
     }).then((res) => (res.ok ? res.blob() : null))
       .then((blob) => {
         if (!blob) return null;
