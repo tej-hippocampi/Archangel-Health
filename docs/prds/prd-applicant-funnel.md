@@ -63,7 +63,9 @@ whenever the account matches `password_is_unset()`. Tokens are single-use,
 has an account, so the door does not enumerate. Approval keeps minting the
 temporary password exactly as it does now; nothing in that flow changes.
 
-**D2. PROVISIONAL narrows to {TUTORIAL, BROWSE}.** `capabilities._BY_ACCESS`
+**D2. PROVISIONAL narrows.** (Amended in R3: the set that shipped is
+{TUTORIAL, BROWSE, REFERRAL}, not {TUTORIAL, BROWSE}. Read R3 before
+acting on this paragraph.) `capabilities._BY_ACCESS`
 currently grants PROVISIONAL six surfaces including community write, earnings
 and referral (`asclepius/capabilities.py` lines 152-157). That was reasoned for
 a world where signup included a chosen password and no meeting decision existed.
@@ -114,12 +116,47 @@ R1. A clinical v2 applicant receives a session at `/asclepius/finish` and lands
     (advisor, referrer) keep today's behavior.
 R2. An applicant with `password_is_unset()` can request a sign-in link by
     email; the link signs them in exactly once, expires after 15 minutes, and
-    the request response does not reveal whether the account exists. Accounts
-    with a password are directed to the password door (no link offered).
-R3. A PROVISIONAL session reaches only TUTORIAL and BROWSE surfaces. Every
-    other surface returns the existing denial. The dashboard renders review
-    status, the practice case entry, and the profile; community, earnings,
-    referral and real-work chrome do not render.
+    the request response does not reveal whether the account exists. The
+    sign-in page offers the link control to everyone; for an account that
+    holds a password the backend mints nothing and returns the same answer.
+
+    **Amended during implementation.** As written, this said accounts with a
+    password are directed to the password door and offered no link. What
+    shipped offers the control unconditionally, because hiding it would
+    rebuild the enumeration oracle the endpoint refuses to be: branching the
+    button on account state answers "does this address hold a password" from
+    the layout alone, when the response body was written to keep exactly that
+    secret. Enforcement moved behind the door instead. The endpoint mints a
+    link only for an active account matching `password_is_unset()`; for a
+    password holder it silently declines (quietly mailing a second way in
+    would be a downgrade attack on the stronger credential) and every branch
+    returns the identical answer (`routers/asclepius.py`
+    `request_signin_link`; the unconditional control is the sign-in screen in
+    `frontend/asclepius/asclepius.js`).
+R3. A PROVISIONAL session reaches TUTORIAL, BROWSE and REFERRAL. Every other
+    surface returns the existing denial. The dashboard renders review status,
+    the practice case entry, the profile and the referral page; community,
+    earnings and real-work chrome do not render.
+
+    **Amended during implementation.** D2 above says the set narrows to
+    {TUTORIAL, BROWSE}, and it was built that way first. Two reasons it did
+    not stand.
+
+    The correctness one: `surfaces()` intersects the access level with the
+    ACCOUNT-KIND cap, and a referral-only account (`_REFERRER_SURFACES` is
+    {BROWSE, REFERRAL}) sits at PROVISIONAL forever, because nobody ever
+    approves an account that submitted no application. Intersecting that cap
+    with {TUTORIAL, BROWSE} leaves {BROWSE}, so narrowing to two silently
+    disabled every referral-only account in the product, in a change whose
+    stated subject was applicants.
+
+    The product one: nothing is paid any earlier by keeping REFERRAL. The
+    bounty has always waited on the person introduced being verified with a
+    case accepted, and their colleague faces the same vetting everybody else
+    does. What removing it costs is the introduction itself, made in the most
+    enthusiastic hour somebody will ever have about this place. The exposure
+    D2 is actually about is community write from an unvetted account posting
+    under a physician identity, and that stays gone.
 R4. The practice case is playable pre-approval end to end, grading exactly as
     today (`grade_tutorial_submission`), writing `tutorial_json` including the
     gate sub-object, and never touching the `tasks` table.

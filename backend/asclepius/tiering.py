@@ -97,7 +97,7 @@ FEATURES: Dict[str, Tuple[float, float]] = {
     "structured_review_exp":  ( 0.7, 6.25),   # CEC/DSMB, journal peer review, board item
                                               # writing, guideline panel, core faculty or PD
     "calibration_z":          ( 1.1, 4.00),
-    "practice_first_pass":    ( 0.4, 4.00),   # capped binary — first attempt only (see below)
+    "practice_first_pass":    ( 0.4, 4.00),   # capped binary, first attempt only (see below)
 }
 
 # ``practice_first_pass`` is 1.0 only when the applicant passed the practice case on their

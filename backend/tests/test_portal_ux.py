@@ -1153,18 +1153,23 @@ def test_clicking_tasks_from_earnings_lands_on_the_dashboard_not_inside_the_case
     assert "renderSidePanel" in out["calls"]
 
 
-def test_an_admin_returning_to_tasks_still_lands_in_the_console():
-    """For an admin or QA reviewer the Tasks rail item is the way back to the
-    console they were in. Sending them to the physician dashboard would be the
-    same bug pointing the other way."""
+def test_tasks_means_the_dashboard_for_every_session_now_the_console_has_moved():
+    """The console used to be a VIEW in this shell, so Tasks had to mean "back
+    to the console I was in" for an operator and "my dashboard" for everybody
+    else. PRD-F made the console its own page, so nobody is inside it while
+    they are inside this one, and the exemption is gone rather than dormant.
+
+    Asserted with a stale ``view: 'admin'`` deliberately: a browser that has
+    been open across the deploy still holds that value, and it must land on the
+    dashboard rather than fall through to a renderer this file no longer has."""
     out = _nav_harness("""
     state.panel = 'earnings'; state.view = 'admin';
     setPanel('tasks');
     out({ calls, view: state.view });
     """)
-    assert "renderAdminView" in out["calls"]
-    assert "renderDashboardView" not in out["calls"]
-    assert out["view"] == "admin"
+    assert "renderDashboardView" in out["calls"]
+    assert "renderAdminView" not in out["calls"]
+    assert out["view"] == "home"
 
 
 def test_the_other_rail_destinations_are_unchanged():

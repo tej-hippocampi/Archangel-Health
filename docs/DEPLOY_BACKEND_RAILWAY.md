@@ -29,6 +29,41 @@ In the project, open your service → **Variables** tab. Add:
 
 Optional (add when you have them): `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `ANTHROPIC_API_KEY`, `CARE_TEAM_PHONE`, etc.
 
+The empirical-difficulty flags are their own staged decision and have their own
+table in **4b** below. Set them there, not here.
+
+### Physician payouts (Stripe Connect Express)
+
+Leave these alone until you actually want money to move. The rail ships dark:
+with `ASCLEPIUS_STRIPE_ENABLED` unset or `0`, the portal shows the same
+"coming soon" bank card it shows today, no Stripe call is made, and
+`/api/asclepius/stripe/webhook` returns 404.
+
+| Variable | Value |
+|----------|--------|
+| `ASCLEPIUS_STRIPE_ENABLED` | `0` (default). `1` only after the two steps below |
+| `STRIPE_SECRET_KEY` | Restricted key with Connect + Transfers write access |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_...`, from the endpoint you register in Stripe |
+
+Before flipping the flag, two things have to happen outside this repo:
+
+1. **Enable Connect on the Stripe account and clear KYC.** Express accounts
+   cannot be created, and transfers cannot settle, until Stripe has approved
+   the platform account. No deploy can do this for you.
+2. **Register the webhook endpoint** at
+   `POST https://YOUR-APP.up.railway.app/api/asclepius/stripe/webhook`,
+   subscribed to `account.updated`, `transfer.created`, `transfer.updated`,
+   `transfer.reversed`. Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
+
+Turning the flag on with either key missing fails loudly at the first Stripe
+call. That is deliberate: a payout rail that silently does nothing looks
+identical to one that is working until a physician asks where their money is.
+
+We never store a bank account number, routing number, SSN, EIN or TIN. Stripe
+collects tax identity during Express onboarding and files the 1099-NECs; this
+codebase keeps the connected account id and a status string, and a test greps
+the tree to keep it that way.
+
 ## 4. Attach a volume — REQUIRED, or every deploy wipes your data
 
 > **Checking this afterwards:** the admin console shows a banner on every tab
@@ -84,6 +119,111 @@ correct and the service will not boot.
 > nothing durable to migrate from. If the current data matters, copy it out
 > first (`railway ssh` into the running service and read
 > `/app/backend/team.db`) before you save the variables.
+
+## 4b. The empirical-difficulty gate, in two stages
+
+The product's central claim is that a case is only worth selling if frontier
+models fail it. The measurement that establishes that runs live frontier calls,
+so it ships behind flags and is turned on in two stages, in this order.
+
+| Variable | Stage 1 (now) | Stage 2 (after the review below) | What it does |
+|---|---|---|---|
+| `ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY` | `1` | `1` | Measures every newly generated case against the frontier baselines and records the result on the case. Blocks nothing. |
+| `ASCLEPIUS_REQUIRE_MEASURED_DIFFICULTY` | `0` | `1` | Serving refuses any case that was not LIVE-measured at or above the floor. |
+| `ASCLEPIUS_V3_RELAX_MM_GATES` | `1` | `0` | Stage 2 restores the strict multimodal quality floors (necessity >= 0.8, hardness >= 0.75, coherence, ground truth). |
+| `ASCLEPIUS_MIN_EMPIRICAL_DIFFICULTY` | `0.5` | `0.5` | The floor: the fraction of frontier attempts that must fail. |
+| `ASCLEPIUS_EMPIRICAL_DIFFICULTY_ATTEMPTS` | `2` | `2` | Draws per baseline model. Cost scales with this. |
+
+**Why stage 1 first.** Flipping the requirement on day one would gate serving on
+a distribution nobody has observed with live keys. Stage 1 produces that
+distribution at no risk to the queue: measurement runs, nothing is blocked, and
+a case below the floor still serves exactly as it does today.
+
+**What stage 1 costs.** Measurement spends real frontier tokens on every
+generated case: roughly `baseline_models` (2, one per provider) times
+`ASCLEPIUS_EMPIRICAL_DIFFICULTY_ATTEMPTS` (2) frontier answers, plus one judge
+call per answer, so about 8 LLM calls per case on full multimodal prompts. Under
+stage 2 a below-floor case is discarded AFTER that spend, so the effective cost
+per SHIPPED case is the measurement cost divided by the pass rate. That is the
+product working as intended, and it is also a real per-case bill that scales with
+generation volume, which is why stage 2 waits for numbers.
+
+**No frontier key reachable?** Measurement returns `measured=False` and the case
+keeps its declared value. Under stage 2 such a case is held rather than served.
+That is the gate working, not an incident.
+
+### The stage-2 review (do this before flipping)
+
+Write the answers into the PR that flips the flags. Not a feeling, three numbers:
+
+1. **The measured distribution** over at least 20 stage-1 cases: the pooled
+   `value`, and separately the Wilson LOWER bound `value_lower`, which is what
+   the gate actually tests. A median lower bound near the floor means stage 2
+   will discard about half of everything generated.
+2. **The below-floor discard rate**: the fraction of measured cases whose
+   `value_lower` is under `ASCLEPIUS_MIN_EMPIRICAL_DIFFICULTY`. This is the
+   inventory stage 2 stops shipping.
+3. **The projected token cost per SHIPPED case**: measured cost per case divided
+   by `1 - discard_rate`. If that number is not one the business would pay per
+   case, the answer is to lower generation volume or raise generation quality,
+   never to lower the floor.
+
+Also confirm before flipping: at least one specialty has enough measured,
+above-floor inventory that the V4 queue does not go empty the moment the
+requirement turns on. An empty queue is what a previous premature flip produced.
+## 4c. Turn the community routine on
+
+The community subsystem ships fully built and entirely off. Every gate defaults
+to disabled and every way it switches itself off is silent, so a deployment that
+skips this section looks exactly like a community with nothing to say.
+
+**a. Set three variables.** Service → **Variables**:
+
+| Variable | Value | What is broken without it |
+|----------|-------|---------------------------|
+| `COMMUNITY_MORNING_ENABLED` | `1` | No morning brief in any channel, and no per-doctor 7am email (the newsletter has no flag of its own, it rides this one) |
+| `COMMUNITY_NEWS_ENABLED` | `1` | No `#medical-ai-news` digest and no daily staff spotlight |
+| `COMMUNITY_DB_PATH` | `/data/community.db` | **The named silent failure.** The default path is inside the container, so every deploy resets the dedup ledger and the run history, and the digest reposts what it already posted |
+
+Optional, all defaulting sensibly: `COMMUNITY_MORNING_HOUR_LOCAL` (7),
+`ARCHANGEL_HOME_TZ`, `COMMUNITY_COUNTRY_MIN_MEMBERS` /
+`COMMUNITY_SUBSPECIALTY_MIN_MEMBERS` / `COMMUNITY_CITY_MIN_MEMBERS` (3 each),
+`COMMUNITY_SPECIALTY_REGION_MIN_MEMBERS` (5), `COMMUNITY_DISCUSSION_DOW`
+(2 = Wednesday). See `.env.example` for the rest.
+
+**Two things a person supplies, both optional, both silent until they do.**
+
+| What | How | Until then |
+|------|-----|------------|
+| The Archangel account's picture | Commit a PNG or JPEG at `backend/assets/community-persona.png`, or set `COMMUNITY_PERSONA_AVATAR` to a path on the volume | Bot posts render as the "AH" initials, exactly as they always have |
+| The weekend webinar | Set `COMMUNITY_WEBINAR_URL` to the join link | No recurring event is created at all; the startup log says so |
+
+The webinar link is deliberately the only switch: an event with a time and
+nowhere to go is worse than no event. Everything else about the series
+(`COMMUNITY_WEBINAR_TITLE`, `_DOW`, `_HOUR_LOCAL`, `_WEEKS_AHEAD`, `_HOST`) has
+a working default. `POST /internal/community/run-webinars` tops the series up on
+demand after changing any of them; it also runs on the morning tick.
+
+**b. Install the scheduler.** The hourly trigger is a GitHub Actions workflow.
+Copy `docs/asclepius/community-morning.workflow.yml` to
+`.github/workflows/community-morning.yml` and add the two repository secrets it
+names: `MORNING_BASE_URL` (your Railway URL) and `INTERNAL_TOOL_SECRET` (the
+same value this backend has). The in-process loop is the fallback for a deploy
+without the cron; both share the run ledger and cannot double-post.
+
+**c. Verify, do not assume.** `GET /internal/community/status` with the
+`Authorization: Bearer $INTERNAL_TOOL_SECRET` header reports gates, loops, last
+runs and email transport, and returns booleans and timestamps only, never a
+secret's value. Live means:
+
+- both gates `true` and both `loop_running` `true`;
+- `dependencies.community_db_path_explicit` is `true`;
+- one manual `POST /internal/community/run-morning` posts briefs;
+- the next scheduled hour posts nothing extra (the ledger holds).
+
+`dependencies.anthropic_api_key_set: false` is the other quiet one: without a
+model key the morning routine records a *successful* run with zero items, which
+is indistinguishable from a quiet day.
 
 ## 5. Get your public URL
 

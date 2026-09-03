@@ -586,6 +586,12 @@ def test_ui_model_health_renders_a_real_table_not_space_padded_strings():
         "vq-badge-reviewer", "vq-badge-labeler", "vq-section-label", "vq-dossier",
         "vq-actions", "vq-tier-select", "vq-btn", "vq-error", "vq-facts",
         "asc-badge", "asc-badge-lime", "asc-card", "asc-card-pad", "asc-error",
+        # The applicant-funnel additions: the practice case on the row and on
+        # the decision screen, the readiness filter, and re-tiering.
+        "vq-practice", "vq-practice-passed", "vq-practice-locked",
+        "vq-practice-grandfathered", "vq-practice-head", "vq-ready-chip",
+        "vq-ready-row", "vq-ready-filter", "vq-retier", "vq-retier-save",
+        "vq-retier-candidates", "vq-note", "vq-reason",
     }
     missing = sorted(c for c in used if f".{c}" not in css)
     assert not missing, f"classes with no rule in asclepius.css: {missing}"

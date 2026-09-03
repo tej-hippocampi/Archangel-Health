@@ -218,6 +218,50 @@ def quality_multiplier(
     }
 
 
+#: THE PAY HALF OF "A RICHER PROFILE MEANS BETTER ROUTING AND HIGHER PAY", AND
+#: IT IS OFF. Zero means no effect, and zero is the shipped value.
+#:
+#: The physician profile PRD promises both halves. The routing half is real and
+#: shipped (``allocation.profile_depth`` orders candidates by it). The pay half
+#: is not, because it cannot be built without choosing a number, and choosing
+#: what a fully-filled profile is worth in dollars is a founder's decision about
+#: what the company pays for, not an engineer's decision about a coefficient.
+#:
+#: The specific question that needs answering, because it is not obvious: paying
+#: for profile depth pays for TYPING, not for clinical work. A physician who
+#: fills in six fields has told us how to route them better, which is worth
+#: something; they have not labelled a better case. If the answer is that it
+#: should pay, the number belongs here and the version below has to be bumped
+#: with it.
+#:
+#: DELIBERATELY NOT WIRED INTO THE ACCRUAL PATH. A multiplier that is inert only
+#: because a constant is zero is still a multiplication inside the sweep that
+#: decides what a doctor is owed, and this codebase does not put unexercised
+#: arithmetic there. When the number is decided, the call site goes into
+#: ``payments._quality_terms`` next to the quality multiplier, with the same
+#: stamping discipline: the coefficient version is recorded on the row, so a
+#: later change never restates work already approved.
+PROFILE_DEPTH_PAY_BONUS_MAX = 0.0
+
+
+def profile_depth_multiplier(depth: float) -> float:
+    """What profile depth is worth as a pay multiplier. 1.0 today, always.
+
+    Exists so the decision has a named home and a test that proves it is inert,
+    rather than living as a sentence in a PRD that a future reader has to guess
+    the status of.
+
+    Returns EXACTLY 1.0 while ``PROFILE_DEPTH_PAY_BONUS_MAX`` is zero, by
+    construction and not by rounding: the caller multiplies a rate by this, and
+    ``1.0000000000000002`` against a rate is how a physician gets paid a cent
+    more than the posted rate for reasons nobody can explain.
+    """
+    if PROFILE_DEPTH_PAY_BONUS_MAX == 0.0:
+        return 1.0
+    d = min(1.0, max(0.0, float(depth or 0.0)))
+    return 1.0 + d * PROFILE_DEPTH_PAY_BONUS_MAX
+
+
 def amount_for(rate_cents: int, multiplier: float) -> int:
     """The payable amount, in cents. Rounded half-up, never below zero.
 

@@ -709,8 +709,15 @@ def min_empirical_difficulty() -> float:
 def require_measured_difficulty() -> bool:
     """When ON, the serving gate refuses any case whose ``empirical_difficulty`` was
     not LIVE-MEASURED above the floor (PRD §9). Default OFF so authored/declared seed
-    cases still serve in dev + demo without live frontier API access; flip ON in
-    production once ``grade-real-models`` measurement is wired to real keys."""
+    cases still serve in dev + demo without live frontier API access.
+
+    STAGE 2 of the staged rollout (Task Pipeline PRD §A2). It is turned on only
+    after a soak under stage 1 (``measure_empirical_difficulty_enabled``) has
+    produced a measured distribution, a below-floor discard rate and a projected
+    token cost per SHIPPED case. Flipping it before those numbers exist gates
+    serving on a distribution nobody has observed -- which is how the V4 queue was
+    emptied once already. The review procedure is written down in
+    ``docs/DEPLOY_BACKEND_RAILWAY.md`` §4b."""
     return os.getenv("ASCLEPIUS_REQUIRE_MEASURED_DIFFICULTY", "0").strip().lower() in ("1", "true", "yes", "on")
 
 
@@ -726,7 +733,13 @@ def measure_empirical_difficulty_enabled() -> bool:
     frontier tokens per case + needs keys). When OFF, a case carries a DECLARED
     difficulty (from the hardness-judge proxy) with ``measured=False``; when ON, the
     frontier failure rate is measured and — with ``require_measured_difficulty`` —
-    gates below-floor cases out of generation."""
+    gates below-floor cases out of generation.
+
+    STAGE 1 of the staged rollout (Task Pipeline PRD §A1): turned on ALONE first,
+    so measurement runs on every new case and blocks nothing. The soak is the
+    whole point -- it produces the distribution stage 2 is reviewed against. Cost
+    is real and per-case: about ``len(baseline_models())`` x
+    ``empirical_difficulty_attempts()`` frontier answers plus a judge call each."""
     return os.getenv("ASCLEPIUS_MEASURE_EMPIRICAL_DIFFICULTY", "0").strip().lower() in ("1", "true", "yes", "on")
 
 
@@ -1436,3 +1449,17 @@ CREDENTIAL_SUMMARY_LEGAL_DISCLAIMER = (
     "Ideally the same protections also appear in a signed NDA + Master Services "
     "Agreement with each buyer and in your contributor agreement."
 )
+
+
+# ─── Payouts: the Stripe Connect Express rail (Payments Rail PRD §A1) ─────────
+def stripe_enabled() -> bool:
+    """Whether the Stripe Connect Express payout rail is live.
+
+    Default **OFF**, and that default is the product decision rather than a
+    convenience: money movement needs a Stripe account with Connect enabled and
+    a completed KYC review, and neither is a thing a deploy can do. While this is
+    off the ledger behaves exactly as it did before the rail existed, the
+    bank-link card stays the disabled placeholder, and the webhook route is not
+    observable at all. ``ASCLEPIUS_STRIPE_ENABLED=1`` plus ``STRIPE_SECRET_KEY``
+    and ``STRIPE_WEBHOOK_SECRET`` is the whole go-live switch."""
+    return os.getenv("ASCLEPIUS_STRIPE_ENABLED", "0").strip().lower() in ("1", "true", "yes", "on")

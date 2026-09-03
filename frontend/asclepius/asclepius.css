@@ -100,6 +100,10 @@
 }
 .asc-nav-btn:hover { background: var(--card-in); color: var(--asc-text); }
 .asc-nav-btn.active { background: var(--ink); color: var(--card); }
+/* The Admin console entry is an ANCHOR now, not a button: the console is its
+   own page (PRD-F), and a link is what lets an operator open it in a second
+   tab beside the physician surface they were checking. */
+.asc-nav-link { display: inline-block; text-decoration: none; line-height: 1.4; }
 /* Community unread badge lives on the side-panel rail (.asc-rail-badge). */
 .asc-header-right {
   margin-left: auto;
@@ -2027,6 +2031,25 @@ body.asc-sheet-open { overflow: hidden; }
   flex-wrap: wrap;
 }
 
+/* ─── Clinical-validity attestation (Gap U2) ───────────────────────────── */
+/* The reject control is given the same visual weight as the checkbox rather
+   than being tucked away, because the whole fairness of holding a physician to
+   an attestation rests on the honest path being just as easy to reach. */
+.asc-validity-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 14px; line-height: 1.6; color: var(--asc-text);
+  cursor: pointer;
+}
+.asc-validity-check {
+  margin-top: 3px; flex: 0 0 auto; accent-color: var(--green);
+  width: 16px; height: 16px;
+}
+.asc-validity-out {
+  display: flex; justify-content: flex-start;
+  margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--asc-line);
+}
+.asc-validity-reject { flex: 0 0 auto; }
+
 /* ─── §2 info-dot ──────────────────────────────────────────────────────── */
 .asc-info-wrap { position: relative; display: inline-flex; }
 .asc-info-dot {
@@ -3501,6 +3524,30 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   color: var(--asc-text);
   max-width: 54ch;
 }
+/* The direct path for a physician connected to a health system themselves.
+   Separated from the compose-an-introduction form below by a rule rather than
+   by whitespace: they are two different asks and a reader should be able to
+   see that before reading either. */
+.asc-ref-direct {
+  margin: 14px 0 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--asc-line);
+}
+.asc-ref-directline {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--asc-muted);
+  margin-bottom: 10px;
+}
+.asc-ref-directrow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.asc-ref-direct-link {
+  text-decoration: none;
+}
 .asc-ref-form {
   display: flex;
   gap: 10px;
@@ -4353,6 +4400,68 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   margin: var(--sp-2) 0 var(--sp-3);
 }
 
+/* ─── Partner leads and data requests ──────────────────────────────────────
+   Both are lists of blocks separated by a hairline rather than tables: a lead
+   carries a paragraph of prose an organization typed, and a request carries
+   free text an operator typed, and neither survives a table column. Same
+   separator treatment as .asc-hs-signup above, for the same reason. */
+.asc-hs-lead { border-top: 1px solid var(--hairline); }
+.asc-hs-lead:first-of-type { border-top: 0; }
+.asc-hs-lead-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+/* Their words, unwrapped and unshortened: a submission is an attestation
+   about authority over data, and a truncated attestation is not one. */
+.asc-hs-lead-message {
+  color: var(--ink-soft);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  margin-bottom: var(--sp-2);
+}
+
+/* The three qualifying answers, above the prose rather than inside it. They
+   are the part of the submission with legal weight, and an operator deciding
+   whether to take a call reads them first. A definition list, because that is
+   what a question and its answer are, and because the label has to stay
+   welded to the answer when the pair wraps on a narrow console. */
+.asc-hs-lead-qual {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0 0 var(--sp-2);
+}
+.asc-hs-lead-qual-q {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.asc-hs-lead-qual-a {
+  color: var(--ink);
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+/* An unanswered question is not a blank. The whole point of archiving this row
+   is being able to say what they attested, so a gap has to look like a gap. */
+.asc-hs-lead-qual-none { color: var(--ink-faint); font-style: italic; }
+
+@media (max-width: 640px) {
+  .asc-hs-lead-qual { grid-template-columns: minmax(0, 1fr); }
+}
+
+.asc-hs-request { border-top: 1px solid var(--hairline); }
+.asc-hs-request:first-of-type { border-top: 0; }
+.asc-hs-request-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
 @media (max-width: 760px) {
   .asc-hs-intake-row { grid-template-columns: 1fr; gap: 2px; }
 }
@@ -5150,6 +5259,17 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   line-height: 1.55;
   color: var(--asc-muted);
 }
+/* The same card once the payout rail is live. A solid border and a real cursor
+   rather than a new component: it is the same promise, kept, and a physician
+   who has seen the placeholder should recognise it. */
+.asc-fr-bank-live {
+  border-style: solid;
+  border-color: var(--asc-line);
+  cursor: pointer;
+  opacity: 1;
+}
+.asc-fr-bank-live:hover { border-color: var(--asc-line-strong); }
+.asc-fr-bank-live[disabled] { cursor: progress; opacity: 0.6; }
 
 /* ── The persistent checklist. Passive: it reports, it never interrupts. ── */
 .asc-fr-checklist {
@@ -5583,4 +5703,72 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-scope-tag {
   font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em;
   text-transform: uppercase; color: var(--ink-faint);
+}
+
+/* ═══ Applicant funnel: the practice case, queue readiness, re-tiering ═══
+   Append-only block. The queue is a skim surface, so everything here is a chip
+   or a line, never a panel: a badge that needs reading defeats the point of
+   putting it on the row. */
+
+/* Practice-case state, on the queue row and on the decision screen. One shape,
+   three colours, because the states are not degrees of the same thing: passed
+   is evidence, locked is an absence, and grandfathered is neither. */
+.vq-practice {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 2px 8px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--asc-line-strong);
+  color: var(--asc-muted);
+  white-space: nowrap;
+}
+.vq-practice-passed { color: var(--green); border-color: var(--green); }
+.vq-practice-locked { color: var(--asc-muted); }
+.vq-practice-grandfathered { color: var(--asc-muted); border-style: dashed; }
+.vq-practice-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+/* Both halves of the application are in. Quiet on purpose: it marks a row as
+   worth opening, it does not mark the others as unworthy. */
+.vq-ready-chip {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+.vq-ready-row td { background: rgba(76, 166, 60, 0.03); }
+.vq-ready-filter { margin-left: auto; white-space: nowrap; }
+
+/* Re-tiering. Same row shape as the decision controls, because it is the same
+   kind of act: a select, a required note, one button. */
+.vq-retier { margin-top: 12px; }
+.vq-retier-save { white-space: nowrap; }
+.vq-retier-candidates:not(:empty) {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--asc-line);
+}
+
+/* The applicant's door, beside the password recovery link. Two routes back in
+   sit on one line separated by a middot rather than stacking, because they
+   answer the same question ("I cannot get in") and a stack reads as two
+   escalating problems. */
+.asc-login-signin-link { margin-left: 10px; }
+.asc-login-signin-link::before {
+  content: "·";
+  margin-right: 10px;
+  text-decoration: none;
+  display: inline-block;
+  color: var(--ink-faint);
 }

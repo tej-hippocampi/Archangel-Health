@@ -12,6 +12,13 @@ aliases, `openBatchesFor` and the physician-row route-in all read them, and
 renaming them would be silent breakage for zero benefit — the same reasoning that
 kept `work` and `money` when those tabs were relabelled.
 
+> **Where these pages live now.** PRD-F moved the admin console out of the
+> physician bundle onto its own page (`/asclepius/admin`), so both pages and the
+> shell that mounts them are in `frontend/asclepius/admin_shell.js` rather than
+> `asclepius.js`. Behaviour is unchanged, the state keys above are unchanged, and
+> the tests in §7 read the renderers from the new file with every assertion
+> intact.
+
 ---
 
 ## §1 The hard invariant

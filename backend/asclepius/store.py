@@ -2021,6 +2021,78 @@ class AsclepiusStore:
                          "ON hs_payouts(hs_id, status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_payouts_batch "
                          "ON hs_payouts(payout_batch_id)")
+
+            # ─── What a health system is OWED, computed rather than typed ────
+            # `hs_payouts` above records what an operator decided to pay. This
+            # records what the arithmetic says is due, and the two are different
+            # objects: a number a person typed into a box cannot be recomputed,
+            # cannot be checked, and gives a partner nothing to reconcile their
+            # own records against.
+            #
+            # Append-only, one row per accrued item, exactly the shape `earnings`
+            # holds for physicians. The properties that shape buys are the
+            # reason for copying it:
+            #
+            #   * UNIQUE(hs_id, ref_kind, ref_id) makes double-accrual
+            #     impossible by construction rather than by a caller checking
+            #     first. Reconciliation can therefore run on every read.
+            #   * rate_cents is STAMPED ON THE ROW at accrual and never read
+            #     back from configuration. A price change decides what the NEXT
+            #     upload is worth, never what a settled one was. Recomputing
+            #     from a current rate is how a partner's closed quarter silently
+            #     changes value months later.
+            #   * settlement is a compare-and-set on status, so a double-submit
+            #     of the same settlement records once.
+            #
+            # NOT `earnings` with a discriminator column, for the same reason
+            # `hs_referrals` above is not `referrals`: every path in
+            # asclepius/payments.py assumes physician semantics (a user_id, a
+            # quality multiplier, a 14-day auto-approve), and a discriminator
+            # inside the money path is a thing every future edit has to
+            # remember. Forgetting it once pays the wrong counterparty.
+            #
+            # No bank_account, routing_number, iban, swift, tax_id, ssn or ein
+            # column, on this table any more than on hs_payouts. Settlement
+            # clears out of band and this records that it did.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_accruals (
+                    accrual_id     TEXT PRIMARY KEY,
+                    hs_id          TEXT NOT NULL,
+                    ref_kind       TEXT NOT NULL,   -- what was accrued for: 'upload'
+                    ref_id         TEXT NOT NULL,   -- ingest_uploads.upload_id
+                    rate_cents     INTEGER NOT NULL,-- the price IN FORCE at accrual
+                    amount_cents   INTEGER NOT NULL,
+                    currency       TEXT NOT NULL DEFAULT 'usd',
+                    status         TEXT NOT NULL,   -- accrued | invoiced | settled | void
+                    description    TEXT,            -- partner-readable words, not a code
+                    accrued_at     TEXT NOT NULL,   -- when the WORK landed, not when we noticed
+                    invoice_id     TEXT,
+                    invoiced_at    TEXT,
+                    settled_at     TEXT,
+                    settlement_ref TEXT,            -- the operator's reference for the transfer
+                    void_reason    TEXT,
+                    voided_by      TEXT,
+                    voided_at      TEXT,
+                    UNIQUE(hs_id, ref_kind, ref_id)
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_accruals_hs "
+                         "ON hs_accruals(hs_id, status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_hs_accruals_invoice "
+                         "ON hs_accruals(invoice_id)")
+
+            # The agreed price per accepted upload, per organization. NULL means
+            # NOT PRICED, and not priced accrues nothing: no default figure is
+            # baked in anywhere, because a price nobody agreed to, printed on a
+            # page a hospital's finance contact reads, is quoted back at us.
+            if "data_rate_cents" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN data_rate_cents INTEGER")
+            if "data_rate_set_by" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN data_rate_set_by TEXT")
+            if "data_rate_set_at" not in cols("health_systems"):
+                conn.execute("ALTER TABLE health_systems ADD COLUMN data_rate_set_at TEXT")
             # ═══ END HS SELF-SERVE + PAYOUTS ═══
             # ═══ HS ONBOARDING (PRD: sign-in split, intake, e-signed DLA) ═══
             # The organization-level half of the portal. Everything above this
@@ -3254,6 +3326,78 @@ class AsclepiusStore:
                 "CREATE INDEX IF NOT EXISTS idx_task_notify_status ON task_notify_outbox(status)"
             )
 
+            # ── Health-system data requests (broadcast + outbox) ─────────────
+            # "We need 100 nephrology cases", sent to every partner who has
+            # signed and may upload. A request is an INVITATION, not a lock:
+            # several partners may answer one request and the admin approves
+            # what fulfils it, so there is no claiming state here and none is
+            # coming. ``status`` is open/fulfilled/withdrawn and closing is a
+            # human act, which is why ``closed_reason`` is stored rather than
+            # inferred.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_data_requests (
+                    id            TEXT PRIMARY KEY,
+                    title         TEXT NOT NULL,
+                    specialty     TEXT NOT NULL,
+                    case_count    INTEGER NOT NULL,
+                    due_date      TEXT,
+                    details       TEXT,
+                    status        TEXT NOT NULL DEFAULT 'open',
+                    created_by    TEXT NOT NULL,
+                    created_at    TEXT NOT NULL,
+                    closed_at     TEXT,
+                    closed_reason TEXT
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_hs_data_requests_status "
+                "ON hs_data_requests(status, created_at)"
+            )
+            # The same durable-outbox shape as task_notify_outbox, for the same
+            # reason and drained on the same tick: one broadcast is up to
+            # (partners x members) letters, which must never run inline in the
+            # admin's request, and a worker that dies mid-send has to leave the
+            # tail recoverable rather than lost. The idempotency key is what
+            # makes re-broadcasting a request enqueue nothing.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hs_request_outbox (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    request_id      TEXT NOT NULL,
+                    hs_id           TEXT NOT NULL,
+                    recipient_email TEXT NOT NULL,
+                    status          TEXT NOT NULL DEFAULT 'pending',
+                    send_attempts   INTEGER NOT NULL DEFAULT 0,
+                    last_error      TEXT,
+                    sent_at         TEXT,
+                    created_at      TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_hs_request_outbox_status "
+                "ON hs_request_outbox(status)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_hs_request_outbox_request "
+                "ON hs_request_outbox(request_id)"
+            )
+            # Which request an upload answers, when it answers one at all.
+            # Nullable and it stays nullable: most uploads predate or ignore
+            # every request, and a partner who just sends us data must not meet
+            # a new precondition because a broadcast feature shipped.
+            if "request_id" not in cols("ingest_uploads"):
+                conn.execute("ALTER TABLE ingest_uploads ADD COLUMN request_id TEXT")
+            # The chunked door declares a session first and produces the upload
+            # minutes later, so the request it answers is parked on the session
+            # and copied across at complete. Carrying it any other way would
+            # mean trusting the completing request to re-name it.
+            if "request_id" not in cols("ingest_upload_sessions"):
+                conn.execute("ALTER TABLE ingest_upload_sessions ADD COLUMN request_id TEXT")
+
             # Onboarding v2 §0.1: platform media — one row per named SLOT
             # ('onboarding_demo' is the only one today), pointing at a blob in
             # the content-addressed asset store. The bytes never live here; a
@@ -3275,6 +3419,227 @@ class AsclepiusStore:
                 )
                 """
             )
+
+            # ── The physician contributor agreement (Gap U1) ─────────────────
+            # The sibling of `signed_agreements`, for the other side of the
+            # market, and deliberately the same shape: what makes a clickwrap
+            # enforceable is being able to show later WHAT was agreed and by
+            # WHOM. `doc_sha256` is the hash of the exact rendered text on the
+            # signer's screen; "v1" is a claim about a file that can be edited,
+            # a sha256 is a claim about the bytes that were read.
+            #
+            # WHY A SEPARATE TABLE rather than a `party_kind` column on
+            # `signed_agreements`: the two documents key on different things (an
+            # organization vs a user), carry different affirmations (authority
+            # to bind vs typed initials), and supersede on different rules. A
+            # shared table would need every one of those columns nullable, which
+            # is how you end up unable to state what a row means.
+            #
+            # The seven attestations stay exactly where they are, on
+            # `users.attestations_json`. This wraps them; it does not move them.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS physician_agreements (
+                    agreement_id    TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    doc_version     TEXT NOT NULL,
+                    doc_sha256      TEXT NOT NULL,   -- of the exact rendered text
+                    pdf_sha256      TEXT,            -- the counterpart in the asset store
+                    signer_email    TEXT,
+                    typed_name      TEXT NOT NULL,
+                    signed_initials TEXT NOT NULL,
+                    ip              TEXT,
+                    user_agent      TEXT,
+                    signed_at       TEXT NOT NULL,   -- UTC
+                    consent_esign   INTEGER NOT NULL,
+                    attestations_json TEXT           -- the seven, as they stood at signature
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_physician_agreements_user "
+                         "ON physician_agreements(user_id, signed_at)")
+            # Immutability enforced by the DATABASE rather than by everyone
+            # remembering, on the reasoning `signed_agreements` already states.
+            # A new version is a new row, which the triggers permit because
+            # INSERT is untouched.
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS physician_agreements_no_update
+                BEFORE UPDATE ON physician_agreements
+                BEGIN
+                    SELECT RAISE(ABORT, 'physician_agreements is append-only');
+                END
+                """
+            )
+            conn.execute(
+                """
+                CREATE TRIGGER IF NOT EXISTS physician_agreements_no_delete
+                BEFORE DELETE ON physician_agreements
+                BEGIN
+                    SELECT RAISE(ABORT, 'physician_agreements is append-only');
+                END
+                """
+            )
+
+            # ── The per-case clinical-validity attestation (Gap U2) ──────────
+            # Recorded at the moment of labeling, stored WITH the submission
+            # rather than in a side table, because the attestation is a property
+            # of that label and travels with it into every audit that asks
+            # "who said this case was valid".
+            #
+            # `validity_agreement_version` is the tie to U1: an attestation
+            # means what the agreement in force at the time said it means, and
+            # that document can change. Without the version, a finding made
+            # under v2's language could be applied to a physician who only ever
+            # signed v1.
+            #
+            # `validity_finding` is separate from the attestation and is written
+            # only by an admin. NULL means "nobody has looked", which must stay
+            # distinguishable from "looked and it was true" -- the same reason
+            # `quality_score` is nullable with no default.
+            sub_cols = cols("submissions")
+            if "validity_attested" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_attested INTEGER")
+            if "validity_attested_at" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_attested_at TEXT")
+            if "validity_agreement_version" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_agreement_version TEXT")
+            if "validity_finding" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding TEXT")
+            if "validity_finding_at" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_at TEXT")
+            if "validity_finding_by" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_by TEXT")
+            if "validity_finding_note" not in sub_cols:
+                conn.execute("ALTER TABLE submissions ADD COLUMN validity_finding_note TEXT")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sub_validity_finding "
+                         "ON submissions(validity_finding)")
+
+            # ═══ PAYMENTS RAIL §E: Stripe Connect Express ═══════════════════
+            # THE RULE THIS BLOCK IS WRITTEN AGAINST: we store exactly two
+            # Stripe facts about a physician, an account id and a status word.
+            # No bank account number, no routing number, no SSN, no EIN, no TIN,
+            # not now and not later. Stripe collects tax identity during Express
+            # onboarding and files the 1099-NECs, which is only defensible while
+            # we hold nothing worth breaching. A column here that wanted any of
+            # those fields would be the signal that the change belongs behind
+            # Connect instead, and tests/test_stripe_webhooks.py greps for them.
+            #
+            # Anything richer than id + status (requirements due, payout
+            # schedule, balances) is read from Stripe when an admin asks and
+            # never cached: a cached copy of compliance state is a stale copy
+            # from the moment Stripe updates it.
+            if "stripe_account_id" not in cols("users"):
+                conn.execute("ALTER TABLE users ADD COLUMN stripe_account_id TEXT")
+            conn.execute(
+                """
+                -- Every webhook Stripe has delivered, keyed on ITS event id, and
+                -- written BEFORE the event is processed. Stripe redelivers on any
+                -- non-2xx and can deliver out of order, so at-most-once processing
+                -- has to come from a durable row rather than from in-process
+                -- memory that a restart forgets. Same reasoning as the notify
+                -- outboxes: a crash mid-handler leaves a row with a NULL
+                -- processed_at, which is a work item, not a lost event.
+                CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+                    event_id     TEXT PRIMARY KEY,
+                    type         TEXT,
+                    payload_json TEXT,
+                    received_at  TEXT,
+                    processed_at TEXT,
+                    outcome      TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                -- One row per ledger row we have tried to transfer, so a failed
+                -- payout is a QUEUE rather than an exception nobody sees. The
+                -- ledger is the record of our decision to pay; this is the record
+                -- of Stripe executing it, and the two are allowed to disagree
+                -- while a failure is being worked.
+                CREATE TABLE IF NOT EXISTS stripe_transfers (
+                    earning_id      TEXT NOT NULL,
+                    transfer_id     TEXT,
+                    status          TEXT NOT NULL,
+                    failure_reason  TEXT,
+                    payout_batch_id TEXT,
+                    created_at      TEXT NOT NULL,
+                    updated_at      TEXT NOT NULL
+                )
+                """
+            )
+            # One transfer per ledger row is the whole reconciliation story
+            # (Stripe's ledger maps 1:1 onto ours), and the unique index is what
+            # makes a retry update the attempt rather than stack a second one.
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_stripe_transfers_earning "
+                "ON stripe_transfers(earning_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_stripe_transfers_batch "
+                "ON stripe_transfers(payout_batch_id)")
+            # ═══ END PAYMENTS RAIL §E ═══════════════════════════════════════
+
+            # ═══ Export licensing + exclusivity (audit U5) ═══════════════════
+            # Incoming clinical data is usable for everything: task creation,
+            # brokering, splitting a delivery into subsets, recombining subsets
+            # into a new one. Exactly one thing constrains that, and it is the
+            # licensing agreement. If a buyer paid for exclusivity on a slice,
+            # that slice cannot be sold again, and until this table existed
+            # nothing in the pipeline held that fact. A second cut overlapping
+            # the first shipped silently, and a contractual breach discovered by
+            # the counterparty months later is the most expensive kind.
+            #
+            # Two tables rather than a flag on ``exports``, and the reason is not
+            # stylistic. ``records.export_id`` holds only the LATEST export a
+            # record shipped in (``mark_records_exported`` overwrites it), so
+            # after any re-cut the membership of an earlier export is no longer
+            # recoverable from the records table. A commitment about a set of
+            # records must carry its own frozen snapshot of that set, which is
+            # what ``export_license_records`` is.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS export_licenses (
+                    license_id     TEXT PRIMARY KEY,
+                    export_id      TEXT NOT NULL,
+                    buyer_key      TEXT NOT NULL,
+                    buyer_label    TEXT,
+                    exclusivity    TEXT NOT NULL DEFAULT 'non_exclusive',
+                    status         TEXT NOT NULL DEFAULT 'active',
+                    expires_at     TEXT,
+                    note           TEXT,
+                    record_count   INTEGER NOT NULL DEFAULT 0,
+                    case_ids_json  TEXT NOT NULL DEFAULT '[]',
+                    created_by     TEXT,
+                    created_at     TEXT NOT NULL,
+                    released_at    TEXT,
+                    released_by    TEXT,
+                    release_reason TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                -- The frozen record-level membership of one license. Record level
+                -- rather than bundle level because the meeting's own framing is
+                -- that data gets split and recombined: a commitment that only
+                -- knows about whole bundles is defeated by re-cutting the same
+                -- records under a different filter.
+                CREATE TABLE IF NOT EXISTS export_license_records (
+                    license_id  TEXT NOT NULL,
+                    record_id   TEXT NOT NULL,
+                    PRIMARY KEY (license_id, record_id)
+                )
+                """
+            )
+            # The conflict check reads by record_id across every license, which
+            # without this index is a full scan of the whole commitment history
+            # on every export.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_export_license_recs_rec "
+                         "ON export_license_records(record_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_export_licenses_buyer "
+                         "ON export_licenses(buyer_key)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_export_licenses_excl "
+                         "ON export_licenses(exclusivity, status)")
 
     # ─── Platform media (Onboarding v2 §0.1) ──────────────────────────────────
     def set_platform_media(
@@ -3803,11 +4168,86 @@ class AsclepiusStore:
             asked[field] = stamp
             blob["fields"] = asked
             blob["last_sent_at"] = stamp
+            # A claim means there is something to ask after all, so any
+            # nothing-to-ask marker from an earlier sweep is stale.
+            blob.pop("nothing_to_ask_at", None)
             cur = conn.execute(
                 "UPDATE users SET profile_nudge_json = ? WHERE id = ?",
                 (json.dumps(blob), user_id),
             )
             return cur.rowcount > 0
+
+    def mark_profile_nothing_to_ask(self, user_id: str) -> bool:
+        """Record that a sweep looked at this profile and found no gap.
+
+        A complete profile is never stamped, so without this it sorts as
+        never-nudged forever and a rosterful of complete profiles occupies
+        every batch while the physicians with real gaps wait behind the cap.
+        The due-list sorts marked rows behind everyone else instead. The
+        marker is ordering only, never a filter: the sweep still re-derives
+        the gap whenever a marked row comes round, and a successful claim
+        (``stamp_profile_nudge``) clears it, so a profile that later loses a
+        field rejoins the front of the queue.
+        """
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT profile_nudge_json FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if row is None:
+                return False
+            try:
+                blob = json.loads(row["profile_nudge_json"] or "{}")
+                if not isinstance(blob, dict):
+                    blob = {}
+            except (TypeError, ValueError):
+                blob = {}
+            if blob.get("nothing_to_ask_at"):
+                return False
+            blob["nothing_to_ask_at"] = (
+                datetime.utcnow().replace(microsecond=0).isoformat())
+            cur = conn.execute(
+                "UPDATE users SET profile_nudge_json = ? WHERE id = ?",
+                (json.dumps(blob), user_id),
+            )
+            return cur.rowcount > 0
+
+    def list_profiles_needing_nudge(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Approved physicians who might be asked about one profile gap.
+
+        Candidates, not decisions: whether anything is actually missing is a
+        question about the credential blob and the avatar, which the caller
+        answers with the same completeness rule the profile page renders. This
+        query only narrows to the population the question is worth asking of,
+        which is people who were approved (a pending applicant is being chased
+        about their application, not their subspecialties) and who can be
+        mailed.
+
+        Ordered by how long it has been since we last said anything, longest
+        first, with the never-nudged ahead of everyone. A stable created_at
+        ordering would hand the same fifty rows to every sweep forever and
+        starve the rest of the roster the moment the population outgrew the
+        batch cap.
+
+        Rows the sweep has marked ``nothing_to_ask_at`` sort behind everyone,
+        for the same starvation reason from the other side: a complete profile
+        is never stamped, so without the marker it reads as never-nudged and
+        permanently claims the front of every batch.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users "
+                "WHERE verification_status = 'approved' "
+                "  AND COALESCE(active, 1) = 1 "
+                "  AND role = 'evaluator' "
+                "  AND email IS NOT NULL AND email != '' "
+                "ORDER BY (json_extract(COALESCE(profile_nudge_json, '{}'),"
+                "  '$.nothing_to_ask_at') IS NOT NULL) ASC, "
+                "COALESCE("
+                "  json_extract(COALESCE(profile_nudge_json, '{}'), '$.last_sent_at'), ''"
+                ") ASC, created_at ASC LIMIT ?",
+                (max(1, limit),),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def monthly_submission_counts(self, user_id: str, *, months: int = 12
                                   ) -> List[Dict[str, Any]]:
@@ -3824,6 +4264,49 @@ class AsclepiusStore:
                 (user_id, max(1, months)),
             ).fetchall()
         return [{"month": r["month"], "count": r["n"]} for r in rows][::-1]
+
+    def current_day_streak(self, user_id: str, *, today: Optional[str] = None) -> int:
+        """Consecutive days ending today (or yesterday) with a submission.
+
+        Computed at READ time from ``submissions.created_at`` rather than kept
+        as a counter, because a stored streak is a second source of truth that
+        goes wrong exactly when it matters: a missed cron, a backfilled
+        submission or a restart leaves a number on somebody's profile that
+        their own history contradicts.
+
+        Yesterday still counts as alive. A physician who worked last night and
+        has not opened the portal yet this morning has not broken anything, and
+        a streak that resets at midnight punishes the timezone rather than the
+        behaviour.
+        """
+        day = today or datetime.utcnow().date().isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT substr(created_at, 1, 10) AS d FROM submissions "
+                "WHERE evaluator_id = ? AND created_at IS NOT NULL "
+                "  AND substr(created_at, 1, 10) <= ? "
+                "ORDER BY d DESC LIMIT 400",
+                (user_id, day),
+            ).fetchall()
+        days = [r["d"] for r in rows if r["d"]]
+        if not days:
+            return 0
+        try:
+            cursor = datetime.strptime(day, "%Y-%m-%d").date()
+        except ValueError:
+            return 0
+        newest = days[0]
+        if newest != cursor.isoformat():
+            cursor = cursor - timedelta(days=1)
+            if newest != cursor.isoformat():
+                return 0
+        streak = 0
+        for d in days:
+            if d != cursor.isoformat():
+                break
+            streak += 1
+            cursor = cursor - timedelta(days=1)
+        return streak
 
     # ── Tier ─────────────────────────────────────────────────────────────────
 
@@ -4614,6 +5097,167 @@ class AsclepiusStore:
                 (error, notification_id),
             )
 
+    # ─── Health-system data requests + their broadcast outbox ────────────────
+    #: The two ways a request stops being open. Both are an operator's decision,
+    #: which is why neither is derived: a request whose case count is met is not
+    #: fulfilled until a person says the cases were good enough to take.
+    HS_REQUEST_CLOSE_REASONS = ("fulfilled", "withdrawn")
+
+    def create_hs_data_request(
+        self, *, title: str, specialty: str, case_count: int,
+        due_date: Optional[str], details: Optional[str], created_by: str,
+    ) -> Dict[str, Any]:
+        rid = _new_id("hsreq")
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO hs_data_requests
+                  (id, title, specialty, case_count, due_date, details,
+                   status, created_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?)
+                """,
+                (rid, title, specialty, int(case_count), due_date or None,
+                 details or None, created_by, _utcnow_iso()),
+            )
+        return self.get_hs_data_request(rid) or {}
+
+    def get_hs_data_request(self, request_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_data_requests WHERE id = ?", (request_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def list_hs_data_requests(self, *, status: Optional[str] = None,
+                              limit: int = 200) -> List[Dict[str, Any]]:
+        """Newest first. ``status=None`` means every request, which is what the
+        admin side wants: a closed request stays queryable forever because it is
+        the record of what we asked for and when."""
+        with self._conn() as conn:
+            if status:
+                rows = conn.execute(
+                    "SELECT * FROM hs_data_requests WHERE status = ? "
+                    "ORDER BY created_at DESC, id DESC LIMIT ?", (status, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM hs_data_requests "
+                    "ORDER BY created_at DESC, id DESC LIMIT ?", (limit,),
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    def close_hs_data_request(self, request_id: str, *, reason: str) -> bool:
+        """Close an OPEN request. Returns False if it was already closed, so a
+        double click is a no-op rather than a second close that overwrites the
+        first one's reason and timestamp."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE hs_data_requests SET status = ?, closed_at = ?, "
+                "closed_reason = ? WHERE id = ? AND status = 'open'",
+                (reason, _utcnow_iso(), reason, request_id),
+            )
+            return bool(cur.rowcount)
+
+    def enqueue_hs_request_notification(
+        self, *, idempotency_key: str, request_id: str, hs_id: str,
+        recipient_email: str,
+    ) -> Optional[int]:
+        """Insert a pending outbox row, deduped on ``idempotency_key`` (one letter
+        per member per organization per request). Returns the new row id, or None
+        if this (request, organization, recipient) was already enqueued."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                """
+                INSERT OR IGNORE INTO hs_request_outbox
+                  (idempotency_key, request_id, hs_id, recipient_email,
+                   status, created_at)
+                VALUES (?, ?, ?, ?, 'pending', ?)
+                """,
+                (idempotency_key, request_id, hs_id, recipient_email, _utcnow_iso()),
+            )
+            return int(cur.lastrowid) if cur.rowcount else None
+
+    def list_pending_hs_request_notifications(self, limit: int = 500) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_request_outbox WHERE status = 'pending' "
+                "ORDER BY created_at ASC, id ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def list_hs_request_outbox(self, request_id: str) -> List[Dict[str, Any]]:
+        """Every outbox row for one request, whatever its status. The admin's
+        delivery tally reads this; nothing else should, because a pending row is
+        an intent and only ``sent`` is a fact."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM hs_request_outbox WHERE request_id = ? "
+                "ORDER BY id ASC", (request_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def mark_hs_request_notification_sent(self, notification_id: int) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_request_outbox SET status = 'sent', sent_at = ?, "
+                "send_attempts = send_attempts + 1 WHERE id = ?",
+                (_utcnow_iso(), notification_id),
+            )
+
+    def mark_hs_request_notification_failed(self, notification_id: int, error: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_request_outbox SET status = 'failed', last_error = ?, "
+                "send_attempts = send_attempts + 1 WHERE id = ?",
+                (error, notification_id),
+            )
+
+    def retry_failed_hs_request_notifications(self, request_id: str) -> int:
+        """Flip every failed row for one request back to pending, so the next
+        drain re-attempts them. Returns how many rows were flipped. Without
+        this a failed row is terminal: re-broadcasting enqueues nothing because
+        every idempotency key already exists."""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE hs_request_outbox SET status = 'pending' "
+                "WHERE request_id = ? AND status = 'failed'",
+                (request_id,),
+            )
+            return int(cur.rowcount)
+
+    def set_upload_request(self, upload_id: str, request_id: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_uploads SET request_id = ? WHERE upload_id = ?",
+                (request_id or None, upload_id),
+            )
+
+    def set_upload_session_request(self, session_id: str,
+                                   request_id: Optional[str]) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE ingest_upload_sessions SET request_id = ? WHERE session_id = ?",
+                (request_id or None, session_id),
+            )
+
+    def list_uploads_for_request(self, request_id: str,
+                                 *, limit: int = 500) -> List[Dict[str, Any]]:
+        """Every upload tagged with this request, newest first, across partners.
+        The admin's fulfilment view groups these by health system; grouping in
+        SQL would need a second query to name the systems anyway."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM ingest_uploads WHERE request_id = ? "
+                "ORDER BY created_at DESC LIMIT ?", (request_id, limit),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["files"] = json.loads(d.pop("files_json") or "[]")
+            out.append(d)
+        return out
+
     # ─── Real EHR ingestion (EHR PRD §4, §5, §8) ─────────────────────────────
     def create_upload_link(
         self, *, token_hash: str, partner_id: str, partner_label: Optional[str],
@@ -5351,6 +5995,153 @@ class AsclepiusStore:
             conn.execute(
                 "UPDATE users SET bank_link_status = ? WHERE id = ?", (status, user_id)
             )
+
+    # ─── Payments Rail §E: the two Stripe facts, and nothing else ────────────
+    # These accessors exist so that the set of columns the rail can write is
+    # visible in one place and stays two wide. Read the block in ``_migrate``
+    # for why that number is load-bearing.
+    def set_stripe_account_id(self, user_id: str, account_id: str) -> None:
+        """Bind a physician to their Connect Express account, once.
+
+        Guarded on ``stripe_account_id IS NULL`` rather than written blind: two
+        concurrent taps of "Link your bank account" would otherwise leave the
+        second account id in the row and the first one orphaned, holding a bank
+        account we can no longer transfer to.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE users SET stripe_account_id = ? "
+                "WHERE id = ? AND stripe_account_id IS NULL",
+                (account_id, user_id))
+
+    def get_user_by_stripe_account(self, account_id: str) -> Optional[Dict[str, Any]]:
+        """The physician behind an ``account.updated`` webhook, or None.
+
+        None is a normal answer, not an error: Stripe delivers events for every
+        account on the platform, including ones this database has never heard of
+        (a test-mode account, an account created by a different environment
+        pointed at the same webhook)."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE stripe_account_id = ?", (account_id,)).fetchone()
+        return dict(row) if row else None
+
+    def record_stripe_webhook_event(
+        self, *, event_id: str, event_type: Optional[str], payload_json: str,
+    ) -> bool:
+        """Store a delivered event before processing it. True if it is new.
+
+        False means Stripe has delivered this event id before, which is the
+        redelivery case and must not run the handler a second time. The claim is
+        the INSERT itself rather than a read-then-write, so two workers racing
+        the same redelivery cannot both decide they are first.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO stripe_webhook_events "
+                "(event_id, type, payload_json, received_at) VALUES (?, ?, ?, ?)",
+                (event_id, event_type, payload_json, _utcnow_iso()))
+            return bool(cur.rowcount)
+
+    def stamp_stripe_webhook_event(self, event_id: str, *, outcome: str) -> None:
+        """Mark a stored event handled, with what the handler decided."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE stripe_webhook_events SET processed_at = ?, outcome = ? "
+                "WHERE event_id = ?", (_utcnow_iso(), outcome, event_id))
+
+    def get_stripe_webhook_event(self, event_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM stripe_webhook_events WHERE event_id = ?",
+                (event_id,)).fetchone()
+        return dict(row) if row else None
+
+    def record_stripe_transfer(
+        self, *, earning_id: str, status: str, transfer_id: Optional[str] = None,
+        failure_reason: Optional[str] = None, payout_batch_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Upsert the transfer attempt for one ledger row.
+
+        Upsert rather than insert because a retried transfer is the SAME attempt
+        reaching a new outcome, not a second payment: the unique index on
+        ``earning_id`` and Stripe's ``earning:{id}`` idempotency key are the two
+        halves of the same guarantee, and a row per attempt would let a console
+        show two transfers where one dollar moved.
+        """
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO stripe_transfers
+                    (earning_id, transfer_id, status, failure_reason,
+                     payout_batch_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(earning_id) DO UPDATE SET
+                    transfer_id     = COALESCE(excluded.transfer_id, stripe_transfers.transfer_id),
+                    status          = excluded.status,
+                    failure_reason  = excluded.failure_reason,
+                    payout_batch_id = COALESCE(excluded.payout_batch_id,
+                                               stripe_transfers.payout_batch_id),
+                    updated_at      = excluded.updated_at
+                """,
+                (earning_id, transfer_id, status, failure_reason,
+                 payout_batch_id, now, now))
+            row = conn.execute(
+                "SELECT * FROM stripe_transfers WHERE earning_id = ?",
+                (earning_id,)).fetchone()
+        return dict(row)
+
+    def get_stripe_transfer(self, earning_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM stripe_transfers WHERE earning_id = ?",
+                (earning_id,)).fetchone()
+        return dict(row) if row else None
+
+    def stripe_transfer_by_transfer_id(self, transfer_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM stripe_transfers WHERE transfer_id = ?",
+                (transfer_id,)).fetchone()
+        return dict(row) if row else None
+
+    def stamp_stripe_transfer_status(
+        self, transfer_id: str, *, status: str, failure_reason: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Move an existing attempt to a status Stripe reported by webhook.
+
+        Keyed on ``transfer_id`` because that is all a transfer event carries
+        that we can trust; an event for a transfer this database never created
+        updates nothing and returns None rather than inventing a row.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE stripe_transfers SET status = ?, failure_reason = ?, "
+                "updated_at = ? WHERE transfer_id = ?",
+                (status, failure_reason, _utcnow_iso(), transfer_id))
+            row = conn.execute(
+                "SELECT * FROM stripe_transfers WHERE transfer_id = ?",
+                (transfer_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_stripe_transfers(
+        self, *, payout_batch_id: Optional[str] = None, status: Optional[str] = None,
+        limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM stripe_transfers WHERE 1 = 1"
+        params: List[Any] = []
+        if payout_batch_id:
+            sql += " AND payout_batch_id = ?"
+            params.append(payout_batch_id)
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        sql += " ORDER BY updated_at DESC LIMIT ?"
+        params.append(limit)
+        with self._conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
     # ─── Onboarding v2 §0.1: the temporary password ───────────────────────────
     def set_temp_password(self, user_id: str, password: str) -> None:
@@ -6755,6 +7546,63 @@ class AsclepiusStore:
         mid = n // 2
         return float(vals[mid]) if n % 2 else (vals[mid - 1] + vals[mid]) / 2.0
 
+    def evaluator_median_seconds_by_user(self) -> Dict[str, float]:
+        """Every contributor's rolling median seconds-per-task, in ONE query
+        (Task Pipeline PRD C1/D5).
+
+        Same median definition as the per-user ``evaluator_median_seconds``
+        above, and it has to be: two definitions of "how long they take" that
+        disagree by a row is the defect this file keeps writing single-source
+        helpers to avoid. The batch variant exists because the roster is a list
+        of everyone, and the per-user query is a query per physician -- the same
+        rule the roster already states for ``contributor_score``.
+
+        Absent from the dict means no timed submission, which the caller must
+        render as unknown and never as zero (D6)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT evaluator_id, time_spent_sec FROM submissions "
+                "WHERE time_spent_sec > 0 ORDER BY evaluator_id ASC, time_spent_sec ASC"
+            ).fetchall()
+        by_user: Dict[str, List[int]] = {}
+        for r in rows:
+            by_user.setdefault(r["evaluator_id"], []).append(int(r["time_spent_sec"]))
+        out: Dict[str, float] = {}
+        for uid, vals in by_user.items():
+            n = len(vals)
+            mid = n // 2
+            out[uid] = float(vals[mid]) if n % 2 else (vals[mid - 1] + vals[mid]) / 2.0
+        return out
+
+    def evaluator_kappa_by_user(self) -> Dict[str, Dict[str, Any]]:
+        """Per-physician Cohen's kappa, in ONE query plus pure math (PRD C1/C2).
+
+        The agreement row stores the two SUBMISSIONS, not the two physicians, so
+        the join is what turns a per-task observation into a per-person one. The
+        gates are not applied here: the rows are handed to
+        ``agreement.per_annotator_kappa``, which runs the SAME ``_pool_eligible``
+        and ``_blinded_only`` filters the pooled number uses. A per-physician
+        kappa over rows the pool excludes would be a different metric under the
+        same name.
+
+        Returns ``{user_id: {"kappa": float|None, "n": int}}``; kappa is None
+        below ``agreement.kappa_min_n()``."""
+        from asclepius import agreement as asc_agreement
+
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT g.verdict_a, g.verdict_b, g.blinded, g.kappa_excluded_reason,
+                       g.specialty,
+                       sa.evaluator_id AS annotator_a,
+                       sb.evaluator_id AS annotator_b
+                FROM agreement g
+                JOIN submissions sa ON sa.submission_id = g.sub_a
+                JOIN submissions sb ON sb.submission_id = g.sub_b
+                """
+            ).fetchall()
+        return asc_agreement.per_annotator_kappa([dict(r) for r in rows])
+
     def mark_task_status(self, task_id: str, status: str) -> None:
         with self._conn() as conn:
             conn.execute("UPDATE tasks SET status = ? WHERE task_id = ?", (status, task_id))
@@ -7476,6 +8324,185 @@ class AsclepiusStore:
             ).fetchall()
         return [self._export_row(dict(r)) for r in rows]
 
+    # ─── Export licensing + exclusivity (audit U5) ────────────────────────────
+    # "Unless they have the licensing agreement, that doesn't mean you can go
+    # sell it to 5 other people unless they didn't pay exclusively." The register
+    # below is the machine-readable form of that sentence: who was promised what,
+    # exclusively or not, and whether the promise is still live.
+
+    @staticmethod
+    def normalize_buyer_key(value: Optional[str]) -> Optional[str]:
+        """One buyer identity spelled two ways is two buyers to a database and one
+        buyer to a court, so every comparison goes through here."""
+        if value is None:
+            return None
+        key = str(value).strip().lower()
+        return key or None
+
+    def create_export_license(
+        self,
+        *,
+        export_id: str,
+        buyer_key: str,
+        record_ids: List[str],
+        license_id: Optional[str] = None,
+        buyer_label: Optional[str] = None,
+        exclusivity: str = "non_exclusive",
+        expires_at: Optional[str] = None,
+        note: Optional[str] = None,
+        case_ids: Optional[List[str]] = None,
+        created_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Record what a built export was licensed to a buyer under, together with
+        the exact records it covers."""
+        lid = license_id or _new_id("lic")
+        key = self.normalize_buyer_key(buyer_key)
+        if not key:
+            raise ValueError("A licence needs a buyer key.")
+        excl = "exclusive" if exclusivity == "exclusive" else "non_exclusive"
+        rids = sorted({r for r in (record_ids or []) if r})
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO export_licenses
+                   (license_id, export_id, buyer_key, buyer_label, exclusivity, status,
+                    expires_at, note, record_count, case_ids_json, created_by, created_at)
+                   VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)""",
+                (lid, export_id, key, buyer_label, excl, expires_at, note,
+                 len(rids), json.dumps(sorted({c for c in (case_ids or []) if c})),
+                 created_by, now),
+            )
+            conn.executemany(
+                "INSERT OR IGNORE INTO export_license_records (license_id, record_id) "
+                "VALUES (?, ?)",
+                [(lid, rid) for rid in rids],
+            )
+        return self.get_export_license(lid)  # type: ignore[return-value]
+
+    @staticmethod
+    def _export_license_row(row: sqlite3.Row) -> Dict[str, Any]:
+        lic = dict(row)
+        lic["case_ids"] = json.loads(lic.pop("case_ids_json", "[]") or "[]")
+        return lic
+
+    def get_export_license(self, license_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM export_licenses WHERE license_id = ?", (license_id,)
+            ).fetchone()
+        return self._export_license_row(row) if row else None
+
+    def license_record_ids(self, license_id: str) -> List[str]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT record_id FROM export_license_records WHERE license_id = ? "
+                "ORDER BY record_id", (license_id,)
+            ).fetchall()
+        return [r["record_id"] for r in rows]
+
+    def list_export_licenses(
+        self,
+        *,
+        exclusivity: Optional[str] = None,
+        buyer_key: Optional[str] = None,
+        export_id: Optional[str] = None,
+        active_only: bool = False,
+        now: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        clauses, params = [], []
+        if exclusivity:
+            clauses.append("exclusivity = ?")
+            params.append(exclusivity)
+        key = self.normalize_buyer_key(buyer_key)
+        if key:
+            clauses.append("buyer_key = ?")
+            params.append(key)
+        if export_id:
+            clauses.append("export_id = ?")
+            params.append(export_id)
+        if active_only:
+            clauses.append("status = 'active'")
+            clauses.append("(expires_at IS NULL OR expires_at > ?)")
+            params.append(now or _utcnow_iso())
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM export_licenses {where} ORDER BY created_at DESC", tuple(params)
+            ).fetchall()
+        return [self._export_license_row(r) for r in rows]
+
+    def release_export_license(
+        self, license_id: str, *, released_by: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """End a commitment early. The row and its record membership are KEPT, not
+        deleted: what we promised and when we stopped promising it is the evidence
+        a contract dispute turns on, and a deleted row proves nothing."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE export_licenses SET status = 'released', released_at = ?, "
+                "released_by = ?, release_reason = ? WHERE license_id = ? AND status = 'active'",
+                (_utcnow_iso(), released_by, reason, license_id),
+            )
+        return self.get_export_license(license_id)
+
+    def exclusive_license_conflicts(
+        self,
+        record_ids: List[str],
+        *,
+        buyer_key: Optional[str] = None,
+        now: Optional[str] = None,
+        sample_size: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Live exclusive commitments held by SOMEONE ELSE over any of these records.
+
+        Empty when nothing is committed, when every overlapping commitment belongs
+        to ``buyer_key`` (a buyer re-taking delivery of their own data), or when the
+        overlapping commitments have been released or have expired."""
+        rids = [r for r in (record_ids or []) if r]
+        if not rids:
+            return []
+        key = self.normalize_buyer_key(buyer_key)
+        stamp = now or _utcnow_iso()
+        found: Dict[str, Dict[str, Any]] = {}
+        with self._conn() as conn:
+            # SQLite caps a statement at 999 bound variables and a batch can carry
+            # far more records than that, so the IN list is chunked rather than
+            # built in one shot.
+            for start in range(0, len(rids), 400):
+                chunk = rids[start:start + 400]
+                placeholders = ",".join("?" for _ in chunk)
+                sql = (
+                    "SELECT l.*, r.record_id AS overlap_record_id "
+                    "FROM export_license_records r "
+                    "JOIN export_licenses l ON l.license_id = r.license_id "
+                    f"WHERE r.record_id IN ({placeholders}) "
+                    "AND l.exclusivity = 'exclusive' AND l.status = 'active' "
+                    "AND (l.expires_at IS NULL OR l.expires_at > ?)"
+                )
+                params: List[Any] = list(chunk) + [stamp]
+                if key:
+                    sql += " AND l.buyer_key != ?"
+                    params.append(key)
+                for row in conn.execute(sql, tuple(params)).fetchall():
+                    rec = dict(row)
+                    overlap_rid = rec.pop("overlap_record_id")
+                    entry = found.setdefault(rec["license_id"], {
+                        "license_id": rec["license_id"],
+                        "export_id": rec["export_id"],
+                        "buyer_key": rec["buyer_key"],
+                        "buyer_label": rec["buyer_label"],
+                        "expires_at": rec["expires_at"],
+                        "note": rec["note"],
+                        "created_at": rec["created_at"],
+                        "overlap_count": 0,
+                        "overlap_sample": [],
+                    })
+                    entry["overlap_count"] += 1
+                    if len(entry["overlap_sample"]) < sample_size:
+                        entry["overlap_sample"].append(overlap_rid)
+        return sorted(found.values(), key=lambda e: e["license_id"])
+
     # ─── Stats (admin dashboard, PRD §7.6) ────────────────────────────────────
     def status_counts(self) -> Dict[str, int]:
         with self._conn() as conn:
@@ -7859,8 +8886,10 @@ class AsclepiusStore:
     def evaluator_self_stats(self, evaluator_id: str) -> Dict[str, Any]:
         """Real, personal counts for the dashboard's own tracking widget: total
         cases this evaluator has completed, how many in the last 7 days, and
-        when they last submitted one. No earnings/streak data exists anywhere
-        in this schema, so this stays limited to what's actually true."""
+        when they last submitted one. No earnings data exists anywhere in this
+        schema, so this stays limited to what's actually true. The day streak
+        is real but is not stored either; ``current_day_streak`` derives it
+        from submission timestamps at read time."""
         week_cutoff = (datetime.utcnow().replace(microsecond=0) - timedelta(days=7)).isoformat()
         with self._conn() as conn:
             total = conn.execute(
@@ -10940,6 +11969,236 @@ class AsclepiusStore:
             )
         return self.get_hs_payout(payout_id)
 
+    # ─── The accrual ledger: what a health system is owed ────────────────────
+    def set_health_system_data_rate(
+        self, hs_id: str, *, rate_cents: Optional[int], set_by: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Agree a price per accepted upload for one organization.
+
+        ``None`` clears it back to not priced. Nothing already accrued moves:
+        every ledger row carries its own stamped rate, so this decides what the
+        next accepted upload is worth and nothing about what a settled one was.
+        """
+        if rate_cents is not None and int(rate_cents) < 0:
+            raise ValueError("A rate cannot be negative.")
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE health_systems SET data_rate_cents = ?, data_rate_set_by = ?, "
+                "data_rate_set_at = ? WHERE hs_id = ?",
+                (None if rate_cents is None else int(rate_cents), set_by,
+                 _utcnow_iso(), hs_id),
+            )
+        return self.get_health_system(hs_id)
+
+    def insert_hs_accrual(
+        self, *, accrual_id: str, hs_id: str, ref_kind: str, ref_id: str,
+        rate_cents: int, amount_cents: int, accrued_at: str,
+        description: Optional[str] = None, currency: str = "usd",
+    ) -> Optional[Dict[str, Any]]:
+        """Write one ledger row. Returns None when
+        ``UNIQUE(hs_id, ref_kind, ref_id)`` already holds one.
+
+        The caller learns "already accrued" without an exception and without a
+        check-then-insert race in between, which is what lets reconciliation be
+        safe to run on every read of the payouts page.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO hs_accruals "
+                "(accrual_id, hs_id, ref_kind, ref_id, rate_cents, amount_cents, "
+                " currency, status, description, accrued_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 'accrued', ?, ?)",
+                (accrual_id, hs_id, ref_kind, ref_id, int(rate_cents),
+                 int(amount_cents), currency, description, accrued_at),
+            )
+            if cur.rowcount == 0:
+                return None
+        return self.get_hs_accrual_for_ref(hs_id=hs_id, ref_kind=ref_kind, ref_id=ref_id)
+
+    def get_hs_accrual(self, accrual_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM hs_accruals WHERE accrual_id = ?",
+                               (accrual_id,)).fetchone()
+        return dict(row) if row else None
+
+    def get_hs_accrual_for_ref(self, *, hs_id: str, ref_kind: str,
+                               ref_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_accruals WHERE hs_id = ? AND ref_kind = ? AND ref_id = ?",
+                (hs_id, ref_kind, ref_id)).fetchone()
+        return dict(row) if row else None
+
+    def list_hs_accruals(self, hs_id: str, *, status: Optional[str] = None,
+                         limit: int = 500) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM hs_accruals WHERE hs_id = ?"
+        params: List[Any] = [hs_id]
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        sql += " ORDER BY accrued_at DESC, accrual_id DESC LIMIT ?"
+        params.append(int(limit))
+        with self._conn() as conn:
+            return [dict(r) for r in conn.execute(sql, tuple(params)).fetchall()]
+
+    def hs_accrued_upload_ids(self, hs_id: str) -> set:
+        """Every upload this organization already has a ledger row for, voided
+        rows included. A voided row is a DECISION not to pay for that upload, so
+        reconciliation must not read its absence from the live set as work it
+        has not noticed yet and write the row back."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT ref_id FROM hs_accruals WHERE hs_id = ? AND ref_kind = 'upload'",
+                (hs_id,)).fetchall()
+        return {r["ref_id"] for r in rows}
+
+    def hs_accrual_summary(self, hs_id: str) -> Dict[str, Any]:
+        """What is owed, what is billed, and what has cleared.
+
+        Voided rows are absent from every figure rather than netted out of one,
+        the same rule ``hs_payout_summary`` follows: a cancelled entry is not a
+        negative payment, and no number a partner reads should have an invisible
+        correction folded into it.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT status, COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS cents "
+                "FROM hs_accruals WHERE hs_id = ? GROUP BY status", (hs_id,)).fetchall()
+        by = {r["status"]: (int(r["n"]), int(r["cents"])) for r in rows}
+        accrued_n, accrued_c = by.get("accrued", (0, 0))
+        invoiced_n, invoiced_c = by.get("invoiced", (0, 0))
+        settled_n, settled_c = by.get("settled", (0, 0))
+        return {
+            "accrued_cents": accrued_c, "accrued_count": accrued_n,
+            "invoiced_cents": invoiced_c, "invoiced_count": invoiced_n,
+            "settled_cents": settled_c, "settled_count": settled_n,
+            # What is still ours to pay, whether or not it has been billed yet.
+            "outstanding_cents": accrued_c + invoiced_c,
+            "count": accrued_n + invoiced_n + settled_n,
+        }
+
+    def attach_hs_accruals_to_invoice(
+        self, *, hs_id: str, invoice_id: str, invoiced_at: str,
+        accrual_ids: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Move open accruals onto one invoice, compare-and-set.
+
+        ``status = 'accrued' AND invoice_id IS NULL`` is carried in the UPDATE
+        rather than checked first, so two operators billing the same period
+        cannot both attach the same row and bill a hospital twice for it.
+        """
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            where = "hs_id = ? AND status = 'accrued' AND invoice_id IS NULL"
+            params: List[Any] = [hs_id]
+            if accrual_ids:
+                where += " AND accrual_id IN (%s)" % ",".join("?" * len(accrual_ids))
+                params.extend(accrual_ids)
+            candidates = [dict(r) for r in conn.execute(
+                f"SELECT * FROM hs_accruals WHERE {where}", params).fetchall()]
+            moved = []
+            for row in candidates:
+                cur = conn.execute(
+                    "UPDATE hs_accruals SET status = 'invoiced', invoice_id = ?, "
+                    "invoiced_at = ? WHERE accrual_id = ? AND status = 'accrued' "
+                    "  AND invoice_id IS NULL",
+                    (invoice_id, invoiced_at, row["accrual_id"]))
+                if cur.rowcount:
+                    moved.append(row)
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return moved
+
+    def settle_hs_accruals(
+        self, *, hs_id: str, settlement_ref: str, settled_at: str,
+        accrual_ids: Optional[List[str]] = None, invoice_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Record that a transfer against these accruals actually cleared.
+
+        This does NOT move money. It is the ledger's record that money moved,
+        which is the half that belongs here: for a counterparty this size the
+        transfer is a treasury operation, and ``settlement_ref`` is how the two
+        are reconciled afterwards.
+
+        ``settlement_ref`` is the IDEMPOTENCY KEY, not a label, and that is the
+        whole design. An operator double-submitting the settle form, or a job
+        that times out and retries, replays a no-op rather than settling a
+        second time. The guard is a compare-and-set inside one BEGIN IMMEDIATE
+        rather than a read followed by a hopeful write, so two concurrent
+        submits cannot interleave.
+
+        Returns counts, mirroring ``mark_earnings_paid``: a retry is the case
+        where ``settled`` is empty and ``already_in_ref`` is not.
+        """
+        ref = (settlement_ref or "").strip()
+        if not ref:
+            raise ValueError("A settlement reference is required.")
+        conn = self._conn()
+        try:
+            self._immediate(conn)
+            where = "hs_id = ?"
+            params: List[Any] = [hs_id]
+            if accrual_ids:
+                where += " AND accrual_id IN (%s)" % ",".join("?" * len(accrual_ids))
+                params.extend(accrual_ids)
+            if invoice_id:
+                where += " AND invoice_id = ?"
+                params.append(invoice_id)
+            candidates = [dict(r) for r in conn.execute(
+                f"SELECT * FROM hs_accruals WHERE {where}", params).fetchall()]
+            already = [r for r in candidates
+                       if r["status"] == "settled" and r["settlement_ref"] == ref]
+            settled = []
+            for row in candidates:
+                cur = conn.execute(
+                    "UPDATE hs_accruals SET status = 'settled', settled_at = ?, "
+                    "settlement_ref = ? WHERE accrual_id = ? "
+                    "  AND status IN ('accrued', 'invoiced') AND settlement_ref IS NULL",
+                    (settled_at, ref, row["accrual_id"]))
+                if cur.rowcount:
+                    settled.append(row)
+            conn.execute("COMMIT")
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
+        finally:
+            conn.close()
+        return {
+            "settlement_ref": ref,
+            "settled": settled,
+            "amount_cents": sum(int(r["amount_cents"]) for r in settled),
+            "already_in_ref": len(already),
+            "skipped": len(candidates) - len(settled) - len(already),
+        }
+
+    def void_hs_accrual(self, accrual_id: str, *, reason: str,
+                        by: str) -> Optional[Dict[str, Any]]:
+        """Cancel an accrual that should never have been written.
+
+        Compare-and-set on the pre-settlement states: money that has already
+        cleared is a fact, and a ledger that can void it retroactively is one
+        whose totals stop meaning anything.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_accruals SET status = 'void', void_reason = ?, voided_by = ?, "
+                "voided_at = ? WHERE accrual_id = ? AND status IN ('accrued', 'invoiced')",
+                (reason, by, _utcnow_iso(), accrual_id))
+            row = conn.execute("SELECT * FROM hs_accruals WHERE accrual_id = ?",
+                               (accrual_id,)).fetchone()
+        return dict(row) if row else None
+
     def void_hs_payout(self, payout_id: str, *, reason: str,
                        by: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -11091,6 +12350,106 @@ class AsclepiusStore:
     def latest_signed_agreement(self, hs_id: str) -> Optional[Dict[str, Any]]:
         rows = self.list_signed_agreements(hs_id)
         return rows[0] if rows else None
+
+    # ─── The physician contributor agreement (append-only; the DB enforces it) ─
+    def record_physician_agreement(
+        self, *, user_id: str, doc_version: str, doc_sha256: str,
+        typed_name: str, signed_initials: str, consent_esign: bool,
+        signer_email: Optional[str] = None, pdf_sha256: Optional[str] = None,
+        ip: Optional[str] = None, user_agent: Optional[str] = None,
+        attestations: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Insert one signature. There is no update counterpart, by design and by
+        trigger: a corrected agreement is a new document version and a new row,
+        and a physician signing v2 leaves their v1 row exactly where it was.
+
+        ``attestations`` snapshots the seven booleans AS THEY STOOD at signature.
+        They also live on ``users.attestations_json``, which is mutable and is
+        the live answer; this copy is the historical one. A physician who later
+        changes an answer must not silently change what their signed agreement
+        recorded, which is the whole reason the row is append-only."""
+        agreement_id = uuid.uuid4().hex
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO physician_agreements (agreement_id, user_id, doc_version, "
+                "doc_sha256, pdf_sha256, signer_email, typed_name, signed_initials, "
+                "ip, user_agent, signed_at, consent_esign, attestations_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (agreement_id, user_id, doc_version, doc_sha256, pdf_sha256,
+                 signer_email, typed_name, (signed_initials or "").strip().upper(),
+                 ip, (user_agent or "")[:400], now, 1 if consent_esign else 0,
+                 json.dumps(attestations or {})),
+            )
+        return self.get_physician_agreement(agreement_id)  # type: ignore[return-value]
+
+    def get_physician_agreement(self, agreement_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM physician_agreements WHERE agreement_id = ?",
+                (agreement_id,)).fetchone()
+        return dict(row) if row else None
+
+    def list_physician_agreements(self, user_id: str) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM physician_agreements WHERE user_id = ? "
+                "ORDER BY signed_at DESC, rowid DESC", (user_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def latest_physician_agreement(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """The most recent signature, which is the one supersession is judged on.
+
+        Ordered by ``signed_at`` then ``rowid``, so two signatures inside the
+        same second still resolve to the one that was actually written last."""
+        rows = self.list_physician_agreements(user_id)
+        return rows[0] if rows else None
+
+    # ─── Per-case clinical-validity attestation (Gap U2) ─────────────────────
+    def stamp_validity_attestation(
+        self, submission_id: str, *, attested: bool, agreement_version: Optional[str],
+        attested_at: Optional[str] = None,
+    ) -> None:
+        """Record that the labeler attested this case was clinically valid.
+
+        Written once, at submit, in the same request that created the row. It is
+        not an UPDATE anybody else calls: an attestation made later than the
+        label it covers is not the thing the agreement describes."""
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE submissions SET validity_attested = ?, validity_attested_at = ?, "
+                "validity_agreement_version = ?, updated_at = ? WHERE submission_id = ?",
+                (1 if attested else 0, attested_at or _utcnow_iso(),
+                 agreement_version, _utcnow_iso(), submission_id),
+            )
+
+    def record_validity_finding(
+        self, submission_id: str, *, finding: str, actor: str,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """An admin's determination about an attestation, after review.
+
+        ``finding`` is 'false' (the attestation was not true) or 'upheld' (it
+        was). Only 'false' has a payment consequence; 'upheld' exists so that
+        "somebody looked and it was fine" is recordable and distinguishable
+        from NULL, which means nobody has looked.
+
+        A FINDING IS NEVER MADE AGAINST A CASE THAT WAS NOT ATTESTED. A case the
+        physician rejected, or one that predates this feature, has nothing to
+        be found false about, and letting an admin stamp one would produce an
+        unpaid case whose reason nobody can explain to its author."""
+        if finding not in ("false", "upheld"):
+            raise ValueError(f"unknown validity finding: {finding!r}")
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE submissions SET validity_finding = ?, validity_finding_at = ?, "
+                "validity_finding_by = ?, validity_finding_note = ?, updated_at = ? "
+                "WHERE submission_id = ? AND validity_attested = 1",
+                (finding, _utcnow_iso(), actor, note, _utcnow_iso(), submission_id),
+            )
+            if not cur.rowcount:
+                return None
+        return self.get_submission(submission_id)
 
     # ─── Invoices ────────────────────────────────────────────────────────────
     def create_hs_invoice(self, *, hs_id: str, period: str, amount_cents: int,
@@ -13593,6 +14952,13 @@ class AsclepiusStore:
                        s.task_id,
                        s.status,
                        s.created_at,
+                       -- Gap U2. Selected here rather than looked up per row in
+                       -- the sweep, because this query already runs on every
+                       -- Earnings page load and a per-row lookup would put a
+                       -- second walk of a physician's submissions inside their
+                       -- page render, which is the cost _quality_terms is
+                       -- carefully written to avoid.
+                       s.validity_finding,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = s.submission_id
                             OR cr.pair_sub_a   = s.submission_id
@@ -13633,6 +14999,11 @@ class AsclepiusStore:
                        e.user_id,
                        e.status,
                        e.rate_cents,
+                       -- Gap U2: a finding may land AFTER the row accrued, so the
+                       -- resolving pass has to see it too, not only the pass that
+                       -- writes the row.
+                       (SELECT s.validity_finding FROM submissions s
+                         WHERE s.submission_id = e.ref_id) AS validity_finding,
                        (SELECT GROUP_CONCAT(cr.verdict) FROM case_reviews cr
                          WHERE cr.submission_id = e.ref_id
                             OR cr.pair_sub_a   = e.ref_id

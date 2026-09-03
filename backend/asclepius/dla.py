@@ -199,8 +199,14 @@ def signable(*, organization: str, version: str = CURRENT_VERSION) -> Tuple[str,
 
 
 # ─── PDF ─────────────────────────────────────────────────────────────────────
-def _markdown_rows(text: str) -> List[Tuple[str, str]]:
+def markdown_rows(text: str) -> List[Tuple[str, str]]:
     """Flatten the markdown to ``(kind, line)`` rows for the PDF writer.
+
+    Public rather than private because the physician contributor agreement is
+    the same kind of document and prints through the same writer. A second copy
+    of this function would be a second way a signed record could come out
+    looking different from the screen, which is the one defect neither document
+    can have.
 
     A deliberately small subset: headings, horizontal rules, and paragraphs.
     The document is written to survive this -- no tables, no nested lists, no
@@ -301,7 +307,7 @@ def render_pdf(*, organization: str, version: str, signature: Dict[str, Any]) ->
         signer_title=str(signature.get("typed_title") or ""),
         signed_at=str(signature.get("signed_at") or ""),
     )
-    rows = _markdown_rows(body) + signature_rows(dict(signature, organization=organization))
+    rows = markdown_rows(body) + signature_rows(dict(signature, organization=organization))
     banner = (f"Archangel Health · Data Licensing Agreement {version} · "
               f"executed {str(signature.get('signed_at') or '')[:10]}")
     return pdf_render.render_text_pdf(rows, banner=banner)

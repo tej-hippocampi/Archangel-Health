@@ -46,11 +46,10 @@
        mounts the queue — but this file still loads first, because the two hash
        routes are the only way a physician can sit the calibration exam. -->
   <script src="/static/asclepius/onboarding.js" defer></script>
-  <!-- PRD-C admin sections — own files (§3.3 ownership), mounted by asclepius.js. -->
-  <script src="/static/asclepius/admin_physicians.js" defer></script>
-  <script src="/static/asclepius/admin_health.js" defer></script>
-  <script src="/static/asclepius/admin_export.js" defer></script>
-  <script src="/static/asclepius/admin_earnings.js" defer></script>
+  <!-- The four admin bundles used to load here, for every visitor. They are on
+       /asclepius/admin now (PRD-F R3): a physician was downloading roughly
+       3,600 lines of console code they could never run, and no script tag on
+       this page may reference admin_*.js again. -->
   <!-- Referral (PRD-REF) — defines window.ReferralSection, mounted by
        asclepius.js for sessions holding the 'refer' capability. -->
   <script src="/static/asclepius/referral.js" defer></script>

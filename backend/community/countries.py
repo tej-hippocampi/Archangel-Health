@@ -80,6 +80,48 @@ COUNTRIES: Dict[str, Country] = {
 DEFAULT_TIMEZONE = "America/New_York"
 
 
+#: The coarser grouping, for the specialty-crossed-with-region rooms. A
+#: neurologist in Lagos wants the other neurologists near enough that the
+#: guidelines, the drug availability and the conferences are the same
+#: conversation; #nigeria is often too few people for that and #neurology is
+#: the whole world.
+#:
+#: Deliberately NOT a strict continent list. The split that matters here is the
+#: one physicians already work in: the Gulf states practise together and read
+#: the same regulators, and South Asia is a different medical world from
+#: Southeast Asia however the atlas draws it.
+REGIONS: Dict[str, str] = {
+    "north-america": "North America",
+    "latin-america": "Latin America",
+    "europe": "Europe",
+    "africa": "Africa",
+    "middle-east": "the Middle East",
+    "south-asia": "South Asia",
+    "southeast-asia": "Southeast Asia",
+    "east-asia": "East Asia",
+    "oceania": "Oceania",
+}
+
+#: Country code to region. A country absent here has no region, so its
+#: physicians count towards no crossed room, which is the same "add it when
+#: someone needs it" rule the country list itself follows.
+REGION_BY_CODE: Dict[str, str] = {
+    "US": "north-america", "CA": "north-america",
+    "BR": "latin-america", "MX": "latin-america",
+    "GB": "europe", "IE": "europe", "DE": "europe", "FR": "europe",
+    "ES": "europe", "IT": "europe", "NL": "europe",
+    "EG": "africa", "NG": "africa", "KE": "africa", "GH": "africa",
+    "ZA": "africa",
+    "SA": "middle-east", "AE": "middle-east", "QA": "middle-east",
+    "KW": "middle-east",
+    "IN": "south-asia", "PK": "south-asia", "BD": "south-asia",
+    "LK": "south-asia",
+    "PH": "southeast-asia", "SG": "southeast-asia", "MY": "southeast-asia",
+    "JP": "east-asia",
+    "AU": "oceania", "NZ": "oceania",
+}
+
+
 def get(code: Optional[str]) -> Optional[Country]:
     return COUNTRIES.get((code or "").strip().upper())
 
@@ -87,6 +129,16 @@ def get(code: Optional[str]) -> Optional[Country]:
 def timezone_for(code: Optional[str]) -> str:
     country = get(code)
     return country.timezone if country else DEFAULT_TIMEZONE
+
+
+def region_for(code: Optional[str]) -> Optional[str]:
+    """The region slug a country belongs to, or None when it is unmapped."""
+    return REGION_BY_CODE.get((code or "").strip().upper())
+
+
+def region_name(slug: Optional[str]) -> Optional[str]:
+    """The display form, for a room description that reads like a sentence."""
+    return REGIONS.get((slug or "").strip().lower())
 
 
 def channel_defs(codes: Iterable[str]) -> List[Dict[str, object]]:

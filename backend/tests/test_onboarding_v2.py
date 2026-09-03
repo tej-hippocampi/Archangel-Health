@@ -415,7 +415,11 @@ async def test_no_mail_transport_stamps_nothing(client: TestClient, monkeypatch)
     import email_utils
     monkeypatch.setattr(email_utils, "is_email_transport_configured", lambda: False)
     ts = client.app.state.team_store
-    assert (await onboarding_nudge.sweep(ts)) == {"nudge": 0, "expiry": 0}
+    # Every kind reports zero, including the three post-submit ones: the
+    # transport check is one early return in front of all of them, so a
+    # deployment with no mail configured burns nobody's one nudge.
+    assert (await onboarding_nudge.sweep(ts)) == {
+        "nudge": 0, "expiry": 0, "credentials": 0, "practice": 0, "profile": 0}
     row = ts.get_health_system_by_id(hs_id)
     assert row["nudge_sent_at"] is None
     assert row["expiry_warned_at"] is None

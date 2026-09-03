@@ -311,7 +311,7 @@ def invite_url(code: Optional[str]) -> Optional[str]:
 def partner_url(code: Optional[str], landing_token: Optional[str]) -> str:
     """Where a referred health-system contact lands.
 
-    ``/partner`` already exists and is the right door: five questions that make
+    ``/partner`` already exists and is the right door: a short set of questions
     the intro call start from something real, then a booking. It is deliberately
     NOT the portal signup, a COO reading a forwarded introduction is not about
     to create an account or upload anything, and asking is how you lose them.

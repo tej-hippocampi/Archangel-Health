@@ -154,8 +154,8 @@
      predates the redesign. */
   function hero(h) {
     var ps = data.payout_structure || {};
-    var bounty = money(ps.referrer_bounty_cents || data.bounty_cents || 2500);
-    var bonus = money(ps.referee_bonus_cents || 5000);
+    var bounty = money(ps.referrer_bounty_cents || data.bounty_cents || 5000);
+    var bonus = money(ps.referee_bonus_cents || 2500);
     var earns = data.earns_bounty !== false;
 
     return h('div', { class: 'asc-ref-hero asc-card' },
@@ -543,11 +543,49 @@
       h('span', { class: 'asc-ref-fieldlabel' }, label), input);
   }
 
+  /* The direct path, and it comes FIRST.
+     A physician who is themselves connected to a health system does not need us
+     to write to anybody in their name. They need the interest form and a slot
+     in a calendar, which is the whole ask, and routing them through a
+     "tell us who to write to" form to reach it is a step that exists for our
+     convenience and not theirs. So both doors are open and this is the shorter
+     one; the compose-an-introduction form below is unchanged and is still the
+     right door for introducing someone else.
+     partner_url arrives on the funnel payload already (it is what the copyable
+     blurb below pastes), so this needs no new plumbing. It carries the
+     physician's referral code, which is what makes the introduction attributed
+     to them rather than anonymous. */
+  var HS_CALL_URL = 'https://calendly.com/aryaabhatia-berkeley/new-meeting';
+
+  function systemDirectBlock(h) {
+    var block = h('div', { class: 'asc-ref-direct' });
+    block.appendChild(h('div', { class: 'asc-ref-directline' },
+      'Connected to one yourself? Go straight to the interest form.'));
+    var row = h('div', { class: 'asc-ref-directrow' });
+    /* Classes written out literally rather than built from a variable: a
+       runtime-assembled class name is invisible to grep and to the stylesheet
+       scanner, which is the rule shareRow already follows above. */
+    if (data && data.partner_url) {
+      row.appendChild(h('a', {
+        class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-direct-link',
+        href: data.partner_url, target: '_blank', rel: 'noopener noreferrer',
+      }, 'Open the interest form'));
+    }
+    row.appendChild(h('a', {
+      class: 'asc-btn asc-btn-sm asc-btn-ghost asc-ref-direct-link',
+      href: HS_CALL_URL, target: '_blank', rel: 'noopener noreferrer',
+    }, 'Book a call'));
+    block.appendChild(row);
+    return block;
+  }
+
   function systemCol(h) {
     var col = h('div', { class: 'asc-ref-card asc-ref-col' });
     col.appendChild(h('div', { class: 'asc-ref-title' }, 'Introduce a health system'));
     col.appendChild(h('div', { class: 'asc-ref-pitch' },
       'Tell us who to write to and we write in your name.'));
+
+    col.appendChild(systemDirectBlock(h));
 
     col.appendChild(hsField(h, 'contact_name', 'Their name', 'James Okoye'));
     col.appendChild(hsField(h, 'contact_email', 'Their email',

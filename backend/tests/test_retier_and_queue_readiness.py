@@ -204,3 +204,38 @@ def test_the_ready_filter_says_what_it_is_hiding():
                       headers=A.headers_for(_admin(store))).json()
     assert body["ready"] is True
     assert body["total_unfiltered"] >= body["total"]
+
+
+# ─── The console actually reaching them ──────────────────────────────────────
+#
+# Everything above is an endpoint nobody could get to. A queue that reports
+# readiness on a payload no screen renders is the same as a queue that does not
+# report it, and this feature has already been shipped once as a backend nobody
+# could reach.
+import pathlib  # noqa: E402
+
+_ADMIN_JS = (pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
+             / "admin_physicians.js").read_text(encoding="utf-8")
+
+
+def test_the_console_asks_the_server_to_filter_rather_than_filtering_locally():
+    """The counts and the rows have to describe the same set. A client-side
+    filter shows four rows under a heading that says seven, which is the exact
+    reading an admin uses to decide whether anyone is waiting."""
+    assert "ready=true" in _ADMIN_JS
+    assert "/verify/queue?status=pending" in _ADMIN_JS
+
+
+def test_the_practice_case_and_readiness_reach_the_row_and_the_dossier():
+    """Both were on the payload and rendered nowhere."""
+    assert "practice_case" in _ADMIN_JS
+    assert "ready_for_review" in _ADMIN_JS
+    assert "first_attempt_pass" in _ADMIN_JS
+
+
+def test_the_console_can_retier_and_reads_the_candidate_list():
+    """A tier decided once at approval and never again was the gap. The
+    candidate list is loaded beside the control because it is advice about who
+    to look at, not a queue of promotions to work through."""
+    assert "/verify/retier/" in _ADMIN_JS
+    assert "/verify/retier-candidates" in _ADMIN_JS

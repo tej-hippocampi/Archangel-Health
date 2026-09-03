@@ -360,7 +360,7 @@ def test_restored_operator_metrics_are_on_the_page():
     their cards below" and then deleted them. QA pass rate, average agreement,
     flaw catch rate and Multimodal-in-queue appeared nowhere — and the tell was
     that sc/qpr/flaw/sumValues had become dead code."""
-    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    src = (_FRONTEND / "admin_shell.js").read_text(encoding="utf-8")
     body = src[src.index("async function renderMetricQuestions"):
                src.index("async function renderAdminMetrics")]
     for label in ("QA pass rate", "Flaw catch rate", "Avg agreement", "Multimodal in queue"):
@@ -374,7 +374,7 @@ def test_bucket_actions_deep_link_to_their_row():
     """C-5.2: the bucket buttons always passed their upload to openPipeline,
     which ignored the argument and just switched tabs — so [Review] and
     [Promote to task] dropped the operator into an unfiltered page."""
-    src = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+    src = (_FRONTEND / "admin_shell.js").read_text(encoding="utf-8")
     assert "openPipeline: (entry)" in src, "openPipeline still takes no argument"
     assert "pipelineFocus" in src
     health = (_FRONTEND / "admin_health.js").read_text(encoding="utf-8")

@@ -24,6 +24,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 _FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
 _PORTAL = _FRONTEND / "asclepius.js"
+# The two screens below live in different bundles now that the admin console has
+# its own page: the queue a physician sees is still the portal, and the promote
+# list an operator works is the console.
+_CONSOLE = _FRONTEND / "admin_shell.js"
 
 
 def _code(path: Path) -> str:
@@ -79,7 +83,7 @@ def test_the_dashboard_error_shows_the_servers_own_reason():
 
 # ─── c · brokering never sits next to a Promote button ────────────────────────
 def test_the_promote_list_has_no_live_button_for_brokering():
-    code = _code(_PORTAL)
+    code = _code(_CONSOLE)
     block = code[code.index("function renderPromoteList("):]
     block = block[:block.index("async function openPromoteReview(")]
     assert "promote_block" in block, (
@@ -96,7 +100,7 @@ def test_the_promote_list_has_no_live_button_for_brokering():
 def test_a_blocked_promote_button_states_its_reason_in_the_page():
     """A disabled button with only a tooltip is a dead end for anyone who does
     not hover it — which is how the specialty 409 stayed unresolvable."""
-    code = _code(_PORTAL)
+    code = _code(_CONSOLE)
     block = code[code.index("function renderPromoteList("):]
     block = block[:block.index("async function openPromoteReview(")]
     assert "asc-promote-block" in block

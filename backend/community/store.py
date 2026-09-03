@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import threading
 import uuid
@@ -88,7 +89,166 @@ DEFAULT_CHANNELS = [
         "post_policy": "all",
         "grp": "core",
     },
+    # The one room in the product that members cannot see. It exists because
+    # the team needs a daily habit of reading what is happening in medical AI,
+    # and a channel physicians can read is a channel the team writes for an
+    # audience instead of for itself. ``staff_only`` is enforced in
+    # ``visible_channels``, ``_require_message_access`` and the WS fan-out --
+    # three places, because a "hidden" channel that leaks through any one of
+    # them is not hidden.
+    {
+        "slug": "team-ai-spotlight",
+        "name": "team-ai-spotlight",
+        "description": "Archangel team only. One story a day on where AI in medicine is moving.",
+        "post_policy": "admin",
+        "grp": "core",
+        "staff_only": 1,
+    },
 ]
+
+
+#: How a specialty and a region are carried as one cohort value through the
+#: seeding call and the member counts. One string rather than a tuple because
+#: it travels through JSON, a set, and a SQL parameter on the way.
+SPECIALTY_REGION_SEP = "|"
+
+
+def specialty_region_key(specialty: Optional[str], region: Optional[str]) -> str:
+    """The cohort key for one specialty in one region, or "" when incomplete.
+
+    Both halves are needed: a physician with no country has no region, and
+    counting them towards a crossed room would open a room they cannot be
+    found in.
+    """
+    spec = (specialty or "").strip().lower()
+    reg = (region or "").strip().lower()
+    if not spec or not reg:
+        return ""
+    return f"{spec}{SPECIALTY_REGION_SEP}{reg}"
+
+
+def specialty_region_channel_defs(keys: List[str]) -> List[Dict[str, Any]]:
+    """One channel per specialty-in-region cohort that has members.
+
+    The room the Sep 1 meeting asked for by name: #neurology-africa, so a
+    physician can find their own specialty near enough to be the same
+    conversation. It is a THIRD axis, not a replacement for either of the two
+    it crosses: #neurology stays the whole world and #nigeria stays every
+    specialty in one country.
+
+    Crossing every specialty with every region would be four times nine rooms
+    for a community this size, so nothing is created speculatively: a room
+    exists only when the caller passes a cohort that actually has members in
+    it, and it is hidden until it clears its own threshold, which is set
+    higher than the plain specialty and country thresholds because a crossed
+    room is a subset of two rooms that already exist.
+    """
+    from community.countries import region_name  # noqa: PLC0415 - config only
+
+    valid = {c["slug"] for c in specialty_channel_defs()}
+    out: List[Dict[str, Any]] = []
+    seen: List[str] = []
+    for raw in keys or ():
+        key = str(raw or "").strip().lower()
+        if SPECIALTY_REGION_SEP not in key:
+            continue
+        specialty, region = key.split(SPECIALTY_REGION_SEP, 1)
+        display = region_name(region)
+        # An unknown specialty or region produces nothing, which is the same
+        # rule the country and subspecialty lists follow.
+        if specialty not in valid or not display or key in seen:
+            continue
+        seen.append(key)
+        out.append({
+            "slug": f"{specialty}-{region}",
+            "name": f"{specialty}-{region}",
+            "description": (
+                f"{specialty.title()} in {display}: colleagues close enough that "
+                "the guidelines, the drug availability and the meetings worth "
+                "attending are the same conversation."
+            ),
+            "post_policy": "all",
+            "grp": "specialty_region",
+            "specialty": specialty,
+            "region": region,
+        })
+    return out
+
+
+def city_slug(raw: Optional[str]) -> str:
+    """The one canonical form of a self-reported practice city.
+
+    Free text, so "New York", "new york" and "New York, NY" have to become one
+    room rather than three. Lives here rather than at either call site because
+    the seeding path and the counting path (``router.member_map``) must agree
+    exactly: a city that seeds as ``new-york`` and counts as ``new-york-ny``
+    is a room that can never reach its threshold.
+
+    Accents are folded rather than stripped, so São Paulo is ``sao-paulo`` and
+    not ``s-o-paulo``.
+    """
+    import unicodedata  # noqa: PLC0415 - only this function needs it
+
+    text = str(raw or "").strip().lower()
+    if not text:
+        return ""
+    # A city typed as "Boston, MA" is the same room as "Boston".
+    text = text.split(",")[0].strip()
+    folded = "".join(
+        ch for ch in unicodedata.normalize("NFKD", text)
+        if not unicodedata.combining(ch)
+    )
+    return "-".join(part for part in re.split(r"[^a-z0-9]+", folded) if part)
+
+
+def reserved_channel_slugs() -> set:
+    """Slugs a city may never claim.
+
+    Singapore is both a country room and a city a physician types, and the
+    seeding UPSERT keys on slug: without this the city cohort would silently
+    rewrite the country channel's group and description.
+    """
+    from community.countries import COUNTRIES, REGIONS  # noqa: PLC0415 - config only
+    from community.subspecialties import SUBSPECIALTIES  # noqa: PLC0415 - config only
+
+    specialties = {c["slug"] for c in specialty_channel_defs()}
+    out = {c["slug"] for c in DEFAULT_CHANNELS}
+    out |= specialties
+    out |= {c.slug for c in COUNTRIES.values()}
+    out |= {s.slug for s in SUBSPECIALTIES}
+    # Every crossed room that COULD exist, not only the ones that do: a city
+    # room seeded today must not claim a slug a cohort could open tomorrow.
+    out |= {f"{s}-{r}" for s in specialties for r in REGIONS}
+    return out
+
+
+def city_channel_defs(cities: List[str]) -> List[Dict[str, Any]]:
+    """One channel per city that has members, from self-reported practice city.
+
+    Only the cities that have members, for the country-channel reason: a rail
+    of empty rooms is a directory, not a community.
+    """
+    reserved = reserved_channel_slugs()
+    out: List[Dict[str, Any]] = []
+    seen: List[str] = []
+    for raw in cities or ():
+        slug = city_slug(raw)
+        if not slug or slug in seen or slug in reserved:
+            continue
+        seen.append(slug)
+        out.append({
+            "slug": slug,
+            "name": slug,
+            "description": (
+                f"Colleagues practising in {slug.replace('-', ' ').title()}: who is "
+                "nearby, what is on locally, and which hospitals are actually "
+                "deploying this."
+            ),
+            "post_policy": "all",
+            "grp": "city",
+            "city": slug,
+        })
+    return out
 
 
 def specialty_channel_defs() -> List[Dict[str, Any]]:
@@ -212,6 +372,22 @@ class CommunityStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_cdm_a ON community_dms(user_a);
                 CREATE INDEX IF NOT EXISTS idx_cdm_b ON community_dms(user_b);
+                -- Conversation membership past two people (Task Pipeline PRD B1).
+                -- ``community_dms`` is strictly two-party by its own UNIQUE
+                -- constraint, and that constraint is load-bearing for ordinary
+                -- DMs, so a per-case room adds members here instead of widening
+                -- the parent row. ``removed_at`` rather than a DELETE: a member
+                -- taken off a case must stop being able to post while the
+                -- history they took part in stays readable to whoever is left.
+                CREATE TABLE IF NOT EXISTS community_dm_members (
+                    dm_id      TEXT NOT NULL,
+                    user_id    TEXT NOT NULL,
+                    added_at   TEXT NOT NULL,
+                    removed_at TEXT,
+                    PRIMARY KEY (dm_id, user_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_cdmmem_user
+                    ON community_dm_members(user_id, removed_at);
                 CREATE TABLE IF NOT EXISTS community_bans (
                     user_id TEXT PRIMARY KEY,
                     banned_by TEXT NOT NULL,
@@ -378,6 +554,26 @@ class CommunityStore:
                 )
             if "country" not in ch_cols:
                 conn.execute("ALTER TABLE community_channels ADD COLUMN country TEXT")
+            # The two cohort dimensions added after countries. Same shape and
+            # same rules: the value is the channel's own slug, the seeding call
+            # decides which exist, and visibility is counted at read time.
+            if "subspecialty" not in ch_cols:
+                conn.execute("ALTER TABLE community_channels ADD COLUMN subspecialty TEXT")
+            if "city" not in ch_cols:
+                conn.execute("ALTER TABLE community_channels ADD COLUMN city TEXT")
+            # The crossed rooms reuse the existing ``specialty`` column for
+            # their first half and carry the second here, so a crossed room and
+            # a plain specialty room are told apart by ``grp`` alone.
+            if "region" not in ch_cols:
+                conn.execute("ALTER TABLE community_channels ADD COLUMN region TEXT")
+            # Defaults to 0 so every channel that predates the column stays
+            # exactly as visible as it was. A migration that made anything
+            # staff-only by default would hide live rooms on deploy.
+            if "staff_only" not in ch_cols:
+                conn.execute(
+                    "ALTER TABLE community_channels "
+                    "ADD COLUMN staff_only INTEGER NOT NULL DEFAULT 0"
+                )
             msg_cols = cols("community_messages")
             if "kind" not in msg_cols:
                 conn.execute("ALTER TABLE community_messages ADD COLUMN kind TEXT")
@@ -398,36 +594,87 @@ class CommunityStore:
                     "ALTER TABLE community_email_prefs "
                     "ADD COLUMN activity_emails INTEGER NOT NULL DEFAULT 1"
                 )
+            # ─── Task Pipeline PRD B1: per-case group rooms ───────────────────
+            # Additive only. ``kind`` defaults to 'dm' so every existing row keeps
+            # the behaviour it already had without being rewritten, and the two
+            # new columns are nullable so the ALTER cannot fail on a populated
+            # production table.
+            dm_cols = cols("community_dms")
+            if "kind" not in dm_cols:
+                conn.execute(
+                    "ALTER TABLE community_dms ADD COLUMN kind TEXT NOT NULL DEFAULT 'dm'"
+                )
+            if "case_ref" not in dm_cols:
+                conn.execute("ALTER TABLE community_dms ADD COLUMN case_ref TEXT")
+            # The room's name. A two-party DM is titled by its peer; a room has no
+            # peer, so the name has to be stored rather than derived from the
+            # membership -- which changes on reassignment, and a conversation that
+            # renames itself when somebody is substituted is a different room to
+            # the person reading it.
+            if "title" not in dm_cols:
+                conn.execute("ALTER TABLE community_dms ADD COLUMN title TEXT")
+            # THE key that makes reassignment reuse the room instead of forking a
+            # second one (PRD D2). SQLite treats NULLs as distinct in a UNIQUE
+            # index, so every ordinary DM is exempt by carrying no case_ref.
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_cdm_case_ref "
+                         "ON community_dms(case_ref)")
+            # Backfill: existing two-party rows become member rows, so membership
+            # has ONE resolution path from here on rather than two that can
+            # disagree. INSERT OR IGNORE, so re-running the migration is free.
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO community_dm_members (dm_id, user_id, added_at)
+                SELECT id, user_a, created_at FROM community_dms WHERE kind = 'dm'
+                UNION ALL
+                SELECT id, user_b, created_at FROM community_dms WHERE kind = 'dm'
+                """
+            )
 
     # ─── Channels ─────────────────────────────────────────────────────────────
     def ensure_default_channels(
-        self, country_codes: Optional[List[str]] = None
+        self,
+        country_codes: Optional[List[str]] = None,
+        *,
+        subspecialties: Optional[List[str]] = None,
+        cities: Optional[List[str]] = None,
+        specialty_regions: Optional[List[str]] = None,
     ) -> None:
         """Idempotently seed the fixed channels (PRD §3 + Community v2): the
-        core set, one channel per enabled specialty, and one per country that
-        has members. A slug removed from the config is DEACTIVATED, never
-        deleted — its history stays in the DB and moderation/audit paths can
-        still resolve it.
+        core set, one channel per enabled specialty, and one per country,
+        subspecialty, city and specialty-in-region cohort that has members. A slug removed from the config
+        is DEACTIVATED, never deleted: its history stays in the DB and
+        moderation/audit paths can still resolve it.
 
-        ``country_codes`` comes from the caller because it is the one input
-        this module cannot compute: it lives on the asclepius plane, and
-        reaching across for it here would put a users query inside the
-        community store. Passing None means "leave the country channels as they
-        are", NOT "deactivate them" — a caller without the roster to hand must
-        not silently retire every country room.
+        The cohort arguments come from the caller because they are the inputs
+        this module cannot compute: they live on the asclepius plane, and
+        reaching across for them here would put a users query inside the
+        community store. Passing None for one means "leave those channels as
+        they are", NOT "deactivate them": a caller without the roster to hand
+        must not silently retire every country, subspecialty, city or crossed
+        room. They are independent, so a caller may hand over one and withhold
+        the rest.
         """
         from community.countries import channel_defs  # noqa: PLC0415 — config only
+        from community.subspecialties import (  # noqa: PLC0415 - config only
+            channel_defs as subspecialty_channel_defs,
+        )
 
-        country_channels = channel_defs(country_codes or [])
-        seeded = DEFAULT_CHANNELS + specialty_channel_defs() + country_channels
+        cohort_channels = (
+            channel_defs(country_codes or [])
+            + subspecialty_channel_defs(subspecialties or [])
+            + city_channel_defs(cities or [])
+            + specialty_region_channel_defs(specialty_regions or [])
+        )
+        seeded = DEFAULT_CHANNELS + specialty_channel_defs() + cohort_channels
         with self._conn() as conn:
             for pos, ch in enumerate(seeded):
                 conn.execute(
                     """
                     INSERT INTO community_channels
                         (id, slug, name, description, post_policy, position,
-                         specialty, grp, country, is_active, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                         specialty, grp, country, subspecialty, city,
+                         region, staff_only, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                     ON CONFLICT(slug) DO UPDATE SET
                         name = excluded.name,
                         description = excluded.description,
@@ -436,6 +683,10 @@ class CommunityStore:
                         specialty = excluded.specialty,
                         grp = excluded.grp,
                         country = excluded.country,
+                        subspecialty = excluded.subspecialty,
+                        city = excluded.city,
+                        region = excluded.region,
+                        staff_only = excluded.staff_only,
                         is_active = 1
                     """,
                     (
@@ -448,17 +699,31 @@ class CommunityStore:
                         ch.get("specialty"),
                         ch.get("grp") or "core",
                         ch.get("country"),
+                        ch.get("subspecialty"),
+                        ch.get("city"),
+                        ch.get("region"),
+                        1 if ch.get("staff_only") else 0,
                         _utcnow_iso(),
                     ),
                 )
             keep = [ch["slug"] for ch in seeded]
-            if country_codes is None:
-                # No roster in hand: leave existing country channels alone
-                # rather than retiring rooms whose members we simply did not
-                # look up on this call.
+            # No roster in hand for a dimension: leave its existing rooms alone
+            # rather than retiring rooms whose members we simply did not look
+            # up on this call.
+            withheld = [
+                grp for grp, arg in (
+                    ("country", country_codes),
+                    ("subspecialty", subspecialties),
+                    ("city", cities),
+                    ("specialty_region", specialty_regions),
+                ) if arg is None
+            ]
+            if withheld:
+                marks = ",".join("?" * len(withheld))
                 keep += [
                     r["slug"] for r in conn.execute(
-                        "SELECT slug FROM community_channels WHERE grp = 'country'"
+                        f"SELECT slug FROM community_channels WHERE grp IN ({marks})",
+                        withheld,
                     ).fetchall()
                 ]
             qmarks = ",".join("?" * len(keep))
@@ -839,6 +1104,7 @@ class CommunityStore:
             raise ValueError("cannot open a conversation with yourself")
         a, b = sorted([user_x, user_y])
         dm_id = "dm-" + uuid.uuid4().hex[:16]
+        now = _utcnow_iso()
         with self._conn() as conn:
             # Race-safe get-or-create: two simultaneous opens both reach the
             # INSERT; ON CONFLICT DO NOTHING lets the loser fall through to
@@ -846,12 +1112,128 @@ class CommunityStore:
             conn.execute(
                 "INSERT INTO community_dms (id, user_a, user_b, created_at) VALUES (?, ?, ?, ?) "
                 "ON CONFLICT(user_a, user_b) DO NOTHING",
-                (dm_id, a, b, _utcnow_iso()),
+                (dm_id, a, b, now),
             )
             row = conn.execute(
                 "SELECT * FROM community_dms WHERE user_a = ? AND user_b = ?", (a, b)
             ).fetchone()
+            # Mirrored into the members table so a two-party DM opened after the
+            # migration resolves the same way a backfilled one does. The columns
+            # stay authoritative for two-party rows (``dm_participants`` reads
+            # them first), so this is redundancy for listing, never for privacy.
+            self._add_members(conn, row["id"], [a, b], now)
         return dict(row)
+
+    # ─── Per-case group rooms (Task Pipeline PRD B1-B7) ───────────────────────
+    #: ``community_dms.kind`` for a routed-case room. Everything else is 'dm'.
+    ROOM_KIND = "case_room"
+
+    @staticmethod
+    def _add_members(conn: sqlite3.Connection, dm_id: str,
+                     user_ids: List[str], now: str) -> None:
+        """Add (or un-remove) members inside an open transaction.
+
+        Re-adding somebody who was removed clears ``removed_at`` and keeps the
+        original ``added_at``: they are rejoining the conversation they were
+        already part of, and rewriting the join date would lose that."""
+        for uid in user_ids:
+            if not uid:
+                continue
+            conn.execute(
+                "INSERT INTO community_dm_members (dm_id, user_id, added_at, removed_at) "
+                "VALUES (?, ?, ?, NULL) "
+                "ON CONFLICT(dm_id, user_id) DO UPDATE SET removed_at = NULL",
+                (dm_id, uid, now),
+            )
+
+    def get_or_create_case_room(
+        self, case_ref: str, participant_ids: List[str], *,
+        title: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """The room for one routed case, keyed on ``case_ref`` (PRD D2).
+
+        Keyed on the CASE and not the member set, so a substitution posts into
+        the same room rather than forking a second one and stranding the
+        history. Race-safe on the ``case_ref`` unique index, the same ON CONFLICT
+        shape ``get_or_create_dm`` uses on ``(user_a, user_b)``.
+
+        The returned row carries ``created``: True only for the caller that
+        actually wrote the row, so the bot's introduction is posted once however
+        many sends reference the same case.
+
+        ``user_a``/``user_b`` are NOT NULL columns from the two-party era and are
+        filled with the room's own id. A room has no two parties -- its
+        membership is the members table -- and a room id can never equal a user
+        id, so the legacy UNIQUE (user_a, user_b) constraint cannot collide with
+        a real pair.
+        """
+        ref = (case_ref or "").strip()
+        if not ref:
+            raise ValueError("a case room needs a case_ref")
+        room_id = "dm-" + uuid.uuid4().hex[:16]
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO community_dms "
+                "  (id, user_a, user_b, created_at, kind, case_ref, title) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(case_ref) DO NOTHING",
+                (room_id, room_id, room_id, now, self.ROOM_KIND, ref, title),
+            )
+            row = conn.execute(
+                "SELECT * FROM community_dms WHERE case_ref = ?", (ref,)
+            ).fetchone()
+            self._add_members(conn, row["id"], list(participant_ids or []), now)
+        out = dict(row)
+        out["created"] = (out["id"] == room_id)
+        return out
+
+    def get_case_room(self, case_ref: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM community_dms WHERE case_ref = ?",
+                ((case_ref or "").strip(),),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def room_participants(self, dm_id: str) -> List[str]:
+        """Current members of a room, oldest first. Removed members are absent."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT user_id FROM community_dm_members "
+                "WHERE dm_id = ? AND removed_at IS NULL ORDER BY added_at ASC, user_id ASC",
+                (dm_id,),
+            ).fetchall()
+        return [r["user_id"] for r in rows]
+
+    def add_room_participant(self, dm_id: str, user_id: str) -> None:
+        with self._conn() as conn:
+            self._add_members(conn, dm_id, [user_id], _utcnow_iso())
+
+    def remove_room_participant(self, dm_id: str, user_id: str) -> None:
+        """Take somebody off a room without taking the room off them.
+
+        Stamps ``removed_at`` rather than deleting: posting rights end here, and
+        the messages they were part of stay readable to everyone still on the
+        case, which is what makes the room an auditable record of the handoff.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE community_dm_members SET removed_at = ? "
+                "WHERE dm_id = ? AND user_id = ? AND removed_at IS NULL",
+                (_utcnow_iso(), dm_id, user_id),
+            )
+
+    def dm_participants(self, dm: Dict[str, Any]) -> List[str]:
+        """THE membership answer for any conversation row, room or two-party.
+
+        A two-party DM answers from its own columns rather than the members
+        table, so privacy on the oldest rows in the database never depends on a
+        backfill having run.
+        """
+        if (dm or {}).get("kind") == self.ROOM_KIND:
+            return self.room_participants(dm["id"])
+        return [u for u in (dm.get("user_a"), dm.get("user_b")) if u]
 
     def get_dm(self, dm_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -863,7 +1245,12 @@ class CommunityStore:
     def list_dms_for(self, user_id: str) -> List[Dict[str, Any]]:
         """The user's conversations, most-recent-activity first, each with the
         peer id, the last live message id/time, and the unread count (messages
-        past the user's read cursor, authored by the peer, not deleted)."""
+        past the user's read cursor, authored by somebody else, not deleted).
+
+        Rooms ride the same list (PRD B2): they are reached through the members
+        table and carry a ``title`` and ``participants`` instead of a peer, since
+        a room has three people and no one of them is the conversation's name.
+        """
         with self._conn() as conn:
             rows = conn.execute(
                 """
@@ -877,13 +1264,30 @@ class CommunityStore:
                          WHERE r.user_id = ? AND r.channel_id = d.id), 0) AS cursor
                 FROM community_dms d
                 WHERE d.user_a = ? OR d.user_b = ?
+                   OR EXISTS (SELECT 1 FROM community_dm_members mm
+                               WHERE mm.dm_id = d.id AND mm.user_id = ?
+                                 AND mm.removed_at IS NULL)
                 """,
-                (user_id, user_id, user_id),
+                (user_id, user_id, user_id, user_id),
             ).fetchall()
             out = []
             for r in rows:
                 d = dict(r)
-                d["peer_user_id"] = d["user_b"] if d["user_a"] == user_id else d["user_a"]
+                if d.get("kind") == self.ROOM_KIND:
+                    # No peer: naming one of three participants as "the" other
+                    # side would make the same room look like a different
+                    # conversation to each member.
+                    d["peer_user_id"] = None
+                    d["participants"] = [
+                        m["user_id"] for m in conn.execute(
+                            "SELECT user_id FROM community_dm_members "
+                            "WHERE dm_id = ? AND removed_at IS NULL "
+                            "ORDER BY added_at ASC, user_id ASC", (d["id"],)
+                        ).fetchall()
+                    ]
+                else:
+                    d["peer_user_id"] = (d["user_b"] if d["user_a"] == user_id
+                                         else d["user_a"])
                 unread_row = conn.execute(
                     "SELECT COUNT(*) AS n FROM community_messages "
                     "WHERE channel_id = ? AND id > ? AND deleted_at IS NULL AND author_user_id != ?",
@@ -1339,6 +1743,33 @@ class CommunityStore:
                 "SELECT * FROM community_content_items WHERE status = 'new' "
                 "AND fetched_at >= ? ORDER BY id ASC",
                 (cutoff,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def candidate_items_for_spotlight(
+        self, *, max_age_days: int = 7, limit: int = 40,
+    ) -> List[Dict[str, Any]]:
+        """The pool the daily staff spotlight picks its one story from.
+
+        ``skipped`` rows count, and that is the whole reason this is a separate
+        query. The news digest marks everything it did not publish as
+        ``skipped``, so a spotlight that only read ``status='new'`` would find
+        an empty pool on every day the digest happened to run first: the
+        spotlight would work or starve depending on the order two jobs fired
+        in, which is the kind of bug that looks like "quiet week".
+
+        Ranked by the relevance the digest's curation pass already scored, so
+        the story the team reads is the best one available rather than the
+        oldest.
+        """
+        cutoff = (datetime.utcnow() - timedelta(days=max(1, int(max_age_days)))) \
+            .replace(microsecond=0).isoformat() + "Z"
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM community_content_items "
+                "WHERE status IN ('new', 'skipped') AND fetched_at >= ? "
+                "ORDER BY COALESCE(relevance, 0) DESC, id DESC LIMIT ?",
+                (cutoff, max(1, int(limit))),
             ).fetchall()
         return [dict(r) for r in rows]
 
