@@ -8,8 +8,10 @@ never re-implements auth or PHI handling, it composes them.
 
 Every write that produces human-visible text (event bodies, poll questions and
 options, bookmark titles) is posted through the same PHI-gated paths as chat;
-pins reference already-scanned content. Realtime updates fan out over the shared
-WS hub (all channel-public → broadcast).
+pins reference already-scanned content. Realtime updates fan out through
+``router.broadcast_channel_event``, which is the shared WS hub scoped to the
+people the channel is visible to -- a staff-only room's contents must not ride
+the socket to every connected physician.
 """
 
 from __future__ import annotations
@@ -25,14 +27,13 @@ from community import events as cevents
 from community import phi_gate
 from community.schema import BookmarkIn, EventIn, PollIn, VoteIn
 from community.system_posts import post_system_message
-from community.ws import hub
 from ratelimit import rate_limiter
 
 # Reused from the core community router — no cycle (router.py never imports this).
 from community.router import (
     _audit, _cstore, _is_admin, _require_message_access, _serialize_messages,
-    _visible_channel_or_404, member_map, require_community_admin, require_member,
-    require_poster,
+    _visible_channel_or_404, broadcast_channel_event, channel_by_id, is_staff_user,
+    member_map, require_community_admin, require_member, require_poster,
 )
 
 log = logging.getLogger("community.social")
@@ -82,7 +83,7 @@ async def create_event(
 ):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(body.channel_slug, members)
+    channel = _visible_channel_or_404(body.channel_slug, members, user=admin)
 
     starts = _norm_iso_z(body.starts_at)
     ends = _norm_iso_z(body.ends_at) if body.ends_at else None
@@ -125,8 +126,8 @@ async def create_event(
     _audit(request, admin, "community.event_create", "ok",
            {"channel": channel["slug"], "event_id": event["id"]})
     out = _event_out(cstore, event, admin["id"])
-    await hub.broadcast({"type": "event.created", "event": out,
-                         "channel": channel["slug"]})
+    await broadcast_channel_event(
+        {"type": "event.created", "event": out, "channel": channel["slug"]}, channel)
     return out
 
 
@@ -137,7 +138,7 @@ async def list_events(
 ):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(channel_slug, members)
+    channel = _visible_channel_or_404(channel_slug, members, user=user)
     if scope not in ("upcoming", "past"):
         scope = "upcoming"
     rows = cstore.list_events(channel["id"], scope=scope)
@@ -165,8 +166,9 @@ async def rsvp_event(event_id: int, request: Request,
     _audit(request, user, "community.event_rsvp", "ok",
            {"event_id": event_id, "interested": interested})
     out = _event_out(cstore, event, user["id"])
-    await hub.broadcast({"type": "event.rsvp", "event_id": event_id,
-                         "rsvp_count": out["rsvp_count"]})
+    await broadcast_channel_event(
+        {"type": "event.rsvp", "event_id": event_id, "rsvp_count": out["rsvp_count"]},
+        channel_by_id(event.get("channel_id")))
     return out
 
 
@@ -180,7 +182,8 @@ async def cancel_event(event_id: int, request: Request,
     cstore.cancel_event(event_id)
     _audit(request, admin, "community.event_cancel", "ok", {"event_id": event_id})
     out = _event_out(cstore, cstore.get_event(event_id), admin["id"])
-    await hub.broadcast({"type": "event.updated", "event": out})
+    await broadcast_channel_event({"type": "event.updated", "event": out},
+                                  channel_by_id(event.get("channel_id")))
     return out
 
 
@@ -201,12 +204,23 @@ async def event_ics(event_id: int, user: Dict[str, Any] = Depends(require_member
 # ══════════════════════════════════════════════════════════════════════════════
 # POLLS
 # ══════════════════════════════════════════════════════════════════════════════
+def _poll_channel_or_404(poll: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
+    """The poll's channel, or a 404 for someone who cannot see that room.
+
+    A poll id is a small integer, so "you need the id to reach it" is not a
+    control. Without this a member could vote in the staff room and read the
+    question back out of the results payload.
+    """
+    channel = channel_by_id(poll.get("channel_id"))
+    if not channel or (channel.get("staff_only") and not is_staff_user(user)):
+        raise HTTPException(status_code=404, detail="Poll not found")
+    return channel
 @router.post("/polls", dependencies=[Depends(rate_limiter("community_poll", 20, 60))])
 async def create_poll(body: PollIn, request: Request,
                       user: Dict[str, Any] = Depends(require_poster)):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(body.channel_slug, members)
+    channel = _visible_channel_or_404(body.channel_slug, members, user=user)
     # An admin-post channel restricts top-level posts to admins — a poll IS a
     # top-level post, so honor the same gate.
     if channel["post_policy"] == "admin" and not _is_admin(user):
@@ -231,12 +245,13 @@ async def create_poll(body: PollIn, request: Request,
                                 body="📊 **Poll:** " + question, kind="poll")
     cstore.link_poll_message(poll["id"], msg["id"])
     posted = _serialize_messages([msg], members, channel["slug"], viewer_id=user["id"])[0]
-    await hub.broadcast({"type": "message.created", "message": posted})
+    await broadcast_channel_event({"type": "message.created", "message": posted}, channel)
 
     _audit(request, user, "community.poll_create", "ok",
            {"channel": channel["slug"], "poll_id": poll["id"], "message_id": posted["id"]})
     results = cstore.poll_results(poll["id"], viewer_id=user["id"])
-    await hub.broadcast({"type": "poll.updated", "message_id": posted["id"], "poll": results})
+    await broadcast_channel_event(
+        {"type": "poll.updated", "message_id": posted["id"], "poll": results}, channel)
     return {"poll": results, "message_id": posted["id"]}
 
 
@@ -248,6 +263,7 @@ async def vote_poll(poll_id: int, body: VoteIn, request: Request,
     poll = cstore.get_poll(poll_id)
     if not poll:
         raise HTTPException(status_code=404, detail="Poll not found")
+    channel = _poll_channel_or_404(poll, user)
     if poll.get("closed_at"):
         raise HTTPException(status_code=409, detail="This poll is closed")
     try:
@@ -255,8 +271,9 @@ async def vote_poll(poll_id: int, body: VoteIn, request: Request,
     except ValueError:
         raise HTTPException(status_code=400, detail="Unknown option")
     results = cstore.poll_results(poll_id, viewer_id=user["id"])
-    await hub.broadcast({"type": "poll.updated", "message_id": poll.get("message_id"),
-                         "poll": {**results, "your_vote": None}})
+    await broadcast_channel_event(
+        {"type": "poll.updated", "message_id": poll.get("message_id"),
+         "poll": {**results, "your_vote": None}}, channel)
     return results
 
 
@@ -267,6 +284,7 @@ async def close_poll(poll_id: int, request: Request,
     poll = cstore.get_poll(poll_id)
     if not poll:
         raise HTTPException(status_code=404, detail="Poll not found")
+    channel = _poll_channel_or_404(poll, user)
     if poll["created_by"] != user["id"] and not _is_admin(user):
         raise HTTPException(status_code=403, detail="Only the poll's author or an admin can close it")
     cstore.close_poll(poll_id)
@@ -275,8 +293,9 @@ async def close_poll(poll_id: int, request: Request,
     # your_vote is VIEWER-SPECIFIC — never fan it out (same guard as /vote).
     # Broadcasting the closer's choice both leaks it and makes every other
     # client render that option as its own selection.
-    await hub.broadcast({"type": "poll.updated", "message_id": poll.get("message_id"),
-                         "poll": {**results, "your_vote": None}})
+    await broadcast_channel_event(
+        {"type": "poll.updated", "message_id": poll.get("message_id"),
+         "poll": {**results, "your_vote": None}}, channel)
     return results
 
 
@@ -286,7 +305,8 @@ async def close_poll(poll_id: int, request: Request,
 async def _broadcast_pins(cstore, channel: Dict[str, Any]) -> List[Dict[str, Any]]:
     members = member_map()
     pins = _serialize_messages(cstore.list_pins(channel["id"]), members, channel["slug"])
-    await hub.broadcast({"type": "pins.updated", "channel": channel["slug"], "pins": pins})
+    await broadcast_channel_event(
+        {"type": "pins.updated", "channel": channel["slug"], "pins": pins}, channel)
     return pins
 
 
@@ -328,7 +348,7 @@ async def unpin_message(message_id: int, request: Request,
 async def list_pins(slug: str, user: Dict[str, Any] = Depends(require_member)):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(slug, members)
+    channel = _visible_channel_or_404(slug, members, user=user)
     pins = _serialize_messages(cstore.list_pins(channel["id"]), members, channel["slug"])
     return {"channel": channel["slug"], "pins": pins}
 
@@ -356,13 +376,14 @@ async def add_bookmark(slug: str, body: BookmarkIn, request: Request,
         })
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(slug, members)
+    channel = _visible_channel_or_404(slug, members, user=user)
     bm = cstore.add_bookmark(channel_id=channel["id"], title=body.title.strip(),
                              url=body.url.strip(), added_by=user["id"])
     _audit(request, user, "community.bookmark_add", "ok",
            {"channel": channel["slug"], "bookmark_id": bm["id"]})
     out = _bookmark_out(bm)
-    await hub.broadcast({"type": "bookmark.added", "channel": channel["slug"], "bookmark": out})
+    await broadcast_channel_event(
+        {"type": "bookmark.added", "channel": channel["slug"], "bookmark": out}, channel)
     return out
 
 
@@ -381,7 +402,8 @@ async def remove_bookmark(bookmark_id: int, request: Request,
     slug = channel["slug"] if channel else None
     _audit(request, user, "community.bookmark_remove", "ok",
            {"channel": slug, "bookmark_id": bookmark_id})
-    await hub.broadcast({"type": "bookmark.removed", "channel": slug, "bookmark_id": bookmark_id})
+    await broadcast_channel_event(
+        {"type": "bookmark.removed", "channel": slug, "bookmark_id": bookmark_id}, channel)
     return {"ok": True, "id": bookmark_id}
 
 
@@ -389,7 +411,7 @@ async def remove_bookmark(bookmark_id: int, request: Request,
 async def list_bookmarks(slug: str, user: Dict[str, Any] = Depends(require_member)):
     cstore = _cstore()
     members = member_map()
-    channel = _visible_channel_or_404(slug, members)
+    channel = _visible_channel_or_404(slug, members, user=user)
     return {"channel": channel["slug"],
             "bookmarks": [_bookmark_out(b) for b in cstore.list_bookmarks(channel["id"])]}
 

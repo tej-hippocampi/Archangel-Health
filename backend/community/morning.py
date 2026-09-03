@@ -35,7 +35,7 @@ from zoneinfo import ZoneInfo
 from community import countries as ccountries
 from community import websearch
 from community.store import get_community_store
-from community.system_posts import post_system_message
+from community.system_posts import post_system_message, post_system_poll
 
 log = logging.getLogger("community.morning")
 
@@ -47,6 +47,11 @@ KIND_OPPORTUNITIES = "morning_opportunities"
 KIND_BRIEF = "morning_brief"
 KIND_DISCUSSION = "discussion_prompt"
 KIND_TOPIC = "channel_topic"
+#: The discussion post when it carries a poll. Deliberately the SAME kind a
+#: member poll uses, because the client renders the vote card off this value and
+#: a bot poll that rendered differently from a member poll would be a second
+#: poll widget to maintain.
+KIND_POLL = "poll"
 
 
 def enabled() -> bool:
@@ -302,7 +307,43 @@ async def _compose_opportunities(cstore: Any, scope: Scope) -> Optional[Dict[str
             "cards": [_card(i, meta_keys=("deadline",)) for i in items], "items": items}
 
 
+#: Every discussion poll carries this, so the poll never forecloses the
+#: conversation it exists to start. A physician whose actual answer is "none of
+#: these, and here is why" has somewhere to put it.
+DISCUSSION_ESCAPE_OPTION = "Something else, in the thread"
+
+
+def _poll_options(item: Dict[str, Any]) -> List[str]:
+    """The 2 to 4 stances the topic search proposed, cleaned and deduped.
+
+    Returns fewer than two when the search gave nothing usable, which is the
+    signal to post prose instead. A poll with one real option and an escape
+    hatch is not a question, it is a button.
+    """
+    raw = item.get("options")
+    if isinstance(raw, str):
+        raw = [raw]
+    out: List[str] = []
+    lowered = set()
+    for value in (raw or ()):
+        text = str(value or "").strip()[:120]
+        if not text or text.lower() in lowered:
+            continue
+        if text.lower() == DISCUSSION_ESCAPE_OPTION.lower():
+            continue
+        lowered.add(text.lower())
+        out.append(text)
+    return out[:4]
+
+
 async def _compose_discussion(cstore: Any, scope: Scope) -> Optional[Dict[str, Any]]:
+    """The weekly argument in #future-of-medical-ai, as a poll when it can be.
+
+    A prose prompt asks a room of busy physicians to write a paragraph before
+    anything is on the screen, and most weeks nobody goes first. A poll gives
+    them a one-tap way in and puts a running tally under the question, which is
+    what makes the thread underneath it worth opening.
+    """
     try:
         seen = [
             r.get("title") for r in cstore.new_content_items(max_age_days=60)
@@ -316,9 +357,20 @@ async def _compose_discussion(cstore: Any, scope: Scope) -> Optional[Dict[str, A
         return None
     item = items[0]
     prompt = str(item.get("prompt") or "").strip()
-    body = f"**{str(item.get('title') or 'This week').strip()}**\n\n{prompt}"
-    return {"body": body, "kind": KIND_DISCUSSION,
-            "cards": [_card(item, meta_keys=())], "items": items}
+    title = str(item.get("title") or "This week").strip()
+    body = f"**{title}**\n\n{prompt}"
+    composed: Dict[str, Any] = {
+        "body": body, "kind": KIND_DISCUSSION,
+        "cards": [_card(item, meta_keys=())], "items": items,
+    }
+    options = _poll_options(item)
+    if len(options) >= 2:
+        composed["kind"] = KIND_POLL
+        composed["poll"] = {
+            "question": prompt or title,
+            "options": options + [DISCUSSION_ESCAPE_OPTION],
+        }
+    return composed
 
 
 async def _compose_brief(cstore: Any, scope: Scope) -> Optional[Dict[str, Any]]:
@@ -379,12 +431,23 @@ async def run_scope(scope: Scope, *, force: bool = False) -> Dict[str, Any]:
             cstore.finish_digest_run(run_id, ok=True, items_posted=0)
             return {"scope": scope.key, "outcome": "quiet"}
 
-        message = await post_system_message(
-            channel_slug=scope.channel,
-            body=composed["body"],
-            kind=composed["kind"],
-            cards=composed["cards"],
-        )
+        poll = composed.get("poll")
+        if poll:
+            message = await post_system_poll(
+                channel_slug=scope.channel,
+                body=composed["body"],
+                question=poll["question"],
+                options=poll["options"],
+                kind=composed["kind"],
+                cards=composed["cards"],
+            )
+        else:
+            message = await post_system_message(
+                channel_slug=scope.channel,
+                body=composed["body"],
+                kind=composed["kind"],
+                cards=composed["cards"],
+            )
         if not message:
             # The PHI gate skips a system post silently by design. Silent is
             # wrong here: a morning that posted nothing because it was blocked
@@ -413,6 +476,15 @@ async def run_morning(*, only: Optional[str] = None, force: bool = False) -> Dic
         scopes = [s for s in scopes if s.key == only or s.channel == only]
     results = [await run_scope(s, force=force) for s in scopes]
     await ensure_channel_topics()
+    # Rides the morning tick rather than a scheduler of its own: it is one
+    # cheap idempotent check, and a second loop would be a second thing that
+    # can be off without anyone noticing.
+    try:
+        from community import webinars as _cwebinars  # noqa: PLC0415
+
+        await _cwebinars.ensure_upcoming()
+    except Exception:  # noqa: BLE001 - a missing webinar is not a failed morning
+        log.warning("[morning] webinar series refresh failed", exc_info=True)
     summary = {
         "ran": [r["scope"] for r in results if r["outcome"] == "posted"],
         "quiet": [r["scope"] for r in results if r["outcome"] == "quiet"],
@@ -426,13 +498,24 @@ async def run_morning(*, only: Optional[str] = None, force: bool = False) -> Dic
 
 
 def ensure_country_channels() -> None:
-    """Open a country's room once its physicians are here."""
-    try:
-        from main import _member_country_codes  # noqa: PLC0415
+    """Open a cohort's room once its physicians are here.
 
-        get_community_store().ensure_default_channels(_member_country_codes())
+    Named for countries because they came first; it now refreshes every cohort
+    dimension (country, subspecialty, city) on the same tick, since they all
+    answer the same question and all read the same roster.
+    """
+    try:
+        from main import _member_cohorts  # noqa: PLC0415
+
+        cohorts = _member_cohorts()
+        get_community_store().ensure_default_channels(
+            cohorts.get("countries"),
+            subspecialties=cohorts.get("subspecialties"),
+            cities=cohorts.get("cities"),
+            specialty_regions=cohorts.get("specialty_regions"),
+        )
     except Exception:  # noqa: BLE001
-        log.warning("[morning] country channel refresh failed", exc_info=True)
+        log.warning("[morning] cohort channel refresh failed", exc_info=True)
 
 
 # ─── Pinned topics ───────────────────────────────────────────────────────────
@@ -444,6 +527,16 @@ _TOPIC_BY_GROUP = {
     "specialty": ("What this room is for", "Your specialty: cases in the "
                   "abstract, literature worth reading, and the task work "
                   "specific to it. De-identified always."),
+    "subspecialty": ("What this room is for", "The narrower cut of your "
+                     "specialty: the literature, the referral patterns, and "
+                     "the AI being sold into it specifically."),
+    "city": ("What this room is for", "Colleagues in your city: who is nearby, "
+             "what is on locally, and which hospitals are actually deploying "
+             "this. Meeting in person is allowed."),
+    "specialty_region": ("What this room is for", "Your specialty, close "
+                         "enough to be the same conversation: the guidelines "
+                         "you actually follow, what your regulators say, and "
+                         "the meetings worth the flight."),
 }
 
 _TOPIC_BY_SLUG = {

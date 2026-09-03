@@ -6589,17 +6589,28 @@ async def startup_team_scheduler():
         _auth_logger.warning("[asclepius] verification agent failed to start", exc_info=True)
 
 
-def _member_country_codes() -> list:
-    """Countries where active evaluators actually practise.
+def _member_cohorts() -> Dict[str, Optional[list]]:
+    """Which countries, subspecialties and cities active evaluators are in.
 
-    Read on the asclepius plane and handed to the community store, which must
-    not query users itself. A failure here returns nothing, which leaves the
-    country channels exactly as they are rather than retiring them.
+    Read here on the asclepius plane and handed to the community store, which
+    must not query users itself. This is the ONLY place the roster is read for
+    channel seeding, so the three cohort dimensions cannot drift apart.
+
+    A failure returns None for every dimension, and None means "I did not look
+    them up" rather than "there are none": the store leaves those rooms alone.
+    Returning empty lists here would retire every country, subspecialty and
+    city channel the first time the users query hiccupped on boot.
     """
     try:
         from asclepius.store import get_store as _get_astore
 
-        codes = []
+        from community import countries as _ccountries
+        from community import store as _cstore_mod
+
+        codes: list = []
+        subspecialties: list = []
+        cities: list = []
+        crossed: list = []
         for user in _get_astore().list_users():
             if not user.get("active") or user.get("role") != "evaluator":
                 continue
@@ -6607,9 +6618,44 @@ def _member_country_codes() -> list:
                     or user.get("country_of_licensure") or "").strip().upper()
             if code and code not in codes:
                 codes.append(code)
-        return codes
+            city = (user.get("practice_city") or "").strip()
+            if city and city not in cities:
+                cities.append(city)
+            for raw in _user_subspecialties(user):
+                if raw not in subspecialties:
+                    subspecialties.append(raw)
+            # The crossed room is derived, never stored: one physician's
+            # specialty and their country's region are already known here, and
+            # a second stored field would be a second thing to keep true.
+            key = _cstore_mod.specialty_region_key(
+                user.get("specialty"), _ccountries.region_for(code))
+            if key and key not in crossed:
+                crossed.append(key)
+        return {"countries": codes, "subspecialties": subspecialties,
+                "cities": cities, "specialty_regions": crossed}
     except Exception:
-        _auth_logger.warning("[community] could not read member countries", exc_info=True)
+        _auth_logger.warning("[community] could not read member cohorts", exc_info=True)
+        return {"countries": None, "subspecialties": None, "cities": None,
+                "specialty_regions": None}
+
+
+def _user_subspecialties(user: Dict[str, Any]) -> list:
+    """One physician's free-text subspecialties, from the credential vault.
+
+    Empty for anyone without a credential row, which is the honest answer: a
+    subspecialty nobody has declared is a room nobody is in.
+    """
+    try:
+        from asclepius.store import get_store as _get_astore
+
+        if not user.get("id_hashed"):
+            return []
+        cred = _get_astore().get_contributor_credentials(user["id_hashed"]) or {}
+        raw = (cred.get("ship") or {}).get("subspecialties")
+        if isinstance(raw, str):
+            raw = [raw]
+        return [str(v).strip() for v in (raw or ()) if str(v or "").strip()]
+    except Exception:
         return []
 
 
@@ -6625,13 +6671,20 @@ async def startup_community():
         from community.router import resolve_member_for_notify as _resolve_member
 
         app.state.community_store = _get_cstore()
-        # Country channels exist for the countries that have members. The
-        # roster lives on the asclepius plane, so it is read here and passed
-        # in: the community store must not query users itself.
+        # Cohort channels exist for the countries, subspecialties and cities
+        # that have members. The roster lives on the asclepius plane, so it is
+        # read here and passed in: the community store must not query users
+        # itself.
         try:
-            app.state.community_store.ensure_default_channels(_member_country_codes())
+            _cohorts = _member_cohorts()
+            app.state.community_store.ensure_default_channels(
+                _cohorts.get("countries"),
+                subspecialties=_cohorts.get("subspecialties"),
+                cities=_cohorts.get("cities"),
+                specialty_regions=_cohorts.get("specialty_regions"),
+            )
         except Exception:
-            _auth_logger.warning("[community] country channel seeding failed", exc_info=True)
+            _auth_logger.warning("[community] cohort channel seeding failed", exc_info=True)
         _cnotify.start_digest_loop(resolve_member=_resolve_member)
         # Every gated loop below states which way its gate resolved, at INFO
         # for on and WARNING for off. An unset variable disabling a whole
@@ -6670,6 +6723,18 @@ async def startup_community():
                 "[community] morning routine loop NOT STARTED: COMMUNITY_MORNING_ENABLED "
                 "is unset or 0. #events, #research-and-opportunities and the "
                 "per-doctor morning email are all inactive.")
+        # The weekend webinar series. Silent by design without a join link,
+        # but silent-by-design still gets a line: an events channel with no
+        # recurring event in it looks exactly like a misconfiguration.
+        from community import webinars as _cwebinars
+        if _cwebinars.enabled():
+            _auth_logger.info(
+                "[community] weekend webinar series ACTIVE (%s, weekday=%d)",
+                _cwebinars.title(), _cwebinars.weekday())
+        else:
+            _auth_logger.warning(
+                "[community] weekend webinar series NOT ACTIVE: COMMUNITY_WEBINAR_URL "
+                "is unset, so no recurring event is created. Set it to the join link.")
         # The two dependencies whose absence is silent rather than loud: without
         # a model key the morning routine records a *successful* run with zero
         # items, and without email transport every send returns 0 sent.
@@ -6814,6 +6879,38 @@ async def internal_run_community_digest(
     return {**result, "ran_at": _utcnow_iso()}
 
 
+@app.post("/internal/community/run-spotlight", include_in_schema=False)
+async def internal_run_community_spotlight(
+    force: bool = False, authorization: Optional[str] = Header(None)
+):
+    """The daily staff-only AI spotlight.
+
+    One story a day into #team-ai-spotlight, picked from the pool the news
+    digest already fetched and scored. It also rides the content loop; this is
+    the hand-fire, and ``force`` skips the once-a-day ledger check.
+    """
+    _check_internal_auth(authorization)
+    from community import digest as _cdigest
+
+    result = await _cdigest.run_spotlight_digest(force=force)
+    return {**result, "ran_at": _utcnow_iso()}
+
+
+@app.post("/internal/community/run-webinars", include_in_schema=False)
+async def internal_run_community_webinars(authorization: Optional[str] = Header(None)):
+    """Top the recurring weekend webinar series back up.
+
+    Idempotent on (channel, title, start time), so calling it by hand after
+    changing the day or the join link is safe. Also runs on the morning tick;
+    this is the way to see the result without waiting for tomorrow.
+    """
+    _check_internal_auth(authorization)
+    from community import webinars as _cwebinars
+
+    result = await _cwebinars.ensure_upcoming()
+    return {**result, "ran_at": _utcnow_iso()}
+
+
 @app.post("/internal/community/run-morning", include_in_schema=False)
 async def internal_run_community_morning(
     only: Optional[str] = None,
@@ -6894,7 +6991,7 @@ async def internal_community_status(authorization: Optional[str] = Header(None))
 
     store = _cstore()
     runs: Dict[str, Any] = {}
-    for kind in ("news", "papers"):
+    for kind in ("news", "papers", "spotlight"):
         try:
             runs[kind] = {
                 "last_success_at": store.last_successful_run_at(kind),
