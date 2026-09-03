@@ -30,6 +30,7 @@ _RICH = {
     "languages": ["English", "Urdu"],
     "subspecialties": ["Interventional nephrology"],
     "practiceSettings": ["Academic medical centre"],
+    "practiceCity": "Boston",
     "yearsInActivePractice": 11,
     "residency": [{"program": "Mass General", "year": 2012}],
     "boardCertifications": [{"board": "ABIM", "subspecialty": "Nephrology", "active": True}],
@@ -143,6 +144,41 @@ def test_a_full_profile_reads_complete_and_asks_for_nothing():
     assert comp["complete"] is True
     assert comp["percent"] == 100
     assert comp["missing"] == []
+
+
+def test_residency_or_a_board_certification_satisfies_one_factor_not_two():
+    """Either is evidence that training finished, so holding one and not the
+    other is not a gap. Counting them separately would ask a physician for a
+    fellowship they never did, which is a meter that can never fill."""
+    store = A.fresh_store()
+    board_only = _doc(store, {"boardCertifications": [{"board": "ABIM"}]})
+    residency_only = _doc(store, {"residency": [{"program": "Mass General"}]})
+
+    for doc in (board_only, residency_only):
+        comp = client.get(_PROFILE, headers=A.headers_for(doc)).json()["completeness"]
+        assert "residency_or_board" not in [m["field"] for m in comp["missing"]]
+
+    bare = _doc(store, {})
+    bare_missing = [m["field"] for m in
+                    client.get(_PROFILE, headers=A.headers_for(bare)
+                               ).json()["completeness"]["missing"]]
+    assert "residency_or_board" in bare_missing
+
+
+def test_the_city_they_practise_in_is_read_back_and_counted():
+    """The city rooms in the community are built on this field, so a profile
+    that collects it and never reads it back leaves those rooms unjoinable and
+    the physician unable to see why."""
+    store = A.fresh_store()
+    doc = _doc(store, _RICH)
+    body = client.get(_PROFILE, headers=A.headers_for(doc)).json()
+    assert body["training_and_practice"]["practice_city"] == "Boston"
+
+    bare = _doc(store, {})
+    missing = [m["field"] for m in
+               client.get(_PROFILE, headers=A.headers_for(bare)
+                          ).json()["completeness"]["missing"]]
+    assert "practice_city" in missing
 
 
 def test_completeness_gates_nothing():

@@ -779,6 +779,7 @@ _PROFILE_DETAIL_KEYS: Tuple[Tuple[str, str], ...] = (
     ("residency", "residency"),
     ("fellowship", "fellowship"),
     ("practiceSettings", "practice_settings"),
+    ("practiceCity", "practice_city"),
     ("yearsInActivePractice", "years_in_active_practice"),
     ("clinicalHalfDaysPerMonth", "clinical_half_days_per_month"),
     ("structuredReviewExperience", "structured_review_experience"),
@@ -810,7 +811,9 @@ def _credentials_detail(creds: Dict[str, Any]) -> Dict[str, Any]:
 _COMPLETENESS_FIELDS: Tuple[Tuple[str, str], ...] = (
     ("languages", "the languages you practise in"),
     ("subspecialties", "your subspecialties"),
+    ("residency_or_board", "your residency or a board certification"),
     ("practice_settings", "the settings you practise in"),
+    ("practice_city", "the city you practise in"),
     ("years_in_active_practice", "your years in active practice"),
     ("avatar", "a profile photo"),
     ("specialty_niche", "your particular focus within your specialty"),
@@ -830,7 +833,14 @@ def _profile_completeness(row: Dict[str, Any], creds: Dict[str, Any]) -> Dict[st
     present: Dict[str, bool] = {
         "languages": bool(detail.get("languages")),
         "subspecialties": bool(detail.get("subspecialties")),
+        # Either satisfies it. Both are evidence of completed training, and a
+        # physician who holds one and not the other has not left a gap: asking
+        # for the missing one would be asking for something that does not
+        # exist, which is how a completeness meter turns into a reproach.
+        "residency_or_board": bool(detail.get("residency")
+                                   or detail.get("board_certifications")),
         "practice_settings": bool(detail.get("practice_settings")),
+        "practice_city": bool(str(detail.get("practice_city") or "").strip()),
         "years_in_active_practice": detail.get("years_in_active_practice") is not None,
         "avatar": bool(row.get("avatar_asset_sha")),
         "specialty_niche": bool((row.get("specialty_niche") or "").strip()),
@@ -3112,7 +3122,8 @@ async def my_stats(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
     case (drafts live client-side, never written here), so no status filter
     is needed.
 
-    Counts and dates only, and that is a rule rather than a current limitation.
+    Counts, dates and a day streak, and that is a rule rather than a current
+    limitation.
     This is the one work-history surface the physician themselves reads, so the
     moment a field here derives from grading, agreement or the contributor
     score it becomes the internal number wearing a chart. What somebody sees
@@ -3127,6 +3138,14 @@ async def my_stats(user: Dict[str, Any] = Depends(asc_auth.get_current_user)):
         # that cannot be built costs the panel, never the dashboard.
         log.exception("[asclepius] monthly submission counts failed for %s", user["id"])
         stats["monthly"] = []
+    try:
+        # Derived from submission timestamps at read time, never stored. A
+        # counter would be a second source of truth that disagrees with the
+        # history panel sitting next to it the first time a job misses.
+        stats["day_streak"] = store.current_day_streak(user["id"])
+    except Exception:
+        log.exception("[asclepius] day streak failed for %s", user["id"])
+        stats["day_streak"] = 0
     return stats
 
 

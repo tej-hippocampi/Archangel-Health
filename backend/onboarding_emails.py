@@ -1015,6 +1015,82 @@ def build_application_expiring_email(
                   body_html=body)
 
 
+def build_credentials_nudge_email(*, first_name: str, portal_url: str) -> str:
+    """The credentials half of the post-submit nudge, sent once ever.
+
+    An application with nothing to check it against cannot be reviewed at all,
+    so this is the one nudge where the reason is worth stating plainly: the
+    physician is not being chased for tidiness, they are waiting on a decision
+    that literally cannot be made yet. Same restraint as the pre-submit nudge:
+    one send, no countdown, no second chase.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1("We still need something to check.")
+        + _p(f"{_strong(_first_name(first_name))}, your application is with us, but "
+             "we have nothing on file to verify you against yet. A CV, or your NPI "
+             "or registration number, is all it takes.")
+        + _cta(portal_url, "Add my credentials")
+        + _p("Once that is there, one of us reviews your application personally.",
+             muted=True, small=True)
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="One thing missing from your application",
+                  body_html=body)
+
+
+def build_practice_case_nudge_email(*, first_name: str, portal_url: str) -> str:
+    """The practice-case half of the post-submit nudge, sent once ever.
+
+    Deliberately framed as the interesting part rather than as homework. It is
+    the only clinical judgment we get to see before deciding about somebody,
+    and it is also the thing most applicants enjoy, so the copy leads with what
+    it is instead of with the fact that it is outstanding.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1("Your practice case is waiting.")
+        + _p(f"{_strong(_first_name(first_name))}, there is one short case sitting in "
+             "your account. It takes about ten minutes, it is a real piece of "
+             "clinical reasoning rather than a form, and it is the part of your "
+             "application we read most closely.")
+        + _cta(portal_url, "Open my practice case")
+        + _p("No grade is published and there is no time limit on it.",
+             muted=True, small=True)
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="Your practice case is waiting",
+                  body_html=body)
+
+
+def build_profile_nudge_email(*, first_name: str, field_label: str,
+                              profile_url: str) -> str:
+    """ONE question about ONE missing profile field.
+
+    The single-question rule is the whole design and it is a rule about
+    restraint, not about layout. A list of gaps reads as a scorecard of what a
+    physician has failed to do; one question reads as a colleague asking
+    something specific, and it is answerable in the thirty seconds somebody
+    actually has. The scheduler enforces the rest of the discipline: each field
+    is asked about once ever, and nobody hears from us more than once a month.
+    """
+    asked = _scrub_dashes(field_label).strip().rstrip("?")
+    body = (
+        _eyebrow("Your profile")
+        + _h1("One quick question.")
+        + _p(f"{_strong(_first_name(first_name))}, would you add "
+             f"{html.escape(asked)} to your profile?")
+        + _p("It takes a moment, and it is what lets us route the right cases to "
+             "you rather than the average ones.")
+        + _cta(profile_url, "Add it to my profile")
+        + _p("Nothing on your profile is required, and none of it gates your work.",
+             muted=True, small=True)
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="One quick question about your profile",
+                  body_html=body)
+
+
 def build_application_submitted_email(*, full_name: str) -> str:
     """§4.3 — sent the moment an application is submitted.
 

@@ -1556,8 +1556,39 @@
     } catch (_) { /* network error — fall through to the normal boot sequence */ }
   }
 
+  // The emailed sign-in link lands here as ?signin=<token>. Same shape as the
+  // handoff above, and stripped from the address bar the same way: the token is
+  // single use and fifteen minutes long, but a URL sitting in a shared browser's
+  // history is a URL somebody pastes into a bug report.
+  async function consumeSigninLinkFromUrl() {
+    const url = new URL(window.location.href);
+    const token = (url.searchParams.get('signin') || '').trim();
+    if (!token) return;
+    url.searchParams.delete('signin');
+    const qs = url.searchParams.toString();
+    window.history.replaceState(null, '', url.pathname + (qs ? '?' + qs : '') + url.hash);
+    try {
+      const res = await fetch(API_BASE + '/auth/signin-link/exchange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token }),
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (data && data.token) {
+        state.token = data.token;
+        state.user = data.user || null;
+        try { localStorage.setItem(TOKEN_KEY, data.token); } catch (_) { /* ignore quota */ }
+        // An applicant who asked for this link means to be THIS account, not
+        // whichever clinical session the browser happens to hold.
+        try { localStorage.setItem(SUPPRESS_SSO_KEY, '1'); } catch (_) { /* ignore */ }
+      }
+    } catch (_) { /* network error: fall through to the normal boot sequence */ }
+  }
+
   async function boot() {
     await consumeHandoffFromUrl();
+    await consumeSigninLinkFromUrl();
     // 1) Resume an existing Asclepius session if the stored token is still valid.
     if (state.token) {
       try {
@@ -2100,6 +2131,46 @@
       },
     }, 'Forgot your password?');
 
+    // The applicant's door. Onboarding v2 deleted the password step, so an
+    // applicant who closes the tab before a decision holds no credential at
+    // all: without this, the only route back into their own practice case was
+    // to ask a person.
+    //
+    // Offered UNCONDITIONALLY, and that is a security decision rather than a
+    // layout one. The endpoint answers identically whether or not the address
+    // has an account and whether or not it has a password, so branching this
+    // control on account state would rebuild the enumeration oracle the
+    // endpoint was written to avoid: the presence of the button would answer
+    // the question the response refuses to.
+    const signinLink = h('button', {
+      type: 'button',
+      class: 'asc-linkish asc-login-signin-link',
+      onClick: async () => {
+        const addr = (emailInput && emailInput.value || '').trim();
+        if (!addr) {
+          errBox.classList.add('asc-login-notice');
+          errBox.textContent = 'Enter your email above first.';
+          errBox.removeAttribute('hidden');
+          return;
+        }
+        try {
+          const res = await fetch(API_BASE + '/auth/signin-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: addr }),
+          });
+          const data = await res.json().catch(() => null);
+          errBox.classList.add('asc-login-notice');
+          errBox.textContent = (data && data.message)
+            || 'If that email can be signed in this way, a link is on its way.';
+        } catch (_) {
+          errBox.classList.add('asc-login-notice');
+          errBox.textContent = 'Could not reach the server. Try again in a moment.';
+        }
+        errBox.removeAttribute('hidden');
+      },
+    }, 'Email me a sign in link');
+
     // New here? Until this existed the sign-in screen was a closed door: a
     // physician who had never signed up had no route anywhere from it, and the
     // only hint was a sentence telling them to contact an administrator. The
@@ -2118,7 +2189,7 @@
 
     const body = h('div', { class: 'asc-login-body' },
       form,
-      h('div', { class: 'asc-login-forgot' }, forgot),
+      h('div', { class: 'asc-login-forgot' }, forgot, signinLink),
       // Was "Board-certified clinician access only", which is narrower than
       // the policy and is the last thing a retired physician, a fellow, or a
       // doctor licensed outside the US reads before deciding they were not
@@ -8872,6 +8943,12 @@
       const total = s.total_cases != null ? s.total_cases : s.total;
       if (total != null) body.appendChild(profileRow('Cases completed', String(total)));
       if (s.last_7_days != null) body.appendChild(profileRow('Last 7 days', String(s.last_7_days)));
+      // Only when it is running. A permanent "Day streak 0" turns a count of
+      // what somebody did into a reproach for what they did not.
+      if (s.day_streak) {
+        body.appendChild(profileRow('Day streak',
+          String(s.day_streak) + (s.day_streak === 1 ? ' day' : ' days')));
+      }
       if (s.last_submission_at) {
         body.appendChild(profileRow('Most recent', String(s.last_submission_at).slice(0, 10)));
       }
