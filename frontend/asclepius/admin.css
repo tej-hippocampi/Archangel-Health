@@ -262,6 +262,15 @@
 }
 .asc-admin-out:hover, .asc-admin-signout:hover { opacity: 1; }
 
+/* The strip drops onto its own row when the bar cannot hold it: on a narrow
+   viewport by media query, and on ANY viewport when admin_shell.js measures the
+   strip overflowing (seven sections beside a long operator address). A
+   hidden-scrollbar strip that clips its last sections is not a fallback — it
+   is a section nobody can find. */
+.asc-admin-bar-inner.stacked { flex-wrap: wrap; padding-bottom: 6px; }
+.asc-admin-bar-inner.stacked .asc-admin-tabs { order: 3; flex-basis: 100%; }
+.asc-admin-bar-inner.stacked .asc-admin-who { margin-left: auto; }
+
 @media (max-width: 900px) {
   .asc-admin-bar-inner { flex-wrap: wrap; padding-bottom: 6px; }
   .asc-admin-tabs { order: 3; flex-basis: 100%; }

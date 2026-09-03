@@ -164,3 +164,153 @@ def test_live_routes_have_no_banner(sandbox_on):
         html = client.get(path).text
         assert "window.__REALM='sandbox'" not in html, path
         assert "b.id='ascRealmBanner'" not in html, path
+
+
+# ─── The masthead holds every section ────────────────────────────────────────
+# The first real sandbox sign-in found this: the tab strip is `overflow-x:
+# auto` with its scrollbar hidden, and a seventh tab beside the long
+# sandbox-admin address pushed Referrals and Sandbox off the right edge of a
+# laptop viewport with nothing on screen saying so. The console now measures
+# the strip and stacks it onto its own row when the bar cannot hold it. This
+# boots the REAL shell (admin.html + admin_shell.js + admin.css) in a real
+# engine over localhost, with the API stubbed at the network layer.
+def _serve_console(pages):
+    """A localhost server: ``pages`` (path → html) for the shells, and the
+    repo's ``frontend/`` tree under ``/static``. Returns (server, base_url)."""
+    import http.server
+    import threading
+
+    static_root = FRONTEND.parent
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, directory=str(static_root), **kw)
+
+        def translate_path(self, path):
+            path = path.split("?", 1)[0]
+            if path.startswith("/static/"):
+                path = path[len("/static"):]
+            return super().translate_path(path)
+
+        def do_GET(self):
+            html = pages.get(self.path.split("?", 1)[0])
+            if html is not None:
+                body = html.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            super().do_GET()
+
+        def log_message(self, *a):  # quiet
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+_ADMIN_ME = {"user_id": "u-sandbox-admin", "email": "sandbox-admin@archangelhealth.ai",
+             "role": "admin", "name": "Sandbox Admin"}
+_STATUS = {"realm": "sandbox", "enabled": True, "admin_email": _ADMIN_ME["email"],
+           "seeded": True, "physicians": 10, "outbox": 0, "doctor_password_set": True}
+
+
+def _stub_api(route):
+    import json
+    url = route.request.url
+    if "/api/asclepius/auth/me" in url:
+        body = _ADMIN_ME
+    elif "/api/asclepius/sandbox/status" in url:
+        body = _STATUS
+    else:
+        body = {}
+    route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+
+def _boot_console(browser, base, path, token_key, width):
+    page = browser.new_page(viewport={"width": width, "height": 900})
+    page.add_init_script(f"localStorage.setItem('{token_key}', 'test-token');")
+    page.route("**/api/**", _stub_api)
+    page.goto(base + path)
+    page.wait_for_selector(".asc-admin-tab", timeout=10000)
+    return page
+
+
+def _tab_labels(page):
+    # textContent, not innerText: the strip is upper-cased by CSS and the QA
+    # badge span rides inside the Tasks button.
+    return page.locator(".asc-admin-tab").evaluate_all("els => els.map(e => e.firstChild.textContent)")
+
+
+def _assert_every_tab_on_screen(page, width):
+    nav = page.locator(".asc-admin-tabs")
+    assert nav.evaluate("el => el.scrollWidth <= el.clientWidth"), "the strip still overflows"
+    for i in range(page.locator(".asc-admin-tab").count()):
+        box = page.locator(".asc-admin-tab").nth(i).bounding_box()
+        assert box is not None and box["x"] >= 0 and box["x"] + box["width"] <= width, (i, box)
+
+
+@pytest.mark.parametrize("width", [1280, 1440, 1920])
+def test_sandbox_console_shows_all_seven_tabs_on_a_laptop(sandbox_on, width):
+    pages = {"/sandbox/admin": client.get("/sandbox/admin").text}
+    srv, base = _serve_console(pages)
+    p, browser = _launch_browser()
+    try:
+        page = _boot_console(browser, base, "/sandbox/admin", "asclepius_token_sandbox", width)
+        assert _tab_labels(page) == ["Physicians", "Tasks", "Money and Metrics", "Data",
+                                     "Community", "Referrals", "Sandbox"]
+        _assert_every_tab_on_screen(page, width)
+        # The address is still on screen (it is not sacrificed to make room).
+        assert page.locator(".asc-admin-who-email").is_visible()
+        # And the section opens: the Sandbox tab is a working control.
+        page.locator(".asc-admin-tab", has_text=re.compile("Sandbox", re.I)).click()
+        assert "active" in page.locator(".asc-admin-tab").last.get_attribute("class")
+    finally:
+        browser.close()
+        p.stop()
+        srv.shutdown()
+
+
+def test_live_console_shows_all_six_tabs_and_no_sandbox_tab(sandbox_on):
+    pages = {"/asclepius/admin": client.get("/asclepius/admin").text}
+    srv, base = _serve_console(pages)
+    p, browser = _launch_browser()
+    try:
+        page = _boot_console(browser, base, "/asclepius/admin", "asclepius_token", 1280)
+        assert _tab_labels(page) == ["Physicians", "Tasks", "Money and Metrics", "Data",
+                                     "Community", "Referrals"]
+        _assert_every_tab_on_screen(page, 1280)
+    finally:
+        browser.close()
+        p.stop()
+        srv.shutdown()
+
+
+def test_masthead_restacks_on_resize(sandbox_on):
+    """Narrow → wide → narrow: the strip follows the space it has."""
+    pages = {"/sandbox/admin": client.get("/sandbox/admin").text}
+    srv, base = _serve_console(pages)
+    p, browser = _launch_browser()
+    try:
+        page = _boot_console(browser, base, "/sandbox/admin", "asclepius_token_sandbox", 1100)
+        _assert_every_tab_on_screen(page, 1100)
+        page.set_viewport_size({"width": 2200, "height": 900})
+        page.wait_for_timeout(100)
+        _assert_every_tab_on_screen(page, 2200)
+        # The bar is capped at 1180px, so seven tabs beside this address stack
+        # at any viewport. Shorten the address and the strip returns to the row.
+        page.locator(".asc-admin-who-email").evaluate("el => { el.textContent = 'a@b.c'; }")
+        page.evaluate("window.dispatchEvent(new Event('resize'))")
+        page.wait_for_timeout(50)
+        assert not page.locator(".asc-admin-bar-inner").evaluate("el => el.classList.contains('stacked')")
+        _assert_every_tab_on_screen(page, 2200)
+        page.set_viewport_size({"width": 1000, "height": 900})
+        page.wait_for_timeout(100)
+        _assert_every_tab_on_screen(page, 1000)
+    finally:
+        browser.close()
+        p.stop()
+        srv.shutdown()
