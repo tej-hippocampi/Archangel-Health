@@ -139,15 +139,20 @@ SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
 #: The community and the money surfaces were REMOVED from this set, and the
 #: distinction is worth stating because it is not "less access is safer".
 #:
-#: Community read and write are gone because an unvetted account posting under
-#: a physician identity, in rooms whose entire value is that everyone in them
-#: is a verified clinician, is exactly the exposure the review queue exists to
-#: prevent, and rejecting the application afterwards does not undo it: the
-#: colleagues have already read the post. Earnings are gone because there is
-#: nothing in that ledger for somebody who cannot yet draw a case, and the old
-#: argument for showing it, that the product otherwise looked empty on their
-#: first day, is now answered by the practice case, which is real work rather
-#: than a zero.
+#: Community read and write are still gone, and that decision has not moved.
+#: An unvetted account reading rooms whose entire value is that everyone in
+#: them is a verified clinician is exactly the exposure the review queue exists
+#: to prevent, and rejecting the application afterwards does not unread the
+#: messages. What an applicant is shown instead is a PREVIEW: the real
+#: community interface, rendered from a fixture, so they can see what they are
+#: applying to without a single real colleague or real message reaching an
+#: account nobody has checked. See asclepius/community_preview.py.
+#:
+#: EARNINGS came back, and only the READ came back. An applicant should be able
+#: to see how they will be paid before they decide whether to do the work: the
+#: page reads zero and zero is honest. Every endpoint that MOVES money is
+#: refused separately in asclepius_payments._require_money_movement, because a
+#: surface is not a permission to transact and this one was carrying both.
 #:
 #: Referral STAYS, and an earlier draft of this narrowing removed it, which was
 #: wrong. Nothing is paid any earlier for allowing it: the bounty has always
@@ -159,7 +164,7 @@ SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
 #: we would have been glad to send anyway.
 _BY_ACCESS: Dict[str, FrozenSet[str]] = {
     FULL: frozenset(SURFACES),
-    PROVISIONAL: frozenset({TUTORIAL, BROWSE, REFERRAL}),
+    PROVISIONAL: frozenset({TUTORIAL, BROWSE, REFERRAL, EARNINGS}),
     NONE: frozenset(),
 }
 

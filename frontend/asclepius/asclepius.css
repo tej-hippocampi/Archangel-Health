@@ -2480,12 +2480,14 @@ body.asc-sheet-open { overflow: hidden; }
    and the thing most likely to earn them something, so it is the only item
    carrying a fill at rest. A wash, not a solid: a green block would outrank
    Tasks, which is not the claim. */
-.asc-rail-item-referral {
-  background: var(--green-wash);
-  border-color: var(--green-line);
-  color: var(--green-deep);
-}
-.asc-rail-item-referral:hover { background: var(--green-wash); color: var(--green-deep); }
+/* THE RESTING FILL IS GONE, and only the resting fill.
+   Referral was washed green as "the tab that pays". Beside four plain tabs
+   that reads as the one needing attention, and for a physician waiting on
+   credentials it was the only tab they could act on, so the rail pointed them
+   at referring colleagues instead of at their own application. At rest it now
+   looks like every other tab, which is what it is.
+   The ACTIVE styling below stays: that green is the selected indicator, not a
+   claim about the tab, and the icon-only rules further down depend on it. */
 .asc-rail-item-referral.active {
   background: var(--green-wash);
   border-color: var(--green);

@@ -259,11 +259,17 @@
 
     const nav = document.getElementById('ascNav');
     clear(nav);
-    // Everyone gets a Dashboard tab so a doctor can return home from a case.
-    nav.appendChild(h('button', {
-      class: 'asc-nav-btn' + (state.view === 'home' ? ' active' : ''),
-      onClick: () => switchView('home'),
-    }, 'Dashboard'));
+    // TASKS AND DASHBOARD WERE THE SAME SCREEN UNDER TWO NAMES.
+    //
+    // A "Dashboard" button lived here and a "Tasks" item lived in the rail, and
+    // both called renderDashboardView(). A physician read that as two places,
+    // pressed both, and got the same page twice: the product looked like it had
+    // lost their work rather than like it had one home.
+    //
+    // The rail item stays, because the rail is where every other destination
+    // is. What is removed is the duplicate, and removing it is what surfaced
+    // the bug fixed in setPanel below: the header button was the only control
+    // that actually worked from inside a case.
     const isAdmin = state.user.role === 'admin' || state.user.role === 'qa_reviewer';
     if (isAdmin) {
       // Admin only. Evaluate opens a two-way chooser so an operator can see BOTH
@@ -529,6 +535,24 @@
     if (dest === 'tasks' && !sessionHasSurface('real_work')
         && !sessionHasSurface('tutorial')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
+    // TASKS FROM INSIDE A CASE.
+    //
+    // A physician in a case already has state.panel === 'tasks', so the
+    // early return below made the rail's Tasks button do nothing at all. The
+    // header's Dashboard button was masking it, and removing that duplicate is
+    // what made it reachable: the only way out of a case would have been the
+    // browser's Back button.
+    //
+    // Handled BEFORE the early return rather than by weakening it, so every
+    // other destination keeps its "already here, do not refetch" behaviour.
+    if (dest === 'tasks' && state.panel === 'tasks' && state.view !== 'home') {
+      saveDraft();
+      if (state.view === 'review') teardownReview();
+      state.view = 'home';
+      renderSidePanel();
+      renderDashboardView();
+      return;
+    }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     // Leaving the review surface for another rail destination is a no-work
     // transition: Agent P's beats must stop and the keyboard handler must come
@@ -625,9 +649,13 @@
   }
 
   //: The per-destination styling hook, written out rather than built from
-  //: item.dest. Referral is the only entry that currently uses one (it is the
-  //: tab that pays, and it is the green one); the rest are here so a grep for
-  //: a class finds it and the CSS scanner can see it emitted.
+  //: item.dest, so a grep for a class finds it and the CSS scanner sees it.
+  //:
+  //: Referral used to be filled green here, as "the tab that pays". Beside four
+  //: plain tabs that reads as the one that needs attention, and for a physician
+  //: waiting on credentials it was the ONLY tab they could act on, so the rail
+  //: pointed them at referring colleagues rather than at their own application.
+  //: The class stays wired; the fill is gone from the stylesheet.
   const RAIL_ITEM_CLASS = {
     tasks: 'asc-rail-item-tasks',
     community: 'asc-rail-item-community',
@@ -644,9 +672,19 @@
     // waiting on credentials is going to get these in a day or two, and hiding
     // them makes the product look empty at exactly the moment we are trying to
     // show them what they joined.
-    { dest: 'tasks',     label: 'Tasks', surface: 'real_work',
-      lockedHint: 'Opens when your credentials clear' },
-    { dest: 'community', label: 'Community', surface: 'community_read', external: true },
+    // TASKS is gated on `tutorial`, not on `real_work`. It is the way to the
+    // practice case and to the examination, which are the only things an
+    // applicant is asked to do, so locking it locked the one door we want them
+    // to walk through. What is behind it changes with access: an approved
+    // physician gets their case queue, an applicant gets the credentialing
+    // path. See renderDashboardView.
+    { dest: 'tasks',     label: 'Tasks', surface: 'tutorial' },
+    // COMMUNITY has no `surface` any more, so it never locks. An applicant is
+    // not admitted to the real rooms and that has not changed: they are sent to
+    // a PREVIEW instead, rendered from a fixture through this same interface,
+    // so they can see what they are applying to without a single real colleague
+    // or real message reaching an account nobody has checked yet.
+    { dest: 'community', label: 'Community', external: true },
     // Referral (PRD-REF). Gated on the SURFACE, which every live account holds
     // including one still under review. It used to gate on the 'refer'
     // capability, which comes from a tier, which is only assigned at approval —
@@ -951,7 +989,13 @@
         h('span', { class: 'asc-rail-ico', 'aria-hidden': 'true', html: RAIL_ICONS[item.dest] }),
         h('span', { class: 'asc-rail-label' }, item.label),
       ];
-      if (item.dest === 'community') children.push(communityBadgeEl());
+      if (item.dest === 'community' && sessionHasSurface('community_read')) {
+        children.push(communityBadgeEl());
+      }
+      if (sessionIsProvisional() && !isAdvisor()
+          && VIEW_ONLY_DESTS.indexOf(item.dest) !== -1) {
+        children.push(viewOnlyBadgeEl());
+      }
       if (item.locked) children.push(h('span', { class: 'asc-rail-lock', 'aria-hidden': 'true' }, '\u00b7'));
       nav.appendChild(h('button', {
         type: 'button',
@@ -1056,6 +1100,31 @@
 
   /* ── Community integration (Community PRD boundary; all endpoints optional) ── */
 
+  //: Which rail destinations are LOOK-ONLY while an application is under review.
+  //:
+  //: Not "locked". A locked tab says "you cannot go here"; these open, show the
+  //: real interface, and cannot be acted on. The distinction is the point of
+  //: the change: an applicant should be able to see what they are joining, and
+  //: a padlock on every tab told them nothing except to wait.
+  //:
+  //: Tasks is absent on purpose. The practice case and the examination ARE
+  //: their work, and marking the one tab they can act on "view only" would be
+  //: the exact opposite of true.
+  const VIEW_ONLY_DESTS = ['community', 'referral', 'earnings'];
+
+  function viewOnlyBadgeEl() {
+    // The full sentence goes in title/aria-label; the visible chip is two words
+    // because the icon-collapsed rail hides .asc-rail-label and a long chip
+    // would be clipped rather than read.
+    return h('span', {
+      class: 'asc-rail-badge asc-rail-badge-viewonly',
+      title: 'View only until your application is approved',
+      'aria-label': 'View only until your application is approved',
+    },
+      h('span', { class: 'dot dot-orange', 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-rail-badge-n' }, 'View only'));
+  }
+
   function communityBadgeEl() {
     const n = state.community.unread | 0;
     const badge = h('span', {
@@ -1080,6 +1149,15 @@
   // pre-minted handoff token, if we have one, rides along to skip a second login.
   // noopener per the integration contract.
   function openCommunity() {
+    // An account that cannot read the real community opens the PREVIEW: the
+    // same interface, rendered from a fixture, so an applicant can see what
+    // they are applying to. Sending them to the real page would open a tab
+    // that 403s, which is what used to happen from the dashboard's "Meet the
+    // community" button.
+    if (!sessionHasSurface('community_read')) {
+      window.open('/community?preview=1', '_blank', 'noopener');
+      return;
+    }
     const t = state.community.handoffToken;
     // Handoff codes are SINGLE-USE server-side: consume it here so a second
     // click inside the refresh window opens bare (same-origin session covers
@@ -1960,6 +2038,19 @@
   function firstRunMode() {
     if (!window.FirstRunWalkthrough || !state.user) return 'none';
     if (state.user.role !== 'evaluator' || isAdvisor()) return 'none';
+    // THE WELCOME PACKAGE IS FOR AN APPROVED COLLEAGUE.
+    //
+    // It is six stops of welcome letter, community, earnings and manual, and an
+    // applicant was walked through all of it on their first sign-in, before
+    // anybody had checked who they are. Half of it described things they cannot
+    // reach, and it buried the two things they actually have to do.
+    //
+    // Suppressing it here rather than in six places also closes the practice
+    // case's leave loop at the source: firstRunTourPending() reads this, and it
+    // was what pulled a physician straight back into the case they had just
+    // left. The package moves to approval, where it reads as a welcome instead
+    // of as an obstacle.
+    if (sessionIsProvisional()) return 'none';
     return window.FirstRunWalkthrough.mode(state.user);
   }
 
@@ -2709,11 +2800,91 @@
   // The landing surface after login: shows the cases this reviewer can pick right
   // now, a "start next case" CTA, or a reassuring empty state. It routes into the
   // EXISTING case flow (renderEvalView / the task workspace) without changing it.
+  /** Where an applicant is in the credentialing path.
+   *
+   *  Read off the session's tutorial blob, which the server projects with the
+   *  score and the pass flag stripped out: this decides which BUTTON to show,
+   *  and it must never be able to tell a physician how they did. That is the
+   *  admin's call and nobody else's.
+   */
+  function credentialingStage() {
+    const t = (state.user && state.user.tutorial) || {};
+    const exam = t.exam || {};
+    if (exam.state === 'submitted') return 'exam_submitted';
+    if (exam.state === 'in_progress') return 'exam_in_progress';
+    if (t.resources_seen_at) return 'exam_ready';
+    if (t.status === 'in_progress') return 'practice_in_progress';
+    return 'resources';
+  }
+
+  /** The one action on the credentialing dashboard.
+   *
+   *  For now it opens the practice case, which is the piece that exists. The
+   *  resources screen and the examination land on this same seam, so the
+   *  dashboard does not have to change again when they do.
+   */
+  function startCredentialing() {
+    // Never `replay`. Replay clears the saved draft, and this button is the
+    // one a physician presses to CONTINUE a practice case they left part way
+    // through, which is exactly the work that must survive.
+    startTutorial({ replay: false });
+  }
+
+  /** What an applicant sees where the case queue will be.
+   *
+   *  Before this they got the approved physician's dashboard with most of it
+   *  crossed out: a specialty header for cases they cannot draw, a review card,
+   *  queue errors from a /tasks/next call that is a guaranteed 403 for them,
+   *  and a "Meet the community" button that opened a tab and 403'd there too.
+   *
+   *  Three things now, and nothing else. Where their application stands, what
+   *  is being asked of them, and the one button that does it.
+   */
+  function renderCredentialingDashboard() {
+    const stage = credentialingStage();
+    const cta = {
+      resources: ['Start', 'Two short things before your examination.'],
+      practice_in_progress: ['Continue practice case', 'You left one part way through. It is where you left it.'],
+      exam_ready: ['Take my examination', 'The practice case is done. This is the one we read.'],
+      exam_in_progress: ['Resume my examination', 'Your answers are saved.'],
+      exam_submitted: ['Your examination is with us', 'Nothing more to do. We will email you either way.'],
+    }[stage] || ['Start', ''];
+
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
+        h('div', { class: 'chrome' }, 'YOUR APPLICATION'),
+        h('h2', {}, 'We are checking your credentials.'),
+        h('p', { class: 'asc-dim' },
+          'Usually one to two business days. You do not need to do anything for '
+          + 'that part, and we will email you either way.'),
+        // Said plainly and in one place, because "what is actually being asked
+        // of me" was the question the old screen never answered.
+        h('p', {},
+          'Before we can verify you there are two pieces of case work here: a '
+          + 'practice case, and one examination case in the real interface. The '
+          + 'practice case is optional and it is there to help. The examination '
+          + 'is the one we read.'),
+        h('button', {
+          class: 'asc-btn asc-btn-primary',
+          disabled: stage === 'exam_submitted' ? 'disabled' : null,
+          onClick: () => { if (stage !== 'exam_submitted') startCredentialing(); },
+        }, cta[0]),
+        cta[1] ? h('p', { class: 'asc-dim asc-small' }, cta[1]) : null)));
+  }
+
   async function renderDashboardView() {
     state.view = 'home';
     stopTimer();
     updateHeaderProgress();
     renderHeader();
+    // Before the queue fetch, which for an applicant is a guaranteed 403 and
+    // used to paint a "could not load your queue" error onto the one screen
+    // that is supposed to be telling them their application is fine.
+    if (sessionIsProvisional() && !isAdvisor()) {
+      renderSidePanel();
+      renderCredentialingDashboard();
+      return;
+    }
     // Default the flow so opening a case needs no picker: V3 + the doctor's own
     // specialty. Both stay changeable from the dashboard / header.
     state.portalChosen = true;

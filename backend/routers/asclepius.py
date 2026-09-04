@@ -1620,7 +1620,13 @@ def _bank_link_dark(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
     dependencies=[Depends(rate_limiter("asclepius_bank_link_start", 20, 600))],
 )
 async def start_bank_link(
-    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+    # An APPLICANT must not begin Stripe Connect onboarding. This was
+    # get_current_account, which admits anyone whose account is alive, so a
+    # physician nobody had verified could open a payout account against our
+    # Stripe platform. It was reachable before this change too; widening the
+    # earnings surface would have made it reachable from a page they can now
+    # see. require_full_access is the gate that means "approved".
+    user: Dict[str, Any] = Depends(asc_auth.require_full_access),
 ):
     """Begin (or resume) Stripe Connect Express onboarding for THIS physician.
 
@@ -1679,7 +1685,9 @@ async def start_bank_link(
 
 @router.get("/me/bank-link")
 async def get_bank_link(
-    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+    # Same gate as starting one, for the same reason: this reads live Stripe
+    # state for an account that should not exist yet.
+    user: Dict[str, Any] = Depends(asc_auth.require_full_access),
 ):
     """Where this physician's payouts stand, read live from Stripe.
 
@@ -1729,6 +1737,29 @@ async def get_bank_link(
     return {"ok": True, "bank_link_status": status, "connected": True, "live": True,
             **stripe_rail.account_public_state(account)}
 
+
+
+# ─── The community, for somebody who cannot see the community yet ────────────
+@router.get("/community/preview")
+async def community_preview(user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
+    """A fixture rendered through the real community interface.
+
+    An applicant waiting on a decision should be able to see what they are
+    applying to. They must not see the community itself: those rooms are worth
+    reading precisely because everyone in them is credential-verified, and
+    rejecting an application afterwards does not unread the messages. The
+    community's own gate refuses them and is untouched by this.
+
+    Served ONLY to an account that cannot reach the real thing. An approved
+    physician asking for this gets 404 rather than a fixture, because handing
+    a colleague invented conversations while the real room sits one tab away
+    is a way to make somebody doubt everything else on the screen.
+    """
+    from asclepius import community_preview as preview  # noqa: PLC0415
+
+    if asc_caps.can_surface(user, asc_caps.COMMUNITY_READ):
+        raise HTTPException(status_code=404, detail="Not found.")
+    return preview.preview_payload()
 
 # ─── Tutorial — Calibration Case 1 ───────────────────────────────────────────
 # The practice case is a fully VIRTUAL task: assembled in memory from

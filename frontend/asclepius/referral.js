@@ -51,8 +51,20 @@
   // identity. The form was rendered to everyone anyway, so a physician still
   // under review typed six fields and a consent tick to be refused on submit.
   // This mirrors the server's rule so the UI says the same thing the endpoint
-  // does. Only this half locks: the physician invite beside it IS available
-  // under review, and takes no notice of this flag.
+  // does.
+  //
+  // BOTH HALVES NOW LOCK, and that reverses an earlier decision, so it is worth
+  // saying why rather than deleting a sentence. The physician invite used to
+  // stay open under review, on the argument that nothing is paid any earlier
+  // for allowing it (the bounty waits on the referred person being verified
+  // with a case accepted) and that removing it costs the introduction itself,
+  // made in the most enthusiastic hour somebody will ever have about this
+  // place.
+  //
+  // The founders decided otherwise on a walkthrough: an account nobody has
+  // checked should be able to SEE the whole product and act on none of it,
+  // including this. An invitation carries our name and their claim to be one of
+  // our physicians, and that claim is the thing still being checked.
   var hsUnlocked = null;
 
   // WHICH button says "Copied", not WHETHER one does. There are four copy
@@ -227,8 +239,24 @@
   }
 
   /* ── Left: invite a physician ───────────────────────────────────────── */
+  function physicianColLocked(h, col) {
+    col.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'Your invite link opens when a person has approved your account. An '
+      + 'invitation carries our name and your word that you are one of our '
+      + 'physicians, and that is the part still being checked. It is usually '
+      + 'one to two business days.'));
+    return col;
+  }
+
   function physicianCol(h) {
     var col = h('div', { class: 'asc-ref-card asc-ref-col' });
+    // Same rule the health-system column uses, including the null case: an
+    // unknown standing renders the column the way it always did rather than
+    // locking somebody out on a failed read.
+    if (hsUnlocked === false) {
+      col.appendChild(h('div', { class: 'asc-ref-title' }, 'Invite a physician'));
+      return physicianColLocked(h, col);
+    }
     // No pitch paragraph. It explained that a link credits the person who
     // shared it, which is the only thing a link could possibly do, and it cost
     // the copy button its place at the top of the column.
