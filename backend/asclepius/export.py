@@ -28,7 +28,7 @@ import zipfile
 import realm as _realm
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 log = logging.getLogger("asclepius.export")
 
@@ -47,6 +47,18 @@ JSONL_NAME = "records.jsonl"
 CASES_NAME = "cases.jsonl"
 MANIFEST_NAME = "batch.json"
 DICTIONARY_NAME = "data_dictionary.md"
+#: Buyer-facing label for each portal version. One table, so a new version cannot
+#: be added to one document and missed in another — and an unknown version reads as
+#: unknown rather than being silently labelled as the default (v5 used to render as
+#: "assisted" here, which is what a stale vocabulary looks like from the outside).
+PORTAL_VERSION_LABELS = {
+    "v1": "classic",
+    "v2": "assisted",
+    "v3": "seamless synthetic",
+    "v4": "REAL de-identified cases",
+    "v5": "REAL longitudinal chart walks",
+}
+
 DATASHEET_NAME = "datasheet.md"
 QUALITY_NAME = "quality_report.md"
 # Grader export (FEAT-2): shipped alongside the data when the batch carries rubric
@@ -530,11 +542,11 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `annotator_id_hashed` | stable hashed annotator id (no PII) |
 | `related_party` | true when the annotating physician holds an advisory relationship with Archangel Health, including equity. Their clinical credentials are unchanged and stated above; this flag exists so provenance is complete. Recorded as of authorship — a contributor appointed after writing a record carries `false` on that record, because they held no interest when they wrote it |
 | `submission_id` / `task_id` | lineage |
-| `source` | `lab_supplied` vs `internal_prompt_bank` |
-| `buyer_request_id` | the buyer request the record answers (opt §2.5) |
+| `source` | where the task originated: `lab_supplied` · `internal_prompt_bank` · `partner_ehr` (a real, de-identified case ingested from a data partner's secure upload). Independent of who authored the QUESTION — a `partner_ehr` record may still carry a model-authored question, and the manifest counts those separately under `model_generated_question_count` |
+| `buyer_request_id` | the buyer request the record answers |
 | `taxonomy_version` / `config_version` | versioning |
-| `portal_version` | evaluator product flow that produced the record: `v1` (classic) or `v2` (assisted). Stage-1 prompt review + record types are identical across both; V2 adds quick-stance capture, model-assist provenance, and structured reasons |
-| `license` / `ip_cleared` / `contains_phi` | rights attestation (opt §1.4) |
+| `portal_version` | evaluator product flow that produced the record: `v1` (classic) · `v2` (assisted) · `v3` (seamless synthetic) · `v4` (real de-identified static charts) · `v5` (real longitudinal chart walks). Stage-1 prompt review and the record types are identical across all of them; `v2` adds quick-stance capture, model-assist provenance and structured reasons; `v4`/`v5` replace the synthetic case with a real de-identified chart carried under `context.case` |
+| `license` / `ip_cleared` / `contains_phi` | rights attestation |
 | `captured_at` | submission capture timestamp |
 
 ## Expert review annexes on every record (out of profile schema)
@@ -708,6 +720,25 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
     })
     ratified = _seed_corpus_ratified(records)
     reviewed = _prompts_clinician_reviewed(synthetic)
+    # The `source` values the records ACTUALLY carry. This section used to state
+    # `source: internal_prompt_bank` flatly, which is wrong for every batch whose
+    # records reached it by the other arm of ``_synthetic_records`` — a real
+    # partner_ehr chart with a model-authored question. A datasheet that names a
+    # field value the records do not carry is a contradiction a buyer finds with
+    # one grep, so the value is read out of the records instead of typed here.
+    sources: Dict[str, int] = {}
+    for r in records:
+        s = (r.get("payload") or {}).get("source") or "unspecified"
+        sources[s] = sources.get(s, 0) + 1
+    source_line = " · ".join(
+        f"**{n}/{len(records)}** carry `source: {s}`"
+        + (" — a real encounter de-identified by the data partner before transfer"
+           if s == "partner_ehr" else
+           " — authored from the internal prompt bank, not a real encounter"
+           if s == "internal_prompt_bank" else
+           " — supplied by the buyer" if s == "lab_supplied" else "")
+        for s, n in sorted(sources.items(), key=lambda kv: -kv[1])
+    ) or "no `source` recorded"
     if ratified:
         ratify_line = (
             "- The seed corpus driving generation is **clinician-ratified**."
@@ -732,17 +763,22 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
         )
     return f"""
 
-## Synthetic prompt provenance (Seedmaker)
-- **{len(synthetic)}/{len(records)}** records derive from internally auto-generated
-  prompts (`source: internal_prompt_bank`), not lab-supplied content.
-- Prompts were synthesized by the Asclepius Seedmaker engine, grounded in a
-  curated nephrology seed corpus{(' (versions: ' + ', '.join(versions) + ')') if versions else ''},
+## Question provenance (Seedmaker)
+Where the CHART came from and where the QUESTION came from are two independent
+axes. They are stated separately because collapsing them into one word is how a
+real de-identified chart gets described as a synthetic dataset.
+- **Chart:** {source_line}
+- **Question:** **{len(synthetic)}/{len(records)}** records carry a model-authored
+  question, counted in the manifest as `model_generated_question_count`. Questions
+  were synthesized by the Asclepius Seedmaker engine, grounded in a curated
+  specialty seed corpus{(' (versions: ' + ', '.join(versions) + ')') if versions else ''},
   then novelty-/contamination-checked and passed an error-likelihood quality gate
   before any specialist evaluated them.
 {ratify_line}
-- The AI generated only the prompt and two candidate answers (the material to be
-  judged); all grounding/evidence anchors and the chosen/ideal answers are the
-  credentialed specialist's work. Generated prompts are never auto-marked grounded."""
+- The AI generated only the question and the two candidate answers (the material to
+  be judged); all grounding/evidence anchors and the chosen/ideal answers are the
+  credentialed specialist's work. Model-authored questions are never auto-marked
+  grounded."""
 
 
 def _longitudinal_scope_md(records: List[Dict[str, Any]]) -> str:
@@ -955,7 +991,7 @@ Training / evaluating medical LLMs (reward modeling, SFT, process supervision).
 ## Rights & privacy
 - `contains_phi: false` (asserted + residual-identifier scanned).
 - `ip_cleared: true`; `license: {_license_name()}` stamped on every record in
-  this batch (PRD §2.3 — commercial terms, stated on the artifact itself).
+  this batch — commercial terms, stated on the artifact itself.
 """
 
 
@@ -1053,12 +1089,19 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
         conf[c] = conf.get(c, 0) + 1
     type_lines = "\n".join(f"- `{k}`: {v}" for k, v in sorted(counts["by_type"].items()))
     portal_lines = "\n".join(
-        f"- {k} ({dict(v1='classic', v2='assisted', v3='seamless synthetic', v4='REAL de-identified cases').get(k, 'assisted')}): {v}"
+        f"- {k} ({PORTAL_VERSION_LABELS.get(k, 'unrecognised portal version')}): {v}"
         for k, v in sorted(counts.get("by_portal_version", {}).items())
     ) or "- n/a"
     conf_lines = "\n".join(f"- {k}: {v}" for k, v in sorted(conf.items()))
     mm_section = _multimodal_quality_md(records, counts)
     qa = stats.get("qa_pass_rate") or {}
+    # ``qa`` is STORE-WIDE — it comes from the whole store, not this cut — and it
+    # used to print unqualified under a per-batch heading, so a 4-record batch
+    # reported "37/37". Both numbers are worth having; what they are numbers ABOUT
+    # is not optional. The batch-scoped figure is derived here: every record in
+    # ``records`` was emitted, which means its submission cleared QA to reach
+    # export_ready.
+    batch_subs = len({r.get("submission_id") for r in records if r.get("submission_id")})
     kappa = stats.get("kappa") or {}
     by_spec = kappa.get("by_specialty") or {}
     kappa_spec_lines = "\n".join(f"- {sp}: {v}" for sp, v in sorted(by_spec.items())) or "- n/a"
@@ -1132,14 +1175,14 @@ Their labels and reviews are counted in expert acceptance and in κ exactly like
 any other physician's — their clinical judgment is not compromised by equity any
 more than by an hourly rate. The count is stated so the pool is fully described.
 
-## By product version (V1 classic / V2 assisted)
+## By product version
 {portal_lines}
 {mm_section}
 ## Grounded (evidence-anchored) premium tier
 - Grounded records: **{grounded}/{counts['total']}** (**{grounded_pct}%**)
 
 {review_section}
-## Inter-annotator agreement (Cohen's κ, opt §1.3 — independently double-labeled)
+## Inter-annotator agreement (Cohen's κ — independently double-labeled)
 - Aggregate κ (blinded, double-labeled subset, n={kappa.get('n')}): **{kappa.get('overall')}**{(' — ' + kappa['reason']) if kappa.get('overall') is None and kappa.get('reason') else ''}
 - 95% CI (seeded bootstrap): {kappa.get('ci')}
 - Observed agreement: {kappa.get('observed_agreement')}
@@ -1154,7 +1197,12 @@ more than by an hourly rate. The count is stated so the pool is fully described.
 {conf_lines}
 
 ## QA & integrity flags
-- QA pass rate (export-ready / reviewed): **{qa.get('pass_rate')}** ({qa.get('passed')}/{qa.get('reviewed')})
+- **This batch**: {batch_subs} submission(s), {counts['total']} records, all
+  export-ready — a record is not emitted until its submission clears QA, so every
+  record here passed. This is a statement about what shipped, not a pass RATE:
+  submissions that failed QA are not in this cut to be counted.
+- QA pass rate — platform-wide to date, for context and NOT a statistic about this
+  batch: **{qa.get('pass_rate')}** ({qa.get('passed')}/{qa.get('reviewed')} reviewed submissions)
 - Average agreement (this batch): {avg_agreement if avg_agreement is not None else "n/a"}
 - Too-fast (time-floor) flags: {flags.get('too_fast', 0)}
 - Duplicate flags: {flags.get('duplicate', 0)}
@@ -1290,7 +1338,7 @@ def _points_of(c: Dict[str, Any]) -> float:
 
 
 _SCORE_PY = '''#!/usr/bin/env python3
-"""Rubric-based LLM-as-judge scorer for an Asclepius export (FEAT-2).
+"""Rubric-based LLM-as-judge scorer for an Asclepius export.
 
 Reads the rubric records from ``records.jsonl`` and scores a candidate answer
 against each rubric\'s weighted criteria using an LLM judge with ``grader_prompt.txt``.
@@ -2212,11 +2260,25 @@ def build_export(
     # provider/model/partner identity. Best-effort: a missing blob is skipped, never
     # fatal.
     image_assets = _collect_and_write_image_assets(emitted, out_dir)
+    # What this bundle IS, stated plainly and derived from the emitted records.
+    # These lived only indirectly before — specialty in ``scope``, portal version in
+    # ``counts.by_portal_version``, and the license NOWHERE in the manifest unless
+    # the cut was against a licensed key, even though every record carries one. A
+    # consumer reading batch.json alone could not name the terms it shipped under,
+    # and ``scripts/export_audit.py`` failed every unlicensed bundle on exactly that.
+    # Single-valued or None: a mixed batch asserts nothing rather than picking one.
+    def _sole(values: Iterable[Any]) -> Optional[Any]:
+        uniq = {v for v in values if v is not None}
+        return uniq.pop() if len(uniq) == 1 else None
+
     manifest = {
         "export_id": export_id,
         "created_at": exported_at,
         "created_by": created_by,
         "profile": profile_name,
+        "license": _sole((r.get("payload") or {}).get("license") for r in emitted),
+        "specialty": _sole(counts.get("by_specialty", {})),
+        "portal_version": _sole(counts.get("by_portal_version", {})),
         "preference_variant": prof.get("preference_variant", "flat"),
         "record_count": len(emitted),
         "submission_count": len({r["submission_id"] for r in emitted}),

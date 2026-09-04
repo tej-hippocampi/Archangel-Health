@@ -124,6 +124,15 @@ def test_export_writes_all_companions_and_manifest():
     assert "filters" in batch and "kappa" in batch
     assert batch["filters"]["profile"] == "default"
 
+    # The manifest names what the bundle IS, plainly. These used to live only
+    # indirectly — specialty in `scope`, portal version in `counts` — and the
+    # license nowhere at all unless the cut was against a licensed key, which is
+    # what failed every unlicensed bundle in scripts/export_audit.py.
+    assert batch["license"] == json.loads(
+        (out_dir / "records.jsonl").read_text().strip().splitlines()[0])["license"]
+    assert batch["specialty"] == "nephrology"
+    assert batch["portal_version"] in (None, "v1", "v2", "v3", "v4", "v5")
+
     # records.jsonl validates as JSON, one object per line, carrying provenance.
     lines = (out_dir / "records.jsonl").read_text().strip().splitlines()
     assert lines
@@ -251,3 +260,100 @@ def test_pre_v2_records_still_export_and_count_as_v1(monkeypatch):
     )
     assert v1_manifest["record_count"] >= 1
     assert set(v1_manifest["counts"]["by_portal_version"]) == {"v1"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Buyer-facing truthfulness of the companion documents.
+#
+# Four defects shipped in the Centaur nephrology sample, all the same shape: a
+# companion document asserting something the records do not say. Each is pinned
+# here, because each was invisible to every check that existed at the time —
+# scripts/export_audit.py passed the bundle that carried all four.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _partner_ehr_rec():
+    """A v4 record: a REAL de-identified chart carrying a model-authored question.
+
+    Reaches ``_synthetic_records`` by its ``generation`` block, not by its
+    ``source`` — which is exactly the batch shape the datasheet used to describe
+    wrongly.
+    """
+    return {"payload": {
+        "source": "partner_ehr",
+        "prompt_clinician_reviewed": True,
+        "generation": {"seed_corpus_version": "nephrology.v1"},
+    }}
+
+
+def test_datasheet_never_asserts_a_source_the_records_do_not_carry():
+    md = _synthetic_provenance_md([_partner_ehr_rec(), _partner_ehr_rec()])
+    # The value the records actually carry, stated; the one they do not, absent.
+    assert "`source: partner_ehr`" in md
+    assert "source: internal_prompt_bank" not in md
+    # Chart provenance and question authorship stay separate axes.
+    assert "**Chart:**" in md and "**Question:**" in md
+
+
+def test_datasheet_still_names_internal_prompt_bank_when_that_is_the_source():
+    md = _synthetic_provenance_md([_synthetic_rec(reviewed=True)])
+    assert "`source: internal_prompt_bank`" in md
+
+
+def test_quality_report_labels_the_platform_wide_qa_figure():
+    from asclepius.export import _quality_report_md
+
+    md = _quality_report_md(
+        export_id="exp-t", profile_name="default",
+        records=[{"payload": {"portal_version": "v4"}, "type": "preference",
+                  "submission_id": "s-1"}],
+        stats={"qa_pass_rate": {"pass_rate": 1.0, "passed": 37, "reviewed": 37},
+               "kappa": {}, "flag_counts": {}, "contributors": []},
+    )
+    # A store-wide number may appear, but never unqualified under a batch heading:
+    # a 1-record batch reporting a bare "37/37" is what shipped before.
+    assert "platform-wide" in md
+    assert "NOT a statistic about this" in md
+    # And the batch's own line claims a fact, not a pass rate it did not measure.
+    assert "not a pass RATE" in md
+
+
+def test_quality_report_does_not_mislabel_an_unknown_portal_version():
+    from asclepius.export import _quality_report_md, PORTAL_VERSION_LABELS
+
+    md = _quality_report_md(
+        export_id="exp-t", profile_name="default",
+        records=[{"payload": {"portal_version": "v5"}, "type": "preference",
+                  "submission_id": "s-1"}],
+        stats={"kappa": {}, "flag_counts": {}, "contributors": []},
+    )
+    # v5 used to render as "assisted" via a dict default — a silent mislabel.
+    assert PORTAL_VERSION_LABELS["v5"] in md
+    assert "v5 (assisted)" not in md
+
+
+def test_data_dictionary_covers_every_vocabulary_value_the_records_can_carry():
+    from asclepius.constants import TASK_SOURCES
+    from asclepius.export import _data_dictionary_md, PORTAL_VERSION_LABELS
+
+    dd = _data_dictionary_md("default")
+    for source in TASK_SOURCES:
+        assert f"`{source}`" in dd, f"data_dictionary.md does not define source {source!r}"
+    for version in PORTAL_VERSION_LABELS:
+        assert f"`{version}`" in dd, f"data_dictionary.md does not define {version!r}"
+
+
+def test_companions_carry_no_internal_spec_references():
+    """PRD/opt section numbers point at documents the buyer cannot open."""
+    from asclepius.export import _data_dictionary_md, _quality_report_md, _SCORE_PY
+
+    shipped = [
+        _data_dictionary_md("default"),
+        _quality_report_md(export_id="exp-t", profile_name="default",
+                           records=[{"payload": {}, "type": "preference",
+                                     "submission_id": "s-1"}],
+                           stats={"kappa": {}, "flag_counts": {}, "contributors": []}),
+        _SCORE_PY,
+    ]
+    for doc in shipped:
+        assert "§" not in doc, "an internal spec reference is shipping to the buyer"
+        assert "FEAT-" not in doc and "PRD" not in doc
