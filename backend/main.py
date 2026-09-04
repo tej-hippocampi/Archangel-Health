@@ -7135,15 +7135,25 @@ async def internal_run_team_daily_jobs(authorization: Optional[str] = Header(Non
 
 @app.post("/internal/community/run-digest", include_in_schema=False)
 async def internal_run_community_digest(
-    kind: str = "news", authorization: Optional[str] = Header(None)
+    kind: str = "news", scheduled: bool = False,
+    authorization: Optional[str] = Header(None),
 ):
-    """Manual trigger for a Community v2 content digest run (demo/QA — works
-    whether or not the scheduled loop is enabled)."""
+    """A Community v2 content digest run.
+
+    Two modes, and the difference matters because the same endpoint now serves
+    a person and a cron. Bare, it runs unconditionally: that is what a manual
+    trigger means, the operator decided, and it works whether or not the
+    scheduled loop is enabled. ``scheduled=true`` instead applies the schedule
+    (due today, failure backoff, and the day RESERVED before composing), which
+    is what an hourly external job needs, because an hourly job pointed at the
+    unconditional path would post a fresh digest every hour.
+    """
     _check_internal_auth(authorization)
     if kind not in ("news", "papers"):
         raise HTTPException(status_code=400, detail="kind must be 'news' or 'papers'")
     from community import digest as _cdigest
-    result = await _cdigest.run_digest(kind)
+    result = (await _cdigest.run_scheduled_digest(kind) if scheduled
+              else await _cdigest.run_digest(kind))
     return {**result, "ran_at": _utcnow_iso()}
 
 

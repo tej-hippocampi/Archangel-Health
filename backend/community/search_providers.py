@@ -69,6 +69,22 @@ def available(name: str) -> bool:
     return False
 
 
+def _note_provider_error() -> None:
+    """Tell whoever is recording this sourcing pass that a retriever failed.
+
+    These functions swallow their exceptions on purpose (a provider being down
+    is a shorter morning, never a broken run), and the run ledger then cannot
+    tell that outage apart from a quiet day. Late import because ``websearch``
+    already imports from this module.
+    """
+    try:
+        from community.websearch import PROVIDER_ERROR, note_reason  # noqa: PLC0415
+
+        note_reason(PROVIDER_ERROR)
+    except Exception:  # noqa: BLE001 - bookkeeping must never break a search
+        pass
+
+
 def _result(
     *, title: Any, url: Any, snippet: Any = "", published: Any = "", provider: str
 ) -> Optional[Dict[str, Any]]:
@@ -124,6 +140,7 @@ async def search_exa(
             data = resp.json()
     except Exception:  # noqa: BLE001 — a shorter morning, never a broken run
         log.warning("[search] exa query failed", exc_info=True)
+        _note_provider_error()
         return []
 
     out: List[Dict[str, Any]] = []
@@ -160,6 +177,7 @@ async def search_firecrawl(query: str, *, limit: int = 8) -> List[Dict[str, Any]
             data = resp.json()
     except Exception:  # noqa: BLE001
         log.warning("[search] firecrawl query failed", exc_info=True)
+        _note_provider_error()
         return []
 
     rows = (data or {}).get("data")

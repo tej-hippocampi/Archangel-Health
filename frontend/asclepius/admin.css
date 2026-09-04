@@ -609,6 +609,67 @@
   .asc-comm-chan-bar, .asc-comm-chan-sub { display: none; }
 }
 
+/* ── The daily routine: gates, dependencies, last run per scope ─────────────
+   A dot and a sentence, not a chart. Every row is a fact with a name beside
+   it, because the operator's next move is to set a variable or open a room. */
+.asc-comm-gates {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: var(--sp-4);
+}
+.asc-comm-gate {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) 2fr;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.asc-comm-gate-name { font-size: var(--t-sm); }
+.asc-comm-gate-state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asc-comm-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+.asc-comm-dot.is-on { background: var(--green); }
+.asc-comm-dot.is-off { background: var(--orange); }
+/* Still in flight: neither working nor broken yet. */
+.asc-comm-dot.is-running { background: var(--ink-faint); }
+
+.asc-comm-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--hairline);
+}
+.asc-comm-run {
+  display: grid;
+  grid-template-columns: auto minmax(140px, 1.4fr) auto 2fr auto;
+  align-items: center;
+  gap: var(--sp-3);
+}
+/* A scope that posted nothing is not an error, so it recedes rather than
+   alarms; the reason next to it says whether it should. */
+.asc-comm-run.is-empty .asc-comm-run-kind { color: var(--ink-soft); }
+.asc-comm-run-kind {
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asc-comm-run-n { font-size: var(--t-sm); color: var(--ink-soft); white-space: nowrap; }
+.asc-comm-run-why { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asc-comm-run-when { white-space: nowrap; }
+@media (max-width: 700px) {
+  .asc-comm-run { grid-template-columns: auto 1fr auto; }
+  .asc-comm-run-why, .asc-comm-run-when { display: none; }
+  .asc-comm-gate { grid-template-columns: auto 1fr; }
+  .asc-comm-gate-state { grid-column: 2; }
+}
+
 .asc-comm-feed { display: flex; flex-direction: column; gap: 14px; }
 .asc-comm-post { padding-left: 12px; border-left: 2px solid var(--hairline); }
 .asc-comm-post-meta { display: block; margin-bottom: 3px; }

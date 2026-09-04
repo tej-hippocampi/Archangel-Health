@@ -16,6 +16,8 @@ prefix" but "state each one once, here".
 from __future__ import annotations
 
 import os
+from typing import Optional
+from urllib.parse import quote
 
 # The community page (``community.router.page_router``) and the unsubscribe
 # route (``community.router.router``, mounted under /api/community) live at
@@ -41,13 +43,22 @@ def community_url() -> str:
     return f"{base}{_PAGE_PATH}" if base else ""
 
 
-def unsubscribe_url(token: str) -> str:
+def unsubscribe_url(token: str, *, kind: Optional[str] = None) -> str:
     """The one-click unsubscribe link, or "" when it cannot be built.
 
     Empty when the origin is unset or the member has no token. Callers render
     the footer sentence only when this is non-empty, so a broken link is never
     shown as a working one.
+
+    ``kind`` narrows the link to ONE stream, so mail that is only about pins
+    can offer a button that stops pins rather than everything. Omitting it
+    produces exactly the link this has always produced, which matters because
+    the same route serves links in mail that was sent months ago.
     """
     base = base_url()
     tok = (token or "").strip()
-    return f"{base}{_UNSUBSCRIBE_PATH}?token={tok}" if base and tok else ""
+    if not (base and tok):
+        return ""
+    url = f"{base}{_UNSUBSCRIBE_PATH}?token={tok}"
+    k = (kind or "").strip()
+    return f"{url}&kind={quote(k, safe='')}" if k else url

@@ -59,9 +59,79 @@
     const d = view.data || {};
     host.appendChild(headerCard(ctx, d));
     host.appendChild(unansweredCard(ctx, d));
+    if (d.automation) host.appendChild(automationCard(ctx, d.automation));
     host.appendChild(channelsCard(ctx, d));
     host.appendChild(recentCard(ctx, d));
     if ((d.rooms || []).length) host.appendChild(roomsCard(ctx, d));
+  }
+
+  /* Is the BOT alive, and what did it last do.
+   *
+   * The counts on this tab answer whether the community is alive. They cannot
+   * answer this, and this is the harder question, because every way the
+   * routine switches itself off is silent: with no model key and no search
+   * provider a run records SUCCESS with zero items, which is the same ledger
+   * row a genuinely quiet Tuesday writes. Reading only the counts, a routine
+   * that has been dead for a week looks exactly like a slow news week.
+   *
+   * So each scope shows its last run with the item count AND the reason
+   * beside it. The reason is the whole point of the card: "posted 3" and
+   * "posted nothing, no ANTHROPIC_API_KEY set" are the two facts an operator
+   * needs and the ledger used to hold only the first. */
+  function automationCard(ctx, a) {
+    const { h } = ctx;
+    if (a.error) {
+      return h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-inline-error' }, 'Could not read the run ledger: ' + a.error)));
+    }
+    const gates = a.gates || [];
+    const deps = a.dependencies || {};
+    const runs = a.runs || [];
+    const anyOff = gates.some((g) => !g.on) || !deps.search_provider;
+
+    const gateRow = (g) => h('div', { class: 'asc-comm-gate' },
+      h('span', { class: 'asc-comm-dot' + (g.on ? ' is-on' : ' is-off'), 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-comm-gate-name' }, g.name),
+      h('span', { class: 'asc-comm-gate-state chrome' },
+        (g.on ? 'on' : 'off') + ' · ' + g.var
+        + (g.on && !g.loop_running ? ' · in-process loop not running' : '')));
+
+    const depRow = (on, label) => h('div', { class: 'asc-comm-gate' },
+      h('span', { class: 'asc-comm-dot' + (on ? ' is-on' : ' is-off'), 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-comm-gate-name' }, label),
+      h('span', { class: 'asc-comm-gate-state chrome' }, on ? 'configured' : 'not configured'));
+
+    const runRow = (r) => {
+      // A run still in flight is a third state. Calling it a failure would
+      // put a red dot on a routine that is working at that moment.
+      const cls = r.ok === null ? ' is-running' : (r.ok ? ' is-on' : ' is-off');
+      const count = r.items_posted === 1 ? '1 item' : (r.items_posted || 0) + ' items';
+      const why = r.reason_text || (r.ok === false ? 'the run failed' : '');
+      return h('div', { class: 'asc-comm-run' + (r.items_posted ? '' : ' is-empty') },
+        h('span', { class: 'asc-comm-dot' + cls, 'aria-hidden': 'true' }),
+        h('span', { class: 'asc-comm-run-kind' }, r.kind),
+        h('span', { class: 'asc-comm-run-n' }, count),
+        h('span', { class: 'asc-comm-run-why chrome' }, why),
+        h('span', { class: 'asc-comm-run-when chrome' },
+          ctx.fmtDate(r.finished_at || r.started_at)));
+    };
+
+    return h('div', { class: 'asc-card' + (anyOff ? ' asc-comm-unanswered' : '') },
+      h('div', { class: 'asc-card-head' }, h('div', {},
+        h('div', { class: 'asc-card-title' }, 'The daily routine'),
+        h('div', { class: 'asc-card-sub' },
+          'A run that posted nothing because there is no search key and a run '
+          + 'that posted nothing because the web was quiet are the same row in '
+          + 'the ledger. The reason beside each count is what tells them apart.'))),
+      h('div', { class: 'asc-card-pad' },
+        h('div', { class: 'asc-comm-gates' },
+          gates.map(gateRow),
+          depRow(deps.search_provider, 'A search provider'),
+          depRow(deps.anthropic_api_key, 'Anthropic API key')),
+        runs.length
+          ? h('div', { class: 'asc-comm-runs' }, runs.map(runRow))
+          : h('div', { class: 'asc-empty-line' },
+              'No scope has ever run. Nothing has been posted by the routine.')));
   }
 
   /* The four numbers, and the way out to the composer.

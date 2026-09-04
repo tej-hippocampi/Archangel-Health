@@ -24,9 +24,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 
 from community import events as cevents
+from community import notify as cnotify
 from community import phi_gate
 from community.schema import BookmarkIn, EventIn, PollIn, VoteIn
-from community.system_posts import post_system_message
+from community.system_posts import channel_member_ids, post_system_message
 from ratelimit import rate_limiter
 
 # Reused from the core community router — no cycle (router.py never imports this).
@@ -323,6 +324,14 @@ async def pin_message(message_id: int, request: Request,
     cstore.pin_message(channel_id=container["id"], message_id=message_id, pinned_by=user["id"])
     _audit(request, user, "community.message_pin", "ok",
            {"channel": container["slug"], "message_id": message_id})
+    # Pinning was WebSocket-only, so it reached whoever happened to be
+    # connected in that second and nobody else. A pin is the one act that means
+    # "everybody read this one", so it earns a queued notification like a
+    # mention does, on the same batching loop and the same email.
+    cnotify.queue_for_pin(
+        cstore, message=msg, pinned_by=user["id"],
+        member_ids=channel_member_ids(container, member_map()),
+    )
     pins = await _broadcast_pins(cstore, container)
     return {"ok": True, "pinned": True, "pins": pins}
 
