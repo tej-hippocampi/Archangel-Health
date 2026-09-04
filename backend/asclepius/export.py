@@ -63,6 +63,16 @@ PORTAL_VERSION_LABELS = {
 }
 
 
+#: Buyer-facing definition of each ``case_source``. Keys are checked against
+#: ``cases.CASE_SOURCES`` by test, so this cannot quietly become a second,
+#: divergent definition of the vocabulary.
+CASE_SOURCE_GLOSS = {
+    "real_deid": "`real_deid` is a real encounter de-identified by the data "
+                 "partner before transfer",
+    "synthetic": "`synthetic` is authored against a clinician-curated archetype",
+}
+
+
 def _portal_version_legend() -> str:
     """The portal-version legend, rendered from the one table. Hand-maintained
     copies of this vocabulary are how `v5` came to render as "assisted" in one
@@ -551,6 +561,7 @@ The `type` field selects the schema. Canonical fields (pre-mapping) below.
 | `annotator_id_hashed` | stable hashed annotator id (no PII) |
 | `related_party` | true when the annotating physician holds an advisory relationship with Archangel Health, including equity. Their clinical credentials are unchanged and stated above; this flag exists so provenance is complete. Recorded as of authorship — a contributor appointed after writing a record carries `false` on that record, because they held no interest when they wrote it |
 | `submission_id` / `task_id` | lineage |
+| `context.case_source` | where the CHART came from: `real_deid` (a real encounter de-identified by the data partner before transfer, HIPAA Safe Harbor) · `synthetic` (authored against a clinician-curated archetype and PHI-scanned). Absent on a text record, which carries no case; the manifest buckets those under `unspecified` in `case_provenance`. Independent of `source` and of who authored the question |
 | `source` | where the task originated: `lab_supplied` · `internal_prompt_bank` · `partner_ehr` (a real, de-identified case ingested from a data partner's secure upload). Independent of who authored the QUESTION — a `partner_ehr` record may still carry a model-authored question, and the manifest counts those separately under `model_generated_question_count` |
 | `buyer_request_id` | the buyer request the record answers |
 | `taxonomy_version` / `config_version` | versioning |
@@ -745,7 +756,11 @@ def _sole_shipped_value(emitted: List[Dict[str, Any]], mapped_objs: List[Dict[st
         return None
     seen = set()
     for rec, mapped in zip(emitted, mapped_objs):
-        fm = profiles.field_map_for(prof, rec.get("type")) or {}
+        # ``map_record`` resolves its field map from ``payload["type"]``
+        # (profiles.py), so resolve from the same place: reading the store column
+        # instead would silently pick a different map if the two ever diverged.
+        rtype = ((rec.get("payload") or {}).get("type")) or rec.get("type")
+        fm = profiles.field_map_for(prof, rtype) or {}
         seen.add(mapped.get(fm.get(field, field)))
     return seen.pop() if len(seen) == 1 and None not in seen else None
 
@@ -789,7 +804,13 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
         present: Dict[str, int] = {}
         absent = 0
         for v in values:
-            if v and v != "unspecified":
+            # Absence is exactly falsiness, matching ``_case_provenance``'s
+            # ``or "unspecified"`` so the two always agree on the same records.
+            # A record that literally carries the string is NOT absent and is
+            # rendered as the value it carries: the guard that used to special-case
+            # it here reported "carries no source" about a record that carries one,
+            # which is the defect class, inverted.
+            if v:
                 present[v] = present.get(v, 0) + 1
             else:
                 absent += 1
@@ -804,16 +825,20 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
     chart_line = _axis(chart_values, "context.case_source")
     origin_line = _axis([(r.get("payload") or {}).get("source") for r in records],
                         "source")
-    # Define only the vocabulary this batch actually uses.
-    _CASE_SOURCE_GLOSS = {
-        "real_deid": "`real_deid` is a real encounter de-identified by the data "
-                     "partner before transfer",
-        "synthetic": "`synthetic` is authored against a clinician-curated archetype",
-    }
+    # Gloss only the values this batch uses, and say so loudly when a batch
+    # carries a case_source outside the vocabulary — the same discipline
+    # PORTAL_VERSION_LABELS applies, rather than shipping an unknown value with
+    # no marker. The vocabulary's home is ``cases.CASE_SOURCES``; this dict is
+    # checked against it by test, so it cannot drift into a second definition.
+    present_sources = {c for c in chart_values if c}
     chart_gloss = ". ".join(
-        _CASE_SOURCE_GLOSS[v] for v in sorted(_CASE_SOURCE_GLOSS)
-        if v in {c for c in chart_values if c}
+        CASE_SOURCE_GLOSS[v] for v in sorted(CASE_SOURCE_GLOSS) if v in present_sources
     )
+    unknown = sorted(present_sources - set(CASE_SOURCE_GLOSS))
+    if unknown:
+        chart_gloss += ((". " if chart_gloss else "")
+                        + "Not in the documented `case_source` vocabulary: "
+                        + ", ".join(f"`{u}`" for u in unknown))
     if ratified:
         ratify_line = (
             "- The seed corpus driving generation is **clinician-ratified**."
@@ -2331,6 +2356,11 @@ def build_export(
         "include_answer_key": include_answer_key,
         # Mock/sandbox records are hard-excluded unless explicitly included.
         "include_mock": include_mock,
+        # Widens the cut to records already shipped in an earlier batch. It
+        # belongs here because the unscoped manifest scope says "the whole
+        # eligible set under `filters`", and without this that sentence claims
+        # more than `filters` can account for.
+        "include_exported": include_exported,
         "mock_excluded": (not include_mock and bool(mock_ids)),
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
@@ -2362,8 +2392,15 @@ def build_export(
         # ``_license_terms`` is the license stamped onto every emitted line at
         # ship time; the manifest states that same value, never the captured one.
         "license": _license_terms,
+        # Singular = the one value EVERY shipped line carries, else None. Plural =
+        # what the bundle actually contains. A two-specialty cut is a normal thing
+        # to sell: it has no single specialty, and saying so must not read as
+        # "this bundle does not record its specialties", which is what the audit
+        # gate concluded from the singular key alone.
         "specialty": _sole_shipped_value(emitted, mapped_objs, prof, "specialty"),
+        "specialties": sorted(counts.get("by_specialty", {})),
         "portal_version": _sole_shipped_value(emitted, mapped_objs, prof, "portal_version"),
+        "portal_versions": sorted(counts.get("by_portal_version", {})),
         "preference_variant": prof.get("preference_variant", "flat"),
         "record_count": len(emitted),
         "submission_count": len({r["submission_id"] for r in emitted}),
@@ -2405,7 +2442,7 @@ def build_export(
         # a case-scoped one. Only the manifest key is defaulted: the datasheet's
         # scope section still renders from ``scope`` itself, so an unscoped export
         # gains no "Contributor scope" prose it did not have before.
-        "scope": scope or {
+        "scope": scope if scope is not None else {
             "type": "unscoped",
             "label": "the whole eligible set under `filters`",
             "record_count": len(emitted),

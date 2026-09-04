@@ -69,8 +69,19 @@ def audit(path: pathlib.Path, names: list[str]) -> list[str]:
             batch = json.loads(blobs[batch_name])
         except ValueError as exc:
             problems.append(f"batch.json is not valid JSON ({exc})")
+        # A bundle spanning two specialties has no single ``specialty`` and
+        # correctly records None there — but it does record its specialties, in
+        # the plural key and in ``counts``. Reading only the singular key reported
+        # "records no specialty" about a bundle that records them precisely, which
+        # is a false red on a normal, sellable cut.
         for field in ("specialty", "portal_version", "scope"):
-            if not batch.get(field) and not batch.get("filters", {}).get(field):
+            plural = {"specialty": ("specialties", "by_specialty"),
+                      "portal_version": ("portal_versions", "by_portal_version")}.get(field)
+            recorded = (batch.get(field)
+                        or batch.get("filters", {}).get(field)
+                        or (plural and (batch.get(plural[0])
+                                        or batch.get("counts", {}).get(plural[1]))))
+            if not recorded:
                 problems.append(f"batch.json records no {field!r}")
 
     # (1) license is not NC

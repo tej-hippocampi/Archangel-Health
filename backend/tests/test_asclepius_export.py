@@ -446,6 +446,7 @@ def test_quality_report_labels_an_unknown_portal_version_as_unknown():
 
 
 def test_data_dictionary_covers_every_vocabulary_value_the_records_can_carry():
+    from asclepius.cases import CASE_SOURCES
     from asclepius.constants import TASK_SOURCES
     from asclepius.export import _data_dictionary_md, PORTAL_VERSION_LABELS
 
@@ -454,6 +455,38 @@ def test_data_dictionary_covers_every_vocabulary_value_the_records_can_carry():
         assert f"`{source}`" in dd, f"data_dictionary.md does not define source {source!r}"
     for version in PORTAL_VERSION_LABELS:
         assert f"`{version}`" in dd, f"data_dictionary.md does not define {version!r}"
+    # The datasheet points the buyer at context.case_source, so the dictionary
+    # has to be somewhere to point.
+    assert "`context.case_source`" in dd
+    for cs in CASE_SOURCES:
+        assert f"`{cs}`" in dd, f"data_dictionary.md does not define case_source {cs!r}"
+
+
+def test_case_source_gloss_does_not_drift_from_the_vocabulary():
+    """CASE_SOURCE_GLOSS is a buyer-facing copy of a vocabulary owned by
+    cases.CASE_SOURCES. Pinned so it cannot become a second definition."""
+    from asclepius.cases import CASE_SOURCES
+    from asclepius.export import CASE_SOURCE_GLOSS
+    assert set(CASE_SOURCE_GLOSS) == set(CASE_SOURCES)
+
+
+def test_datasheet_marks_a_case_source_outside_the_vocabulary():
+    """An unknown value must be loud, the way an unknown portal version is —
+    not shipped as though it were documented."""
+    md = _synthetic_provenance_md([{"payload": {
+        "generation": {"seed_corpus_version": "x"},
+        "context": {"case_source": "vendor_licensed"}}}])
+    assert "`vendor_licensed`" in md
+    assert "Not in the documented `case_source` vocabulary" in md
+
+
+def test_a_record_carrying_the_literal_string_unspecified_is_not_called_absent():
+    """The guard that special-cased this string reported "carries no source"
+    about a record that carries one."""
+    md = _synthetic_provenance_md([{"payload": {
+        "source": "unspecified", "generation": {"seed_corpus_version": "x"}}}])
+    assert "carry no `source`" not in md
+    assert _renders_as_a_value(md, "unspecified")
 
 
 _EVAL_PACK_STUB = {
@@ -468,6 +501,15 @@ _EVAL_PACK_STUB = {
 }
 
 
+_TAXONOMY_STUB = {
+    "aggregate": {"n_observations": 2, "n_attributed": 1, "n_unattributed": 1,
+                  "min_cell_n": 5, "cells": []},
+    "provenance": {"label_agreement": 0.8, "n_physicians": 1},
+    "mode_definitions": {"m1": {"label": "over-transfusion", "definition": "x"}},
+    "holdout": {"n_cases": 3},
+}
+
+
 def test_no_shipped_text_artifact_carries_an_internal_spec_reference():
     """PRD/opt section numbers point at documents no buyer can open.
 
@@ -477,7 +519,7 @@ def test_no_shipped_text_artifact_carries_an_internal_spec_reference():
     `score.py` was cleaned.
     """
     from asclepius import export as E
-    from asclepius.failure_taxonomy import SCORE_FAILUREMODE_PY
+    from asclepius.failure_taxonomy import SCORE_FAILUREMODE_PY, taxonomy_markdown
 
     empty_stats = {"kappa": {}, "flag_counts": {}, "contributors": []}
     rec = [{"payload": {"portal_version": "v4", "source": "partner_ehr",
@@ -496,6 +538,7 @@ def test_no_shipped_text_artifact_carries_an_internal_spec_reference():
         "EVAL_PACK.md": E._eval_pack_md("exp-t", _EVAL_PACK_STUB),
         # The datasheet's eval-pack section renders only when a pack is present,
         # so the eval_pack=None datasheet above never reaches this text.
+        "TAXONOMY.md": taxonomy_markdown(_TAXONOMY_STUB),
         "datasheet.md (eval pack section)": E._datasheet_md(
             export_id="exp-t", profile_name="default", counts=E._counts(rec),
             records=rec, contributors=[], scope=None, eval_pack=_EVAL_PACK_STUB),
@@ -550,3 +593,60 @@ def test_sole_shipped_value_follows_the_profiles_field_rename():
     assert _sole_shipped_value(emitted, mapped, prof, "specialty") == "nephrology"
     assert _sole_shipped_value(emitted, [{"specialty": "nephrology"}], prof,
                                "specialty") is None
+
+
+def test_unscoped_export_records_its_scope_in_the_manifest():
+    """A plain cut has a scope — the whole eligible set under `filters` — and
+    recording it as null failed export_audit.py's "records no 'scope'" check,
+    which is the same defect as the missing license: a bundle whose scope is not
+    written down cannot be reproduced or corrected later."""
+    admin_h, ev_h = _admin_h(), _evaluator_h()
+    _submit_export_ready(admin_h, ev_h)
+    manifest = client.post("/api/asclepius/exports", json={"profile": "default"},
+                           headers=admin_h).json()
+    batch = json.loads((Path(manifest["dir_path"]) / "batch.json").read_text())
+    scope = batch["scope"]
+    assert scope["type"] == "unscoped"
+    assert scope["record_count"] == batch["record_count"]
+    assert scope["case_count"] == batch["case_count"]
+    # Only a MISSING scope defaults; a real one is never overwritten, and the
+    # datasheet's scope prose still keys off the passed scope, not this default.
+    assert "Contributor scope" not in (
+        Path(manifest["dir_path"]) / "datasheet.md").read_text()
+
+
+def test_a_bundle_with_no_single_specialty_still_passes_the_audit_gate():
+    """A two-specialty cut is a normal thing to sell. It has no single
+    `specialty` and correctly records None there — but it DOES record its
+    specialties, in the plural key and in `counts`. Reading only the singular key
+    made the gate report "records no specialty" about a bundle that records them
+    precisely: a false red, the mirror of the false non-commercial alarm.
+
+    Calls the real audit on a real zip. Re-implementing the gate's logic in the
+    test would assert only that the test agrees with itself.
+    """
+    import sys as _sys, tempfile, zipfile
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import export_audit as ea
+
+    d = Path(tempfile.mkdtemp())
+    (d / "records.jsonl").write_text("\n".join(json.dumps(r) for r in [
+        {"specialty": "nephrology", "license": "archangel-commercial-v1",
+         "annotator_id_hashed": "a1"},
+        {"specialty": "cardiology", "license": "archangel-commercial-v1",
+         "annotator_id_hashed": "a1"},
+    ]) + "\n", encoding="utf-8")
+    (d / "batch.json").write_text(json.dumps({
+        "export_id": "exp-t", "license": "archangel-commercial-v1",
+        "specialty": None, "specialties": ["cardiology", "nephrology"],
+        "portal_version": None, "portal_versions": ["v3", "v4"],
+        "counts": {"by_specialty": {"cardiology": 1, "nephrology": 1},
+                   "by_portal_version": {"v3": 1, "v4": 1}},
+        "scope": {"type": "unscoped"}, "filters": {}, "contributors": [],
+    }), encoding="utf-8")
+    zp = d / "bundle.zip"
+    with zipfile.ZipFile(zp, "w") as z:
+        for f in ("records.jsonl", "batch.json"):
+            z.write(d / f, f)
+
+    assert ea.audit(zp, []) == [], "the gate red-flags a normal mixed-specialty bundle"
