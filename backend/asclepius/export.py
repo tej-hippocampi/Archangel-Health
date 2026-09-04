@@ -754,6 +754,27 @@ def _sole_shipped_value(emitted: List[Dict[str, Any]], mapped_objs: List[Dict[st
     """
     if not mapped_objs:
         return None
+    seen = _shipped_values(emitted, mapped_objs, prof, field)
+    return seen.pop() if len(seen) == 1 and None not in seen else None
+
+
+def _shipped_values(emitted: List[Dict[str, Any]], mapped_objs: List[Dict[str, Any]],
+                    prof: Dict[str, Any], field: str) -> set:
+    """Every distinct value the shipped lines carry for ``field``, ``None`` included.
+
+    The single derivation behind both the singular and the plural manifest keys.
+    They were briefly computed from two different sources — the singular off the
+    shipped payload through the profile's field map, the plural off ``counts``,
+    which reads the store column and substitutes display sentinels — so the two
+    keys could disagree with each other and with the lines they describe.
+
+    ``_counts``' sentinels (``"unknown"`` for a missing specialty, ``"v1"`` for a
+    missing portal version) must never reach a manifest key or an audit predicate.
+    They exist to keep a report's tally total. Asserting one to a buyer claims
+    content the bundle does not have, and satisfying a gate with one means the
+    gate can no longer fail: ``build_export`` raises on an empty batch, so a
+    ``counts`` bucket is non-empty for every bundle it produces.
+    """
     seen = set()
     for rec, mapped in zip(emitted, mapped_objs):
         # ``map_record`` resolves its field map from ``payload["type"]``
@@ -762,7 +783,7 @@ def _sole_shipped_value(emitted: List[Dict[str, Any]], mapped_objs: List[Dict[st
         rtype = ((rec.get("payload") or {}).get("type")) or rec.get("type")
         fm = profiles.field_map_for(prof, rtype) or {}
         seen.add(mapped.get(fm.get(field, field)))
-    return seen.pop() if len(seen) == 1 and None not in seen else None
+    return seen
 
 
 def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
@@ -2361,6 +2382,11 @@ def build_export(
         # eligible set under `filters`", and without this that sentence claims
         # more than `filters` can account for.
         "include_exported": include_exported,
+        # A submission-scoped cut recorded its narrowing nowhere. Every caller
+        # that passes it also passes an explicit ``scope``, so this cannot rescue
+        # the unscoped label — it is here because a filter that selected the rows
+        # belongs with the filters.
+        "submission_id": submission_id,
         "mock_excluded": (not include_mock and bool(mock_ids)),
         "annotator_id_hashed": annotator_id_hashed,
         "annotator_ids": sorted(annotator_id_set) if annotator_id_set else None,
@@ -2398,9 +2424,11 @@ def build_export(
         # "this bundle does not record its specialties", which is what the audit
         # gate concluded from the singular key alone.
         "specialty": _sole_shipped_value(emitted, mapped_objs, prof, "specialty"),
-        "specialties": sorted(counts.get("by_specialty", {})),
+        "specialties": sorted(v for v in _shipped_values(
+            emitted, mapped_objs, prof, "specialty") if v is not None),
         "portal_version": _sole_shipped_value(emitted, mapped_objs, prof, "portal_version"),
-        "portal_versions": sorted(counts.get("by_portal_version", {})),
+        "portal_versions": sorted(v for v in _shipped_values(
+            emitted, mapped_objs, prof, "portal_version") if v is not None),
         "preference_variant": prof.get("preference_variant", "flat"),
         "record_count": len(emitted),
         "submission_count": len({r["submission_id"] for r in emitted}),

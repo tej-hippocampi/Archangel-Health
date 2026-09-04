@@ -650,3 +650,61 @@ def test_a_bundle_with_no_single_specialty_still_passes_the_audit_gate():
             z.write(d / f, f)
 
     assert ea.audit(zp, []) == [], "the gate red-flags a normal mixed-specialty bundle"
+
+
+def _audit_zip(batch: dict, records: list) -> list:
+    """Write a minimal bundle and run the real gate over it."""
+    import sys as _sys, tempfile, zipfile
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import export_audit as ea
+    d = Path(tempfile.mkdtemp())
+    (d / "records.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+    (d / "batch.json").write_text(json.dumps(batch), encoding="utf-8")
+    zp = d / "bundle.zip"
+    with zipfile.ZipFile(zp, "w") as z:
+        for f in ("records.jsonl", "batch.json"):
+            z.write(d / f, f)
+    return ea.audit(zp, [])
+
+
+def test_the_audit_gate_can_still_fail_on_a_bundle_that_records_no_specialty():
+    """A positive-only suite cannot catch an over-permissive gate.
+
+    The plural keys were briefly allowed to be satisfied by `counts.by_*`, whose
+    buckets carry `_counts`' display sentinels ("unknown", "v1") and are non-empty
+    for every bundle the exporter can produce. That made this check incapable of
+    failing while every existing test stayed green.
+    """
+    lines = [{"license": "archangel-commercial-v1", "annotator_id_hashed": "a1"}]
+    # Records nothing about specialty or portal version anywhere legitimate, but
+    # DOES carry the sentinel-bearing counts that must not satisfy the gate.
+    problems = _audit_zip({
+        "export_id": "exp-t", "license": "archangel-commercial-v1",
+        "specialty": None, "specialties": [],
+        "portal_version": None, "portal_versions": [],
+        "counts": {"by_specialty": {"unknown": 1}, "by_portal_version": {"v1": 1}},
+        "scope": {"type": "unscoped"}, "filters": {}, "contributors": [],
+    }, lines)
+    assert "batch.json records no 'specialty'" in problems
+    assert "batch.json records no 'portal_version'" in problems
+
+
+def test_the_manifest_plural_keys_never_carry_a_counts_sentinel():
+    """`specialties`/`portal_versions` come off the shipped lines, not `counts`.
+
+    A batch whose lines carry no specialty used to ship `specialties: ["unknown"]`
+    and `portal_versions: ["v1"]` — values no record carries, in the keys added to
+    stop the manifest claiming content the bundle does not have.
+    """
+    from asclepius.export import _shipped_values, _sole_shipped_value
+    emitted = [{"type": "preference"}, {"type": "preference"}]
+    mapped = [{}, {"portal_version": "v4"}]
+    vals = _shipped_values(emitted, mapped, {}, "portal_version")
+    plural = sorted(v for v in vals if v is not None)
+    assert plural == ["v4"], "a sentinel leaked into the plural key"
+    # And the singular still refuses to claim one for a partially stamped batch.
+    assert _sole_shipped_value(emitted, mapped, {}, "portal_version") is None
+    # All-absent yields an empty list, which is what lets the gate fire.
+    assert sorted(v for v in _shipped_values(emitted, [{}, {}], {}, "portal_version")
+                  if v is not None) == []

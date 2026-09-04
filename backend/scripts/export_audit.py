@@ -71,16 +71,21 @@ def audit(path: pathlib.Path, names: list[str]) -> list[str]:
             problems.append(f"batch.json is not valid JSON ({exc})")
         # A bundle spanning two specialties has no single ``specialty`` and
         # correctly records None there — but it does record its specialties, in
-        # the plural key and in ``counts``. Reading only the singular key reported
-        # "records no specialty" about a bundle that records them precisely, which
-        # is a false red on a normal, sellable cut.
+        # the plural key. Reading only the singular key reported "records no
+        # specialty" about a bundle that records them precisely: a false red on a
+        # normal, sellable cut.
+        #
+        # The plural key ONLY. Never ``counts.by_*``: those buckets carry display
+        # sentinels ("unknown" for a missing specialty, "v1" for a missing portal
+        # version) and are non-empty for every bundle the exporter can produce, so
+        # accepting them would make this check incapable of failing. A gate that
+        # cannot fail is worse than no gate — it reads green over the exact bundle
+        # it exists to stop.
+        plurals = {"specialty": "specialties", "portal_version": "portal_versions"}
         for field in ("specialty", "portal_version", "scope"):
-            plural = {"specialty": ("specialties", "by_specialty"),
-                      "portal_version": ("portal_versions", "by_portal_version")}.get(field)
             recorded = (batch.get(field)
                         or batch.get("filters", {}).get(field)
-                        or (plural and (batch.get(plural[0])
-                                        or batch.get("counts", {}).get(plural[1]))))
+                        or batch.get(plurals.get(field, "")))
             if not recorded:
                 problems.append(f"batch.json records no {field!r}")
 
