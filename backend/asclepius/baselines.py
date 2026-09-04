@@ -104,7 +104,7 @@ def _case_image_for_baseline(task: Dict[str, Any]):
 # pixel-grounding failure the data is meant to capture.
 _BASELINE_SYSTEM_IMAGE = (
     "You are an expert physician answering a clinical question. The PRIMARY data is the "
-    "ATTACHED IMAGE (an ECG strip, an echo/CT/PET still, or a pathology image) — read it "
+    "ATTACHED IMAGE (an ECG strip, an echo/CT/PET still, or a pathology image), read it "
     "directly and ground your answer in WHAT YOU SEE in the image, not only the text "
     "findings. Then integrate the labs, notes, medications, and problem list. Give your "
     "best, concise clinical answer and plan, confidently as a specialist would; do not "
@@ -262,7 +262,7 @@ async def run_baselines(
             runs.append(store.insert_baseline_run(
                 task_id=task_id, model=model, response_text=None,
                 error="empty/incomplete response (a reasoning model may have exhausted its "
-                      "output budget on reasoning — raise LLM_OPENAI_REASONING_RESERVE or "
+                      "output budget on reasoning: raise LLM_OPENAI_REASONING_RESERVE or "
                       "asclepius_baseline max_tokens)",
                 provider=(rec or {}).get("provider") or _provider_of(model), prompt_hash=prompt_hash))
             continue
@@ -314,7 +314,7 @@ def build_baseline_candidates(
         # DISCARD the pair (never let a divergent pair reach a doctor).
         h_oa, h_an = oa_run.get("prompt_hash"), an_run.get("prompt_hash")
         if h_oa and h_an and h_oa != h_an:
-            log.error("asclepius: pair_prompt_divergence — openai=%s anthropic=%s; pair discarded",
+            log.error("asclepius: pair_prompt_divergence, openai=%s anthropic=%s; pair discarded",
                       str(h_oa)[:12], str(h_an)[:12])
             return []
         return place_AB(_ans(oa_run), _ans(an_run))

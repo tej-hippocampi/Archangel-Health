@@ -595,7 +595,7 @@ def test_mid_wizard_physicians_are_visible_in_pending():
     """
     out = _render("", _pending(_SIGNUPS_PAYLOAD))
     assert "Ada Lovelace" in out["text"]
-    assert "fresh@clinic.org" in out["text"] or "—" in out["text"]
+    assert "fresh@clinic.org" in out["text"] or "-" in out["text"]
     # They carry the chip that says why they cannot be decided.
     assert "Signup incomplete" in out["text"]
 

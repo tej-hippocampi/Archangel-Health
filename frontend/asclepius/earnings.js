@@ -368,7 +368,7 @@
         // the whole session while looking like it was working.
         stopTimer();
         session.error = 'This review session cannot be tracked. Your time is not '
-          + 'being counted — reload the page.';
+          + 'being counted: reload the page.';
       } else {
         session.error = 'Session time is not syncing. Your credited time is safe on '
           + 'the server; it will catch up when the connection returns.';
@@ -704,10 +704,10 @@
   }
 
   function shortDate(iso) {
-    if (!iso) return '—';
+    if (!iso) return '-';
     var d = new Date(String(iso).indexOf('Z') === -1 && String(iso).indexOf('+') === -1
       ? String(iso) + 'Z' : String(iso));
-    if (isNaN(d.getTime())) return '—';
+    if (isNaN(d.getTime())) return '-';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
@@ -740,7 +740,7 @@
     }
     if (live && live.paused) {
       card.appendChild(h('div', { class: 'asc-pay-session-warn' },
-        'Paused — this tab is in the background and is not counting.'));
+        'Paused, this tab is in the background and is not counting.'));
     }
 
     card.appendChild(h('div', { class: 'asc-pay-session-rule' }));

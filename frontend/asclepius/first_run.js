@@ -105,6 +105,13 @@
   var stops = {};          // { stopId: 'done' | 'deferred' }
   var current = null;      // stop id on screen
   var demoMeta = null;     // { available, url, version } once probed
+  //: True while the player was opened OUTSIDE the walkthrough, from the
+  //: pre-examination resources screen. It changes exactly one thing: the panel
+  //: after the video must not close a walkthrough stop or launch the practice
+  //: case, because the account watching may have no walkthrough at all (an
+  //: applicant's is suppressed until approval) and the screen they came from
+  //: owns where they go next.
+  var standaloneDemo = false;
   var demoProbe = null;    // the in-flight probe, so stop 2 can wait on it
   var escHandler = null;
   var reentryEsc = null;   // §3: Esc leaves the re-entry page
@@ -333,14 +340,14 @@
   var LETTER = [
     'Doctors earn from their judgment. Models learn from it. The hardest cases '
       + 'become the most valuable data.',
-    'AI is going to take real clinical work off physicians — diagnosing, '
+    'AI is going to take real clinical work off physicians: diagnosing, '
       + 'prescribing, managing patients. That is coming either way. Whether it '
       + 'arrives safely depends on what it learns from, and we don’t believe that '
       + 'can be one company’s decision. It takes the medical community itself: the '
       + 'specialists, the people who know what good care looks like, teaching it '
       + 'deliberately rather than letting it guess.',
     'That’s why you’re here, and why we’re glad you are. Every case you take here '
-      + 'is read against real clinical judgment — yours. A 70% benchmark score is '
+      + 'is read against real clinical judgment, yours. A 70% benchmark score is '
       + 'irrelevant when a patient is downstream. The people who carry the '
       + 'consequences should define what correct means.',
     'Welcome aboard.',
@@ -420,7 +427,7 @@
       h('h1', { class: 'asc-fr-title' }, 'Where would you like to start?'),
       cards,
       h('p', { class: 'asc-fr-note' },
-        'Either path works — the practice case is the real interface.'));
+        'Either path works: the practice case is the real interface.'));
 
     // No primary button. This screen asks a question and offers exactly two
     // answers; a black "Start the practice case →" underneath them repeated the
@@ -440,6 +447,7 @@
   /* ── The player: expands IN PLACE, never a route change. ── */
 
   function closeDemo() {
+    standaloneDemo = false;
     var overlay = document.getElementById('ascFrDemo');
     if (overlay) overlay.remove();
     if (escHandler) { document.removeEventListener('keydown', escHandler); escHandler = null; }
@@ -468,7 +476,11 @@
           h('span', {}, 'Ready to try one?'),
           h('button', {
             class: 'asc-btn asc-btn-primary', type: 'button',
-            onClick: function () { closeDemo(); close('start', 'done', runPracticeCase); },
+            onClick: function () {
+              closeDemo();
+              if (standaloneDemo) return;   // the resources screen is still behind it
+              close('start', 'done', runPracticeCase);
+            },
           }, 'Start the practice case →'))));
 
     // Clicking the dim closes, the frame does not. Same behaviour as every
@@ -561,11 +573,11 @@
       h('h1', { class: 'asc-fr-title' }, 'The people you’ll be working alongside.'),
       h('div', { class: 'asc-fr-preview asc-fr-preview-community', 'aria-hidden': 'true' },
         previewLine('Dr. Chen', 'Anyone seen the new KDIGO draft? The albuminuria cutoff moved.'),
-        previewLine('Tej', 'New nephrology cases just landed for six of you — check your queue.'),
+        previewLine('Tej', 'New nephrology cases just landed for six of you, check your queue.'),
         previewLine('Dr. Okafor', 'Happy to take the group case on the transplant workup.')),
       h('p', { class: 'asc-fr-body' },
         'This is our Slack. Medical news, the community’s best finds, and the two '
-        + 'of us — message Tej or Aryaa directly any time. If you’re on a group case '
+        + 'of us: message Tej or Aryaa directly any time. If you’re on a group case '
         + 'with other doctors, this is where you’ll coordinate. We’ll also ping you '
         + 'here when new cases land for you.'));
     ctx.setRoot(stopShell({
@@ -648,7 +660,7 @@
     var body = h('div', {},
       h('h1', { class: 'asc-fr-title' }, 'How you get paid.'),
       h('p', { class: 'asc-fr-body' },
-        'Every case you complete accrues in Earnings — $75 per completed case, '
+        'Every case you complete accrues in Earnings, $75 per completed case, '
         + 'visible immediately.'),
       // Disabled and clearly labelled, per §6 stop 5, until the payments rail is
       // live. It is architecture on screen: the card and the `bank_link_status`
@@ -687,7 +699,7 @@
       h('h1', { class: 'asc-fr-title' }, 'Everything else lives in the manual.'),
       h('p', { class: 'asc-fr-body' },
         'Everything about how to label well lives here. Questions beyond it? '
-        + 'Message Tej or Aryaa in the community — we answer fast.'),
+        + 'Message Tej or Aryaa in the community, we answer fast.'),
       h('p', { class: 'asc-fr-body' },
         'And whenever you like, take twenty minutes with us. We meet every '
         + 'physician one on one; it’s the part of this we like most.'),
@@ -827,7 +839,7 @@
   function reentryLede(n) {
     var count = n === 1 ? 'One quick thing' : (n === 2 ? 'Two quick things' : 'Three quick things');
     return count + ' you set aside. '
-      + (n === 1 ? 'A couple of minutes' : 'Two minutes') + ', or later — your call.';
+      + (n === 1 ? 'A couple of minutes' : 'Two minutes') + ', or later: your call.';
   }
 
   function bindReentryEsc() {
@@ -986,6 +998,31 @@
      *  should land on their dashboard rather than be walked through an
      *  onboarding they finished with. `deferred` is "asked and declined", so it
      *  counts as touched here even though it is still open for the cadence. */
+    /** Play the demo on its own, outside the walkthrough.
+     *
+     *  The pre-examination resources screen offers the same three-minute video
+     *  the walkthrough does, and an applicant has no walkthrough: theirs is
+     *  suppressed until approval. So this reuses the player rather than
+     *  building a second one, and sets the flag that stops the panel after the
+     *  video from closing a stop that is not open.
+     *
+     *  Resolves false when there is no demo uploaded, so the caller can leave
+     *  the card out rather than offering a button that does nothing.
+     */
+    playDemo: function (context) {
+      ctx = context;
+      standaloneDemo = true;
+      return probeDemo().then(function () {
+        if (!demoMeta || !demoMeta.available) { standaloneDemo = false; return false; }
+        openDemo();
+        return true;
+      });
+    },
+
+    /** Whether a demo has been uploaded at all, for a caller deciding whether
+     *  to draw the card. Answers from the last probe; false before one. */
+    demoAvailable: function () { return !!(demoMeta && demoMeta.available); },
+
     tourPending: function (user) {
       var s = readState(user);
       return STOPS.some(function (id) { return s[id] === undefined; });

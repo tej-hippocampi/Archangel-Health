@@ -592,14 +592,32 @@ def test_client_supplied_cv_sha_is_ignored(client: TestClient):
 
 
 def test_cv_upload_rejects_bad_type_and_bad_token(client: TestClient):
+    """.docx is accepted now, so the refusal this pins moved.
+
+    It used to be "we do not take Word files", which is no longer true and was
+    never a good answer: .docx is the single most common thing a physician
+    attaches. What is still refused is a file whose BYTES are not something we
+    can read, whatever it claims to be, and a zip that is not a Word document
+    is the sharpest version of that: .docx, .xlsx, .jar, .epub and a plain .zip
+    all begin PK\x03\x04, so accepting on the magic bytes would accept all of
+    them into a blob that is later served inline from our own origin.
+    """
+    import io
+    import zipfile
+
     token, _, _ = _seed_verified(client)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("payload.txt", "not a cv")
     r = client.post(
         "/api/onboarding/asclepius/cv",
         data={"token": token},
-        files={"file": ("cv.docx", b"zzz",
+        files={"file": ("cv.docx", buf.getvalue(),
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
     )
-    assert r.status_code == 400
+    assert r.status_code == 400, r.text
+    # And the refusal says what to attach instead, which the old one did not.
+    assert "PDF" in r.text and "Word" in r.text
     r = client.post(
         "/api/onboarding/asclepius/cv",
         data={"token": "bogus-token"},
@@ -810,8 +828,37 @@ def test_reject_without_note_is_400_with_note_rejects(client: TestClient):
     assert row["verification_status"] == "rejected"
     assert row["verified_by"] == admin["email"]
     assert row["tier"] is None
+    # A REJECTED PHYSICIAN CAN STILL SIGN IN, and that is the change.
+    #
+    # This used to 403 forever: the account was closed and the email told them
+    # so. The founders' instruction is that a rejection is a request to do the
+    # case work again, keeping every credential they already gave us, so the
+    # session stays open at the same level an applicant has.
+    #
+    # A true "never again" is deactivation (`active = 0`), which is asserted
+    # below and is a separate act.
     r = client.get("/api/asclepius/auth/me", headers=headers_for(u))
-    assert r.status_code == 403 and "not approved" in r.json()["detail"].lower()
+    assert r.status_code == 200, r.text
+    me = r.json()
+    assert me["verification_status"] == "rejected"
+    assert me["access_level"] == "provisional"
+    assert "real_work" not in me["surfaces"], "a rejected account must draw no cases"
+    # The case work is reopened rather than left where it failed, so the demo
+    # and the practice case are offered again before the fresh examination.
+    assert me["tutorial"]["resources_seen_at"] is None
+    assert me["tutorial"]["exam"]["state"] == "retake"
+
+    # And deactivation still closes the door for good. Written directly
+    # because there is no store setter for it: `active` is flipped by the
+    # dedupe and provider-removal paths, and the point here is the ACCESS rule
+    # in capabilities.access_level, which reads the column whatever set it.
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (u["id"],))
+    r = client.get("/api/asclepius/auth/me", headers=headers_for(u))
+    # 401 rather than 403: an inactive account is refused at the token, before
+    # anything asks what it is allowed to do. Either is a closed door, and the
+    # earlier one is the stronger answer.
+    assert r.status_code in (401, 403), "a deactivated account is still a closed door"
 
 
 def test_recheck_npi_updates_unavailable_in_place(client: TestClient, monkeypatch):

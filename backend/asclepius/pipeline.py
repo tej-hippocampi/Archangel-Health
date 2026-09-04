@@ -363,7 +363,7 @@ async def process_submission(
         }
 
     # 5. Passed validation + critic + grounding, agreed, not sampled -> export-ready.
-    _progress("complete", 100, "Complete — export-ready")
+    _progress("complete", 100, "Complete: export-ready")
     store.update_submission(sid, status="export_ready")
     store.update_records_status_for_submission(sid, "export_ready")
     store.log_event(

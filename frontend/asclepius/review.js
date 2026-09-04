@@ -383,7 +383,7 @@
     if (!PREVIEW) return null;
     return h('div', { class: 'asc-rv-preview' },
       h('span', { class: 'asc-rv-chrome' }, 'Preview'),
-      h('span', {}, 'Preview — nothing you submit here is recorded.'));
+      h('span', {}, 'Preview: nothing you submit here is recorded.'));
   }
 
   function renderNotReviewer() {
@@ -427,7 +427,7 @@
       if (data && data.task && HOST && HOST.contains && HOST.contains(pad)) {
         pad.appendChild(h('p', { class: 'asc-rv-kv asc-rv-kv-lead' },
           'A case is waiting for its second independent label (specialty: '
-          + (data.task.specialty || 'any') + ') — open it from your dashboard.'));
+          + (data.task.specialty || 'any') + '): open it from your dashboard.'));
       }
     }).catch(function () { /* pointer is best-effort */ });
     mount(header(), previewBanner(), card);
@@ -474,7 +474,7 @@
     }
     if (!kids.length) return null;
     return h('details', { class: 'asc-rv-case' },
-      h('summary', {}, 'The case — open only if you doubt something'),
+      h('summary', {}, 'The case: open only if you doubt something'),
       h('div', { class: 'asc-rv-case-body' }, kids));
   }
 
@@ -548,7 +548,7 @@
   function verdictLabel(v) {
     if (v === 'A_better') return 'Chose candidate A';
     if (v === 'B_better') return 'Chose candidate B';
-    if (v === 'both_inadequate') return 'Both inadequate — wrote from scratch';
+    if (v === 'both_inadequate') return 'Both inadequate: wrote from scratch';
     return v || 'no verdict';
   }
   function candidateText(task, id) {
@@ -640,7 +640,7 @@
         var txt = (e && e.expectation) || String(e || '');
         var days = e && e.horizon_days;
         return h('div', { class: 'asc-rv-kv' },
-          txt + (days ? ' — within ' + days + ' day' + (days === 1 ? '' : 's') : ''));
+          txt + (days ? ', within ' + days + ' day' + (days === 1 ? '' : 's') : ''));
       })));
     }
     var fals = et.falsifiers || [];
@@ -961,7 +961,7 @@
       }, 'fork', { labelledBy: labelId });
       return h('div', { class: 'asc-rv-dim asc-rv-fork-row', dataset: { forkIdx: String(d.index) } },
         h('div', { class: 'asc-rv-dim-label', id: labelId },
-          'Step ' + (d.index + 1) + ' — they diverge',
+          'Step ' + (d.index + 1) + ', they diverge',
           h('small', {}, d.a === null ? 'only B took this step'
             : d.b === null ? 'only A took this step'
               : 'which side is right here?')),
@@ -970,7 +970,7 @@
     return h('div', { class: 'asc-rv-forks' },
       h('div', { class: 'asc-rv-kv asc-rv-kv-lead' },
         h('b', {}, 'Where the reasoning forks'),
-        ' — ' + DIVERGENCE.length + ' of ' + forkDenominator() + ' steps'),
+        ' - ' + DIVERGENCE.length + ' of ' + forkDenominator() + ' steps'),
       rows);
   }
   function forkDenominator() {
@@ -990,7 +990,7 @@
     ['accept', 'A', 'Accept A', "Physician A's answer is right as submitted"],
     ['accept', 'B', 'Accept B', "Physician B's answer is right as submitted"],
     ['accept_with_edits', 'stronger', 'Accept with edits', 'Right call, needs corrections'],
-    ['reject', null, 'Reject both', 'Neither is usable — reason required'],
+    ['reject', null, 'Reject both', 'Neither is usable: reason required'],
   ];
 
   var verdictWrap = null;
@@ -1123,7 +1123,7 @@
       // the rule from an error code.
       clear(errLine);
       errLine.appendChild(document.createTextNode(
-        'Preview — nothing you submit here is recorded.'));
+        'Preview: nothing you submit here is recorded.'));
       return;
     }
     submitBtn.disabled = true;

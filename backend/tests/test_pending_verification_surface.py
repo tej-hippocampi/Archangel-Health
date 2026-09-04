@@ -135,23 +135,54 @@ def test_the_real_work_surface_is_still_shut_for_the_same_physician(client):
         assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending", path
 
 
-def test_earnings_are_closed_until_the_application_is_decided(client):
-    """Earnings used to be open, on the argument that money is protected by
-    there being none and that locking the tab made the product look empty on
-    the applicant's first day.
+def test_earnings_can_be_read_while_an_application_is_under_review(client):
+    """Reading the page and moving money are two different permissions.
 
-    The second half of that is now answered by the practice case, which is real
-    work rather than a ledger reading zero, so the tab closes until there is
-    something in it. It opens on approval.
+    This tab has been open, then closed, and is now open for the READ only.
+    Somebody deciding whether to do this work should be able to see how they
+    would be paid for it, and the page reads zero, which is honest.
 
-    Referral is deliberately NOT in here: see the test below."""
+    What closed instead is every endpoint that TRANSACTS. That is the half that
+    actually mattered and the half the surface was quietly carrying: opening a
+    billable session accrues paid minutes, and it only ever asked "do you hold
+    EARNINGS". Nothing in the client called it for an applicant, which is why it
+    was invisible, and an entitlement that holds only because the UI does not
+    offer the button is not an entitlement.
+    """
     store = fresh_store()
     user = make_user(store, role="evaluator")
     store.set_verification_status(user["id"], "pending")
 
     res = client.get("/api/asclepius/earnings", headers=headers_for(user))
-    assert res.status_code == 403
+    assert res.status_code == 200, res.text
+    assert res.json().get("total_cents", 0) == 0
+
+
+def test_an_applicant_cannot_open_a_billable_session(client):
+    """The half of the earnings surface that moves money."""
+    store = fresh_store()
+    user = make_user(store, role="evaluator")
+    store.set_verification_status(user["id"], "pending")
+
+    res = client.post("/api/asclepius/sessions", json={"kind": "labeling"},
+                      headers=headers_for(user))
+    assert res.status_code == 403, res.text
     assert res.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending"
+
+
+def test_an_applicant_cannot_open_a_payout_account(client):
+    """Stripe Connect onboarding for a physician nobody has verified.
+
+    This was gated on `get_current_account`, which admits any live account, so
+    it was reachable before the earnings page was; widening the surface would
+    have made it reachable from a page they can now see.
+    """
+    store = fresh_store()
+    user = make_user(store, role="evaluator")
+    store.set_verification_status(user["id"], "pending")
+
+    res = client.post("/api/asclepius/me/bank-link/start", headers=headers_for(user))
+    assert res.status_code == 403, res.text
 
 
 def test_referral_stays_open_while_an_application_is_under_review(client):

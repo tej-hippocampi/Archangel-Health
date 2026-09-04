@@ -397,8 +397,17 @@ _FIXTURES: dict[str, Callable[[_Ctx], str]] = {
     "asclepius_reasoning_split": _f_reasoning_split,
     "community morning content": _f_prose,
     "community morning content (grounded)": _f_prose,
-    "community news digest — compose post": _f_prose,
-    "community news digest — select/score items": _f_community_items,
+    # THESE KEYS ARE IDENTIFIERS, NOT COPY, and they must match the `purpose=`
+    # at the call site (community/digest.py) character for character.
+    #
+    # They said "digest — compose post" until a sweep that removes em dashes
+    # from user-facing writing reached digest.py, changed the purpose there, and
+    # could not see that the same string is a dictionary key over here. The call
+    # site then looked up a key that no longer existed. Nothing user-visible was
+    # wrong; the fixture simply stopped resolving, and test_no_fixture_key_is_dead
+    # is what caught it.
+    "community news digest: compose post": _f_prose,
+    "community news digest: select/score items": _f_community_items,
     "gold_deid": _f_gold_deid,
     "gold_draft": _f_prose,
     "grounding_judge": _f_grounding_judge,

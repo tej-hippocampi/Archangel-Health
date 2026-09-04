@@ -265,14 +265,14 @@ async def patch_intraop_form(
     existing = store.get_intraop_form(patient_id) or store.get_or_create_intraop_form(patient_id=patient_id)
     current_status = existing.get("status") or "NEW"
     if current_status == "LOCKED":
-        raise HTTPException(status_code=409, detail="Form is LOCKED — admin REOPEN required to edit.")
+        raise HTTPException(status_code=409, detail="Form is LOCKED: admin REOPEN required to edit.")
 
     role = (staff.role or "").lower() if staff else ""
     if current_status == "READY_FOR_SURGEON_REVIEW":
         if role != "surgeon":
             raise HTTPException(
                 status_code=403,
-                detail="Form is awaiting surgeon review — only the surgeon can edit. RNs may recall the draft.",
+                detail="Form is awaiting surgeon review: only the surgeon can edit. RNs may recall the draft.",
             )
     else:
         if role != "rn_coordinator":
@@ -408,7 +408,7 @@ async def mark_intraop_form_ready_for_review(
         raise HTTPException(status_code=404, detail="Intra-op form not found")
     status_now = form.get("status") or "NEW"
     if status_now == "LOCKED":
-        raise HTTPException(status_code=409, detail="Form is LOCKED — cannot move back to review.")
+        raise HTTPException(status_code=409, detail="Form is LOCKED: cannot move back to review.")
     if status_now == "READY_FOR_SURGEON_REVIEW":
         raise HTTPException(status_code=409, detail="Form is already awaiting surgeon review.")
     if status_now not in ("NEW", "IN_PROGRESS", "REOPENED"):
@@ -585,7 +585,7 @@ async def reopen_intraop_form(
     store = _team_store(request)
     reopened = store.reopen_intraop_form(patient_id=patient_id)
     if reopened is None:
-        raise HTTPException(status_code=409, detail="Form is not LOCKED — cannot reopen")
+        raise HTTPException(status_code=409, detail="Form is not LOCKED: cannot reopen")
     try:
         store.log_event(
             patient_id=patient_id,

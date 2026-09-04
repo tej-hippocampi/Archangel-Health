@@ -321,7 +321,7 @@ def store_part(session: Dict[str, Any], n: int, data: bytes,
     if actual != sha:
         raise UploadSessionError(
             "part_digest_mismatch",
-            f"part {n} did not match its declared sha256 — re-send this part.")
+            f"part {n} did not match its declared sha256, re-send this part.")
 
     from field_crypto import encrypt_bytes
     data_path, meta_path = _part_paths(session, n)
@@ -430,7 +430,7 @@ def complete(store: Any, session: Dict[str, Any]) -> Dict[str, Any]:
         raise UploadIntegrityError(
             "digest_mismatch",
             "The assembled upload did not match the checksum you declared. "
-            "Nothing was stored — please start the upload again.", status=409)
+            "Nothing was stored: please start the upload again.", status=409)
 
     # Naive UTC to whole seconds, matching every other timestamp in this schema.
     # A tz-aware value sorts and compares differently from its naive neighbours

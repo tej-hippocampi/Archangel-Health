@@ -31,6 +31,7 @@ Client compatibility:
 from __future__ import annotations
 
 import html
+import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -321,13 +322,73 @@ def _pullquote(text: str) -> str:
     )
 
 
+#: The founders' photo, shown above their names in the emails a physician gets
+#: while deciding whether to trust us with their licence number. Served from the
+#: existing ``/email-assets`` mount (``backend/assets``), which is why there is
+#: no new route here.
+#:
+#: Absent by default, and that is fine. A remote image in an email is blocked by
+#: most clients until the reader allows it, and a BROKEN one is worse than none
+#: at all, so the signature degrades to the names alone when the file is not
+#: there. Drop a photo at ``backend/assets/founders.jpg`` (or point
+#: ``FOUNDER_PHOTO_URL`` at a hosted one) and it appears with no code change.
+FOUNDER_PHOTO_FILENAME = "founders.jpg"
+
+
+def _founder_photo_url() -> str:
+    """An absolute URL for the founder photo, or "" when there is nothing to show.
+
+    Absolute on purpose: an email is read outside our origin, so a relative
+    ``/email-assets/...`` resolves against the mail client and 404s.
+    """
+    override = (os.getenv("FOUNDER_PHOTO_URL") or "").strip()
+    if override:
+        return override
+    here = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(os.path.join(here, "assets", FOUNDER_PHOTO_FILENAME)):
+        return ""
+    base = (os.getenv("BASE_URL") or "").strip().rstrip("/")
+    if not base:
+        # With no base URL configured there is no absolute URL to build, and a
+        # relative one in an inbox is a broken image. Show the names instead.
+        return ""
+    return f"{base}/email-assets/{FOUNDER_PHOTO_FILENAME}"
+
+
 def _founder_signoff(line: str) -> str:
-    """The founders sign their own emails. Set slightly apart from the body so it
-    reads as a signature and not as one more paragraph."""
+    """The founders sign their own emails, with their faces where we have them.
+
+    Set slightly apart from the body so it reads as a signature and not as one
+    more paragraph. The photo is the point: these messages ask a physician to
+    hand over a licence number and a CV, and a name with a face behind it is a
+    different ask from a name alone.
+
+    Laid out with a table rather than flexbox because Outlook's rendering engine
+    is Word, which has neither flexbox nor grid and would stack the two cells.
+    """
+    photo = _founder_photo_url()
+    if not photo:
+        return (
+            f'<p style="margin:26px 0 0;padding-top:20px;border-top:1px solid {_HAIRLINE};'
+            f'font-family:{_SANS};font-size:15px;line-height:1.6;color:{_INK};">'
+            f"{html.escape(line)}</p>"
+        )
+    text = (
+        f'<span style="font-family:{_SANS};font-size:15px;line-height:1.6;'
+        f'color:{_INK};">{html.escape(line)}</span>'
+    )
     return (
-        f'<p style="margin:26px 0 0;padding-top:20px;border-top:1px solid {_HAIRLINE};'
-        f'font-family:{_SANS};font-size:15px;line-height:1.6;color:{_INK};">'
-        f"{html.escape(line)}</p>"
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
+        f'style="margin:26px 0 0;padding-top:20px;border-top:1px solid {_HAIRLINE};'
+        'width:100%;"><tr>'
+        '<td width="64" valign="middle" style="padding-right:14px;">'
+        f'<img src="{html.escape(photo, quote=True)}" width="56" height="56" '
+        f'alt="{html.escape(line, quote=True)}" '
+        'style="display:block;width:56px;height:56px;border-radius:28px;'
+        'object-fit:cover;border:0;outline:none;text-decoration:none;" />'
+        '</td>'
+        f'<td valign="middle">{text}</td>'
+        '</tr></table>'
     )
 
 
@@ -585,7 +646,7 @@ def build_asclepius_invite_email(
         )
 
     body = (
-        _eyebrow("Invitation · Asclepius")
+        _eyebrow("Invitation · Archangel Health")
         + _h1(f"You&rsquo;re invited to contribute to {org_spec_label}.")
         + referral_line
         + _p(
@@ -593,7 +654,7 @@ def build_asclepius_invite_email(
             + _strong(director_full_name or "your director")
             + " has invited you to join "
             + _strong((org_name or "your organization"))
-            + " on Asclepius, Archangel Health&rsquo;s expert data-training product, where "
+            + " on Archangel Health, our expert data-training product, where "
             "clinicians review and label AI answers in their specialty."
         )
         + _inset_card(_detail_rows(rows))
@@ -622,12 +683,11 @@ def build_asclepius_admin_invite_email(
     references an org and specialty which do not exist yet here, since this
     recipient has not started onboarding at all)."""
     body = (
-        _eyebrow("Invitation · Asclepius")
-        + _h1(f"Welcome to Asclepius, {html.escape(invitee_name or 'there')}.")
+        _eyebrow("Invitation · Archangel Health")
+        + _h1(f"Welcome to Archangel Health, {html.escape(invitee_name or 'there')}.")
         + _p(
-            "You have been invited to join Asclepius, Archangel Health&rsquo;s expert "
-            "data-training product, where physicians review and label AI answers in "
-            "their specialty."
+            "You have been invited to join Archangel Health, our expert data-training "
+            "product, where physicians review and label AI answers in their specialty."
         )
         + _cta(onboarding_url, "Start your onboarding →")
         + _p(
@@ -677,7 +737,7 @@ def build_asclepius_complete_email(
     intro = (
         html.escape(safe_org)
         + (" · " + html.escape(safe_spec) if safe_spec else "")
-        + " is live on Asclepius. You can now open your training console, pick up "
+        + " is live on Archangel Health. You can now open your training console, pick up "
         "evaluation tasks, and start contributing expert-labeled data."
     )
 
@@ -695,7 +755,7 @@ def build_asclepius_complete_email(
     )
 
     body = (
-        _eyebrow("Onboarding complete · Asclepius")
+        _eyebrow("Onboarding complete · Archangel Health")
         + _h1("Your workspace is ready.")
         + _p(intro)
         + verification_html
@@ -713,7 +773,7 @@ def build_asclepius_complete_email(
         # instruction, and it must not come between them and their workspace.
         + _partner_intro_line(partner_url)
     )
-    return _shell(subject="Your Asclepius workspace is ready", body_html=body)
+    return _shell(subject="Your Archangel Health workspace is ready", body_html=body)
 
 
 def build_asclepius_task_notification_email(
@@ -725,15 +785,15 @@ def build_asclepius_task_notification_email(
     plural = "task" if task_count == 1 else "tasks"
     is_are = "is" if task_count == 1 else "are"
     body = (
-        _eyebrow("New work · Asclepius")
+        _eyebrow("New work · Archangel Health")
         + _h1(f"{task_count} new {html.escape(specialty_label)} {plural} ready.")
         + _p(
             f"{task_count} new {html.escape(specialty_label)} {plural} "
-            f"{is_are} ready to review in your Asclepius workspace."
+            f"{is_are} ready to review in your Archangel Health workspace."
         )
         + _cta(workspace_url, "Open my workspace →")
     )
-    subject = f"{task_count} new {specialty_label} {plural} ready in your Asclepius workspace"
+    subject = f"{task_count} new {specialty_label} {plural} ready in your Archangel Health workspace"
     return _shell(subject=subject, body_html=body)
 
 
@@ -1002,9 +1062,9 @@ def build_application_start_email(
         + _p(f"Your progress saves automatically, so you can stop anywhere and come "
              f"back to exactly where you were. This link is yours for {expires_days} days.",
              muted=True, small=True)
-        + _founder_signoff("— Tej & Aryaa, founders")
+        + _founder_signoff("Tej & Aryaa, founders")
     )
-    return _shell(subject="Your Archangel Health application — pick up any time",
+    return _shell(subject="Pick up your Archangel Health application any time",
                   body_html=body)
 
 
@@ -1021,10 +1081,10 @@ def build_application_nudge_email(*, first_name: str, onboarding_url: str) -> st
         + _p("You&rsquo;re most of the way there. Your answers are saved exactly where "
              "you left them.")
         + _cta(onboarding_url, "Finish my application")
-        + _p("We read every application personally — we&rsquo;d love to see yours.")
-        + _founder_signoff("— Tej & Aryaa, founders")
+        + _p("We read every application personally. We&rsquo;d love to see yours.")
+        + _founder_signoff("Tej & Aryaa, founders")
     )
-    return _shell(subject="Your application is waiting — 2 minutes to finish",
+    return _shell(subject="Your application is waiting: 2 minutes to finish",
                   body_html=body)
 
 
@@ -1044,9 +1104,9 @@ def build_application_expiring_email(
              "stops working tomorrow. Everything you filled in is still there until "
              "then.")
         + _cta(onboarding_url, "Finish my application")
-        + _p("If it lapses, just start again from the website and write to us — "
+        + _p("If it lapses, just start again from the website and write to us, "
              "we&rsquo;ll pick it back up with you.", muted=True, small=True)
-        + _founder_signoff("— Tej & Aryaa, founders")
+        + _founder_signoff("Tej & Aryaa, founders")
     )
     return _shell(subject="Your Archangel Health link expires tomorrow",
                   body_html=body)
@@ -1165,14 +1225,14 @@ def build_application_submitted_email(*, full_name: str, portal_url: str = "") -
     body = (
         _eyebrow("Application received")
         + _h1("We&rsquo;ve got your application.")
-        + _p(f"{_strong(greeting)} — thank you. "
+        + _p(f"{_strong(greeting)}, thank you. "
              "Your application is with us now, and one of us will personally review it "
              "within 24–48 hours. We keep review human on purpose: the whole premise of "
              "Archangel is that medicine needs qualified people at every decision point, "
              "and that starts with how we welcome physicians. You&rsquo;ll hear from us "
              "either way.")
         + waiting
-        + _founder_signoff("— Tej Patel & Aryaa Bhatia")
+        + _founder_signoff("Tej Patel & Aryaa Bhatia")
     )
     return _shell(subject="We&rsquo;ve got your application", body_html=body)
 
@@ -1193,46 +1253,61 @@ def build_application_welcome_email(
     *,
     full_name: str,
     email: str,
-    temp_password: str,
+    temp_password: Optional[str] = None,
     sign_in_url: str,
     calendly_url: str = FOUNDER_INTRO_CALENDLY,
 ) -> str:
-    """§4.4 — sent on admin approval. Carries the credentials.
+    """§4.4, sent on admin approval. The one email that welcomes a physician.
 
-    The password in this email is TEMPORARY and is rotated on first sign-in
-    (§0.1 decision 1). That is the one place this build departs from the ask, and
-    it departs in the physician's favour: the doctor experience is identical —
-    credentials in the email, sign in from the website, works first time — but a
-    credential that lives in an inbox forever does not survive an inbox breach,
-    and neither does the answer we give a hospital partner who asks.
+    ``temp_password`` is now optional, and that is the whole change. It used to
+    be required because approval was the moment a credential came into
+    existence: the wizard had no password step, so every approved physician
+    needed one minted and mailed.
+
+    Screen one of the wizard now takes a password, so most approvals have
+    nothing to mint. That branch used to fall through to a plain queued notice,
+    which meant a physician who chose their own password silently lost the
+    mission block, the sign-in button and the founders' Calendly: the entire
+    content of the welcome, missing, because of an implementation detail about
+    where their password came from.
+
+    So the credentials CARD is what is conditional, not the email. Everything
+    else is byte for byte the same message either way.
     """
     subject = application_welcome_subject(full_name)
-    creds = _detail_rows([
-        ("Email", email, True),
-        ("Temporary password", temp_password, True),
-    ])
+    if temp_password:
+        credentials_block = (
+            _section_label("Your credentials")
+            + _inset_card(_detail_rows([
+                ("Email", email, True),
+                ("Temporary password", temp_password, True),
+            ]))
+            + _p("You&rsquo;ll choose your own password when you first sign in. This one is "
+                 "temporary and stops working the moment you do.", muted=True, small=True)
+        )
+    else:
+        credentials_block = _p(
+            "Sign in with the email and the password you chose when you applied.",
+            muted=True, small=True)
     body = (
         _eyebrow("Approved · Archangel Health")
-        + _h1("We just approved your application — welcome.")
+        + _h1("We just approved your application. Welcome.")
         # §4.4 section 2: the mission block, verbatim from the landing /mission.
         + _pullquote("Doctors earn from their judgment. Models learn from it. "
                      "The hardest cases become the most valuable data.")
         + _p("Verification is the scarce input in medical AI. A 70% benchmark score is "
-             "irrelevant when a patient is downstream — the people who carry the "
+             "irrelevant when a patient is downstream. The people who carry the "
              "consequences should define what correct means. That&rsquo;s you.")
-        # §4.4 section 3: the credentials card.
-        + _section_label("Your credentials")
-        + _inset_card(creds)
-        + _p("You&rsquo;ll choose your own password when you first sign in — this one is "
-             "temporary and stops working the moment you do.", muted=True, small=True)
+        # §4.4 section 3: the credentials card, or the line that replaces it.
+        + credentials_block
         + _cta(sign_in_url, "Sign in")
         # §4.4 section 4: meet us.
         + _section_label("Meet us")
-        + _p("We meet every physician one on one — it&rsquo;s the part of this we like "
+        + _p("We meet every physician one on one. It&rsquo;s the part of this we like "
              "most. Book 20 minutes with us: about the mission, the platform, your "
              "specialty, or anything else. We&rsquo;d genuinely love to learn from you.")
         + _cta(calendly_url, "Book 20 minutes")
-        + _founder_signoff("— Tej & Aryaa, co-founders")
+        + _founder_signoff("Tej & Aryaa, co-founders")
     )
     return _shell(subject=subject, body_html=body)
 
@@ -1273,24 +1348,24 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str,
                "record your clinical judgment, and every case you file is graded.")
         )
     body = (
-        _eyebrow("Verified · Asclepius")
+        _eyebrow("Verified · Archangel Health")
         + _h1("You&rsquo;re approved.")
         + _p(
-            f"{_strong(first)}, your credentials have been verified and your Asclepius "
+            f"{_strong(first)}, your credentials have been verified and your Archangel Health "
             "account is now open for evaluation work."
         )
         + tier_para
         + _cta(workspace_url, "Open your workspace →")
         + _p(
             "Your seat in the "
-            + _strong("Asclepius Community")
+            + _strong("Archangel Health Community")
             + " is open too, a private space for verified physicians. Find it in the "
             "side panel: introduce yourself, follow the medical-AI digest, and meet the "
             "colleagues you will be working alongside."
         )
         + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
     )
-    return _shell(subject="You're approved for Asclepius", body_html=body)
+    return _shell(subject="You're approved for Archangel Health", body_html=body)
 
 
 def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
@@ -1308,7 +1383,7 @@ def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
     """
     first = (full_name or "").strip() or "Doctor"
     body = (
-        _eyebrow("Asclepius")
+        _eyebrow("Archangel Health")
         + _h1("You&rsquo;re now a reviewer.")
         + _p(
             f"{_strong(first)}, on the strength of the cases you have filed, your "
@@ -1322,10 +1397,10 @@ def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
         + _cta(workspace_url, "Open your workspace →")
         + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
     )
-    return _shell(subject="You're now a reviewer on Asclepius", body_html=body)
+    return _shell(subject="You're now a reviewer on Archangel Health", body_html=body)
 
 
-def build_asclepius_rejected_email(*, full_name: str) -> str:
+def build_asclepius_rejected_email(*, full_name: str, sign_in_url: str = "") -> str:
     """Credential verification did not pass.
 
     We send one, unlike the health-system refusal above, and the reasoning does
@@ -1341,32 +1416,51 @@ def build_asclepius_rejected_email(*, full_name: str) -> str:
     suspicion, or a third party's name, none of which was drafted to be read by
     its subject. And a rejection that names the check that failed is a rejection
     an adversarial applicant tunes the next attempt against. The note stays in
-    verification_notes; the door back is a reply to a person.
+    verification_notes.
+
+    What HAS changed is the ending. This used to close the door ("your account
+    will not receive case work"), which is a permanent answer to a question
+    that is usually about one case read on one afternoon. A rejection now
+    offers another go at the case work, with every credential they already gave
+    us kept, so the message has somewhere to send them.
     """
     first = (full_name or "").strip() or "Doctor"
     body = (
-        _eyebrow("Asclepius")
+        _eyebrow("Archangel Health")
         + _h1("About your application.")
         + _p(
-            f"{_strong(first)}, thank you for applying to contribute to Asclepius. Our "
+            f"{_strong(first)}, thank you for applying to contribute to Archangel Health. Our "
             "clinical team has reviewed the credentials you submitted, and we are not "
             "able to open your account for evaluation work."
         )
+        # THE DOOR IS OPEN, and this is the change.
+        #
+        # A rejected physician used to be told their account would never
+        # receive case work, which was a permanent answer to a question that is
+        # usually about one case read on one afternoon. They keep their
+        # credentials, their CV and everything else they gave us; what they are
+        # asked to do again is the case work, and the demo and practice case
+        # are offered again first.
         + _p(
-            "If you believe that is wrong, reply to this email. Tell us which licence or "
-            "registration you would like us to check, and a person will look again. We "
-            "keep the record of every decision, so a second look starts from what we "
-            "already hold."
+            "This is not final. Your account is still open, and everything you already "
+            "sent us is still on it: your credentials, your CV, all of it. What we would "
+            "like you to do again is the case work. Sign in and you will find the walk "
+            "through and the practice case waiting, and a fresh examination case after "
+            "them."
         )
+        + _cta(sign_in_url, "Sign in and try again")
         + _p(
-            "Your account will not receive case work. We will not email you again about "
-            "this unless you reply.",
+            "If you think we have this wrong, reply to this email. Tell us which licence "
+            "or registration you would like us to check, and a person will look again. We "
+            "keep the record of every decision, so a second look starts from what we "
+            "already hold.",
             muted=True, small=True,
         )
+        + _founder_signoff("Tej & Aryaa, founders")
     )
     # Not "You were rejected". That is the line they read on a phone in a
     # corridor, and the subject is not where the decision has to land.
-    return _shell(subject="About your Asclepius application", body_html=body)
+    return _shell(subject="About your Archangel Health application", body_html=body)
 
 
 def build_enterprise_note_email(
@@ -1604,7 +1698,7 @@ def build_community_digest_email(
         for lead, rest in activity_items
     ]
     body = (
-        _eyebrow("Community · Asclepius")
+        _eyebrow("Community · Archangel Health")
         + _h1("While you were away.")
         + _lead_list(items)
         + _cta(community_url, "Open the community →")
@@ -1625,7 +1719,7 @@ def build_community_digest_email(
             else ""
         )
     )
-    return _shell(subject="New activity in your Asclepius community", body_html=body)
+    return _shell(subject="New activity in your Archangel Health community", body_html=body)
 
 
 def build_community_event_reminder_email(
@@ -1645,7 +1739,7 @@ def build_community_event_reminder_email(
     if (host or "").strip():
         rows.append(("Host", host.strip(), False))
     body = (
-        _eyebrow("Event · Asclepius")
+        _eyebrow("Event · Archangel Health")
         + _h1(html.escape(title))
         + _p(f"Hi {_strong(first_name or 'there')}, this is starting soon.")
         + _inset_card(_detail_rows(rows))
@@ -1692,7 +1786,7 @@ def build_asclepius_password_reset_email(*, email: str, reset_url: str, expires_
     can type an email address."""
     safe_url = html.escape(reset_url, quote=True)
     body = (
-        _eyebrow("Password reset · Asclepius")
+        _eyebrow("Password reset · Archangel Health")
         + _h1("Set a new password.")
         + _p(
             f"Use the button below to choose a new password for {_strong(email)}. "
@@ -1754,7 +1848,7 @@ def build_asclepius_password_changed_email(*, email: str) -> str:
     physician finds out their account was taken over, so it is sent on every
     password write and never suppressed."""
     body = (
-        _eyebrow("Security · Asclepius")
+        _eyebrow("Security · Archangel Health")
         + _h1("Your password was changed.")
         + _p(f"The password for {_strong(email)} has just been changed.")
         + _p(
@@ -1812,7 +1906,7 @@ def build_asclepius_admin_signup_alert(
             small=True,
         )
     )
-    return _shell(subject=f"[Asclepius] {decision}: {physician_name}", body_html=body)
+    return _shell(subject=f"[Archangel Health] {decision}: {physician_name}", body_html=body)
 
 
 def build_community_news_digest_email(
@@ -1872,7 +1966,7 @@ def build_community_news_digest_email(
         + inner
         + _cta(community_url, "Discuss in the community →")
         + _p(
-            f'You get this because you are an Asclepius contributor. '
+            f'You get this because you are an Archangel Health contributor. '
             f'<a href="{html.escape(unsubscribe_url, quote=True)}" '
             f'style="color:{_GREEN_DEEP};">Change how often, or stop these</a>.',
             muted=True,

@@ -324,10 +324,12 @@ def _avatar_harness(body: str) -> dict:
         ({"name": "dr Tej Patel"}, "TP"),
         # Single name and empty name must fall back rather than throw.
         ({"name": "Prince"}, "PR"),
-        # An all-whitespace name is a name we cannot make initials from; the
-        # helper answers "?" rather than throwing, which is the property that
-        # matters here.
-        ({"name": "   "}, "?"),
+        # An all-whitespace name is not a name. It used to survive as one and
+        # produce "?" in the circle; railDisplayName now trims it away and falls
+        # through to the same neutral word an empty account gets. The property
+        # that matters is that neither case throws, and neither shows a glyph
+        # that reads as an error.
+        ({"name": "   "}, "CL"),
         ({}, "CL"),                        # no name, no email -> 'Clinician'
     ],
 )

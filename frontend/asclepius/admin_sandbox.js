@@ -74,12 +74,12 @@
         h('div', { class: 'asc-card-title' }, 'Sandbox admin'),
         h('div', { class: 'asc-card-sub' },
           'Every account below exists only in the sandbox databases. The same credentials without ' +
-          '?realm=sandbox are a plain 401 on the live site — by construction, not by filtering.'))),
+          '?realm=sandbox are a plain 401 on the live site, by construction, not by filtering.'))),
       h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-row', style: 'align-items:center; gap: var(--sp-2); flex-wrap: wrap' },
           h('code', { class: 'asc-mono' }, data.admin.email), copyBtn(ctx, data.admin.email, 'Copy email'),
           h('code', { class: 'asc-mono' }, '••••••••'), copyBtn(ctx, data.admin.password || '', 'Copy password')),
-        h('div', { class: 'asc-card-sub', style: 'margin-top: var(--sp-3)' }, 'Fake onboarding entries (§5) — the real flows, in the sandbox realm:'),
+        h('div', { class: 'asc-card-sub', style: 'margin-top: var(--sp-3)' }, 'Fake onboarding entries (§5): the real flows, in the sandbox realm:'),
         h('div', { class: 'asc-row', style: 'gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2)' },
           h('a', { class: 'asc-btn asc-btn-primary asc-btn-sm', href: links.physician_onboarding, target: '_blank', rel: 'noopener' }, 'Start a fake physician onboarding →'),
           h('a', { class: 'asc-btn asc-btn-primary asc-btn-sm', href: links.org_onboarding, target: '_blank', rel: 'noopener' }, 'Start a fake org onboarding →'),
@@ -117,7 +117,7 @@
         h('div', { class: 'asc-card-title' }, 'Physicians'),
         h('div', { class: 'asc-card-sub' },
           'Ten fake doctors, specialty-spread so routing is testable. One shared password' +
-          (data.doctor_password_set ? '.' : ' — NOT SET: add ASCLEPIUS_SANDBOX_DOCTOR_PASSWORD to seed them.'))),
+          (data.doctor_password_set ? '.' : ', NOT SET: add ASCLEPIUS_SANDBOX_DOCTOR_PASSWORD to seed them.'))),
         h('div', { class: 'asc-row', style: 'gap: var(--sp-2)' }, seedBtn, freshBtn)));
     if (!rows.length) {
       card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-empty' }, 'Not seeded yet.')));
@@ -127,11 +127,11 @@
           h('th', {}, '#'), h('th', {}, 'Name'), h('th', {}, 'Email'), h('th', {}, 'Tier'),
           h('th', {}, 'Specialty'), h('th', {}, 'Password'), h('th', {}, 'State'), h('th', {}, ''))),
         h('tbody', {}, rows.map((r) => h('tr', {},
-          h('td', {}, r.n == null ? '—' : String(r.n)),
+          h('td', {}, r.n == null ? '-' : String(r.n)),
           h('td', {}, h('strong', {}, r.name)),
           h('td', {}, h('code', { class: 'asc-mono' }, r.email), ' ', copyBtn(ctx, r.email, 'Copy')),
-          h('td', {}, r.tier || '—'),
-          h('td', {}, r.specialty || '—'),
+          h('td', {}, r.tier || '-'),
+          h('td', {}, r.specialty || '-'),
           h('td', {}, r.password ? copyBtn(ctx, r.password, 'Copy password') : h('span', { class: 'asc-dim' }, 'unset')),
           h('td', {}, !r.seeded
             ? h('span', { class: 'asc-badge asc-badge-gray' }, 'not seeded')
@@ -184,8 +184,8 @@
     card.appendChild(h('div', { class: 'asc-card-head' }, h('div', {},
       h('div', { class: 'asc-card-title' }, 'Copy real data into the sandbox'),
       h('div', { class: 'asc-card-sub' },
-        'A read-only snapshot of a live health system — its row, uploads (+ files), ingest cases and purpose ' +
-        'resolutions — stamped “production copy”. Tasks, submissions and physicians are NOT copied: the point is to ' +
+        'A read-only snapshot of a live health system, its row, uploads (+ files), ingest cases and purpose ' +
+        'resolutions, stamped “production copy”. Tasks, submissions and physicians are NOT copied: the point is to ' +
         're-run task creation and routing from raw data. Re-copy replaces the sandbox copy. Live rows are never written.'))));
     if (!sources.length) {
       card.appendChild(h('div', { class: 'asc-card-pad' }, h('div', { class: 'asc-empty' }, 'No live health systems to copy.')));
@@ -208,7 +208,7 @@
           h('td', {}, h('code', { class: 'asc-mono asc-dim' }, s.hs_id)),
           h('td', {}, String(s.uploads || 0)),
           h('td', {}, String(s.ingest_cases || 0)),
-          h('td', {}, s.copied_at ? ('copied ' + fmtDate(s.copied_at)) : '—'),
+          h('td', {}, s.copied_at ? ('copied ' + fmtDate(s.copied_at)) : '-'),
           h('td', {}, btn));
       })));
     card.appendChild(h('div', { class: 'asc-table-wrap' }, table));
@@ -262,10 +262,10 @@
           h('td', {}, m.subject),
           h('td', {}, (m.codes || []).length
             ? (m.codes || []).map((c) => h('span', { style: 'margin-right: var(--sp-2)' }, h('code', { class: 'asc-mono' }, c), ' ', copyBtn(ctx, c, 'Copy')))
-            : h('span', { class: 'asc-dim' }, '—')),
+            : h('span', { class: 'asc-dim' }, '-')),
           h('td', {}, (m.links || []).length
             ? (m.links || []).map((l) => h('div', {}, h('a', { href: l, target: '_blank', rel: 'noopener', class: 'asc-link' }, linkLabel(l))))
-            : h('span', { class: 'asc-dim' }, '—')),
+            : h('span', { class: 'asc-dim' }, '-')),
           h('td', {}, openBtn));
       })));
     card.appendChild(h('div', { class: 'asc-table-wrap' }, table));

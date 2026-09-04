@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import secrets
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, Response, UploadFile
 from fastapi import Form
 from pydantic import BaseModel, EmailStr, Field
 from starlette.concurrency import run_in_threadpool
@@ -235,6 +235,16 @@ class Step1Body(OnboardTokenBody):
     first_name: str
     last_name: str
     email: EmailStr
+    #: Screen 1 now sets the account password. OPTIONAL on the wire on purpose:
+    #: a browser holding a cached copy of the previous SPA bundle posts the old
+    #: body, and a 400 there would break signup for everyone mid-deploy. The
+    #: client gates its own Continue button, and ``/asclepius/finish`` still
+    #: falls back to NO_PASSWORD_HASH when no hash was ever set, which is
+    #: exactly the behaviour that shipped before this change.
+    password: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    #: Two-letter US state. Optional because a physician licensed outside the US
+    #: has no answer to give, and a required field they cannot fill is a wall.
+    license_state: str = Field(default="", max_length=2)
 
 
 class VerifyOtpBody(OnboardTokenBody):
@@ -287,8 +297,21 @@ def _load_hs(request: Request, token: str) -> Dict[str, Any]:
 
 
 def _reject_if_completed(row: Dict[str, Any]) -> None:
+    """410 for a link whose application is already in.
+
+    The detail is STRUCTURED because the wizard has to act on it rather than
+    print it. A physician who reached the thank-you screen, opened the mission
+    link, and pressed Back landed on the verify step, asked for a code, and was
+    shown the bare string "Onboarding already completed for this link." as an
+    error, with no button on the screen. That is a dead end at the end of a
+    successful signup. The code lets the client recognise this as a terminal
+    STATE and render the thank-you screen with its real actions.
+    """
     if row.get("onboarding_completed_at"):
-        raise HTTPException(status_code=410, detail="Onboarding already completed for this link.")
+        raise HTTPException(status_code=410, detail={
+            "code": "onboarding_complete",
+            "message": "Onboarding already completed for this link.",
+        })
 
 
 def _serialize_team_member(m: Dict[str, Any]) -> Dict[str, Any]:
@@ -340,6 +363,11 @@ def _hydrate_session_fields(ts: Any, row: Dict[str, Any]) -> Dict[str, Any]:
         "surgery_department": (row.get("surgery_department") or "").strip(),
         "specialty": (row.get("specialty") or "").strip(),
         "phone": (row.get("phone") or "").strip(),
+        # A BOOLEAN, never the hash. The docstring above promises no secrets
+        # leave here and this keeps that promise: the wizard only needs to know
+        # whether to ask again, which is what a resumed session is deciding.
+        "director_password_set": bool((row.get("director_password_hash") or "").strip()),
+        "director_license_state": (row.get("director_license_state") or "").strip(),
         "team_members": members,
     }
     if product == "asclepius":
@@ -405,7 +433,16 @@ async def credential_config():
 
 
 @router.get("/session")
-async def onboarding_session(token: str, request: Request):
+async def onboarding_session(token: str, request: Request, response: Response):
+    # NO-STORE, and this is a correctness fix rather than a hygiene one.
+    #
+    # The wizard resumes from SERVER state, and the landing app has no router:
+    # opening /mission from the thank-you screen is a full page navigation, so
+    # Back is a fresh mount whose only source of truth is this GET. Cached, the
+    # browser replayed the FIRST response of the session (step 1), and the
+    # resume ladder in loadDirectorSession then put a physician who had already
+    # finished back on the verify screen.
+    response.headers["Cache-Control"] = "private, no-store"
     ts = _ts(request)
     row = ts.get_health_system_by_onboarding_token(token.strip())
     if not row:
@@ -471,6 +508,27 @@ async def onboarding_session(token: str, request: Request):
     }
 
 
+def _existing_asclepius_account(request: Request, email: str) -> bool:
+    """True when this address already holds an account somebody can sign in to.
+
+    Deliberately the SAME predicate ``GET /session`` uses: an account carrying
+    NO_PASSWORD_HASH is an application in review, not an account, and telling
+    that person to go and sign in is a door with nothing behind it.
+
+    Never raises. A store read that fails must not fail a signup; the worst case
+    of returning False is the behaviour that shipped before this existed.
+    """
+    try:
+        user = _asclepius_store(request).get_user_by_email(email)
+    except Exception:
+        return False
+    if not user or not user.get("active"):
+        return False
+    if asc_store_mod.password_is_unset(user):
+        return False
+    return bool((user.get("password_hash") or "").strip())
+
+
 @router.post(
     "/self-serve",
     dependencies=[
@@ -515,7 +573,7 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         from asclepius import referrals as asc_referrals  # noqa: PLC0415
 
         log.warning(
-            "[self-serve] honeypot tripped for %s from %s — decoy link returned, "
+            "[self-serve] honeypot tripped for %s from %s, decoy link returned, "
             "no invite created. If this fires for real signups, the honeypot "
             "field is being autofilled; check its name/label/id.",
             asc_referrals.mask_email(email), client_ip(request),
@@ -530,6 +588,29 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
             "onboarding_url": _realm.public_url(f"{_landing_base()}/onboard/{secrets.token_urlsafe(32)}"),
             "expires_at": decoy_expires,
         }
+
+    # THE RETURNING PHYSICIAN.
+    #
+    # A doctor who already had an account clicked "Become a contributor" and got
+    # the full new-applicant sequence: "Your Archangel Health application, pick
+    # up any time", plus an internal "physician contributor started" alert about
+    # somebody who started months ago, plus, a day later, a nudge to finish an
+    # application they had already finished. Nothing here checked.
+    #
+    # The check is here, but the ANSWER is not. This endpoint is anonymous, and
+    # a response that differs by branch is a perfect oracle for "is this named
+    # physician an Archangel contributor", which is a fact about a real person's
+    # professional affiliation. It is the exact fact ``request_signin_link`` and
+    # ``forgot_password`` both spend effort hiding, and it would be strange to
+    # protect it in two places and hand it out in a third.
+    #
+    # So the response body, the status code and the work done are identical in
+    # both branches: a row is still minted, the same shape comes back, and the
+    # browser still redirects into the wizard. What changes is everything the
+    # founders actually asked for. No mail is sent, no nudge will ever fire, and
+    # the truth is reported by ``GET /session`` one hop later, behind a token
+    # minted for this exact address, which is where it can be told safely.
+    existing_account = _existing_asclepius_account(request, email)
 
     if ts.count_recent_pending_invites_for_email(email, hours=24) >= _SELF_SERVE_EMAIL_CAP:
         raise HTTPException(
@@ -546,6 +627,12 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         director_email=email,
         product="asclepius",
     )
+
+    if existing_account:
+        try:
+            ts.mark_health_system_existing_account(invite["health_system_id"])
+        except Exception:
+            log.exception("[self-serve] could not stamp an existing-account row (non-fatal)")
 
     # /join extras, all best-effort: the link is the deliverable and none of
     # these may fail the mint. Names land on the row through the same setter
@@ -566,7 +653,9 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
             ts.set_health_system_signup_flavor(invite["health_system_id"], body.flavor)
         except Exception:
             pass
-    if (body.referral_code or "").strip():
+    # Not for a returning physician: an account that already exists cannot be a
+    # new referral conversion, and crediting one would pay a bounty twice.
+    if (body.referral_code or "").strip() and not existing_account:
         try:
             from asclepius import referrals as asc_referrals  # noqa: PLC0415
             from asclepius.store import get_store as _asc_store  # noqa: PLC0415
@@ -582,28 +671,32 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         ts.record_lead_submission(
             "physician_onboard",
             email,
-            f"Self-serve physician onboarding link issued ({invite['slug']}).",
+            (f"Returning physician sent to sign in ({invite['slug']})."
+             if existing_account
+             else f"Self-serve physician onboarding link issued ({invite['slug']})."),
             user_agent=request.headers.get("user-agent"),
             client_ip=client_ip(request),
         )
     except Exception:
         pass
-    if _email_configured():
+    # THE "PICK UP ANY TIME" MAIL IS NO LONGER SENT FROM HERE.
+    #
+    # It is a RESUME message, and it used to be sent at the instant of the mint,
+    # which is the one moment nobody needs it: the landing page redirects
+    # straight into the wizard, so the physician is already on screen 1. Then
+    # they ask for their verification code and two mails land together. People
+    # clicked the older one, which reopened the wizard at the verify step, and
+    # had to ask for a second code to get past a screen they were already on.
+    #
+    # It now goes out from the nudge sweep an hour later, and only if they have
+    # actually stopped. See onboarding_nudge._send_one, kind "resume".
+    #
+    # The founder alert stays here, because "somebody started" is news at the
+    # moment it happens and nowhere else. It is suppressed for a returning
+    # physician: an alert saying a doctor we onboarded months ago has just
+    # started is not news, it is noise that looks like a lead.
+    if _email_configured() and not existing_account:
         try:
-            # §4.1. In v2 this is the RESUME path, not the entry path: the
-            # landing page redirects straight into the wizard with the fresh
-            # token, and this arrives so the physician can stop and come back.
-            # The card's promise — "we will email you the same link so you can
-            # pause and resume any time" — is now literally true end to end.
-            await send_html_email(
-                email,
-                "Your Archangel Health application — pick up any time",
-                build_application_start_email(
-                    first_name=(body.first_name or "").strip(),
-                    onboarding_url=invite["onboarding_url"],
-                    expires_days=_SELF_SERVE_EXPIRES_DAYS,
-                ),
-            )
             await send_html_email(
                 (os.getenv("LEAD_NOTIFY_EMAIL") or "tejpatel@berkeley.edu").strip(),
                 f"[Onboarding] Physician contributor started: {email}",
@@ -623,19 +716,45 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
     }
 
 
-@router.post("/step1-identity")
+@router.post(
+    "/step1-identity",
+    # This screen now does pbkdf2 work, so it needs the same abuse ceiling every
+    # other write on this router has. It had none.
+    dependencies=[Depends(rate_limiter("onboarding_step1", 10, 60))],
+)
 async def step1_identity(body: Step1Body, request: Request):
     ts = _ts(request)
     row = _load_hs(request, body.token)
     _reject_if_completed(row)
     if not ts.onboarding_token_valid(row):
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
+
+    # THE PASSWORD IS HASHED HERE AND THE PLAINTEXT IS NEVER STORED.
+    #
+    # It is deliberately written to the INVITE row rather than to the account:
+    # the account does not exist yet, and it must not, because the mailbox is
+    # not proven until the OTP on screen 2. What lands here is a pbkdf2 hash on
+    # a row that /asclepius/finish will only consume after that gate passes.
+    #
+    # run_in_threadpool is not optional. pbkdf2 is deliberately slow, and doing
+    # it inline would block the event loop for every other request in the
+    # process on every signup.
+    pw_hash: Optional[str] = None
+    if body.password:
+        try:
+            asc_passwords.validate(body.password, email=str(body.email))
+        except asc_passwords.PasswordRejected as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        pw_hash = await run_in_threadpool(ts.hash_team_password, body.password)
+
     previous_email = (row.get("director_email") or "").strip()
     ts.update_health_system_director_identity(
         row["id"],
         first_name=body.first_name,
         last_name=body.last_name,
         email=str(body.email),
+        password_hash=pw_hash,
+        license_state=body.license_state,
     )
     # Referral attribution is keyed on the address the invite was addressed to,
     # and this screen is where that address can change: someone opens a
@@ -651,7 +770,13 @@ async def step1_identity(body: Step1Body, request: Request):
             _asc_store().move_open_referrals(previous_email, new_email)
         except Exception:
             log.exception("[referral] could not follow an email change (non-fatal)")
-    return {"ok": True, "step": 1}
+    row = ts.get_health_system_by_id(row["id"]) or row
+    return {
+        "ok": True,
+        "step": 1,
+        # A resumed session must not ask again for something already set.
+        "password_set": bool((row.get("director_password_hash") or "").strip()),
+    }
 
 
 @router.post("/request-otp", dependencies=[Depends(rate_limiter("onboarding_otp", 5, 60))])
@@ -847,7 +972,7 @@ async def finish_onboarding(body: FinishBody, request: Request):
     row = ts.get_health_system_by_id(row["id"]) or row
     slug = row.get("slug") or ""
     sign_in = f"{_landing_base()}/t/{slug}/sign-in"
-    subj = "Welcome to Archangel Health — onboarding complete"
+    subj = "Welcome to Archangel Health: onboarding complete"
     members_after_finalize = ts.list_team_members(row["id"])
     member_count = len(members_after_finalize)
     rn_count = sum(
@@ -1060,7 +1185,7 @@ def _provision_asclepius_user(
     if isinstance(board_certs, list) and board_certs:
         first = board_certs[0]
         if isinstance(first, dict):
-            board_cert = " — ".join(
+            board_cert = ", ".join(
                 p for p in [first.get("board"), first.get("specialty")] if p
             ) or None
         elif isinstance(first, str):
@@ -1342,6 +1467,20 @@ async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
     row = ts.get_health_system_by_id(row["id"]) or row
     _require_asclepius(row)
+    # THE MAILBOX MUST BE PROVEN BEFORE ANYTHING IS WRITTEN.
+    #
+    # /asclepius/password has had this check since it was written; these three
+    # never did. That was survivable while a finishing physician got
+    # NO_PASSWORD_HASH and approval minted the real credential: the worst an
+    # unverified caller could do was park a form on a row nobody would approve.
+    #
+    # Screen 1 now collects a real password, so reaching finish without the OTP
+    # would mint a usable account on an address the caller may not control. The
+    # guard belongs on the writes too, not only on the last one: a credential
+    # blob and a signed attestation written by a stranger are what an admin
+    # would then be reading when they decide about a real person.
+    if int(row.get("onboarding_step") or 0) < 2:
+        raise HTTPException(status_code=403, detail="Verify your email first.")
     # v2 §2: the Review screen is the first thing that writes here, and the
     # institution screen it used to depend on is gone from this path.
     director_email = _ensure_director_person(ts, row)
@@ -1386,6 +1525,20 @@ async def asclepius_attestations(body: AsclepiusAttestationsBody, request: Reque
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
     row = ts.get_health_system_by_id(row["id"]) or row
     _require_asclepius(row)
+    # THE MAILBOX MUST BE PROVEN BEFORE ANYTHING IS WRITTEN.
+    #
+    # /asclepius/password has had this check since it was written; these three
+    # never did. That was survivable while a finishing physician got
+    # NO_PASSWORD_HASH and approval minted the real credential: the worst an
+    # unverified caller could do was park a form on a row nobody would approve.
+    #
+    # Screen 1 now collects a real password, so reaching finish without the OTP
+    # would mint a usable account on an address the caller may not control. The
+    # guard belongs on the writes too, not only on the last one: a credential
+    # blob and a signed attestation written by a stranger are what an admin
+    # would then be reading when they decide about a real person.
+    if int(row.get("onboarding_step") or 0) < 2:
+        raise HTTPException(status_code=403, detail="Verify your email first.")
     director_email = _ensure_director_person(ts, row)
     if not director_email:
         raise HTTPException(status_code=400, detail="Start your application first.")
@@ -1520,7 +1673,7 @@ async def asclepius_cv_upload(
         # retryable error — the CV is optional and signup continues without it.
         log.exception("[credentialing] CV blob write failed")
         raise HTTPException(status_code=503,
-                            detail="Could not store the CV right now — you can "
+                            detail="Could not store the CV right now, you can "
                                    "finish signup without it.")
 
     # 'reading' is stamped HERE, before the response, so the wizard's first poll
@@ -1750,6 +1903,20 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         raise HTTPException(status_code=404, detail="This onboarding link has expired.")
     row = ts.get_health_system_by_id(row["id"]) or row
     _require_asclepius(row)
+    # THE MAILBOX MUST BE PROVEN BEFORE ANYTHING IS WRITTEN.
+    #
+    # /asclepius/password has had this check since it was written; these three
+    # never did. That was survivable while a finishing physician got
+    # NO_PASSWORD_HASH and approval minted the real credential: the worst an
+    # unverified caller could do was park a form on a row nobody would approve.
+    #
+    # Screen 1 now collects a real password, so reaching finish without the OTP
+    # would mint a usable account on an address the caller may not control. The
+    # guard belongs on the writes too, not only on the last one: a credential
+    # blob and a signed attestation written by a stranger are what an admin
+    # would then be reading when they decide about a real person.
+    if int(row.get("onboarding_step") or 0) < 2:
+        raise HTTPException(status_code=403, detail="Verify your email first.")
     director_email = (row.get("director_email") or "").strip()
     director = ts.get_asclepius_person(row["id"], director_email) if director_email else None
     if not director:
@@ -1793,17 +1960,34 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
                 status_code=400,
                 detail=f"We still need {' and '.join(missing)} before we can send this in.")
 
-    # Onboarding v2 §2: the physician wizard has NO password step. The account is
-    # created here, `pending`, with no credential of any kind — credentials only
-    # exist after a human approves the application (§5), and they arrive by email.
+    # TWO QUESTIONS THAT USED TO SHARE ONE VARIABLE.
     #
-    # The member and short-signup doors still choose their own password at
-    # /asclepius/password, and a hash on the row is therefore honoured: this is
-    # "we were not given one", never "we are erasing the one you have"
-    # (``provision_user`` enforces the same rule a second time).
-    director_hash = (director.get("password_hash") or "").strip() \
+    #   credentials_deferred : this account has NO credential, so approval has to
+    #                          mint one (asclepius_verify._needs_credentials).
+    #   awaiting_review      : a human has not read this application yet. TRUE
+    #                          for every clinical applicant, whether or not they
+    #                          chose a password. The wait is about the REVIEW,
+    #                          never about the credential.
+    #
+    # They were the same boolean while a physician finished the wizard with no
+    # password: no credential and awaiting review described the same person. The
+    # moment screen 1 collects a password they come apart, and conflating them
+    # sends every applicant the "your workspace is ready" email and drops them on
+    # a success screen offering a link to a door that is still locked.
+    #
+    # Three sources for the hash, in order: the member and advisor doors set one
+    # at /asclepius/password; the physician wizard sets one on the invite row at
+    # screen 1; anything else is genuinely credential-free. A hash already on the
+    # row is honoured rather than replaced, because this is "we were not given
+    # one", never "we are erasing the one you have" (``provision_user`` enforces
+    # the same rule a second time).
+    director_hash = (
+        (director.get("password_hash") or "").strip()
+        or (row.get("director_password_hash") or "").strip()
         or asc_store_mod.NO_PASSWORD_HASH
+    )
     credentials_deferred = director_hash == asc_store_mod.NO_PASSWORD_HASH
+    awaiting_review = is_clinical
     org_name = (row.get("name") or "").strip()
     specialty = (row.get("specialty") or "").strip()
     # B-1.1: _provision_asclepius_user is synchronous and reaches a synchronous
@@ -1835,7 +2019,17 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         email=director_email,
         password_hash=director_hash,
         role="evaluator",
-        full_name=director.get("full_name") or "",
+        # Last resort before an empty name reaches the account: the invite row
+        # carries the first and last name screen 1 collected. An account with no
+        # full_name makes the portal derive one from the email address, which is
+        # never a name we can vouch for.
+        full_name=(
+            director.get("full_name")
+            or " ".join(p for p in [
+                (row.get("director_first_name") or "").strip(),
+                (row.get("director_last_name") or "").strip(),
+            ] if p).strip()
+        ),
         org_name=org_name,
         specialty=specialty,
         clinical_role="director",
@@ -1901,10 +2095,12 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
 
     invited = [p for p in ts.list_asclepius_people(row["id"]) if not p.get("is_director")]
     workspace_url = _asclepius_workspace_url()
-    if credentials_deferred:
+    if awaiting_review:
         # §4.3. Deliberately NOT the "your workspace is ready" email: nothing is
         # ready, and telling a physician it is would be the first thing we got
-        # wrong. Credentials arrive on approval (§4.4).
+        # wrong. Keyed on the REVIEW rather than on the credential, so a
+        # physician who chose a password on screen 1 still gets the message that
+        # matches their actual state.
         await send_html_email(
             director_email, "We've got your application",
             # Carries the way back in. Nothing is READY, so this is not the
@@ -1931,14 +2127,14 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
             partner_url=_partner_intro_url(request, director_email),
         )
         await send_html_email(
-            director_email, "Your Asclepius workspace is ready", html_body,
+            director_email, "Your Archangel Health workspace is ready", html_body,
             importance_headers=True
         )
     return {"ok": True, "workspace_url": workspace_url, "token": session_token,
             # The wizard's success screen branches on this: an application that
             # is awaiting review says so, rather than offering a workspace link
             # that leads to a locked door.
-            "awaiting_review": credentials_deferred}
+            "awaiting_review": awaiting_review}
 
 
 # ─── Invited-member flow (link → credentials → attestations → workspace) ──────

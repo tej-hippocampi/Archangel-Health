@@ -75,7 +75,7 @@ _CRITICAL_NEGATIVE_FLOOR = -8
 
 TUTORIAL_CASE_ENTRY: Dict[str, Any] = {
     "case_id": "tutorial-calibration-1",
-    "title": "Calibration Case 1 — creatinine rise on decongestion",
+    "title": "Calibration Case 1: creatinine rise on decongestion",
     "ai_failure_mode": "anchoring (rising creatinine → stop diuresis / give fluids) despite persistent congestion",
     "question": (
         "A patient admitted with acute decompensated heart failure has a creatinine "
@@ -92,8 +92,8 @@ TUTORIAL_CASE_ENTRY: Dict[str, Any] = {
             "recovery takes priority; decongestion can resume once the creatinine returns "
             "toward baseline.")},
         {"id": "B", "text": (
-            "This patient is still congested — JVP 12 cm, orthopnea, 2+ edema, and the "
-            "weight is down only 1.5 kg from admission — so the creatinine rise on "
+            "This patient is still congested: JVP 12 cm, orthopnea, 2+ edema, and the "
+            "weight is down only 1.5 kg from admission, so the creatinine rise on "
             "diuresis is expected and permissive, not diuretic-induced AKI. Hemoconcentration "
             "has not yet occurred (stable hematocrit/albumin), which argues against "
             "intravascular depletion. The move is to intensify decongestion (higher loop "
@@ -176,7 +176,7 @@ TUTORIAL_CASE_ENTRY: Dict[str, Any] = {
             "Sound path reads the volume exam and hemoconcentration markers, classifies "
             "the creatinine rise as permissive, and intensifies decongestion. Shortcut "
             "anchors on the creatinine trend, labels it diuretic-induced AKI, holds "
-            "diuresis and gives fluids — re-congesting the patient."),
+            "diuresis and gives fluids: re-congesting the patient."),
     },
 }
 

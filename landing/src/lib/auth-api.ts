@@ -251,7 +251,7 @@ function networkError(): Error {
   const origin = typeof window !== "undefined" ? window.location.origin : "this site's origin";
   return new Error(
     `Cannot reach the backend API at ${target}. The server may be restarting, or it is not ` +
-      `accepting requests from ${origin} (CORS) — if this persists, verify the backend's ` +
+      `accepting requests from ${origin} (CORS), if this persists, verify the backend's ` +
       `ALLOWED_ORIGINS includes ${origin}.`
   );
 }

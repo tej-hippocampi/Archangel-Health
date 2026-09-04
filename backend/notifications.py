@@ -337,7 +337,7 @@ def on_verification_decision(store: Any, *, user: Optional[Dict[str, Any]],
             tier_word = _caps.tier_word(tier) if tier else ""
             notify_person(
                 store, kind="physician_approved", to=email,
-                subject="You're approved for Asclepius",
+                subject="You're approved for Archangel Health",
                 body_html=build_asclepius_approved_email(
                     full_name=full_name, workspace_url=_portal_base() + "/asclepius",
                     tier_word=tier_word,
@@ -356,8 +356,11 @@ def on_verification_decision(store: Any, *, user: Optional[Dict[str, Any]],
 
         notify_person(
             store, kind="physician_rejected", to=email,
-            subject="About your Asclepius application",
-            body_html=build_asclepius_rejected_email(full_name=full_name),
+            subject="About your Archangel Health application",
+            # The door back in. A rejection is now an invitation to re-sit the
+            # case work, so the message needs somewhere to send them.
+            body_html=build_asclepius_rejected_email(
+                full_name=full_name, sign_in_url=_portal_base() + "/asclepius"),
             dedupe_key=f"rejected:{user.get('id')}",
             send_after=_iso_in(_REJECT_GRACE_SECONDS),
         )

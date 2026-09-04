@@ -829,7 +829,7 @@ def normalize_timeline(
             # a list of masked tokens that were fine all along.
             report["hold_reason"] = (
                 f"no index anchor: {len(leftovers)} date-like token(s) in the chart "
-                "text, no dated structured item, and no manifest index_event — "
+                "text, no dated structured item, and no manifest index_event, "
                 "supply an index_event or a dated lab/note and the dates resolve")
 
     return case, report

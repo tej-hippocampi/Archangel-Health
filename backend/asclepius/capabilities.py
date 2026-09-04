@@ -139,15 +139,20 @@ SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
 #: The community and the money surfaces were REMOVED from this set, and the
 #: distinction is worth stating because it is not "less access is safer".
 #:
-#: Community read and write are gone because an unvetted account posting under
-#: a physician identity, in rooms whose entire value is that everyone in them
-#: is a verified clinician, is exactly the exposure the review queue exists to
-#: prevent, and rejecting the application afterwards does not undo it: the
-#: colleagues have already read the post. Earnings are gone because there is
-#: nothing in that ledger for somebody who cannot yet draw a case, and the old
-#: argument for showing it, that the product otherwise looked empty on their
-#: first day, is now answered by the practice case, which is real work rather
-#: than a zero.
+#: Community read and write are still gone, and that decision has not moved.
+#: An unvetted account reading rooms whose entire value is that everyone in
+#: them is a verified clinician is exactly the exposure the review queue exists
+#: to prevent, and rejecting the application afterwards does not unread the
+#: messages. What an applicant is shown instead is a PREVIEW: the real
+#: community interface, rendered from a fixture, so they can see what they are
+#: applying to without a single real colleague or real message reaching an
+#: account nobody has checked. See asclepius/community_preview.py.
+#:
+#: EARNINGS came back, and only the READ came back. An applicant should be able
+#: to see how they will be paid before they decide whether to do the work: the
+#: page reads zero and zero is honest. Every endpoint that MOVES money is
+#: refused separately in asclepius_payments._require_money_movement, because a
+#: surface is not a permission to transact and this one was carrying both.
 #:
 #: Referral STAYS, and an earlier draft of this narrowing removed it, which was
 #: wrong. Nothing is paid any earlier for allowing it: the bounty has always
@@ -159,7 +164,7 @@ SURFACES = (TUTORIAL, BROWSE, COMMUNITY_READ, COMMUNITY_WRITE, REAL_WORK,
 #: we would have been glad to send anyway.
 _BY_ACCESS: Dict[str, FrozenSet[str]] = {
     FULL: frozenset(SURFACES),
-    PROVISIONAL: frozenset({TUTORIAL, BROWSE, REFERRAL}),
+    PROVISIONAL: frozenset({TUTORIAL, BROWSE, REFERRAL, EARNINGS}),
     NONE: frozenset(),
 }
 
@@ -207,6 +212,24 @@ def account_kind(user: Optional[Dict[str, Any]]) -> Optional[str]:
     return ((user or {}).get("account_kind") or "").strip().lower() or None
 
 
+def _retake_offered(user: Dict[str, Any]) -> bool:
+    """Has a human offered this rejected applicant another go?
+
+    Read out of ``tutorial_json``, where the rest of the credentialing path
+    already lives, rather than from a new column: this is a fact about their
+    case work, and the blob is the thing an admin decision already rewrites.
+    """
+    import json as _json
+
+    raw = user.get("tutorial_json")
+    if isinstance(raw, str):
+        try:
+            raw = _json.loads(raw)
+        except (TypeError, ValueError):
+            return False
+    return bool(isinstance(raw, dict) and raw.get("retake_offered_at"))
+
+
 def access_level(user: Optional[Dict[str, Any]]) -> str:
     """Map a user row to its access level. Reads the dict only, never SQL."""
     u = user or {}
@@ -217,6 +240,21 @@ def access_level(user: Optional[Dict[str, Any]]) -> str:
         return NONE
     status = u.get("verification_status")
     if status == "rejected":
+        # REJECTED MEANS "TRY AGAIN", once a retake has been offered.
+        #
+        # The founders' instruction: a physician we turn down is not finished
+        # with, they are asked to do the case work again. So a rejection now
+        # leaves them able to sign in and re-sit, and the account only truly
+        # closes through deactivation (`active = 0`), which is checked above.
+        #
+        # Gated on a STAMP rather than on the status alone, and that is a
+        # production-safety property rather than a stylistic one. Flipping every
+        # `rejected` row to PROVISIONAL would silently hand sign-in back to
+        # everybody rejected before this shipped, including whoever was rejected
+        # for not being a clinician at all. Rows written before the retake
+        # existed carry no stamp and keep exactly the behaviour they have today.
+        if _retake_offered(u):
+            return PROVISIONAL
         return NONE
     if status == "pending":
         return PROVISIONAL

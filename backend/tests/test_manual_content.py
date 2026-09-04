@@ -262,7 +262,7 @@ def test_show_when_is_used_exactly_once_in_the_whole_design(manuals):
 def test_the_waiting_section_answers_what_is_happening_and_when(manuals):
     sec = next(s for s in manuals["labeler"]["sections"] if s["id"] == "awaiting-verification")
     assert sec["showWhen"] == "pending"
-    assert sec["num"] == "—"
+    assert sec["num"] == "-"
     body = " ".join([sec["what"], sec["why"], sec["how"]]).lower()
     assert "npi" in body                       # what is happening
     assert "business days" in body             # and when

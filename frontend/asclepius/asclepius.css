@@ -2480,12 +2480,14 @@ body.asc-sheet-open { overflow: hidden; }
    and the thing most likely to earn them something, so it is the only item
    carrying a fill at rest. A wash, not a solid: a green block would outrank
    Tasks, which is not the claim. */
-.asc-rail-item-referral {
-  background: var(--green-wash);
-  border-color: var(--green-line);
-  color: var(--green-deep);
-}
-.asc-rail-item-referral:hover { background: var(--green-wash); color: var(--green-deep); }
+/* THE RESTING FILL IS GONE, and only the resting fill.
+   Referral was washed green as "the tab that pays". Beside four plain tabs
+   that reads as the one needing attention, and for a physician waiting on
+   credentials it was the only tab they could act on, so the rail pointed them
+   at referring colleagues instead of at their own application. At rest it now
+   looks like every other tab, which is what it is.
+   The ACTIVE styling below stays: that green is the selected indicator, not a
+   claim about the tab, and the icon-only rules further down depend on it. */
 .asc-rail-item-referral.active {
   background: var(--green-wash);
   border-color: var(--green);
@@ -5714,15 +5716,31 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   border-top: 1px dashed var(--asc-line);
 }
 
-/* The applicant's door, beside the password recovery link. Two routes back in
-   sit on one line separated by a middot rather than stacking, because they
-   answer the same question ("I cannot get in") and a stack reads as two
-   escalating problems. */
-.asc-login-signin-link { margin-left: 10px; }
-.asc-login-signin-link::before {
-  content: "·";
-  margin-right: 10px;
-  text-decoration: none;
-  display: inline-block;
+/* The magic-link button that used to sit beside the password recovery link is
+   gone: the wizard takes a password on screen 1, so there is one route back in
+   and it is the ordinary one. What is left is the sentence pointing a legacy
+   passwordless applicant at the reset, which is the right door for them. */
+.asc-login-legacy {
+  margin-top: 10px;
+  text-align: center;
   color: var(--ink-faint);
+  font-size: 0.8rem;
 }
+
+
+/* The credentialing path: the pre-examination resources screen, the one strip
+   of chrome the examination adds, and the applicant's dashboard. Kept minimal
+   on purpose: the examination has to LOOK like the work, because that is the
+   whole reason to judge somebody on it. */
+.asc-res-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-3, 14px);
+  margin: 18px 0;
+}
+.asc-res-card h3 { margin: 0 0 6px; font-weight: 500; }
+.asc-exam-banner { margin-bottom: var(--sp-3, 14px); }
+.asc-exam-banner .chrome { margin-bottom: 6px; }
+.asc-credentialing h2 { margin: 8px 0 10px; font-weight: 400; }
+.asc-credentialing .asc-btn-primary { margin-top: 18px; }
+.asc-small { font-size: 0.85rem; }

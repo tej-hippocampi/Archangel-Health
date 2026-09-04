@@ -171,7 +171,7 @@ def verification_handles(verify: Dict[str, Any]) -> Dict[str, Any]:
     lic = (str(verify.get("medical_license_number")) if verify.get("medical_license_number") else "").strip()
     if state and lic:
         handles["state_license_board"] = (
-            f"State medical board verification ({state}) — license {lic}"
+            f"State medical board verification ({state}), license {lic}"
         )
     return handles
 
@@ -342,7 +342,7 @@ def _dossier_lines(dossier: Dict[str, Any]) -> List[tuple]:
     body(dossier.get("blurb", ""))
     gap()
 
-    sub("Identifying credentials (Tier B — verification only)")
+    sub("Identifying credentials (Tier B: verification only)")
     ic = dossier.get("identifying_credentials") or {}
     if ic:
         for k, v in ic.items():
@@ -351,7 +351,7 @@ def _dossier_lines(dossier: Dict[str, Any]) -> List[tuple]:
         body("  - (none on file)")
     gap()
 
-    sub("Credential attributes (Tier A — matches shipped records)")
+    sub("Credential attributes (Tier A: matches shipped records)")
     ca = dossier.get("credential_attributes") or {}
     for k, v in ca.items():
         if isinstance(v, list):

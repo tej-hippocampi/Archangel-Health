@@ -70,7 +70,7 @@ def _store_root() -> str:
         _EPHEMERAL_WARNED = True
         log.warning(
             "ASCLEPIUS_ASSET_STORE is not set and no durable data dir/DB path is "
-            "configured — V4 image blobs are being written under the code tree (%s) "
+            "configured: V4 image blobs are being written under the code tree (%s) "
             "and WILL BE LOST on redeploy. Set ASCLEPIUS_ASSET_STORE to a persistent "
             "volume in production.", root,
         )
@@ -91,7 +91,7 @@ def _strip_and_normalize_raster(data: bytes, mime: str) -> Tuple[bytes, str, int
     try:
         from PIL import Image
     except Exception:  # pragma: no cover - Pillow is a hard dep, but degrade safely
-        log.warning("Pillow unavailable — storing raster without metadata strip")
+        log.warning("Pillow unavailable: storing raster without metadata strip")
         return data, mime, 0, 0
     try:
         im = Image.open(io.BytesIO(data))
@@ -226,8 +226,8 @@ def asset_storage_durable() -> Tuple[bool, str]:
     if on_volume is False:
         return False, (f"asset store {root} is NOT under the persistent volume this "
                        f"platform mounted at {declared_volume_mount()} "
-                       f"({VOLUME_MOUNT_ENV}); everything written there — the "
-                       f"onboarding demo video included — is destroyed on the next "
+                       f"({VOLUME_MOUNT_ENV}); everything written there, the "
+                       f"onboarding demo video included: is destroyed on the next "
                        f"redeploy. Point ASCLEPIUS_ASSET_STORE (or "
                        f"ASCLEPIUS_DATA_DIR) at a path inside that mount.")
     # One shared prefix list (PRD I-0 §F1) — this used to re-implement the /tmp
@@ -567,7 +567,7 @@ def _maybe_burnin_scan(data: bytes, mime: str) -> Optional[Dict[str, Any]]:
     looks_like_id = bool(re.search(r"\b(MRN|DOB|SSN)\b", text, re.I) or
                          re.search(r"\b\d{2}[/-]\d{2}[/-]\d{2,4}\b", text))
     return {"scanned": True, "flagged": looks_like_id,
-            "note": "advisory only — partner attestation trusted; not a gate (§9)"}
+            "note": "advisory only: partner attestation trusted; not a gate (§9)"}
 
 
 def verify_case_assets(store: Any) -> Dict[str, Any]:

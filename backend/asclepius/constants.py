@@ -1004,7 +1004,7 @@ def baseline_pairing_ok() -> tuple:
     if len(models) != 2:
         return (False, f"ASCLEPIUS_BASELINE_MODELS must be exactly 2 ids (got {len(models)}): {models}")
     if provs[0] == provs[1]:
-        return (False, f"both baseline models are {provs[0]} — need one OpenAI + one Anthropic: {models}")
+        return (False, f"both baseline models are {provs[0]}, need one OpenAI + one Anthropic: {models}")
     return (True, f"two-frontier A/B: {models[0]} ({provs[0]}) vs {models[1]} ({provs[1]})")
 
 

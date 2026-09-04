@@ -585,7 +585,7 @@ def test_an_explicit_send_with_nobody_named_is_refused_not_posted():
 def test_un_sealing_a_walk_is_its_own_named_mode_and_carries_the_warning():
     """Sending a walk to the open queue is a legitimate, deliberate act — it just
     must not be what happens when nobody chose it."""
-    assert "'open', 'Open queue — any eligible doctor, in sequence'" in ROUTING
+    assert "'open', 'Open queue: any eligible doctor, in sequence'" in ROUTING
     assert "enter the open queue" in ROUTING
 
 

@@ -1,5 +1,5 @@
 {
-  "count": 642,
+  "count": 646,
   "routes": [
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
     "DELETE /api/asclepius/me/avatar",
@@ -82,6 +82,7 @@
     "GET /api/asclepius/buyer/me",
     "GET /api/asclepius/card/{token}",
     "GET /api/asclepius/card/{token}/image",
+    "GET /api/asclepius/community/preview",
     "GET /api/asclepius/contributors",
     "GET /api/asclepius/contributors/{id_hashed}",
     "GET /api/asclepius/contributors/{id_hashed}/credential-summaries",
@@ -97,6 +98,7 @@
     "GET /api/asclepius/environments/runs/{run_id}",
     "GET /api/asclepius/environments/{task_id}",
     "GET /api/asclepius/events",
+    "GET /api/asclepius/exam/task",
     "GET /api/asclepius/exports",
     "GET /api/asclepius/exports/{export_id}/download",
     "GET /api/asclepius/generation/jobs",
@@ -403,6 +405,7 @@
     "POST /api/asclepius/environments/{task_id}/certify",
     "POST /api/asclepius/environments/{task_id}/rollout",
     "POST /api/asclepius/environments/{task_id}/verify",
+    "POST /api/asclepius/exam/submit",
     "POST /api/asclepius/exports",
     "POST /api/asclepius/generation/load-v4-real-cases",
     "POST /api/asclepius/generation/{specialty}",
@@ -642,6 +645,7 @@
     "PUT /api/asclepius/hs/uploads/sessions/{session_id}/parts/{part}",
     "WS /api/community/ws",
     "WS /audio",
+    "WS /email-assets",
     "WS /static"
   ]
 }

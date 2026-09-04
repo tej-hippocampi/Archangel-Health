@@ -772,6 +772,32 @@ class TeamStore:
             # runs. A restart mid-sweep therefore cannot double-send.
             self._add_column_if_missing(conn, "health_systems", "nudge_sent_at", "TEXT")
             self._add_column_if_missing(conn, "health_systems", "expiry_warned_at", "TEXT")
+            # ── Signup rework: screen 1 collects a credential, and the
+            # self-serve door learns to recognise a returning physician ──
+            #
+            # All five are ADD COLUMN ... NULL through the helper above: no table
+            # rewrite, no backfill, forward and backward compatible with a
+            # running process, and old code ignores columns it does not select.
+            # Safe to deploy on its own, ahead of the code that reads them.
+            #
+            # director_password_hash holds a pbkdf2 hash and never a plaintext.
+            # It lives on health_systems rather than on asclepius_people because
+            # screen 1 is exactly where the email can still change, and that
+            # table is email-keyed: a hash filed under a typo'd address would be
+            # orphaned by the correction. It also keeps
+            # asclepius_people.password_hash meaning what it means today, which
+            # is "set after the OTP, on a proven mailbox".
+            self._add_column_if_missing(conn, "health_systems", "director_password_hash", "TEXT")
+            self._add_column_if_missing(conn, "health_systems", "director_password_set_at", "TEXT")
+            self._add_column_if_missing(conn, "health_systems", "director_license_state", "TEXT")
+            # Set when the self-serve door recognised an address that already
+            # holds an account. An explicit column rather than pre-burning the
+            # nudge stamps: a stamp says "already sent", which would be a lie,
+            # and this is greppable when somebody asks why a row went quiet.
+            self._add_column_if_missing(conn, "health_systems", "existing_account_at", "TEXT")
+            # The "pick up any time" mail moved off the mint and onto the sweep,
+            # so it needs its own idempotency stamp like the other two.
+            self._add_column_if_missing(conn, "health_systems", "resume_sent_at", "TEXT")
             self._add_column_if_missing(conn, "intraop_forms", "draft_completed_by", "TEXT")
             self._add_column_if_missing(conn, "intraop_forms", "draft_completed_at", "TEXT")
             conn.execute(
@@ -1057,7 +1083,16 @@ class TeamStore:
     #: The two nudges Onboarding v2 §3 defines, and their stamp columns. A dict
     #: rather than two near-identical methods, because the ONLY difference
     #: between them is the age threshold and which column proves it already went.
-    _NUDGE_STAMPS = {"nudge": "nudge_sent_at", "expiry": "expiry_warned_at"}
+    #: "resume" is the "pick up any time" mail. It used to go out at the same
+    #: instant as the verification code, from the mint, and the two landed in the
+    #: inbox together: physicians clicked the wrong one, came back to the verify
+    #: screen, and had to ask for a second code. It is a RESUME message, so it
+    #: belongs on the sweep, an hour later, once somebody has actually stopped.
+    _NUDGE_STAMPS = {
+        "resume": "resume_sent_at",
+        "nudge": "nudge_sent_at",
+        "expiry": "expiry_warned_at",
+    }
 
     def list_unfinished_asclepius_invites(
         self, *, kind: str, older_than_hours: float, limit: int = 200
@@ -1065,16 +1100,20 @@ class TeamStore:
         """Asclepius applications that were started, never finished, and have not
         had this particular nudge (Onboarding v2 §3).
 
-        Deliberately narrow, in four ways that each remove a way to mail somebody
+        Deliberately narrow, in five ways that each remove a way to mail somebody
         something wrong:
 
-          * ``product = 'asclepius'`` — an admin-generated health-system invite is
+          * ``product = 'asclepius'``: an admin-generated health-system invite is
             a different relationship and gets no consumer nudge.
-          * ``onboarding_completed_at IS NULL`` — they have not finished.
-          * the stamp column IS NULL — this nudge has never been sent.
-          * the token has not already expired — there is no point mailing a link
+          * ``onboarding_completed_at IS NULL``: they have not finished.
+          * the stamp column IS NULL: this nudge has never been sent.
+          * the token has not already expired: there is no point mailing a link
             that is dead on arrival, and a "finish your application" button that
             404s is worse than silence.
+          * ``existing_account_at IS NULL``: this row was minted for somebody who
+            already HAS an account and was sent to sign in. Nudging them to
+            finish an application they completed months ago is the bug the
+            self-serve short circuit exists to stop, arriving a day late.
 
         A row with no ``director_email`` or no stored invite URL is skipped in
         SQL rather than filtered later: without either there is nothing to send
@@ -1092,6 +1131,7 @@ class TeamStore:
                 SELECT * FROM health_systems
                  WHERE product = 'asclepius'
                    AND onboarding_completed_at IS NULL
+                   AND existing_account_at IS NULL
                    AND {column} IS NULL
                    AND created_at < ?
                    AND onboarding_token_expires_at > ?
@@ -1168,9 +1208,20 @@ class TeamStore:
         return {"health_system_id": hs_id, "onboarding_url": url, "expires_at": expires}
 
     def count_recent_pending_invites_for_email(self, email: str, *, hours: int = 24) -> int:
-        """Pending (uncompleted) onboarding rows tied to this email created in the
-        last ``hours``. Admin-issued invites carry no email, so this only counts
-        self-serve issuance — the per-email cap for the public endpoint."""
+        """Onboarding rows minted for this email in the last ``hours``.
+
+        The per-email cap for the public endpoint. Admin-issued invites carry no
+        email, so this only ever counts self-serve issuance.
+
+        It used to also require ``onboarding_completed_at IS NULL`` and
+        ``status = 'pending_onboarding'``, which exempted from the cap precisely
+        the addresses most worth probing. A physician who has already finished
+        has completed rows, so every click on the contributor button minted a
+        brand new one and re-sent the whole new-applicant mail sequence, without
+        limit. Counting every row for the address closes that, and rate-limits
+        the residual "does this address have an account" question that
+        ``GET /session`` answers behind the token.
+        """
         e = (email or "").lower().strip()
         if not e:
             return 0
@@ -1180,8 +1231,6 @@ class TeamStore:
                 """
                 SELECT COUNT(*) AS n FROM health_systems
                 WHERE lower(trim(COALESCE(director_email, ''))) = ?
-                  AND onboarding_completed_at IS NULL
-                  AND status = 'pending_onboarding'
                   AND datetime(created_at) >= datetime(?)
                 """,
                 (e, since),
@@ -1246,16 +1295,50 @@ class TeamStore:
         first_name: str,
         last_name: str,
         email: str,
+        password_hash: Optional[str] = None,
+        license_state: Optional[str] = None,
     ) -> None:
+        """Screen 1 of the wizard, and the /join prefill, write through here.
+
+        ``password_hash`` is a HASH, never a plaintext: the caller hashes before
+        it gets here, so no password is ever a parameter to this store. Both new
+        arguments default to None and are COALESCE'd, because screen 1 is
+        re-submittable (a physician who corrects their email re-posts the whole
+        screen) and a resubmit that omits a field must not blank it.
+        """
         with self._conn() as conn:
             conn.execute(
                 """
                 UPDATE health_systems SET
                     director_first_name = ?, director_last_name = ?, director_email = ?,
+                    director_password_hash = COALESCE(?, director_password_hash),
+                    director_password_set_at = CASE
+                        WHEN ? IS NOT NULL THEN ? ELSE director_password_set_at END,
+                    director_license_state = COALESCE(NULLIF(?, ''), director_license_state),
                     onboarding_step = CASE WHEN onboarding_step < 1 THEN 1 ELSE onboarding_step END
                 WHERE id = ?
                 """,
-                (first_name.strip(), last_name.strip(), email.lower().strip(), hs_id),
+                (
+                    first_name.strip(), last_name.strip(), email.lower().strip(),
+                    password_hash,
+                    password_hash, _utcnow_iso(),
+                    (license_state or "").strip().upper()[:2],
+                    hs_id,
+                ),
+            )
+
+    def mark_health_system_existing_account(self, hs_id: str) -> None:
+        """This address already holds an account, so nothing was mailed for it.
+
+        An explicit stamp rather than pre-burning the nudge columns: a nudge
+        stamp reads "already sent", which would be false, and the next person to
+        wonder why a row went quiet can grep for this one and find the reason.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE health_systems SET existing_account_at = ?, status = 'existing_account' "
+                "WHERE id = ?",
+                (_utcnow_iso(), hs_id),
             )
 
     #: The flavors ``/join?flavor=`` may stamp. An unknown value stores NULL,

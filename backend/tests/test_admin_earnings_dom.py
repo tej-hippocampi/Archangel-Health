@@ -111,11 +111,11 @@ def test_a_void_requires_a_typed_reason_and_never_a_native_confirm():
     assert "res.totals" in money or "(res.totals || {})" in money
 
 
-def test_an_unknown_duration_renders_an_em_dash_and_never_zero_minutes():
+def test_an_unknown_duration_renders_a_placeholder_and_never_zero_minutes():
     """§4.3: a zero meaning "unknown" is how an operator voids honest work."""
     money = _MONEY_JS.read_text(encoding="utf-8")
     assert "function duration(" in money
-    assert "if (!s) return '—';" in money
+    assert "if (!s) return '-';" in money
 
 
 def test_the_referral_book_names_flags_and_structure():
