@@ -2090,7 +2090,7 @@
           const data = await res.json().catch(() => null);
           errBox.classList.add('asc-login-notice');
           errBox.textContent = (data && data.message)
-            || "If that email has an Asclepius account, we've sent a reset link.";
+            || "If that email has an Archangel Health account, we've sent a reset link.";
         } catch (_) {
           errBox.classList.add('asc-login-notice');
           errBox.textContent = 'Could not reach the server. Try again in a moment.';
@@ -2188,7 +2188,7 @@
     const card = h('div', { class: 'asc-login-card' },
       h('div', { class: 'asc-login-head' },
         h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
-        h('h1', {}, 'Asclepius'),
+        h('h1', {}, 'Archangel Health'),
         h('p', {}, 'Expert Evaluation Portal'),
       ),
       body,
@@ -2292,7 +2292,7 @@
         h('div', { class: 'asc-login-head' },
           h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
           h('h1', {}, (sec && sec.title) || 'Your credentials are being verified'),
-          h('p', {}, 'Asclepius · Expert Evaluation Portal'),
+          h('p', {}, 'Archangel Health · Expert Evaluation Portal'),
         ),
         body)));
   }
@@ -8748,13 +8748,17 @@
     api('/me/profile').then((data) => {
       clear(body);
       body.appendChild(h('h2', { class: 'asc-pay-title' }, 'Profile'));
+      // The public card FIRST, above the private record. It was one panel in a
+      // grid of nine, which filed a physician's public face between their
+      // password and their agreement; it is the one thing on this page that
+      // other people see, so it opens the page.
+      body.appendChild(meCardPanel(data));
       body.appendChild(meIdentityCard(data));
       body.appendChild(h('div', { class: 'asc-me-grid' },
         meDetailsPanel(data.editable || {}, data.standing || {}),
         meCredentialsPanel(data.credentials || {}),
         meTrainingPanel(data.training_and_practice),
         meCompletenessPanel(data.completeness),
-        meCardPanel(data.standing || {}),
         meHistoryPanel(),
         mePasswordPanel(),
         meAgreementPanel(),
@@ -9206,18 +9210,114 @@
     return panel;
   }
 
+  /* ── Your Archangel card ──────────────────────────────────────────────────
+     First thing on the profile, above the identity card, because it is the
+     answer to "what does this product say about me to other people" and
+     everything under it is the private half of the same question. It spent a
+     while as one panel in a grid of nine, which put the physician's public face
+     between their password and their agreement.
+
+     A PREVIEW, not a description of one. "A public page showing your name,
+     specialty and that you are verified" is a sentence ABOUT a card; the
+     physician is about to put a URL in front of colleagues and is entitled to
+     see the thing itself before they decide to.
+
+     The fields are exactly the whitelist backend/asclepius/card.py already
+     defines (CARD_FIELDS): picture, name, the checkmark, specialty, years in
+     practice, country of practice. That list is hand-built rather than a blob
+     with the dangerous keys filtered out, precisely so a new field cannot reach
+     a public URL because nobody updated a denylist. This preview is a third
+     surface rendering the same card, so it holds the same line: no score, no
+     band, no education, no identifiers. Where the preview and the public page
+     disagree, the preview is the one that is wrong.
+
+     One difference a physician cannot see and does not need to: the public page
+     resolves the country CODE to a country name server-side
+     (card.py::_country_display) and /me/profile returns the code. The code is
+     the honest rendering of what this endpoint holds, and teaching it a new
+     field is a backend change this does not need. */
+  function meCardCheckLine(cr, tp) {
+    // Years in practice on the card's own precedence: the number the physician
+    // typed at onboarding first, the older coarser column only as a stand-in,
+    // so an account predating the richer form still shows something true.
+    // Mirrors card.py::_years_in_practice, bounds included -- a negative or
+    // absurd value is a typo upstream and a card is the wrong place to show one
+    // back at somebody.
+    let years = null;
+    [tp.years_in_active_practice, cr.years_experience].forEach((candidate) => {
+      if (years !== null || candidate == null || candidate === '') return;
+      const n = Number(candidate);
+      if (Number.isFinite(n) && n >= 0 && n <= 80) years = Math.trunc(n);
+    });
+    const parts = [];
+    // Absent stays absent. "0 years in practice" reads as a data error on the
+    // one surface a physician puts their professional face on.
+    if (years !== null) parts.push(years === 1 ? '1 year in practice' : years + ' years in practice');
+    const country = String(cr.country_of_practice || '').trim();
+    if (country) parts.push(country);
+    return parts.join(' · ');
+  }
+
+  function meCardPreview(data) {
+    const ed = data.editable || {};
+    const cr = data.credentials || {};
+    const tp = data.training_and_practice || {};
+    const av = data.avatar || {};
+    // Same fallback as card.py::display_name: a physician who never filled in a
+    // display name still gets something that reads as a card rather than a
+    // blank line with a checkmark beside it.
+    const name = String(ed.full_name || '').trim() || 'Verified physician';
+    // Specialties are stored lower-case ("nephrology"); a card is a headline.
+    const raw = String(cr.specialty || '').trim();
+    const spec = raw && raw === raw.toLowerCase()
+      ? raw.replace(/\b[a-z]/g, (c) => c.toUpperCase())
+      : raw;
+    const line = meCardCheckLine(cr, tp);
+
+    const initials = String(av.initials || '').trim() || fallbackInitials(name);
+    const face = h('div', {
+      // Reuses .asc-me-avatar for the round, the hairline and the specialty
+      // wash; .asc-me-cardav only resizes it. Two implementations of the same
+      // circle is how the two letters a physician sees here stop matching the
+      // two their colleagues see beside their messages.
+      class: 'asc-me-avatar asc-me-cardav acc-' + (av.accent || 'green')
+        + (av.url ? ' has-img' : ''),
+      'aria-hidden': 'true',
+    }, av.url
+        ? avatarImgEl(av.url, initials)
+        : h('span', { class: 'asc-me-avatar-initials' }, initials));
+
+    return h('div', { class: 'asc-me-cardpreview' },
+      face,
+      h('div', { class: 'asc-me-cardid' },
+        h('div', { class: 'asc-me-cardname' }, name,
+          // Read off the account's standing, never assumed: this branch only
+          // runs for an approved account, which is what makes it true here.
+          h('span', { class: 'asc-me-cardcheck', title: 'Verified physician',
+                      'aria-label': 'Verified' }, '✓')),
+        spec ? h('div', { class: 'asc-me-cardspec' }, spec) : null,
+        line ? h('div', { class: 'asc-me-cardline' }, line) : null));
+  }
+
   // The card, minted on request. Nothing is minted automatically: a public page
   // about somebody is theirs to create.
-  function meCardPanel(standing) {
-    const panel = h('div', { class: 'asc-me-panel' });
-    panel.appendChild(h('div', { class: 'asc-ref-title' }, 'Your verified card'));
-    if ((standing || {}).verification_status !== 'approved') {
-      panel.appendChild(h('div', { class: 'asc-ref-pitch' },
+  function meCardPanel(data) {
+    const standing = (data || {}).standing || {};
+    const panel = h('div', { class: 'asc-me-card asc-card' });
+    const pad = h('div', { class: 'asc-card-pad' });
+    panel.appendChild(pad);
+    pad.appendChild(h('div', { class: 'asc-ref-title' }, 'Your Archangel card'));
+    if (standing.verification_status !== 'approved') {
+      // No preview here, and the sentence is untouched. A preview carries a
+      // checkmark, and drawing one for an account nobody has approved would be
+      // the product asserting on screen exactly what it has not yet checked.
+      pad.appendChild(h('div', { class: 'asc-ref-pitch' },
         'Once your credentials are verified you can create a public card that '
         + 'shows you are a verified physician here.'));
       return panel;
     }
-    panel.appendChild(h('div', { class: 'asc-ref-pitch' },
+    pad.appendChild(meCardPreview(data || {}));
+    pad.appendChild(h('div', { class: 'asc-ref-pitch' },
       'A public page showing your name, specialty and that you are verified. '
       + 'No case work and no ratings appear on it. Share it or take it down '
       + 'whenever you like.'));
@@ -9253,8 +9353,8 @@
             (err && (err.detail || err.message)) || 'The card could not be created.'));
         });
       } }, 'Create my card');
-    panel.appendChild(mint);
-    panel.appendChild(out);
+    pad.appendChild(mint);
+    pad.appendChild(out);
     return panel;
   }
 

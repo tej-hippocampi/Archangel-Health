@@ -5,7 +5,7 @@
 
    The physician's own referral surface: what a referral is worth, their
    shareable link, an invite composer, the live funnel, and the
-   health-system note card. Everything money-shaped renders from the
+   health-system column beside it. Everything money-shaped renders from the
    server's funnel payload: the payout structure arrives on the wire
    (funnel.payout_structure) so no dollar figure is hardcoded here where
    an env change could strand it.
@@ -171,18 +171,26 @@
     rootEl.appendChild(h('h2', { class: 'asc-pay-title' }, 'Referral'));
     rootEl.appendChild(hero(h));
     // The split is the design: a link you paste into a group chat on the left,
-    // a note a founder reads on the right. Stacked, the second one read as a
-    // footnote to the first, and it is the larger of the two asks.
+    // an institution you introduce us to on the right. Stacked, the second one
+    // read as a footnote to the first, and it is the larger of the two asks.
     rootEl.appendChild(h('div', { class: 'asc-ref-split' },
       physicianCol(h), systemCol(h)));
   }
 
   /* ── The hero: what a referral is worth ─────────────────────────────── */
-  /* One line, two terms, then the link. Six prose blocks used to stand between
-     a physician and the copy button, and every one of them was explaining a
-     deal the two terms state in nine words. A doctor who opened this tab had
-     already decided to refer someone; the page's only job is to hand them the
-     link before they change their mind.
+  /* A sentence, then two stat blocks, then the link. Six prose blocks used to
+     stand between a physician and the copy button, and every one of them was
+     explaining a deal the two terms state in nine words. A doctor who opened
+     this tab had already decided to refer someone; the page's only job is to
+     hand them the link before they change their mind.
+
+     The headline is set in the SANS face and sized to fill the bar. It used to
+     be the word "Earn thousands" rendered in Doto with a small label trailing
+     it, which is the dot-matrix face doing the one job it is bad at: Doto is
+     for a headline NUMERAL, and a word drawn out of dots reads as decoration
+     rather than as the offer. Nothing on this view takes it now, which also
+     leaves the one-Doto-hero-per-view budget where the Earnings page already
+     spends it.
 
      No ceiling figure either. This used to lead with "Earn up to $5,200" in the
      largest type on the page, which put a limit in front of the one physician
@@ -199,10 +207,8 @@
 
     return h('div', { class: 'asc-ref-hero asc-card' },
       h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-ref-hero-line' },
-          h('span', { class: 'asc-ref-hero-value' }, 'Earn thousands'),
-          h('span', { class: 'asc-ref-hero-label' },
-            'referring physicians, hospitals and health systems')),
+        h('div', { class: 'asc-ref-hero-value' },
+          'Earn money referring physicians, hospitals and health systems'),
         h('div', { class: 'asc-ref-terms' },
           term(h, bounty, 'to you',
             'when a physician you refer has their first case accepted.'),
@@ -215,14 +221,17 @@
           + 'no bounty accrues.')));
   }
 
+  /* A stat block: the amount, then who it goes to, then the sentence that
+     explains it. Three stacked lines rather than the old amount-with-a-unit-
+     glued-to-it, because at this size the amount has to be able to stand on
+     its own line and "$50 to you" wrapping mid-phrase is exactly what it did
+     in a half-width column. No significant whitespace inside any string: the
+     spacing between the three is CSS, which is the only place an editor of
+     the copy can see it. */
   function term(h, value, unit, rest) {
-    // The unit carries no leading space: the gap is CSS (.asc-ref-term-unit
-    // margin-left). Significant whitespace inside a string is invisible to
-    // anyone editing the copy later and doubles up under any text extractor
-    // that joins child nodes.
     return h('div', { class: 'asc-ref-term' },
-      h('div', { class: 'asc-ref-term-value' }, value,
-        unit ? h('span', { class: 'asc-ref-term-unit' }, unit) : null),
+      h('div', { class: 'asc-ref-term-value' }, value),
+      unit ? h('div', { class: 'asc-ref-term-unit' }, unit) : null,
       h('div', { class: 'asc-ref-term-rest' }, rest));
   }
 
@@ -246,8 +255,10 @@
           onClick: function () { copyText('phys-link', url); },
         }, copiedKey === 'phys-link' ? 'Copied' : 'Copy link')));
       col.appendChild(shareRow(h, url));
-      col.appendChild(copyBlock(h, 'phys-msg', physicianMessage(url),
-        'Copy the message'));
+      // No pre-written blurb under the link. The share targets beside it
+      // already carry a sentence, and a second auto-generated paragraph sitting
+      // in a box was the page writing a physician's message to their own
+      // colleague for them, in a register none of them would have used.
     }
 
     col.appendChild(composerForm(h));
@@ -296,33 +307,28 @@
     return wrap;
   }
 
+  /* What every share target carries. An INVITATION into the physician
+     community, not a job description: this rides in a WhatsApp bubble or an
+     SMS, where the recipient is a colleague reading one line on a lock screen,
+     and "you compare two model answers and grade the reasoning step by step"
+     is a task spec being read by somebody who has not yet decided they are
+     interested. Short enough to survive an SMS with the URL appended, which is
+     the medium that clips. */
   var SHARE_MESSAGE =
-    'I am contributing to Archangel Health, which pays physicians to evaluate '
-    + 'medical AI. Thought of you:';
+    'Join me in the Archangel Health physician community. Thought of you:';
 
-  /* The copyable messages. Two of them, because the two asks are not the same
-     ask: a colleague is being invited to do paid work, and a health system is
-     being invited into a commercial conversation. One blurb covering both
-     would be vague about each.
+  /* The one copyable message left, and it is the health-system one, because it
+     is the only ask a physician forwards rather than sends: they paste it to
+     somebody senior at their own organization, under their own signature.
 
-     No figure appears in the health-system one. That is the same rule the card
-     below follows and REFERRALS.md records: institutional terms are negotiated
-     one deal at a time, so a number pasted into a group chat becomes a promise
-     the negotiation then has to keep. */
-  function physicianMessage(url) {
-    return 'I have been doing evaluation work for Archangel Health. You compare '
-      + 'two model answers on a case, write the ideal one, and grade the '
-      + 'reasoning step by step, in your own specialty. It is paid, remote and '
-      + 'async, and you set your own load. Thought of you:\n' + url;
-  }
-
+     No figure appears in it. That is the same rule the column below follows and
+     REFERRALS.md records: institutional terms are negotiated one deal at a
+     time, so a number pasted into an email becomes a promise the negotiation
+     then has to keep. */
   function healthSystemMessage() {
-    return 'I work with Archangel Health, who build the physician-graded data '
-      + 'frontier AI labs use to evaluate medical models. They work with health '
-      + 'systems two ways: licensing properly de-identified records (Expert '
-      + 'Determination, no PHI on their side, DUA and BAA ready), and paying '
-      + 'your physicians for evaluation work in their own specialty. Worth a '
-      + 'short call?\n' + (data.partner_url || '');
+    return 'My health system is working with Archangel Health. Worth a look if '
+      + 'yours wants to earn from the data it already holds and get its '
+      + 'physicians paid for evaluation work.\n' + (data.partner_url || '');
   }
 
   /* Brand marks. Single-path glyphs where the company publishes one
@@ -453,22 +459,20 @@
     }
   }
 
-  /* A link with the context already attached.
-
-     "Copy link" hands over a URL and nothing else, so the physician has to
-     write the explanation themselves every time, and the version they write
-     at 11pm is not the version we would write. This copies the sentence AND
-     the link together, which is what actually gets pasted into a group chat.
+  /* A blurb with the link already attached, for the one place a physician
+     forwards rather than sends.
 
      Rendered as a read-only preview rather than a bare button: a doctor is
-     about to send this to a colleague in their own name, so they get to read
-     it first. */
+     about to put this in front of somebody senior at their own organization
+     under their own signature, so they get to read it first. Green like every
+     other copy control on the page, because "copy this and send it" is the
+     action of the block it sits in rather than an aside from it. */
   function copyBlock(h, key, text, label) {
     var wrap = h('div', { class: 'asc-ref-copyblock' });
     var pre = h('div', { class: 'asc-ref-copypreview' }, text);
     wrap.appendChild(pre);
     var btn = h('button', {
-      class: 'asc-btn asc-btn-sm asc-ref-copy', type: 'button',
+      class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-copy', type: 'button',
     }, copiedKey === key ? 'Copied' : label);
     btn.addEventListener('click', function () { copyText(key, text); });
     wrap.appendChild(btn);
@@ -547,14 +551,21 @@
       });
   }
 
-  /* ── Right: introduce a health system ───────────────────────────────────
-     An interest form that now knows WHO it is introducing.
+  /* ── Right: refer a health system ───────────────────────────────────────
+     One lead line, the link, the account button, then the email path.
 
      What this card used to be: one textarea that emailed a founder. The
      physician typed a paragraph, we replied to them, and the person they
      actually wanted us to meet never heard from anybody. The hero above named
      health systems as one of the things worth referring, which made the dead
      end worse rather than smaller.
+
+     Bare-bones now, and the approved and under-review variants render the SAME
+     shape: same title, same lead, same link, same forwardable note, and one
+     difference between them, whether the six-field compose form is drawn. Two
+     columns that diverged in their framing as well as in their controls made
+     the locked one read as a different, lesser feature rather than as the same
+     one with a path not open yet.
 
      What did NOT change, and must not: no dollar figure, no percentage, no
      worked example. This card once carried "a $1M data partnership at a 15 to
@@ -582,56 +593,77 @@
       h('span', { class: 'asc-ref-fieldlabel' }, label), input);
   }
 
-  /* The direct path, and it comes FIRST.
-     A physician who is themselves connected to a health system does not need us
-     to write to anybody in their name. They need the interest form and a slot
-     in a calendar, which is the whole ask, and routing them through a
-     "tell us who to write to" form to reach it is a step that exists for our
-     convenience and not theirs. So both doors are open and this is the shorter
-     one; the compose-an-introduction form below is unchanged and is still the
-     right door for introducing someone else.
-     partner_url arrives on the funnel payload already (it is what the copyable
-     blurb below pastes), so this needs no new plumbing. It carries the
-     physician's referral code, which is what makes the introduction attributed
-     to them rather than anonymous. */
-  var HS_CALL_URL = 'https://calendly.com/aryaabhatia-berkeley/new-meeting';
+  /* The link, and the account it opens.
+
+     partner_url arrives on the funnel payload and carries the physician's
+     referral code, which is what makes the introduction attributed to them
+     rather than anonymous. A funnel without one is a physician we cannot
+     attribute, so both of these render nothing at all rather than a bare
+     unattributed link: dropping the attribution silently is how a physician
+     makes an introduction and never gets credited for it.
+
+     "Create the health system account", not "Open the interest form". The
+     person who fills that form in is a physician who works at the health
+     system, and what they come out of it with is an account. Naming the form
+     described our side of the transaction to somebody who only cares about
+     theirs. The book-a-call button that used to sit beside it is gone with its
+     hardcoded scheduling URL: it was a second, vaguer ask sitting next to a
+     concrete one, and the account page is where the conversation starts. */
+  function systemLinkRow(h) {
+    if (!data || !data.partner_url) return null;
+    var url = data.partner_url;
+    return h('div', { class: 'asc-ref-linkrow' },
+      h('code', { class: 'asc-mono asc-ref-linktext' }, url),
+      h('button', {
+        class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-copy', type: 'button',
+        onClick: function () { copyText('hs-link', url); },
+      }, copiedKey === 'hs-link' ? 'Copied' : 'Copy link'));
+  }
 
   function systemDirectBlock(h) {
+    if (!data || !data.partner_url) return null;
     var block = h('div', { class: 'asc-ref-direct' });
-    block.appendChild(h('div', { class: 'asc-ref-directline' },
-      'Connected to one yourself? Go straight to the interest form.'));
     var row = h('div', { class: 'asc-ref-directrow' });
     /* Classes written out literally rather than built from a variable: a
        runtime-assembled class name is invisible to grep and to the stylesheet
        scanner, which is the rule shareRow already follows above. */
-    if (data && data.partner_url) {
-      row.appendChild(h('a', {
-        class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-direct-link',
-        href: data.partner_url, target: '_blank', rel: 'noopener noreferrer',
-      }, 'Open the interest form'));
-    }
     row.appendChild(h('a', {
-      class: 'asc-btn asc-btn-sm asc-btn-ghost asc-ref-direct-link',
-      href: HS_CALL_URL, target: '_blank', rel: 'noopener noreferrer',
-    }, 'Book a call'));
+      class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-direct-link',
+      href: data.partner_url, target: '_blank', rel: 'noopener noreferrer',
+    }, 'Create the health system account'));
     block.appendChild(row);
     return block;
+  }
+
+  /* The lead, and it is the same lead in both variants of this column.
+
+     One sentence in the founder's own framing, which is broader than the old
+     one: it is not only "introduce someone else", it is "you, or anyone you
+     know, inside a health system whose resources would help the community
+     here". The two variants below diverge in exactly one place, whether the
+     compose form is drawn, and nowhere else. */
+  function systemHead(h, col) {
+    col.appendChild(h('div', { class: 'asc-ref-pitch' },
+      'Working at a health system, or know someone who is? If the resources '
+      + 'inside it would help the Archangel Health community, refer someone by '
+      + 'email or send them the link.'));
+    var link = systemLinkRow(h);
+    if (link) col.appendChild(link);
+    var direct = systemDirectBlock(h);
+    if (direct) col.appendChild(direct);
   }
 
   /* An account still under review gets this column with the compose form left
      out and the reason said plainly, rather than six fields and a consent tick
      that end in a 403. What stays is everything that actually works for them:
-     the interest form and the call are ordinary public pages, and the blurb
-     below is theirs to forward under their own signature. So the ask is not
-     withdrawn from an under-review physician, only the one path that goes
-     through us. */
+     the account page is an ordinary public page, and the blurb below is theirs
+     to forward under their own signature. So the ask is not withdrawn from an
+     under-review physician, only the one path that goes through us. */
   function systemColLocked(h, col) {
     col.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'We write to them in your name, so this one opens once a person has '
-      + 'approved your account. Until then the two paths below are yours: the '
-      + 'interest form and a call are open to you now, and the note is yours '
-      + 'to forward.'));
-    col.appendChild(systemDirectBlock(h));
+      'We write in your name on the email path, so that one opens once a '
+      + 'person has approved your account. The link and the note below are '
+      + 'yours now.'));
     col.appendChild(copyBlock(h, 'hs-msg', healthSystemMessage(),
       'Copy an intro to forward'));
     col.appendChild(hsFunnelBlock(h));
@@ -640,21 +672,25 @@
 
   function systemCol(h) {
     var col = h('div', { class: 'asc-ref-card asc-ref-col' });
-    col.appendChild(h('div', { class: 'asc-ref-title' }, 'Introduce a health system'));
+    col.appendChild(h('div', { class: 'asc-ref-title' }, 'Refer a health system'));
+    systemHead(h, col);
     // Only a KNOWN-unapproved account gets the locked column. Null means the
     // standing read has not landed or did not answer, and an unknown answer
     // renders the form the way it always did.
     if (hsUnlocked === false) return systemColLocked(h, col);
-    col.appendChild(h('div', { class: 'asc-ref-pitch' },
-      'Tell us who to write to and we write in your name.'));
 
-    col.appendChild(systemDirectBlock(h));
-
+    /* Four fields on screen, and they are exactly the four the endpoint
+       REQUIRES (contact_name, contact_email, hs_name, relationship). The two
+       optional ones sit behind a disclosure rather than in the column, because
+       a physician skimming this needs to see how small the ask is before they
+       decide to make it, and six fields plus a textarea reads as paperwork
+       whatever the labels say. Nothing is removed: the disclosure holds the
+       same two inputs, bound to the same draft keys, and a draft typed into
+       them survives being folded away because `hsDraft` is the state, not the
+       DOM. */
     col.appendChild(hsField(h, 'contact_name', 'Their name', 'James Okoye'));
     col.appendChild(hsField(h, 'contact_email', 'Their email',
       'j.okoye@meridianhealth.org', { type: 'email' }));
-    col.appendChild(hsField(h, 'contact_role', 'Their role (optional)',
-      'Chief Operating Officer'));
     col.appendChild(hsField(h, 'hs_name', 'Health system', 'Meridian Health'));
     col.appendChild(hsField(h, 'relationship', 'How you know them',
       'We were at college together'));
@@ -665,9 +701,19 @@
     });
     note.value = hsDraft.note;
     note.addEventListener('input', function () { hsDraft.note = note.value; });
-    col.appendChild(h('label', { class: 'asc-ref-field' },
-      h('span', { class: 'asc-ref-fieldlabel' }, 'Anything we should know (optional)'),
-      note));
+    /* Open on rerender when either optional field already holds something, so
+       a physician who typed a role and then tripped a validation error is not
+       shown a form that has silently swallowed their words. */
+    var extrasOpen = !!(String(hsDraft.contact_role || '').trim()
+      || String(hsDraft.note || '').trim());
+    var extras = h('details', extrasOpen ? { class: 'asc-ref-extras', open: '' }
+      : { class: 'asc-ref-extras' },
+      h('summary', { class: 'asc-ref-extras-summary' }, 'Add more context'),
+      hsField(h, 'contact_role', 'Their role', 'Chief Operating Officer'),
+      h('label', { class: 'asc-ref-field' },
+        h('span', { class: 'asc-ref-fieldlabel' }, 'Anything we should know'),
+        note));
+    col.appendChild(extras);
 
     /* The consent checkbox is not chrome. We send this email in the
        physician's name, with their address on the reply-to, so the claim it

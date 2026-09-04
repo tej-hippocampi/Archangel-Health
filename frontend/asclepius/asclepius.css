@@ -3506,7 +3506,7 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   border: 1px solid var(--asc-line);
   background: var(--card);
   border-radius: var(--r-md);
-  padding: 18px 20px 16px;
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
   margin: 0 0 28px;
   max-width: 72ch;
 }
@@ -3524,20 +3524,18 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   color: var(--asc-text);
   max-width: 54ch;
 }
-/* The direct path for a physician connected to a health system themselves.
-   Separated from the compose-an-introduction form below by a rule rather than
-   by whitespace: they are two different asks and a reader should be able to
-   see that before reading either. */
+/* The account button, and the seam between the two paths in the health-system
+   column. Separated from the compose-an-introduction form below by a rule
+   rather than by whitespace: they are two different asks and a reader should
+   be able to see that before reading either.
+
+   Its explaining line is gone. The column's lead sentence above already says
+   who this is for, and a second line of grey prose between the link and the
+   button was the clutter the column was carrying. */
 .asc-ref-direct {
-  margin: 14px 0 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--asc-line);
-}
-.asc-ref-directline {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--asc-muted);
-  margin-bottom: 10px;
+  margin: var(--sp-3) 0 var(--sp-5);
+  padding-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--hairline);
 }
 .asc-ref-directrow {
   display: flex;
@@ -3637,62 +3635,73 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
    No ceiling row any more. The page used to lead with "Earn up to $5,200",
    which put a limit in the largest type on a page whose entire job is to make
    a well-connected physician want to introduce a hundred colleagues. ── */
-.asc-ref-hero { margin-bottom: var(--sp-4); }
-.asc-ref-hero-line {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
+.asc-ref-hero { margin-bottom: var(--sp-5); }
+/* The headline is a SENTENCE, so it is set in the sans face and sized to fill
+   the bar rather than sitting as a small figure with a label trailing it.
+
+   Doto is gone from this view entirely. It is the dot-matrix face for a
+   headline NUMERAL, and the word it used to draw here ("Earn thousands") is
+   the one thing it renders badly: at 34px a word made of dots reads as
+   decoration rather than as the offer. Nothing else on the Referral tab takes
+   it either, which leaves the one-Doto-hero-per-view budget where the Earnings
+   page already spends it.
+
+   clamp() rather than a breakpoint: the line has to fill a 1440px card and
+   still fit a phone, and one declaration doing that is one fewer place for the
+   two to drift apart. */
 .asc-ref-hero-value {
-  /* Money is where Doto earns its keep: same rule as the earnings hero. */
-  font-family: var(--doto);
-  font-size: 34px;
-  font-weight: 700;
+  font-family: var(--sans);
+  font-size: clamp(1.5rem, 3.4vw, 2.25rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
   color: var(--ink);
-  letter-spacing: 0.01em;
-}
-.asc-ref-hero-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  max-width: 34ch;
-  line-height: 1.5;
+  margin-bottom: var(--sp-5);
 }
 /* The terms side by side, so the whole arrangement is one glance. Not a
    numbered list: a list reads as steps, and these are simultaneous facts.
    Two columns now rather than three: the "no ceiling" term went with the
-   trim, because a ceiling nobody imposes does not need announcing. */
+   trim, because a ceiling nobody imposes does not need announcing.
+
+   A hairline BETWEEN them as well as above, and real room either side of it.
+   Two stat blocks separated only by a gap read as one wrapped paragraph at a
+   glance, which is the glance this arrangement exists for. */
 .asc-ref-terms {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--sp-4);
-  padding-top: var(--sp-4);
+  gap: var(--sp-6);
+  padding-top: var(--sp-5);
   border-top: 1px solid var(--hairline);
 }
 .asc-ref-term { min-width: 0; }
+.asc-ref-term + .asc-ref-term {
+  border-left: 1px solid var(--hairline);
+  padding-left: var(--sp-6);
+}
+/* Amount, then who it goes to, then the sentence. Tabular figures so the two
+   amounts sit on the same rhythm even when one is wider than the other. */
 .asc-ref-term-value {
-  font-family: var(--doto);
-  font-size: 21px;
-  font-weight: 700;
+  font-family: var(--sans);
+  font-size: 2rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   color: var(--ink);
-  line-height: 1.2;
-  margin-bottom: 5px;
+  line-height: 1.1;
 }
 .asc-ref-term-unit {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--t-sm);
   font-weight: 500;
   color: var(--ink-soft);
-  margin-left: 0.35em;   /* the gap is here, never a space inside the string */
+  margin-top: var(--sp-1);
 }
 .asc-ref-term-rest {
   font-size: 13px;
   line-height: 1.55;
   color: var(--ink-soft);
+  margin-top: var(--sp-3);
+  max-width: 30ch;
 }
 
 /* ── The split ── */
@@ -3716,7 +3725,14 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   display: flex;
   flex-direction: column;
 }
-.asc-ref-col > .asc-ref-funnel { margin-top: auto; }
+/* The funnel follows the invite box directly. It used to be pushed to the foot
+   of the column with margin-top:auto so the two halves ended on the same line,
+   and that was affordable while the physician side also carried a copyable
+   blurb. With the blurb gone it opened a hand-sized hole in the middle of the
+   column instead, which is a worse thing to look at than a ragged bottom edge:
+   whitespace under the last row reads as room, whitespace between two blocks
+   reads as something missing. */
+.asc-ref-col > .asc-ref-funnel { margin-top: var(--sp-4); }
 
 /* ── Link + share ── */
 .asc-ref-linkrow {
@@ -3850,6 +3866,32 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 
 /* Consent reads as a sentence the physician is agreeing to, not as a settings
    toggle: full-size target, text beside it, no uppercase label treatment. */
+/* The two optional health-system fields, folded away. A <details> rather than
+   a scripted toggle: the open state is the element's own, so a rerender that
+   rebuilds the column cannot lose it, and it stays operable with CSS off. */
+.asc-ref-extras {
+  margin-top: var(--sp-3);
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--sp-3);
+}
+.asc-ref-extras-summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--asc-muted);
+  padding: 2px 0;
+}
+.asc-ref-extras-summary::-webkit-details-marker { display: none; }
+.asc-ref-extras-summary::before {
+  content: "+";
+  display: inline-block;
+  width: 1em;
+  color: var(--green);
+  font-weight: 500;
+}
+.asc-ref-extras[open] > .asc-ref-extras-summary::before { content: "\2212"; }
+.asc-ref-extras-summary:hover { color: var(--asc-text); }
+
 .asc-ref-consent {
   display: flex;
   align-items: flex-start;
@@ -3903,13 +3945,15 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 @media (max-width: 900px) {
   .asc-ref-split { grid-template-columns: minmax(0, 1fr); }
   .asc-ref-terms { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .asc-ref-term { padding: var(--sp-3) 0; border-top: 1px solid var(--hairline); }
+  .asc-ref-term { padding: var(--sp-4) 0; border-top: 1px solid var(--hairline); }
   .asc-ref-term:first-child { border-top: 0; padding-top: 0; }
-  .asc-ref-hero-value { font-size: 28px; }
+  /* Stacked, the divider is the rule ABOVE each block, so the vertical one
+     between the columns has to be unset rather than left to draw down the
+     left edge of a full-width block. */
+  .asc-ref-term + .asc-ref-term { border-left: 0; padding-left: 0; }
   /* The page already scrolls here, so a second scroll region inside it is a
      trap on a touch screen. */
   .asc-ref-listwrap { max-height: none; overflow: visible; }
-  .asc-ref-col > .asc-ref-funnel { margin-top: 0; }
 }
 
 @media (max-width: 560px) {
@@ -3993,6 +4037,63 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-me-dot-ok   { background: var(--green); }
 .asc-me-dot-wait { background: var(--lime); }
 .asc-me-dot-off  { background: var(--ink-faint); }
+
+/* ─── Your Archangel card: the preview ────────────────────────────────────────
+   What a colleague sees, drawn on the physician's own page above the controls
+   that mint and revoke it. Inset on the card-in wash rather than bordered like
+   another panel: it is a picture OF something else, and giving it the same
+   frame as the panels around it would read as one more section of this page
+   instead of a preview of a different one.
+
+   Six facts and no seventh. The field list is card.py's CARD_FIELDS, which is a
+   hand-built whitelist, and adding a row here without adding it there would
+   make this preview a lie about the page it previews. */
+.asc-me-cardpreview {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  background: var(--card-in);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: var(--sp-4) var(--sp-5);
+  margin: var(--sp-4) 0;
+}
+/* Only the size. The round, the hairline and the specialty wash come from
+   .asc-me-avatar, so the circle a physician sees here is the same circle.
+   Written as a descendant pair rather than a bare class because .asc-me-avatar
+   sizes itself to its wrapper at 100% and is declared further down this file:
+   at equal specificity the later rule wins, and this one has to. */
+.asc-me-cardpreview .asc-me-cardav {
+  width: 56px; height: 56px; flex: 0 0 56px;
+}
+.asc-me-cardav .asc-me-avatar-initials { font-size: 19px; }
+.asc-me-cardid { min-width: 0; }
+.asc-me-cardname {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+/* The claim the card makes, in the accent that means physician-authored value
+   here. A glyph rather than a filled badge: a chip would outweigh the name it
+   is attached to, and the name is the point. */
+.asc-me-cardcheck {
+  flex: none;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--green-deep);
+}
+.asc-me-cardspec { margin-top: 3px; font-size: 13.5px; color: var(--ink-soft); }
+.asc-me-cardline {
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
 
 /* ═══ Profile: the detail panels ═════════════════════════════════════════════ */
 .asc-me-grid {
@@ -4822,6 +4923,10 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   margin-top: 10px;
 }
 .asc-stage-spacer { flex: 1 1 auto; }
+/* A primary button whose action is blocked by a gate the operator can clear.
+   Deliberately NOT the disabled treatment: the button is live and pressing it
+   does the thing that unblocks it, so it must not read as inert. */
+.asc-btn.asc-btn-blocked { opacity: 0.82; font-style: italic; }
 /* Controls sitting INSIDE an action row must not take the full-width default
    that .asc-input carries for stacked form fields — at 100% each one claims the
    whole row and the "compact card" of §3.4 becomes a column of giant boxes. */
@@ -4919,6 +5024,26 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-route-doc-name { flex: 1 1 auto; min-width: 120px; }
 .asc-route-roles { display: inline-flex; gap: 10px; }
 .asc-route-role { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-size: var(--t-sm); }
+/* A role this account cannot take. Dimmed AND not-allowed AND labelled on the
+   row beside it: the reason has to survive a greyscale screenshot, because the
+   alternative is an atomic 400 on the whole send. */
+.asc-route-role.is-off { opacity: 0.5; cursor: not-allowed; }
+.asc-route-why {
+  flex: 0 0 auto;
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+/* What the last send actually delivered. Sits under the controls rather than in
+   a toast, because a toast is gone before an admin has read the error list. */
+.asc-route-sent {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 /* A task made in the last day, so what you just created is findable. */
 .asc-chip-new { background: var(--lime-wash); border-color: var(--lime); }
 
