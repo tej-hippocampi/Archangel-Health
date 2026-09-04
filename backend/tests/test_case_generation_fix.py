@@ -93,6 +93,28 @@ def test_a_malformed_header_date_leaves_the_note_undated_rather_than_quarantinin
     assert report["unresolved"] == []
 
 
+@pytest.mark.parametrize("bad", ["2025-13-45", "2025-02-30", "2025-00-01"])
+def test_a_malformed_filename_date_leaves_the_note_undated_too(bad):
+    """The filename path obeys the same rule as the header path: one typo in one
+    partner filename must not quarantine a 300-note bundle."""
+    frag = note_text.parse("findings " * 10, manifest={"filename": f"072_{bad}_clinical-note.txt"})
+    assert "collected_at" not in frag["notes"][0]
+    case, report = TL.normalize_timeline({"notes": frag["notes"], "lab_panels": [
+        {"panel": "CBC", "collected_at": "2026-04-23", "results": []}]})
+    assert report["unresolved"] == []
+
+
+def test_a_type_word_in_the_directory_still_classifies_the_note():
+    """Zip entry names carry their folders; a partner whose layout is
+    ``discharge/001.txt`` classified as Discharge before this change and must
+    still — the date regex reads the basename, the type scan reads the path."""
+    assert note_text.parse("x" * 50, manifest={"filename": "discharge/001.txt"})["notes"][0]["note_type"] == "Discharge"
+    assert note_text.parse("x" * 50, manifest={"filename": "consult/2025/a.txt"})["notes"][0]["note_type"] == "Consult"
+    # but the FILE wins over the folder: patient-3 keeps its lab reports in
+    # ``clinical-notes/``, and the folder's token must not relabel them
+    assert note_text.parse("x" * 50, manifest={"filename": "clinical-notes/009_2026-04-23_rft-renal.txt"})["notes"][0]["note_type"] == "Lab report"
+
+
 def test_unknown_date_stays_undated_rather_than_quarantining_the_chart():
     """``Service date: unknown-date`` is a statement that the page has no date. It
     must NOT be emitted as one — an unparseable ``collected_at`` reaches
@@ -598,3 +620,23 @@ def test_a_repacked_fixture_is_not_ingested_twice(store, monkeypatch, tmp_path):
     assert "earlier packing" in again["bundles"][0]["message"]
     assert again["bundles"][0]["upload_id"] == first["bundles"][0]["upload_id"]
     assert len(store.list_ingest_uploads(limit=10)) == 1
+
+
+def test_a_corrected_bundle_re_enters_after_a_quarantine_and_is_then_the_one_the_key_finds(store):
+    """The by-name key must never block a corrected re-ingest — and once the
+    corrected chart is in, the key must find THAT row, not the failed attempt
+    that came first. Otherwise the next repack lands a twin of the good chart."""
+    pid = PF.FIXTURE_PARTNER_ID
+    bad = store.insert_ingest_upload(
+        link_id="l1", partner_id=pid, filename="patient-2.zip", sha256="a" * 64,
+        size_bytes=1, raw_path=None, source_ip=None)
+    store.update_ingest_upload(bad["upload_id"], status="quarantined")
+    assert store.find_ingest_upload_by_partner_filename(pid, "patient-2.zip") is None
+    good = store.insert_ingest_upload(
+        link_id="l2", partner_id=pid, filename="patient-2.zip", sha256="b" * 64,
+        size_bytes=1, raw_path=None, source_ip=None)
+    store.update_ingest_upload(good["upload_id"], status="ingested")
+    found = store.find_ingest_upload_by_partner_filename(pid, "patient-2.zip")
+    assert found and found["upload_id"] == good["upload_id"]
+    # and a different partner's identically-named export is never matched
+    assert store.find_ingest_upload_by_partner_filename("hs-other", "patient-2.zip") is None

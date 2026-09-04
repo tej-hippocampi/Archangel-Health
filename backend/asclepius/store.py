@@ -5621,13 +5621,19 @@ class AsclepiusStore:
         declared specialty changes the bytes, and a re-click would land the same
         chart twice under two labels. A fixture is one chart with one name; the
         name catches what the digest cannot. Scoped to the partner so a hospital
-        that happens to call its export ``patient-3.zip`` is never matched.
+        that happens to call its export ``patient-3.zip`` is never matched, and
+        blind to quarantined/rejected rows so a failed attempt never blocks —
+        or masks — the corrected bundle that follows it.
         """
         if not partner_id or not filename:
             return None
+        # A quarantined or rejected attempt does not count as "already here": a
+        # corrected bundle must be able to re-enter, and once it has, THAT row is
+        # the one the key must find — not the failed attempt that preceded it.
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT upload_id FROM ingest_uploads WHERE partner_id = ? AND filename = ? "
+                "AND status NOT IN ('quarantined', 'rejected') "
                 "ORDER BY created_at ASC, rowid ASC LIMIT 1", (partner_id, filename)).fetchone()
         return self.get_ingest_upload(row["upload_id"]) if row else None
 

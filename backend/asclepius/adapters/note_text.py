@@ -79,7 +79,30 @@ def _note_type_from(filename: Optional[str], manifest_type: Optional[str]) -> st
             if t.lower() == str(manifest_type).strip().lower():
                 return t
         return str(manifest_type).strip()[:40] or "Progress"
-    name = os.path.basename(filename or "").lower()
+    # The FILE name first — it is the most specific thing a partner wrote. The
+    # directory is a fallback, not a peer: a ``clinical-notes/`` folder holding
+    # ``009_…_rft-renal.txt`` names a lab report, and letting the folder's
+    # "clinical-note" token win would call it Progress.
+    base = os.path.basename(filename or "").lower()
+    found = _type_from_token_source(base)
+    if found:
+        return found
+    # A partner whose layout is ``discharge/001.txt`` carries the type in the
+    # folder, and that classified before this adapter learned to read dates.
+    folders = os.path.dirname((filename or "").lower())
+    if folders:
+        found = _type_from_token_source(folders)
+        if found:
+            return found
+    return "Progress"
+
+
+def _type_from_token_source(name: str) -> Optional[str]:
+    """The note type named by ``name`` (a basename or a directory path), or None
+    when it names nothing. Most specific first, so a partner who names a file
+    ``consult`` still gets ``Consult`` ahead of the lab token."""
+    if not name:
+        return None
     for t in _KNOWN_TYPES:
         if t.lower().replace("&", "") in name.replace("&", "").replace("_", " ").replace("-", " "):
             return t
@@ -93,7 +116,7 @@ def _note_type_from(filename: Optional[str], manifest_type: Optional[str]) -> st
         # report transcribed as text. Labelled as what it is rather than
         # ``Progress``, which is what 79 of patient-3's files used to read as.
         return "Lab report"
-    return "Progress"
+    return None
 
 
 def _date_shaped(value: Optional[str]) -> Optional[str]:
@@ -136,7 +159,9 @@ def note_date_from(text: str, filename: Optional[str], manifest_date: Optional[A
             break
     m2 = _FILENAME_DATE_RE.match(os.path.basename(filename or ""))
     if m2:
-        return m2.group(1)
+        # Same rule as the header: a filename reading ``072_2025-13-45_…`` is a
+        # typo, not a date, and emitting it would quarantine the whole chart.
+        return _date_shaped(m2.group(1))
     return None
 
 

@@ -20,6 +20,22 @@ exemption are untouched, and the per-chart yield triples the front-door test
 pins are unchanged. Part B removes nothing but screen furniture: no endpoint,
 table, row, upload, lead, request or export changes.
 
+Two things DO change for a chart that is **re-ingested** (stored cases are never
+rewritten), and a reviewer should accept them consciously:
+
+* **Day 0 is the latest dated item, not the latest lab.** With no manifest
+  `index_event`, the anchor pool now includes notes, studies, medications and
+  problems (§A3), so a chart whose discharge summary post-dates its last draw
+  anchors on the summary: every offset shifts by the same amount, intervals are
+  untouched, the longitudinal triples do not move (each decision point re-bases
+  on its own index), and `index_source` names the collection. On the static
+  promote path the note, not the lab, now reads "day 0 (today)".
+* **A note's own date is read where none was before.** A text note that
+  carries a `Service date:` / `Date of service:` / `Report date:` header or a
+  `NNN_YYYY-MM-DD_` filename now sits on the axis instead of being withheld as
+  untimed. A page whose first such header says `unknown-date` stays undated
+  even if a later `Report date:` line exists — the export's own statement wins.
+
 ---
 
 # PART A — Why static and longitudinal generation fail on real records
@@ -35,7 +51,7 @@ Each arrow is a separate defect. The five below are in pipeline order.
 
 ## §A1 Defect 1 — the note adapter threw the note's date away — **fixed**
 
-`asclepius/adapters/note_text.py:150 parse()` used to emit `{note_type,
+`asclepius/adapters/note_text.py:175 parse()` used to emit `{note_type,
 author_role, text}` and nothing else. The date is available twice in every
 partner file — the filename (`072_2025-07-01_discharge-summary.txt`) and the
 header (`Service date: 2025-07-01`) — and the adapter read neither.
@@ -47,7 +63,7 @@ counts items with an integer offset, so undated notes never formed or joined an
 encounter, and `cases.py:495` "no clinical note ≥ 200 chars" was true of the
 visible window on a chart with four discharge summaries.
 
-**Fix.** `note_date_from` (`asclepius/adapters/note_text.py:112`)
+**Fix.** `note_date_from` (`asclepius/adapters/note_text.py:135`)
 sets `collected_at` from, in order: `manifest.date`; the header line `Service
 date:` (also `Date of service`, `Report date` — never `Admission Date`, which
 dates the stay rather than the document and would place a discharge summary
