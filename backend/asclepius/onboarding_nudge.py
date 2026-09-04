@@ -1,9 +1,13 @@
 """The application nudge schedule (Onboarding v2 §3).
 
-Five emails, each sent at most once per application, ever.
+Six emails, each sent at most once per application, ever.
 
 Before the application is submitted, against the health-system invite row:
 
+  * **at 1 hour**: §4.1, "pick up any time". The link, so somebody who was
+    interrupted can come back. It used to be sent from the mint, alongside the
+    verification code, and the two landed together; people opened the wrong one
+    and had to ask for a second code.
   * **at 24 hours** — §4.2, "your application is waiting". One nudge. Not a
     drip, not a sequence, no countdown, no guilt: the reason a physician stopped
     halfway is almost always a pager, and the correct response to that is one
@@ -49,6 +53,19 @@ from typing import Any, Dict, Optional
 
 log = logging.getLogger("asclepius.onboarding_nudge")
 
+#: How long after starting the "pick up any time" mail goes out.
+#:
+#: This message used to be sent from the mint, at the same instant as the
+#: verification code, and the two arrived together. Physicians opened the older
+#: one, which reopened the wizard on the verify step they were already looking
+#: at, and had to request a second code. It is a RESUME message and belongs
+#: here, once somebody has actually stopped.
+#:
+#: One hour, floored by SWEEP_INTERVAL_SECONDS (900), so it lands 60 to 75
+#: minutes in. Anything under fifteen minutes is not achievable without also
+#: shortening the sweep, so do not promise it in copy.
+RESUME_AFTER_HOURS = float(os.getenv("ASCLEPIUS_RESUME_AFTER_HOURS", "1") or 1)
+
 #: How stale an unfinished application must be before the one nudge goes.
 NUDGE_AFTER_HOURS = float(os.getenv("ASCLEPIUS_NUDGE_AFTER_HOURS", "24") or 24)
 
@@ -75,6 +92,11 @@ APPLICANT_NUDGE_AFTER_HOURS = int(
 #: in one place.
 PROFILE_NUDGE_MIN_DAYS = int(os.getenv("ASCLEPIUS_PROFILE_NUDGE_MIN_DAYS", "30") or 30)
 
+#: Mirrors routers.onboarding._SELF_SERVE_EXPIRES_DAYS. Imported lazily at the
+#: send site would drag a router into this module; stated here, with the name of
+#: its twin, so a change to one is greppable from the other.
+_SELF_SERVE_EXPIRES_DAYS = 7
+
 
 def _first_name(row: Dict[str, Any]) -> str:
     return (row.get("director_first_name") or "").strip()
@@ -89,13 +111,25 @@ async def _send_one(kind: str, row: Dict[str, Any]) -> bool:
     from email_utils import send_html_email  # noqa: PLC0415
     from onboarding_emails import (  # noqa: PLC0415
         build_application_expiring_email, build_application_nudge_email,
+        build_application_start_email,
     )
 
     email = (row.get("director_email") or "").strip()
     url = (row.get("last_generated_invite_url") or "").strip()
     if not email or not url:
         return False
-    if kind == "nudge":
+    if kind == "resume":
+        # A separate kind rather than an earlier "nudge": the 24-hour copy opens
+        # "You are most of the way there", which is wrong for somebody who
+        # stopped on screen two, and the two need independent stamps so one
+        # cannot suppress the other.
+        subject = "Pick up your Archangel Health application any time"
+        html_body = build_application_start_email(
+            first_name=_first_name(row),
+            onboarding_url=url,
+            expires_days=_SELF_SERVE_EXPIRES_DAYS,
+        )
+    elif kind == "nudge":
         subject = "Your application is waiting: 2 minutes to finish"
         html_body = build_application_nudge_email(
             first_name=_first_name(row), onboarding_url=url)
@@ -280,14 +314,16 @@ async def sweep(ts: Optional[Any] = None, store: Optional[Any] = None) -> Dict[s
     from email_utils import is_email_transport_configured  # noqa: PLC0415
     from team_store import get_team_store  # noqa: PLC0415
 
-    sent = {"nudge": 0, "expiry": 0, "credentials": 0, "practice": 0, "profile": 0}
+    sent = {"resume": 0, "nudge": 0, "expiry": 0,
+            "credentials": 0, "practice": 0, "profile": 0}
     if not is_email_transport_configured():
         # Nothing to do, and — critically — nothing STAMPED. A deployment with no
         # mail transport must not silently burn every physician's one nudge.
         return sent
     ts = ts or get_team_store()
 
-    for kind, hours in (("nudge", NUDGE_AFTER_HOURS),
+    for kind, hours in (("resume", RESUME_AFTER_HOURS),
+                        ("nudge", NUDGE_AFTER_HOURS),
                         ("expiry", EXPIRY_WARN_AFTER_HOURS)):
         try:
             rows = await asyncio.to_thread(

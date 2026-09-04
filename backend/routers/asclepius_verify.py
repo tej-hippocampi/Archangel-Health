@@ -592,11 +592,16 @@ class RejectBody(BaseModel):
 def _needs_credentials(user: Dict[str, Any]) -> bool:
     """Does this physician have no way to sign in yet? (Onboarding v2 §5)
 
-    True only for an account created by the v2 wizard, which has no password step
-    (``NO_PASSWORD_HASH``). An invited member chose their own password during
-    their flow and a pre-v2 signup chose one during theirs — minting a temporary
-    credential for either would REPLACE a password they are using today, which is
-    the exact failure ``provision_user`` was hardened against.
+    True only for an account carrying ``NO_PASSWORD_HASH``. Minting a temporary
+    credential for anyone else would REPLACE a password they are using today,
+    which is the exact failure ``provision_user`` was hardened against.
+
+    This docstring used to say the sentinel identified "an account created by
+    the v2 wizard". That is no longer true and the difference matters: the
+    wizard now takes a password on screen one, so a v2 signup arrives here WITH
+    a credential and this returns False for them. What is left on the True side
+    is the legacy set, the accounts that finished the wizard during the window
+    when it minted nothing.
     """
     from asclepius import store as _store_mod  # noqa: PLC0415
 
@@ -756,19 +761,44 @@ async def approve_signup(
                         sign_in_url=_portal_base() + "/asclepius",
                     ), importance_headers=True))
             elif not needs_credentials:
-                # An account that already HAS a password — an invited member, or
-                # a pre-v2 signup — is not being given credentials, so it gets
-                # the plain notice rather than a "your temporary password is …"
-                # email with no password in it.
+                # An account that already HAS a password. Once that meant an
+                # invited member or a pre-v2 signup; since the wizard started
+                # taking a password on screen one it means almost every
+                # physician, which is what makes this branch load bearing.
                 #
-                # That notice is QUEUED, not sent here, by the hook on
-                # record_verification_decision above. One sender for it, so the
-                # console and the two paths that used to say nothing produce one
-                # mail between them rather than this branch and the queue both
-                # firing. It also means the tier is named, which this branch
-                # never did. Only the credentials welcome stays inline, because
-                # it carries a secret this request minted and nothing else can.
-                welcome_sent = True
+                # It used to fall through to the plain queued notice, and the
+                # result was that choosing your own password silently cost you
+                # the welcome: no mission block, no sign-in button, no founders'
+                # Calendly, because of an implementation detail about where the
+                # password came from. So the welcome is sent here too, with the
+                # credentials card swapped for one line pointing at the password
+                # they already have.
+                welcome_sent = bool(await send_html_email(
+                    user["email"],
+                    application_welcome_subject((user.get("full_name") or "").strip()),
+                    build_application_welcome_email(
+                        full_name=(user.get("full_name") or "").strip(),
+                        email=user["email"],
+                        sign_in_url=_portal_base() + "/asclepius",
+                    ), importance_headers=True))
+                if welcome_sent:
+                    # The hook on record_verification_decision has already queued
+                    # the plain notice, because it cannot see that this handler
+                    # is about to send the richer one. Void it. Two "you're
+                    # approved" emails for one approval is the visible failure
+                    # here, and this is the same mechanism the reject-then-
+                    # approve race already uses.
+                    try:
+                        import notifications  # noqa: PLC0415
+                        store.void_pending_admin_notification(
+                            notifications._person_key(
+                                "physician_approved",
+                                f"approved:{user_id}",
+                                user["email"]))
+                    except Exception:
+                        log.exception(
+                            "[verify] could not void the queued approval notice; "
+                            "this physician may receive two")
             # The remaining case — credentials were NEEDED and the mint failed —
             # sends nothing on purpose. "You're approved, open your workspace"
             # pointing at a door this physician has no key to is worse than

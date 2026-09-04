@@ -360,13 +360,19 @@ async def test_nudge_fires_once_at_24h_and_never_twice(client: TestClient, monke
     sent = _capture_nudges(monkeypatch)
 
     await onboarding_nudge.sweep(ts)
-    assert _subjects_for(sent, email) == ["Your application is waiting: 2 minutes to finish"]
+    # A row aged 30 hours is past the one-hour resume threshold as well, so the
+    # "pick up any time" mail rides along. What this test is about is the 24
+    # hour nudge and its stamp, so assert on that specifically rather than on
+    # the whole set.
+    subjects = _subjects_for(sent, email)
+    assert "Your application is waiting: 2 minutes to finish" in subjects
     assert ts.get_health_system_by_id(hs_id)["nudge_sent_at"]
+    before = len(subjects)
 
     # Again, immediately. The stamp is the whole idempotency mechanism, so a
     # second sweep must send this physician nothing at all.
     await onboarding_nudge.sweep(ts)
-    assert len(_subjects_for(sent, email)) == 1
+    assert len(_subjects_for(sent, email)) == before
 
 
 @pytest.mark.anyio
@@ -378,15 +384,20 @@ async def test_day_six_expiry_warning_fires_once(client: TestClient, monkeypatch
     sent = _capture_nudges(monkeypatch)
 
     await onboarding_nudge.sweep(ts)
+    # Three now, not two: the "pick up any time" mail moved off the mint and
+    # onto this sweep at the one-hour mark, and this row is aged past every
+    # threshold at once. Each still has its own stamp, which is what the second
+    # sweep below is checking.
     assert sorted(_subjects_for(sent, email)) == sorted([
+        "Pick up your Archangel Health application any time",
         "Your application is waiting: 2 minutes to finish",
         "Your Archangel Health link expires tomorrow",
     ])
     row = ts.get_health_system_by_id(hs_id)
-    assert row["nudge_sent_at"] and row["expiry_warned_at"]
+    assert row["resume_sent_at"] and row["nudge_sent_at"] and row["expiry_warned_at"]
 
     await onboarding_nudge.sweep(ts)
-    assert len(_subjects_for(sent, email)) == 2
+    assert len(_subjects_for(sent, email)) == 3
 
 
 @pytest.mark.anyio
@@ -419,8 +430,10 @@ async def test_no_mail_transport_stamps_nothing(client: TestClient, monkeypatch)
     # transport check is one early return in front of all of them, so a
     # deployment with no mail configured burns nobody's one nudge.
     assert (await onboarding_nudge.sweep(ts)) == {
-        "nudge": 0, "expiry": 0, "credentials": 0, "practice": 0, "profile": 0}
+        "resume": 0, "nudge": 0, "expiry": 0,
+        "credentials": 0, "practice": 0, "profile": 0}
     row = ts.get_health_system_by_id(hs_id)
+    assert row["resume_sent_at"] is None
     assert row["nudge_sent_at"] is None
     assert row["expiry_warned_at"] is None
 
@@ -616,11 +629,23 @@ def test_approving_an_account_that_already_has_a_password_does_not_rotate_it(cli
     fresh = store.get_user_by_id(member["id"])
     assert fresh["password_hash"] == original
     assert not fresh["must_change_password"]
-    # The notice is QUEUED by the hook on record_verification_decision, not
-    # sent inline: only the credentials welcome stays inline, because it
-    # carries a secret the approving request minted. One sender for the plain
-    # notice means this branch must not also fire it.
-    assert sent == []
+
+    # The welcome IS sent here now, and that is the change. It used to fall
+    # through to a plain queued notice, so a physician who chose their own
+    # password silently lost the mission block, the sign-in button and the
+    # founders' Calendly: the whole content of the welcome, missing, because of
+    # an implementation detail about where their password came from. Since the
+    # wizard started taking a password on screen one, that is nearly everyone.
+    assert len(sent) == 1, f"expected exactly one welcome, got {sent}"
+    assert "Welcome" in sent[0] or "welcome" in sent[0].lower(), sent
+
+    # And exactly one. The hook on record_verification_decision queued the plain
+    # notice before this handler ran, and the handler voids it: two "you're
+    # approved" emails for one approval is the visible failure here. Read off
+    # the real drain queue rather than a guess, so this cannot pass vacuously.
+    due = store.due_admin_notifications(limit=100)
+    approvals = [r for r in due if "approved" in str(r.get("idempotency_key") or "")]
+    assert not approvals, f"the queued notice was not voided: {approvals}"
     with store._conn() as conn:
         rows = [dict(r) for r in conn.execute(
             "SELECT subject FROM admin_notify_outbox WHERE recipient_email = ? "

@@ -1253,24 +1253,42 @@ def build_application_welcome_email(
     *,
     full_name: str,
     email: str,
-    temp_password: str,
+    temp_password: Optional[str] = None,
     sign_in_url: str,
     calendly_url: str = FOUNDER_INTRO_CALENDLY,
 ) -> str:
-    """§4.4 — sent on admin approval. Carries the credentials.
+    """§4.4, sent on admin approval. The one email that welcomes a physician.
 
-    The password in this email is TEMPORARY and is rotated on first sign-in
-    (§0.1 decision 1). That is the one place this build departs from the ask, and
-    it departs in the physician's favour: the doctor experience is identical —
-    credentials in the email, sign in from the website, works first time — but a
-    credential that lives in an inbox forever does not survive an inbox breach,
-    and neither does the answer we give a hospital partner who asks.
+    ``temp_password`` is now optional, and that is the whole change. It used to
+    be required because approval was the moment a credential came into
+    existence: the wizard had no password step, so every approved physician
+    needed one minted and mailed.
+
+    Screen one of the wizard now takes a password, so most approvals have
+    nothing to mint. That branch used to fall through to a plain queued notice,
+    which meant a physician who chose their own password silently lost the
+    mission block, the sign-in button and the founders' Calendly: the entire
+    content of the welcome, missing, because of an implementation detail about
+    where their password came from.
+
+    So the credentials CARD is what is conditional, not the email. Everything
+    else is byte for byte the same message either way.
     """
     subject = application_welcome_subject(full_name)
-    creds = _detail_rows([
-        ("Email", email, True),
-        ("Temporary password", temp_password, True),
-    ])
+    if temp_password:
+        credentials_block = (
+            _section_label("Your credentials")
+            + _inset_card(_detail_rows([
+                ("Email", email, True),
+                ("Temporary password", temp_password, True),
+            ]))
+            + _p("You&rsquo;ll choose your own password when you first sign in. This one is "
+                 "temporary and stops working the moment you do.", muted=True, small=True)
+        )
+    else:
+        credentials_block = _p(
+            "Sign in with the email and the password you chose when you applied.",
+            muted=True, small=True)
     body = (
         _eyebrow("Approved · Archangel Health")
         + _h1("We just approved your application. Welcome.")
@@ -1280,11 +1298,8 @@ def build_application_welcome_email(
         + _p("Verification is the scarce input in medical AI. A 70% benchmark score is "
              "irrelevant when a patient is downstream. The people who carry the "
              "consequences should define what correct means. That&rsquo;s you.")
-        # §4.4 section 3: the credentials card.
-        + _section_label("Your credentials")
-        + _inset_card(creds)
-        + _p("You&rsquo;ll choose your own password when you first sign in. This one is "
-             "temporary and stops working the moment you do.", muted=True, small=True)
+        # §4.4 section 3: the credentials card, or the line that replaces it.
+        + credentials_block
         + _cta(sign_in_url, "Sign in")
         # §4.4 section 4: meet us.
         + _section_label("Meet us")
