@@ -48,19 +48,12 @@ CASES_NAME = "cases.jsonl"
 MANIFEST_NAME = "batch.json"
 DICTIONARY_NAME = "data_dictionary.md"
 DATASHEET_NAME = "datasheet.md"
-
-
-def _portal_version_legend() -> str:
-    """The portal-version legend, rendered from the one table. Hand-maintained
-    copies of this vocabulary are how `v5` came to render as "assisted" in one
-    document while another listed it correctly."""
-    return " · ".join(f"{k.upper()} {v}" for k, v in PORTAL_VERSION_LABELS.items())
 QUALITY_NAME = "quality_report.md"
 
 #: Buyer-facing label for each portal version. ONE table: a version added to one
 #: document and missed in another is how `v5` rendered as "assisted" in the quality
 #: report while the datasheet listed it correctly. An unknown version must read as
-#: unknown here, never fall through to a plausible default.
+#: unknown, never fall through to a plausible default.
 PORTAL_VERSION_LABELS = {
     "v1": "classic",
     "v2": "assisted",
@@ -68,6 +61,15 @@ PORTAL_VERSION_LABELS = {
     "v4": "REAL de-identified cases",
     "v5": "REAL longitudinal chart walks",
 }
+
+
+def _portal_version_legend() -> str:
+    """The portal-version legend, rendered from the one table. Hand-maintained
+    copies of this vocabulary are how `v5` came to render as "assisted" in one
+    document while another listed it correctly."""
+    return " · ".join(f"{k.upper()} {v}" for k, v in PORTAL_VERSION_LABELS.items())
+
+
 # Grader export (FEAT-2): shipped alongside the data when the batch carries rubric
 # records, so a buyer can run rubric-based LLM-as-judge scoring out of the box.
 GRADER_PROMPT_NAME = "grader_prompt.txt"
@@ -715,6 +717,39 @@ def _prompts_clinician_reviewed(records: List[Dict[str, Any]]) -> bool:
     )
 
 
+def _sole_shipped_value(emitted: List[Dict[str, Any]], mapped_objs: List[Dict[str, Any]],
+                        prof: Dict[str, Any], field: str) -> Optional[Any]:
+    """The value EVERY shipped line carries for ``field``, or None.
+
+    Read off ``mapped_objs`` — the objects ``records.jsonl`` is written from —
+    never off the raw store record, which carries the value as CAPTURED. The
+    license is the case that made this matter: it is re-stamped at emit, so the
+    stored record and the shipped line legitimately disagree.
+
+    Three ways to get None, all meaning "this bundle has no one answer, so the
+    manifest asserts none":
+
+    * no line carries the field;
+    * some do and some do not — a bundle-wide claim contradicted by a shipped
+      line is the defect this whole helper exists to prevent, and a partially
+      stamped batch (legacy records with no ``portal_version``, mixed into a
+      current cut) is a live shape, not a hypothetical;
+    * lines disagree on the value.
+
+    Mapped through the profile's field map, because a profile renames our
+    canonical field to the buyer's (``TEMPLATE.json`` renames
+    ``annotator_credential`` to ``expert``). Reading our name off a renamed line
+    would report "no specialty" for a bundle whose every line carries one.
+    """
+    if not mapped_objs:
+        return None
+    seen = set()
+    for rec, mapped in zip(emitted, mapped_objs):
+        fm = profiles.field_map_for(prof, rec.get("type")) or {}
+        seen.add(mapped.get(fm.get(field, field)))
+    return seen.pop() if len(seen) == 1 and None not in seen else None
+
+
 def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
     """A buyer-facing note when any prompts were auto-generated (PRD §9.1)."""
     synthetic = _synthetic_records(records)
@@ -739,25 +774,46 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
     # what produced the contradiction this section exists to avoid. Both are
     # reported, each under its own name, each counted off the records.
     # Ties sort by name so two cuts of one set cannot render different text.
-    def _tally(pairs: Dict[str, int], noun: str) -> str:
-        return " · ".join(
-            f"**{n}/{len(records)}** `{k}`"
-            for k, n in sorted(pairs.items(), key=lambda kv: (-kv[1], kv[0]))
-        ) or f"no {noun} recorded"
+    def _axis(values: List[Optional[str]], field: str) -> str:
+        """Render one provenance axis: the values the records carry, counted, plus
+        a separate count of the records that carry none.
 
-    chart_line = _tally(_case_provenance(records), "case_source")
-    origins: Dict[str, int] = {}
-    n_no_origin = 0
-    for r in records:
-        s = (r.get("payload") or {}).get("source")
-        if s:
-            origins[s] = origins.get(s, 0) + 1
-        else:
-            # Counted as absent, never rendered as a made-up value: a datasheet
-            # naming `source: unspecified` sends the buyer to grep records.jsonl
-            # for a string that is not in TASK_SOURCES and not in the file.
-            n_no_origin += 1
-    origin_line = _tally(origins, "`source`")
+        An absence is never rendered as a value. ``unspecified`` is a bucket
+        ``_case_provenance`` invents for text records (``packaging`` stamps
+        ``case_source`` only for multimodal tasks) and is not in the
+        ``case_source`` vocabulary; ``source`` can simply be missing. Either way a
+        buyer who greps ``records.jsonl`` for the rendered string must find it, so
+        an absence is stated as an absence, in its own clause, outside the value
+        list. Ties sort by name: two cuts of one set render one text.
+        """
+        present: Dict[str, int] = {}
+        absent = 0
+        for v in values:
+            if v and v != "unspecified":
+                present[v] = present.get(v, 0) + 1
+            else:
+                absent += 1
+        tally = " · ".join(
+            f"**{n}/{len(records)}** `{k}`"
+            for k, n in sorted(present.items(), key=lambda kv: (-kv[1], kv[0]))
+        )
+        gap = f"**{absent}/{len(records)}** record(s) carry no `{field}`"
+        return f"{tally}; {gap}" if tally and absent else (tally or gap)
+
+    chart_values = [_rec_case_source(r) for r in records]
+    chart_line = _axis(chart_values, "context.case_source")
+    origin_line = _axis([(r.get("payload") or {}).get("source") for r in records],
+                        "source")
+    # Define only the vocabulary this batch actually uses.
+    _CASE_SOURCE_GLOSS = {
+        "real_deid": "`real_deid` is a real encounter de-identified by the data "
+                     "partner before transfer",
+        "synthetic": "`synthetic` is authored against a clinician-curated archetype",
+    }
+    chart_gloss = ". ".join(
+        _CASE_SOURCE_GLOSS[v] for v in sorted(_CASE_SOURCE_GLOSS)
+        if v in {c for c in chart_values if c}
+    )
     if ratified:
         ratify_line = (
             "- The seed corpus driving generation is **clinician-ratified**."
@@ -786,14 +842,12 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
 Where the CHART came from and where the QUESTION came from are two independent
 axes. They are stated separately because collapsing them into one word is how a
 real de-identified chart gets described as a synthetic dataset.
-- **Chart** (`context.case_source`, the same count the manifest reports under
-  `case_provenance`): {chart_line}. `real_deid` is a real encounter de-identified
-  by the data partner before transfer; `synthetic` is authored against a
-  clinician-curated archetype; `unspecified` is a text record carrying no case.
+- **Chart** (`context.case_source`; a record with no case carries none, and is
+  counted under `unspecified` in the manifest's `case_provenance`):
+  {chart_line}.{(" " + chart_gloss + ".") if chart_gloss else ""}
 - **Task origin** (`source`, where the task entered the portal — a different axis
-  from both the chart and the question): {origin_line}{f" · **{n_no_origin}/{len(records)}** record(s) carry no `source`" if n_no_origin else ""}.
-  Defined in `data_dictionary.md`; no gloss is asserted here that the field does
-  not carry.
+  from both the chart and the question): {origin_line}. Values are defined in
+  `data_dictionary.md`; no gloss is asserted here that the field does not carry.
 - **Question:** **{len(synthetic)}/{len(records)}** records carry a model-authored
   question, counted in the manifest as `model_generated_question_count`. Questions
   were synthesized by the Asclepius Seedmaker engine, grounded in a curated
@@ -1124,9 +1178,14 @@ def _quality_report_md(*, export_id: str, profile_name: str, records: List[Dict[
     # ``qa`` is STORE-WIDE — it comes from the whole store, not this cut — and it
     # used to print unqualified under a per-batch heading, so a 4-record batch
     # reported "37/37". Both numbers are worth having; what they are numbers ABOUT
-    # is not optional. The batch-scoped figure is derived here: every record in
-    # ``records`` was emitted, which means its submission cleared QA to reach
-    # export_ready.
+    # is not optional.
+    #
+    # Do NOT reintroduce a batch-scoped PASS RATE here. Reaching ``export_ready``
+    # is not evidence of QA: ``pipeline`` promotes ``submitted -> export_ready``
+    # directly and logs a synthetic ``qa_checked`` event, and the human gate is
+    # reached only when the critic flags, grounding flags, agreement is low, or
+    # sampling fires. A batch-scoped rate would also have the batch as its own
+    # denominator. The batch line below states a count of what shipped, nothing more.
     batch_subs = len({r.get("submission_id") for r in records if r.get("submission_id")})
     kappa = stats.get("kappa") or {}
     by_spec = kappa.get("by_specialty") or {}
@@ -2295,16 +2354,6 @@ def build_export(
     # the cut was against a licensed key, even though every record carries one. A
     # consumer reading batch.json alone could not name the terms it shipped under,
     # and ``scripts/export_audit.py`` failed every unlicensed bundle on exactly that.
-    # Read off ``mapped_objs`` — the objects records.jsonl is written from — never
-    # off ``emitted``, which is the raw store record and carries the CAPTURED
-    # values. Single-valued or None: a mixed batch asserts nothing rather than
-    # picking one, and a value absent from the shipped lines is absent here too,
-    # so ``export_audit.py``'s "records no 'specialty'" check still fires instead
-    # of being satisfied by a sentinel this function invented.
-    def _sole(key: str) -> Optional[Any]:
-        uniq = {m.get(key) for m in mapped_objs if m.get(key) is not None}
-        return uniq.pop() if len(uniq) == 1 else None
-
     manifest = {
         "export_id": export_id,
         "created_at": exported_at,
@@ -2313,8 +2362,8 @@ def build_export(
         # ``_license_terms`` is the license stamped onto every emitted line at
         # ship time; the manifest states that same value, never the captured one.
         "license": _license_terms,
-        "specialty": _sole("specialty"),
-        "portal_version": _sole("portal_version"),
+        "specialty": _sole_shipped_value(emitted, mapped_objs, prof, "specialty"),
+        "portal_version": _sole_shipped_value(emitted, mapped_objs, prof, "portal_version"),
         "preference_variant": prof.get("preference_variant", "flat"),
         "record_count": len(emitted),
         "submission_count": len({r["submission_id"] for r in emitted}),
@@ -2348,7 +2397,20 @@ def build_export(
         "review_acceptance": review_acceptance,
         "filters": filters,
         "note": note,
-        "scope": scope,
+        # An unscoped cut still has a scope: the whole eligible set under
+        # ``filters``. Recorded as such rather than as null, because
+        # ``scripts/export_audit.py`` fails a bundle whose scope is not written
+        # down — "a bundle whose scope is not recorded cannot be reproduced or
+        # corrected later" — and a plain cut is exactly as much in need of that as
+        # a case-scoped one. Only the manifest key is defaulted: the datasheet's
+        # scope section still renders from ``scope`` itself, so an unscoped export
+        # gains no "Contributor scope" prose it did not have before.
+        "scope": scope or {
+            "type": "unscoped",
+            "label": "the whole eligible set under `filters`",
+            "record_count": len(emitted),
+            "case_count": len(cases),
+        },
         "tier_b_leak_gate": "passed",
         "files": companion_files,
         "content_hashes": content_hashes,

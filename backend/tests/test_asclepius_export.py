@@ -298,6 +298,19 @@ def test_datasheet_never_asserts_a_source_the_records_do_not_carry():
     assert "**Chart**" in md and "**Task origin**" in md and "**Question:**" in md
 
 
+def _renders_as_a_value(md: str, token: str) -> bool:
+    """True when `token` appears as a COUNTED VALUE, e.g. "**1/1** `unspecified`".
+
+    Naming it in prose is fine and sometimes necessary — the chart bullet has to
+    reconcile itself against the manifest's `case_provenance`, which does bucket
+    absent cases under `unspecified`. What must never happen is the datasheet
+    presenting it as a value the records carry, because a buyer will grep
+    records.jsonl for it and find nothing.
+    """
+    import re
+    return re.search(rf"\*\*\d+/\d+\*\* `{re.escape(token)}`", md) is not None
+
+
 def test_datasheet_reports_chart_and_task_origin_as_separate_axes():
     """`source` is task origin; `case_source` is where the chart came from. The
     datasheet used to answer 'where did the chart come from' with `source`, which
@@ -311,11 +324,42 @@ def test_datasheet_reports_chart_and_task_origin_as_separate_axes():
     md = _synthetic_provenance_md([rec, rec])
     assert "`real_deid`" in md and "context.case_source" in md
     assert "`partner_ehr`" in md and "`source`" in md
-    # No gloss invented for a value, and no value invented for an absent field.
+    # No value is invented for an absent field, on EITHER axis. Asserted over the
+    # whole document: scoping this to one bullet is what let `unspecified` survive
+    # on the chart axis while `source` was being fixed one line below it.
     md_missing = _synthetic_provenance_md([{"payload": {
         "generation": {"seed_corpus_version": "x"}}}])
-    assert "unspecified`" not in md_missing.split("Task origin")[1].split("\n-")[0]
+    assert not _renders_as_a_value(md_missing, "unspecified")
     assert "carry no `source`" in md_missing
+    assert "carry no `context.case_source`" in md_missing
+    # A text-only batch carries neither axis and must not state either fact twice.
+    assert md_missing.count("carry no `source`") == 1
+
+
+def test_datasheet_provenance_renders_for_every_batch_shape():
+    """Text-only, mixed-provenance, and no-source-at-all all render cleanly."""
+    def rec(**payload):
+        payload.setdefault("generation", {"seed_corpus_version": "x"})
+        return {"payload": payload}
+
+    text_only = _synthetic_provenance_md([rec()])
+    real = rec(source="partner_ehr", context={"case_source": "real_deid"})
+    synth = rec(source="internal_prompt_bank", context={"case_source": "synthetic"})
+    mixed = _synthetic_provenance_md([real, synth])
+    no_source = _synthetic_provenance_md([rec(context={"case_source": "real_deid"})])
+
+    for md in (text_only, mixed, no_source):
+        assert not _renders_as_a_value(md, "unspecified")
+        assert " · ;" not in md and "; ;" not in md   # no empty tally clause
+        assert "None" not in md
+    # Mixed batch names both values on each axis, and glosses only what it uses.
+    assert "`real_deid`" in mixed and "`synthetic`" in mixed
+    assert "`partner_ehr`" in mixed and "`internal_prompt_bank`" in mixed
+    # A real_deid-only batch does not define `synthetic`.
+    assert "clinician-curated archetype" not in no_source
+    # Absence is stated once, in its own clause, not as a value in the list.
+    assert no_source.count("carry no `source`") == 1
+    assert "`source`" in no_source
 
 
 def test_datasheet_still_names_internal_prompt_bank_when_that_is_the_source():
@@ -412,6 +456,18 @@ def test_data_dictionary_covers_every_vocabulary_value_the_records_can_carry():
         assert f"`{version}`" in dd, f"data_dictionary.md does not define {version!r}"
 
 
+_EVAL_PACK_STUB = {
+    "sku": "asclepius_eval_pack", "title": "Asclepius Rubric Eval Pack",
+    "licensing": "re-licensable-per-model-version", "billing": "recurring",
+    "revalidation_trigger": "buyer_model_version_change", "recurring_value_usd": 60.0,
+    "n_rubrics": 1, "n_probed": 0, "n_validated": 0, "n_needs_review": 0,
+    "n_reliable": 0, "n_gameable": 0, "n_premium": 0, "n_grounded": 0,
+    "n_critical_negative": 0,
+    "files": ["records.jsonl", "grader_prompt.txt", "score.py",
+              "validity_report.json", "EVAL_PACK.md"],
+}
+
+
 def test_no_shipped_text_artifact_carries_an_internal_spec_reference():
     """PRD/opt section numbers point at documents no buyer can open.
 
@@ -437,8 +493,60 @@ def test_no_shipped_text_artifact_carries_an_internal_spec_reference():
         "score.py": E._SCORE_PY,
         "grader_prompt.txt": E._GRADER_PROMPT,
         "failure_eval/score_failuremode.py": SCORE_FAILUREMODE_PY,
+        "EVAL_PACK.md": E._eval_pack_md("exp-t", _EVAL_PACK_STUB),
+        # The datasheet's eval-pack section renders only when a pack is present,
+        # so the eval_pack=None datasheet above never reaches this text.
+        "datasheet.md (eval pack section)": E._datasheet_md(
+            export_id="exp-t", profile_name="default", counts=E._counts(rec),
+            records=rec, contributors=[], scope=None, eval_pack=_EVAL_PACK_STUB),
     }
     for name, doc in artifacts.items():
         assert "§" not in doc, f"{name} ships an internal spec reference"
         assert "FEAT-" not in doc, f"{name} ships a ticket id"
         assert "PRD" not in doc, f"{name} ships an internal document name"
+
+
+# ─── _sole_shipped_value: the manifest's "what does every line say" helper ─────
+# Lifted to module scope precisely so these cases can be exercised directly. Its
+# None branch is what export_audit.py's "records no 'specialty'" check depends on.
+
+def _mapped(*values, field="specialty"):
+    emitted = [{"type": "preference"} for _ in values]
+    mapped = [({} if v is None else {field: v}) for v in values]
+    return emitted, mapped
+
+
+def test_sole_shipped_value_returns_the_value_every_line_carries():
+    from asclepius.export import _sole_shipped_value
+    e, m = _mapped("nephrology", "nephrology")
+    assert _sole_shipped_value(e, m, {}, "specialty") == "nephrology"
+
+
+def test_sole_shipped_value_is_none_when_lines_disagree_or_any_line_lacks_it():
+    from asclepius.export import _sole_shipped_value
+    # Disagreement.
+    e, m = _mapped("nephrology", "cardiology")
+    assert _sole_shipped_value(e, m, {}, "specialty") is None
+    # PARTIAL stamping — a legacy record with no portal_version mixed into a
+    # current cut. A bundle-wide claim contradicted by one shipped line is the
+    # defect this helper exists to prevent, so it asserts nothing.
+    e, m = _mapped("nephrology", None)
+    assert _sole_shipped_value(e, m, {}, "specialty") is None
+    # Nothing carries it.
+    e, m = _mapped(None, None)
+    assert _sole_shipped_value(e, m, {}, "specialty") is None
+    # Empty batch.
+    assert _sole_shipped_value([], [], {}, "specialty") is None
+
+
+def test_sole_shipped_value_follows_the_profiles_field_rename():
+    """A profile renames our canonical field to the buyer's (TEMPLATE.json renames
+    annotator_credential to expert). Reading our name off a renamed line reports
+    'no specialty' for a bundle whose every line carries one."""
+    from asclepius.export import _sole_shipped_value
+    prof = {"field_maps": {"ideal_answer": {"specialty": "their_specialty"}}}
+    emitted = [{"type": "ideal_answer"}]
+    mapped = [{"their_specialty": "nephrology"}]
+    assert _sole_shipped_value(emitted, mapped, prof, "specialty") == "nephrology"
+    assert _sole_shipped_value(emitted, [{"specialty": "nephrology"}], prof,
+                               "specialty") is None
