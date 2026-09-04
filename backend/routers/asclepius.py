@@ -328,7 +328,7 @@ async def login(body: LoginRequest):
                 and (pending.get("verification_status") or "pending") == "pending":
             raise HTTPException(
                 status_code=403,
-                detail=("Your application is in review — we'll email you within "
+                detail=("Your application is in review, we'll email you within "
                         "24–48 hours."),
                 headers={asc_auth.AUTH_GATE_HEADER: "pending"},
             )
@@ -351,7 +351,7 @@ async def login(body: LoginRequest):
 _FORGOT_ANSWER = {
     "ok": True,
     "message": (
-        "If that email has an Asclepius account, we've sent a reset link. "
+        "If that email has an Archangel Health account, we've sent a reset link. "
         "It expires in 60 minutes."
     ),
 }
@@ -585,7 +585,7 @@ async def change_password(
     user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_user_optional),
 ):
     if user is None:
-        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+        raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     store = _store()
     if not _verify_password(body.current_password, user["password_hash"]):
         raise HTTPException(status_code=400, detail="That is not your current password.")
@@ -702,7 +702,7 @@ async def create_asclepius_portal_handoff(
     user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_user_optional),
 ):
     if user is None or not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+        raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     _cleanup_asc_handoffs()
     token = authorization.removeprefix("Bearer ").strip()
     code = secrets.token_urlsafe(24)
@@ -1385,6 +1385,14 @@ async def update_my_tutorial(
                 "gate": current.get("gate"),
             }
         # already in_progress: keep position, refresh nothing
+    elif action == "resources_seen":
+        # Stamped when the physician has been shown the two things that help
+        # before the examination: the demo and the practice case. Idempotent,
+        # first write wins, and it grants nothing. It decides which button the
+        # credentialing dashboard offers, so that somebody who has already read
+        # the page is not sent back to it every time they sign in.
+        if not current.get("resources_seen_at"):
+            current["resources_seen_at"] = now
     elif action == "advance":
         if status == "completed":
             return asc_auth.public_user(store.get_user_by_id(user["id"]))
@@ -1541,7 +1549,7 @@ async def update_my_first_run(
                     "stop": body.stop,
                     "message": ("The welcome, your start and the practice case "
                                 "are the three things everyone does. They can't "
-                                "be put off — but nothing after them is required."),
+                                "be put off, but nothing after them is required."),
                 },
             )
         _defer_first_run_stops(store, user["id"], (body.stop,))
@@ -1620,7 +1628,13 @@ def _bank_link_dark(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
     dependencies=[Depends(rate_limiter("asclepius_bank_link_start", 20, 600))],
 )
 async def start_bank_link(
-    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+    # An APPLICANT must not begin Stripe Connect onboarding. This was
+    # get_current_account, which admits anyone whose account is alive, so a
+    # physician nobody had verified could open a payout account against our
+    # Stripe platform. It was reachable before this change too; widening the
+    # earnings surface would have made it reachable from a page they can now
+    # see. require_full_access is the gate that means "approved".
+    user: Dict[str, Any] = Depends(asc_auth.require_full_access),
 ):
     """Begin (or resume) Stripe Connect Express onboarding for THIS physician.
 
@@ -1679,7 +1693,9 @@ async def start_bank_link(
 
 @router.get("/me/bank-link")
 async def get_bank_link(
-    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+    # Same gate as starting one, for the same reason: this reads live Stripe
+    # state for an account that should not exist yet.
+    user: Dict[str, Any] = Depends(asc_auth.require_full_access),
 ):
     """Where this physician's payouts stand, read live from Stripe.
 
@@ -1730,6 +1746,29 @@ async def get_bank_link(
             **stripe_rail.account_public_state(account)}
 
 
+
+# ─── The community, for somebody who cannot see the community yet ────────────
+@router.get("/community/preview")
+async def community_preview(user: Dict[str, Any] = Depends(asc_auth.get_current_account)):
+    """A fixture rendered through the real community interface.
+
+    An applicant waiting on a decision should be able to see what they are
+    applying to. They must not see the community itself: those rooms are worth
+    reading precisely because everyone in them is credential-verified, and
+    rejecting an application afterwards does not unread the messages. The
+    community's own gate refuses them and is untouched by this.
+
+    Served ONLY to an account that cannot reach the real thing. An approved
+    physician asking for this gets 404 rather than a fixture, because handing
+    a colleague invented conversations while the real room sits one tab away
+    is a way to make somebody doubt everything else on the screen.
+    """
+    from asclepius import community_preview as preview  # noqa: PLC0415
+
+    if asc_caps.can_surface(user, asc_caps.COMMUNITY_READ):
+        raise HTTPException(status_code=404, detail="Not found.")
+    return preview.preview_payload()
+
 # ─── Tutorial — Calibration Case 1 ───────────────────────────────────────────
 # The practice case is a fully VIRTUAL task: assembled in memory from
 # ``tutorial_case.py``, never inserted into ``tasks``, its submission never
@@ -1741,6 +1780,94 @@ async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.require_surf
     """The practice case, blinded EXACTLY like a real task (same
     ``_blind_task`` path: ground_truth stripped, answer texts withheld)."""
     return {"task": _blind_task(tutorial_raw_task())}
+
+
+# ─── The credentialing examination ───────────────────────────────────────────
+# The practice case teaches; this is the one a person reads. See
+# asclepius/exam_case.py for why the case comes from the gold set and why the
+# answers live in their own table.
+
+@router.get("/exam/task")
+async def get_exam_task(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))):
+    """One synthetic case in the applicant's own specialty.
+
+    Blinded through the SAME ``_blind_task`` path a paid case takes, so the
+    workspace they sit it in is the workspace they would work in, which is what
+    makes it worth reading.
+    """
+    from asclepius import exam_case  # noqa: PLC0415
+
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    exam = current.get("exam") if isinstance(current.get("exam"), dict) else {}
+    attempt = int(exam.get("attempt") or 0) or 1
+
+    task = exam_case.exam_task_for(store, user, attempt)
+    if not task:
+        raise HTTPException(
+            status_code=503,
+            detail="No examination case is available yet. We will email you.")
+
+    picked = exam_case.exam_specialty(user)
+    # Mark it in progress on the DRAW, so somebody who closes the tab mid-case
+    # comes back to "Resume my examination" rather than to a screen that has
+    # forgotten they started.
+    if exam.get("state") != "submitted":
+        current["exam"] = {**exam, "state": "in_progress", "attempt": attempt}
+        store.set_tutorial_state(user["id"], current)
+
+    return {
+        "task": _blind_task(task),
+        "attempt": attempt,
+        # Said out loud when we could not serve their own specialty. Handing a
+        # cardiologist a kidney case without a word would read as a broken
+        # product, and they would reasonably answer it as though we had erred.
+        "specialty": picked["specialty"],
+        "is_own_specialty": picked["is_own"],
+    }
+
+
+@router.post("/exam/submit")
+async def submit_exam(
+    body: Dict[str, Any],
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL)),
+):
+    """File the examination. Nothing here is graded, and that is deliberate.
+
+    The founders were explicit: no applicant is ever told they are not ready,
+    and the person operating the admin console has the only say. So this
+    records the work and stamps the state; it computes no verdict, and there is
+    nothing for a client to read one out of.
+    """
+    from asclepius import exam_case  # noqa: PLC0415
+
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    exam = current.get("exam") if isinstance(current.get("exam"), dict) else {}
+    attempt = int(exam.get("attempt") or 0) or 1
+    task_id = str(body.get("task_id") or "").strip()
+    if not task_id:
+        raise HTTPException(status_code=400, detail="Which case is this?")
+
+    picked = exam_case.exam_specialty(user)
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    exam_id = store.record_credentialing_exam(
+        user_id=user["id"], task_id=task_id, specialty=picked["specialty"],
+        attempt=attempt, payload=body,
+        time_spent_sec=int(body.get("time_spent_sec") or 0),
+    )
+    current["exam"] = {"state": "submitted", "attempt": attempt,
+                       "submitted_at": now, "exam_id": exam_id}
+    store.set_tutorial_state(user["id"], current)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="credentialing_exam_submitted", actor=user["id"],
+        # The exam id and the case, never the answers: this log is read by
+        # people who should look at the dossier rather than at an event row.
+        payload={"exam_id": exam_id, "task_id": task_id, "attempt": attempt},
+    )
+    return {"ok": True,
+            "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
 
 
 @router.post("/tutorial/reveal")
@@ -1822,12 +1949,23 @@ async def tutorial_submit(
         current["skipped_at"] = None
         current.pop("step", None)
     else:
-        # Explicitly NOT "completed". A failed attempt leaves them mid-flow,
-        # which is the truth and is also what relaunches the tour on next login.
-        if gate.get("state") not in (asc_caps.GATE_PASSED,
-                                     asc_caps.GATE_GRANDFATHERED):
-            gate["state"] = asc_caps.GATE_LOCKED
-            current["status"] = "in_progress"
+        # A PRACTICE CASE THAT WAS ATTEMPTED IS COMPLETED.
+        #
+        # This used to stamp `in_progress` and lock the gate, which relaunched
+        # the tour on the next sign-in: a physician who finished the case and
+        # scored badly was silently put back at the start of it, with nothing
+        # saying why. That made an optional exercise behave like a test they
+        # had to keep resitting, and it made the product look broken.
+        #
+        # The grade is still recorded below, for the admin dossier, which is
+        # where a decision about a physician is made. What changes is that the
+        # exercise stops being a gate. What gates real work is approval, and
+        # what an admin reads before approving is the examination.
+        current["status"] = "completed"
+        if not already_done:
+            current["completed_at"] = now
+        current["skipped_at"] = None
+        current.pop("step", None)
 
     # Kept for the admin and for events, never shipped to the physician:
     # public_user projects it out (asclepius/auth.py::_parse_tutorial).
@@ -2153,11 +2291,11 @@ async def load_v4_real_cases(
     max_labels: int = Query(
         V4_DEFAULT_MAX_LABELS, ge=1, le=10,
         description="Independent labels per case. Default 3 (one labeller + two "
-                    "for Cohen's kappa). This is what we PAY for — it is not how "
+                    "for Cohen's kappa). This is what we PAY for, it is not how "
                     "many physicians can SEE the case."),
     open_to_all_specialties: Optional[bool] = Query(
         None, description="Show these cases to every approved physician, "
-                          "bypassing specialty routing. VISIBILITY only — it "
+                          "bypassing specialty routing. VISIBILITY only, it "
                           "does not change max_labels or what we pay. Omit to "
                           "follow ASCLEPIUS_V4_OPEN_TO_ALL (default on), which is "
                           "what the boot seeder uses; pass it explicitly to "
@@ -3086,7 +3224,7 @@ def require_first_run_stops(
             "error": "first_run_incomplete",
             "remaining": list(remaining),
             "message": ("Finish the welcome walkthrough before your first real "
-                        "case — it is three screens and the practice case."),
+                        "case, it is three screens and the practice case."),
             "action": {"kind": "resume_first_run",
                        "label": "Finish the walkthrough"},
         },
@@ -3466,7 +3604,7 @@ async def real_case_access_report(
             notes.append(
                 "ASCLEPIUS_ADMIN_EMAIL names this account. The boot-time admin "
                 "bootstrap now refuses to convert a physician account while another "
-                "admin exists, so the role will survive the next deploy — but "
+                "admin exists, so the role will survive the next deploy, but "
                 "repoint that variable at a separate operations account so it stops "
                 "depending on that guard.")
         else:
@@ -3492,7 +3630,7 @@ async def real_case_access_report(
         blockers.append(
             "real_data_approved is off. It is granted automatically to approved "
             "labelers at boot and on the approval route, UNLESS an admin set it "
-            f"explicitly (source={u.get('real_data_approval_source')!r}) — a human "
+            f"explicitly (source={u.get('real_data_approval_source')!r}): a human "
             "decision is never overridden by the sync.")
     spec = (u.get("specialty") or "").strip().lower()
     visible = [c for c in seeded
@@ -3534,7 +3672,7 @@ async def real_case_access_report(
         # Belt and braces: a gate list that says "blocked" over a non-empty queue
         # is a bug in this endpoint, and saying so beats quietly contradicting
         # ourselves on the screen an operator is trusting.
-        report["note"] = ("The queue is not empty despite the blockers listed — "
+        report["note"] = ("The queue is not empty despite the blockers listed, "
                           "treat the queue as authoritative and report this.")
     elif not eligible and not blockers:
         report["note"] = ("No gate is blocking them and the queue is still empty: "
@@ -6373,7 +6511,7 @@ def _promote_block(
     if undetermined:
         return {
             "reason": "specialty",
-            "message": "Specialty not set — choose one to promote. Promoting "
+            "message": "Specialty not set: choose one to promote. Promoting "
                        "without it would label these cases with a default that "
                        "routes them to the wrong physician pool.",
         }
@@ -7055,7 +7193,7 @@ async def promote_ingest_case(
         raise HTTPException(
             status_code=409,
             detail="Specialty not determined for this case. Set the specialty on the "
-                   "upload before promoting — promoting now would label it with a "
+                   "upload before promoting: promoting now would label it with a "
                    "default that routes it to the wrong physician pool.")
     question = (body.question or "").strip()
     if not question:
@@ -7256,7 +7394,7 @@ async def promote_upload_all(
         # not fail the batch — it is reported alongside the gated ones.
         if asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
             gated.append({"ingest_case_id": ic.get("ingest_case_id"),
-                          "failures": ["specialty not determined — set it on the "
+                          "failures": ["specialty not determined: set it on the "
                                        "upload before promoting"]})
             continue
         question = ((body.question or "").strip()

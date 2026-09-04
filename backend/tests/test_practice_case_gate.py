@@ -100,7 +100,20 @@ def test_passing_opens_every_gated_endpoint():
         assert _call(method, url, A.headers_for(user)).status_code != 403, url
 
 
-def test_failing_does_not_open_it_and_does_not_claim_completion():
+def test_a_poor_attempt_is_still_an_attempt_and_still_opens_nothing():
+    """Two halves, and they moved apart.
+
+    A weak attempt used to stamp `in_progress` and lock the gate, which
+    relaunched the whole tour on the next sign-in: a physician who finished the
+    case and scored badly was silently put back at the start of it with nothing
+    saying why. That made an optional exercise behave like a test they had to
+    keep resitting.
+
+    It now reads as COMPLETED, because they completed it, and the grade goes to
+    the admin dossier where a person decides. What has not changed at all is
+    that it opens no real work: that waits on approval either way, which is the
+    assertion at the bottom.
+    """
     store = A.fresh_store()
     user = A.make_user(store, practice_case=False)
     bad = _good_payload()
@@ -108,11 +121,14 @@ def test_failing_does_not_open_it_and_does_not_claim_completion():
     r = client.post("/api/asclepius/tutorial/submit", json=bad,
                     headers=A.headers_for(user))
     assert r.status_code == 200
+    # Still graded, and the grade is still recorded for the admin.
     assert r.json()["result"]["passed"] is False
     state = store.get_tutorial_state(user["id"])
-    assert state["status"] == "in_progress", "a failed attempt must not read as completed"
-    assert state.get("completed_at") is None
+    assert state["status"] == "completed"
+    assert state.get("completed_at")
+    assert state["score"]["matched"] is not None
     assert _gate(store, user["id"])["attempts"] == 1
+    # And it opened nothing.
     assert client.get("/api/asclepius/tasks/next?specialty=nephrology",
                       headers=A.headers_for(user)).status_code == 403
 

@@ -1,5 +1,5 @@
 {
-  "count": 642,
+  "count": 651,
   "routes": [
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
     "DELETE /api/asclepius/me/avatar",
@@ -82,6 +82,7 @@
     "GET /api/asclepius/buyer/me",
     "GET /api/asclepius/card/{token}",
     "GET /api/asclepius/card/{token}/image",
+    "GET /api/asclepius/community/preview",
     "GET /api/asclepius/contributors",
     "GET /api/asclepius/contributors/{id_hashed}",
     "GET /api/asclepius/contributors/{id_hashed}/credential-summaries",
@@ -97,6 +98,7 @@
     "GET /api/asclepius/environments/runs/{run_id}",
     "GET /api/asclepius/environments/{task_id}",
     "GET /api/asclepius/events",
+    "GET /api/asclepius/exam/task",
     "GET /api/asclepius/exports",
     "GET /api/asclepius/exports/{export_id}/download",
     "GET /api/asclepius/generation/jobs",
@@ -106,6 +108,7 @@
     "GET /api/asclepius/hs/agreement/document",
     "GET /api/asclepius/hs/application",
     "GET /api/asclepius/hs/intake",
+    "GET /api/asclepius/hs/invite/{token}",
     "GET /api/asclepius/hs/me",
     "GET /api/asclepius/hs/members",
     "GET /api/asclepius/hs/payouts",
@@ -403,6 +406,7 @@
     "POST /api/asclepius/environments/{task_id}/certify",
     "POST /api/asclepius/environments/{task_id}/rollout",
     "POST /api/asclepius/environments/{task_id}/verify",
+    "POST /api/asclepius/exam/submit",
     "POST /api/asclepius/exports",
     "POST /api/asclepius/generation/load-v4-real-cases",
     "POST /api/asclepius/generation/{specialty}",
@@ -411,6 +415,7 @@
     "POST /api/asclepius/hs/agreement/sign",
     "POST /api/asclepius/hs/application",
     "POST /api/asclepius/hs/intake",
+    "POST /api/asclepius/hs/invite/{token}/claim",
     "POST /api/asclepius/hs/login",
     "POST /api/asclepius/hs/logout",
     "POST /api/asclepius/hs/members",
@@ -505,6 +510,8 @@
     "POST /api/community/channels/{slug}/messages",
     "POST /api/community/channels/{slug}/read",
     "POST /api/community/dms",
+    "POST /api/community/dms/group",
+    "POST /api/community/dms/{dm_id}/members",
     "POST /api/community/dms/{dm_id}/messages",
     "POST /api/community/dms/{dm_id}/read",
     "POST /api/community/events",
@@ -567,6 +574,7 @@
     "POST /api/intake-forms/{intake_form_id}/interview/section-message",
     "POST /api/intake-forms/{intake_form_id}/submit",
     "POST /api/leads",
+    "POST /api/leads/admin/{lead_id}/booked",
     "POST /api/onboarding/add-team-member",
     "POST /api/onboarding/asclepius/add-member",
     "POST /api/onboarding/asclepius/attestations",
@@ -642,6 +650,7 @@
     "PUT /api/asclepius/hs/uploads/sessions/{session_id}/parts/{part}",
     "WS /api/community/ws",
     "WS /audio",
+    "WS /email-assets",
     "WS /static"
   ]
 }

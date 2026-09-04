@@ -10,16 +10,24 @@ import {
   TextField,
 } from "./onboarding/primitives";
 import * as authApi from "@/lib/auth-api";
-import { PARTNER_BOOKING_URL } from "../config";
 
 /**
  * /partner — the link that goes at the bottom of the health-system one-pager.
  *
- * One job, in two beats: collect enough that the meeting starts from something
- * real, then book the meeting. It is deliberately NOT the portal signup. A CIO
- * reading a one-pager is not ready to create an account and will not upload
- * anything today; asking them to is how you lose them. They answer a short
- * set of questions and pick a time. The portal link is what we send after the call.
+ * One job: collect enough that the meeting starts from something real. It is
+ * deliberately NOT the portal signup. A CIO reading a one-pager is not ready to
+ * create an account and will not upload anything today; asking them to is how
+ * you lose them. They answer a short set of questions. The portal link is what
+ * we send after the call.
+ *
+ * ─── The booking lives in the email now, not on this page ──────────────────
+ * This screen used to end at a Calendly button, and a visitor who did not click
+ * it in that second was gone: nothing had been sent, so there was nothing to
+ * reply to and nothing to follow up. The submit now triggers a letter carrying
+ * the same link (``build_hs_interest_thanks_email``), which can be forwarded to
+ * whoever actually holds the calendar and can be chased once if it goes quiet.
+ * Do not put the button back: two doors to one booking is how one of them stops
+ * being maintained.
  *
  * Not an ArchShell route on purpose. `useLandingAuth` bounces a signed-in user
  * off the marketing shell to their portal, which would eject exactly the person
@@ -37,27 +45,6 @@ import { PARTNER_BOOKING_URL } from "../config";
  * everything else. They also go into the message, because the message is what a
  * person reads in an inbox and half an answer there is worse than none.
  */
-
-/* The booking link comes from the shared landing config, which reads
-   VITE_CALENDLY_URL and falls back to the constant this file used to hold.
-   Moved out because a second component shipped its own hardcoded Calendly
-   account and neither copy knew about the other. */
-const CALENDLY_BASE = PARTNER_BOOKING_URL;
-
-function calendlyUrl(name: string, email: string): string {
-  const q = new URLSearchParams();
-  const n = name.trim();
-  const e = email.trim();
-  /* Prefill so they do not retype what they just typed. Calendly reads these
-     two off the query string and fills its own form. */
-  if (n) q.set("name", n);
-  if (e) q.set("email", e);
-  const qs = q.toString();
-  /* Joined with & because the base already carries a query. Building it with ?
-     would produce a second question mark and Calendly would read the tail as
-     one malformed parameter. */
-  return qs ? `${CALENDLY_BASE}&${qs}` : CALENDLY_BASE;
-}
 
 type Answers = {
   name: string;
@@ -100,6 +87,12 @@ const DEIDENTIFICATION_OPTIONS = [
    read by a person, and it is pasted into a CRM by a person after that. */
 function composeMessage(a: Answers): string {
   const rows: [string, string][] = [
+    /* The contact's name, which used to exist only on this page: it went into
+       the Calendly prefill and nowhere else. Two letters now need it, the
+       thanks and the one reminder, and the second is composed days later by a
+       sweep that has only the stored row. `routers/leads.py::partner_lead_contact`
+       reads these two labels back out; keep the pair in step with it. */
+    ["Contact", a.name],
     ["Health system", a.organization],
     ["Their role", a.role],
     ["Scale", a.scale],
@@ -132,6 +125,13 @@ export default function PartnerInterest() {
      what we already told this person about themselves, and it carries the
      attribution back on submit so the referring physician's funnel moves. */
   const referralToken = (params.get("hs") || "").trim();
+  /* `ref` is the physician's own referral code, the same attribution key /join
+     uses, and `asclepius/referrals.py::partner_url` has always put BOTH on the
+     link it builds. This page read only `hs`, so a physician who copied the
+     plain referral link out of their dashboard and sent it to a health system
+     themselves got no credit for the introduction at all. Opaque here: the
+     backend resolves it and an unknown code is a silent no-op. */
+  const referralCode = (params.get("ref") || "").trim();
   const [referrerFirstName, setReferrerFirstName] = useState("");
   const [role, setRole] = useState("");
   const [dataHeld, setDataHeld] = useState("");
@@ -193,6 +193,7 @@ export default function PartnerInterest() {
         message: composeMessage(answers),
         company_website: honeypot,
         referral_token: referralToken || undefined,
+        referral_code: referralCode || undefined,
         /* Sent as their own fields as well as inside the message. The message is
            for the person reading the inbox; these are what gets archived in
            columns, and what somebody has to be able to produce later. */
@@ -207,9 +208,12 @@ export default function PartnerInterest() {
     }
   }
 
-  /* ── Booked-the-meeting beat ────────────────────────────────────────────
-     The submit is not the finish line; the meeting is. So the success state is
-     not a thank-you note, it is a door with one thing behind it. */
+  /* ── Thank-you beat ─────────────────────────────────────────────────────
+     A thank-you, and nothing to click. The booking button that used to live
+     here is gone on purpose: it made the visit the only chance we ever had at
+     this organization, because a person who closed the tab left no address we
+     had said anything to. The next step arrives by email, where it can be
+     forwarded, replied to, and followed up once. */
   if (sent) {
     return (
       <div className="ah-onb-root">
@@ -219,31 +223,25 @@ export default function PartnerInterest() {
           <OnboardingCard
             maxWidth={560}
             eyebrow="Health systems"
-            title="Got it. Now pick a time."
+            title="Thank you for submitting."
             lede={
               referrerFirstName
-                ? `We read every one of these before the call, so we will come with specifics about your data rather than a pitch. ${referrerFirstName} will be glad you took it.`
-                : "We read every one of these before the call, so we will come with specifics about your data rather than a pitch."
+                ? `We read every one of these ourselves, and we will email you the next step. ${referrerFirstName} will be glad you took it.`
+                : "We read every one of these ourselves, and we will email you the next step."
             }
           >
-            {/* A real anchor, via PrimaryButton's link form. This was a
-                <PrimaryButton> wrapped in an <a>, which is a button nested
-                inside an anchor: invalid HTML, and Safari will not activate an
-                anchor from a nested button, so the control did nothing. */}
-            <PrimaryButton fullWidth href={calendlyUrl(name, email)}>
-              Book an intro call
-            </PrimaryButton>
             <p
               style={{
-                margin: "18px 0 0",
-                fontSize: "0.8rem",
-                lineHeight: 1.55,
-                color: "var(--ink-faint)",
-                textAlign: "center",
+                margin: "6px 0 0",
+                fontSize: "0.9rem",
+                lineHeight: 1.6,
+                color: "var(--ink-soft)",
               }}
             >
-              20 minutes, over Google Meet, with Aryaa. If none of the times work,
-              reply to the confirmation email and we will find one.
+              That email has a link to book a short call with us, so you can
+              forward it to whoever should be on it. If it has not arrived
+              within a few minutes, check your spam folder and then write to us
+              directly.
             </p>
           </OnboardingCard>
         </main>

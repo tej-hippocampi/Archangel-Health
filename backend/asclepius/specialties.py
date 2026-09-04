@@ -289,7 +289,7 @@ SPECIALTY_REGISTRY: Dict[str, SpecialtyConfig] = {
         taxonomy=NEPHROLOGY_TAXONOMY,
         enabled=True,
         accent="green",
-        blurb="Electrolytes, AKI/CKD, dialysis, transplant, glomerular — labs-driven.",
+        blurb="Electrolytes, AKI/CKD, dialysis, transplant, glomerular, labs-driven.",
     ),
     # Config-only onboarding: a new specialty is a corpus file + a taxonomy + a
     # registry entry, nothing else. Cardiology reasoning lives in the ECG/echo/cath
@@ -368,7 +368,7 @@ def _assert_enabled_specialties_have_corpora() -> None:
             continue
         items = data.get("items") if isinstance(data, dict) else data
         if not isinstance(items, list) or not items:
-            broken.append(f"{cfg.name}: seed corpus has no items — a stub corpus "
+            broken.append(f"{cfg.name}: seed corpus has no items: a stub corpus "
                           "classifies every case into no bucket")
         if not cfg.taxonomy:
             broken.append(f"{cfg.name}: enabled with an empty taxonomy")

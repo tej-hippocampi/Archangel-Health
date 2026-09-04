@@ -243,3 +243,163 @@ def test_a_system_dm_renders_as_archangel_not_as_a_ghost():
                           "u-doc", {})
     assert summary["peer"]["display_name"] == "Archangel"
     assert summary["peer"].get("is_bot") is True
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# The reviewer, who used to be told nothing at all
+# ═══════════════════════════════════════════════════════════════════════════════
+def _reviewer(store, *, specialty="cardiology"):
+    u = A.make_user(store, specialty=specialty, tier="reviewer")
+    store.set_real_data_approved(u["id"], True)
+    return store.get_user_by_id(u["id"])
+
+
+def _bot_dm_bodies(user_id):
+    """Everything the Archangel account has said to this user, in DMs.
+
+    Read off the store rather than off the report: ``notify_routed`` counts what
+    it believes it sent, and the whole point of these two tests is what a
+    physician can actually open."""
+    from community.system_posts import SYSTEM_USER_ID
+
+    cstore = _cstore()
+    out = []
+    for dm in cstore.list_dms_for(user_id):
+        if SYSTEM_USER_ID not in (dm.get("user_a"), dm.get("user_b")):
+            continue
+        msgs, _more = cstore.list_messages(dm["id"], limit=50)
+        out.extend(m["body"] for m in msgs)
+    return out
+
+
+def test_a_reviewer_is_told_a_case_is_waiting_on_them():
+    """WHY: the commonest send there is produced a reviewer who heard nothing.
+
+    Reviewers were skipped in the DM loop on the theory that the case room
+    addresses the whole team. But the room is only opened when two or more
+    people are on the case, and one labeler plus one reviewer is two people who
+    are not both in the DM loop — so on a single-labeler send the reviewer got
+    an assignment, no room, and no message.
+    """
+    store = _store()
+    ah = _admin(store)
+    labeler, reviewer = _doc(store), _reviewer(store)
+    t = store.insert_task(prompt="c", specialty="cardiology")
+
+    r = client.post("/api/asclepius/admin/assignments/allocate", headers=ah, json={
+        "task_ids": [t["task_id"]],
+        "user_ids": [labeler["id"], reviewer["id"]],
+        "roles": {reviewer["id"]: "review"},
+        "dry_run": False})
+    assert r.status_code == 200, r.text
+    assert r.json()["notified"]["dms"] == 2, "both roles were told, not just the labeler"
+
+    said = "\n".join(_bot_dm_bodies(reviewer["id"]))
+    assert "waiting on your review" in said
+
+
+def test_the_reviewer_is_not_sent_the_labeler_copy():
+    """WHY: a reviewer told to hit Start new case goes looking for work that is
+    not there, finds an empty queue, and concludes the routing is broken. The
+    review queue fills when the labeling physician SUBMITS, and the copy has to
+    say so instead of promising something to open now."""
+    body = RN.compose_review_dm(
+        doctor={"name": "Kamran Faheem"},
+        tasks=[{"specialty": "hepatology", "difficulty": "hard"}])
+    assert "Start new case" not in body
+    assert "in your queue" not in body
+    assert "under Review" in body and "has submitted" in body
+
+
+def test_a_doctor_labeling_and_reviewing_in_one_send_still_gets_one_message():
+    """The module's standing rule: one message per doctor per SEND, never per
+    case and never per role. Two messages about the same send is the reason
+    somebody mutes the sender."""
+    store = _store()
+    ah = _admin(store)
+    both = _reviewer(store)
+    a = store.insert_task(prompt="a", specialty="cardiology")
+    b = store.insert_task(prompt="b", specialty="cardiology")
+
+    RN.notify_routed(store, assignments=[
+        {"task_id": a["task_id"], "user_id": both["id"], "role": "label"},
+        {"task_id": b["task_id"], "user_id": both["id"], "role": "review"}])
+
+    bodies = _bot_dm_bodies(both["id"])
+    assert len(bodies) == 1, bodies
+    assert "New cases routed to you" in bodies[0], (
+        "the labeler copy wins — they have something to open right now")
+
+
+def test_the_case_room_roster_covers_both_roles():
+    """WHY: the room is the one place the whole team is addressed at once, so a
+    reviewer missing from its roster would make the room a labelers' room with a
+    misleading name on it."""
+    store = _store()
+    labeler, reviewer = _doc(store), _reviewer(store)
+    t = store.insert_task(prompt="c", specialty="cardiology")
+
+    RN.notify_routed(store, assignments=[
+        {"task_id": t["task_id"], "user_id": labeler["id"], "role": "label"},
+        {"task_id": t["task_id"], "user_id": reviewer["id"], "role": "review"}])
+
+    cstore = _cstore()
+    room = cstore.get_case_room("task:" + t["task_id"])
+    assert room, "a two-person case is a team, so it gets a room"
+    assert set(cstore.room_participants(room["id"])) == {labeler["id"], reviewer["id"]}
+    msgs, _more = cstore.list_messages(room["id"], limit=10)
+    intro = "\n".join(m["body"] for m in msgs)
+    assert "· labeler" in intro and "· reviewer" in intro
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Live delivery: a row nobody pushed is a row nobody sees
+# ═══════════════════════════════════════════════════════════════════════════════
+class _FakeSocket:
+    """A connected client, as far as the hub is concerned.
+
+    The hub's whole contract with a socket is an awaitable ``send_json``, and
+    the property under test is what the server PUSHES rather than how it is
+    framed — a real ASGI websocket here would test starlette."""
+
+    def __init__(self):
+        self.events = []
+
+    async def send_json(self, event):
+        self.events.append(event)
+
+    async def close(self):  # pragma: no cover - only reached when a send fails
+        pass
+
+
+def test_a_system_written_dm_is_pushed_to_the_doctor_not_only_stored():
+    """THE bug this whole seam exists for.
+
+    ``_dm_one`` wrote the message row and stopped. The community client stops
+    polling for as long as its WebSocket is healthy, so a message nobody pushed
+    down that socket is invisible until the physician reloads the page — which
+    is how a routing DM and a whole case room could both exist in the database
+    and be missing from the screen at the same time.
+    """
+    from community.ws import hub
+
+    store = _store()
+    ah, doc = _admin(store), _doc(store)
+    sock = _FakeSocket()
+    hub._sockets[sock] = doc["id"]                               # noqa: SLF001
+    try:
+        t = store.insert_task(prompt="c", specialty="cardiology")
+        r = client.post("/api/asclepius/admin/assignments/allocate", headers=ah, json={
+            "task_ids": [t["task_id"]], "user_ids": [doc["id"]], "dry_run": False})
+        assert r.status_code == 200, r.text
+    finally:
+        hub._sockets.pop(sock, None)                             # noqa: SLF001
+
+    kinds = [e["type"] for e in sock.events]
+    assert "message.created" in kinds, kinds
+    assert "dm.created" in kinds, (
+        "the conversation itself is new to this doctor; a message in a "
+        "conversation their rail does not list is still invisible")
+    pushed = [e for e in sock.events if e["type"] == "message.created"][0]
+    assert "New cases routed to you" in pushed["message"]["body"]
+    assert pushed["message"]["author"]["display_name"] == "Archangel"

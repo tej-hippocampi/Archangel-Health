@@ -881,7 +881,14 @@ class BuyerDeliveryRequest(BaseModel):
 class TutorialStateUpdate(BaseModel):
     """PATCH /me/tutorial — one transition on the caller's own tutorial state."""
 
-    action: Literal["start", "advance", "skip", "complete", "reset"]
+    #: "resources_seen" stamps that the physician has been shown the two things
+    #: that help before the examination (the demo, the practice case). It grants
+    #: nothing: it decides which button the credentialing dashboard offers, so
+    #: somebody who has already read that page is not sent back to it on every
+    #: sign-in. Enumerated here rather than accepted as free text for the same
+    #: reason the stops are: an action the server has never heard of must not be
+    #: able to write state nobody can reproduce.
+    action: Literal["start", "advance", "skip", "complete", "reset", "resources_seen"]
     step: Optional[str] = None
     version: Optional[int] = None
 

@@ -128,6 +128,11 @@ def _tour_harness(body: str) -> dict:
         _const("TUTORIAL_CHAPTERS"),
         _steps_block(),
         _fn("tutMarkDone"), _fn("tutDone"),
+        # tutTick now asks whether the caret is inside the current step's own
+        # target before advancing, so it needs the REAL predicate rather than a
+        # stub: the guard is the thing under test in the keystroke case below,
+        # and a stub would let it pass while the shipped code jumped.
+        _fn("isTypingTarget"),
         _fn("tutStepSatisfied"), _fn("tutTick"),
         _fn("tutVisibleSteps"), _fn("tutStepNumber"),
     ])
@@ -369,8 +374,11 @@ def test_the_reveal_quotes_the_physician_back_to_themselves():
 def test_a_miss_has_to_be_opened_before_the_physician_can_move_on():
     out = _reveal_harness(_RESULT + """
     renderTutorialReveal(result, {});
+    // The primary button's label changed when the verdict came off this
+    // screen: it is the hand-off to the examination now, not "Start real
+    // cases". What it GATES is unchanged and is what this test is about.
     const btn = find((n) => n.tagName === 'BUTTON'
-                            && n.textContent.indexOf('Start real') >= 0, rootNode);
+                            && n.textContent.indexOf('examination') >= 0, rootNode);
     const det = find((n) => n.tagName === 'DETAILS'
                             && n.className.indexOf('asc-tour-finding-ack') >= 0, rootNode);
     const before = btn.disabled;
@@ -382,16 +390,45 @@ def test_a_miss_has_to_be_opened_before_the_physician_can_move_on():
     assert out["after"] is False, "opening the miss must release it: one click, not a quiz"
 
 
-def test_a_failed_attempt_offers_another_go_rather_than_the_door():
+def test_the_reveal_never_tells_a_physician_how_they_did():
+    """It used to open "CALIBRATION CASE 1 · NOT YET" over "that is not a pass".
+
+    Three things wrong with that. It graded a PRACTICE case. It made a call
+    about a physician that belongs to the person reading their application. And
+    it read as a rejection at the moment they had just done us a favour.
+
+    The grade still reaches the admin dossier. It is simply not read back to
+    the applicant, and this asserts that from BOTH sides of the pass flag: the
+    screen has to be identical either way.
+    """
+    def _render(passed):
+        return _reveal_harness("""
+        renderTutorialReveal({ passed: %s, headline: 'Not yet.', findings: [],
+                               planted_finding: null, must_acknowledge: [], teaching: {} }, {});
+        const btn = find((n) => n.tagName === 'BUTTON', rootNode);
+        out({ label: btn.textContent, text: rootNode.textContent });
+        """ % ("true" if passed else "false"))
+
+    failed, passed = _render(False), _render(True)
+    assert failed["label"] == passed["label"] == "Take my examination \u2192"
+    assert failed["text"] == passed["text"], (
+        "the screen still differs by outcome; a physician can read their grade "
+        "off it")
+    for verdict in ("PASSED", "NOT YET", "not a pass", "Take it again"):
+        assert verdict not in failed["text"], verdict
+
+
+def test_the_reveal_still_teaches():
+    """The reason to do a practice case at all. Removing the verdict must not
+    remove what the reference panel read, which carries no claim about the
+    physician."""
     out = _reveal_harness("""
-    renderTutorialReveal({ passed: false, headline: 'Not yet.', findings: [],
-                           planted_finding: null, must_acknowledge: [], teaching: {} }, {});
-    const btn = find((n) => n.tagName === 'BUTTON', rootNode);
-    btn.dispatch('click');
-    out({ label: btn.textContent, calls });
+    renderTutorialReveal({ passed: false, headline: 'x', findings: [],
+                           planted_finding: null, must_acknowledge: [],
+                           teaching: { reference_answer: 'The panel read the JVP.' } }, {});
+    out({ text: rootNode.textContent });
     """)
-    assert out["label"] == "Take it again"
-    assert "replay:true" in out["calls"], "the retry must start a clean run"
+    assert "The panel read the JVP." in out["text"]
 
 
 def test_leaving_the_practice_case_does_not_put_you_straight_back_into_it():
@@ -412,3 +449,60 @@ def test_leaving_the_practice_case_does_not_put_you_straight_back_into_it():
     # And leaving still lands on the dashboard rather than a dead end.
     leave = _LINE_COMMENT.sub("", _extract_function(JS, "leaveTutorial"))
     assert "renderDashboardView()" in leave
+
+
+# ─── The tour does not advance out from under a cursor ───────────────────────
+
+def test_typing_one_character_does_not_advance_the_tour():
+    """The founders' walkthrough: "as soon as I type one letter, it moves on".
+
+    Step 3 asks for a one-line gut check and is satisfied by "the instinct
+    field is not empty". The field writes the draft on every keystroke and a
+    MutationObserver ticks 80ms later, so one character was enough and the
+    screen left while the physician was still writing the first word of the
+    answer it had just asked them for.
+
+    Run against the real tutTick and the real isTypingTarget, with the caret
+    genuinely inside the step's own target, because the guard is the thing
+    under test.
+    """
+    out = _tour_harness("""
+      const field = document.createElement('textarea');
+      field.className = 'instinct';
+      document.body.appendChild(field);
+      field.focus();
+
+      state.draft = { stage: 'independent', prompt_review: { reviewed: true },
+                      independent_answer: { text: 'T' } };
+      state.tutorial = { active: true, idx: 2, welcomed: true, done: {}, assisted: {} };
+      tutTick();
+      const heldWhileTyping = state.tutorial.idx;
+
+      // Leaving the field is what releases it. The shim models focus as
+      // document.activeElement and has no blur(), so clear it directly.
+      document.activeElement = null;
+      tutTick();
+      out({ heldWhileTyping, afterBlur: state.tutorial.idx });
+    """)
+    assert out["heldWhileTyping"] == 2, (
+        "the tour advanced while the physician still had the caret in the field")
+    assert out["afterBlur"] > 2, (
+        "the tour never advances again; the guard has become a trap")
+
+
+def test_a_click_step_is_unaffected_by_the_guard():
+    """Its target is a button, and a button does not hold a text caret. The
+    guard must not slow down the steps that were working."""
+    out = _tour_harness("""
+      const btn = document.createElement('button');
+      btn.className = 'labsTab';
+      document.body.appendChild(btn);
+      btn.focus();
+
+      state.draft = { stage: 'independent', prompt_review: { reviewed: true },
+                      independent_answer: { text: '' } };
+      state.tutorial = { active: true, idx: 1, welcomed: true, done: {}, assisted: {} };
+      tutTick();
+      out({ idx: state.tutorial.idx });
+    """)
+    assert out["idx"] > 1, "a click-gated step was held by the typing guard"

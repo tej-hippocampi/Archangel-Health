@@ -680,6 +680,29 @@ class AsclepiusStore:
                 CREATE INDEX IF NOT EXISTS idx_sub_evaluator ON submissions(evaluator_id);
                 CREATE INDEX IF NOT EXISTS idx_sub_dedupe ON submissions(dedupe_hash);
 
+                -- The credentialing examination: one case an applicant sits
+                -- so a human has something real to decide on.
+                --
+                -- ITS OWN TABLE, and that is the safety property rather than a
+                -- tidiness one. The examination is drawn from the gold set,
+                -- which is also served to paid physicians, so writing these
+                -- answers into `submissions` against a live task_id would put
+                -- an unverified applicant's work within reach of the pay and
+                -- export paths. There is no join from here into records, so it
+                -- cannot be shipped to a buyer or paid for by accident.
+                CREATE TABLE IF NOT EXISTS credentialing_exams (
+                    exam_id         TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    task_id         TEXT NOT NULL,
+                    specialty       TEXT,
+                    attempt         INTEGER NOT NULL DEFAULT 1,
+                    payload_json    TEXT NOT NULL DEFAULT '{}',
+                    time_spent_sec  INTEGER NOT NULL DEFAULT 0,
+                    submitted_at    TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_cred_exam_user
+                    ON credentialing_exams(user_id);
+
                 CREATE TABLE IF NOT EXISTS records (
                     record_id       TEXT PRIMARY KEY,
                     submission_id   TEXT NOT NULL,
@@ -781,7 +804,7 @@ class AsclepiusStore:
                 -- V4 image asset index (V4 Image Embedding PRD §4). Resolves an
                 -- asset_id → sha256/mime/owning-task in ONE indexed lookup so serving
                 -- an image never scans the tasks table. The image BYTES live in the
-                -- content-addressed asset store, never here — only the reference.
+                -- content-addressed asset store, never here, only the reference.
                 CREATE TABLE IF NOT EXISTS study_assets (
                     asset_id    TEXT PRIMARY KEY,
                     sha256      TEXT NOT NULL,
@@ -818,7 +841,7 @@ class AsclepiusStore:
                 -- committed their blind independent answer BEFORE any candidate
                 -- answer text was revealed. The reveal endpoints refuse to return
                 -- answer text without this row, and the committed answer is the
-                -- authoritative one packaged — so it is provably pre-reveal.
+                -- authoritative one packaged, so it is provably pre-reveal.
                 CREATE TABLE IF NOT EXISTS independent_commits (
                     task_id       TEXT NOT NULL,
                     evaluator_id  TEXT NOT NULL,
@@ -886,7 +909,7 @@ class AsclepiusStore:
             )
             conn.execute(
                 """
-                -- Data-provider ACCOUNTS (email + password door, EHR PRD §4 —
+                -- Data-provider ACCOUNTS (email + password door, EHR PRD §4, 
                 -- complementary to the magic-link door). The account itself lives
                 -- in ``users`` (role='data_partner'); this row carries the invite /
                 -- upload lifecycle + relationship metadata the admin sees. Uploads
@@ -2266,6 +2289,26 @@ class AsclepiusStore:
             # are different answers.
             if "invited_by" not in cols("hs_portal_users"):
                 conn.execute("ALTER TABLE hs_portal_users ADD COLUMN invited_by TEXT")
+            # The claim link that replaced the temporary passphrase. A member is
+            # invited by a colleague and SETS THEIR OWN password on arrival, so
+            # nothing that guards their account has ever travelled through email.
+            #
+            # Only the HASH is stored, following the partner-upload token
+            # precedent (``routers/asclepius.py::_token_hash``): the cleartext
+            # exists in the process that minted it and in the letter it went
+            # into, and nowhere else. A database that holds live invite tokens
+            # is a database whose backup is a set of working accounts.
+            #
+            # NULL on every existing row, and NULL is the whole point: it means
+            # "no invite outstanding", which is what an account that has already
+            # been claimed looks like, and is what claiming writes back.
+            _hspu_invite_cols = cols("hs_portal_users")
+            if "invite_token_hash" not in _hspu_invite_cols:
+                conn.execute(
+                    "ALTER TABLE hs_portal_users ADD COLUMN invite_token_hash TEXT")
+            if "invite_expires_at" not in _hspu_invite_cols:
+                conn.execute(
+                    "ALTER TABLE hs_portal_users ADD COLUMN invite_expires_at TEXT")
             # ═══ END HS ONBOARDING ═══
             # ═══ PROFILE PICTURE — owned by the own-profile surface ═══════════
             # Its own fenced block rather than an edit to PRD-B or PRD-D above,
@@ -2355,7 +2398,7 @@ class AsclepiusStore:
                     advisor_id     TEXT NOT NULL,
                     verdict        TEXT NOT NULL,  -- approved|approved_with_comments|changes_requested
                     comments       TEXT,
-                    relationship   TEXT NOT NULL,  -- 'advisor_equity' — see PRD §0.2
+                    relationship   TEXT NOT NULL,  -- 'advisor_equity', see PRD §0.2
                     created_at     TEXT NOT NULL
                 )
                 """
@@ -2664,7 +2707,7 @@ class AsclepiusStore:
                     -- mutable admin decision, and a session outlives it: 24 h,
                     -- resumable. A snapshot taken at declare is stale for every
                     -- byte that arrives after an admin corrects the mint, and the
-                    -- single-request door resolves live — so the two doors would
+                    -- single-request door resolves live, so the two doors would
                     -- record the same bytes differently. ``actor`` is stored and
                     -- everything derived is joined through it at completion.
                     status          TEXT,            -- NULL(open) | completing | verified | failed | aborted
@@ -2852,7 +2895,7 @@ class AsclepiusStore:
                     decided_tier TEXT,
                     -- AUDIT H2: the FEATURE VECTOR, copied in at decision time alongside the
                     -- tier. structured_review_exp reaches the score at 0.70 and correlates
-                    -- with IMG status and national origin — both of which are pinned to zero,
+                    -- with IMG status and national origin, both of which are pinned to zero,
                     -- so the model cannot use them directly but this feature can route around
                     -- the pin. It cannot itself be pinned without gutting a real criterion, so
                     -- it is MONITORED instead, which means the monitor has to be able to see
@@ -2927,7 +2970,7 @@ class AsclepiusStore:
                     "ON work_sessions(user_id, kind) WHERE ended_at IS NULL")
             except sqlite3.DatabaseError:
                 _logging.getLogger("asclepius.payments").warning(
-                    "asclepius.store: could not create idx_ws_one_open_per_kind — "
+                    "asclepius.store: could not create idx_ws_one_open_per_kind, "
                     "more than one open work_session already exists for some "
                     "(user_id, kind). Sessions still close correctly; the "
                     "duplicate-open guarantee is degraded until this is resolved.",
@@ -3892,7 +3935,14 @@ class AsclepiusStore:
                     UPDATE users SET
                         {pw_clause}role = ?, specialty = ?, specialty_niche = ?,
                         board_cert = ?,
-                        years_experience = ?, active = 1, full_name = ?, org_name = ?,
+                        years_experience = ?, active = 1,
+                        -- COALESCE for the same reason organization does below.
+                        -- This clause used to be a bare `full_name = ?`, so a
+                        -- re-onboard that carried no name blanked a good one,
+                        -- and the portal then fell back to deriving a name from
+                        -- the email local part. That fallback is how a physician
+                        -- ended up greeted as "Dr. Angad18 Bhatia".
+                        full_name = COALESCE(NULLIF(?, ''), full_name), org_name = ?,
                         -- Keep the canonical organization in sync with the
                         -- health-system name, but never wipe a previously-set org
                         -- if a re-onboard omits it (COALESCE keeps the old value).
@@ -6030,6 +6080,52 @@ class AsclepiusStore:
                 revoked.append(u["id"])
         return {"granted": len(granted), "revoked": len(revoked), "eligible": eligible}
 
+
+    # ─── Credentialing examination ────────────────────────────────────────────
+
+    def record_credentialing_exam(
+        self, *, user_id: str, task_id: str, specialty: str,
+        attempt: int, payload: Dict[str, Any], time_spent_sec: int = 0,
+    ) -> str:
+        """File an applicant's examination. Returns the exam id.
+
+        Append-only: a retake writes a new row rather than replacing the old
+        one, so an admin looking at somebody who was asked to try again can see
+        both attempts and how they differ. That comparison is most of what a
+        second look is for.
+        """
+        exam_id = "ce-" + uuid.uuid4().hex[:12]
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO credentialing_exams
+                    (exam_id, user_id, task_id, specialty, attempt,
+                     payload_json, time_spent_sec, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (exam_id, user_id, task_id, specialty, int(attempt or 1),
+                 json.dumps(payload or {}), int(time_spent_sec or 0), _utcnow_iso()),
+            )
+        return exam_id
+
+    def list_credentialing_exams(self, user_id: str) -> List[Dict[str, Any]]:
+        """Every examination this applicant has filed, newest first."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM credentialing_exams WHERE user_id = ? "
+                "ORDER BY datetime(submitted_at) DESC",
+                (user_id,),
+            ).fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            try:
+                item["payload"] = json.loads(item.pop("payload_json") or "{}")
+            except (TypeError, ValueError):
+                item["payload"] = {}
+            out.append(item)
+        return out
+
     def get_tutorial_state(self, user_id: str) -> Dict[str, Any]:
         """The user's first-run tutorial state; a default not_started shape when
         unset or unparseable (a corrupt blob must never lock someone out)."""
@@ -6813,7 +6909,7 @@ class AsclepiusStore:
                  WHERE p.trajectory_id = ?
                    AND p.sequence_index < ?
                    -- §9.2: a retired predecessor can never be answered, so it is
-                   -- not "outstanding" — it is gone. Same clause as the queue's
+                   -- not "outstanding", it is gone. Same clause as the queue's
                    -- gate, same constant, or the URL and the draw would disagree
                    -- about whether this walk is blocked.
                    AND COALESCE(p.status, '') NOT IN ({_PRD_2_RETIRED_SQL})
@@ -8836,7 +8932,7 @@ class AsclepiusStore:
             "by_difficulty": group_by(lambda r: r.get("difficulty") or "medium"),
             "by_grounded": group_by(lambda r: "grounded" if r.get("grounded") else "plain"),
             "by_mode": group_by(lambda r: "mode_b" if (r.get("source") == "lab_supplied") else "mode_a"),
-            "by_contributor": group_by(lambda r: r.get("evaluator_email") or r.get("evaluator_id") or "—"),
+            "by_contributor": group_by(lambda r: r.get("evaluator_email") or r.get("evaluator_id") or "-"),
             "target": None,  # filled by the router from constants (keeps store I/O-free)
         }
 
@@ -11238,7 +11334,7 @@ class AsclepiusStore:
                   SUM(CASE WHEN lc = 2 AND rc = 0 THEN 1 ELSE 0 END) AS review_ready,
                   SUM(CASE WHEN rc > 0 THEN 1 ELSE 0 END) AS adjudicated,
                   -- Audit R H3: a case carrying more than two labels cannot be
-                  -- adjudicated by a PAIRED review. Counted, not dropped — the
+                  -- adjudicated by a PAIRED review. Counted, not dropped: the
                   -- whole failure was that this work was invisible.
                   SUM(CASE WHEN lc > 2 AND rc = 0 THEN 1 ELSE 0 END) AS over_labelled,
                   -- Audit R M5: terminal, never adjudicated, nobody notified.
@@ -11466,14 +11562,97 @@ class AsclepiusStore:
         """Set the password and stamp ``password_changed_at``. The stamp is what
         invalidates outstanding session cookies (FIX-C C-2.3) — without it a
         leaked cookie outlived the victim's own password reset by up to the full
-        12-hour session TTL."""
+        12-hour session TTL.
+
+        Any outstanding INVITE dies here too. A self-signup is signed in on the
+        session that created it AND mailed a claim link, so it can arrive at the
+        forced-reset screen and set a password without ever following the link;
+        leaving the token armed would leave a live password-setting door in an
+        inbox, on an account that already has an owner. ``provision_account``
+        re-arms it immediately on the paths that mean to, so the order there is
+        password first, invite second.
+        """
         with self._conn() as conn:
             conn.execute(
                 "UPDATE hs_portal_users SET password_hash = ?, must_reset = ?, "
                 "failed_logins = 0, locked_until = NULL, password_changed_at = ?, "
-                "session_epoch = session_epoch + 1 WHERE username = ?",
+                "session_epoch = session_epoch + 1, invite_token_hash = NULL, "
+                "invite_expires_at = NULL WHERE username = ?",
                 (hash_password(new_password), 1 if must_reset else 0, _utcnow_iso(),
                  (username or "").lower()),
+            )
+
+    # ─── The claim link ─────────────────────────────────────────────────────
+    # An invited member never receives a credential. They receive a one-time
+    # link, and the password that guards their account is one they typed. The
+    # three methods below are the whole mechanism: mint, look up by hash, and
+    # spend.
+
+    def set_hs_portal_invite(self, username: str, *, token_hash: str,
+                             expires_at: str, invited_by: Optional[str] = None) -> None:
+        """Arm an unclaimed invite on an account.
+
+        Overwrites any invite already on the row rather than refusing. Re-issuing
+        an invite is what happens when the first letter did not arrive, and the
+        older token must stop working the moment the newer one exists, or a
+        forwarded copy of the first email is a second live door.
+        """
+        uname = (username or "").strip().lower()
+        with self._conn() as conn:
+            if invited_by:
+                conn.execute(
+                    "UPDATE hs_portal_users SET invite_token_hash = ?, "
+                    "invite_expires_at = ?, invited_by = ? WHERE username = ?",
+                    (token_hash, expires_at, invited_by, uname))
+            else:
+                conn.execute(
+                    "UPDATE hs_portal_users SET invite_token_hash = ?, "
+                    "invite_expires_at = ? WHERE username = ?",
+                    (token_hash, expires_at, uname))
+
+    def get_hs_portal_user_by_invite_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        """The account an invite token belongs to, or None.
+
+        Returns the row WITHOUT its password hash, because every caller of this
+        is a public endpoint holding a token out of an email. Expiry is not
+        checked here: the caller decides what an expired invite means, and for
+        the lookup route it means the same 200 as an unknown one.
+        """
+        digest = (token_hash or "").strip()
+        if not digest:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_portal_users WHERE invite_token_hash = ?", (digest,)
+            ).fetchone()
+        return self._hs_user_public(row) if row else None
+
+    def claim_hs_portal_invite(self, username: str, *, password: str,
+                               full_name: Optional[str] = None) -> None:
+        """Spend an invite: set the password and the name, clear the token.
+
+        ONE statement, so the token cannot survive a partial write. Single use is
+        this write and nothing else: the hash is set to NULL, so the same link
+        opened twice finds no row the second time and the page says so rather
+        than offering to set a second password on an account that now has an
+        owner.
+
+        ``must_reset`` is cleared because there is nothing to replace. The whole
+        reason that flag exists is that a mailed passphrase has to stop guarding
+        the account, and no passphrase was ever mailed here. ``session_epoch``
+        still moves, exactly as ``set_hs_portal_password`` moves it: whatever
+        sessions existed against the unclaimed account are not this person's.
+        """
+        uname = (username or "").strip().lower()
+        name = (full_name or "").strip()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET password_hash = ?, must_reset = 0, "
+                "failed_logins = 0, locked_until = NULL, password_changed_at = ?, "
+                "session_epoch = session_epoch + 1, invite_token_hash = NULL, "
+                "invite_expires_at = NULL, full_name = COALESCE(NULLIF(?, ''), full_name) "
+                "WHERE username = ?",
+                (hash_password(password), _utcnow_iso(), name, uname),
             )
 
     def set_hs_portal_active(self, username: str, active: bool) -> None:
@@ -14400,7 +14579,7 @@ class AsclepiusStore:
                         {"dimension": dimension, "group": g, "impact_ratio": round(ratio, 4),
                          "n": v["n"],
                          "message": f"{dimension}={g} TR selection rate is "
-                                    f"{round(ratio * 100)}% of the highest group — below the "
+                                    f"{round(ratio * 100)}% of the highest group, below the "
                                     f"four-fifths threshold."})
             out["dimensions"][dimension] = detail
 
@@ -14439,7 +14618,7 @@ class AsclepiusStore:
                         "ratio": round(ratio, 4),
                         "message": f"{feature} averages {means[worst_group]} for "
                                    f"{dimension}={worst_group} vs {round(best, 4)} for the "
-                                   f"highest group — this feature may be carrying a "
+                                   f"highest group, this feature may be carrying a "
                                    f"group difference into the score.",
                     })
         out["total_observations"] = len(rows)
@@ -15622,7 +15801,7 @@ class AsclepiusStore:
                     text_body    TEXT,
                     codes_json   TEXT,          -- extracted OTP-looking codes
                     links_json   TEXT,          -- extracted http(s) links
-                    attachments_json TEXT,      -- [{name, mime, bytes}] — sizes only
+                    attachments_json TEXT,      -- [{name, mime, bytes}], sizes only
                     reply_to     TEXT,
                     created_at   TEXT NOT NULL
                 )

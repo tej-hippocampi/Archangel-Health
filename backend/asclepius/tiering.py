@@ -192,7 +192,7 @@ GATE_LABELS: Dict[str, str] = {
     "A1": "NPI verified against NPPES (individual, active, family name matches)",
     "A2": "State licence number + state on file",
     "A3": "Degree MD / DO / IMG-equivalent",
-    "A4": "Residency complete — not currently in training",
+    "A4": "Residency complete: not currently in training",
     "A5": "Not on the OIG LEIE exclusion list",
     "A6": "No active board disciplinary action",
     "A7": "Signed confidentiality + independence attestation",
@@ -295,7 +295,7 @@ def hard_gates(
         elif npi_flag == 0:
             put("A1", FAIL, f"NPPES: {npi_payload.get('reason') or 'no corroborating record'}")
         else:
-            put("A1", UNKNOWN, "NPI not yet checked — registry unreachable or check pending")
+            put("A1", UNKNOWN, "NPI not yet checked: registry unreachable or check pending")
     else:
         registry_payload = credentialing._json_field(user, "registry_payload_json")
         registry_name = registry_payload.get("registry") or "the national registry"
@@ -312,11 +312,11 @@ def hard_gates(
             put("A1", FAIL, f"{registry_name}: no registration record")
         elif outcome == "document_only":
             put("A1", UNKNOWN,
-                f"{registry_name} has no register we can query — verify from the uploaded document")
+                f"{registry_name} has no register we can query, verify from the uploaded document")
         elif outcome in ("inconclusive", "unavailable"):
             put("A1", UNKNOWN,
                 f"{registry_name} could not confirm ({registry_payload.get('reason') or 'no match'})"
-                " — routed to document review")
+                ", routed to document review")
         else:
             put("A1", UNKNOWN, f"{registry_name} check pending")
 
@@ -340,7 +340,7 @@ def hard_gates(
         elif user.get("registry_verified") == 1:
             put("A2", PASS, f"Registration {registration} confirmed by the national registry")
         else:
-            put("A2", UNKNOWN, f"Registration {registration} on file — pending registry or document review")
+            put("A2", UNKNOWN, f"Registration {registration} on file, pending registry or document review")
     elif not lic or not lic_state:
         put("A2", UNKNOWN, "No licence number / state on file")
     elif reg_lic and reg_state and (
@@ -348,7 +348,7 @@ def hard_gates(
         # A divergence is a review flag, not a rejection: NPPES licence data is
         # self-reported by the provider and is frequently stale.
         put("A2", UNKNOWN,
-            f"Licence {lic} ({lic_state}) differs from NPPES {reg_lic} ({reg_state}) — verify")
+            f"Licence {lic} ({lic_state}) differs from NPPES {reg_lic} ({reg_state}), verify")
     else:
         put("A2", PASS, f"Licence {lic} ({lic_state})")
 
@@ -403,9 +403,9 @@ def hard_gates(
         # in them, so this cannot PASS on their behalf — and being unresolved
         # here is precisely why an international signup always reaches a human.
         put("A5", UNKNOWN,
-            "OIG LEIE is US-only — no equivalent exclusion check for this country")
+            "OIG LEIE is US-only: no equivalent exclusion check for this country")
     else:
-        put("A5", UNKNOWN, "OIG LEIE list not loaded — cannot check")
+        put("A5", UNKNOWN, "OIG LEIE list not loaded: cannot check")
 
     # ── A6 · Board discipline ───────────────────────────────────────────────────────────
     no_action = _truthy(attest.get("attestNoDisciplinaryAction"))
@@ -748,7 +748,7 @@ def _assert_encoder_reads_nothing_forbidden() -> None:
                & FORBIDDEN_CREDENTIAL_KEYS)
     if overlap:
         raise AssertionError(
-            f"the encoder would read protected proxies {sorted(overlap)} — "
+            f"the encoder would read protected proxies {sorted(overlap)}, "
             "PRD C §3.3 forbids collecting, deriving or logging them")
 
 
@@ -823,7 +823,7 @@ def tr_eligibility(
     """
     missing: List[str] = []
     if not gates["eligible"]:
-        missing.append("hard gates A1–A7")
+        missing.append("hard gates A1-A7")
     if vec.get("board_certified_active", 0.0) <= 0:
         missing.append("active board certification")
     if float(vec.get("domain_match", 0.0)) < 0.5:
@@ -950,7 +950,7 @@ def propose(
 
 
 _FEATURE_WORDS = {
-    "intercept": "baseline — TR is the minority role",
+    "intercept": "baseline: TR is the minority role",
     "board_certified_active": "holds an active board certification",
     "subspecialty_certified": "subspecialty certified IN this case's domain",
     "domain_match": "domain expertise matches this case",
@@ -977,7 +977,7 @@ def _plain_reasons(vec: Dict[str, Any], sc: Dict[str, Any], gates: Dict[str, Any
     for gid in gates["undetermined"]:
         out.append(f"UNRESOLVED  {gid}: {gates['gates'][gid]['detail']}")
     for miss in elig["missing"]:
-        if miss != "hard gates A1–A7":
+        if miss != "hard gates A1-A7":
             out.append(f"TR needs: {miss}")
     return out
 
@@ -1298,7 +1298,7 @@ def apply_decision_batch(
 
     if quarantined:
         log.error("[tiering] %d decision(s) carry a non-finite feature and were NOT applied "
-                  "— fix the rows and re-run: %s", len(quarantined), ", ".join(quarantined))
+                  "fix the rows and re-run: %s", len(quarantined), ", ".join(quarantined))
 
     if not observations:
         store.apply_tiering_batch(used, weights=None)

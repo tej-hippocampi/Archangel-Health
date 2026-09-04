@@ -81,7 +81,7 @@ _team_store = _RealmTeamStore()
 app.state.team_store = _team_store
 ```
 with `team_store.get_team_store(realm)` keeping one `TeamStore` per realm
-(`team_store.py:4991` keys `_STORE`S per realm; it was a single pin before this PRD). Every
+(`team_store.py:5195` keys `_STORE`S per realm; it was a single pin before this PRD). Every
 existing `_team_store.foo()` call resolves the realm at call time. The same proxy
 pattern replaces `llm_client._event_store`, so sandbox AI-call telemetry lands in
 the sandbox team DB. A test asserts no module in `backend/` (outside `_retired`

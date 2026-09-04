@@ -75,7 +75,7 @@ def _resolve_demo() -> Tuple[Dict[str, Any], str]:
     try:
         return row, assets.media_blob_path(row["sha256"])
     except assets.AssetError as exc:
-        log.error("[media] demo blob missing for sha %s — asset store may be ephemeral",
+        log.error("[media] demo blob missing for sha %s, asset store may be ephemeral",
                   str(row.get("sha256"))[:12])
         raise HTTPException(
             status_code=404,
@@ -157,7 +157,7 @@ def _viewer(authorization: Optional[str], ticket: Optional[str]) -> Dict[str, An
     uid = asc_auth.decode_media_ticket((ticket or "").strip(), slot=DEMO_SLOT)
     holder = get_store().get_user_by_id(uid) if uid else None
     if not holder or not holder.get("active"):
-        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+        raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     # A ticket is not a bypass: the same account gate the header path runs.
     return asc_auth.get_current_account(holder)
 

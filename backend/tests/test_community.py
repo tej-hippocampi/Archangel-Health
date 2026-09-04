@@ -501,6 +501,81 @@ def test_admin_flags_endpoint():
     assert client.get(f"{BASE}/admin/flags", headers=headers_for(doc)).status_code == 403
 
 
+# ─── §7: a link is not an identifier ──────────────────────────────────────────
+LINKEDIN_POST = "https://www.linkedin.com/feed/update/urn:li:share:7501080186667581440/"
+
+
+def test_a_linkedin_share_link_posts_clean():
+    """WHY: the bare long-digit-run pattern matched the 19-digit share id inside
+    a LinkedIn URL exactly as if it were an account number, so a physician
+    linking their own talk was told they had posted PHI.
+
+    The BOT path never had this problem -- ``system_posts._mask_urls`` blanks
+    URLs before scanning -- which made the member path the stricter of the two
+    for no reason anyone chose. That asymmetry is the actual defect.
+    """
+    _, _, doc, _ = setup_world()
+    r = post_msg(doc, "general", "worth a read, from the AI-in-nephrology panel: "
+                 + LINKEDIN_POST)
+    assert r.status_code == 200, r.json()
+    assert not phi_gate.scan_text(LINKEDIN_POST)
+
+
+@pytest.mark.parametrize("url", [
+    "https://pubmed.ncbi.nlm.nih.gov/38472913/",
+    "https://doi.org/10.1053/j.ajkd.2024.01.012",
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1204812",
+    "https://x.com/someone/status/1849302847283746112",
+])
+def test_ordinary_links_are_not_identifiers(url):
+    """Every one of these carries a digit run, a slash-separated number pair or
+    both. None of them is a patient identifier, and a gate that blocks a DOI is
+    a gate physicians route around."""
+    _, _, doc, _ = setup_world()
+    assert post_msg(doc, "general", "see " + url).status_code == 200
+
+
+def test_an_ssn_inside_a_url_still_blocks():
+    """The exemption is for SHAPE-ONLY categories, and an SSN is not one.
+
+    A link is not a laundering channel: a URL with a social security number in
+    its path has still put a social security number in the room, and the same
+    goes for a keyword-anchored date of birth.
+    """
+    _, cstore, doc, _ = setup_world()
+    r = post_msg(doc, "general", "the export is at https://files.example.com/p/123-45-6789/chart")
+    assert r.status_code == 422
+    assert "ssn" in r.json()["detail"]["categories"]
+    with sqlite3.connect(cstore.db_path) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM community_messages").fetchone()[0] == 0
+
+    r = post_msg(doc, "general", "https://example.com/intake?DOB=4/12/1958")
+    assert r.status_code == 422
+    assert "dob" in r.json()["detail"]["categories"]
+
+
+def test_the_link_exemption_does_not_cover_the_prose_around_the_link():
+    """Containment, not proximity. A finding that merely sits NEAR a URL is
+    ordinary text and blocks exactly as it always did."""
+    _, _, doc, _ = setup_world()
+    r = post_msg(doc, "general", "see " + LINKEDIN_POST + " -- MRN 84921734 for the case")
+    assert r.status_code == 422
+    assert "mrn" in r.json()["detail"]["categories"]
+
+
+def test_the_shared_scanner_second_pass_also_ignores_links():
+    """Defense in depth must not reintroduce the bug one layer down.
+
+    The shared platform scanner reports KINDS with no spans, so anything it
+    finds becomes a WHOLE-TEXT finding. Handing it the raw string would re-block
+    the share id with no span to highlight, which is strictly worse than the
+    behaviour it replaced.
+    """
+    assert not phi_gate.scan_text("posted here: " + LINKEDIN_POST)
+    assert phi_gate.mask_urls("a " + LINKEDIN_POST + " b") == (
+        "a " + " " * len(LINKEDIN_POST) + " b"), "the mask must preserve offsets"
+
+
 def test_strip_spans_removes_exactly_the_findings():
     text = "K 6.1 today. MRN: 99887766. Recheck tomorrow."
     findings = phi_gate.scan_text(text)
@@ -568,7 +643,154 @@ def test_announcement_queues_digest_for_all_members(capsys):
     assert sent == 2
     assert cstore.unsent_notifications() == []
     out = capsys.readouterr().out
-    assert "New activity in your Asclepius community" in out
+    assert "New activity in your Archangel Health community" in out
+
+
+# ─── New posts and pins produce email (kinds ``post`` and ``pin``) ────────────
+def _kinds_for(cstore, kind):
+    return {n["user_id"] for n in cstore.unsent_notifications() if n["kind"] == kind}
+
+
+def test_a_bot_post_queues_a_post_notification_for_every_member():
+    """The defect: every bot post was written with ``announce=False``, so the
+    whole daily content run, which is the thing that fills six channels every
+    morning, produced exactly zero notification rows and nobody was told the
+    community had moved."""
+    import asyncio
+
+    from community.system_posts import post_system_message
+
+    astore, cstore, doc, admin = setup_world()
+    other = make_verified_physician(astore, specialty="cardiology")
+
+    msg = asyncio.run(post_system_message(
+        channel_slug="events",
+        body="**Coming up**\n\nThree you could actually get to.",
+        kind="morning_events", announce=True))
+
+    assert msg is not None
+    recipients = _kinds_for(cstore, "post")
+    assert {doc["id"], other["id"], admin["id"]} <= recipients
+
+
+def test_an_ordinary_human_message_queues_no_post_notification():
+    """The scoping decision, held by test. A row per member per message in a
+    live channel would be a "While you were away" email every five minutes
+    describing a conversation the reader is having, which is the one outcome
+    that gets the whole mechanism switched off. A member who wants a specific
+    message mailed has @mention."""
+    astore, cstore, doc, _ = setup_world()
+    make_verified_physician(astore, specialty="cardiology")
+
+    post_msg(doc, "general", "Anyone else seeing this on the new rubric?")
+
+    assert _kinds_for(cstore, "post") == set()
+
+
+def test_pinning_a_message_tells_the_channel(monkeypatch):
+    """Pinning was a WebSocket event and nothing else, so it reached whoever
+    happened to be connected in that second and nobody else. A pin is the one
+    act that means "everybody read this one"."""
+    astore, cstore, doc, admin = setup_world()
+    other = make_verified_physician(astore, specialty="cardiology")
+    posted = post_msg(doc, "general", "The relay handoff note goes above the question.")
+    assert posted.status_code == 200
+    mid = posted.json()["id"]
+
+    r = client.post(f"{BASE}/messages/{mid}/pin", headers=headers_for(admin))
+    assert r.status_code == 200, r.text
+
+    recipients = _kinds_for(cstore, "pin")
+    assert other["id"] in recipients
+    # Never the person who pressed pin, and never the author: both already know.
+    assert admin["id"] not in recipients
+    assert doc["id"] not in recipients
+
+
+def test_the_pin_digest_line_does_not_credit_the_pin_to_the_author(monkeypatch):
+    """The queue row points at the pinned MESSAGE, so the author is the only
+    person the flush can name. "Dr Doe pinned a message" about Dr Doe's own
+    post would be a plain untruth, so the line is written without an actor."""
+    import asyncio
+
+    astore, cstore, doc, admin = setup_world()
+    make_verified_physician(astore, specialty="cardiology")
+    mid = post_msg(doc, "general", "Worth reading before Friday.").json()["id"]
+    client.post(f"{BASE}/messages/{mid}/pin", headers=headers_for(admin))
+
+    bodies = []
+
+    async def _capture(to, subject, body):
+        bodies.append(body)
+        return True
+
+    monkeypatch.setattr("email_utils.send_html_email", _capture)
+    from community.router import resolve_member_for_notify
+
+    asyncio.run(cnotify.flush_pending(cstore, resolve_member=resolve_member_for_notify))
+
+    assert bodies, "the pin should have produced a digest email"
+    assert "A message was pinned in #general" in bodies[0]
+
+
+def test_a_member_who_turned_post_emails_off_still_gets_their_mentions(monkeypatch):
+    """The reason there are three switches rather than one: "stop telling me
+    about the morning brief" and "stop telling me a colleague asked me
+    something" are different requests, and the unsubscribe token, which was the
+    only control that existed, answers both at once."""
+    import asyncio
+
+    from community.system_posts import post_system_message
+
+    astore, cstore, doc, admin = setup_world()
+    cstore.set_email_stream(doc["id"], "post", False)
+
+    asyncio.run(post_system_message(
+        channel_slug="events", body="**Coming up**\n\nThree events.",
+        kind="morning_events", announce=True))
+    client.post(f"{BASE}/channels/general/messages",
+                json={"body": "A question for you.", "mention_user_ids": [doc["id"]]},
+                headers=headers_for(admin))
+
+    leads = []
+
+    async def _capture(to, subject, body):
+        leads.append((to, body))
+        return True
+
+    monkeypatch.setattr("email_utils.send_html_email", _capture)
+    from community.router import resolve_member_for_notify
+
+    asyncio.run(cnotify.flush_pending(cstore, resolve_member=resolve_member_for_notify))
+
+    to_doc = [body for to, body in leads if to == doc["email"]]
+    assert to_doc, "the mention must still arrive"
+    assert "mentioned you" in to_doc[0]
+    assert "posted in #events" not in to_doc[0]
+    # Handled, not left pending: a dropped row that stays queued is re-read by
+    # every later flush forever.
+    assert not [n for n in cstore.unsent_notifications() if n["user_id"] == doc["id"]]
+
+
+def test_pin_emails_and_post_emails_are_separate_switches(monkeypatch):
+    import asyncio
+
+    astore, cstore, doc, admin = setup_world()
+    cstore.set_email_stream(doc["id"], "pin", False)
+    mid = post_msg(admin, "general", "Read this one.").json()["id"]
+    client.post(f"{BASE}/messages/{mid}/pin", headers=headers_for(admin))
+
+    sent = []
+
+    async def _capture(to, subject, body):
+        sent.append(to)
+        return True
+
+    monkeypatch.setattr("email_utils.send_html_email", _capture)
+    from community.router import resolve_member_for_notify
+
+    asyncio.run(cnotify.flush_pending(cstore, resolve_member=resolve_member_for_notify))
+    assert doc["email"] not in sent
 
 
 # ─── Attachments (§7.4) ───────────────────────────────────────────────────────

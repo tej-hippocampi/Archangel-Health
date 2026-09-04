@@ -305,10 +305,10 @@ async def send_buyer_delivery(
         "credentials_issued": issue_credentials,
         "email_sent": email_ok,
         "message": (f"Delivered {manifest.get('record_count') or 0} record(s) to "
-                    f"{body.buyer_email} — {'account created and ' if first_delivery else ''}"
+                    f"{body.buyer_email}: {'account created and ' if first_delivery else ''}"
                     f"credentials emailed." if email_ok
                     else ("Delivery recorded, but the notification email could not be sent. "
-                          + ("The buyer has no working password yet — re-send to re-issue one "
+                          + ("The buyer has no working password yet, re-send to re-issue one "
                              "once email is working." if issue_credentials
                              else "The buyer already has workspace access; only the "
                                   "notification failed."))),

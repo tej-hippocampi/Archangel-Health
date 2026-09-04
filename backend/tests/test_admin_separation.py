@@ -58,7 +58,7 @@ def test_the_admin_page_is_served_and_the_physician_page_ships_no_admin_js():
     res = client.get("/asclepius/admin")
     assert res.status_code == 200, res.text
     assert "admin_shell.js" in res.text
-    assert "Asclepius Operations" in res.text
+    assert "Archangel Health Operations" in res.text
 
     portal = client.get("/asclepius")
     assert portal.status_code == 200

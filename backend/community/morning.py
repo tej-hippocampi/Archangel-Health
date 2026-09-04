@@ -59,8 +59,29 @@ KIND_TOPIC = "channel_topic"
 KIND_POLL = "poll"
 
 
+#: What an operator may put in a gate variable to mean "off". Everything else,
+#: an unset or blank variable included, means on.
+_OFF_VALUES = ("0", "false", "no", "off")
+
+
+def gate_on(var: str) -> bool:
+    """A content gate that ships ON, with the env var kept as a kill switch.
+
+    Defaulting these to off is what kept the whole routine dormant in
+    production while looking exactly like a community that had nothing to say,
+    so the default is now the working state and the variable exists to STOP it:
+    setting ``COMMUNITY_MORNING_ENABLED=0`` on the platform turns the routine
+    off with a restart and no deploy.
+
+    A blank value reads as unset rather than as off, matching the .env loader's
+    own rule that an empty value in a file never wipes a value already set.
+    """
+    raw = (os.getenv(var) or "").strip().lower()
+    return raw not in _OFF_VALUES
+
+
 def enabled() -> bool:
-    return (os.getenv("COMMUNITY_MORNING_ENABLED", "0") or "0").strip() not in ("", "0", "false", "False")
+    return gate_on("COMMUNITY_MORNING_ENABLED")
 
 
 def fire_hour() -> int:
@@ -81,11 +102,26 @@ def events_max() -> int:
         return 3
 
 
-def discussion_dow() -> int:
+def discussion_dow() -> Optional[int]:
+    """Which weekday the discussion prompt fires on, or None for every day.
+
+    It began as a weekly post pinned to Wednesday, and a room that gets asked a
+    question once a week is a room people open once a week. None is now the
+    default and it flows straight into ``Scope.dow``, which ``is_due`` already
+    reads as "no weekday restriction".
+
+    The variable still pins it back: ``COMMUNITY_DISCUSSION_DOW=2`` restores
+    Wednesday-only. Anything that is not a weekday number (unset, blank, or a
+    word) means every morning, because the failure that matters here is a typo
+    quietly muting the room six days out of seven.
+    """
+    raw = (os.getenv("COMMUNITY_DISCUSSION_DOW") or "").strip()
+    if not raw:
+        return None
     try:
-        return max(0, min(6, int(os.getenv("COMMUNITY_DISCUSSION_DOW", "2"))))
+        return max(0, min(6, int(raw)))
     except (TypeError, ValueError):
-        return 2
+        return None
 
 
 # ─── Due-ness ────────────────────────────────────────────────────────────────
@@ -437,6 +473,37 @@ def _composer_for(scope: Scope) -> Callable:
     return _COMPOSERS.get(scope.key, _compose_brief)
 
 
+# ─── Why a run posted nothing ────────────────────────────────────────────────
+# ``ok=1, items_posted=0`` is written for a genuinely quiet day AND for a run
+# that could not source anything because there is no API key, no configured
+# provider, or the provider was down. Those are the same row, and telling them
+# apart from outside is the whole point of recording a reason: a routine that
+# has been dead for a week and a community with nothing to say look identical
+# on the admin tab otherwise.
+REASON_POSTED = "posted"
+REASON_NOTHING_FOUND = "nothing_found"
+REASON_BLOCKED = "post_blocked"
+REASON_ERROR = "run_failed"
+
+#: Most specific first: a run with no provider AND a provider error should read
+#: as the missing provider, because that is the thing an operator can fix.
+_REASON_PRIORITY = (
+    websearch.NO_PROVIDER,
+    websearch.NO_MODEL_KEY,
+    websearch.BUDGET_EXHAUSTED,
+    websearch.PROVIDER_ERROR,
+)
+
+
+def quiet_reason(reasons: Any) -> str:
+    """Turn the sourcing pass's notes into the one reason worth storing."""
+    noted = set(reasons or ())
+    for candidate in _REASON_PRIORITY:
+        if candidate in noted:
+            return candidate
+    return REASON_NOTHING_FOUND
+
+
 # ─── The run ─────────────────────────────────────────────────────────────────
 async def run_scope(scope: Scope, *, force: bool = False) -> Dict[str, Any]:
     """One channel's morning. Never raises."""
@@ -457,12 +524,18 @@ async def run_scope(scope: Scope, *, force: bool = False) -> Dict[str, Any]:
         log.info("[morning] scope %s already claimed for today", scope.key)
         return {"scope": scope.key, "outcome": "already_running"}
     try:
-        composed = await _composer_for(scope)(cstore, scope)
+        # Everything the sourcing pass could not do is collected here. Without
+        # it "no ANTHROPIC_API_KEY" and "the web had nothing new" are the same
+        # ledger row -- ok, zero items -- and a dead routine reads exactly like
+        # a quiet Tuesday from the admin tab.
+        with websearch.record_sourcing() as reasons:
+            composed = await _composer_for(scope)(cstore, scope)
         if not composed:
             # A quiet day is a valid day, and it counts as a run: otherwise the
             # trigger retries every hour against sources that have nothing.
-            cstore.finish_digest_run(run_id, ok=True, items_posted=0)
-            return {"scope": scope.key, "outcome": "quiet"}
+            reason = quiet_reason(reasons)
+            cstore.finish_digest_run(run_id, ok=True, items_posted=0, reason=reason)
+            return {"scope": scope.key, "outcome": "quiet", "reason": reason}
 
         poll = composed.get("poll")
         if poll:
@@ -473,6 +546,7 @@ async def run_scope(scope: Scope, *, force: bool = False) -> Dict[str, Any]:
                 options=poll["options"],
                 kind=composed["kind"],
                 cards=composed["cards"],
+                announce=True,
             )
         else:
             message = await post_system_message(
@@ -480,22 +554,29 @@ async def run_scope(scope: Scope, *, force: bool = False) -> Dict[str, Any]:
                 body=composed["body"],
                 kind=composed["kind"],
                 cards=composed["cards"],
+                # The morning is the reason the ``post`` notification kind
+                # exists: a room a physician cannot tell has moved is a room
+                # they stop opening.
+                announce=True,
             )
         if not message:
             # The PHI gate skips a system post silently by design. Silent is
             # wrong here: a morning that posted nothing because it was blocked
             # must be distinguishable from one that had nothing to say.
-            cstore.finish_digest_run(run_id, ok=False, error="post_blocked")
+            cstore.finish_digest_run(run_id, ok=False, error="post_blocked",
+                                     reason=REASON_BLOCKED)
             return {"scope": scope.key, "outcome": "blocked"}
 
         _mark_posted(cstore, composed["items"], message.get("id"))
-        cstore.finish_digest_run(run_id, ok=True, items_posted=len(composed["cards"]))
+        cstore.finish_digest_run(run_id, ok=True, items_posted=len(composed["cards"]),
+                                 reason=REASON_POSTED)
         return {"scope": scope.key, "outcome": "posted",
                 "cards": len(composed["cards"])}
     except Exception as exc:  # noqa: BLE001 - one bad scope must not stop the rest
         log.warning("[morning] scope %s failed", scope.key, exc_info=True)
         try:
-            cstore.finish_digest_run(run_id, ok=False, error=str(exc)[:200])
+            cstore.finish_digest_run(run_id, ok=False, error=str(exc)[:200],
+                                     reason=REASON_ERROR)
         except Exception:  # noqa: BLE001
             pass
         return {"scope": scope.key, "outcome": "failed", "error": str(exc)[:200]}

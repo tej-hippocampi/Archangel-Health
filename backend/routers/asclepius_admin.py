@@ -113,7 +113,7 @@ def _build_credentials_email(*, org_name: str, username: str, passphrase: str) -
         <tr><td style="padding:6px 16px 6px 0;color:#6b6d6b">Temporary password</td>
             <td style="padding:6px 0"><code>{pw}</code></td></tr>
       </table>
-      <p>This temporary password is shown only in this email — you will be asked
+      <p>This temporary password is shown only in this email, you will be asked
          to choose your own the first time you sign in.</p>
       <p>You can upload a .zip, or individual .json / .csv / .hl7 / .txt files
          and we will package them. If anything does not go through, reply to
@@ -452,21 +452,21 @@ def _not_shipping_reason(row: Dict[str, Any]) -> str:
     way around it.
     """
     if not row.get("n_records"):
-        return "No records were packaged for this submission — nothing to ship."
+        return "No records were packaged for this submission, nothing to ship."
     status = row.get("status")
     if row.get("quality_hold"):
         return ("The payout algorithm proposed a reduced rate and is waiting on a "
                 "decision. Release the hold, then approve.")
     if status == "rejected":
-        return "Rejected in QA — deliberately not shipped."
+        return "Rejected in QA: deliberately not shipped."
     if status in ("prompt_flagged", "not_hard", "case_inconsistent"):
-        return f"Flagged at capture ({status}) — captured for audit, never packaged."
+        return f"Flagged at capture ({status}): captured for audit, never packaged."
     if row.get("ledger_status") == asc_payments.VOID:
         return ("The earning was voided. Voiding is a payment decision, so the "
-                "records were left as they were — approve only if the work is good.")
+                "records were left as they were: approve only if the work is good.")
     if status == "needs_qa":
         return "In the QA queue. Approving here skips the QA sample."
-    return "Awaiting approval — approved money is what makes a record exportable."
+    return "Awaiting approval: approved money is what makes a record exportable."
 
 
 def json_dumps_safe(obj: Any) -> str:
@@ -694,7 +694,7 @@ async def export_migration_report(
     if not report:
         return {"ran": False,
                 "message": "The boot migration has not reported yet. It runs a "
-                           "few seconds after startup — refresh shortly."}
+                           "few seconds after startup: refresh shortly."}
     contract = report.get("contract")
     return {
         "ran": True,
@@ -735,7 +735,7 @@ async def export_case_bundle(
         # next to four unapproved submissions on the very cases you selected is
         # the silence this PRD exists to remove.
         n = s["excluded"]["unapproved_count"]
-        detail = s["note"] or "Nothing matches this scope — adjust and preview again."
+        detail = s["note"] or "Nothing matches this scope: adjust and preview again."
         if n:
             detail = (f"Nothing in this scope is approved yet: {n} submission"
                       f"{'' if n == 1 else 's'} on these cases "
@@ -1298,13 +1298,13 @@ async def provision_health_system_portal(
     # above selected DATA, and nothing about behaviour.
     ok = await send_html_email(
         str(body.email),
-        f"Your Archangel Health secure upload access — {hs['name']}",
+        f"Your Archangel Health secure upload access, {hs['name']}",
         _build_credentials_email(org_name=hs["name"], username=username, passphrase=passphrase),
         importance_headers=True,
     )
     if not ok:
         raise HTTPException(status_code=503,
-                            detail="Could not send the credentials email — nothing was sent. Try again.")
+                            detail="Could not send the credentials email, nothing was sent. Try again.")
 
     store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                     event_type=action, actor=admin["id"],
@@ -1364,7 +1364,7 @@ async def set_portal_account_purpose(
         raise HTTPException(
             status_code=409,
             detail="This account has already sent data on a brokering mint, so its "
-                   "purpose cannot be changed to task creation — that would convert "
+                   "purpose cannot be changed to task creation, that would convert "
                    "data the partner sent us to broker. Send this organization a "
                    "separate task-creation link instead.")
     store.set_hs_portal_purpose(username, purpose)
@@ -1480,7 +1480,7 @@ async def set_upload_purpose(
         raise HTTPException(
             status_code=409,
             detail="This upload came in on a brokering link. Its purpose cannot be "
-                   "changed to task creation — brokering data never enters the task "
+                   "changed to task creation: brokering data never enters the task "
                    "pipeline. If the link itself was minted wrongly, mint a new one "
                    "and ask the partner to re-send.")
     store.set_upload_purpose(upload_id, purpose)
@@ -1497,7 +1497,7 @@ async def set_upload_purpose(
             "cases_updated": cases, "auto_generate": auto,
             "message": f"{cases} case{'' if cases == 1 else 's'} recorded as "
                        f"{purpose.replace('_', ' ')}."
-                       + (" Task creation is running now — no click needed."
+                       + (" Task creation is running now: no click needed."
                           if auto.get("started") else "")}
 
 
@@ -1552,7 +1552,7 @@ async def set_upload_task_mode(
             detail=f"{counts['promoted']} case(s) from this upload are already "
                    f"tasks, built as "
                    f"{upload.get('task_mode') or 'static'}. Changing the mode now "
-                   f"would describe them as something they are not — promote the "
+                   f"would describe them as something they are not, promote the "
                    f"rest in the same mode, or send a new upload.")
     store.set_upload_task_mode(upload_id, mode)
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
@@ -1615,11 +1615,11 @@ async def set_upload_auto_generate(
         raise HTTPException(
             status_code=409,
             detail=("This bundle has already had its automatic run. Promote what is "
-                    "left from Task creation — re-arming would bill the whole chart "
+                    "left from Task creation: re-arming would bill the whole chart "
                     "a second time."
                     if finished else
                     "This bundle's automatic run was started but never recorded an "
-                    "outcome — usually a deploy while it was in flight. It will not "
+                    "outcome: usually a deploy while it was in flight. It will not "
                     "start again, because re-arming could bill the whole chart twice. "
                     "Promote the remaining cases from Task creation; nothing about "
                     "them is blocked."))
@@ -1700,7 +1700,7 @@ def _display_name(u: Dict[str, Any]) -> str:
     if name:
         return name
     email = u.get("email") or ""
-    return email.split("@", 1)[0] if "@" in email else (email or u.get("id") or "—")
+    return email.split("@", 1)[0] if "@" in email else (email or u.get("id") or "-")
 
 
 # tier value -> roster count bucket. Derived from the capability layer's TIERS
@@ -1834,6 +1834,8 @@ def _tri_state(v: Any) -> Optional[bool]:
 
 @router.get("/physicians")
 async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    from asclepius import review as _review
+
     store = _store()
     hs_names = _hs_name_map(store)
     out: List[Dict[str, Any]] = []
@@ -1868,6 +1870,15 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "specialty": u.get("specialty"),
             "tier": tier,
             "tier_word": asc_caps.tier_word(tier),
+            # Whether this account can be named as a REVIEWER on a send. Read
+            # from ``review.can_review`` rather than compared against a tier
+            # literal here, so this row and the send-time guard in
+            # ``_resolve_send_targets`` can never disagree -- a roster that says
+            # one thing and a 400 that says another is how "the Send button is
+            # not working" gets reported. The Batches picker disables the
+            # Reviewer radio on this, which turns an atomic 400 on the whole
+            # send into a control the admin cannot click by mistake.
+            "can_review": bool(_review.can_review(u)),
             # Advisor is NOT a tier (capabilities.py:12 — the tier is retired and
             # rows carrying it migrate to reviewer on boot). It lives on
             # ``users.advisor_since``, and without it here the roster rendered
@@ -2076,12 +2087,12 @@ async def physician_profile(
 #: submitted and they simply never pressed the final button, so a single
 #: reminder converts them into an approvable signup.
 _SIGNUP_STAGES: List[tuple] = [
-    ("link_sent", "Link sent — not opened"),
+    ("link_sent", "Link sent: not opened"),
     ("identity", "Entered their name"),
     ("email_verified", "Verified their email"),
     ("institution", "Added practice details"),
     ("credentials", "Submitted credentials"),
-    ("attestations", "Signed attestations — never pressed finish"),
+    ("attestations", "Signed attestations: never pressed finish"),
 ]
 _SIGNUP_STAGE_WORDS = dict(_SIGNUP_STAGES)
 _SIGNUP_STAGE_ORDER = [s for s, _ in _SIGNUP_STAGES]
@@ -2527,7 +2538,7 @@ async def resend_signup_link(
     if store.get_user_by_email(email):
         raise HTTPException(
             status_code=409,
-            detail="That physician already has an account — they're on the roster.")
+            detail="That physician already has an account, they're on the roster.")
 
     director_email = (hs.get("director_email") or "").lower().strip()
     org_name = (hs.get("name") or "").strip()
@@ -2557,7 +2568,7 @@ async def resend_signup_link(
         body_html = (
             '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
             'color:#1a1b1a;line-height:1.6">'
-            "<p>Here is your link to finish your Asclepius onboarding — it picks up "
+            "<p>Here is your link to finish your Asclepius onboarding, it picks up "
             "exactly where you left off:</p>"
             f'<p><a href="{url}">{url}</a></p>'
             "<p style='color:#8b8d89;font-size:13px'>If you didn&rsquo;t request this, "
@@ -2597,7 +2608,7 @@ async def resend_signup_link(
 
     if not await send_html_email(email, subject, body_html):
         raise HTTPException(status_code=503,
-                            detail="Could not send that email — nothing was sent. Try again.")
+                            detail="Could not send that email: nothing was sent. Try again.")
     store.log_event(entity_type="signup", entity_id=hs["id"],
                     event_type="onboarding_link_resent", actor=admin["id"],
                     payload={"email": email, "org": org_name or None, "rotated": rotated})
@@ -2929,7 +2940,7 @@ async def set_data_provider_purpose(
     view = _purpose_view(purpose)
     return {"ok": True, "provider_id": provider_id, **view,
             "message": f"Uploads from this provider are now recorded as {view['label']}. "
-                       "Uploads already received keep the value they arrived with — "
+                       "Uploads already received keep the value they arrived with, "
                        "resolve those on the upload row."}
 
 
@@ -3369,7 +3380,7 @@ def _build_community_invite_email(*, full_name: str, join_url: str) -> str:
         '<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;'
         'color:#1a1b1a;line-height:1.6">'
         f"<p>{greeting}</p>"
-        "<p>You're invited into <strong>Asclepius Community</strong> — a private room "
+        "<p>You're invited into <strong>Asclepius Community</strong>, a private room "
         "for the physicians contributing to Asclepius. Every member is "
         "credential-verified. Discuss cases, shape how tasks get built, and tell us "
         "when something is wrong.</p>"
@@ -3407,7 +3418,7 @@ async def invite_to_community(
         raise HTTPException(
             status_code=409,
             detail="Only an approved physician can be invited. The community is a "
-                   "room of credential-verified peers — approve them first.")
+                   "room of credential-verified peers: approve them first.")
     if user.get("slack_joined"):
         # Nothing sent, no token minted. The safe answer to "invite them again"
         # for someone already inside.
@@ -3435,7 +3446,7 @@ async def invite_to_community(
             full_name=(user.get("full_name") or "").strip(), join_url=join_url))
     if not sent:
         raise HTTPException(status_code=503,
-                            detail="Could not send that email — nothing was sent. Try again.")
+                            detail="Could not send that email: nothing was sent. Try again.")
     store.log_event(entity_type="user", entity_id=user["id"],
                     event_type="community_invite_sent", actor=admin["email"],
                     payload={"email": user["email"], "expires_at": expires_at})
@@ -3614,8 +3625,8 @@ class AllocateBody(BaseModel):
         if len(chosen) > 1:
             raise ValueError(
                 f"choose ONE targeting mode, got {chosen}. They mean different "
-                f"things — a specialty send resolves its roster at send time, an "
-                f"explicit list does not, and to_all writes no assignments at all — "
+                f"things: a specialty send resolves its roster at send time, an "
+                f"explicit list does not, and to_all writes no assignments at all, "
                 f"so combining them would silently pick one.")
         return self
 
@@ -3993,7 +4004,7 @@ async def admin_batch_preview(
     out = {
         "task": _blind_task(task),
         "prompt": task.get("prompt"),
-        "eyebrow": "PREVIEW — read-only · exactly what the physician sees at labeling",
+        "eyebrow": "PREVIEW: read-only · exactly what the physician sees at labeling",
         "trajectory_id": task.get("trajectory_id"),
         "sequence_index": task.get("sequence_index"),
         "distribution": task.get("distribution") or "open",
@@ -5363,4 +5374,102 @@ async def community_activity_summary(
             }
             for r in rooms
         ],
+        "automation": _automation_status(cstore),
     }
+
+
+# ─── Is the routine actually running, and what did it last do ────────────────
+# The counts above answer "is the community alive". They cannot answer "is the
+# BOT alive", and that is the harder question, because every way this subsystem
+# switches itself off is silent: an unset gate posts nothing, a missing model
+# key records a SUCCESSFUL run with zero items, and a search provider that is
+# down does the same. From this tab all three used to look like a community
+# with nothing to say.
+#
+# /internal/community/status already answers it, but it is Bearer-authenticated
+# for the cron and returns nothing an operator can read at a glance, so this is
+# the same facts through the door the admin tab already knocks on. The
+# frontend never learns a secret's value: gates are booleans, dependencies are
+# booleans, and the runs carry a count and a reason.
+
+#: Ledger kinds that are a per-doctor delivery record rather than a scope. One
+#: row per member per day would bury the dozen rows worth looking at.
+_RUN_KIND_NOISE = ("morning:newsletter:member:",)
+
+#: What a stored reason means in a sentence an operator can act on. A reason
+#: the code has not seen is passed through as itself rather than dropped: a new
+#: token showing up unexplained is better than a panel that silently omits it.
+_RUN_REASON_TEXT = {
+    "posted": "posted",
+    "nothing_found": "nothing found to post",
+    "nothing_new": "nothing new since the last run",
+    "no_source_items": "no source returned anything",
+    "nothing_worth_posting": "found items, none worth posting",
+    "no_search_provider": "NO SEARCH PROVIDER configured",
+    "no_model_key": "NO ANTHROPIC_API_KEY set",
+    "provider_error": "the search provider failed",
+    "search_budget_exhausted": "the daily search budget was spent",
+    "post_blocked": "the post was blocked by the PHI gate",
+    "run_failed": "the run raised",
+}
+
+
+def _automation_status(cstore: Any) -> Dict[str, Any]:
+    """Gates, loops, dependencies and the last run of every scope."""
+    from community import digest as cdigest  # noqa: PLC0415
+    from community import morning as cmorning  # noqa: PLC0415
+
+    try:
+        runs = cstore.latest_run_per_kind(exclude_prefixes=list(_RUN_KIND_NOISE))
+    except Exception as exc:  # noqa: BLE001 - the ledger itself can be the fault
+        return {"error": str(exc)[:200]}
+
+    return {
+        "gates": [
+            {
+                "name": "Morning routine",
+                "var": "COMMUNITY_MORNING_ENABLED",
+                "on": cmorning.enabled(),
+                "loop_running": cmorning.loop_running(),
+            },
+            {
+                "name": "News and papers digests",
+                "var": "COMMUNITY_NEWS_ENABLED",
+                "on": cdigest.news_enabled(),
+                "loop_running": cdigest.loop_running(),
+            },
+        ],
+        "dependencies": {
+            # Booleans only. This payload reaches a browser.
+            "search_provider": cwebsearch_enabled(),
+            "anthropic_api_key": bool((os.getenv("ANTHROPIC_API_KEY") or "").strip()),
+        },
+        "runs": [
+            {
+                "kind": r["kind"],
+                "started_at": r["started_at"],
+                "finished_at": r["finished_at"],
+                # None while a run is still in flight, which is a third state
+                # and not the same as a failure.
+                "ok": None if r["ok"] is None else bool(r["ok"]),
+                "items_posted": int(r["items_posted"] or 0),
+                "reason": r.get("reason"),
+                "reason_text": _RUN_REASON_TEXT.get(
+                    r.get("reason") or "", r.get("reason") or ""),
+                "error": r.get("error"),
+            }
+            for r in runs
+        ],
+    }
+
+
+def cwebsearch_enabled() -> bool:
+    """Whether any search provider could actually be called right now.
+
+    Wrapped because ``websearch.enabled()`` notes a reason into whatever
+    sourcing context is open, and this read must not pollute a run's ledger
+    entry from an admin page refresh.
+    """
+    from community import search_providers as sp  # noqa: PLC0415
+
+    return any(sp.available(name) for name in sp.provider_order())

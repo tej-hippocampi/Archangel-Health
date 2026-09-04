@@ -154,9 +154,20 @@ def test_three_fields_are_enough_and_the_org_lands_in_intake():
     assert me["username"] == org["username"]
 
 
-def test_a_password_free_signup_is_mailed_a_temporary_one_and_must_replace_it(mail):
+def test_a_password_free_signup_is_mailed_a_claim_link_and_no_credential(mail):
+    """The three-field door mails a LINK, never a passphrase.
+
+    It used to generate a password, put it in this letter, and force a rotation
+    at first sign-in. Nothing about that was safe to keep once a claim link
+    existed: a credential in an inbox is a credential in every forward of that
+    inbox, and the rotation screen made the first thing a partner ever did in
+    the product be replacing something we had given them a minute earlier.
+    """
     client = _client()
     org = _signup(client)
+    # They are signed in already on THIS session, and still flagged for reset:
+    # the account holds a random secret nobody has, so the only two ways in are
+    # this session and the link in the letter.
     assert org["must_reset"] is True
     assert client.get(f"{API}/hs/me").json()["must_reset"] is True
 
@@ -164,30 +175,34 @@ def test_a_password_free_signup_is_mailed_a_temporary_one_and_must_replace_it(ma
     assert len(access) == 1, [m["subject"] for m in mail]
     assert org["email"] == access[0]["to"]
     body = access[0]["body"]
-    # §2.3: mission block, the credentials card, and the bookmark line.
+    # §2.3: the mission block and the bookmark line survive; the credentials
+    # card is gone and what replaced it is one button.
     assert "Doctors earn from their judgment" in body
-    assert "temporary" in body.lower()
     assert "Bookmark this email" in body
+    assert "Set up your account" in body
+    assert "Temporary password" not in body
 
-    # The temporary password in that email actually signs in. Read it back out
-    # of the letter rather than out of the database: what matters is that the
-    # credential the recipient can see is the credential that works.
-    temp = re.search(r">([a-z]+-[a-z]+-[a-z]+-[0-9a-f]{6})<", body)
-    assert temp, "the access email does not show a password"
+    # No passphrase in the letter, in the shape the old card printed them.
+    assert not re.search(r">([a-z]+-[a-z]+-[a-z]+-[0-9a-f]{6})<", body), (
+        "the access email still ships a credential")
+
+    # The link in that letter is what actually opens the account, from a browser
+    # that never held the signup session.
+    token = re.search(r"[?&]invite=([A-Za-z0-9_-]+)", body)
+    assert token, "the access email carries no claim link"
     fresh = _client()
-    r = fresh.post(f"{API}/hs/login",
-                   json={"username": org["username"], "password": temp.group(1)})
+    r = fresh.post(f"{API}/hs/invite/{token.group(1)}/claim",
+                   json={"full_name": "Dana Reyes", "password": PASSWORD})
     assert r.status_code == 200, r.text
-    assert r.json()["must_reset"] is True
-
-    # And it stops working the moment they choose their own — the forced
-    # rotation, which is the whole reason a mailed credential is acceptable.
-    _rotate(fresh)
-    assert fresh.get(f"{API}/hs/me").json()["must_reset"] is False
-    stale = _client()
-    r = stale.post(f"{API}/hs/login",
-                   json={"username": org["username"], "password": temp.group(1)})
-    assert r.status_code == 401
+    assert r.json()["must_reset"] is False
+    me = fresh.get(f"{API}/hs/me").json()
+    assert me["must_reset"] is False
+    assert me["full_name"] == "Dana Reyes"
+    # And the password they chose is the one that signs them in from anywhere.
+    again = _client()
+    r = again.post(f"{API}/hs/login",
+                   json={"username": org["username"], "password": PASSWORD})
+    assert r.status_code == 200, r.text
 
 
 def test_a_signup_that_chooses_a_password_is_not_forced_to_rotate(mail):
@@ -1235,7 +1250,7 @@ def test_the_uploads_summary_carries_all_four_states_even_at_zero():
 def test_a_member_added_before_the_signature_is_told_about_the_agreement(mail):
     """The agreement letter goes to every member at APPROVAL time. Somebody added
     after that moment never existed when it was sent, so without this line they
-    arrive holding credentials and no idea a contract is sitting unsigned. The
+    arrive with an account and no idea a contract is sitting unsigned. The
     portal rail rescues them; the email trail was one letter short."""
     client = _client()
     store = _store()
@@ -1250,12 +1265,16 @@ def test_a_member_added_before_the_signature_is_told_about_the_agreement(mail):
     # The same words the agreement letter uses, because two descriptions of one
     # contract is how a signer decides they are being asked for two things.
     assert "data licensing agreement" in body
-    assert "Read and sign" in body
     assert "signing authority" in body
+    # DESCRIBED, not linked. The agreement lives behind a session and this
+    # recipient has no account until they follow the claim link, so a second
+    # button would be a door that cannot open. One CTA, and it is the claim.
+    assert "Read and sign" not in body
+    assert body.count("Set up your account") == 1
     # Added TO, not replaced: the letter still does its original job of naming
-    # the colleague and carrying the credential.
+    # the colleague, which is the only thing that makes it legible rather than
+    # phishing.
     assert "added you" in body
-    assert "Open your portal" in body
 
 
 def test_a_member_added_after_the_signature_hears_nothing_about_signing(mail):
@@ -1272,7 +1291,7 @@ def test_a_member_added_after_the_signature_hears_nothing_about_signing(mail):
                        json={"emails": ["ontime@example.org"]}).status_code == 200
     body = next(m for m in mail if m["to"] == "ontime@example.org")["body"]
     assert "data licensing agreement" not in body
-    assert "Read and sign" not in body
+    assert "signing authority" not in body
 
 
 @pytest.mark.parametrize("state", ["intake", "submitted", "active", "declined"])
@@ -1287,4 +1306,4 @@ def test_only_awaiting_signature_adds_the_agreement_line(state, mail):
     store.set_hs_onboarding_state(org["hs_id"], state)
     addr = f"m{uuid.uuid4().hex[:6]}@example.org"
     assert client.post(f"{API}/hs/members", json={"emails": [addr]}).status_code == 200
-    assert "Read and sign" not in next(m for m in mail if m["to"] == addr)["body"]
+    assert "signing authority" not in next(m for m in mail if m["to"] == addr)["body"]

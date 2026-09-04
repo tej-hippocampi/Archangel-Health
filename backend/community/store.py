@@ -44,7 +44,7 @@ DEFAULT_CHANNELS = [
     {
         "slug": "introductions",
         "name": "introductions",
-        "description": "New here? Say hello — specialty, where you practice, what you're curious about.",
+        "description": "New here? Say hello: specialty, where you practice, what you're curious about.",
         "post_policy": "all",
         "grp": "core",
     },
@@ -79,7 +79,7 @@ DEFAULT_CHANNELS = [
     {
         "slug": "future-of-medical-ai",
         "name": "future-of-medical-ai",
-        "description": "Where is AI in medicine actually going? Open debate — takes, papers, predictions.",
+        "description": "Where is AI in medicine actually going? Open debate: takes, papers, predictions.",
         "post_policy": "all",
         "grp": "core",
     },
@@ -265,7 +265,7 @@ def specialty_channel_defs() -> List[Dict[str, Any]]:
         out.append({
             "slug": cfg.name,
             "name": cfg.name,
-            "description": f"For {cfg.name} colleagues — cases (de-identified), literature, and specialty task talk.",
+            "description": f"For {cfg.name} colleagues: cases (de-identified), literature, and specialty task talk.",
             "post_policy": "all",
             "grp": "specialty",
             "specialty": cfg.name,
@@ -602,6 +602,34 @@ class CommunityStore:
                     "ALTER TABLE community_email_prefs "
                     "ADD COLUMN activity_emails INTEGER NOT NULL DEFAULT 1"
                 )
+            # Two more streams, once the bot's own posts and pins started
+            # producing mail. Same shape and same reasoning as activity_emails:
+            # defaults on because every member was already getting the morning
+            # in their channels, separate switches because "stop telling me
+            # about pins" and "stop telling me I was mentioned" are different
+            # requests and one button for both is how a preferences page turns
+            # into a spam complaint.
+            if "post_emails" not in pref_cols:
+                conn.execute(
+                    "ALTER TABLE community_email_prefs "
+                    "ADD COLUMN post_emails INTEGER NOT NULL DEFAULT 1"
+                )
+            if "pin_emails" not in pref_cols:
+                conn.execute(
+                    "ALTER TABLE community_email_prefs "
+                    "ADD COLUMN pin_emails INTEGER NOT NULL DEFAULT 1"
+                )
+            # Send attempts on one queued notification. The flush marked every
+            # row sent whether or not the send succeeded, so a single transient
+            # SendGrid error silently ate a member's activity mail and nothing
+            # anywhere recorded that it had. Counting attempts is what makes a
+            # retry possible and what makes giving up a decision rather than an
+            # accident.
+            if "attempts" not in cols("community_notifications"):
+                conn.execute(
+                    "ALTER TABLE community_notifications "
+                    "ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0"
+                )
             # ─── Task Pipeline PRD B1: per-case group rooms ───────────────────
             # Additive only. ``kind`` defaults to 'dm' so every existing row keeps
             # the behaviour it already had without being rewritten, and the two
@@ -652,6 +680,15 @@ class CommunityStore:
             if "window_key" not in cols("community_digest_runs"):
                 conn.execute(
                     "ALTER TABLE community_digest_runs ADD COLUMN window_key TEXT")
+            # WHY a run posted nothing. ``ok=1, items_posted=0`` is recorded for
+            # a genuinely quiet day AND for a run with no model key and no
+            # search provider, and those two are the same row. The reason is
+            # the only thing that tells an operator which one they are looking
+            # at, so it is stored next to the outcome rather than inferred from
+            # a log line that has already rotated away.
+            if "reason" not in cols("community_digest_runs"):
+                conn.execute(
+                    "ALTER TABLE community_digest_runs ADD COLUMN reason TEXT")
             conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_cdigest_window "
                 "ON community_digest_runs(kind, window_key) "
@@ -1155,6 +1192,18 @@ class CommunityStore:
     #: ``community_dms.kind`` for a routed-case room. Everything else is 'dm'.
     ROOM_KIND = "case_room"
 
+    #: ``community_dms.kind`` for a group a MEMBER opened, as opposed to one
+    #: routing opened for a case. Same object, same message pipeline, same
+    #: members table; the kind is what tells the two apart, and it has to,
+    #: because the router grants admins a read exception on ``case_room`` and
+    #: that exception must never reach a conversation people started themselves.
+    GROUP_KIND = "group"
+
+    #: Every kind whose membership lives in ``community_dm_members`` rather than
+    #: in the two legacy columns. Named once so a third kind cannot be added to
+    #: the store and silently miss one of the three places membership is read.
+    MULTI_KINDS = frozenset({ROOM_KIND, GROUP_KIND})
+
     @staticmethod
     def _add_members(conn: sqlite3.Connection, dm_id: str,
                      user_ids: List[str], now: str) -> None:
@@ -1215,6 +1264,50 @@ class CommunityStore:
         out["created"] = (out["id"] == room_id)
         return out
 
+    def create_group(self, creator_id: str, title: str,
+                     member_ids: List[str]) -> Dict[str, Any]:
+        """A group conversation a member opened, with a name they chose.
+
+        Not get-or-create, unlike both of its neighbours. A two-party DM is
+        keyed on the pair and a case room on the case, so asking for either one
+        twice must return the same object. A group is keyed on nothing: two
+        groups with the same three people and the same title are two different
+        conversations, exactly as they are in every messaging product, and
+        collapsing them would silently drop the second one into the first.
+
+        ``user_a``/``user_b`` are NOT NULL columns from the two-party era and
+        are filled with the group's own id, the same shape
+        ``get_or_create_case_room`` uses: a group has no two parties, and a
+        conversation id can never equal a user id, so the legacy
+        UNIQUE (user_a, user_b) constraint cannot collide with a real pair.
+
+        The creator is always a member. A group whose author cannot read it is
+        not a state anything downstream is written to handle.
+        """
+        name = (title or "").strip()
+        if not name:
+            raise ValueError("a group needs a title")
+        if not creator_id:
+            raise ValueError("a group needs a creator")
+        members: List[str] = []
+        for uid in [creator_id] + list(member_ids or []):
+            if uid and uid not in members:
+                members.append(uid)
+        group_id = "dm-" + uuid.uuid4().hex[:16]
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO community_dms "
+                "  (id, user_a, user_b, created_at, kind, case_ref, title) "
+                "VALUES (?, ?, ?, ?, ?, NULL, ?)",
+                (group_id, group_id, group_id, now, self.GROUP_KIND, name),
+            )
+            self._add_members(conn, group_id, members, now)
+            row = conn.execute(
+                "SELECT * FROM community_dms WHERE id = ?", (group_id,)
+            ).fetchone()
+        return dict(row)
+
     def get_case_room(self, case_ref: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
             row = conn.execute(
@@ -1256,9 +1349,11 @@ class CommunityStore:
 
         A two-party DM answers from its own columns rather than the members
         table, so privacy on the oldest rows in the database never depends on a
-        backfill having run.
+        backfill having run. Every other kind -- a case room, a group somebody
+        opened -- is answered by the members table, which is the only place a
+        conversation with three people in it can be recorded.
         """
-        if (dm or {}).get("kind") == self.ROOM_KIND:
+        if (dm or {}).get("kind") in self.MULTI_KINDS:
             return self.room_participants(dm["id"])
         return [u for u in (dm.get("user_a"), dm.get("user_b")) if u]
 
@@ -1300,7 +1395,7 @@ class CommunityStore:
             out = []
             for r in rows:
                 d = dict(r)
-                if d.get("kind") == self.ROOM_KIND:
+                if d.get("kind") in self.MULTI_KINDS:
                     # No peer: naming one of three participants as "the" other
                     # side would make the same room look like a different
                     # conversation to each member.
@@ -1403,6 +1498,47 @@ class CommunityStore:
                 f"UPDATE community_notifications SET emailed_at = ? WHERE id IN ({qmarks})",
                 [_utcnow_iso(), *ids],
             )
+
+    #: Send attempts a queued notification gets before the queue gives up on
+    #: it. Three because the failures worth retrying are transient (a vendor
+    #: 502, a DNS blip) and clear inside minutes at the flush interval, while
+    #: the ones that are not (a dead address) never clear and would otherwise
+    #: be retried until the row outlives the member.
+    MAX_NOTIFICATION_ATTEMPTS = 3
+
+    def record_notification_failure(self, ids: List[int]) -> List[int]:
+        """Count one failed send against these rows; return the ones we give up on.
+
+        The rows that have now used every attempt are marked emailed so the
+        queue drains, and their ids come back so the caller can log the
+        give-up. Everything else stays pending and the next flush retries it.
+        The failure used to be invisible: the flush marked every row sent
+        whether or not the send worked, so one transient error ate a member's
+        mail and left a queue that looked perfectly healthy.
+        """
+        if not ids:
+            return []
+        qmarks = ",".join("?" * len(ids))
+        with self._conn() as conn:
+            conn.execute(
+                f"UPDATE community_notifications SET attempts = attempts + 1 "
+                f"WHERE id IN ({qmarks})",
+                list(ids),
+            )
+            rows = conn.execute(
+                f"SELECT id FROM community_notifications "
+                f"WHERE id IN ({qmarks}) AND emailed_at IS NULL AND attempts >= ?",
+                [*ids, self.MAX_NOTIFICATION_ATTEMPTS],
+            ).fetchall()
+            exhausted = [int(r["id"]) for r in rows]
+            if exhausted:
+                marks = ",".join("?" * len(exhausted))
+                conn.execute(
+                    f"UPDATE community_notifications SET emailed_at = ? "
+                    f"WHERE id IN ({marks})",
+                    [_utcnow_iso(), *exhausted],
+                )
+        return exhausted
 
     # ─── Moderation: community-scoped bans (PRD §7.5) ─────────────────────────
     # "Deactivate a member" is community-scoped by design: it removes community
@@ -1567,17 +1703,40 @@ class CommunityStore:
             )
         return self.email_prefs(user_id)
 
-    def unsubscribe_by_token(self, token: str) -> Optional[str]:
+    #: The email streams a member can switch off one at a time, mapped to the
+    #: column that holds each one. ``news`` is absent on purpose: it is a
+    #: cadence (daily/weekly/off), not a boolean, and lives in news_frequency.
+    TOGGLE_STREAMS = {
+        "activity": "activity_emails",
+        "post": "post_emails",
+        "pin": "pin_emails",
+    }
+
+    def unsubscribe_by_token(
+        self, token: str, *, kind: Optional[str] = None
+    ) -> Optional[str]:
         """One click, no sign-in. Returns the user_id it turned off, or None.
 
         Deliberately does NOT require a session: an unsubscribe link that makes
         someone log in first is an unsubscribe link that gets a spam complaint
         instead, and one complaint costs the sending domain that every other
         physician's mail goes through.
+
+        ``kind`` narrows it to ONE stream, so the link in a pin notification can
+        stop pin notifications and nothing else. Without it the behaviour is
+        exactly what it has always been (everything off), and it has to stay
+        exactly that, because links in mail already sent carry no kind and must
+        not quietly come to mean less than they said.
         """
         tok = (token or "").strip()
         if not tok:
             return None
+        column = self.TOGGLE_STREAMS.get((kind or "").strip().lower()) if kind else None
+        if kind and not column:
+            # An unknown kind falls back to the broad unsubscribe rather than
+            # doing nothing. A member pressed "stop these"; the safe failure is
+            # stopping too much, never stopping nothing.
+            column = None
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT user_id FROM community_email_prefs WHERE unsubscribe_token = ?",
@@ -1585,13 +1744,21 @@ class CommunityStore:
             ).fetchone()
             if not row:
                 return None
+            if column:
+                conn.execute(
+                    f"UPDATE community_email_prefs SET {column} = 0, updated_at = ? "
+                    "WHERE unsubscribe_token = ?",
+                    (_utcnow_iso(), tok),
+                )
+                return row["user_id"]
             # One click stops EVERY non-transactional email, not only the news
             # cadence. The member pressed a button that said "stop these"; if
             # the 5-minute activity digest kept arriving afterwards the button
             # was a lie, and the next click is the spam button.
             conn.execute(
                 "UPDATE community_email_prefs "
-                "SET news_frequency = 'off', activity_emails = 0, updated_at = ? "
+                "SET news_frequency = 'off', activity_emails = 0, "
+                "    post_emails = 0, pin_emails = 0, updated_at = ? "
                 "WHERE unsubscribe_token = ?",
                 (_utcnow_iso(), tok),
             )
@@ -1603,22 +1770,40 @@ class CommunityStore:
         Separate from ``set_news_frequency`` so a member can keep being told
         they were mentioned while taking no news at all.
         """
+        return self.set_email_stream(user_id, "activity", enabled)
+
+    def set_email_stream(self, user_id: str, stream: str, enabled: bool) -> Dict[str, Any]:
+        """Turn one named email stream on or off (see ``TOGGLE_STREAMS``)."""
+        column = self.TOGGLE_STREAMS.get((stream or "").strip().lower())
+        if not column:
+            raise ValueError(f"unknown email stream {stream!r}")
         self.email_prefs(user_id)  # ensure the row and its token exist
         with self._conn() as conn:
             conn.execute(
-                "UPDATE community_email_prefs SET activity_emails = ?, updated_at = ? "
+                f"UPDATE community_email_prefs SET {column} = ?, updated_at = ? "
                 "WHERE user_id = ?",
                 (1 if enabled else 0, _utcnow_iso(), user_id),
             )
         return self.email_prefs(user_id)
 
+    def wants_email_stream(self, user_id: str, stream: str) -> bool:
+        """Whether this member still takes one stream of mail.
+
+        Absence of a row, and absence of a column value, both mean yes: the
+        prefs row is written lazily on first read, and a member who has never
+        been emailed has not opted out of anything.
+        """
+        column = self.TOGGLE_STREAMS.get((stream or "").strip().lower())
+        if not column:
+            return True
+        raw = self.email_prefs(user_id).get(column)
+        return True if raw is None else bool(int(raw))
+
     def wants_activity_email(self, user_id: str) -> bool:
         """Whether this member still takes activity digests. Absence of a row
         means yes (the prefs row is created lazily on first read, and a member
         who has never been emailed has not opted out of anything)."""
-        prefs = self.email_prefs(user_id)
-        raw = prefs.get("activity_emails")
-        return True if raw is None else bool(int(raw))
+        return self.wants_email_stream(user_id, "activity")
 
     # ─── Paid-search budget ──────────────────────────────────────────────────
     def search_calls_today(self, provider: str, *, day: Optional[str] = None) -> int:
@@ -1906,6 +2091,7 @@ class CommunityStore:
     def finish_digest_run(
         self, run_id: int, *, ok: bool, items_fetched: int = 0,
         items_posted: int = 0, error: Optional[str] = None,
+        reason: Optional[str] = None,
     ) -> None:
         """Close a run. A FAILED run releases its window.
 
@@ -1914,16 +2100,49 @@ class CommunityStore:
         its whole day, and the next tick finds the window free again. A
         successful run keeps its window, which is what makes "once per channel
         per day" true.
+
+        ``reason`` says WHY, in one machine-readable token, and matters most on
+        the runs that succeed with nothing: a morning with no API key and a
+        morning on which the web had nothing new are the same row without it.
         """
         with self._conn() as conn:
             conn.execute(
                 "UPDATE community_digest_runs SET finished_at = ?, ok = ?, "
-                "items_fetched = ?, items_posted = ?, error = ?, "
+                "items_fetched = ?, items_posted = ?, error = ?, reason = ?, "
                 "window_key = CASE WHEN ? THEN window_key ELSE NULL END "
                 "WHERE id = ?",
                 (_utcnow_iso(), 1 if ok else 0, items_fetched, items_posted,
-                 (error or None), 1 if ok else 0, run_id),
+                 (error or None), (reason or None), 1 if ok else 0, run_id),
             )
+
+    def latest_run_per_kind(
+        self, *, exclude_prefixes: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """The newest run of every kind, whatever its outcome.
+
+        The read behind the admin tab's automation panel. Newest rather than
+        newest-successful on purpose: a scope whose last run failed, or
+        succeeded with nothing because there was no search provider, is exactly
+        the scope an operator needs to see, and filtering to successes would
+        hide it behind the last day it happened to work.
+
+        ``exclude_prefixes`` exists for the newsletter, which ledgers one kind
+        per DOCTOR per day (``morning:newsletter:member:<id>``). Those rows are
+        a delivery record, not a scope, and listing them would bury the dozen
+        rows an operator is actually looking at under one row per member.
+        """
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT r.* FROM community_digest_runs r "
+                "  JOIN (SELECT kind, MAX(id) AS newest "
+                "          FROM community_digest_runs GROUP BY kind) latest "
+                "    ON r.id = latest.newest "
+                " ORDER BY r.kind ASC"
+            ).fetchall()
+        out = [dict(r) for r in rows]
+        for prefix in (exclude_prefixes or ()):
+            out = [r for r in out if not str(r.get("kind") or "").startswith(prefix)]
+        return out
 
     def last_successful_run_at(self, kind: str) -> Optional[str]:
         """Started-at of the newest ok run — the restart-safe schedule marker."""

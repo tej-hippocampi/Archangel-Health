@@ -334,7 +334,7 @@ async def generate_candidates_ex(
                 f"the model's answer was truncated at the token budget "
                 f"(stop_reason=max_tokens, {len(raw)} chars returned), so the JSON "
                 f"could not be parsed. On a thinking-capable model the budget is "
-                f"spent on thinking before the answer starts — raise the role's "
+                f"spent on thinking before the answer starts, raise the role's "
                 f"max_tokens or LLM_ANTHROPIC_THINKING_RESERVE.")
         return _empty(f"the model replied but no candidate_answers could be parsed "
                       f"from it ({len(raw)} chars, stop_reason={stop})")
@@ -583,10 +583,10 @@ async def run_prompt_gen(
     )
     user = (
         f"Specialty: {specialty}\n"
-        f"Taxonomy bucket: {bucket_id} — {bucket_label}\n\n"
+        f"Taxonomy bucket: {bucket_id}: {bucket_label}\n\n"
         f"{diff_line}"
         f"Known AI failure modes to target in this bucket:\n{fm_lines}\n\n"
-        f"EXEMPLAR seed prompts (write NEW, distinct vignettes in this profile — do NOT paraphrase these):\n"
+        f"EXEMPLAR seed prompts (write NEW, distinct vignettes in this profile, do NOT paraphrase these):\n"
         + "\n".join(ex_lines)
         + f"\n\nProduce exactly {n} new prompt object(s) for bucket '{bucket_id}'."
     )

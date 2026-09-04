@@ -108,7 +108,7 @@
   function slackText(s) {
     if (s === true || s === 1) return 'Joined';
     if (s === false || s === 0) return 'Not joined';
-    return '—'; // not checked
+    return '-'; // not checked
   }
 
   // ─── Section entry ───────────────────────────────────────
@@ -201,7 +201,7 @@
   }
 
   function num(v, digits, signed) {
-    if (v === null || v === undefined || isNaN(v)) return '—';
+    if (v === null || v === undefined || isNaN(v)) return '-';
     const s = Number(v).toFixed(digits === undefined ? 3 : digits);
     return signed && v >= 0 ? '+' + s : s;
   }
@@ -211,7 +211,7 @@
     clearNode(body);
 
     body.appendChild(h('div', { class: 'vq-section-label' },
-      'Tier weights — posterior vs the rule it started from'));
+      'Tier weights: posterior vs the rule it started from'));
     body.appendChild(h('div', { class: 'vq-attempt' },
       (weights.pending_decisions || 0) + ' decision(s) not yet folded in · '
       + 'each batch may move any weight by at most ' + weights.max_delta_per_batch
@@ -244,12 +244,12 @@
     }
 
     body.appendChild(h('div', { class: 'vq-section-label' },
-      'Reviewer selection rate by voluntary self-report — four-fifths rule'));
+      'Reviewer selection rate by voluntary self-report, four-fifths rule'));
     const dims = fairness.dimensions || {};
     if (!Object.keys(dims).length) {
       body.appendChild(h('div', { class: 'vq-attempt' },
         'No self-reported demographics on file yet. The monitor needs volunteers, not '
-        + 'inference — nothing here is derived from a name, a school, or a region.'));
+        + 'inference: nothing here is derived from a name, a school, or a region.'));
     }
     Object.keys(dims).sort().forEach(function (dim) {
       body.appendChild(h('div', { class: 'vq-reason' }, humanize(dim)));
@@ -263,7 +263,7 @@
             humanize(g),
             { text: String(r.n), attrs: { class: 'asc-mono' } },
             { text: (r.rate * 100).toFixed(0) + '%', attrs: { class: 'asc-mono' } },
-            { text: r.impact_ratio === null ? '—' : num(r.impact_ratio, 2),
+            { text: r.impact_ratio === null ? '-' : num(r.impact_ratio, 2),
               attrs: { class: 'asc-mono' } },
             r.counted ? '' : 'below n=' + fairness.min_group_n + ', not alerted on',
           ],
@@ -282,7 +282,7 @@
     const byFeature = fairness.by_feature || {};
     if (Object.keys(byFeature).length) {
       body.appendChild(h('div', { class: 'vq-section-label' },
-        'Feature means by group — which feature carries the gap'));
+        'Feature means by group, which feature carries the gap'));
       Object.keys(byFeature).sort().forEach(function (dim) {
         const groups = byFeature[dim];
         const names = {};
@@ -298,7 +298,7 @@
               cells: [{ text: f, attrs: { class: 'asc-mono' } }].concat(
                 groupNames.map(function (g) {
                   const cell = groups[g][f];
-                  return { text: cell ? num(cell.mean, 2) : '—',
+                  return { text: cell ? num(cell.mean, 2) : '-',
                            attrs: { class: 'asc-mono' } };
                 })),
             };
@@ -497,7 +497,7 @@
         : rows.length + ' physician accounts have no verification decision.'),
       h('p', {},
         'They are filed correctly as physicians, but the roster shows only '
-        + 'approved accounts and the queue shows only pending ones — so these '
+        + 'approved accounts and the queue shows only pending ones, so these '
         + 'appear in neither, and cannot be tiered or sent a real case from this '
         + 'console. They can still sign in and label. Approving one here records '
         + 'the decision against your account, exactly as the queue would, and '
@@ -526,7 +526,7 @@
         if (res && res.can_label_real_cases === false) {
           // Approved, but still not able to draw a real case. Say so here rather
           // than let the operator discover it as an empty queue on their side.
-          status.textContent = 'Approved \u2014 but real cases are still blocked; '
+          status.textContent = 'Approved, but real cases are still blocked; '
             + 'check Tasks › real-case access.';
           status.classList.add('asc-inline-warn');
         }
@@ -577,7 +577,7 @@
           + (activeTab === id ? ' active' : ''),
         // A count we could not read is '—', never '0'. A zero here would be a
         // confident claim that nobody is waiting, made on no information.
-      }, label, h('span', { class: 'asc-chip-count' }, failed ? '—' : String(n)));
+      }, label, h('span', { class: 'asc-chip-count' }, failed ? '-' : String(n)));
       el.addEventListener('click', () => {
         activeTab = id; selectedId = null; pendingId = null; rerender();
       });
@@ -673,7 +673,7 @@
       rows.push({
         kind: 'signup',
         user_id: null,
-        name: s.name || s.email || '—',
+        name: s.name || s.email || '-',
         specialty: s.specialty || null,
         signup: s,
       });
@@ -886,7 +886,7 @@
   /* The roster's null placeholder, written as an escape rather than the glyph
    * so the source stays ASCII. Same character the score column has always
    * rendered: an unmeasured physician must not read as a measured bad one. */
-  const NULL_CELL = '\u2014';
+  const NULL_CELL = '-';
 
   /* Median seconds as minutes and seconds. An operator comparing physicians
    * reads "7m 20s" instantly and has to do arithmetic on "440". */
@@ -930,7 +930,7 @@
       return;
     }
     cell.appendChild(h('span', {}, p.slack_joined === false || p.slack_joined === 0
-      ? 'Not joined' : '—'));
+      ? 'Not joined' : '-'));
 
     const btn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
       'Send Invite');
@@ -1018,7 +1018,7 @@
   function shortTime(iso) {
     const s = String(iso || '');
     const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(s);
-    return m ? m[1] + ' ' + m[2] : (s.slice(0, 16) || '—');
+    return m ? m[1] + ' ' + m[2] : (s.slice(0, 16) || '-');
   }
 
   /* ─── Tab B — Pending for Review (§2.3) ───────────────────────────────────
@@ -1184,11 +1184,11 @@
      email makes ("within 24 hours"). Amber past a day, because the number is
      only useful if the overdue ones are visible without reading every row. */
   function waitingCell(h, iso) {
-    if (!iso) return h('td', {}, '—');
+    if (!iso) return h('td', {}, '-');
     const then = new Date(String(iso).endsWith('Z') || String(iso).includes('+')
       ? iso : iso + 'Z');
     const days = Math.floor((Date.now() - then.getTime()) / 86400000);
-    if (!isFinite(days) || days < 0) return h('td', {}, '—');
+    if (!isFinite(days) || days < 0) return h('td', {}, '-');
     const text = days < 1 ? 'today' : days + 'd';
     if (days < 1) return h('td', {}, text);
     return h('td', {}, h('span', { class: 'asc-badge asc-badge-amber' }, text));
@@ -1211,7 +1211,7 @@
             'Signup incomplete'),
           h('span', { class: 'asc-dim', style: 'margin-left:6px' },
             'step ' + r.signup.stage_index + '/' + r.signup.stage_total)),
-        h('td', {}, r.specialty || '—'),
+        h('td', {}, r.specialty || '-'),
         h('td', {}, resendBtn(ctx, r.signup)));
     }
     const tr = h('tr', { class: 'asc-row-click' + (r.ready_for_review ? ' vq-ready-row' : '') },
@@ -1223,12 +1223,12 @@
           ? h('span', { class: 'vq-ready-chip', title: 'Credentials evidence on '
                         + 'file and the practice case sat.' }, 'Ready')
           : null),
-      h('td', {}, r.specialty || '—'),
+      h('td', {}, r.specialty || '-'),
       waitingCell(h, r.created_at),
       practiceCell(h, r.practice_case),
       // The proposal, not the score. A number in a queue invites deciding on
       // the number; the tier word says which rows need real thought.
-      h('td', {}, r.proposed_tier_word || '—'),
+      h('td', {}, r.proposed_tier_word || '-'),
       // Rendered only when non-zero: an always-present count makes every row
       // look flagged, which is the same as none of them being flagged.
       h('td', {}, r.look
@@ -1518,7 +1518,7 @@
   function cvLink(ctx, userId, d) {
     const { h } = ctx;
     const btn = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
-      d.cv_ok ? 'View CV' : 'View CV (could not parse — read the file)');
+      d.cv_ok ? 'View CV' : 'View CV (could not parse: read the file)');
     btn.addEventListener('click', () => { openCv(ctx, userId); });
     return h('div', {}, btn);
   }
@@ -1558,11 +1558,11 @@
       h('div', { class: 'asc-card-head' },
         h('div', {}, h('div', { class: 'asc-card-title' }, 'Recommendation')),
         h('div', { class: 'asc-mono' },
-          d.score == null ? 'score —' : 'score ' + d.score)));
+          d.score == null ? 'score' : 'score ' + d.score)));
     const pad = h('div', { class: 'asc-card-pad' });
     pad.appendChild(h('div', { class: 'vq-section-label' },
       proposed ? (words[proposed] || proposed)
-        : 'No tier proposed — the decision is entirely yours'));
+        : 'No tier proposed: the decision is entirely yours'));
     (d.reasons || []).forEach((r) => { pad.appendChild(reasonLine(h, r)); });
 
     const blockers = d.blockers || [];
@@ -1612,7 +1612,7 @@
     if (t.tr_eligible === false && missing.length) {
       pad.appendChild(h('div', { class: 'vq-attempt' },
         'Not yet reviewer-eligible: ' + missing.join(', ')
-        + '. This is the gate layer, which is policy and is never learned — it is '
+        + '. This is the gate layer, which is policy and is never learned, it is '
         + 'not a veto, and both approve buttons stay live.'));
     }
     // The tier the LEARNING model would have proposed, when it differs from the
@@ -1624,7 +1624,7 @@
         'The learning model proposes '
         + (modelTier ? (words[modelTier] || modelTier) : 'no tier yet')
         + (t.score == null ? '' : ' (score ' + Number(t.score).toFixed(2) + ')')
-        + ' — a different question from the credential score above, and the one '
+        + ', a different question from the credential score above, and the one '
         + 'your decision is recorded against.'));
     }
   }
@@ -1655,7 +1655,7 @@
 
     const note = h('textarea', {
       class: 'vq-note', rows: '2',
-      placeholder: 'Note — required to reject, recommended always',
+      placeholder: 'Note: required to reject, recommended always',
     });
     const status = h('div', {});
     const actions = h('div', { class: 'vq-actions' });
@@ -1776,7 +1776,7 @@
     const { h } = ctx;
     const box = h('details', { class: 'asc-card' });
     box.appendChild(h('summary', { class: 'asc-card-pad' },
-      'Background research — not part of the recommendation'));
+      'Background research: not part of the recommendation'));
     const pad = h('div', { class: 'asc-card-pad' });
     pad.appendChild(h('div', { class: 'asc-dim' },
       'Gathered by the verification agent from public pages, some of which the '
@@ -1923,13 +1923,13 @@
     container.appendChild(historyCard(ctx, 'Task history',
       ['When', 'Task', 'Status'],
       (data.task_history || []).map((t) => [
-        t.created_at ? fmtDate(t.created_at) : '—', t.task_id || '—', t.status || '—'])));
+        t.created_at ? fmtDate(t.created_at) : '-', t.task_id || '-', t.status || '-'])));
     // Review history renders for the tier that holds the REVIEW capability.
     if (p.tier === 'reviewer') {
       container.appendChild(historyCard(ctx, 'Review history',
         ['When', 'Submission', 'Verdict'],
         (data.review_history || []).map((r) => [
-          r.created_at ? fmtDate(r.created_at) : '—', r.submission_id || '—', r.verdict || '—'])));
+          r.created_at ? fmtDate(r.created_at) : '-', r.submission_id || '-', r.verdict || '-'])));
     }
   }
 
@@ -2043,7 +2043,7 @@
       if (v && /^https?:\/\//.test(String(v))) {
         dl.appendChild(h('dd', {}, h('a', { href: v, target: '_blank', rel: 'noopener noreferrer' }, v)));
       } else {
-        dl.appendChild(h('dd', {}, v == null || v === '' ? '—' : String(v)));
+        dl.appendChild(h('dd', {}, v == null || v === '' ? '-' : String(v)));
       }
     });
     return h('div', {}, h('div', { class: 'asc-card-title', style: 'font-size:14px' }, title), dl);

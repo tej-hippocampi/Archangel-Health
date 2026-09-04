@@ -67,9 +67,9 @@
      already refuses to write 0 for an unrecorded duration (see
      _enrich_case_context); this is the other half of that promise. */
   function duration(seconds) {
-    if (seconds === null || seconds === undefined || seconds === '') return '—';
+    if (seconds === null || seconds === undefined || seconds === '') return '-';
     var s = Math.max(0, Math.round(Number(seconds)));
-    if (!s) return '—';
+    if (!s) return '-';
     var m = Math.floor(s / 60);
     var rest = s % 60;
     return m + 'm ' + (rest < 10 ? '0' : '') + rest + 's';
@@ -144,8 +144,8 @@
         h('tbody', {}, rows.map(function (r) {
           var tr = h('tr', { class: 'asc-row-click' },
             h('td', {}, h('strong', {}, r.user.name || r.user.email || r.user.id)),
-            h('td', {}, r.user.specialty || '—'),
-            h('td', {}, r.user.tier_word || '—'),
+            h('td', {}, r.user.specialty || '-'),
+            h('td', {}, r.user.tier_word || '-'),
             h('td', { class: 'asc-mono' }, String(r.nRows)),
             h('td', { class: 'asc-mono' }, money(r.paid)),
             h('td', { class: 'asc-mono' }, money(r.outstanding)));
@@ -278,7 +278,7 @@
         class: 'asc-dim',
         title: 'Not graded yet. A case gets its quality number when a reviewer '
              + 'or QA decides it.',
-      }, '—');
+      }, '-');
     }
     var reasons = (r.quality_reasons || []).join('\n');
     return h('td', {
@@ -311,7 +311,7 @@
       exportCell.appendChild(h('span', {
         class: 'asc-dim',
         title: 'Only a task row carries one case. This row does not.',
-      }, '—'));
+      }, '-'));
     }
 
     return h('tr', isVoid ? { class: 'asc-dim' } : {},
@@ -320,8 +320,8 @@
       // to the export box was the one thing this screen would not give them.
       h('td', { class: 'asc-cell-id' }, ctx.copyableId
         ? ctx.copyableId(r.case_id || r.ref_id)
-        : h('span', { class: 'asc-mono' }, String(r.case_id || r.ref_id || '—'))),
-      h('td', {}, r.specialty || '—'),
+        : h('span', { class: 'asc-mono' }, String(r.case_id || r.ref_id || '-'))),
+      h('td', {}, r.specialty || '-'),
       h('td', { class: 'asc-mono' }, duration(r.seconds)),
       qualityCell(ctx, r),
       // NEVER a hardcoded rate. amount_cents is what the ledger says this row
@@ -358,7 +358,7 @@
       cell.appendChild(h('span', {
         class: 'asc-dim',
         title: 'Money has already left. Refunds are handled outside the ledger.',
-      }, '—'));
+      }, '-'));
       return cell;
     }
     if (voidingId === r.earning_id) {
@@ -372,7 +372,7 @@
         class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
         title: r.quality_hold
           ? 'The payout algorithm proposed a reduced rate on this case. Release '
-            + 'that hold first — approving here would apply the cut without the '
+            + 'that hold first: approving here would apply the cut without the '
             + 'decision that is supposed to authorize it.'
           : 'Approve this case: pay it, and make its records exportable.',
       }, approvingId === r.earning_id ? 'Approving…' : 'Approve');
@@ -430,8 +430,8 @@
     // button (PRD §1.2).
     var words = { accrued: 'Awaiting approval', approved: 'Approved',
                   paid: 'Paid', void: 'Not approved' };
-    if (r.status === 'accrued' && r.quality_hold) return 'Held — reduced rate proposed';
-    return words[r.status] || r.status || '—';
+    if (r.status === 'accrued' && r.quality_hold) return 'Held: reduced rate proposed';
+    return words[r.status] || r.status || '-';
   }
 
   /* Inline confirm requiring a TYPED reason. Never window.confirm(): it cannot
@@ -477,7 +477,7 @@
       message = res && res.voided
         ? 'Voided. Total payable is now '
           + money(((res.totals || {}).outstanding_cents) || 0) + '.'
-        : 'That case was already void — nothing changed.';
+        : 'That case was already void: nothing changed.';
       rerender(body, ctx);
     }).catch(function (e) {
       busy = false;

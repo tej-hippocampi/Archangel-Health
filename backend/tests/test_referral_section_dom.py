@@ -238,11 +238,59 @@ def test_the_hero_quotes_the_wire_structure_not_a_hardcoded_dollar():
     heroes: find(body, 'asc-ref-hero-value').map(textOf),
   }));
 """)
-    assert "Earn thousands" in out["heroes"][0]
+    assert "Earn money referring physicians, hospitals and health systems" in out["heroes"][0]
     # $25 referrer / $50 referred, the split the meeting pinned: the larger
     # half goes to the side that has to verify and finish a case.
     assert "$25 to you" in out["text"]
     assert "$50 to them" in out["text"]
+
+
+def test_the_headline_is_a_sentence_in_the_sans_face_and_never_dot_matrix():
+    """The hero used to read "Earn thousands" in Doto with a small uppercase
+    label trailing it, and that is the one thing the dot-matrix face renders
+    badly: Doto is for a headline NUMERAL, and a WORD drawn out of dots reads as
+    decoration rather than as the offer. The founder's word for it was awkward.
+
+    So the headline is now a full sentence, set in --sans and sized to fill the
+    bar. The house rule in this stylesheet is one Doto hero numeral per view;
+    this view now spends none, which is what makes the Earnings hero the only
+    one in the product."""
+    css = _CSS.read_text(encoding="utf-8")
+    import re
+    block = re.search(r"\.asc-ref-hero-value\s*\{([^}]*)\}", css)
+    assert block, "the headline rule disappeared"
+    assert "var(--sans)" in block.group(1), block.group(0)
+    assert "--doto" not in block.group(1), block.group(0)
+    # And no other rule on this tab reaches for it either.
+    for m in re.finditer(r"\.asc-ref-[a-z-]+[^{}]*\{([^}]*)\}", css):
+        assert "--doto" not in m.group(1), m.group(0)
+    # The label that used to sit beside the numeral is gone with it, rather
+    # than left styled and never emitted.
+    assert ".asc-ref-hero-label" not in css
+    assert "asc-ref-hero-label" not in _REFERRAL_JS.read_text(encoding="utf-8")
+
+
+def test_each_term_is_a_stat_block_amount_then_who_then_the_sentence():
+    """Two proper stat blocks, not an amount with a unit glued to its right.
+    The amount stands on its own line, the short label sits under it, and the
+    explaining sentence follows. In a half-width column the old shape wrapped
+    mid-phrase, which is how "$50 to you" became "$50" and, on the next line,
+    "to you when a physician you refer"."""
+    out = _render_and("""
+  var terms = find(body, 'asc-ref-term');
+  console.log(JSON.stringify({
+    values: terms.map(function (t) { return find(t, 'asc-ref-term-value').map(textOf).join(''); }),
+    units: terms.map(function (t) { return find(t, 'asc-ref-term-unit').map(textOf).join(''); }),
+    rests: terms.map(function (t) { return find(t, 'asc-ref-term-rest').map(textOf).join(''); }),
+  }));
+""")
+    assert out["values"] == ["$25", "$50"], out["values"]
+    assert out["units"] == ["to you", "to them"], out["units"]
+    assert all(r.endswith(".") for r in out["rests"]), out["rests"]
+    # The unit is its own node, so no string on this page carries the leading
+    # space that used to be the only thing separating them.
+    for unit in out["units"]:
+        assert unit == unit.strip()
 
 
 def test_the_hero_never_advertises_a_ceiling_again():
@@ -324,6 +372,52 @@ def test_the_link_and_code_render_with_a_copy_control():
     assert any("join?ref=ABCD2345" in t for t in out["links"])
     assert any("Copy link" in b for b in out["buttons"])
     assert "ABCD2345" in out["text"]
+
+
+def test_the_physician_column_carries_no_pre_written_blurb():
+    """The founder's verdict: the auto-generated copy blurb feels weird. It was
+    a paragraph this page wrote on a doctor's behalf, in a register no doctor
+    used, sitting between them and the invite box.
+
+    What replaces it is nothing. The link, the share row and the email box are
+    each one clear action; the share targets already carry a sentence, and a
+    physician who wants to say something else says it in their own words. The
+    HEALTH-SYSTEM blurb stays, because that one is forwarded rather than sent,
+    and it is the only copy block left on the page."""
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  console.log(JSON.stringify({
+    physBlocks: find(cols[0], 'asc-ref-copyblock').length,
+    sysBlocks: find(cols[cols.length - 1], 'asc-ref-copyblock').length,
+    physKids: (cols[0].childNodes || []).map(function (c) { return c.className || ''; }),
+    text: textOf(cols[0]),
+  }));
+""")
+    assert out["physBlocks"] == 0, out["physKids"]
+    assert out["sysBlocks"] == 1
+    assert "Copy the message" not in out["text"]
+    # And the order the founder asked for: link, share row, invite box, funnel.
+    assert out["physKids"][:4] == [
+        "asc-ref-title", "asc-ref-linkrow", "asc-ref-sharerow", "asc-ref-form",
+    ], out["physKids"]
+    assert out["physKids"][-1] == "asc-ref-funnel", out["physKids"]
+
+
+def test_the_share_message_invites_a_colleague_into_the_community():
+    """What rides in the WhatsApp bubble. It used to describe the labeling and
+    reasoning work, which is a task spec being read by somebody who has not yet
+    decided they are interested, on a lock screen. It is an invitation into the
+    physician community now, and short enough that an SMS with the URL appended
+    does not clip it."""
+    code = _code(_REFERRAL_JS)
+    import re
+    match = re.search(r"var SHARE_MESSAGE\s*=\s*(.*?);", code, re.S)
+    assert match, "SHARE_MESSAGE disappeared"
+    message = "".join(re.findall(r"'([^']*)'", match.group(1)))
+    assert "Archangel Health physician community" in message, message
+    assert len(message) < 110, message
+    # The old framing must not survive anywhere in the module's copy.
+    assert "grade the reasoning step by step" not in code
 
 
 # ─── The funnel ───────────────────────────────────────────────────────────────
@@ -459,7 +553,7 @@ def test_the_health_system_funnel_renders_sentences_and_no_amount():
     assert out["amounts"] == 0
 
 
-def test_the_health_system_side_is_an_interest_form_with_no_numbers_on_it():
+def test_the_health_system_side_prints_no_figure_anywhere_on_it():
     """This card used to carry "a $1M data partnership at a 15 to 20 percent
     introducer share is $150,000 to $200,000". Institutional terms are
     negotiated one deal at a time, so a figure printed here becomes a promise
@@ -534,29 +628,57 @@ def test_earnings_now_points_at_the_referral_tab():
 
 
 # ─── C2: the direct path for a physician connected to a health system ─────────
-def test_the_health_system_column_offers_the_interest_form_directly():
-    """The Sep 1 meeting replaced the note-to-founders card with a direct path,
-    and the founder corrected his own description mid-sentence to say it: if you
-    are connected to a health system, fill out the interest form and book a
-    call. A physician who is themselves the connection does not need us to write
-    to anybody in their name, and routing them through a compose-an-introduction
-    form to reach the form is a step that exists for our convenience."""
+def test_the_health_system_column_offers_the_account_directly():
+    """The Sep 1 meeting replaced the note-to-founders card with a direct path:
+    a physician who is themselves the connection does not need us to write to
+    anybody in their name.
+
+    What that button is CALLED changed after it shipped. "Open the interest
+    form" names our side of the transaction; the person clicking it is a
+    physician who works at the health system, and what they come out the far
+    side with is an account. So the label is what it produces.
+
+    The book-a-call button beside it is gone, and its hardcoded scheduling URL
+    with it: a vaguer second ask sitting next to a concrete one, on a column
+    whose whole problem was clutter."""
     out = _render_and("""
   var cols = find(body, 'asc-ref-col');
   var sys = cols[cols.length - 1];
   console.log(JSON.stringify({
     links: tagsOf(sys, 'A').map(function (a) {
       return { href: a.attributes.href || '', text: textOf(a) }; }),
-    line: find(sys, 'asc-ref-directline').map(textOf),
+    lead: find(sys, 'asc-ref-pitch').map(textOf),
+    title: find(sys, 'asc-ref-title').map(textOf),
   }));
 """)
     hrefs = [l["href"] for l in out["links"]]
     assert _FUNNEL["partner_url"] in hrefs, out["links"]
-    assert any("calendly" in h for h in hrefs), out["links"]
     labels = " ".join(l["text"] for l in out["links"]).lower()
-    assert "interest form" in labels
-    assert "book a call" in labels
-    assert out["line"] and "connected" in out["line"][0].lower()
+    assert "create the health system account" in labels
+    assert "interest form" not in labels
+    assert out["title"] == ["Refer a health system"], out["title"]
+    # The lead is the founder's framing: you, or anyone you know, inside a
+    # health system whose resources would help the community here.
+    lead = " ".join(out["lead"]).lower()
+    assert "working at a health system" in lead, lead
+    assert "know someone who is" in lead, lead
+
+
+def test_no_book_a_call_and_no_scheduling_url_anywhere_on_this_tab():
+    """Asserted on the SOURCE as well as the DOM, because the constant was the
+    thing being deleted: a scheduling URL left in the module is one an edit
+    puts back on screen without anybody deciding to."""
+    code = _code(_REFERRAL_JS)
+    assert "calendly" not in code.lower(), "the scheduling URL is back"
+    assert "HS_CALL_URL" not in code
+    out = _render_and("""
+  console.log(JSON.stringify({
+    text: textOf(body),
+    hrefs: tagsOf(body, 'A').map(function (a) { return a.attributes.href || ''; }),
+  }));
+""")
+    assert "Book a call" not in out["text"]
+    assert not [h for h in out["hrefs"] if "calendly" in h], out["hrefs"]
 
 
 def test_the_direct_path_never_replaces_the_introduce_someone_else_form():
@@ -592,15 +714,21 @@ def test_the_direct_links_open_safely_and_are_styled():
         assert "noopener" in rel and "noreferrer" in rel and "_blank" in rel
 
     css = _CSS.read_text(encoding="utf-8")
-    for cls in ("asc-ref-direct", "asc-ref-directline", "asc-ref-directrow",
-                "asc-ref-direct-link"):
+    for cls in ("asc-ref-direct", "asc-ref-directrow", "asc-ref-direct-link"):
         assert f".{cls}" in css, cls
+    # The grey explaining line above the button went with the declutter, and
+    # its rule went with it rather than being left styled and never emitted.
+    assert ".asc-ref-directline" not in css
+    assert "asc-ref-directline" not in _REFERRAL_JS.read_text(encoding="utf-8")
 
 
 def test_the_direct_path_survives_a_funnel_with_no_partner_url():
     """partner_url carries the physician's referral code, so a funnel without
-    one is a physician we cannot attribute. Rendering a bare link would drop the
-    attribution silently; the book-a-call still stands on its own."""
+    one is a physician we cannot attribute. Both controls that stand on it, the
+    copy row and the account button, render NOTHING rather than a bare link:
+    dropping the attribution silently is how a physician makes an introduction
+    and never gets credited for it. The email path below is unaffected, so the
+    column still does its job."""
     funnel = dict(_FUNNEL)
     funnel.pop("partner_url")
     out = _render_and("""
@@ -608,7 +736,52 @@ def test_the_direct_path_survives_a_funnel_with_no_partner_url():
   var sys = cols[cols.length - 1];
   console.log(JSON.stringify({
     hrefs: tagsOf(sys, 'A').map(function (a) { return a.attributes.href || ''; }),
+    links: find(sys, 'asc-ref-linktext').length,
+    buttons: tagsOf(sys, 'BUTTON').map(textOf),
   }));
 """, funnel=funnel)
     assert not [h for h in out["hrefs"] if "undefined" in h or h == ""], out["hrefs"]
-    assert any("calendly" in h for h in out["hrefs"]), out["hrefs"]
+    assert out["links"] == 0
+    assert not [b for b in out["buttons"] if "Copy link" in b], out["buttons"]
+    assert any("Send the introduction" in b for b in out["buttons"]), out["buttons"]
+
+
+def test_the_health_system_form_shows_only_the_fields_the_endpoint_requires():
+    """WHY: the founders' verdict on this column was that it reads as paperwork.
+
+    ``HealthSystemReferralBody`` REQUIRES four things (contact_name,
+    contact_email, hs_name, relationship) and treats contact_role and the note
+    as optional. So four inputs are the ask and the other two are an offer.
+    Six inputs plus a textarea in one column is what made an introduction read
+    as a project rather than a favour.
+
+    Pinned rather than trusted, because the cheapest way to undo this is for
+    somebody to move one field back out "just to make it visible", and the
+    column is one field from being what it was.
+    """
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  var sys = cols[cols.length - 1];
+  var extras = find(sys, 'asc-ref-extras');
+  var top = [];
+  find(sys, 'asc-ref-field').forEach(function (f) {
+    if (extras.length && extras[0].contains(f)) return;
+    var label = find(f, 'asc-ref-fieldlabel')[0];
+    if (label) top.push(textOf(label));
+  });
+  console.log(JSON.stringify({
+    top: top,
+    disclosures: extras.length,
+    openByDefault: extras.length ? extras[0].hasAttribute('open') : null,
+    stowed: extras.length
+      ? find(extras[0], 'asc-ref-fieldlabel').map(textOf) : [],
+  }));
+""")
+    assert out["disclosures"] == 1, "the optional fields are back in the column"
+    assert out["openByDefault"] is False, "the disclosure must start folded away"
+    assert len(out["top"]) == 4, out["top"]
+    joined = " ".join(out["top"]).lower()
+    for required in ("their name", "their email", "health system", "how you know"):
+        assert required in joined, (required, out["top"])
+    stowed = " ".join(out["stowed"]).lower()
+    assert "role" in stowed and "anything we should know" in stowed, out["stowed"]

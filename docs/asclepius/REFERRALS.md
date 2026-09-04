@@ -161,6 +161,22 @@ an introduction a physician made and does not get paid for. `POST
 /step1-identity` also follows an email change, because the identity screen lets
 you edit the address the attribution is keyed on.
 
+**`/partner` honours `?ref=` too, and did not used to.** `partner_url` has
+always built `/partner?ref=CODE&hs=TOKEN`, but the page read only `hs`, the
+per-referral landing token that prefills the form. A physician who copied the
+plain referral link out of their own dashboard and forwarded it to a health
+system therefore got no credit at all, which is the cheapest introduction we
+ever get and the one we most want repeated. `PartnerInterest.tsx` now sends
+`referral_code` as well, `routers/leads.py` resolves it with
+`get_user_by_referral_code` and stores the resolved USER ID on
+`lead_submissions.referred_by_user_id`, and the admin lead row prints the
+physician by name.
+
+The id, not the code: a code can be reissued, and the question the row has to
+answer months later is which person made the introduction. An unknown code is a
+silent no-op and never an error, because a stale link must not cost us a health
+system's submission.
+
 ## Where the numbers are stated
 
 Keep these in step. Two of them are public.

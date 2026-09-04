@@ -240,8 +240,8 @@ async def admin_stats(
         recent_patients.append({
             "id":        pid,
             "name":      structured.get("patient_name", pid),
-            "procedure": structured.get("procedure_name", "—"),
-            "status":    structured.get("procedure_status", "—"),
+            "procedure": structured.get("procedure_name", "-"),
+            "status":    structured.get("procedure_status", "-"),
             "initialTier":     pdata.get("initial_tier"),
             "postIntakeTier":  post_intake_tier,
             "currentTier":     pdata.get("current_tier"),
@@ -603,7 +603,7 @@ async def grounding_inspector_recall_admin(
         return {"available": False}
     snap = team_store.get_latest_inspector_recall()
     if not snap:
-        return {"available": False, "message": "No inspector recall snapshot yet — run validation suite"}
+        return {"available": False, "message": "No inspector recall snapshot yet: run validation suite"}
     return {"available": True, **snap}
 
 

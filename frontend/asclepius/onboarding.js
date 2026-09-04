@@ -221,7 +221,7 @@
     if (!npi || !npi.npi) return h('div', { class: 'vq-npi' }, 'No NPI provided');
     var res = npi.result || 'unchecked';
     return h('div', { class: 'vq-npi vq-npi-' + res },
-      h('strong', null, 'NPI ' + npi.npi + ' — ' + res),
+      h('strong', null, 'NPI ' + npi.npi + ' - ' + res),
       npi.reason ? ' (' + npi.reason + ')' : '',
       npi.registry_name
         ? h('span', null, ' · NPPES: ' + npi.registry_name +
@@ -259,7 +259,7 @@
             : gate.state === 'pass' ? 'vq-reason' : 'vq-attempt';
     var mark = gate.state === 'pass' ? '✓' : gate.state === 'fail' ? '✕' : '?';
     return h('div', { class: cls }, mark + '  ' + gid + ' · ' + gate.label
-                                    + ' — ' + gate.detail);
+                                    + ' - ' + gate.detail);
   }
 
   function thresholdLine(t) {
@@ -267,14 +267,14 @@
     // whether it was close.
     var s = t.score, tr = t.thresholds.tr, tl = t.thresholds.tl;
     if (s >= tr) {
-      return 'score ' + s.toFixed(2) + ' — ' + (s - tr).toFixed(2)
+      return 'score ' + s.toFixed(2) + ' - ' + (s - tr).toFixed(2)
              + ' above the reviewer threshold (' + tr.toFixed(1) + ')';
     }
     if (s <= tl) {
-      return 'score ' + s.toFixed(2) + ' — ' + (tl - s).toFixed(2)
+      return 'score ' + s.toFixed(2) + ' - ' + (tl - s).toFixed(2)
              + ' below the labeler threshold (' + tl.toFixed(1) + ')';
     }
-    return 'score ' + s.toFixed(2) + ' — between the thresholds ('
+    return 'score ' + s.toFixed(2) + ', between the thresholds ('
            + tl.toFixed(1) + ' … ' + tr.toFixed(1) + '), so the model defers to you';
   }
 
@@ -308,7 +308,7 @@
 
     var tierChip;
     if (t.gates_failed && t.gates_failed.length) {
-      tierChip = h('span', { class: 'vq-badge vq-badge-blocked' }, 'ineligible — hard gate');
+      tierChip = h('span', { class: 'vq-badge vq-badge-blocked' }, 'ineligible: hard gate');
     } else if (t.proposed_tier) {
       // AUDIT UI: the WORD, from the server. capabilities.tier_word() is the single place
       // that knows these, and the context pack states twice that a raw token must never
@@ -320,7 +320,7 @@
     }
 
     var decideSelect = h('select', { class: 'vq-tier-select', 'aria-label': 'Record tier' },
-      h('option', { value: '' }, '— record a tier decision —'));
+      h('option', { value: '' }, 'record a tier decision'));
     // Server-supplied, worded. Never a hand-written list of tier strings (context pack §8:
     // capabilities.TIERS is the single enumeration).
     (t.tier_options || []).forEach(function (opt) {
@@ -349,13 +349,13 @@
       t.domain_match_why ? h('div', { class: 'vq-attempt' }, 'domain: ' + t.domain_match_why)
                          : null,
 
-      h('div', { class: 'vq-section-label' }, 'Why — ranked by contribution'),
+      h('div', { class: 'vq-section-label' }, 'Why: ranked by contribution'),
       (t.reasons || []).map(function (r) {
         var blocking = r.indexOf('BLOCKER') === 0;
         return h('div', { class: blocking ? 'vq-flag' : 'vq-reason' }, r);
       }),
 
-      h('div', { class: 'vq-section-label' }, 'Hard gates — a score cannot open one'),
+      h('div', { class: 'vq-section-label' }, 'Hard gates: a score cannot open one'),
       Object.keys(t.gates || {}).sort().map(function (gid) {
         return gateLine(gid, t.gates[gid]);
       }),
@@ -367,7 +367,7 @@
       t.calibration
         ? h('div', { class: 'vq-attempt' },
             'Calibration exam ' + (t.calibration.composite * 100).toFixed(0) + '% agreement'
-            + (t.calibration.tr_gate_passed ? ' — at the reviewer gate' : ' — below the gate'))
+            + (t.calibration.tr_gate_passed ? ', at the reviewer gate' : ', below the gate'))
         : h('div', { class: 'vq-attempt' }, 'Calibration exam not sat'),
       t.leie_loaded_at
         ? null
@@ -404,7 +404,7 @@
         state.busy = false;
         var flipped = out && out.decision && out.decision.was_flip;
         setNotice('Recorded ' + (tierWord || tier)
-                  + (flipped ? ' — an override of the proposal, which is '
+                  + (flipped ? ', an override of the proposal, which is '
                                + 'the most informative kind.' : '.'));
         reloadTiering(userId, domain);
       })
@@ -536,14 +536,14 @@
     };
     var words = (d && d.tier_words) || state.tierWords || {};
     var tierSelect = h('select', { class: 'vq-tier-select', 'aria-label': 'Tier' },
-      h('option', { value: '' }, '— choose tier —'));
+      h('option', { value: '' }, 'choose tier'));
     Object.keys(words).forEach(function (t) {
       tierSelect.appendChild(h('option', { value: t },
         words[t] + (TIER_BLURB[t] ? ' (' + TIER_BLURB[t] + ')' : '')));
     });
     var noteInput = h('textarea', {
       class: 'vq-note', rows: '2',
-      placeholder: 'Note — required to reject, recommended always',
+      placeholder: 'Note: required to reject, recommended always',
     });
 
     var cvBits = [];
@@ -561,7 +561,7 @@
                         'Training: ' + cv.institutions.slice(0, 4).join(' · ')));
         }
       } else {
-        cvBits.push(h('span', null, ' · could not parse — review the raw file'));
+        cvBits.push(h('span', null, ' · could not parse: review the raw file'));
       }
     } else {
       cvBits.push(h('span', null, 'No CV uploaded'));
@@ -618,7 +618,7 @@
         h('button', {
           class: 'vq-btn vq-btn-approve', disabled: state.busy,
           onclick: function () {
-            if (!tierSelect.value) { setError('Pick an explicit tier to approve — the proposal is advice.'); return; }
+            if (!tierSelect.value) { setError('Pick an explicit tier to approve: the proposal is advice.'); return; }
             decide(row.user_id, 'approve',
                    { tier: tierSelect.value, note: noteInput.value || null },
                    'Approved as ' + (words[tierSelect.value] || tierSelect.value) + '.');
@@ -679,7 +679,7 @@
         // Without this they sit invisible until someone opens each dossier.
         state.stuck
           ? h('div', { class: 'vq-stuck' },
-              state.stuck + ' record(s) awaiting an NPI recheck — the registry could '
+              state.stuck + ' record(s) awaiting an NPI recheck: the registry could '
               + 'not be reached. ',
               h('button', { class: 'vq-link', disabled: state.busy,
                             onclick: runPendingRechecks }, 'Recheck them now'))
@@ -687,7 +687,7 @@
         state.queue.length
           ? state.queue.map(rowEl)
           : h('div', { class: 'vq-empty' },
-              state.busy ? 'Loading…' : 'Queue is clear — nothing awaiting review.'),
+              state.busy ? 'Loading…' : 'Queue is clear: nothing awaiting review.'),
         (state.offset > 0 || state.hasMore)
           ? h('div', { class: 'vq-pager' },
               h('button', {
@@ -698,7 +698,7 @@
                 },
               }, '← Newer'),
               h('span', { class: 'vq-count' },
-                (state.offset + 1) + '–' + (state.offset + state.queue.length) +
+                (state.offset + 1) + '-' + (state.offset + state.queue.length) +
                 ' of ' + state.total),
               h('button', {
                 class: 'vq-btn vq-btn-ghost', disabled: state.busy || !state.hasMore,
@@ -783,7 +783,7 @@
       el.appendChild(sheet('Calibration exam', [
         h('div', { class: 'asc-inline-error' },
           'The calibration exam is not yet open for your specialty. This is not a '
-          + 'result and it is not about you — we are still assembling the reference '
+          + 'result and it is not about you, we are still assembling the reference '
           + 'panel that scores it. You will be emailed the moment it opens.'),
         h('div', { class: 'vq-attempt' }, cal.notReady),
       ], calClose));
@@ -791,7 +791,7 @@
     }
     if (cal.result) {
       var r = cal.result;
-      el.appendChild(sheet('Calibration exam — submitted', [
+      el.appendChild(sheet('Calibration exam: submitted', [
         h('div', { class: 'vq-reason' },
           'Agreement with the reference panel: '
           + Math.round((r.composite || 0) * 100) + '%'),
@@ -801,7 +801,7 @@
             : 'That is below the reviewer gate. It does not affect your labeling work.'),
         h('div', { class: 'vq-attempt' },
           'Your individual answers are stored so the exam can be re-scored if the '
-          + 'panel re-keys an item — you will never be asked to sit it again for that.'),
+          + 'panel re-keys an item, you will never be asked to sit it again for that.'),
       ], calClose));
       return;
     }
@@ -917,7 +917,7 @@
         // A resumed attempt is the server refusing to reroll the item sample. Say so,
         // rather than letting it look like the exam forgot what they answered.
         if (exam && exam.resumed) {
-          cal.error = 'Resuming the attempt you already started — the same cases, so the '
+          cal.error = 'Resuming the attempt you already started, the same cases, so the '
                     + 'exam cannot be re-rolled for an easier draw.';
         }
         calRender();
@@ -978,13 +978,13 @@
         + 'assigned across the whole contributor pool. It is stored in a separate table '
         + 'under a one-way pseudonym, it is never joined back to your record, and the '
         + 'model that proposes your tier can never read it. Nothing here is inferred '
-        + 'from your name, your school, or where you practise — if you skip a '
+        + 'from your name, your school, or where you practise, if you skip a '
         + 'question, we simply do not have the answer.'),
     ];
 
     DEMOGRAPHIC_DIMENSIONS.forEach(function (dim) {
       var sel = h('select', { class: 'vq-tier-select', 'aria-label': dim.label },
-        h('option', { value: '' }, '— skip —'));
+        h('option', { value: '' }, 'skip'));
       dim.options.forEach(function (o) {
         sel.appendChild(h('option', { value: o[0] }, o[1]));
       });

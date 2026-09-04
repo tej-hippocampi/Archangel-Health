@@ -33,7 +33,7 @@ def _welcome_body(member: Dict[str, Any]) -> str:
     years = member.get("years_in_practice")
     if years:
         bits.append(f"{years} yrs in practice")
-    suffix = f" — {', '.join(bits)}" if bits else ""
+    suffix = f", {', '.join(bits)}" if bits else ""
     return (
         f"Please welcome **{name}**{suffix} to the community. "
         f"Say hello, and drop your own intro below."

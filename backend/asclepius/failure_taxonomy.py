@@ -208,7 +208,7 @@ def build_failure_taxonomy(store: Any, *, specialty: Optional[str] = None) -> Di
             "case_ids": sorted(holdout_cases),
             "n_cases": len(holdout_cases),
             "observations": holdout_obs,
-            "note": "Disjoint from any training split — never sell the same case as train + eval.",
+            "note": "Disjoint from any training split: never sell the same case as train + eval.",
         },
         "provenance": {
             "human_verified": True,   # only physician tags enter (no model-judge hypotheses)
@@ -256,7 +256,7 @@ SCORE_FAILUREMODE_PY = '''#!/usr/bin/env python3
 """Per-failure-mode eval scorer.
 
 Runs YOUR model against the held-out cases and scores each answer with the shipped
-rubric grader (grader_prompt.txt), then rolls the results up BY FAILURE MODE — e.g.
+rubric grader (grader_prompt.txt), then rolls the results up BY FAILURE MODE, e.g.
 "anchoring-resistance on nephrology hard cases = 71/100". A critical-negative commit
 still hard-fails to 0. This holdout is disjoint from any training split.
 
@@ -283,7 +283,7 @@ def main():
     answers = {json.loads(l)["case_id"]: json.loads(l)["answer"]
                for l in open(args.answers) if l.strip()}
     # Score each case's answer with your grader of choice, then roll up by mode.
-    # (Left as a thin scaffold — plug in the grader_prompt.txt scorer you already ship.)
+    # (Left as a thin scaffold: plug in the grader_prompt.txt scorer you already ship.)
     by_mode = collections.defaultdict(list)
     for o in obs:
         if o["case_id"] in answers:

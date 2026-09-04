@@ -37,17 +37,17 @@ def _check_auth(authorization: Optional[str]) -> None:
 
 SAMPLE_FIXTURES = {
     "cardiac_post_op": {
-        "label": "Cardiac Cath — Post-Op Discharge",
+        "label": "Cardiac Cath: Post-Op Discharge",
         "procedure": "Cardiac Catheterization",
         "data": {
             "patient_name": "James Harrington",
             "procedure_name": "Cardiac Catheterization with Stent Placement",
             "procedure_date": "2025-03-10",
             "procedure_status": "completed",
-            "key_diagnoses": ["Coronary Artery Disease", "Single Vessel Disease — LAD"],
+            "key_diagnoses": ["Coronary Artery Disease", "Single Vessel Disease: LAD"],
             "medications": [
                 {"name": "Aspirin", "dose": "81mg", "frequency": "daily", "route": "oral", "status": "new", "notes": "Do not stop without calling cardiologist"},
-                {"name": "Clopidogrel", "dose": "75mg", "frequency": "daily", "route": "oral", "status": "new", "notes": "Critical — dual antiplatelet therapy"},
+                {"name": "Clopidogrel", "dose": "75mg", "frequency": "daily", "route": "oral", "status": "new", "notes": "Critical: dual antiplatelet therapy"},
                 {"name": "Atorvastatin", "dose": "40mg", "frequency": "nightly", "route": "oral", "status": "new", "notes": ""},
                 {"name": "Metoprolol", "dose": "25mg", "frequency": "twice daily", "route": "oral", "status": "new", "notes": ""},
             ],
@@ -75,14 +75,14 @@ SAMPLE_FIXTURES = {
         },
     },
     "ortho_post_op": {
-        "label": "Knee Replacement — Post-Op Discharge",
+        "label": "Knee Replacement: Post-Op Discharge",
         "procedure": "Total Knee Replacement",
         "data": {
             "patient_name": "Sandra Okafor",
             "procedure_name": "Right Total Knee Arthroplasty",
             "procedure_date": "2025-03-08",
             "procedure_status": "completed",
-            "key_diagnoses": ["Severe Osteoarthritis — Right Knee", "Chronic Knee Pain"],
+            "key_diagnoses": ["Severe Osteoarthritis: Right Knee", "Chronic Knee Pain"],
             "medications": [
                 {"name": "Oxycodone", "dose": "5mg", "frequency": "every 6 hours as needed", "route": "oral", "status": "new", "notes": "Take with food. Do not drive."},
                 {"name": "Ibuprofen", "dose": "600mg", "frequency": "every 8 hours with food", "route": "oral", "status": "new", "notes": "Take scheduled, not just as needed"},
@@ -115,7 +115,7 @@ SAMPLE_FIXTURES = {
         },
     },
     "general_pre_op": {
-        "label": "Appendectomy — Pre-Op Prep",
+        "label": "Appendectomy: Pre-Op Prep",
         "procedure": "Laparoscopic Appendectomy",
         "data": {
             "patient_name": "Marcus Webb",
@@ -128,7 +128,7 @@ SAMPLE_FIXTURES = {
                 {"name": "Lisinopril", "dose": "10mg", "frequency": "daily", "route": "oral", "status": "continue", "notes": "Take morning of surgery with sip of water"},
             ],
             "red_flags": [
-                "Worsening abdominal pain before surgery date — call ER",
+                "Worsening abdominal pain before surgery date, call ER",
                 "Fever above 100.4°F before surgery",
                 "Vomiting that prevents taking medications",
                 "Any new symptoms overnight",
@@ -140,7 +140,7 @@ SAMPLE_FIXTURES = {
             "pre_op_instructions": "Nothing to eat after midnight. Clear liquids until 4 hours before surgery. Shower with antibacterial soap the night before and morning of surgery. Arrive 2 hours before scheduled time.",
             "post_op_instructions": "",
             "diet_instructions": "Clear liquids only after midnight. No solid food.",
-            "activity_restrictions": "No strenuous activity day before surgery. Arrange driver — you cannot drive yourself home.",
+            "activity_restrictions": "No strenuous activity day before surgery. Arrange driver, you cannot drive yourself home.",
             "wound_care": "",
             "allergies": ["Penicillin", "NSAIDs"],
             "follow_up": {"date": "2025-03-25", "provider": "Dr. Nguyen, General Surgery", "notes": "Post-op wound check"},
@@ -151,14 +151,14 @@ SAMPLE_FIXTURES = {
 }
 
 VOICE_OPTIONS = [
-    {"id": "EXAVITQu4vr4xnSDxMaL", "label": "Bella — Soft, female (Default)"},
-    {"id": "21m00Tcm4TlvDq8ikWAM", "label": "Rachel — Calm, female"},
-    {"id": "AZnzlk1XvdvUeBnXmlld", "label": "Domi — Strong, female"},
-    {"id": "EXAVITQu4vr4xnSDxMaL", "label": "Bella — Soft, female"},
-    {"id": "ErXwobaYiN019PkySvjV", "label": "Antoni — Well-rounded, male"},
-    {"id": "VR6AewLTigWG4xSOukaG", "label": "Arnold — Crisp, male"},
-    {"id": "pNInz6obpgDQGcFmaJgB", "label": "Adam — Deep, male"},
-    {"id": "yoZ06aMxZJJ28mfd3POQ", "label": "Sam — Raspy, male"},
+    {"id": "EXAVITQu4vr4xnSDxMaL", "label": "Bella: Soft, female (Default)"},
+    {"id": "21m00Tcm4TlvDq8ikWAM", "label": "Rachel: Calm, female"},
+    {"id": "AZnzlk1XvdvUeBnXmlld", "label": "Domi: Strong, female"},
+    {"id": "EXAVITQu4vr4xnSDxMaL", "label": "Bella: Soft, female"},
+    {"id": "ErXwobaYiN019PkySvjV", "label": "Antoni: Well-rounded, male"},
+    {"id": "VR6AewLTigWG4xSOukaG", "label": "Arnold: Crisp, male"},
+    {"id": "pNInz6obpgDQGcFmaJgB", "label": "Adam: Deep, male"},
+    {"id": "yoZ06aMxZJJ28mfd3POQ", "label": "Sam: Raspy, male"},
 ]
 
 
@@ -240,7 +240,7 @@ async def run_prompt(body: RunRequest, authorization: Optional[str] = Header(Non
                 messages=[{"role": "user", "content": body.test_message}],
             )
         except AnthropicConnectionError as e:
-            raise HTTPException(status_code=503, detail=f"Anthropic connection error — check network/API key: {e}")
+            raise HTTPException(status_code=503, detail=f"Anthropic connection error: check network/API key: {e}")
         except AnthropicStatusError as e:
             raise HTTPException(status_code=502, detail=f"Anthropic API error {e.status_code}: {e.message}")
 
@@ -274,7 +274,7 @@ async def run_prompt(body: RunRequest, authorization: Optional[str] = Header(Non
             messages=[{"role": "user", "content": body.discharge_notes}],
         )
     except AnthropicConnectionError as e:
-        raise HTTPException(status_code=503, detail=f"Anthropic connection error — check network/API key: {e}")
+        raise HTTPException(status_code=503, detail=f"Anthropic connection error: check network/API key: {e}")
     except AnthropicStatusError as e:
         raise HTTPException(status_code=502, detail=f"Anthropic API error {e.status_code}: {e.message}")
     full_text = first_text(message)

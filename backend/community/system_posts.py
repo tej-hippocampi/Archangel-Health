@@ -75,6 +75,41 @@ def _resolve_channel(channel_slug: str) -> Optional[Dict[str, Any]]:
     return channel
 
 
+def channel_member_ids(
+    channel: Dict[str, Any], members: Dict[str, Any]
+) -> List[str]:
+    """Who a post in this channel may be mailed about.
+
+    Channels have no roster: every gated member is in every visible room, which
+    is what makes "the members of this channel" the whole member map. The one
+    exception is a ``staff_only`` room, whose contents must not reach a
+    physician by email any more than they reach one over the socket or the REST
+    list. Shared by the message and poll paths so there is one answer.
+    """
+    if channel.get("staff_only"):
+        return [uid for uid, m in members.items() if (m or {}).get("is_staff")]
+    return list(members.keys())
+
+
+def _queue_channel_notifications(
+    channel: Dict[str, Any], message: Dict[str, Any], members: Dict[str, Any]
+) -> None:
+    """Fan a bot post out to the digest queue.
+
+    ``notify.queue_for_message`` decides the kind from the channel: a top-level
+    #task-announcements post is an ``announcement`` (the fan-out rule that
+    predates this), anything else is a ``post``. Passing both means the caller
+    says "this deserves email" and the notify layer keeps owning what that
+    means.
+    """
+    from community import notify as cnotify  # noqa: PLC0415 - avoid an import cycle
+
+    cnotify.queue_for_message(
+        get_community_store(), message=message, channel=channel,
+        member_ids=channel_member_ids(channel, members), notify_post=True,
+    )
+
+
 def _phi_clear(channel: Dict[str, Any], kind: str, text: str,
                *, exempt: tuple = ()) -> bool:
     """Run the §7 gate over everything human-visible in a bot post.
@@ -115,6 +150,7 @@ async def post_system_poll(
     options: List[str],
     kind: str = "poll",
     cards: Optional[List[Dict[str, Any]]] = None,
+    announce: bool = False,
 ) -> Optional[Dict[str, Any]]:
     """Post a poll AS THE BOT, and the only place that is allowed to.
 
@@ -160,6 +196,10 @@ async def post_system_poll(
     # poll-kind message with no poll in it and every client would render an
     # empty card.
     cstore.link_poll_message(poll["id"], msg["id"])
+    if announce:
+        # After the link, so the member reading the digest and opening the
+        # channel finds a poll rather than an empty card.
+        _queue_channel_notifications(channel, msg, member_map())
     audit_log.record(
         actor_type="system", actor_id=SYSTEM_USER_ID,
         action="community.system_poll", outcome="ok",
@@ -197,13 +237,15 @@ async def post_system_message(
     text is scanned exactly like the body -- an external page's title is
     untrusted text and this is where it enters the product.
 
-    ``announce`` opts one call into the standard fan-out rule in
-    ``notify.queue_for_message`` — which blasts every member only for a
-    top-level #task-announcements post. It exists because task announcements
-    are authored by the bot (an announcement signed by whichever admin
-    happened to upload renders as "Former member" once that account is gone),
-    and losing their email fan-out in the move would be a silent regression.
-    Callers that are not #task-announcements gain nothing by setting it.
+    ``announce`` opts one call into the email fan-out in
+    ``notify.queue_for_message``. It began as the #task-announcements rule
+    (task announcements are authored by the bot, because an announcement signed
+    by whichever admin happened to upload renders as "Former member" once that
+    account is gone, and losing their email fan-out in the move would have been
+    a silent regression). It now also carries the ``post`` kind everywhere
+    else, which is how the daily content run produces mail at all: every bot
+    post was written with ``announce=False``, so a routine that filled six
+    channels every morning notified precisely nobody.
     """
     text = (body or "").strip()
     if not text:
@@ -269,11 +311,7 @@ async def post_system_message(
             cstore.enqueue_notification(user_id=uid, kind="mention", message_id=msg["id"])
 
     if announce:
-        from community import notify as cnotify  # noqa: PLC0415 - avoid an import cycle
-
-        cnotify.queue_for_message(
-            cstore, message=msg, channel=channel, member_ids=list(members.keys())
-        )
+        _queue_channel_notifications(channel, msg, members)
 
     serialized = _serialize_messages([msg], members, channel["slug"])[0]
     await broadcast_channel_event(

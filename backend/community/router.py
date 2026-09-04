@@ -37,10 +37,12 @@ from community import attachments as catt
 from community import countries as ccountries
 from community import notify as cnotify
 from community import persona as cpersona
+from community import live as clive
 from community import phi_gate
 from community import subspecialties as csubspecialties
 from community.schema import (
-    DmMessageIn, DmOpen, HandoffRedeem, MessageEdit, MessageIn, ReactionIn, ReadIn,
+    DmMessageIn, DmOpen, GroupCreate, GroupMembersIn, HandoffRedeem, MessageEdit,
+    MessageIn, ReactionIn, ReadIn,
 )
 from community import store as cstore_mod
 from community.store import get_community_store
@@ -494,7 +496,7 @@ def public_member_summary(member: Optional[Dict[str, Any]]) -> Optional[Dict[str
 _GHOST_MEMBER = {
     "user_id": None,
     "display_name": "Former member",
-    "initials": "—",
+    "initials": "-",
     "specialty": None,
     "specialty_accent": "green",
     "years_in_practice": None,
@@ -820,6 +822,24 @@ def _container_of(msg: Dict[str, Any]) -> tuple:
 
 def _is_case_room(dm: Optional[Dict[str, Any]]) -> bool:
     return (dm or {}).get("kind") == cstore_mod.CommunityStore.ROOM_KIND
+
+
+def _is_group(dm: Optional[Dict[str, Any]]) -> bool:
+    return (dm or {}).get("kind") == cstore_mod.CommunityStore.GROUP_KIND
+
+
+def _is_multi_party(dm: Optional[Dict[str, Any]]) -> bool:
+    """A conversation with a roster and a name instead of a peer.
+
+    Kept SEPARATE from ``_is_case_room`` rather than replacing it, because the
+    two answer different questions and only one of them is an access decision.
+    ``_is_case_room`` is what opens a conversation to admins who are not in it;
+    widening that test to every multi-party conversation would hand admins a
+    read of every group the physicians started, which is the opposite of what
+    the DM privacy rule says. This one is only ever used to decide how a
+    conversation RENDERS.
+    """
+    return (dm or {}).get("kind") in cstore_mod.CommunityStore.MULTI_KINDS
 
 
 def _dm_access(user: Dict[str, Any], dm: Optional[Dict[str, Any]]) -> bool:
@@ -1343,43 +1363,94 @@ async def mark_read(
     }
 
 
-@router.get("/prefs")
-async def get_email_prefs(user: Dict[str, Any] = Depends(require_member)):
-    prefs = _cstore().email_prefs(user["id"])
+def _prefs_payload(prefs: Dict[str, Any]) -> Dict[str, Any]:
+    """Every switch a member has, in one shape both prefs routes return.
+
+    The route exposed the news cadence alone for as long as it existed, while
+    ``set_activity_emails`` had no HTTP surface at all: the only way to stop
+    activity mail was the unsubscribe token, which stops everything. A
+    preferences screen that offers one blunt button is how a member who wanted
+    fewer pins ends up receiving nothing.
+    """
+    def on(column: str) -> bool:
+        raw = prefs.get(column)
+        return True if raw is None else bool(int(raw))
+
     return {
         "news_frequency": prefs["news_frequency"],
+        "activity_emails": on("activity_emails"),
+        "post_emails": on("post_emails"),
+        "pin_emails": on("pin_emails"),
         "options": list(cstore_mod.NEWS_FREQUENCIES),
     }
 
 
+@router.get("/prefs")
+async def get_email_prefs(user: Dict[str, Any] = Depends(require_member)):
+    return _prefs_payload(_cstore().email_prefs(user["id"]))
+
+
 @router.post("/prefs")
 async def set_email_prefs(body: Dict[str, Any], user: Dict[str, Any] = Depends(require_member)):
-    freq = str((body or {}).get("news_frequency") or "").strip()
-    try:
-        prefs = _cstore().set_news_frequency(user["id"], freq)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Choose one of: {', '.join(cstore_mod.NEWS_FREQUENCIES)}.",
-        )
-    return {"ok": True, "news_frequency": prefs["news_frequency"]}
+    """Set any subset of the four knobs. An absent key is left alone.
+
+    Partial rather than whole-object writes because the panel toggles one
+    switch at a time, and a whole-object PUT from a stale page would silently
+    revert a change made in another tab.
+    """
+    payload = body or {}
+    cstore = _cstore()
+    if "news_frequency" in payload:
+        freq = str(payload.get("news_frequency") or "").strip()
+        try:
+            cstore.set_news_frequency(user["id"], freq)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Choose one of: {', '.join(cstore_mod.NEWS_FREQUENCIES)}.",
+            )
+    for stream, key in (("activity", "activity_emails"), ("post", "post_emails"),
+                        ("pin", "pin_emails")):
+        if key in payload:
+            cstore.set_email_stream(user["id"], stream, bool(payload.get(key)))
+    return {"ok": True, **_prefs_payload(cstore.email_prefs(user["id"]))}
+
+
+#: What a kinded unsubscribe says it stopped. Keyed by the same stream names
+#: the store's TOGGLE_STREAMS uses, so a link can never claim to have stopped
+#: something the store did not switch off.
+_UNSUBSCRIBE_CONFIRMATIONS = {
+    "activity": "You will not get emails about mentions, direct messages or "
+                "announcements any more.",
+    "post": "You will not get emails about new posts in your channels any more.",
+    "pin": "You will not get emails about pinned messages any more.",
+}
 
 
 @router.get("/unsubscribe")
-async def unsubscribe(token: str = ""):
+async def unsubscribe(token: str = "", kind: str = ""):
     """One click, no sign-in required.
 
     An unsubscribe link that makes someone log in first is an unsubscribe link
     that gets a spam complaint instead, and one complaint costs the sending
     domain that every other physician's mail goes through. The token only ever
     turns mail OFF, so the worst a leaked one can do is stop an email.
+
+    ``kind`` stops one stream instead of all of them, so the link at the foot
+    of a pin notification can mean "stop telling me about pins". Without it the
+    behaviour is byte for byte what it always was, and it has to stay that way:
+    every link in mail already sent carries no kind, and a link that came to
+    mean less than it said when it was sent would be the worse bug.
     """
-    uid = _cstore().unsubscribe_by_token(token)
-    body = (
-        "You will not get the medical AI digest any more."
-        if uid
-        else "That link has already been used, or is not valid any more."
-    )
+    want = (kind or "").strip().lower()
+    uid = _cstore().unsubscribe_by_token(token, kind=want or None)
+    if not uid:
+        body = "That link has already been used, or is not valid any more."
+    elif want in _UNSUBSCRIBE_CONFIRMATIONS:
+        body = _UNSUBSCRIBE_CONFIRMATIONS[want]
+    else:
+        body = ("You will not get the medical AI digest, or any other community "
+                "email, any more.")
     return HTMLResponse(
         "<!doctype html><meta charset=utf-8>"
         "<meta name=viewport content='width=device-width,initial-scale=1'>"
@@ -1432,7 +1503,8 @@ def _dm_or_404(dm_id: str, user: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _room_title(dm: Dict[str, Any]) -> str:
-    return (dm.get("title") or "").strip() or "Case room"
+    default = "Group" if _is_group(dm) else "Case room"
+    return (dm.get("title") or "").strip() or default
 
 
 def _dm_summary(dm: Dict[str, Any], user_id: str,
@@ -1445,8 +1517,10 @@ def _dm_summary(dm: Dict[str, Any], user_id: str,
         "last_message_at": dm.get("last_message_at"),
         "unread": int(dm.get("unread") or 0),
     }
-    if _is_case_room(dm):
-        # A room is named by its case and has a roster, not a peer.
+    if _is_multi_party(dm):
+        # A room is named by its case and has a roster, not a peer. A group a
+        # member opened is the same shape with a name they chose, so it rides
+        # the identical branch rather than a parallel one that would drift.
         #
         # It used to carry a synthetic ``peer`` built from the bot member with
         # the room's title glued into its display name. That was a client
@@ -1459,7 +1533,7 @@ def _dm_summary(dm: Dict[str, Any], user_id: str,
         # people in it.
         roster = [public_member(members.get(uid)) for uid
                   in (dm.get("participants") or _cstore().room_participants(dm["id"]))]
-        return dict(base, kind=cstore_mod.CommunityStore.ROOM_KIND,
+        return dict(base, kind=dm.get("kind"),
                     title=_room_title(dm),
                     case_ref=dm.get("case_ref"),
                     participants=[m for m in roster if m])
@@ -1507,7 +1581,107 @@ async def open_dm(
     if dm is existed:
         dm = dict(dm, unread=0, last_message_id=None, last_message_at=None)
     _audit(request, user, "community.dm_open", "ok", {"dm_id": existed["id"]})
+    # Tell the PEER their rail has a new conversation in it. Opening a DM used
+    # to be silent on the other side: the conversation existed, and the person
+    # it was opened with learned about it only when a message arrived, or on
+    # their next reload. The opener needs no event -- they get the summary as
+    # this response.
+    # ``existed`` (the raw row), not ``dm``: ``dm`` was re-read through
+    # ``list_dms_for(user)`` so its unread count is the OPENER'S, and pushing
+    # that to the peer would put the opener's badge on the peer's rail.
+    await clive.announce_conversation(
+        cstore, existed,
+        user_ids=[u for u in cstore.dm_participants(existed) if u != user["id"]])
     return _dm_summary(dm, user["id"], members)
+
+
+# ─── Group conversations (member-created) ─────────────────────────────────────
+# The same object a case room is: ``community_dms`` with a ``kind``, a title and
+# a roster in ``community_dm_members``. Only the kind differs, and the kind is
+# what keeps them apart where it matters -- ``_dm_access`` opens a CASE ROOM to
+# Archangel admins so a founder can step into a stuck case, and that exception
+# must not follow the shape into conversations physicians started themselves.
+# A group is private to its participants, admins included, exactly like a
+# two-party DM.
+@router.post("/dms/group")
+async def create_group(
+    body: GroupCreate,
+    request: Request,
+    user: Dict[str, Any] = Depends(require_verified_member),
+):
+    """Open a named group with colleagues who can themselves enter the community.
+
+    The same §1 gate as ``open_dm``: you cannot put an account in a group it
+    could not read. A named user who is not a member 404s rather than being
+    dropped silently, because a group that quietly opened with two of the three
+    people you picked is worse than one that refused.
+    """
+    # Trimmed HERE rather than left to the store, whose ValueError would be a
+    # 500. ``min_length=1`` on the model accepts a string of spaces, and a group
+    # named "   " renders as an untitled row nobody can identify.
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Give the group a name.")
+    members = member_map()
+    wanted = [uid for uid in (body.user_ids or []) if uid != user["id"]]
+    unknown = [uid for uid in wanted if uid not in members]
+    if unknown:
+        raise HTTPException(status_code=404, detail="Member not found")
+    if not wanted:
+        raise HTTPException(
+            status_code=400,
+            detail="Pick at least one colleague to start a group with.")
+    cstore = _cstore()
+    dm = cstore.create_group(user["id"], title, wanted)
+    _audit(request, user, "community.group_create", "ok",
+           {"dm_id": dm["id"], "participants": len(wanted) + 1})
+    await clive.announce_conversation(cstore, dm)
+    return _dm_summary(dm, user["id"], members)
+
+
+@router.post("/dms/{dm_id}/members")
+async def add_group_members(
+    dm_id: str,
+    body: GroupMembersIn,
+    request: Request,
+    user: Dict[str, Any] = Depends(require_verified_member),
+):
+    """Add colleagues to a group you are in.
+
+    PARTICIPANTS ONLY, and deliberately not ``_dm_or_404``: that helper grants an
+    admin access to a case room, and "can read this conversation" is not the same
+    permission as "can decide who else reads it". Membership is checked directly.
+
+    Scoped to ``kind='group'``. A case room's roster is owned by routing -- it is
+    the team on a case, and it changes when an assignment does, not when somebody
+    in the room decides -- and a two-party DM's privacy is the entire thing it
+    is: silently turning one into a three-way conversation would break a promise
+    both participants are relying on.
+    """
+    cstore = _cstore()
+    dm = cstore.get_dm(dm_id)
+    if not dm or user["id"] not in cstore.dm_participants(dm):
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if not _is_group(dm):
+        raise HTTPException(
+            status_code=400,
+            detail="Only a group conversation can take new members.")
+    members = member_map()
+    unknown = [uid for uid in body.user_ids if uid not in members]
+    if unknown:
+        raise HTTPException(status_code=404, detail="Member not found")
+    added = [uid for uid in body.user_ids
+             if uid not in cstore.dm_participants(dm)]
+    for uid in added:
+        cstore.add_room_participant(dm["id"], uid)
+    _audit(request, user, "community.group_members_add", "ok",
+           {"dm_id": dm["id"], "added": len(added)})
+    fresh = cstore.get_dm(dm["id"])
+    # Everyone, not only the new arrivals: the roster on screen is part of what
+    # a group IS, and a member who cannot see who joined has a stale idea of who
+    # is reading them.
+    await clive.announce_conversation(cstore, fresh)
+    return _dm_summary(fresh, user["id"], members)
 
 
 @router.get("/dms/{dm_id}/messages")
@@ -1566,18 +1740,15 @@ async def post_dm_message(
     })
     cstore.set_read(user["id"], dm["id"], msg["id"])
 
-    # Everyone in the conversation except the author. On a two-party DM that is
-    # the peer, exactly as before; on a room it is the rest of the case team, so
-    # the room rides the DM unread and digest plumbing with no second path.
-    participants = cstore.dm_participants(dm)
-    for recipient_id in participants:
-        if recipient_id != user["id"]:
-            cnotify.enqueue_dm(cstore, recipient_id=recipient_id, message=msg)
-
-    serialized = _serialize_messages([msg], member_map(), None, dm_id=dm["id"])[0]
-    await hub.send_to_users(participants,
-                            {"type": "message.created", "message": serialized})
-    return serialized
+    # Digest + socket for everyone in the conversation except the author. On a
+    # two-party DM that is the peer; on a room or a group it is the rest of the
+    # roster, so both ride the DM unread and digest plumbing with no second path.
+    #
+    # Through ``community.live`` rather than inline, and that is the whole point
+    # of the helper: the bot-authored writes in ``asclepius.route_notify`` used
+    # to persist a message and stop, so a routed physician saw nothing until they
+    # reloaded. Delivery now has ONE implementation and every writer calls it.
+    return await clive.deliver_message(cstore, dm, msg)
 
 
 @router.post("/dms/{dm_id}/read")
@@ -1950,7 +2121,7 @@ async def redeem_handoff(body: HandoffRedeem):
     uid = _redeem_handoff((body.token or "").strip())
     user = _astore().get_user_by_id(uid) if uid else None
     if not user or not _passes_gate(user):
-        raise HTTPException(status_code=401, detail="Handoff expired — sign in through the portal.")
+        raise HTTPException(status_code=401, detail="Handoff expired: sign in through the portal.")
     return {"token": asc_auth.create_token(user)}
 
 

@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import secrets
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -256,6 +257,48 @@ def _practice_case_block(user: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _examination_block(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
+    """The examination this applicant sat, for the decision screen.
+
+    THE thing an admin is deciding on. The practice case beside it is a guided
+    tour with a "Skip this step" button on every screen, which is a poor basis
+    for a decision about somebody; this is one case in their own specialty, in
+    the real workspace, with the real validation.
+
+    Every attempt is listed rather than only the latest, because a physician
+    who was asked to try again is being looked at precisely for what changed
+    between the two.
+
+    No verdict is computed here and none is stored. Whether this person is good
+    enough is the reading admin's call, and putting a number next to their
+    answers would be this code making it first.
+    """
+    try:
+        exams = store.list_credentialing_exams(user["id"])
+    except Exception:
+        log.exception("[verify] could not read the examinations for %s", user.get("id"))
+        exams = []
+    blob = asc_caps._tutorial_blob(user)
+    state = blob.get("exam") if isinstance(blob.get("exam"), dict) else {}
+    return {
+        "state": state.get("state") or ("submitted" if exams else "not_started"),
+        "attempts": len(exams),
+        "retake_offered_at": blob.get("retake_offered_at"),
+        "submissions": [
+            {
+                "exam_id": e["exam_id"],
+                "task_id": e["task_id"],
+                "specialty": e.get("specialty"),
+                "attempt": e.get("attempt"),
+                "submitted_at": e.get("submitted_at"),
+                "time_spent_sec": e.get("time_spent_sec"),
+                "payload": e.get("payload") or {},
+            }
+            for e in exams
+        ],
+    }
+
+
 def _has_credential_evidence(user: Dict[str, Any]) -> bool:
     """Enough to check somebody against a registry: a CV, or a number.
 
@@ -272,12 +315,21 @@ def _has_credential_evidence(user: Dict[str, Any]) -> bool:
 
 
 def _is_ready_for_review(user: Dict[str, Any]) -> bool:
-    """Both things the applicant owes us: something to verify, and the practice
-    case done. Advisory only, per the PRD: founders keep the ability to reject
-    an obviously bad application, or approve a known colleague, without waiting
-    on a grading ledger that the client declares."""
-    return (_has_credential_evidence(user)
-            and asc_caps.practice_gate_state(user) != asc_caps.GATE_LOCKED)
+    """Both things the applicant owes us: something to verify, and case work
+    filed for a person to read.
+
+    The second half is now the EXAMINATION rather than the practice case. The
+    practice case is optional and skippable by design, so requiring it filtered
+    the queue on something an applicant was told they need not do; the
+    examination is the one piece of work this decision is actually about.
+
+    Advisory only, per the PRD, and unchanged in that: founders keep the
+    ability to reject an obviously bad application, or approve a known
+    colleague, without waiting on a ledger.
+    """
+    blob = asc_caps._tutorial_blob(user)
+    exam = blob.get("exam") if isinstance(blob.get("exam"), dict) else {}
+    return _has_credential_evidence(user) and exam.get("state") == "submitted"
 
 
 def _queue_row(store: Any, user: Dict[str, Any],
@@ -335,6 +387,10 @@ def _queue_row(store: Any, user: Dict[str, Any],
         # screen: it is half of what an applicant owes us, so "who is actually
         # ready to look at" has to be answerable while skimming.
         "practice_case": _practice_case_block(user),
+        # The examination, on the ROW as well as on the decision screen, for
+        # the same reason the practice case is: "who is actually ready to look
+        # at" has to be answerable while skimming the queue.
+        "examination": _examination_block(store, user),
         "ready_for_review": _is_ready_for_review(user),
     }
 
@@ -592,11 +648,16 @@ class RejectBody(BaseModel):
 def _needs_credentials(user: Dict[str, Any]) -> bool:
     """Does this physician have no way to sign in yet? (Onboarding v2 §5)
 
-    True only for an account created by the v2 wizard, which has no password step
-    (``NO_PASSWORD_HASH``). An invited member chose their own password during
-    their flow and a pre-v2 signup chose one during theirs — minting a temporary
-    credential for either would REPLACE a password they are using today, which is
-    the exact failure ``provision_user`` was hardened against.
+    True only for an account carrying ``NO_PASSWORD_HASH``. Minting a temporary
+    credential for anyone else would REPLACE a password they are using today,
+    which is the exact failure ``provision_user`` was hardened against.
+
+    This docstring used to say the sentinel identified "an account created by
+    the v2 wizard". That is no longer true and the difference matters: the
+    wizard now takes a password on screen one, so a v2 signup arrives here WITH
+    a credential and this returns False for them. What is left on the True side
+    is the legacy set, the accounts that finished the wizard during the window
+    when it minted nothing.
     """
     from asclepius import store as _store_mod  # noqa: PLC0415
 
@@ -756,19 +817,44 @@ async def approve_signup(
                         sign_in_url=_portal_base() + "/asclepius",
                     ), importance_headers=True))
             elif not needs_credentials:
-                # An account that already HAS a password — an invited member, or
-                # a pre-v2 signup — is not being given credentials, so it gets
-                # the plain notice rather than a "your temporary password is …"
-                # email with no password in it.
+                # An account that already HAS a password. Once that meant an
+                # invited member or a pre-v2 signup; since the wizard started
+                # taking a password on screen one it means almost every
+                # physician, which is what makes this branch load bearing.
                 #
-                # That notice is QUEUED, not sent here, by the hook on
-                # record_verification_decision above. One sender for it, so the
-                # console and the two paths that used to say nothing produce one
-                # mail between them rather than this branch and the queue both
-                # firing. It also means the tier is named, which this branch
-                # never did. Only the credentials welcome stays inline, because
-                # it carries a secret this request minted and nothing else can.
-                welcome_sent = True
+                # It used to fall through to the plain queued notice, and the
+                # result was that choosing your own password silently cost you
+                # the welcome: no mission block, no sign-in button, no founders'
+                # Calendly, because of an implementation detail about where the
+                # password came from. So the welcome is sent here too, with the
+                # credentials card swapped for one line pointing at the password
+                # they already have.
+                welcome_sent = bool(await send_html_email(
+                    user["email"],
+                    application_welcome_subject((user.get("full_name") or "").strip()),
+                    build_application_welcome_email(
+                        full_name=(user.get("full_name") or "").strip(),
+                        email=user["email"],
+                        sign_in_url=_portal_base() + "/asclepius",
+                    ), importance_headers=True))
+                if welcome_sent:
+                    # The hook on record_verification_decision has already queued
+                    # the plain notice, because it cannot see that this handler
+                    # is about to send the richer one. Void it. Two "you're
+                    # approved" emails for one approval is the visible failure
+                    # here, and this is the same mechanism the reject-then-
+                    # approve race already uses.
+                    try:
+                        import notifications  # noqa: PLC0415
+                        store.void_pending_admin_notification(
+                            notifications._person_key(
+                                "physician_approved",
+                                f"approved:{user_id}",
+                                user["email"]))
+                    except Exception:
+                        log.exception(
+                            "[verify] could not void the queued approval notice; "
+                            "this physician may receive two")
             # The remaining case — credentials were NEEDED and the mint failed —
             # sends nothing on purpose. "You're approved, open your workspace"
             # pointing at a door this physician has no key to is worse than
@@ -805,11 +891,37 @@ async def reject_signup(
         raise HTTPException(status_code=400, detail="Rejection requires a note.")
     store = _store()
     _load_user_or_404(user_id)
+
+    # A REJECTION OFFERS ANOTHER GO.
+    #
+    # The founders were explicit: a physician we turn down is not finished with.
+    # They are asked to do the case work again, keeping every credential and CV
+    # answer they already gave us, because none of that is what we are asking
+    # them to redo.
+    #
+    # Two writes, in this order, and the order matters: the stamp is what makes
+    # `access_level` return PROVISIONAL for a rejected row, so it has to be on
+    # the account before the status lands or a concurrent sign-in in between
+    # would be refused.
+    current = store.get_tutorial_state(user_id) or {}
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    store.set_tutorial_state(user_id, {
+        **current,
+        "retake_offered_at": now,
+        # Both pieces of case work reopen. `resources_seen_at` is cleared so
+        # the demo and the practice case are offered again, which is the point:
+        # somebody being asked to re-sit should be shown the help first, not
+        # dropped straight back into the examination that went badly.
+        "resources_seen_at": None,
+        "exam": {"state": "retake", "attempt": int(
+            ((current.get("exam") or {}).get("attempt") or 0)) + 1},
+    })
+
     updated = store.record_verification_decision(
         user_id, status="rejected", decided_by=admin["email"], note=note)
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="verification_rejected",
-        actor=admin["email"], payload={"note": note},
+        actor=admin["email"], payload={"note": note, "retake_offered": True},
     )
     try:
         store.advance_referral_for_user(user_id, "declined")
@@ -1095,7 +1207,7 @@ async def calibration_exam(
     if not spec:
         raise HTTPException(
             status_code=400,
-            detail="No recognised specialty on file — the exam is drawn from your declared "
+            detail="No recognised specialty on file: the exam is drawn from your declared "
                    "specialty's task distribution.")
     # An attempt already in flight is RESUMED, never replaced. Minting a new one on every
     # GET would let a candidate reroll the item sample by refreshing until an easy draw came
@@ -1270,7 +1382,7 @@ async def tr_readiness(admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         "blockers": blockers,
         "outstanding": [b["id"] for b in outstanding],
         "note": ("Both blockers must clear before ANY physician can be proposed as a "
-                 "reviewer. They are separate operational loops with separate owners — see "
+                 "reviewer. They are separate operational loops with separate owners, see "
                  "docs/PRD_C_LAUNCH_CHECKLIST.md."),
     }
 
@@ -1419,7 +1531,7 @@ async def retier_physician(
         try:
             emailed = bool(await send_html_email(
                 user["email"],
-                "You're now a reviewer on Asclepius",
+                "You're now a reviewer on Archangel Health",
                 build_asclepius_promoted_email(
                     full_name=(user.get("full_name") or "").strip(),
                     workspace_url=_portal_base() + "/asclepius",

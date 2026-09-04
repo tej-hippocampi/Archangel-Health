@@ -20,13 +20,62 @@ a quiet channel, not a broken run.
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Set
 
 log = logging.getLogger("community.websearch")
+
+
+# ─── Why a sourcing pass came back empty ─────────────────────────────────────
+# Every function in this module returns a list and never raises, which is the
+# right behaviour for a morning and the wrong behaviour for a run ledger: a
+# missing API key, a provider that 500s and a genuinely quiet Tuesday all
+# arrive at the caller as ``[]``. The run then records a SUCCESSFUL run with
+# zero items and a dead routine is indistinguishable from a working one.
+#
+# So the reasons are collected as a side channel. A caller wraps a sourcing
+# pass in ``record_sourcing()`` and reads back the set of reasons the searches
+# noted; nothing else changes, and a caller that does not care carries no cost
+# because ``_note`` is a no-op outside the context.
+#
+# A ContextVar rather than a module global because two morning scopes (and the
+# digest loop) can be in flight on the same event loop, and reasons from one
+# must not be attributed to another.
+NO_PROVIDER = "no_search_provider"
+NO_MODEL_KEY = "no_model_key"
+PROVIDER_ERROR = "provider_error"
+BUDGET_EXHAUSTED = "search_budget_exhausted"
+
+_reasons: contextvars.ContextVar[Optional[Set[str]]] = contextvars.ContextVar(
+    "community_sourcing_reasons", default=None)
+
+
+@contextlib.contextmanager
+def record_sourcing() -> Iterator[Set[str]]:
+    """Collect why the searches inside this block found nothing.
+
+    The set is live: read it after the block and it holds every reason noted,
+    or nothing at all when the searches ran cleanly and the web simply had
+    nothing new.
+    """
+    bucket: Set[str] = set()
+    token = _reasons.set(bucket)
+    try:
+        yield bucket
+    finally:
+        _reasons.reset(token)
+
+
+def note_reason(reason: str) -> None:
+    """Record one reason, if anybody is listening. Never raises."""
+    bucket = _reasons.get()
+    if bucket is not None:
+        bucket.add(reason)
 
 #: The server-side web-search tool. Declared here rather than inline so the
 #: one place that decides how much searching a run may do is visible.
@@ -65,7 +114,10 @@ def enabled() -> bool:
     """
     from community import search_providers as _sp  # noqa: PLC0415
 
-    return any(_sp.available(name) for name in _sp.provider_order())
+    if any(_sp.available(name) for name in _sp.provider_order()):
+        return True
+    note_reason(NO_PROVIDER)
+    return False
 
 
 def _spend(provider: str) -> bool:
@@ -79,7 +131,10 @@ def _spend(provider: str) -> bool:
     try:
         from community.store import get_community_store  # noqa: PLC0415
 
-        return get_community_store().claim_search_call(provider, cap=daily_call_cap())
+        allowed = get_community_store().claim_search_call(provider, cap=daily_call_cap())
+        if not allowed:
+            note_reason(BUDGET_EXHAUSTED)
+        return allowed
     except Exception:  # noqa: BLE001
         log.warning("[websearch] budget ledger unavailable; allowing the call", exc_info=True)
         return True
@@ -226,6 +281,7 @@ async def _ask_grounded(
     try:
         from ai.llm_client import call_llm  # noqa: PLC0415
     except Exception:  # noqa: BLE001
+        note_reason(PROVIDER_ERROR)
         return []
 
     catalogue = json.dumps(
@@ -253,6 +309,7 @@ async def _ask_grounded(
         )
     except Exception:  # noqa: BLE001
         log.warning("[websearch] grounded call failed", exc_info=True)
+        note_reason(PROVIDER_ERROR)
         return []
 
     allow = {_normalize(r["url"]) for r in results}
@@ -264,6 +321,9 @@ async def _ask(system: str, prompt: str) -> List[Dict[str, Any]]:
     from community import search_providers as _sp  # noqa: PLC0415
 
     if not _sp.available("anthropic") or "anthropic" not in _sp.provider_order():
+        # The commonest silent morning by a distance: no ANTHROPIC_API_KEY, and
+        # every search in the run returns [] without a word.
+        note_reason(NO_MODEL_KEY if "anthropic" in _sp.provider_order() else NO_PROVIDER)
         return []
     if not _spend("anthropic"):
         log.info("[websearch] anthropic daily call cap reached; skipping")
@@ -271,6 +331,7 @@ async def _ask(system: str, prompt: str) -> List[Dict[str, Any]]:
     try:
         from ai.llm_client import call_llm  # noqa: PLC0415
     except Exception:  # noqa: BLE001
+        note_reason(PROVIDER_ERROR)
         return []
 
     try:
@@ -283,6 +344,7 @@ async def _ask(system: str, prompt: str) -> List[Dict[str, Any]]:
         )
     except Exception:  # noqa: BLE001 - a quiet channel, never a broken run
         log.warning("[websearch] search call failed", exc_info=True)
+        note_reason(PROVIDER_ERROR)
         return []
 
     # The model wrote a URL the search never returned is the failure mode this

@@ -206,7 +206,7 @@ def mask_email(email: Optional[str]) -> str:
     """
     raw = (email or "").strip()
     if "@" not in raw:
-        return raw[:1] + "••••" if raw else "—"
+        return raw[:1] + "••••" if raw else "-"
     local, _, domain = raw.partition("@")
     head = local[:1] if local else ""
     return f"{head}••••@{domain}"
@@ -607,9 +607,9 @@ async def send_invite(*, referrer: Dict[str, Any], email: str,
     # The referrer's name is the subject line and the first sentence — that is
     # the entire mechanism, and it is why this is not a cold invite. Already
     # collapsed through ``header_safe`` above, so no CR/LF can reach the header.
-    subject = (f"{referrer_name} suggested you'd be a good fit for Asclepius"
+    subject = (f"{referrer_name} suggested you'd be a good fit for Archangel Health"
                if referrer_name
-               else "You're invited to contribute to Asclepius")
+               else "You're invited to contribute to Archangel Health")
     try:
         return bool(await send_html_email(email, subject, html_body))
     except Exception:

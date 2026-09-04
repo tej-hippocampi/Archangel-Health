@@ -146,12 +146,21 @@ def test_the_digest_uses_the_product_palette():
 
 # ─── Shipping posture ────────────────────────────────────────────────────────
 
-def test_the_news_digest_is_off_by_default(monkeypatch):
-    """The community starts empty by policy: no bot-authored news until the
-    dedicated news software replaces this pipeline. Opt in explicitly."""
+def test_the_news_digest_is_on_by_default_and_the_variable_is_the_kill_switch(monkeypatch):
+    """This test used to assert the opposite, and the reason it changed is the
+    whole point of the change.
+
+    The community started empty by policy and the digest was opt-in, so an
+    unset variable meant no bot-authored news. The community is no longer
+    empty, and an off-by-default gate turned out to be indistinguishable from a
+    working deployment on a quiet week: it sat off in production for weeks and
+    nothing anywhere said so. So the gate ships ON and the variable is now a
+    kill switch an operator can pull without a deploy, which is the property
+    asserted here: 0 must still stop it.
+    """
     from community import digest as d
     monkeypatch.delenv("COMMUNITY_NEWS_ENABLED", raising=False)
-    assert d.news_enabled() is False
+    assert d.news_enabled() is True
     monkeypatch.setenv("COMMUNITY_NEWS_ENABLED", "1")
     assert d.news_enabled() is True
     monkeypatch.setenv("COMMUNITY_NEWS_ENABLED", "0")

@@ -48,6 +48,6 @@ export function npiWarning(raw: string): string {
   const value = cleanNpi(raw).trim();
   if (value.length < 10) return "";
   if (!/^\d{10}$/.test(value)) return "An NPI is exactly 10 digits.";
-  if (!npiChecksumOk(value)) return "This doesn't look like a valid NPI — double-check?";
+  if (!npiChecksumOk(value)) return "This doesn't look like a valid NPI, double-check?";
   return "";
 }

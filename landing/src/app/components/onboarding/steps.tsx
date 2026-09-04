@@ -289,6 +289,78 @@ export function emptyAttestations(): Attestations {
   };
 }
 
+/* ── Password, shared by screen 1 and the member/advisor password screen ────
+   Hoisted out of StepChoosePassword when the physician wizard started asking
+   for a password on screen 1. Two copies of a password policy drift, and the
+   half that drifts is always the one with fewer eyes on it. */
+export const PASSWORD_MIN = 12;
+
+export function passwordChecks(pw: string, confirm: string, email: string) {
+  return {
+    longEnough: pw.length >= PASSWORD_MIN,
+    notEmail: !!pw && pw.toLowerCase() !== (email || "").toLowerCase(),
+    varied: new Set(pw).size >= 5,
+    matches: !!pw && pw === confirm,
+  };
+}
+
+export function passwordValid(pw: string, confirm: string, email: string) {
+  const c = passwordChecks(pw, confirm, email);
+  return c.longEnough && c.notEmail && c.varied && c.matches;
+}
+
+/** The live checklist. Shown rather than a single "invalid" message, because a
+ *  password field that just refuses is a field people fight with. */
+export function PasswordChecklist({ pw, confirm, email }: {
+  pw: string; confirm: string; email: string;
+}) {
+  const c = passwordChecks(pw, confirm, email);
+  const row = (ok: boolean, label: string) => (
+    <li
+      key={label}
+      style={{
+        display: "flex", alignItems: "center", gap: 8,
+        color: ok ? "var(--ah-green-deep)" : "var(--ink-faint)",
+        margin: "4px 0", fontSize: "0.85rem",
+      }}
+    >
+      <span aria-hidden="true" style={{ width: 12 }}>{ok ? "\u2713" : "\u00b7"}</span>
+      {label}
+    </li>
+  );
+  return (
+    <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
+      {row(c.longEnough, `${PASSWORD_MIN} characters or more`)}
+      {row(c.varied, "A mix of characters, not one repeated")}
+      {row(c.notEmail, "Not your email address")}
+      {row(c.matches, "Both entries match")}
+    </ul>
+  );
+}
+
+/* The 50 states plus DC and Puerto Rico. Asked on screen 1 because a physician
+   knows it without looking, and it prefills the licence block on the Review
+   screen so the same fact is not asked for twice.
+
+   "Outside the US" is a first-class answer, not an omission. This field is
+   OPTIONAL: a physician licensed elsewhere has nothing to type here, and a
+   required field somebody cannot fill is a wall on the first screen. */
+export const US_STATES: { value: string; label: string }[] = [
+  ["AL", "Alabama"], ["AK", "Alaska"], ["AZ", "Arizona"], ["AR", "Arkansas"],
+  ["CA", "California"], ["CO", "Colorado"], ["CT", "Connecticut"], ["DE", "Delaware"],
+  ["DC", "District of Columbia"], ["FL", "Florida"], ["GA", "Georgia"], ["HI", "Hawaii"],
+  ["ID", "Idaho"], ["IL", "Illinois"], ["IN", "Indiana"], ["IA", "Iowa"],
+  ["KS", "Kansas"], ["KY", "Kentucky"], ["LA", "Louisiana"], ["ME", "Maine"],
+  ["MD", "Maryland"], ["MA", "Massachusetts"], ["MI", "Michigan"], ["MN", "Minnesota"],
+  ["MS", "Mississippi"], ["MO", "Missouri"], ["MT", "Montana"], ["NE", "Nebraska"],
+  ["NV", "Nevada"], ["NH", "New Hampshire"], ["NJ", "New Jersey"], ["NM", "New Mexico"],
+  ["NY", "New York"], ["NC", "North Carolina"], ["ND", "North Dakota"], ["OH", "Ohio"],
+  ["OK", "Oklahoma"], ["OR", "Oregon"], ["PA", "Pennsylvania"], ["PR", "Puerto Rico"],
+  ["RI", "Rhode Island"], ["SC", "South Carolina"], ["SD", "South Dakota"], ["TN", "Tennessee"],
+  ["TX", "Texas"], ["UT", "Utah"], ["VT", "Vermont"], ["VA", "Virginia"],
+  ["WA", "Washington"], ["WV", "West Virginia"], ["WI", "Wisconsin"], ["WY", "Wyoming"],
+].map(([value, label]) => ({ value, label }));
+
 export type OnboardingData = {
   firstName: string;
   lastName: string;
@@ -323,6 +395,15 @@ export type OnboardingData = {
      yet. The success screen branches on it rather than offering a door that is
      locked. */
   awaitingReview: boolean;
+  /* ── Screen 1's password ─────────────────────────────────────────────────
+     `password` is TRANSIENT: held only long enough to POST screen 1, then
+     cleared. It is never written to storage and never sent anywhere else.
+     `passwordSet` is what a RESUMED session reads, so a physician who comes
+     back to a half-finished application is not asked for a password they
+     already chose. It comes from the server as a boolean; the hash never
+     leaves the backend. */
+  password: string;
+  passwordSet: boolean;
 };
 
 /** The server's CV parse, as `GET /asclepius/cv/status` returns it. Every field
@@ -335,8 +416,20 @@ export type CvParsed = {
   institutions?: string[] | null;
   training?: { kind: string; institution: string; start_year: string | null;
                end_year: string | null }[] | null;
+  /* The flat labels the admin dossier and the tier scorer read. */
   board_certifications?: string[] | null;
+  /* The same certifications, structured. The flat list could only ever fill a
+     board NAME, so the specialty and subspecialty columns beside it stayed
+     empty and the physician typed back in what their own CV had said. */
+  board_certifications_structured?:
+    { board: string; specialty: string; subspecialty: string;
+      active: boolean | null }[] | null;
+  licenses?: { state: string; number: string; current: string }[] | null;
+  employer?: string | null;
+  /* The registry key, lowercase: an identifier. */
   specialty?: string | null;
+  /* The same specialty spelled the way a person writes it. Prefill from THIS. */
+  specialty_display?: string | null;
   npi?: string | null;
   linkedin_url?: string | null;
   years_in_practice?: number | null;
@@ -347,6 +440,39 @@ export type CvStage = "reading" | "matching" | "preparing" | "done" | "failed";
 
 const TWO_COL: CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
 const CARD_FOOTER_BACK: CSSProperties = { marginTop: 18, textAlign: "center" };
+
+/** "Already have an account? Sign in."
+ *
+ *  A physician who already has an account lands in this wizard regularly: they
+ *  click the contributor button on the landing page out of habit, or they open
+ *  an old link from their inbox. Until now the wizard had exactly one exit,
+ *  which was to finish a signup they did not need, and the only other way out
+ *  was the browser's Back button.
+ */
+export function AlreadyHaveAnAccount({ onSignIn }: { onSignIn: () => void }) {
+  return (
+    <div style={CARD_FOOTER_BACK}>
+      <button
+        type="button"
+        onClick={onSignIn}
+        style={{
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+          font: "inherit",
+          fontSize: "0.9rem",
+          color: "var(--ink-faint)",
+        }}
+      >
+        Already have an account?{" "}
+        <span style={{ color: "var(--ah-green-deep)", textDecoration: "underline" }}>
+          Sign in
+        </span>
+      </button>
+    </div>
+  );
+}
 
 /* ─────────────────────────────────────────────────────────────
    Step 1 — Name + email
@@ -361,16 +487,21 @@ export function Step1NameEmail({
   data,
   setData,
   onNext,
+  onSignIn,
   error,
   kind = "physician",
 }: {
   data: OnboardingData;
   setData: (patch: Partial<OnboardingData>) => void;
   onNext: () => Promise<boolean>;
+  /** Switch to the sign-in screen. A physician who already has an account
+   *  arrives here regularly and used to have no way out of the wizard. */
+  onSignIn?: () => void;
   error?: string;
   kind?: SignupKind;
 }) {
   const a = data.attestations;
+  const [confirmPw, setConfirmPw] = useState("");
   // An advisor reads physicians discussing their own practice. That is not a
   // clinical attestation and it is not the seven a doctor signs, but the people
   // whose conversations those are deserve one line on file, so this screen is
@@ -381,18 +512,30 @@ export function Step1NameEmail({
   // Each screen gates ONLY on what it asks for. Gating screen 1 on a licence
   // number it never showed is how a Continue button goes dead with no
   // explanation anywhere on the page.
+  const isAsclepius = data.product === "asclepius";
+
+  /* The password moved here from its own screen. A physician used to finish the
+     whole wizard owning no account at all: a credential appeared only when an
+     admin approved, and getting back in meant an emailed link. Now this screen
+     creates the account, so screen 1 asks for the four things an account needs
+     and nothing else.
+
+     Only for a self-serve PHYSICIAN. Members, advisors and referral partners
+     keep StepChoosePassword, which sits after the OTP in their flows. */
+  const needsPassword = isAsclepius && kind === "physician" && !data.passwordSet;
+  const pwOk = !needsPassword || passwordValid(data.password, confirmPw, data.email);
+
   const valid =
     data.firstName.trim().length > 0 &&
     data.lastName.trim().length > 0 &&
     /\S+@\S+\.\S+/.test(data.email.trim()) &&
+    pwOk &&
     (!needsConfidentiality || a.attestConfidentiality);
-
-  const isAsclepius = data.product === "asclepius";
 
   const COPY: Record<SignupKind, { title: string; lede: string; hint: string }> = {
     physician: {
       title: isAsclepius
-        ? "Welcome to Asclepius, let's start your journey."
+        ? "Welcome to Archangel Health, let's start your journey."
         : "Let's get you set up.",
       lede: isAsclepius
         ? "A few minutes to get your evaluator workspace ready. We'll start with you."
@@ -459,6 +602,47 @@ export function Step1NameEmail({
           />
         </div>
       )}
+      {needsPassword && (
+        <>
+          <div style={{ marginTop: 18 }}>
+            <TextField
+              label="Choose a password"
+              type="password"
+              value={data.password}
+              onChange={(v) => setData({ password: v })}
+              autoComplete="new-password"
+              placeholder="At least 12 characters"
+              hint="You will sign in with this. We never email it to you."
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <TextField
+              label="Confirm password"
+              type="password"
+              value={confirmPw}
+              onChange={setConfirmPw}
+              autoComplete="new-password"
+              placeholder="Type it again"
+            />
+          </div>
+          <PasswordChecklist pw={data.password} confirm={confirmPw} email={data.email} />
+        </>
+      )}
+
+      {isAsclepius && kind === "physician" && (
+        <div style={{ marginTop: 18 }}>
+          <SelectField
+            label="State you are licensed in"
+            placeholder="Outside the US"
+            value={data.credentials.licenseState}
+            onChange={(v) =>
+              setData({ credentials: { ...data.credentials, licenseState: v } })
+            }
+            options={US_STATES}
+          />
+        </div>
+      )}
+
       <div style={{ marginTop: 12 }}>
         <PrimaryButton
           fullWidth
@@ -470,6 +654,8 @@ export function Step1NameEmail({
           Continue
         </PrimaryButton>
       </div>
+
+      {onSignIn && <AlreadyHaveAnAccount onSignIn={onSignIn} />}
     </OnboardingCard>
   );
 }
@@ -844,9 +1030,9 @@ export function Step4YourTeam({
             >
               <span>{data.email}</span>
               <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
-              <span>{data.orgName || "—"}</span>
+              <span>{data.orgName || "-"}</span>
               <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
-              <span>{data.department || "—"}</span>
+              <span>{data.department || "-"}</span>
             </div>
           </div>
         </div>
@@ -877,7 +1063,7 @@ export function Step4YourTeam({
             ) : (
               <>
                 Team: <strong style={{ color: "var(--ink)" }}>{totalCount} / {TEAM_CAP_TOTAL}</strong>
-                {totalCount === 1 ? " — director (surgeon)" : ""}
+                {totalCount === 1 ? ", director (surgeon)" : ""}
               </>
             )}
           </div>
@@ -1125,7 +1311,7 @@ export function Step5SignIn({
         type="password"
         value={pw}
         onChange={setPw}
-        hint="Use the temporary password we sent to your email — you'll change it now."
+        hint="Use the temporary password we sent to your email, you'll change it now."
         autoComplete="current-password"
       />
       <PrimaryButton
@@ -1203,8 +1389,8 @@ export function Step6Success({
           marginBottom: 28,
         }}
       >
-        <Stat label="Health system" value={data.orgName || "—"} />
-        <Stat label="Department" value={data.department || "—"} />
+        <Stat label="Health system" value={data.orgName || "-"} />
+        <Stat label="Department" value={data.department || "-"} />
         <Stat label="TEAM members" value={`${memberCount + 1}`} />
       </div>
       <p
@@ -1559,7 +1745,20 @@ function onboardingTokenFromLocation(): string {
 }
 
 const CV_MAX_BYTES = 10 * 1024 * 1024;
-const CV_ACCEPT = ".pdf,.txt,application/pdf,text/plain";
+/* Mirrors credentialing.CV_ACCEPTED_MIMES. This was ".pdf,.txt" only, and a
+   physician who attached the .docx their CV has lived in for fifteen years was
+   told "unsupported CV type" with no list of what IS supported. A photo counts
+   too: for a lot of people a picture of a printed CV is the only copy there is.
+
+   The extensions and the mime types are both listed because browsers disagree
+   about which they match against, and a file picker that greys out a real CV is
+   indistinguishable from a broken one. */
+const CV_ACCEPT = [
+  ".pdf", ".txt", ".md", ".docx", ".rtf", ".png", ".jpg", ".jpeg",
+  "application/pdf", "text/plain", "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/rtf", "image/png", "image/jpeg",
+].join(",");
 
 /** Optional CV upload.
  *
@@ -1661,7 +1860,7 @@ function CvUploadField({
             ? `${filename} attached`
             : documentRequired
               ? "PDF or image, up to 10 MB. This is how we verify you."
-              : "PDF or text, up to 10 MB. Optional."}
+              : "PDF, Word, RTF, text, or a photo. Up to 10 MB, and optional."}
         </span>
         <input
           ref={inputRef}
@@ -1892,7 +2091,7 @@ export function StepCv({
                 ? "We couldn’t read that one. Try another file?"
                 : "Drop your CV here, or choose a file"}
             </div>
-            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>PDF or text, up to 10 MB.</div>
+            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>PDF, Word, RTF, text, or a photo. Up to 10 MB.</div>
           </button>
           <input
             ref={inputRef}
@@ -2029,7 +2228,7 @@ export function Step5Credentials({
   const registryFormatWarning =
     !isUS && registry.id_regex && c.registrationNumber.trim().length > 0 &&
     !new RegExp(registry.id_regex).test(c.registrationNumber.trim())
-      ? "That does not look like the usual format — worth a second check, but you can continue."
+      ? "That does not look like the usual format, worth a second check, but you can continue."
       : "";
 
   const identityValid =
@@ -2090,7 +2289,7 @@ export function Step5Credentials({
       lede={
         reviewMode ? (
           data.cvParsed?.ok
-            ? "We filled in what your CV told us. Correct anything that is off, add anything it missed, and leave the rest — only your name and specialty are needed to send this in."
+            ? "We filled in what your CV told us. Correct anything that is off, add anything it missed, and leave the rest, only your name and specialty are needed to send this in."
             : "Only your name and specialty are needed to send this in. Everything else helps us verify you faster, and you can add it later."
         )
         : phase === 1 ? "About a minute. We use your NPI to fill in as much of the next screen as we can."
@@ -2102,7 +2301,7 @@ export function Step5Credentials({
             </>
           )
         : memberMode
-          ? "Your verified credentials are attached to the data you label — this is what makes it valuable. Please be accurate."
+          ? "Your verified credentials are attached to the data you label, this is what makes it valuable. Please be accurate."
           : "As Director of Data Training, your credentials anchor the dataset your team produces."
       }
     >
@@ -2263,8 +2462,8 @@ export function Step5Credentials({
           // matter. The three-screen flow still gates on it, so the error stays
           // where a Continue button depends on it.
           hint={(reviewMode && c.phone.trim().length > 0 && c.phone.trim().length < 7)
-            ? "That looks short for a phone number — worth a check."
-            : "Direct line for you — not your practice's main number."}
+            ? "That looks short for a phone number, worth a check."
+            : "Direct line for you: not your practice's main number."}
           error={
             !reviewMode && c.phone.trim().length > 0 && c.phone.trim().length < 7
               ? "Enter a reachable phone number."
@@ -2506,7 +2705,7 @@ export function Step5Credentials({
           placeholder="8"
           value={c.clinicalHalfDaysPerMonth}
           onChange={(v) => set({ clinicalHalfDaysPerMonth: v.replace(/\D/g, "").slice(0, 3) })}
-          hint="Averaged over the last 12 months. Part-time practice counts — this is not a threshold you either clear or fail."
+          hint="Averaged over the last 12 months. Part-time practice counts, this is not a threshold you either clear or fail."
         />
       )}
       </>)}
@@ -2834,7 +3033,7 @@ export function Step6Attestations({
               letterSpacing: "0.08em",
             }}
           >
-            {initials || "—"}
+            {initials || "-"}
           </div>
         </div>
         <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8 }}>
@@ -2983,9 +3182,9 @@ export function Step7AsclepiusTeam({
             >
               <span>{data.email}</span>
               <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
-              <span>{data.orgName || "—"}</span>
+              <span>{data.orgName || "-"}</span>
               <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
-              <span>{data.specialty || "—"}</span>
+              <span>{data.specialty || "-"}</span>
             </div>
           </div>
         </div>
@@ -3409,15 +3608,18 @@ export function Step8AsclepiusSuccess({
    ready: it opens ONE piece of work, the copy says what it is worth, and the
    24-48h reassurance stays above it.
    ═════════════════════════════════════════════════════════════ */
-export function StepApplicationSubmitted({ data }: { data: OnboardingData }) {
+export function StepApplicationSubmitted({ data, onSignIn }: {
+  data: OnboardingData;
+  onSignIn?: () => void;
+}) {
   const last = (data.lastName || "").trim();
 
   /* Same trade the success screen makes: the portal is a different ORIGIN in
      production, so a session token cannot be handed over through storage. It
      is exchanged for a single-use handoff code the portal redeems on load. If
      that exchange fails, or there is no token because /finish could not mint
-     one, land them on the portal anyway: it offers the emailed sign-in link,
-     which is a worse door but not a dead end. */
+     one, land them on the portal anyway: they now have a password, so the
+     ordinary sign-in form is the door. */
   const openPracticeCase = async () => {
     if (data.asclepiusToken) {
       try {
@@ -3472,8 +3674,14 @@ export function StepApplicationSubmitted({ data }: { data: OnboardingData }) {
       </p>
       <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-soft)",
                   textAlign: "center", margin: "0 0 8px" }}>
+        We&rsquo;re only confirming that you are who you say you are. Your account is
+        open now: sign in with the password you just chose, look around, and do your
+        practice case whenever it suits you.
+      </p>
+      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-soft)",
+                  textAlign: "center", margin: "0 0 8px" }}>
         We&rsquo;ll email <strong style={{ color: "var(--ink)" }}>{data.email}</strong>{" "}
-        either way. If we say yes, that email carries your sign-in details.
+        either way.
       </p>
       <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-faint)",
                   textAlign: "center", margin: "0 0 26px" }}>
@@ -3491,7 +3699,7 @@ export function StepApplicationSubmitted({ data }: { data: OnboardingData }) {
                     textAlign: "center", margin: "0 0 18px" }}>
           One thing while you wait: your{" "}
           <strong style={{ color: "var(--ink)" }}>practice case</strong> is open in your
-          account. It takes about ten minutes, it is real clinical reasoning rather than a
+          account. It takes about four minutes, it is real clinical reasoning rather than a
           form, and it is the part of your application we read most closely.
         </p>
         <PrimaryButton fullWidth onClick={openPracticeCase} loadingLabel="Opening…"
@@ -3503,12 +3711,21 @@ export function StepApplicationSubmitted({ data }: { data: OnboardingData }) {
           No time limit, and no grade is published. We&rsquo;ve emailed{" "}
           <strong style={{ color: "var(--ink-soft)" }}>{data.email}</strong> a link back in
           if you want to finish it later.{" "}
-          <a href="/mission" style={{ color: "var(--ah-green-deep)" }}>
+          {/* A NEW TAB, deliberately. This link is what a physician clicked
+              from the end of a successful signup, and because the landing app
+              has no router it was a full page navigation: Back remounted the
+              wizard, which resumed from the server, and put them on the verify
+              step. Two other layers now hold that shut, and this one removes
+              the trip entirely. */}
+          <a href="/mission" target="_blank" rel="noopener noreferrer"
+             style={{ color: "var(--ah-green-deep)" }}>
             Or read our mission
           </a>
           .
         </p>
       </div>
+
+      {onSignIn && <AlreadyHaveAnAccount onSignIn={onSignIn} />}
     </OnboardingCard>
   );
 }
@@ -3528,7 +3745,7 @@ export function StepApplicationSubmitted({ data }: { data: OnboardingData }) {
    "one symbol and one digit" reliably produces Password1! and nothing safer.
    ───────────────────────────────────────────────────────────── */
 
-const PASSWORD_MIN = 12;
+
 
 export function StepChoosePassword({
   data,
@@ -3548,27 +3765,7 @@ export function StepChoosePassword({
   const [confirm, setConfirm] = useState("");
   const [touched, setTouched] = useState(false);
 
-  const longEnough = pw.length >= PASSWORD_MIN;
-  const notEmail = !!pw && pw.toLowerCase() !== (data.email || "").toLowerCase();
-  const varied = new Set(pw).size >= 5;
-  const matches = !!pw && pw === confirm;
-  const valid = longEnough && notEmail && varied && matches;
-
-  const check = (ok: boolean, label: string) => (
-    <li
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        color: ok ? "var(--ah-green-deep)" : "var(--ink-faint)",
-        margin: "4px 0",
-        fontSize: "0.85rem",
-      }}
-    >
-      <span aria-hidden="true" style={{ width: 12 }}>{ok ? "✓" : "·"}</span>
-      {label}
-    </li>
-  );
+  const valid = passwordValid(pw, confirm, data.email);
 
   return (
     <OnboardingCard
@@ -3604,12 +3801,7 @@ export function StepChoosePassword({
         />
       </div>
 
-      <ul style={{ listStyle: "none", padding: 0, margin: "14px 0 0" }}>
-        {check(longEnough, `${PASSWORD_MIN} characters or more`)}
-        {check(varied, "A mix of characters, not one repeated")}
-        {check(notEmail, "Not your email address")}
-        {check(matches, "Both entries match")}
-      </ul>
+      <PasswordChecklist pw={pw} confirm={confirm} email={data.email} />
 
       <div style={{ marginTop: 22 }}>
         <PrimaryButton

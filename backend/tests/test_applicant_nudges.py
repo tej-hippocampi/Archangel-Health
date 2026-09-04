@@ -212,8 +212,8 @@ def test_a_claimed_but_unsent_nudge_is_never_retried(mail, monkeypatch):
     # Transport healthy again, and this applicant still hears nothing: the
     # claim committed before the send that failed.
     monkeypatch.setattr(email_utils, "send_html_email", _capture(mail))
-    assert _sweep(store) == {"nudge": 0, "expiry": 0, "credentials": 0,
-                             "practice": 0, "profile": 0}
+    assert _sweep(store) == {"resume": 0, "nudge": 0, "expiry": 0,
+                             "credentials": 0, "practice": 0, "profile": 0}
     assert _subjects(mail, doc["email"]) == []
 
 
@@ -227,8 +227,8 @@ def test_no_mail_transport_stamps_nothing(monkeypatch):
 
     import email_utils
     monkeypatch.setattr(email_utils, "is_email_transport_configured", lambda: False)
-    assert _sweep(store) == {"nudge": 0, "expiry": 0, "credentials": 0,
-                             "practice": 0, "profile": 0}
+    assert _sweep(store) == {"resume": 0, "nudge": 0, "expiry": 0,
+                             "credentials": 0, "practice": 0, "profile": 0}
 
     row = store.get_user_by_id(doc["id"])
     assert row["nudge_credentials_sent_at"] is None

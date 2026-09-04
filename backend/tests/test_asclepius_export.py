@@ -499,7 +499,7 @@ def test_a_record_carrying_the_literal_string_unspecified_is_not_called_absent()
 
 
 _EVAL_PACK_STUB = {
-    "sku": "asclepius_eval_pack", "title": "Asclepius Rubric Eval Pack",
+    "sku": "asclepius_eval_pack", "title": "Archangel Health Rubric Eval Pack",
     "licensing": "re-licensable-per-model-version", "billing": "recurring",
     "revalidation_trigger": "buyer_model_version_change", "recurring_value_usd": 60.0,
     "n_rubrics": 1, "n_probed": 0, "n_validated": 0, "n_needs_review": 0,

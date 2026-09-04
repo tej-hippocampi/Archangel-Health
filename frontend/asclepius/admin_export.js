@@ -82,7 +82,7 @@
   var APPROVE_BATCH_MAX = 500;
 
   function fmtSize(bytes) {
-    if (!bytes) return '—';
+    if (!bytes) return '-';
     var kb = bytes / 1024;
     if (kb < 1) return bytes + ' B';
     var mb = kb / 1024;
@@ -153,7 +153,7 @@
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Export'),
         h('div', { class: 'asc-card-sub' },
-          'Pick a scope. The preview below is what will ship — and what will '
+          'Pick a scope. The preview below is what will ship, and what will '
           + 'not, with the reason. One button builds the bundle; buyer '
           + 'deliveries happen from the buyer portal.'))),
       h('div', { class: 'asc-card-pad' },
@@ -222,7 +222,7 @@
           h('div', { class: 'asc-inline-error' },
             'THE NO-DATA-LOSS CHECK FAILED during the export migration. Rows '
             + 'that existed before it do not exist now. Do not export or delete '
-            + 'anything — restore from a backup of the volume first.'),
+            + 'anything: restore from a backup of the volume first.'),
           h('ul', {}, (loss.problems || []).map(function (p) {
             return h('li', {}, p);
           })))));
@@ -245,7 +245,7 @@
     if (m.voided_left_untouched) {
       bits.push(plural(m.voided_left_untouched, 'voided earning')
         + ' still ' + (m.voided_left_untouched === 1 ? 'has' : 'have')
-        + ' live records — a void may have been a payment decision, not a '
+        + ' live records: a void may have been a payment decision, not a '
         + 'quality one, so they were left for you rather than rejected.');
     }
     if (loss.checked && loss.ok) {
@@ -310,7 +310,7 @@
       var listId = 'ascExportCaseOptions';
       var input = h('input', {
         class: 'asc-input', list: listId,
-        placeholder: 'paste a case id — e.g. v4real-v4-neph-001 (comma-separate for several)',
+        placeholder: 'paste a case id: e.g. v4real-v4-neph-001 (comma-separate for several)',
         value: filters.case_ids,
       });
       var dl = h('datalist', { id: listId },
@@ -330,7 +330,7 @@
       wrap.appendChild(input);
       wrap.appendChild(dl);
       wrap.appendChild(h('div', { class: 'asc-label-hint' },
-        'Copy one from the Money & Metrics ledger or Task Routing — every id '
+        'Copy one from the Money & Metrics ledger or Task Routing, every id '
         + 'there has a copy button.'));
       return;
     }
@@ -482,7 +482,7 @@
     row.appendChild(toggle);
     if (approvable < n) {
       row.appendChild(h('span', { class: 'asc-label-hint' },
-        (n - approvable) + ' of them cannot be approved from here — open the '
+        (n - approvable) + ' of them cannot be approved from here, open the '
         + 'list for the reason.'));
     }
     block.appendChild(row);
@@ -510,7 +510,7 @@
                   paid: 'Paid', void: 'Not approved' };
     var ledger = words[r.ledger_status]
       || (r.ledger_status ? r.ledger_status : 'No ledger row');
-    return ledger + ' · ' + (r.status || '—');
+    return ledger + ' · ' + (r.status || '-');
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -584,7 +584,7 @@
           ctx.clear(ui.status);
           ui.status.appendChild(ctx.h('div', { class: 'asc-inline-warn' },
             (ids.length - n) + ' of ' + ids.length + ' could not be approved. '
-            + 'Open the excluded list — the reason is on each row.'));
+            + 'Open the excluded list: the reason is on each row.'));
         }
         // RE-PREVIEW, always. The number on this page after an approval is the
         // server's, never this file's arithmetic.
@@ -616,7 +616,7 @@
         busy = false;
         drawActions();
         var n = res.record_count || 0;
-        ctx.toast('Export built — ' + plural(n, 'record') + '.', 'success');
+        ctx.toast('Export built, ' + plural(n, 'record') + '.', 'success');
         ctx.clear(ui.status);
         ui.status.appendChild(h('div', { class: 'asc-inline-ok' },
           'Ready: ' + plural(n, 'record')
@@ -634,8 +634,8 @@
         if (res.delivery) {
           ui.status.appendChild(h('div', { class: 'asc-inline-ok' },
             'Delivered to ' + res.delivery.buyer_email
-            + (res.delivery.email_sent ? ' — credentials emailed.'
-                                       : ' — the notification email did NOT send.')));
+            + (res.delivery.email_sent ? ', credentials emailed.'
+                                       : ', the notification email did NOT send.')));
         }
         loadHistory();
         // The records just shipped are now `exported`, so the slice changed.

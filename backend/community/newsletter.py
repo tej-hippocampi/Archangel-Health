@@ -326,13 +326,21 @@ async def run_newsletter(*, force: bool = False) -> Dict[str, Any]:
                                                 window=window)
                 if outcome == "sent":
                     delivered += 1
-            cstore.finish_digest_run(run_id, ok=True, items_posted=delivered)
+            cstore.finish_digest_run(
+                run_id, ok=True, items_posted=delivered,
+                # A cohort whose every doctor had a quiet morning is a valid
+                # run that sent nothing, and it should not read on the admin
+                # tab like a newsletter that is broken.
+                reason=(cmorning.REASON_POSTED if delivered
+                        else cmorning.REASON_NOTHING_FOUND))
             ran.append(key)
             sent += delivered
         except Exception as exc:  # noqa: BLE001
             log.warning("[newsletter] cohort %s failed", code, exc_info=True)
             try:
-                cstore.finish_digest_run(run_id, ok=False, items_posted=delivered, error=str(exc)[:200])
+                cstore.finish_digest_run(run_id, ok=False, items_posted=delivered,
+                                         error=str(exc)[:200],
+                                         reason=cmorning.REASON_ERROR)
             except Exception:  # noqa: BLE001
                 pass
     log.info("[newsletter] cohorts=%d sent=%d skipped=%d", len(ran), sent, len(skipped))

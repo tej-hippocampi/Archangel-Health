@@ -629,7 +629,7 @@ def test_the_case_is_folded_until_doubted():
     default. What is behind the fold changed, not whether it is folded."""
     out = _render(_routes())
     assert out["caseOpen"] is False
-    assert "The case — open only if you doubt something" in out["text"]
+    assert "The case: open only if you doubt something" in out["text"]
 
 
 # ═══ §2.3 — the 5-10 minute layout ═══════════════════════════════════════════
@@ -658,7 +658,7 @@ def test_reasoning_step_divergence_is_marked_when_both_sides_carry_steps():
     assert out["forks"] == ["1", "1"], out["forks"]
     assert out["forkRows"] == ["1"], out["forkRows"]
     assert "Where the reasoning forks" in out["text"]
-    assert "Step 2 — they diverge" in out["text"]
+    assert "Step 2, they diverge" in out["text"]
 
 
 def test_nothing_diverges_when_only_one_side_carried_steps():
