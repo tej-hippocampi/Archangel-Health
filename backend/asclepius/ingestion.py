@@ -248,7 +248,7 @@ def promotion_block_reason(value: Optional[str]) -> str:
     about."""
     if is_brokering(value):
         return ("This is held for brokering. Brokering data is never promoted to "
-                "tasks — the server refuses it.")
+                "tasks: the server refuses it.")
     return ("This has not been reviewed yet. Everything arrives as storage and "
             "stays there until you set what it is for; set it to task creation "
             "on this row and the promote controls open.")
@@ -393,7 +393,7 @@ def iter_raw(raw_path: str, *, chunk_size: int = _RAW_FRAME_BYTES) -> Iterator[b
                 # as corruption instead of being allocated for.
                 raise ValueError(
                     f"raw bundle frame length {length} exceeds the maximum "
-                    f"{_RAW_FRAME_MAX} — the file is corrupt")
+                    f"{_RAW_FRAME_MAX}: the file is corrupt")
             frame = fh.read(length)
             if len(frame) != length:
                 raise ValueError("raw bundle is truncated (incomplete frame body)")
@@ -611,7 +611,7 @@ def purge_orphan_raw(store: Any) -> int:
         with contextlib.suppress(Exception):
             store.log_event(entity_type="ingest", event_type="orphan_raw_purged",
                             payload={"deleted": deleted})
-        log.warning("released %d raw blob(s) that no upload row referenced — a crash "
+        log.warning("released %d raw blob(s) that no upload row referenced, a crash "
                     "between assembly and row insert leaves these behind", deleted)
     return deleted
 
@@ -1750,7 +1750,7 @@ def unify_patient_keys(
         if len(keys) > 1:
             return per_patient, {
                 "unified": False,
-                "reason": f"{len(keys)} distinct patient keys from {source} — treating "
+                "reason": f"{len(keys)} distinct patient keys from {source}, treating "
                           "this as a multi-patient bundle rather than merging charts",
                 "sources": {s: len(k) for s, k in identity_by_source.items()},
             }
@@ -1854,7 +1854,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                     _discard_staged()
                     store.update_ingest_upload(
                         upload_id, status="needs_review",
-                        reason="malware scan could not complete — held for review "
+                        reason="malware scan could not complete: held for review "
                                f"({detail})")
                     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                                     event_type="upload_held_scan_inconclusive",
@@ -2056,7 +2056,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                 report["missing_modalities"] = comp["missing"]
                 raise cf.CaseIngestError(
                     f"bundle declares required modalities not delivered: {sorted(comp['missing'])}; "
-                    f"the case's decisive evidence is absent — quarantining rather than "
+                    f"the case's decisive evidence is absent, quarantining rather than "
                     f"shipping an unanswerable case")
             case["completeness_status"] = "unverified" if comp["unresolved"] else "verified"
             # Post-condition (Buyer Response PRD §3 B1): no distinctive sealed-answer
@@ -2103,7 +2103,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                               "the partner's de-identification header contains "
                               f"{len(_prov_dates)} date-like token(s) ({', '.join(_prov_dates[:3])}); "
                               "the header was removed before scanning. Their de-identification "
-                              "footer should carry no dates at all — report this to the partner.")
+                              "footer should carry no dates at all, report this to the partner.")
             blocking = [r for r in review_reasons if r["severity"] == "blocking"]
             case_status = "needs_review" if blocking else "ingested"
             ic = store.insert_ingest_case(upload_id=upload_id,
@@ -2196,9 +2196,9 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     elif status == "quarantined":
         # Partial-failure wording matters: "all cases quarantined" over a 2-of-3
         # failure reads as a different (and smaller) problem than it is.
-        reason = ("all cases quarantined — review findings" if ingested == 0 and needs_review == 0
+        reason = ("all cases quarantined: review findings" if ingested == 0 and needs_review == 0
                   else f"{quarantined} of {quarantined + ingested + needs_review} cases "
-                       "quarantined — review findings")
+                       "quarantined: review findings")
     elif status == "rejected":
         reason = "nothing ingested"
     store.update_ingest_upload(upload_id, status=status, reason=reason, files_json=file_outcomes)

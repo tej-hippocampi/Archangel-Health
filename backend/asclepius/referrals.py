@@ -206,7 +206,7 @@ def mask_email(email: Optional[str]) -> str:
     """
     raw = (email or "").strip()
     if "@" not in raw:
-        return raw[:1] + "••••" if raw else "—"
+        return raw[:1] + "••••" if raw else "-"
     local, _, domain = raw.partition("@")
     head = local[:1] if local else ""
     return f"{head}••••@{domain}"

@@ -268,7 +268,7 @@ async def _send_invite(provider: Dict[str, Any], temp_password: str) -> None:
     )
     ok = await send_html_email(
         provider["email"],
-        "Send us your clinical data — your Archangel Health upload access",
+        "Send us your clinical data: your Archangel Health upload access",
         html_body,
         importance_headers=True,
     )
@@ -317,7 +317,7 @@ async def invite_data_provider(
                     event_type="invite_sent", actor=admin["id"],
                     payload={"email": provider["email"], "org": provider.get("org_name")})
     return {"provider": _public_provider(provider, store=store),
-            "message": f"Invite sent to {provider['email']} — account created, temporary password emailed."}
+            "message": f"Invite sent to {provider['email']}, account created, temporary password emailed."}
 
 
 @router.get("/admin/data-providers")
@@ -360,7 +360,7 @@ async def revoke_data_provider(
     store.log_event(entity_type="data_provider", entity_id=provider_id,
                     event_type="access_revoked", actor=admin["id"])
     return {"provider": _public_provider(provider, store=store),
-            "message": "Access revoked — the provider can no longer sign in or upload."}
+            "message": "Access revoked: the provider can no longer sign in or upload."}
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -472,7 +472,7 @@ async def provider_upload(
                         event_type="upload_store_failed", actor=provider_user["id"],
                         payload={"error": str(exc)})
         raise HTTPException(status_code=503,
-                            detail="Could not store the upload securely — please retry in a moment.")
+                            detail="Could not store the upload securely, please retry in a moment.")
     upload = store.insert_ingest_upload(
         upload_id=upload_id,
         link_id=_ACCOUNT_LINK_ID, partner_id=provider_user["id"],
@@ -970,7 +970,7 @@ async def hs_upload(
                         event_type="upload_store_failed", actor=portal_user["username"],
                         payload={"error": str(exc), "hs_id": hs_id})
         raise HTTPException(status_code=503,
-                            detail="We could not store the upload securely — please retry in a moment.")
+                            detail="We could not store the upload securely, please retry in a moment.")
     upload = store.insert_ingest_upload(
         upload_id=upload_id, link_id=_HS_LINK_ID, partner_id=hs_id,
         filename=(raw_files[0]["filename"] if len(raw_files) == 1 else "bundle.zip")[:120],
@@ -1025,7 +1025,7 @@ if _UNMAPPED_INFLIGHT:  # pragma: no cover - import-time guard
     )
 _HS_NEEDS_ATTENTION_DETAIL = (
     "Our team is taking a closer look at this upload. Nothing more is needed "
-    "from you right now — we will reach out if anything else is required."
+    "from you right now, we will reach out if anything else is required."
 )
 
 

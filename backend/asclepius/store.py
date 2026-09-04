@@ -752,7 +752,7 @@ class AsclepiusStore:
                 -- V4 image asset index (V4 Image Embedding PRD §4). Resolves an
                 -- asset_id → sha256/mime/owning-task in ONE indexed lookup so serving
                 -- an image never scans the tasks table. The image BYTES live in the
-                -- content-addressed asset store, never here — only the reference.
+                -- content-addressed asset store, never here, only the reference.
                 CREATE TABLE IF NOT EXISTS study_assets (
                     asset_id    TEXT PRIMARY KEY,
                     sha256      TEXT NOT NULL,
@@ -789,7 +789,7 @@ class AsclepiusStore:
                 -- committed their blind independent answer BEFORE any candidate
                 -- answer text was revealed. The reveal endpoints refuse to return
                 -- answer text without this row, and the committed answer is the
-                -- authoritative one packaged — so it is provably pre-reveal.
+                -- authoritative one packaged, so it is provably pre-reveal.
                 CREATE TABLE IF NOT EXISTS independent_commits (
                     task_id       TEXT NOT NULL,
                     evaluator_id  TEXT NOT NULL,
@@ -857,7 +857,7 @@ class AsclepiusStore:
             )
             conn.execute(
                 """
-                -- Data-provider ACCOUNTS (email + password door, EHR PRD §4 —
+                -- Data-provider ACCOUNTS (email + password door, EHR PRD §4, 
                 -- complementary to the magic-link door). The account itself lives
                 -- in ``users`` (role='data_partner'); this row carries the invite /
                 -- upload lifecycle + relationship metadata the admin sees. Uploads
@@ -2326,7 +2326,7 @@ class AsclepiusStore:
                     advisor_id     TEXT NOT NULL,
                     verdict        TEXT NOT NULL,  -- approved|approved_with_comments|changes_requested
                     comments       TEXT,
-                    relationship   TEXT NOT NULL,  -- 'advisor_equity' — see PRD §0.2
+                    relationship   TEXT NOT NULL,  -- 'advisor_equity', see PRD §0.2
                     created_at     TEXT NOT NULL
                 )
                 """
@@ -2635,7 +2635,7 @@ class AsclepiusStore:
                     -- mutable admin decision, and a session outlives it: 24 h,
                     -- resumable. A snapshot taken at declare is stale for every
                     -- byte that arrives after an admin corrects the mint, and the
-                    -- single-request door resolves live — so the two doors would
+                    -- single-request door resolves live, so the two doors would
                     -- record the same bytes differently. ``actor`` is stored and
                     -- everything derived is joined through it at completion.
                     status          TEXT,            -- NULL(open) | completing | verified | failed | aborted
@@ -2823,7 +2823,7 @@ class AsclepiusStore:
                     decided_tier TEXT,
                     -- AUDIT H2: the FEATURE VECTOR, copied in at decision time alongside the
                     -- tier. structured_review_exp reaches the score at 0.70 and correlates
-                    -- with IMG status and national origin — both of which are pinned to zero,
+                    -- with IMG status and national origin, both of which are pinned to zero,
                     -- so the model cannot use them directly but this feature can route around
                     -- the pin. It cannot itself be pinned without gutting a real criterion, so
                     -- it is MONITORED instead, which means the monitor has to be able to see
@@ -2898,7 +2898,7 @@ class AsclepiusStore:
                     "ON work_sessions(user_id, kind) WHERE ended_at IS NULL")
             except sqlite3.DatabaseError:
                 _logging.getLogger("asclepius.payments").warning(
-                    "asclepius.store: could not create idx_ws_one_open_per_kind — "
+                    "asclepius.store: could not create idx_ws_one_open_per_kind, "
                     "more than one open work_session already exists for some "
                     "(user_id, kind). Sessions still close correctly; the "
                     "duplicate-open guarantee is degraded until this is resolved.",
@@ -3863,7 +3863,14 @@ class AsclepiusStore:
                     UPDATE users SET
                         {pw_clause}role = ?, specialty = ?, specialty_niche = ?,
                         board_cert = ?,
-                        years_experience = ?, active = 1, full_name = ?, org_name = ?,
+                        years_experience = ?, active = 1,
+                        -- COALESCE for the same reason organization does below.
+                        -- This clause used to be a bare `full_name = ?`, so a
+                        -- re-onboard that carried no name blanked a good one,
+                        -- and the portal then fell back to deriving a name from
+                        -- the email local part. That fallback is how a physician
+                        -- ended up greeted as "Dr. Angad18 Bhatia".
+                        full_name = COALESCE(NULLIF(?, ''), full_name), org_name = ?,
                         -- Keep the canonical organization in sync with the
                         -- health-system name, but never wipe a previously-set org
                         -- if a re-onboard omits it (COALESCE keeps the old value).
@@ -6757,7 +6764,7 @@ class AsclepiusStore:
                  WHERE p.trajectory_id = ?
                    AND p.sequence_index < ?
                    -- §9.2: a retired predecessor can never be answered, so it is
-                   -- not "outstanding" — it is gone. Same clause as the queue's
+                   -- not "outstanding", it is gone. Same clause as the queue's
                    -- gate, same constant, or the URL and the draw would disagree
                    -- about whether this walk is blocked.
                    AND COALESCE(p.status, '') NOT IN ({_PRD_2_RETIRED_SQL})
@@ -8780,7 +8787,7 @@ class AsclepiusStore:
             "by_difficulty": group_by(lambda r: r.get("difficulty") or "medium"),
             "by_grounded": group_by(lambda r: "grounded" if r.get("grounded") else "plain"),
             "by_mode": group_by(lambda r: "mode_b" if (r.get("source") == "lab_supplied") else "mode_a"),
-            "by_contributor": group_by(lambda r: r.get("evaluator_email") or r.get("evaluator_id") or "—"),
+            "by_contributor": group_by(lambda r: r.get("evaluator_email") or r.get("evaluator_id") or "-"),
             "target": None,  # filled by the router from constants (keeps store I/O-free)
         }
 
@@ -11182,7 +11189,7 @@ class AsclepiusStore:
                   SUM(CASE WHEN lc = 2 AND rc = 0 THEN 1 ELSE 0 END) AS review_ready,
                   SUM(CASE WHEN rc > 0 THEN 1 ELSE 0 END) AS adjudicated,
                   -- Audit R H3: a case carrying more than two labels cannot be
-                  -- adjudicated by a PAIRED review. Counted, not dropped — the
+                  -- adjudicated by a PAIRED review. Counted, not dropped: the
                   -- whole failure was that this work was invisible.
                   SUM(CASE WHEN lc > 2 AND rc = 0 THEN 1 ELSE 0 END) AS over_labelled,
                   -- Audit R M5: terminal, never adjudicated, nobody notified.
@@ -14342,7 +14349,7 @@ class AsclepiusStore:
                         {"dimension": dimension, "group": g, "impact_ratio": round(ratio, 4),
                          "n": v["n"],
                          "message": f"{dimension}={g} TR selection rate is "
-                                    f"{round(ratio * 100)}% of the highest group — below the "
+                                    f"{round(ratio * 100)}% of the highest group, below the "
                                     f"four-fifths threshold."})
             out["dimensions"][dimension] = detail
 
@@ -14381,7 +14388,7 @@ class AsclepiusStore:
                         "ratio": round(ratio, 4),
                         "message": f"{feature} averages {means[worst_group]} for "
                                    f"{dimension}={worst_group} vs {round(best, 4)} for the "
-                                   f"highest group — this feature may be carrying a "
+                                   f"highest group, this feature may be carrying a "
                                    f"group difference into the score.",
                     })
         out["total_observations"] = len(rows)

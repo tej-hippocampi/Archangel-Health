@@ -187,11 +187,11 @@
           h('td', {}, stateChip(h, r.onboarding_state)),
           h('td', {}, dlaChip(h, fmtDate, r.agreement)),
           h('td', {}, h('code', { class: 'asc-mono asc-dim' }, r.hs_id)),
-          h('td', {}, chips.length ? chips : '—'),
+          h('td', {}, chips.length ? chips : '-'),
           h('td', {}, String(r.physicians_linked || 0)),
           h('td', {}, String(r.uploads_count || 0)),
           h('td', {}, String((r.portal_users || []).length)),
-          h('td', {}, r.last_activity ? fmtDate(r.last_activity) : '—'),
+          h('td', {}, r.last_activity ? fmtDate(r.last_activity) : '-'),
           h('td', {}, openBtn));
         tr.addEventListener('click', (ev) => {
           if (ev.target === openBtn) return;
@@ -504,7 +504,7 @@
             ? 'Physicians see this on the second stop of their first-login walkthrough. '
               + humanBytes(meta.byte_size) + ' · ' + (meta.mime || '')
             : blobMissing
-              ? 'A demo is registered but its file is gone from the asset store — the '
+              ? 'A demo is registered but its file is gone from the asset store, the '
                 + 'volume was wiped. Upload it again.'
               : 'No demo uploaded yet. Until there is one, the walkthrough shows the '
                 + 'practice case on its own rather than a card that plays nothing.')));
@@ -562,7 +562,7 @@
         xhr.addEventListener('error', () => {
           barWrap.setAttribute('hidden', '');
           status.textContent = '';
-          toast('Upload failed — check your connection and try again.', 'error');
+          toast('Upload failed: check your connection and try again.', 'error');
         });
         xhr.send(form);
       }
@@ -682,7 +682,7 @@
         (app.answers || []).forEach((a) => {
           dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
             h('div', { class: 'asc-hs-intake-label' }, a.title),
-            h('div', { class: 'asc-hs-intake-value' }, a.words || '—')));
+            h('div', { class: 'asc-hs-intake-value' }, a.words || '-')));
         });
         if ((app.specialties || []).length) {
           dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
@@ -693,7 +693,7 @@
         if (app.needs_baa) {
           body.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top: var(--sp-2)' },
             'They cannot de-identify on their side. A BAA has to be executed ' +
-            'before any data moves — approving here does not create one.'));
+            'before any data moves: approving here does not create one.'));
         }
         if (app.authority_unclear) {
           body.appendChild(h('div', { class: 'asc-inline-warn', style: 'margin-top: var(--sp-2)' },
@@ -708,7 +708,7 @@
       if ((r.members || []).length > 1) {
         body.appendChild(h('div', { class: 'asc-dim', style: 'margin-top: var(--sp-2)' },
           'Team: ' + r.members.map((m) => m.email || m.username).join(', ') +
-          ' — all of them are emailed the agreement; one of them signs it.'));
+          ', all of them are emailed the agreement; one of them signs it.'));
       }
 
       (r.intake || []).slice(0, 1).forEach((entry) => {
@@ -860,11 +860,11 @@
     // nowhere on the page to look. The detail line names the resolved path.
     (rep.storage || []).forEach((s) => body.appendChild(
       h('div', { class: s.durable ? 'asc-hs-reason asc-hs-reason-ok' : 'asc-hs-reason' },
-        h('strong', {}, s.store), ' — ', s.detail)));
+        h('strong', {}, s.store), ' - ', s.detail)));
     (rep.missing_blobs || []).slice(0, 20).forEach((m) => body.appendChild(
       h('div', { class: 'asc-hs-reason' },
         h('code', { class: 'asc-mono' }, String(m.sha256 || '').slice(0, 12)),
-        ' · case ', String(m.case_id || '—'), ' · ', String(m.detail || m.study_id || ''))));
+        ' · case ', String(m.case_id || '-'), ' · ', String(m.detail || m.study_id || ''))));
     if (rep.checked_at) {
       body.appendChild(h('div', { class: 'asc-dim', style: 'font-size:12px' },
         'Checked ' + fmtDate(rep.checked_at)));
@@ -881,7 +881,7 @@
 
   function purposeChip(h, row) {
     const cls = PURPOSE_BADGE[row.accent] || 'asc-badge-gray';
-    return h('span', { class: 'asc-badge ' + cls }, row.label || '—');
+    return h('span', { class: 'asc-badge ' + cls }, row.label || '-');
   }
 
   // ─── Detail: the pipeline buckets for one system ──────────
@@ -898,7 +898,7 @@
     // promote until that decision is made.
     { key: 'storage', title: 'Held in storage',
       sub: 'Received and stored, used for nothing. Everything arrives here. '
-           + 'Read the file, then set what it is for on the row — task creation '
+           + 'Read the file, then set what it is for on the row, task creation '
            + 'opens the promote controls, brokering routes it out of this '
            + 'workflow entirely.',
       cls: '', actions: ['download', 'review'] },
@@ -906,11 +906,11 @@
       sub: 'Reviewed and clean, not yet a task.',
       cls: '', actions: ['download', 'promote'] },
     { key: 'in_production', title: 'In production',
-      sub: 'Promoted; cases live. Still downloadable — you can always retrieve what you have shipped.',
+      sub: 'Promoted; cases live. Still downloadable, you can always retrieve what you have shipped.',
       cls: '', actions: ['download'] },
     // No 'promote' action, deliberately. See the header note.
     { key: 'brokering', title: 'Brokering',
-      sub: 'Held for brokering. These are never promoted to tasks — the server refuses, and there is no button here that would try.',
+      sub: 'Held for brokering. These are never promoted to tasks, the server refuses, and there is no button here that would try.',
       cls: '', actions: ['download'] },
   ];
 
@@ -946,7 +946,7 @@
         metaCell(h, 'Physicians linked', String(data.physicians_linked || 0)),
         metaCell(h, 'Uploads', String((data.uploads_total || 0))),
         metaCell(h, 'Portal accounts', String((data.portal_users || []).length)),
-        metaCell(h, 'Last activity', data.last_activity ? fmtDate(data.last_activity) : '—')));
+        metaCell(h, 'Last activity', data.last_activity ? fmtDate(data.last_activity) : '-')));
     container.appendChild(head);
 
     // Portal accounts strip (who can sign in for this system).
@@ -962,7 +962,7 @@
             h('th', {}, 'Last sign-in'), h('th', {}, 'Status'))),
           h('tbody', {}, users.map((u) => h('tr', {},
             h('td', {}, h('code', { class: 'asc-mono' }, u.username)),
-            h('td', {}, u.email || '—'),
+            h('td', {}, u.email || '-'),
             h('td', {}, purposeChip(h, u),
               u.resolved ? '' : purposeResolver(ctx, hsId, u.username, container)),
             h('td', {}, u.last_login ? fmtDate(u.last_login) : 'Never'),
@@ -1070,7 +1070,7 @@
   }
 
   const SPECIALTY_BLOCK_FALLBACK =
-    'Specialty not set — choose one to promote.';
+    'Specialty not set: choose one to promote.';
 
   function bucketRow(ctx, spec, it, hsId, container) {
     const { h, toast, downloadBlob, fmtDate, openPipeline, specialtyResolver } = ctx;
@@ -1116,13 +1116,13 @@
     // Chain of custody, on every row: what we hold, how much of it, and when we
     // proved it. This is what you show a partner who asks "did you get everything".
     const custody = h('div', { class: 'asc-dim asc-mono', style: 'font-size:11px' },
-      it.sha256_short ? 'sha ' + it.sha256_short : 'sha —',
+      it.sha256_short ? 'sha ' + it.sha256_short : 'sha',
       ' · ', formatBytes(it.size_bytes),
       ' · ', it.verified_at ? 'verified ' + fmtDate(it.verified_at) : 'not verified');
     return h('tr', {},
-      h('td', {}, it.received_at ? fmtDate(it.received_at) : '—'),
+      h('td', {}, it.received_at ? fmtDate(it.received_at) : '-'),
       h('td', {},
-        h('div', {}, it.filename || '—'),
+        h('div', {}, it.filename || '-'),
         h('div', { class: 'asc-dim asc-mono', style: 'font-size:11px' }, it.upload_id),
         custody),
       h('td', {}, purposeChip(h, it),
@@ -1131,12 +1131,12 @@
         // a different question now that the default value is a real one.
         it.needs_decision ? uploadPurposeResolver(ctx, it.upload_id, hsId, container) : ''),
       h('td', {}, caseCountText(it), specialtyNote(h, it)),
-      h('td', { class: 'asc-hs-notes' }, notes.length ? notes : '—'),
+      h('td', { class: 'asc-hs-notes' }, notes.length ? notes : '-'),
       h('td', { class: 'asc-hs-actions' }, actions));
   }
 
   function formatBytes(n) {
-    if (!n && n !== 0) return '—';
+    if (!n && n !== 0) return '-';
     if (n < 1024) return n + ' B';
     const units = ['KB', 'MB', 'GB', 'TB'];
     let v = n / 1024, i = 0;
@@ -1196,7 +1196,7 @@
       (app.answers || []).forEach((a) => {
         dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
           h('div', { class: 'asc-hs-intake-label' }, a.title),
-          h('div', { class: 'asc-hs-intake-value' }, a.words || '—')));
+          h('div', { class: 'asc-hs-intake-value' }, a.words || '-')));
       });
       if ((app.specialties || []).length) {
         dl.appendChild(h('div', { class: 'asc-hs-intake-row' },
@@ -1231,7 +1231,7 @@
         h('div', { class: 'asc-card-title' }, 'Data licensing agreement'),
         h('div', { class: 'asc-card-sub' },
           rows.length
-            ? 'Signed. These rows are append-only — a newer version is a new ' +
+            ? 'Signed. These rows are append-only: a newer version is a new ' +
               'row, and nothing here is ever rewritten.'
             : 'Approved and waiting on a signature. Any member of this ' +
               'organization can sign; uploading opens when one of them does.'))));
@@ -1446,9 +1446,9 @@
           const badgeCls = p.status === 'paid' ? 'asc-badge-green'
             : p.status === 'void' ? 'asc-badge-gray' : 'asc-badge-amber';
           return h('tr', {},
-            h('td', {}, p.recorded_at ? fmtDate(p.recorded_at) : '—'),
-            h('td', {}, p.description || '—'),
-            h('td', {}, h('code', { class: 'asc-mono asc-dim' }, p.external_ref || '—')),
+            h('td', {}, p.recorded_at ? fmtDate(p.recorded_at) : '-'),
+            h('td', {}, p.description || '-'),
+            h('td', {}, h('code', { class: 'asc-mono asc-dim' }, p.external_ref || '-')),
             h('td', {}, h('span', { class: 'asc-badge ' + badgeCls }, p.status),
               p.void_reason ? h('div', { class: 'asc-dim' }, p.void_reason) : ''),
             h('td', {}, h('span', { class: 'asc-mono' }, money(p.amount_cents))),
@@ -1541,8 +1541,8 @@
             const badgeCls = inv.status === 'paid' ? 'asc-badge-green'
               : inv.status === 'sent' ? 'asc-badge-amber' : 'asc-badge-gray';
             return h('tr', {},
-              h('td', {}, h('code', { class: 'asc-mono' }, inv.period || '—')),
-              h('td', {}, inv.description || '—'),
+              h('td', {}, h('code', { class: 'asc-mono' }, inv.period || '-')),
+              h('td', {}, inv.description || '-'),
               h('td', {}, h('span', { class: 'asc-badge ' + badgeCls }, inv.status)),
               h('td', {}, h('span', { class: 'asc-mono' }, money(inv.amount_cents))),
               actions);

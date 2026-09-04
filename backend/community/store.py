@@ -43,7 +43,7 @@ DEFAULT_CHANNELS = [
     {
         "slug": "introductions",
         "name": "introductions",
-        "description": "New here? Say hello — specialty, where you practice, what you're curious about.",
+        "description": "New here? Say hello: specialty, where you practice, what you're curious about.",
         "post_policy": "all",
         "grp": "core",
     },
@@ -78,7 +78,7 @@ DEFAULT_CHANNELS = [
     {
         "slug": "future-of-medical-ai",
         "name": "future-of-medical-ai",
-        "description": "Where is AI in medicine actually going? Open debate — takes, papers, predictions.",
+        "description": "Where is AI in medicine actually going? Open debate: takes, papers, predictions.",
         "post_policy": "all",
         "grp": "core",
     },
@@ -264,7 +264,7 @@ def specialty_channel_defs() -> List[Dict[str, Any]]:
         out.append({
             "slug": cfg.name,
             "name": cfg.name,
-            "description": f"For {cfg.name} colleagues — cases (de-identified), literature, and specialty task talk.",
+            "description": f"For {cfg.name} colleagues: cases (de-identified), literature, and specialty task talk.",
             "post_policy": "all",
             "grp": "specialty",
             "specialty": cfg.name,

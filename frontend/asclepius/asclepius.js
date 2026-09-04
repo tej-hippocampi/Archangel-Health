@@ -750,16 +750,37 @@
     return accents[hash % accents.length];
   }
 
-  // Best-effort human display name. The session user has no guaranteed `name`
-  // field (email is the identity), so fall back to a title-cased email local part.
+  /** Best-effort human display name.
+   *
+   *  The server-side name is the answer whenever there is one, and after the
+   *  signup rework there almost always is: the wizard writes first and last
+   *  name onto the account at provisioning.
+   *
+   *  The fallback is what this function is really about, because it used to be
+   *  wrong in a way that was worse than saying nothing. It title-cased the
+   *  email local part and prefixed "Dr.", so `angad18.bhatia@gmail.com` was
+   *  greeted as "Dr. Angad18 Bhatia" on his own dashboard: a typo we appeared
+   *  to have made about a physician's name, on the first screen he saw.
+   *
+   *  Two rules now. Digits come out, and any token that was nothing but digits
+   *  is dropped, because a mailbox number is not part of anyone's name. And no
+   *  honorific: an email address is not evidence that this person is a doctor,
+   *  and calling an unverified applicant "Dr." is a claim we have not checked.
+   *  When the server knows the name it carries whatever honorific it was given,
+   *  which is the only place one belongs.
+   */
   function railDisplayName() {
     const u = state.user || {};
-    const explicit = u.name || u.full_name || u.display_name;
-    if (explicit) return String(explicit);
-    const email = String(u.email || '');
-    const local = email.split('@')[0] || 'Clinician';
-    const pretty = local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-    return pretty ? ('Dr. ' + pretty) : 'Clinician';
+    const explicit = String(u.name || u.full_name || u.display_name || '').trim();
+    if (explicit) return explicit;
+    const local = String(u.email || '').split('@')[0] || '';
+    const words = local
+      .replace(/[._+-]+/g, ' ')
+      .split(/\s+/)
+      .map((w) => w.replace(/\d+/g, ''))
+      .filter((w) => w.length >= 2);
+    if (!words.length) return 'Clinician';
+    return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
   /** The circle of initials (or the physician's photo) in the rail foot.
@@ -1877,7 +1898,7 @@
         h('p', {}, 'One screen, then you are in')),
       h('div', { class: 'asc-login-body' },
         h('p', { class: 'asc-fr-rotate-lede' },
-          'The password we emailed you is temporary — it stops working as soon '
+          'The password we emailed you is temporary, it stops working as soon '
           + 'as you pick your own. Nothing else about your account changes.'),
         form));
     setRoot(h('div', { class: 'asc-login-wrap' }, card));
@@ -2995,10 +3016,10 @@
       h('div', { class: 'asc-dash-widget-title' }, 'Your activity'),
       h('div', { class: 'asc-dash-widget-row' },
         h('span', { class: 'asc-dash-widget-label' }, 'Cases completed'),
-        h('span', { class: 'asc-dash-widget-n' }, total == null ? '–' : String(total))),
+        h('span', { class: 'asc-dash-widget-n' }, total == null ? '-' : String(total))),
       h('div', { class: 'asc-dash-widget-row' },
         h('span', { class: 'asc-dash-widget-label' }, 'This week'),
-        h('span', { class: 'asc-dash-widget-n asc-dash-widget-n-sm' }, week == null ? '–' : String(week))),
+        h('span', { class: 'asc-dash-widget-n asc-dash-widget-n-sm' }, week == null ? '-' : String(week))),
       h('div', { class: 'asc-dash-widget-row asc-dash-widget-row-last' },
         h('span', { class: 'asc-dash-widget-label' }, 'Last submission'),
         h('span', { class: 'asc-dash-widget-meta' }, formatRelativeTime(lastAt))));
@@ -3729,7 +3750,7 @@
         h('div', { class: 'asc-substage-title' }, 'Which of your expectations held?')),
       h('div', { class: 'asc-help', style: 'margin-bottom:12px' },
         'Judge against what this record actually shows. It reflects the treatment '
-        + 'that was actually given — where you proposed something different, this '
+        + 'that was actually given: where you proposed something different, this '
         + 'does not test your plan.'),
       rows, falsifierBlock,
       h('div', { class: 'asc-submit-row', style: 'margin-top:22px' }, hint, save));
@@ -4225,7 +4246,7 @@
       assignedOnly: true,
       blurb: 'Walk one real patient forward in time: decide at each encounter, then see what the chart did next.',
       bullets: [
-        'Read the chart truncated at one decision point — nothing after it exists',
+        'Read the chart truncated at one decision point, nothing after it exists',
         'Commit an assessment, a plan, and what you expect to see next',
         'Say what would tell you that you were wrong',
         'Then the record’s own next encounter is revealed and you score yourself',
@@ -6770,7 +6791,7 @@
     const info = infoDot('Why we ask', [
       onTrajectory
         ? 'This chart continues. Once you submit, we show you what actually happened '
-          + 'next and you mark which of your expectations held — from the record, not '
+          + 'next and you mark which of your expectations held, from the record, not '
           + 'from a reviewer’s opinion.'
         : 'A stated expectation with a stated falsifier is a prediction rather than an '
           + 'opinion, and a prediction is the only thing an outcome can check.',
@@ -8758,7 +8779,7 @@
   function profileRow(label, value) {
     return h('div', { class: 'asc-prof-row' },
       h('span', { class: 'asc-prof-label' }, label),
-      h('span', { class: 'asc-prof-value' }, value || '—'));
+      h('span', { class: 'asc-prof-value' }, value || '-'));
   }
 
   /* ── The identity card ──────────────────────────────────────────────────── */
@@ -9395,9 +9416,9 @@
     // look the same to a physician.
     body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
       h('div', { class: 'asc-error' },
-        'The Earnings section failed to load, so no figure is shown — this is '
+        'The Earnings section failed to load, so no figure is shown, this is '
         + 'not a statement that you have earned nothing. Reload the page; if it '
-        + 'persists, this is a deploy problem — check that earnings.js is '
+        + 'persists, this is a deploy problem, check that earnings.js is '
         + 'included in index.html. Nothing you have earned is affected.'))));
   }
 
@@ -10365,12 +10386,12 @@
           : null);
       if (!needsAck) {
         return h('div', { class: 'asc-tour-finding' + (f.matched ? ' matched' : '') },
-          h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, f.matched ? '✓' : '–'),
+          h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, f.matched ? '✓' : '-'),
           body);
       }
       const det = h('details', { class: 'asc-tour-finding asc-tour-finding-ack' },
         h('summary', {},
-          h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, '–'),
+          h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, '-'),
           h('span', { class: 'asc-tour-finding-label' }, f.label)),
         body);
       det.addEventListener('toggle', () => {

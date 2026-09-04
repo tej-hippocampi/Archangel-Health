@@ -31,6 +31,7 @@ Client compatibility:
 from __future__ import annotations
 
 import html
+import os
 import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -321,13 +322,73 @@ def _pullquote(text: str) -> str:
     )
 
 
+#: The founders' photo, shown above their names in the emails a physician gets
+#: while deciding whether to trust us with their licence number. Served from the
+#: existing ``/email-assets`` mount (``backend/assets``), which is why there is
+#: no new route here.
+#:
+#: Absent by default, and that is fine. A remote image in an email is blocked by
+#: most clients until the reader allows it, and a BROKEN one is worse than none
+#: at all, so the signature degrades to the names alone when the file is not
+#: there. Drop a photo at ``backend/assets/founders.jpg`` (or point
+#: ``FOUNDER_PHOTO_URL`` at a hosted one) and it appears with no code change.
+FOUNDER_PHOTO_FILENAME = "founders.jpg"
+
+
+def _founder_photo_url() -> str:
+    """An absolute URL for the founder photo, or "" when there is nothing to show.
+
+    Absolute on purpose: an email is read outside our origin, so a relative
+    ``/email-assets/...`` resolves against the mail client and 404s.
+    """
+    override = (os.getenv("FOUNDER_PHOTO_URL") or "").strip()
+    if override:
+        return override
+    here = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(os.path.join(here, "assets", FOUNDER_PHOTO_FILENAME)):
+        return ""
+    base = (os.getenv("BASE_URL") or "").strip().rstrip("/")
+    if not base:
+        # With no base URL configured there is no absolute URL to build, and a
+        # relative one in an inbox is a broken image. Show the names instead.
+        return ""
+    return f"{base}/email-assets/{FOUNDER_PHOTO_FILENAME}"
+
+
 def _founder_signoff(line: str) -> str:
-    """The founders sign their own emails. Set slightly apart from the body so it
-    reads as a signature and not as one more paragraph."""
+    """The founders sign their own emails, with their faces where we have them.
+
+    Set slightly apart from the body so it reads as a signature and not as one
+    more paragraph. The photo is the point: these messages ask a physician to
+    hand over a licence number and a CV, and a name with a face behind it is a
+    different ask from a name alone.
+
+    Laid out with a table rather than flexbox because Outlook's rendering engine
+    is Word, which has neither flexbox nor grid and would stack the two cells.
+    """
+    photo = _founder_photo_url()
+    if not photo:
+        return (
+            f'<p style="margin:26px 0 0;padding-top:20px;border-top:1px solid {_HAIRLINE};'
+            f'font-family:{_SANS};font-size:15px;line-height:1.6;color:{_INK};">'
+            f"{html.escape(line)}</p>"
+        )
+    text = (
+        f'<span style="font-family:{_SANS};font-size:15px;line-height:1.6;'
+        f'color:{_INK};">{html.escape(line)}</span>'
+    )
     return (
-        f'<p style="margin:26px 0 0;padding-top:20px;border-top:1px solid {_HAIRLINE};'
-        f'font-family:{_SANS};font-size:15px;line-height:1.6;color:{_INK};">'
-        f"{html.escape(line)}</p>"
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
+        f'style="margin:26px 0 0;padding-top:20px;border-top:1px solid {_HAIRLINE};'
+        'width:100%;"><tr>'
+        '<td width="64" valign="middle" style="padding-right:14px;">'
+        f'<img src="{html.escape(photo, quote=True)}" width="56" height="56" '
+        f'alt="{html.escape(line, quote=True)}" '
+        'style="display:block;width:56px;height:56px;border-radius:28px;'
+        'object-fit:cover;border:0;outline:none;text-decoration:none;" />'
+        '</td>'
+        f'<td valign="middle">{text}</td>'
+        '</tr></table>'
     )
 
 
@@ -1001,9 +1062,9 @@ def build_application_start_email(
         + _p(f"Your progress saves automatically, so you can stop anywhere and come "
              f"back to exactly where you were. This link is yours for {expires_days} days.",
              muted=True, small=True)
-        + _founder_signoff("— Tej & Aryaa, founders")
+        + _founder_signoff("Tej & Aryaa, founders")
     )
-    return _shell(subject="Your Archangel Health application — pick up any time",
+    return _shell(subject="Pick up your Archangel Health application any time",
                   body_html=body)
 
 
@@ -1020,10 +1081,10 @@ def build_application_nudge_email(*, first_name: str, onboarding_url: str) -> st
         + _p("You&rsquo;re most of the way there. Your answers are saved exactly where "
              "you left them.")
         + _cta(onboarding_url, "Finish my application")
-        + _p("We read every application personally — we&rsquo;d love to see yours.")
-        + _founder_signoff("— Tej & Aryaa, founders")
+        + _p("We read every application personally. We&rsquo;d love to see yours.")
+        + _founder_signoff("Tej & Aryaa, founders")
     )
-    return _shell(subject="Your application is waiting — 2 minutes to finish",
+    return _shell(subject="Your application is waiting: 2 minutes to finish",
                   body_html=body)
 
 
@@ -1043,9 +1104,9 @@ def build_application_expiring_email(
              "stops working tomorrow. Everything you filled in is still there until "
              "then.")
         + _cta(onboarding_url, "Finish my application")
-        + _p("If it lapses, just start again from the website and write to us — "
+        + _p("If it lapses, just start again from the website and write to us, "
              "we&rsquo;ll pick it back up with you.", muted=True, small=True)
-        + _founder_signoff("— Tej & Aryaa, founders")
+        + _founder_signoff("Tej & Aryaa, founders")
     )
     return _shell(subject="Your Archangel Health link expires tomorrow",
                   body_html=body)
@@ -1164,14 +1225,14 @@ def build_application_submitted_email(*, full_name: str, portal_url: str = "") -
     body = (
         _eyebrow("Application received")
         + _h1("We&rsquo;ve got your application.")
-        + _p(f"{_strong(greeting)} — thank you. "
+        + _p(f"{_strong(greeting)}, thank you. "
              "Your application is with us now, and one of us will personally review it "
              "within 24–48 hours. We keep review human on purpose: the whole premise of "
              "Archangel is that medicine needs qualified people at every decision point, "
              "and that starts with how we welcome physicians. You&rsquo;ll hear from us "
              "either way.")
         + waiting
-        + _founder_signoff("— Tej Patel & Aryaa Bhatia")
+        + _founder_signoff("Tej Patel & Aryaa Bhatia")
     )
     return _shell(subject="We&rsquo;ve got your application", body_html=body)
 
@@ -1212,26 +1273,26 @@ def build_application_welcome_email(
     ])
     body = (
         _eyebrow("Approved · Archangel Health")
-        + _h1("We just approved your application — welcome.")
+        + _h1("We just approved your application. Welcome.")
         # §4.4 section 2: the mission block, verbatim from the landing /mission.
         + _pullquote("Doctors earn from their judgment. Models learn from it. "
                      "The hardest cases become the most valuable data.")
         + _p("Verification is the scarce input in medical AI. A 70% benchmark score is "
-             "irrelevant when a patient is downstream — the people who carry the "
+             "irrelevant when a patient is downstream. The people who carry the "
              "consequences should define what correct means. That&rsquo;s you.")
         # §4.4 section 3: the credentials card.
         + _section_label("Your credentials")
         + _inset_card(creds)
-        + _p("You&rsquo;ll choose your own password when you first sign in — this one is "
+        + _p("You&rsquo;ll choose your own password when you first sign in. This one is "
              "temporary and stops working the moment you do.", muted=True, small=True)
         + _cta(sign_in_url, "Sign in")
         # §4.4 section 4: meet us.
         + _section_label("Meet us")
-        + _p("We meet every physician one on one — it&rsquo;s the part of this we like "
+        + _p("We meet every physician one on one. It&rsquo;s the part of this we like "
              "most. Book 20 minutes with us: about the mission, the platform, your "
              "specialty, or anything else. We&rsquo;d genuinely love to learn from you.")
         + _cta(calendly_url, "Book 20 minutes")
-        + _founder_signoff("— Tej & Aryaa, co-founders")
+        + _founder_signoff("Tej & Aryaa, co-founders")
     )
     return _shell(subject=subject, body_html=body)
 

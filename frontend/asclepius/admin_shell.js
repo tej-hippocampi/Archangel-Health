@@ -250,7 +250,7 @@
 
   function copyableId(id, opts) {
     const full = (id === null || id === undefined) ? '' : String(id);
-    if (!full) return h('span', { class: 'asc-dim', title: 'No id' }, '\u2014');
+    if (!full) return h('span', { class: 'asc-dim', title: 'No id' }, '-');
     const o = opts || {};
     const btn = h('button', {
       type: 'button', class: 'asc-id-copy',
@@ -699,7 +699,7 @@
   // The one sentence an admin reads when Promote is off. Said the same way on
   // every surface, because it is one fact.
   const SPECIALTY_BLOCK_REASON =
-    'Specialty not set — choose one to promote. Promoting without it would label '
+    'Specialty not set: choose one to promote. Promoting without it would label '
     + 'these cases with a default that routes them to the wrong physician pool.';
 
   // Shared helpers handed to the section modules (admin_physicians.js,
@@ -852,7 +852,7 @@
             + 'submission and payout row written since the last deploy is lost '
             + 'at the next one, silently.'),
           h('ul', {}, broken.map((x) => h('li', {},
-            h('strong', {}, x.store), ' \u2014 ', x.detail))),
+            h('strong', {}, x.store), ' - ', x.detail))),
           s.remedy ? h('div', { class: 'asc-card-sub', style: 'margin-top:8px' },
             s.remedy) : null)));
       return;
@@ -1153,7 +1153,7 @@
       } }).then((res) => {
         view.busy = false;
         if (dryRun) { view.relayPreview = res; paint(); return; }
-        toast(`Relay sent — ${res.n_points} point(s) across ${res.n_doctors} doctors.`);
+        toast(`Relay sent: ${res.n_points} point(s) across ${res.n_doctors} doctors.`);
         view.relayPreview = null; view.relaySeed = null; view.selected = {};
         openBatch(view.batch);
       }).catch((e) => {
@@ -1319,8 +1319,8 @@
           : null,
         isFresh(r) ? h('span', { class: 'asc-chip asc-chip-new' }, 'new') : null);
       return h('tr', {},
-        h('td', {}, cb), h('td', {}, label, ' ', chips), h('td', {}, r.specialty || '—'),
-        h('td', {}, r.difficulty || '—'), h('td', {}, statusLabel(r)), h('td', {}, prev));
+        h('td', {}, cb), h('td', {}, label, ' ', chips), h('td', {}, r.specialty || '-'),
+        h('td', {}, r.difficulty || '-'), h('td', {}, statusLabel(r)), h('td', {}, prev));
     }
 
     function paintPreviewInto(col) {
@@ -1351,10 +1351,10 @@
     function paintChainInto(col) {
       const c = view.chain;
       if (!c) return;
-      const dot = { done: '✓', waiting: '●', later: '–', retired: '×' };
+      const dot = { done: '✓', waiting: '●', later: '-', retired: '×' };
       const cells = (c.points || []).map((p) => {
         const late = p.state === 'waiting' && (p.waiting_hours || 0) >= 24;
-        const kids = [h('span', { class: 'asc-chain-mark' }, dot[p.state] || '–'),
+        const kids = [h('span', { class: 'asc-chain-mark' }, dot[p.state] || '-'),
           h('span', {}, '#' + p.sequence_index)];
         if (p.state === 'waiting') {
           kids.push(h('span', { class: 'asc-dim' },
@@ -1378,7 +1378,7 @@
       const chosen = selectedIds();
       if (!chosen.length) {
         panel.appendChild(h('div', { class: 'asc-route-panel-hint' },
-          'Select cases to route them. The controls here follow the selection — '
+          'Select cases to route them. The controls here follow the selection, '
           + 'a chart walk and a set of standalone cases are sent by different '
           + 'rules, so they are never offered the same ones.'));
         return panel;
@@ -1486,7 +1486,7 @@
        * after it. */
       if (view.mode === 'all' && view.batch === 'longitudinal') {
         box.appendChild(h('div', { class: 'asc-inline-warn' },
-          'Longitudinal cases sent to All enter the open queue — any eligible '
+          'Longitudinal cases sent to All enter the open queue, any eligible '
           + 'doctor may draw them, in sequence order.'));
       }
       return box;
@@ -1525,7 +1525,7 @@
         list.appendChild(h('div', { class: 'asc-route-doc' },
           cb,
           h('span', { class: 'asc-route-doc-name' },
-            (d.name || d.email) + ' · ' + (d.specialty || '—')),
+            (d.name || d.email) + ' · ' + (d.specialty || '-')),
           roles ? h('span', { class: 'asc-route-roles' }, roles) : null));
       });
       if (!(view.doctors || []).length) {
@@ -1546,9 +1546,9 @@
     function walkControls() {
       const box = h('div', {});
       const MODES = [
-        ['solo', 'Solo walk — one doctor, all points'],
-        ['relay', 'Send as relay — one doctor per point'],
-        ['open', 'Open queue — any eligible doctor, in sequence'],
+        ['solo', 'Solo walk: one doctor, all points'],
+        ['relay', 'Send as relay: one doctor per point'],
+        ['open', 'Open queue: any eligible doctor, in sequence'],
       ];
       const current = view.walkMode || 'solo';
       view.walkMode = current;
@@ -1571,7 +1571,7 @@
 
       if (current === 'open') {
         box.appendChild(h('div', { class: 'asc-inline-warn' },
-          'Longitudinal cases sent to All enter the open queue — any eligible '
+          'Longitudinal cases sent to All enter the open queue, any eligible '
           + 'doctor may draw them, in sequence order.'));
         return box;
       }
@@ -2100,7 +2100,7 @@
           'All three links are byte-identical to the recipient. Which button you '
           + 'press is recorded on our side only. Storage takes the data and holds '
           + 'it, used for nothing, until you read a file and set what it is for on '
-          + 'its row — nothing is promoted or sent to a model before that.'),
+          + 'its row: nothing is promoted or sent to a model before that.'),
         mintStatus));
 
     const uploadsCard = h('div', { class: 'asc-card', id: 'ascIngestUploads' }, loadingCard('Loading uploads…'));
@@ -2177,7 +2177,7 @@
     ingested: 'Ready', needs_review: 'Needs review', quarantined: 'Quarantined',
     rejected: 'Rejected', received: 'Received', parsing: 'Parsing', failed: 'Failed',
   };
-  const uploadStatusLabel = (s) => UPLOAD_STATUS_LABEL[s] || s || '–';
+  const uploadStatusLabel = (s) => UPLOAD_STATUS_LABEL[s] || s || '-';
   // `asc-badge-accent` already exists and is unused in this table, so no CSS change.
   const uploadBadgeClass = (s) => (
     s === 'ingested' ? 'asc-badge-green'
@@ -2292,7 +2292,7 @@
       prev.addEventListener('click', () => renderUploadsTable(Math.max(0, _uploadsOffset - _UPLOADS_PAGE)));
       next.addEventListener('click', () => renderUploadsTable(_uploadsOffset + _UPLOADS_PAGE));
       up.appendChild(h('div', { class: 'asc-card-pad', style: 'display:flex;justify-content:space-between;align-items:center;gap:10px' },
-        h('div', { class: 'asc-card-sub' }, 'Showing ' + (_uploadsOffset + 1) + '–' + to + ' of ' + _uploadsTotal),
+        h('div', { class: 'asc-card-sub' }, 'Showing ' + (_uploadsOffset + 1) + '-' + to + ' of ' + _uploadsTotal),
         h('div', { style: 'display:flex;gap:8px' }, prev, next)));
     } catch (e) {
       clear(up);
@@ -2670,7 +2670,7 @@
         // The difficulty band is a CLAIM until it is measured, and the plan never
         // measures — so the preview says so rather than showing a bare band.
         h('span', { class: 'asc-badge ' + _diffBadgeClass(d.band) },
-          (d.band || '–') + (d.measured ? '' : ' · proposed')),
+          (d.band || '-') + (d.measured ? '' : ' · proposed')),
         p.taxonomy_bucket ? h('span', { class: 'asc-badge asc-badge-gray' }, p.taxonomy_bucket) : null,
         p.subtopic ? h('span', { class: 'asc-badge asc-badge-gray' }, p.subtopic) : null));
     wrap.appendChild(head);
@@ -2700,7 +2700,7 @@
 
     if (d.axes) {
       wrap.appendChild(h('div', { class: 'asc-card-sub asc-mono', style: 'margin-top:4px' },
-        'difficulty ' + d.score + ' — '
+        'difficulty ' + d.score + ' - '
         + Object.keys(d.axes).map((k) => k + ' ' + d.axes[k]).join(' · ')));
     }
     if (d.gate_note) {
@@ -2852,7 +2852,7 @@
         + nGen + ' generatable'
         + (plan.specialty_hint ? ' · specialty ' + plan.specialty_hint : '')),
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:6px' },
-        'Nothing here has been written. Difficulty is measured only when you generate — '
+        'Nothing here has been written. Difficulty is measured only when you generate, '
         + 'a band shown as "proposed" is the structural prior, not a frontier failure rate.'),
       // Both numbers, always, because they are what a chart walk is priced on and
       // they are never the same number.
@@ -2931,7 +2931,7 @@
       h('span', {},
         h('span', { style: 'font-weight:600' }, 'Show to all approved physicians (ignores specialty routing)'),
         h('span', { class: 'asc-card-sub', style: 'display:block' },
-          'Visibility only. It does not change how many labels we pay for — that is ' +
+          'Visibility only. It does not change how many labels we pay for, that is ' +
           'the label count, which stays as promoted.')));
 
     const promoteAllBtn = h('button', { class: 'asc-btn asc-btn-primary' }, '✓ Looks good, create the rest (' + (prep.ingested_count || 0) + ')');
@@ -2971,7 +2971,7 @@
           ? (' · difficulty ' + s.difficulty.band
              + (s.difficulty.measured
                ? ' (measured, frontier failure ' + s.difficulty.model_failure_rate + ')'
-               : ' (proposed — no frontier measurement)'))
+               : ' (proposed: no frontier measurement)'))
           : '')),
       labs.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Lab panels'), h('div', {}, labs)) : null,
       notes.length ? h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Notes / EHR records'), h('div', {}, notes)) : null,
@@ -3041,14 +3041,14 @@
         onClick: (e) => { if (e.target === overlay) overlay.remove(); },
       });
       const go = h('button', { class: 'asc-btn asc-btn-primary' },
-        'Yes — record as brokering');
+        'Yes: record as brokering');
       go.addEventListener('click', () => { overlay.remove(); resolvePurpose(upload, 'brokering'); });
       overlay.appendChild(h('div', { class: 'asc-modal-card' },
         h('div', { class: 'asc-card-pad' },
           h('h3', {}, 'Record this upload as brokering?'),
           h('div', { class: 'asc-inline-warn', style: 'margin:12px 0' },
             'This cannot be undone. Brokering data never enters the task '
-            + 'pipeline, so this upload can never become tasks — the server '
+            + 'pipeline, so this upload can never become tasks, the server '
             + 'refuses the reverse change, on purpose. If it turns out to be '
             + 'task-creation data, the partner has to send it again on a '
             + 'task-creation link.'),
@@ -3130,7 +3130,7 @@
       ].filter(Boolean);
       const integrity = u.verified_at
         ? h('span', { class: 'asc-chip asc-chip-ok', title: 'Whole-file digest recomputed and matched' }, 'sha ✓')
-        : h('span', { class: 'asc-chip', title: 'No verified whole-file digest on this row' }, 'sha —');
+        : h('span', { class: 'asc-chip', title: 'No verified whole-file digest on this row' }, 'sha');
       return h('div', {},
         h('div', { class: 'asc-stage-head' }, bits.join(' · '), ' ', integrity),
         h('div', { class: 'asc-stage-desc' },
@@ -3203,12 +3203,12 @@
               h('th', {}, 'Status'), h('th', {}, 'Review'))),
             h('tbody', {}, cases.slice(0, 100).map((c) => h('tr', {},
               h('td', { class: 'asc-mono' }, (c.patient_key || c.ingest_case_id || '').slice(0, 18)),
-              h('td', {}, c.specialty || '—'),
-              h('td', {}, c.status || '—'),
+              h('td', {}, c.specialty || '-'),
+              h('td', {}, c.status || '-'),
               h('td', {}, (c.review || []).length
                 ? h('span', { class: 'asc-badge asc-badge-amber' },
                     String((c.review || []).length) + ' reason(s)')
-                : '—'))))));
+                : '-'))))));
         })
         .catch((e) => { clear(drawer); drawer.appendChild(h('div', { class: 'asc-inline-error' }, e.message)); });
       return drawer;
@@ -3260,7 +3260,7 @@
             { method: 'POST', body: { enabled: input.checked } })
           .then((res) => {
             if (res.run && res.run.started) {
-              toast('Building tasks from this bundle now \u2014 no click needed.', 'success');
+              toast('Building tasks from this bundle now, no click needed.', 'success');
             }
             load();
           })
@@ -3328,7 +3328,7 @@
       });
 
       const hint = !mode
-        ? h('div', { class: 'asc-dim' }, 'Choose a mode — it is stored on this upload, so a half-finished batch resumes the same way.')
+        ? h('div', { class: 'asc-dim' }, 'Choose a mode, it is stored on this upload, so a half-finished batch resumes the same way.')
         : (!eligible
           ? h('div', { class: 'asc-dim' }, 'No ingested cases are waiting: every case here is already a task, blocked in review, or quarantined.')
           : null);
@@ -3504,16 +3504,16 @@
       const status = h('div', { style: 'margin-top:12px' });
 
       const MODES = [
-        ['real_static', 'Real records — static',
+        ['real_static', 'Real records: static',
           'A partner bundle. Each qualifying encounter becomes one standalone V4 case.'],
-        ['real_longitudinal', 'Real records — longitudinal',
+        ['real_longitudinal', 'Real records: longitudinal',
           'A partner bundle. Each chart becomes ONE ordered walk of decision points, '
           + 'held back from every queue until you route it.'],
         ['gold', 'Physician-authored cases (gold)',
           'The ratified, hand-authored seed cases. No file and no LLM: this loads what is '
           + 'already committed, and is safe to run repeatedly.'],
         ['task_file', 'Task file (JSON/CSV)',
-          'Already-formed tasks. They go straight to Task Routing — there is nothing to stage.'],
+          'Already-formed tasks. They go straight to Task Routing: there is nothing to stage.'],
       ];
       let mode = null;
 
@@ -3609,7 +3609,7 @@
               .then(() => up));
         }).then(() => {
           overlay.remove();
-          toast('Uploaded. Parsing runs in the background — the row appears under '
+          toast('Uploaded. Parsing runs in the background: the row appears under '
             + 'Task creation as its cases land.', 'success');
           load();
         }).catch(fail);
@@ -3668,7 +3668,7 @@
           .finally(() => btn.removeAttribute('disabled'));
       });
       return h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('h3', {}, 'Auto-generate (synthetic V1–V3)'),
+        h('h3', {}, 'Auto-generate (synthetic V1-V3)'),
         h('div', { class: 'asc-dim' },
           'Novel synthetic cases from the seed corpus, quality-gated. They are tasks '
           + 'the moment they exist, so they appear in Task Routing, not here.'),
@@ -4278,7 +4278,7 @@
         h('td', {}, fmtDate(x.created_at)),
         h('td', {}, sentTo[x.export_id]
           ? h('span', { class: 'asc-dim' }, 'sent to ' + sentTo[x.export_id])
-          : h('span', { class: 'asc-dim' }, '\u2014')),
+          : h('span', { class: 'asc-dim' }, '-')),
         h('td', {}, h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', onClick: () => downloadExport(x.export_id) }, '\u2b07 Download'))));
       card.appendChild(h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
         h('thead', {}, h('tr', {}, ['ID', 'Scope', 'Records', 'Created', 'Delivery', ''].map((c) => h('th', {}, c)))),
@@ -4350,7 +4350,7 @@
     // Tri-state acceptance: null means "no reviews yet", which must never be
     // shown as a 0% acceptance rate.
     const acc = quality.expert_acceptance;
-    const accHeadline = acc == null ? '–' : Math.round(acc * 100) + '%';
+    const accHeadline = acc == null ? '-' : Math.round(acc * 100) + '%';
     const accSub = acc == null
       ? 'expert acceptance: no reviews yet'
       : 'expert acceptance (' + (quality.reviews_scored || 0) + ' reviews)';
@@ -4368,14 +4368,14 @@
         ["Cohen's κ (independent slice)",
          fmtNum(kappa.overall) + ' · n=' + (kappa.n != null ? kappa.n : 0)],
         ['Not rejected', quality.not_rejected == null
-          ? '–' : Math.round(quality.not_rejected * 100) + '%'],
+          ? '-' : Math.round(quality.not_rejected * 100) + '%'],
         ['Citation rate', (grounded.grounded_pct != null ? grounded.grounded_pct : 0) + '%'],
         // Restored (C-5.1): the restructure was right, deleting these was not.
         ['QA pass rate', (qpr.pass_rate != null ? Math.round(qpr.pass_rate * 100) : 0) + '%'
           + ' (' + (qpr.passed || 0) + '/' + (qpr.reviewed || 0) + ')'],
         ['Flaw catch rate', flaw.rate != null
           ? Math.round(flaw.rate * 100) + '% (' + (flaw.caught || 0) + '/' + (flaw.scored || 0) + ')'
-          : '–'],
+          : '-'],
         ['Avg agreement', fmtNum(s.average_agreement)]]),
       metricQuestionCard('Pipeline', pipeline.uploads_received || 0,
         'uploads received', pipeline.spark, [

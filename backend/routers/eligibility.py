@@ -309,7 +309,7 @@ async def upload_eligibility_document(
             from eligibility.parse_pdf import parse_pdf as _parse_pdf
             _parse_pdf(contents)
         except PDFEncryptedError:
-            raise HTTPException(status_code=422, detail="PDF is password-protected — please upload an unlocked copy.")
+            raise HTTPException(status_code=422, detail="PDF is password-protected: please upload an unlocked copy.")
         except Exception:
             # Non-fatal at upload time; the pipeline will surface other parse errors.
             pass
@@ -504,7 +504,7 @@ async def create_eligibility_check(
         if prior and prior.get("status") in ("PARSING", "EXTRACTING", "EVALUATING"):
             raise HTTPException(
                 status_code=409,
-                detail="An eligibility check for this patient is already running — wait for it to finish.",
+                detail="An eligibility check for this patient is already running, wait for it to finish.",
             )
 
     check_id = uuid.uuid4().hex
@@ -628,12 +628,12 @@ async def override_field(
     if rec.get("status") in ("PARSING", "EXTRACTING", "EVALUATING"):
         raise HTTPException(
             status_code=409,
-            detail="Eligibility check is still running — overrides will apply once it completes.",
+            detail="Eligibility check is still running, overrides will apply once it completes.",
         )
     if rec.get("status") == "FINALIZED":
         raise HTTPException(
             status_code=409,
-            detail="Check has been finalized — overrides are no longer accepted.",
+            detail="Check has been finalized: overrides are no longer accepted.",
         )
 
     allowed = {"partA_active", "partB_active", "not_ma", "medicare_primary", "not_esrd_basis", "not_umwa"}
@@ -696,7 +696,7 @@ async def rerun_check(
     if rec.get("status") == "FINALIZED":
         raise HTTPException(
             status_code=409,
-            detail="This check has been finalized — start a new check from the patient detail view.",
+            detail="This check has been finalized: start a new check from the patient detail view.",
         )
 
     actor = _actor_id(staff)
@@ -760,7 +760,7 @@ async def finalize_check(
     if rec.get("status") in ("PARSING", "EXTRACTING", "EVALUATING"):
         raise HTTPException(
             status_code=409,
-            detail="Eligibility check is still running — please wait for it to finish or cancel.",
+            detail="Eligibility check is still running, please wait for it to finish or cancel.",
         )
     if rec.get("status") == "FINALIZED":
         raise HTTPException(
@@ -775,7 +775,7 @@ async def finalize_check(
         if overall != "ELIGIBLE":
             raise HTTPException(
                 status_code=409,
-                detail=f"Cannot save as TEAM episode — overall verdict is {overall}. Resolve UNKNOWNs via override or re-run.",
+                detail=f"Cannot save as TEAM episode: overall verdict is {overall}. Resolve UNKNOWNs via override or re-run.",
             )
         patient["eligibility_status"] = "ELIGIBLE"
     else:

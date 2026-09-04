@@ -680,7 +680,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     async (email: string, password: string) => {
       setStepError("");
       if (!slug) {
-        setStepError("Workspace not ready yet — refresh and try again.");
+        setStepError("Workspace not ready yet: refresh and try again.");
         return false;
       }
       const r = await fetch(`${API_BASE}/api/tenant/${encodeURIComponent(slug)}/auth/login`, {

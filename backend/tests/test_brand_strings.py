@@ -144,3 +144,66 @@ def test_the_frozen_identifiers_are_still_here():
 
     main_py = _read(_BACKEND / "main.py")
     assert '"/asclepius"' in main_py or "'/asclepius'" in main_py
+
+
+# ── The founders' signature ──────────────────────────────────────────────────
+
+def test_the_founder_signature_degrades_to_names_when_there_is_no_photo():
+    """A broken image in an inbox is worse than no image.
+
+    The photo is deliberately not in the repo (it is a picture of real people),
+    so the DEFAULT state of this code in a fresh checkout is "no photo". That
+    state has to be the good one, not a placeholder box with a torn-page icon
+    next to a request for someone's licence number.
+    """
+    import importlib
+    import os
+
+    oe = importlib.import_module("onboarding_emails")
+    old = os.environ.pop("FOUNDER_PHOTO_URL", None)
+    try:
+        out = oe._founder_signoff("Tej & Aryaa, founders")
+        assert "<img" not in out
+        assert "Tej &amp; Aryaa, founders" in out
+    finally:
+        if old is not None:
+            os.environ["FOUNDER_PHOTO_URL"] = old
+
+
+def test_the_founder_signature_renders_the_photo_when_one_is_configured():
+    import importlib
+    import os
+
+    oe = importlib.import_module("onboarding_emails")
+    old = os.environ.get("FOUNDER_PHOTO_URL")
+    os.environ["FOUNDER_PHOTO_URL"] = "https://archangelhealth.ai/email-assets/founders.jpg"
+    try:
+        out = oe._founder_signoff("Tej & Aryaa, founders")
+        assert "https://archangelhealth.ai/email-assets/founders.jpg" in out
+        # A table, not flexbox: Outlook renders with Word, which has neither
+        # flexbox nor grid, and the signature would stack into two lines.
+        assert "<table" in out and "flex" not in out
+        # Alt text, because most clients block remote images by default and the
+        # reader should still know whose signature this is.
+        assert 'alt="Tej &amp; Aryaa, founders"' in out
+    finally:
+        if old is None:
+            os.environ.pop("FOUNDER_PHOTO_URL", None)
+        else:
+            os.environ["FOUNDER_PHOTO_URL"] = old
+
+
+def test_a_relative_photo_url_is_never_emitted():
+    """An email is read outside our origin; a relative URL resolves to nothing."""
+    import importlib
+    import os
+
+    oe = importlib.import_module("onboarding_emails")
+    saved = {k: os.environ.pop(k, None) for k in ("FOUNDER_PHOTO_URL", "BASE_URL")}
+    try:
+        url = oe._founder_photo_url()
+        assert url == "" or url.startswith(("http://", "https://")), url
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v

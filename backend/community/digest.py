@@ -91,7 +91,7 @@ _SELECT_SYSTEM = (
     "paid AI-evaluation work. Judge each candidate item strictly on relevance to AI in "
     "medicine (models, evals, regulation, deployments, research). Return ONLY a JSON "
     "object: {\"items\": [{\"id\": <int>, \"keep\": <bool>, \"relevance\": <0..1>, "
-    "\"one_liner\": \"<=25 words, factual, no hype — say what happened, never invent\"}]}. "
+    "\"one_liner\": \"<=25 words, factual, no hype, say what happened, never invent\"}]}. "
     "Every input id must appear exactly once. Do not add fields or prose."
 )
 
@@ -99,12 +99,12 @@ _COMPOSE_SYSTEM = (
     "You write the digest post for #medical-ai-news in a physicians' community. "
     "Input: a JSON list of kept items (title, url, one_liner, source). Output: the post "
     "body ONLY, markdown-lite (no HTML): start with one bold header line naming the "
-    "digest (e.g. **Medical AI Digest** or **Papers of the Week**) — NO calendar date "
+    "digest (e.g. **Medical AI Digest** or **Papers of the Week**), NO calendar date "
     "in the header or anywhere else (the platform timestamps the post; full dates "
     "false-trip the clinical PHI filter), rephrase any full date in a one_liner to "
     "month-year or 'this week'. Then group items under 2-4 bold section lines (e.g. "
     "**Research**, **Industry & deployment**, **Regulation**), each item exactly one "
-    "bullet: \"- [title](url) — one_liner\". If two items cover the same story, keep "
+    "bullet: \"- [title](url): one_liner\". If two items cover the same story, keep "
     "one bullet and fold the second link in as \"(also: [source](url))\". No intro "
     "paragraph, no sign-off, no invented facts, no items beyond the input."
 )
@@ -130,7 +130,7 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
         system=_SELECT_SYSTEM,
         messages=[{"role": "user", "content": _json.dumps({"items": lines})}],
         prompt_id=f"community_digest_select_{kind}",
-        purpose="community news digest — select/score items",
+        purpose="community news digest: select/score items",
         temperature=0.2,
     )
     parsed = extract_json(first_text(resp))
@@ -170,7 +170,7 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
         messages=[{"role": "user", "content": _json.dumps(
             {"digest_kind": kind, "items": compose_input})}],
         prompt_id=f"community_digest_compose_{kind}",
-        purpose="community news digest — compose post",
+        purpose="community news digest: compose post",
         temperature=0.2,
         max_tokens=max_tokens(),
     )
@@ -196,7 +196,7 @@ async def _fetch(kind: str) -> List[Dict[str, Any]]:
             if isinstance(b, list):
                 items.extend(b)
             elif isinstance(b, BaseException):
-                log.warning("[digest] paper source raised — skipped: %s", b)
+                log.warning("[digest] paper source raised: skipped: %s", b)
         return _keyword_filter(items, require=False)
     items = await feeds.fetch_rss()
     return _keyword_filter(items, require=True)
@@ -304,7 +304,7 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
                  if str(it.get("source") or "").startswith(prefixes)]
         if not fresh:
             cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
-            log.info("[digest] %s run: nothing fresh (%d fetched) — no post", kind, fetched)
+            log.info("[digest] %s run: nothing fresh (%d fetched), no post", kind, fetched)
             return {"ok": True, "kind": kind, "fetched": fetched, "fresh": 0,
                     "posted": 0, "emailed": 0}
 
@@ -314,7 +314,7 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
             cstore.mark_content_items(
                 [it["id"] for it in fresh], status="skipped", summaries=summaries)
             cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
-            log.info("[digest] %s run: %d fresh, none kept — no post", kind, len(fresh))
+            log.info("[digest] %s run: %d fresh, none kept, no post", kind, len(fresh))
             return {"ok": True, "kind": kind, "fetched": fetched,
                     "fresh": len(fresh), "posted": 0, "emailed": 0}
 

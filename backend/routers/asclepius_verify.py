@@ -1095,7 +1095,7 @@ async def calibration_exam(
     if not spec:
         raise HTTPException(
             status_code=400,
-            detail="No recognised specialty on file — the exam is drawn from your declared "
+            detail="No recognised specialty on file: the exam is drawn from your declared "
                    "specialty's task distribution.")
     # An attempt already in flight is RESUMED, never replaced. Minting a new one on every
     # GET would let a candidate reroll the item sample by refreshing until an easy draw came
@@ -1270,7 +1270,7 @@ async def tr_readiness(admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
         "blockers": blockers,
         "outstanding": [b["id"] for b in outstanding],
         "note": ("Both blockers must clear before ANY physician can be proposed as a "
-                 "reviewer. They are separate operational loops with separate owners — see "
+                 "reviewer. They are separate operational loops with separate owners, see "
                  "docs/PRD_C_LAUNCH_CHECKLIST.md."),
     }
 

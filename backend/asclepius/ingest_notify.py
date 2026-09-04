@@ -112,7 +112,7 @@ def notify_upload_failed(
             return False, "already notified"
         email, name = _recipient_for(store, upload)
         if not looks_like_email(email):
-            detail = ("no contact email on this upload's link — set one when minting "
+            detail = ("no contact email on this upload's link, set one when minting "
                       "the link, or ask the partner for their address")
             log.info("ingest notify: upload %s has no recipient (%s)", upload_id, detail)
             return False, detail

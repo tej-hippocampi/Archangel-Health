@@ -94,7 +94,7 @@ def backfill_records_from_ledger(
             "live records and were LEFT ALONE (they surface in the export "
             "preview's excluded list).",
             report["candidates"], report["moved"],
-            " (dry run — nothing written)" if dry_run else "",
+            " (dry run: nothing written)" if dry_run else "",
             report["voided_untouched"])
     return report
 
@@ -155,7 +155,7 @@ def run_once_at_boot(store: Any) -> Dict[str, Any]:
                           "FAILED. %s", "; ".join(problems))
             else:
                 log.warning(
-                    "asclepius.export_backfill: no-data-loss contract holds — "
+                    "asclepius.export_backfill: no-data-loss contract holds, "
                     "every id set is identical across the sweep.")
         except Exception:  # noqa: BLE001
             log.warning("asclepius.export_backfill: could not verify the "
@@ -164,7 +164,7 @@ def run_once_at_boot(store: Any) -> Dict[str, Any]:
     # The headline, in one greppable line: how many cases we had already paid
     # for that could not ship until now.
     log.warning(
-        "asclepius.export_backfill: SUMMARY — %d case(s) were approved or paid "
+        "asclepius.export_backfill: SUMMARY: %d case(s) were approved or paid "
         "but could not ship; %d are now exportable; %d voided earning(s) left "
         "untouched for a human to decide.",
         report["candidates"], report["moved"], report["voided_untouched"])

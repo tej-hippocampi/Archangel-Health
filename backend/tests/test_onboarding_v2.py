@@ -300,7 +300,7 @@ def test_live_luhn_warns_but_never_blocks():
     """
     npi_ts = Path(__file__).resolve().parents[2] / "landing/src/lib/npi.ts"
     src = npi_ts.read_text(encoding="utf-8")
-    assert "This doesn't look like a valid NPI — double-check?" in src
+    assert "This doesn't look like a valid NPI, double-check?" in src
     # It is a hint, never an `error`: the field the Review screen renders passes
     # npiWarning() to `hint`, and `error` only outside review mode.
     steps = (Path(__file__).resolve().parents[2]
@@ -360,7 +360,7 @@ async def test_nudge_fires_once_at_24h_and_never_twice(client: TestClient, monke
     sent = _capture_nudges(monkeypatch)
 
     await onboarding_nudge.sweep(ts)
-    assert _subjects_for(sent, email) == ["Your application is waiting — 2 minutes to finish"]
+    assert _subjects_for(sent, email) == ["Your application is waiting: 2 minutes to finish"]
     assert ts.get_health_system_by_id(hs_id)["nudge_sent_at"]
 
     # Again, immediately. The stamp is the whole idempotency mechanism, so a
@@ -379,7 +379,7 @@ async def test_day_six_expiry_warning_fires_once(client: TestClient, monkeypatch
 
     await onboarding_nudge.sweep(ts)
     assert sorted(_subjects_for(sent, email)) == sorted([
-        "Your application is waiting — 2 minutes to finish",
+        "Your application is waiting: 2 minutes to finish",
         "Your Archangel Health link expires tomorrow",
     ])
     row = ts.get_health_system_by_id(hs_id)

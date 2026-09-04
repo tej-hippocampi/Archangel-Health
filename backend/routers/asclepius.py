@@ -328,7 +328,7 @@ async def login(body: LoginRequest):
                 and (pending.get("verification_status") or "pending") == "pending":
             raise HTTPException(
                 status_code=403,
-                detail=("Your application is in review — we'll email you within "
+                detail=("Your application is in review, we'll email you within "
                         "24–48 hours."),
                 headers={asc_auth.AUTH_GATE_HEADER: "pending"},
             )
@@ -1541,7 +1541,7 @@ async def update_my_first_run(
                     "stop": body.stop,
                     "message": ("The welcome, your start and the practice case "
                                 "are the three things everyone does. They can't "
-                                "be put off — but nothing after them is required."),
+                                "be put off, but nothing after them is required."),
                 },
             )
         _defer_first_run_stops(store, user["id"], (body.stop,))
@@ -2153,11 +2153,11 @@ async def load_v4_real_cases(
     max_labels: int = Query(
         V4_DEFAULT_MAX_LABELS, ge=1, le=10,
         description="Independent labels per case. Default 3 (one labeller + two "
-                    "for Cohen's kappa). This is what we PAY for — it is not how "
+                    "for Cohen's kappa). This is what we PAY for, it is not how "
                     "many physicians can SEE the case."),
     open_to_all_specialties: Optional[bool] = Query(
         None, description="Show these cases to every approved physician, "
-                          "bypassing specialty routing. VISIBILITY only — it "
+                          "bypassing specialty routing. VISIBILITY only, it "
                           "does not change max_labels or what we pay. Omit to "
                           "follow ASCLEPIUS_V4_OPEN_TO_ALL (default on), which is "
                           "what the boot seeder uses; pass it explicitly to "
@@ -3086,7 +3086,7 @@ def require_first_run_stops(
             "error": "first_run_incomplete",
             "remaining": list(remaining),
             "message": ("Finish the welcome walkthrough before your first real "
-                        "case — it is three screens and the practice case."),
+                        "case, it is three screens and the practice case."),
             "action": {"kind": "resume_first_run",
                        "label": "Finish the walkthrough"},
         },
@@ -3466,7 +3466,7 @@ async def real_case_access_report(
             notes.append(
                 "ASCLEPIUS_ADMIN_EMAIL names this account. The boot-time admin "
                 "bootstrap now refuses to convert a physician account while another "
-                "admin exists, so the role will survive the next deploy — but "
+                "admin exists, so the role will survive the next deploy, but "
                 "repoint that variable at a separate operations account so it stops "
                 "depending on that guard.")
         else:
@@ -3492,7 +3492,7 @@ async def real_case_access_report(
         blockers.append(
             "real_data_approved is off. It is granted automatically to approved "
             "labelers at boot and on the approval route, UNLESS an admin set it "
-            f"explicitly (source={u.get('real_data_approval_source')!r}) — a human "
+            f"explicitly (source={u.get('real_data_approval_source')!r}): a human "
             "decision is never overridden by the sync.")
     spec = (u.get("specialty") or "").strip().lower()
     visible = [c for c in seeded
@@ -3534,7 +3534,7 @@ async def real_case_access_report(
         # Belt and braces: a gate list that says "blocked" over a non-empty queue
         # is a bug in this endpoint, and saying so beats quietly contradicting
         # ourselves on the screen an operator is trusting.
-        report["note"] = ("The queue is not empty despite the blockers listed — "
+        report["note"] = ("The queue is not empty despite the blockers listed, "
                           "treat the queue as authoritative and report this.")
     elif not eligible and not blockers:
         report["note"] = ("No gate is blocking them and the queue is still empty: "
@@ -6337,7 +6337,7 @@ def _promote_block(
     if undetermined:
         return {
             "reason": "specialty",
-            "message": "Specialty not set — choose one to promote. Promoting "
+            "message": "Specialty not set: choose one to promote. Promoting "
                        "without it would label these cases with a default that "
                        "routes them to the wrong physician pool.",
         }
@@ -7008,7 +7008,7 @@ async def promote_ingest_case(
         raise HTTPException(
             status_code=409,
             detail="Specialty not determined for this case. Set the specialty on the "
-                   "upload before promoting — promoting now would label it with a "
+                   "upload before promoting: promoting now would label it with a "
                    "default that routes it to the wrong physician pool.")
     question = (body.question or "").strip()
     if not question:
@@ -7209,7 +7209,7 @@ async def promote_upload_all(
         # not fail the batch — it is reported alongside the gated ones.
         if asc_ingestion.specialty_is_undetermined(ic.get("specialty")):
             gated.append({"ingest_case_id": ic.get("ingest_case_id"),
-                          "failures": ["specialty not determined — set it on the "
+                          "failures": ["specialty not determined: set it on the "
                                        "upload before promoting"]})
             continue
         question = ((body.question or "").strip()

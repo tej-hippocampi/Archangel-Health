@@ -1209,7 +1209,7 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
             f"+{TIER_WEIGHTS['npi_verified']} NPI verified against NPPES"
             + (f" ({cred})" if cred else ""))
     elif npi_result == NpiResult.UNAVAILABLE.value:
-        reasons.append("±0 NPI check unavailable — retry pending (not held against them)")
+        reasons.append("±0 NPI check unavailable: retry pending (not held against them)")
     elif npi_result == NpiResult.NOT_FOUND.value:
         reasons.append("±0 NPI not found in NPPES")
 
@@ -1229,7 +1229,7 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
     elif not npi_ok and registry_result in ("document_only", "queued"):
         reasons.append("±0 identity pending document review (no public registry to query)")
     elif not npi_ok and registry_result in ("inconclusive", "unavailable"):
-        reasons.append("±0 registry could not confirm — routed to document review")
+        reasons.append("±0 registry could not confirm: routed to document review")
 
     # Email domain: one weight, never a gate. A known health-system employer
     # domain corroborates current clinical employment, so it outranks generic
@@ -1336,7 +1336,7 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
     # mistyped is exactly who this is protecting from an automatic decision.
     for finding in plausibility.flags(user, _json_field(user, "credentials_json")):
         if finding["severity"] == plausibility.SEVERITY_HIGH:
-            detail = f" — {finding['detail']}" if finding.get("detail") else ""
+            detail = f", {finding['detail']}" if finding.get("detail") else ""
             blockers.append(
                 f"Implausible {finding['field'].replace('_', ' ')}: "
                 f"{finding['issue'].replace('_', ' ')}{detail}")

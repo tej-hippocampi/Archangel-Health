@@ -57,7 +57,7 @@ CLASS_LABELS = {
 #: the chart's own next encounter, which is not how any other case here works.
 LONGITUDINAL_PARAGRAPH = (
     "Longitudinal cases walk one real patient forward in time. You'll commit to "
-    "an assessment, a plan, and what you expect to happen next — then the chart's "
+    "an assessment, a plan, and what you expect to happen next, then the chart's "
     "next encounter is revealed and you check your own prediction against what "
     "actually happened. Take them in order; each point unlocks the next."
 )
@@ -114,19 +114,19 @@ def compose_dm(
     lines = [
         "New cases routed to you",
         "",
-        f"Dr. {_last_name(doctor)} — {n} new {label} case{'s' if n != 1 else ''} "
+        f"Dr. {_last_name(doctor)}: {n} new {label} case{'s' if n != 1 else ''} "
         f"just landed in your queue:",
         "",
     ]
     for t, cls in zip(rows, classes):
-        bits = [str(t.get("specialty") or "general"), str(t.get("difficulty") or "—"),
+        bits = [str(t.get("specialty") or "general"), str(t.get("difficulty") or "-"),
                 CLASS_LABELS[cls]]
         if cls == "longitudinal" and t.get("sequence_index") is not None:
             bits.append(f"decision {int(t['sequence_index']) + 1}")
         lines.append("  · " + " · ".join(bits))
     lines += [
         "",
-        "They'll appear automatically: if you're mid-case, finish it — your routed "
+        "They'll appear automatically: if you're mid-case, finish it, your routed "
         "case comes up right after you submit. If you're starting fresh, just hit "
         "Start new case.",
     ]
@@ -134,7 +134,7 @@ def compose_dm(
         lines += ["", LONGITUDINAL_PARAGRAPH]
     if due_at:
         lines += ["", f"These are yours first until {str(due_at)[:10]}."]
-    lines += ["", "Questions mid-case? Post in #questions-help.", "— Archangel"]
+    lines += ["", "Questions mid-case? Post in #questions-help.", "Archangel"]
     return "\n".join(lines)
 
 
@@ -147,7 +147,7 @@ def compose_channel_post(tasks: Sequence[Dict[str, Any]]) -> str:
     n = len(rows)
     body = (f"{n} {label} case{'s' if n != 1 else ''} "
             f"({', '.join(specialties)}) are now in the open queue. "
-            f"Any approved physician may pick them up — hit Start new case.")
+            f"Any approved physician may pick them up, hit Start new case.")
     if "longitudinal" in classes:
         body += "\n\n" + LONGITUDINAL_PARAGRAPH
     return body
@@ -234,7 +234,7 @@ def compose_room_intro(*, people: Sequence[Dict[str, Any]], specialty: str,
         "",
         ADMIN_VISIBILITY_LINE,
         "",
-        "— Archangel",
+        "Archangel",
     ]
     return "\n".join(lines)
 
@@ -254,7 +254,7 @@ def compose_roster_change(*, doctor: Dict[str, Any], position: int,
     return "\n".join([
         f"Dr. {_last_name(doctor)} now has point {position} of {n_points}.",
         "",
-        "— Archangel",
+        "Archangel",
     ])
 
 
@@ -446,9 +446,9 @@ def compose_relay_assignment(*, doctor, position, n_points, specialty, is_first)
     still sealed and concludes the queue is broken.
     """
     lines = [
-        "You're on a care-team relay" if not is_first else "You're up — care-team relay",
+        "You're on a care-team relay" if not is_first else "You're up: care-team relay",
         "",
-        f"Dr. {_last_name(doctor)} — a {specialty} chart walk is being taken "
+        f"Dr. {_last_name(doctor)}: a {specialty} chart walk is being taken "
         f"forward by several physicians, one decision point each. "
         f"You have point {position} of {n_points}.",
         "",
@@ -464,14 +464,14 @@ def compose_relay_assignment(*, doctor, position, n_points, specialty, is_first)
         ]
     else:
         lines += [
-            "It isn't your turn yet — each point unlocks when the one before it is "
+            "It isn't your turn yet: each point unlocks when the one before it is "
             "submitted, and you'll get a message the moment yours does. Nothing to "
             "do until then; it will not appear in your queue before that.",
             "",
             "When it does, you'll see the chart up to your point plus the previous "
             "physician's committed assessment as your handoff.",
         ]
-    lines += ["", "— Archangel"]
+    lines += ["", "Archangel"]
     return "\n".join(lines)
 
 
@@ -481,13 +481,13 @@ def compose_relay_unlock(*, doctor, position, n_points, specialty):
         f"You're up, Dr. {_last_name(doctor)}",
         "",
         f"Point {position} of {n_points} on the {specialty} relay case is now "
-        f"yours. The physician before you just committed theirs — you'll see "
+        f"yours. The physician before you just committed theirs, you'll see "
         f"their assessment as your handoff.",
         "",
         "It's live in your queue now: finish any case you're mid-way through and "
         "it comes up right after, or hit Start new case.",
         "",
-        "— Archangel",
+        "Archangel",
     ])
 
 
@@ -635,10 +635,10 @@ def compose_stall_nudge(*, doctor, position, n_points, specialty, waiting_hours,
         ]
     lines += [
         "",
-        "No rush if you're mid-clinic — this is the only reminder you'll get. If "
+        "No rush if you're mid-clinic, this is the only reminder you'll get. If "
         "you'd rather hand it back, reply here and we'll pass it on.",
         "",
-        "— Archangel",
+        "Archangel",
     ]
     return "\n".join(lines)
 
@@ -704,7 +704,7 @@ def sweep_stalled_points(store, *, now_iso=None) -> Dict[str, Any]:
 
     if report["would_notify"]:
         log.info("relay stall sweep: %d stalled, %d would be nudged, %d sent "
-                 "(nudges %s) — %s", report["stalled"], len(report["would_notify"]),
+                 "(nudges %s): %s", report["stalled"], len(report["would_notify"]),
                  report["sent"], "ON" if report["enabled"] else "OFF (log only)",
                  [w["task_id"] for w in report["would_notify"]])
     return report

@@ -96,7 +96,7 @@ async def _send_one(kind: str, row: Dict[str, Any]) -> bool:
     if not email or not url:
         return False
     if kind == "nudge":
-        subject = "Your application is waiting — 2 minutes to finish"
+        subject = "Your application is waiting: 2 minutes to finish"
         html_body = build_application_nudge_email(
             first_name=_first_name(row), onboarding_url=url)
     else:

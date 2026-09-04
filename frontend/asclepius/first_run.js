@@ -333,14 +333,14 @@
   var LETTER = [
     'Doctors earn from their judgment. Models learn from it. The hardest cases '
       + 'become the most valuable data.',
-    'AI is going to take real clinical work off physicians — diagnosing, '
+    'AI is going to take real clinical work off physicians: diagnosing, '
       + 'prescribing, managing patients. That is coming either way. Whether it '
       + 'arrives safely depends on what it learns from, and we don’t believe that '
       + 'can be one company’s decision. It takes the medical community itself: the '
       + 'specialists, the people who know what good care looks like, teaching it '
       + 'deliberately rather than letting it guess.',
     'That’s why you’re here, and why we’re glad you are. Every case you take here '
-      + 'is read against real clinical judgment — yours. A 70% benchmark score is '
+      + 'is read against real clinical judgment, yours. A 70% benchmark score is '
       + 'irrelevant when a patient is downstream. The people who carry the '
       + 'consequences should define what correct means.',
     'Welcome aboard.',
@@ -420,7 +420,7 @@
       h('h1', { class: 'asc-fr-title' }, 'Where would you like to start?'),
       cards,
       h('p', { class: 'asc-fr-note' },
-        'Either path works — the practice case is the real interface.'));
+        'Either path works: the practice case is the real interface.'));
 
     // No primary button. This screen asks a question and offers exactly two
     // answers; a black "Start the practice case →" underneath them repeated the
@@ -561,11 +561,11 @@
       h('h1', { class: 'asc-fr-title' }, 'The people you’ll be working alongside.'),
       h('div', { class: 'asc-fr-preview asc-fr-preview-community', 'aria-hidden': 'true' },
         previewLine('Dr. Chen', 'Anyone seen the new KDIGO draft? The albuminuria cutoff moved.'),
-        previewLine('Tej', 'New nephrology cases just landed for six of you — check your queue.'),
+        previewLine('Tej', 'New nephrology cases just landed for six of you, check your queue.'),
         previewLine('Dr. Okafor', 'Happy to take the group case on the transplant workup.')),
       h('p', { class: 'asc-fr-body' },
         'This is our Slack. Medical news, the community’s best finds, and the two '
-        + 'of us — message Tej or Aryaa directly any time. If you’re on a group case '
+        + 'of us: message Tej or Aryaa directly any time. If you’re on a group case '
         + 'with other doctors, this is where you’ll coordinate. We’ll also ping you '
         + 'here when new cases land for you.'));
     ctx.setRoot(stopShell({
@@ -648,7 +648,7 @@
     var body = h('div', {},
       h('h1', { class: 'asc-fr-title' }, 'How you get paid.'),
       h('p', { class: 'asc-fr-body' },
-        'Every case you complete accrues in Earnings — $75 per completed case, '
+        'Every case you complete accrues in Earnings, $75 per completed case, '
         + 'visible immediately.'),
       // Disabled and clearly labelled, per §6 stop 5, until the payments rail is
       // live. It is architecture on screen: the card and the `bank_link_status`
@@ -687,7 +687,7 @@
       h('h1', { class: 'asc-fr-title' }, 'Everything else lives in the manual.'),
       h('p', { class: 'asc-fr-body' },
         'Everything about how to label well lives here. Questions beyond it? '
-        + 'Message Tej or Aryaa in the community — we answer fast.'),
+        + 'Message Tej or Aryaa in the community, we answer fast.'),
       h('p', { class: 'asc-fr-body' },
         'And whenever you like, take twenty minutes with us. We meet every '
         + 'physician one on one; it’s the part of this we like most.'),
@@ -827,7 +827,7 @@
   function reentryLede(n) {
     var count = n === 1 ? 'One quick thing' : (n === 2 ? 'Two quick things' : 'Three quick things');
     return count + ' you set aside. '
-      + (n === 1 ? 'A couple of minutes' : 'Two minutes') + ', or later — your call.';
+      + (n === 1 ? 'A couple of minutes' : 'Two minutes') + ', or later: your call.';
   }
 
   function bindReentryEsc() {

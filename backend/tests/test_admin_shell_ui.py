@@ -389,8 +389,8 @@ def test_an_unmeasured_physician_reads_as_unmeasured_and_never_as_a_zero():
       out({ metrics: findAll(bela, 'asc-pcard-metric-value').map(tidy) });
     """, with_physicians=True)
     score, median, agreement = res["metrics"]
-    assert score == "—", f"an ungraded physician shows {score!r}"
-    assert median == "—", f"an untimed physician shows {median!r}"
+    assert score == "-", f"an ungraded physician shows {score!r}"
+    assert median == "-", f"an untimed physician shows {median!r}"
     assert "0.00" not in agreement, f"an unrated physician shows {agreement!r}"
 
 

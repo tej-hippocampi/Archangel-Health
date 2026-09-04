@@ -38,6 +38,7 @@ export function MenuPanel({
   onNavigate,
   onRequestData,
   onSignIn,
+  onSignUp,
   onSignOut,
   signedIn,
   portalUrl,
@@ -49,6 +50,7 @@ export function MenuPanel({
   onNavigate: (to: string) => void;
   onRequestData: () => void;
   onSignIn: () => void;
+  onSignUp: () => void;
   onSignOut: () => void;
   signedIn: boolean;
   portalUrl: string | null;
@@ -187,7 +189,10 @@ export function MenuPanel({
             <button type="button" className="chrome chrome-box" onClick={onSignOut}>Sign out</button>
           </>
         ) : (
-          <button type="button" className="chrome chrome-box" onClick={onSignIn}>Sign in</button>
+          <>
+            <button type="button" className="chrome chrome-box" onClick={onSignIn}>Sign in</button>
+            <button type="button" className="chrome chrome-box" onClick={onSignUp}>Sign up</button>
+          </>
         )}
         <span className="spacer" />
         <a className="menu-mail" href={`mailto:${mail}`}>{mail}</a>

@@ -1400,7 +1400,7 @@ def _case_export_payload(store: Any, earning: Dict[str, Any]) -> Dict[str, Any]:
             raise HTTPException(
                 status_code=409,
                 detail=f"This case carries the identifying field {leak!r}, which the "
-                       "export gate rejects. It cannot ship in this state — fix the "
+                       "export gate rejects. It cannot ship in this state: fix the "
                        "record before paying for it.")
 
     return {
@@ -1416,7 +1416,7 @@ def _case_export_payload(store: Any, earning: Dict[str, Any]) -> Dict[str, Any]:
         "modality": asc_export._rec_modality(emitted[0]),
         "amount_cents": int(earning.get("amount_cents") or 0),
         "status": earning.get("status"),
-        "exported_for": "admin spot-check — not a buyer deliverable",
+        "exported_for": "admin spot-check: not a buyer deliverable",
         "cases": cases,
     }
 
@@ -1543,7 +1543,7 @@ _APPROVE_HTTP: Dict[str, Dict[str, Any]] = {
     "voided": {
         "status_code": 409,
         "detail": "That case was voided. Re-approving a void is a reversal, not "
-                  "an approval — it is not available here."},
+                  "an approval, it is not available here."},
     "quality_held": {
         "status_code": 409,
         "detail": "The payout algorithm proposed paying this case below the "
@@ -1551,7 +1551,7 @@ _APPROVE_HTTP: Dict[str, Dict[str, Any]] = {
                   "first, then approve."},
     "raced": {
         "status_code": 409,
-        "detail": "That row is no longer awaiting approval — it was decided by "
+        "detail": "That row is no longer awaiting approval, it was decided by "
                   "someone else (or by the auto-approve sweep) a moment ago."},
 }
 

@@ -585,7 +585,7 @@ def _log_regression(store, *, session_id: str, session: Dict[str, Any],
         return
     log.error(
         "asclepius.payments: recomputed credit for session %s went BACKWARDS "
-        "(%ds -> %ds continuous) — held at the stored value and flagged for payout "
+        "(%ds -> %ds continuous): held at the stored value and flagged for payout "
         "review. This is an infrastructure event, not a reviewer's fault.",
         session_id, regressed["stored_continuous_seconds"],
         regressed["recomputed_continuous_seconds"])
@@ -860,7 +860,7 @@ def heartbeat(
     # filtered out by the person who has learned to ignore the noisy one.
     if skew is not None and _first_time(_SKEW_LOGGED, session_id):
         log.warning(
-            "asclepius.payments: clock skew %.2fs on session %s — wall clock kept as the "
+            "asclepius.payments: clock skew %.2fs on session %s: wall clock kept as the "
             "ledger authority (signal only). Further skew on this session is not logged.",
             skew, session_id)
         store.log_event(
@@ -878,7 +878,7 @@ def heartbeat(
         # key count; this line is a breadcrumb, so once is enough.
         log.warning(
             "asclepius.payments: beat jitter %.1fms below the %.0fms human floor on "
-            "session %s — recorded as a signal, payout unaffected",
+            "session %s: recorded as a signal, payout unaffected",
             jitter, MIN_HUMAN_JITTER_MS, session_id)
 
     # The moment the threshold is crossed, once, with the credited seconds.
@@ -1043,7 +1043,7 @@ def _flag_low_confidence(
     if len(reasons) < 2:
         return
     log.error(
-        "asclepius.payments: session %s qualified for %d cents with %s — PAID and "
+        "asclepius.payments: session %s qualified for %d cents with %s, PAID and "
         "flagged for review, not refused", session_id, payout_cents, "+".join(reasons))
     store.log_event(
         entity_type="work_session", entity_id=session_id,
@@ -1065,8 +1065,8 @@ def _flag_low_confidence(
 _BEAT_ERRORS = {
     "not_found": "Session not found.",
     "ended": "This session has already ended.",
-    "stale_nonce": "Stale session token — this beat was not accepted.",
-    "replayed_seq": "Replayed heartbeat sequence — this beat was not accepted.",
+    "stale_nonce": "Stale session token, this beat was not accepted.",
+    "replayed_seq": "Replayed heartbeat sequence, this beat was not accepted.",
     "missing_seq": "This session already has beats; a heartbeat must carry its sequence number.",
     "missing_progress_key": "A heartbeat must name the work it is a beat for.",
 }

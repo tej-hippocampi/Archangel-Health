@@ -514,7 +514,7 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         from asclepius import referrals as asc_referrals  # noqa: PLC0415
 
         log.warning(
-            "[self-serve] honeypot tripped for %s from %s — decoy link returned, "
+            "[self-serve] honeypot tripped for %s from %s, decoy link returned, "
             "no invite created. If this fires for real signups, the honeypot "
             "field is being autofilled; check its name/label/id.",
             asc_referrals.mask_email(email), client_ip(request),
@@ -596,7 +596,7 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
             # pause and resume any time" — is now literally true end to end.
             await send_html_email(
                 email,
-                "Your Archangel Health application — pick up any time",
+                "Your Archangel Health application, pick up any time",
                 build_application_start_email(
                     first_name=(body.first_name or "").strip(),
                     onboarding_url=invite["onboarding_url"],
@@ -846,7 +846,7 @@ async def finish_onboarding(body: FinishBody, request: Request):
     row = ts.get_health_system_by_id(row["id"]) or row
     slug = row.get("slug") or ""
     sign_in = f"{_landing_base()}/t/{slug}/sign-in"
-    subj = "Welcome to Archangel Health — onboarding complete"
+    subj = "Welcome to Archangel Health: onboarding complete"
     members_after_finalize = ts.list_team_members(row["id"])
     member_count = len(members_after_finalize)
     rn_count = sum(
@@ -1059,7 +1059,7 @@ def _provision_asclepius_user(
     if isinstance(board_certs, list) and board_certs:
         first = board_certs[0]
         if isinstance(first, dict):
-            board_cert = " — ".join(
+            board_cert = ", ".join(
                 p for p in [first.get("board"), first.get("specialty")] if p
             ) or None
         elif isinstance(first, str):
@@ -1519,7 +1519,7 @@ async def asclepius_cv_upload(
         # retryable error — the CV is optional and signup continues without it.
         log.exception("[credentialing] CV blob write failed")
         raise HTTPException(status_code=503,
-                            detail="Could not store the CV right now — you can "
+                            detail="Could not store the CV right now, you can "
                                    "finish signup without it.")
 
     # 'reading' is stamped HERE, before the response, so the wizard's first poll
@@ -1834,7 +1834,17 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
         email=director_email,
         password_hash=director_hash,
         role="evaluator",
-        full_name=director.get("full_name") or "",
+        # Last resort before an empty name reaches the account: the invite row
+        # carries the first and last name screen 1 collected. An account with no
+        # full_name makes the portal derive one from the email address, which is
+        # never a name we can vouch for.
+        full_name=(
+            director.get("full_name")
+            or " ".join(p for p in [
+                (row.get("director_first_name") or "").strip(),
+                (row.get("director_last_name") or "").strip(),
+            ] if p).strip()
+        ),
         org_name=org_name,
         specialty=specialty,
         clinical_role="director",

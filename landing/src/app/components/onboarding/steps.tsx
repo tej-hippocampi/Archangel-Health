@@ -844,9 +844,9 @@ export function Step4YourTeam({
             >
               <span>{data.email}</span>
               <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
-              <span>{data.orgName || "—"}</span>
+              <span>{data.orgName || "-"}</span>
               <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
-              <span>{data.department || "—"}</span>
+              <span>{data.department || "-"}</span>
             </div>
           </div>
         </div>
@@ -877,7 +877,7 @@ export function Step4YourTeam({
             ) : (
               <>
                 Team: <strong style={{ color: "var(--ink)" }}>{totalCount} / {TEAM_CAP_TOTAL}</strong>
-                {totalCount === 1 ? " — director (surgeon)" : ""}
+                {totalCount === 1 ? ", director (surgeon)" : ""}
               </>
             )}
           </div>
@@ -1125,7 +1125,7 @@ export function Step5SignIn({
         type="password"
         value={pw}
         onChange={setPw}
-        hint="Use the temporary password we sent to your email — you'll change it now."
+        hint="Use the temporary password we sent to your email, you'll change it now."
         autoComplete="current-password"
       />
       <PrimaryButton
@@ -1203,8 +1203,8 @@ export function Step6Success({
           marginBottom: 28,
         }}
       >
-        <Stat label="Health system" value={data.orgName || "—"} />
-        <Stat label="Department" value={data.department || "—"} />
+        <Stat label="Health system" value={data.orgName || "-"} />
+        <Stat label="Department" value={data.department || "-"} />
         <Stat label="TEAM members" value={`${memberCount + 1}`} />
       </div>
       <p
@@ -2028,7 +2028,7 @@ export function Step5Credentials({
   const registryFormatWarning =
     !isUS && registry.id_regex && c.registrationNumber.trim().length > 0 &&
     !new RegExp(registry.id_regex).test(c.registrationNumber.trim())
-      ? "That does not look like the usual format — worth a second check, but you can continue."
+      ? "That does not look like the usual format, worth a second check, but you can continue."
       : "";
 
   const identityValid =
@@ -2089,7 +2089,7 @@ export function Step5Credentials({
       lede={
         reviewMode ? (
           data.cvParsed?.ok
-            ? "We filled in what your CV told us. Correct anything that is off, add anything it missed, and leave the rest — only your name and specialty are needed to send this in."
+            ? "We filled in what your CV told us. Correct anything that is off, add anything it missed, and leave the rest, only your name and specialty are needed to send this in."
             : "Only your name and specialty are needed to send this in. Everything else helps us verify you faster, and you can add it later."
         )
         : phase === 1 ? "About a minute. We use your NPI to fill in as much of the next screen as we can."
@@ -2101,7 +2101,7 @@ export function Step5Credentials({
             </>
           )
         : memberMode
-          ? "Your verified credentials are attached to the data you label — this is what makes it valuable. Please be accurate."
+          ? "Your verified credentials are attached to the data you label, this is what makes it valuable. Please be accurate."
           : "As Director of Data Training, your credentials anchor the dataset your team produces."
       }
     >
@@ -2262,8 +2262,8 @@ export function Step5Credentials({
           // matter. The three-screen flow still gates on it, so the error stays
           // where a Continue button depends on it.
           hint={(reviewMode && c.phone.trim().length > 0 && c.phone.trim().length < 7)
-            ? "That looks short for a phone number — worth a check."
-            : "Direct line for you — not your practice's main number."}
+            ? "That looks short for a phone number, worth a check."
+            : "Direct line for you: not your practice's main number."}
           error={
             !reviewMode && c.phone.trim().length > 0 && c.phone.trim().length < 7
               ? "Enter a reachable phone number."
@@ -2505,7 +2505,7 @@ export function Step5Credentials({
           placeholder="8"
           value={c.clinicalHalfDaysPerMonth}
           onChange={(v) => set({ clinicalHalfDaysPerMonth: v.replace(/\D/g, "").slice(0, 3) })}
-          hint="Averaged over the last 12 months. Part-time practice counts — this is not a threshold you either clear or fail."
+          hint="Averaged over the last 12 months. Part-time practice counts, this is not a threshold you either clear or fail."
         />
       )}
       </>)}
@@ -2833,7 +2833,7 @@ export function Step6Attestations({
               letterSpacing: "0.08em",
             }}
           >
-            {initials || "—"}
+            {initials || "-"}
           </div>
         </div>
         <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8 }}>
@@ -2982,9 +2982,9 @@ export function Step7AsclepiusTeam({
             >
               <span>{data.email}</span>
               <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
-              <span>{data.orgName || "—"}</span>
+              <span>{data.orgName || "-"}</span>
               <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--ah-faint-30)" }} />
-              <span>{data.specialty || "—"}</span>
+              <span>{data.specialty || "-"}</span>
             </div>
           </div>
         </div>

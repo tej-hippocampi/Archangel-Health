@@ -84,7 +84,7 @@ def _check_team_eligibility(patient: Dict[str, Any]) -> None:
     if verdict == "INELIGIBLE":
         raise HTTPException(
             status_code=409,
-            detail="This patient's TEAM eligibility is INELIGIBLE — telehealth visits cannot be started.",
+            detail="This patient's TEAM eligibility is INELIGIBLE, telehealth visits cannot be started.",
         )
 
 
@@ -156,7 +156,7 @@ def _patient_summary(request: Request, patient_id: str) -> Dict[str, Any]:
     return {
         "name": patient.get("name") or patient_id,
         "tier": tier,
-        "tier_label": f"Tier {tier}" if tier else "—",
+        "tier_label": f"Tier {tier}" if tier else "-",
         "signals": signals[:3],
         "procedure": (patient.get("structured_data") or {}).get("procedure_name") or "",
     }
