@@ -152,8 +152,12 @@ the stubs the fake now satisfies to be deleted, expecting "most of the 40-odd" t
 go. Audited with `scripts/stub_audit.py`, which strips each stub and runs the test
 against the fake: **none is redundant.**
 
-17 fail outright without their stub. The other 10 pass, but reading each shows the
-pass is VACUOUS — the stub IS the mechanism under test:
+Roughly 17 fail outright without their stub and 10 pass. That split is ADVISORY,
+not exact: the audit strips stubs from a whole file and runs it, and these files
+share a SQLite store across their tests, so the split moves between runs on an
+identical tree (18/9, then 17/10). **The conclusion is what is robust — every
+candidate, in either split, was read and none is redundant.** Each passes only
+VACUOUSLY, because the stub IS the mechanism under test:
 
 | Test | What the stub supplies | Without it |
 |---|---|---|
@@ -163,6 +167,7 @@ pass is VACUOUS — the stub IS the mechanism under test:
 | `test_a_failing_search_never_raises` | a raise | nothing fails; "never raises" is trivially true |
 | `test_wrong_judge_keys_would_drop_documented` | deliberately wrong keys | the fake returns correct ones |
 | `test_ab_slot_randomization_is_balanced` | a constant answer | couples a position-bias test to the fake's fixture choice |
+| `test_schema_drift_labs_key_is_recovered` | a payload keyed `labs` not `lab_panels` | nothing is drifted, so the sanitizer under test is never exercised |
 
 The remaining three candidates are fixtures (`_install_llm`, `searcher`,
 `_mock_llm`) consumed by tests in the load-bearing set.

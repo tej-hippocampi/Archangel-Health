@@ -19,6 +19,12 @@ IS the mechanism under test, which becomes VACUOUS rather than fixed:
     fails and "never raises" is trivially true;
   * a stub returning deliberately WRONG keys, proving the parser degrades.
 
+**The split is ADVISORY and not stable run to run.** It strips stubs from a whole
+file and runs it, and several of these files share a SQLite store across their
+tests, so which ones fail can shift between runs (observed: 18/9 then 17/10 on an
+identical tree). Treat the CANDIDATE LIST as the output, never the counts, and
+decide each candidate by reading it.
+
 Run: python3 scripts/stub_audit.py [--file tests/test_x.py]
 Exit 0 always — this is a report, not a gate.
 """
