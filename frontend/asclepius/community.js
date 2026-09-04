@@ -114,7 +114,7 @@
     try {
       res = await fetch(base + path, { method: opts.method || 'GET', headers, body });
     } catch (e) {
-      throw { status: 0, detail: null, message: 'Network error — check your connection.' };
+      throw { status: 0, detail: null, message: 'Network error: check your connection.' };
     }
     let data = null;
     const ct = res.headers.get('content-type') || '';
@@ -444,7 +444,7 @@
       },
         h('span', { class: 'cm-chan-hash', 'aria-hidden': 'true' }, '#'),
         h('span', { class: 'cm-chan-name' }, ch.slug),
-        ch.post_policy === 'admin' ? h('span', { class: 'cm-chan-lock', title: 'Announcements — Archangel team posts, replies open in threads' }, 'ro') : null,
+        ch.post_policy === 'admin' ? h('span', { class: 'cm-chan-lock', title: 'Announcements: Archangel team posts, replies open in threads' }, 'ro') : null,
         unread > 0 && !isActive
           ? h('span', { class: 'cm-chan-unread' }, unread > 99 ? '99+' : String(unread))
           : (unread > 0 ? h('span', { class: 'dot dot-lime', 'aria-label': 'unread' }) : null));
@@ -754,11 +754,11 @@
         head.appendChild(h('span', { class: 'cm-head-desc' },
           isGroup(d)
             ? (roster.length
-                ? 'In this group: ' + roster.join(', ') + '. Colleague discussion only, no PHI.'
-                : 'A group conversation. Colleague discussion only, no PHI.')
+                ? 'In this group: ' + roster.join(', ') + '. Colleague discussion only: no PHI.'
+                : 'A group conversation. Colleague discussion only: no PHI.')
             : (roster.length
-                ? 'On this case: ' + roster.join(', ') + '. Colleague discussion only, no PHI.'
-                : 'A room for the colleagues on this case. Colleague discussion only, no PHI.')));
+                ? 'On this case: ' + roster.join(', ') + '. Colleague discussion only: no PHI.'
+                : 'A room for the colleagues on this case. Colleague discussion only: no PHI.')));
         if (isGroup(d) && state.canPost) {
           head.appendChild(h('button', {
             class: 'cm-head-btn', type: 'button', title: 'Add colleagues to this group',
@@ -878,7 +878,7 @@
   }
 
   const EMPTY_COPY = {
-    'general': ['Welcome to #general', 'Open discussion between contributor physicians. Say hello — everyone here is credential-verified.'],
+    'general': ['Welcome to #general', 'Open discussion between contributor physicians. Say hello: everyone here is credential-verified.'],
     'task-announcements': ['No announcements yet', 'New task batches, specialty calls, and deadlines from the Archangel team land here. Replies open in threads.'],
     'questions-help': ['No questions yet', 'Ask anything about a case, a rubric, or a payout.'],
   };
@@ -963,12 +963,12 @@
           copy = [roomTitle(d),
             'A room for the colleagues on this case'
             + (roster.length ? ': ' + roster.join(', ') : '')
-            + '. Colleague discussion only, no PHI.'];
+            + '. Colleague discussion only: no PHI.'];
         } else {
           const peer = (d || {}).peer || {};
           copy = ['A private conversation',
             'This is the beginning of your direct messages with '
-            + (peer.display_name || 'this colleague') + '. Colleague discussion only, no PHI.'];
+            + (peer.display_name || 'this colleague') + '. Colleague discussion only: no PHI.'];
         }
       } else {
         // A real channel: the branded panel, not two lines of grey.
@@ -1013,7 +1013,7 @@
       style: size === 'small' ? 'width:24px;height:24px;font-size:0.55rem' : null,
       'aria-label': 'Profile: ' + ((member && member.display_name) || 'member'),
       onClick: member && member.user_id ? () => openMember(member.user_id) : null,
-    }, (member && member.initials) || '—');
+    }, (member && member.initials) || '-');
     if (url) loadAvatarBlob(url).then((objectUrl) => {
       if (!objectUrl) return;
       clear(el);
@@ -1318,7 +1318,7 @@
     } else {
       wrap.appendChild(h('div', { class: 'cm-empty' },
         h('div', { class: 'cm-empty-title' }, 'No upcoming events'),
-        h('p', {}, state.isAdmin ? 'Post one with “New event” — it pins to the top here.'
+        h('p', {}, state.isAdmin ? 'Post one with “New event”, it pins to the top here.'
           : 'When the team posts an event, it pins here so you never miss it.')));
     }
     const past = state.events.past || [];
@@ -1502,7 +1502,7 @@
                 channel_slug: 'events',
               } });
               close();
-              toast('Event posted — pinned to the top of #events.');
+              toast('Event posted: pinned to the top of #events.');
             } catch (e) {
               toast(e.status === 422 ? (e.detail && e.detail.message) || e.message : e.message, 'error');
             }
@@ -1718,7 +1718,7 @@
       box.appendChild(h('button', {
         class: 'cm-react' + (mine ? ' mine' : ''),
         title: names,
-        'aria-label': g.emoji + ' ' + g.count + ' — ' + names,
+        'aria-label': g.emoji + ' ' + g.count + ' - ' + names,
         // Who reacted is worth seeing even when you may not join in.
         onClick: state.canPost ? () => react(m, g.emoji) : null,
       }, g.emoji, ' ', h('span', { class: 'n' }, String(g.count))));

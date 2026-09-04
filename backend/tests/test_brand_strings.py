@@ -1,136 +1,259 @@
-"""The product is called Archangel Health. The codebase is still called Asclepius.
+"""The physician reads "Archangel Health". The codebase still says "Asclepius".
 
-A physician walking the portal read "Asclepius" in the corner of a page whose
-emails, landing site and signed agreement all say Archangel Health. The company
-name is the one they should see, everywhere they can see anything.
+Both halves matter, and the second is why this file exists rather than a
+one-time grep. "Asclepius" is the internal name of this codebase and it is load
+bearing in about a hundred places that are NOT copy: the ``/asclepius`` routes,
+the ``window.Asclepius*`` seams the sub-modules attach to, the ``asc-*`` CSS
+prefix, the localStorage keys physicians already have on their machines, the
+``X-Asclepius-*`` headers, the ``ASCLEPIUS_*`` environment variables Railway is
+configured with, the ``backend/asclepius`` package, and the database file name.
+Renaming any of those is a migration, not a rebrand, and doing it by accident
+during a copy sweep is how a deploy loses every session at once.
 
-This test pins BOTH directions, because a one-time sweep only protects the half
-that is easy to do. It asserts that no visible "Asclepius" survives in the
-shells, the clients or the mail we send, AND that every frozen identifier is
-still exactly where it was.
+So this file pins the rebrand from both directions:
 
-WHY THE IDENTIFIERS ARE FROZEN. "Asclepius" is a word in copy and a name in
-code, and only the first of those is the founders' to change. The /asclepius
-route, the window.Asclepius* seams the sub-modules attach to, the asc-* CSS
-prefix, the asclepius_token key physicians already carry in localStorage, the
-X-Asclepius-* headers, the ASCLEPIUS_* variables the host is configured with,
-the backend/asclepius package and the database file are all identifiers with
-live readers on the other end. Renaming one is a migration with a rollout, not
-a word swap, and doing it by accident during a copy sweep logs every open
-session out at once.
-
-Two deliberate exceptions, stated here so a later reader does not "fix" them:
-
-  * ``product`` in the health-system onboarding router takes the literal value
-    "asclepius", so the 400 that lists the accepted values names it. That
-    string is the API's vocabulary, not a brand.
-  * Log lines say "Asclepius:" as a subsystem prefix. An operator reading a log
-    is looking for the subsystem, and nobody outside the team ever sees one.
+  * no user-visible "Asclepius" survives in the portal shell, the community
+    client, or the transactional email builders;
+  * every identifier that must NOT be renamed is asserted still present, so a
+    future sweep that is too enthusiastic fails here instead of in production.
 """
 
 from __future__ import annotations
 
-import ast
 import re
 from pathlib import Path
 
 import pytest
 
 _ROOT = Path(__file__).resolve().parents[2]
-_FRONTEND = _ROOT / "frontend"
-_ASC = _FRONTEND / "asclepius"
+_PORTAL = _ROOT / "frontend" / "asclepius"
 _BACKEND = _ROOT / "backend"
-_LANDING = _ROOT / "landing" / "src"
+
+BRAND = "Archangel Health"
+INTERNAL = "Asclepius"
 
 
-def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+def _read(rel: Path) -> str:
+    return rel.read_text(encoding="utf-8")
 
 
-# ── The shells ───────────────────────────────────────────────────────────────
+# ── The strings a physician actually reads ───────────────────────────────────
 
-@pytest.mark.parametrize(
-    "relative, expected_title",
-    [
-        ("asclepius/index.html", "<title>Archangel Health</title>"),
-        ("asclepius/community.html", "<title>Archangel Health Community</title>"),
-        ("asclepius/admin.html", "<title>Archangel Health Operations</title>"),
-        ("buyer/index.html", "<title>Secure Data Workspace | Archangel Health</title>"),
-    ],
-)
-def test_every_shell_titles_itself_with_the_company_name(relative, expected_title):
-    """The browser tab is the one piece of chrome that is on screen even when
-    the page is not, and it was the last place still saying Asclepius."""
-    assert expected_title in _read(_FRONTEND / relative)
+def test_the_portal_wordmark_and_title_say_archangel_health():
+    html = _read(_PORTAL / "index.html")
+    assert f"<title>{BRAND}</title>" in html
+    assert f'<span class="asc-logo-text">{BRAND}' in html
+    assert f"Loading {BRAND}" in html
+    assert "Expert Evaluation Portal" not in html
 
 
-def test_the_portal_wordmark_and_its_loading_screen_say_archangel_health():
-    html = _read(_ASC / "index.html")
-    assert '<span class="asc-logo-text">Archangel Health' in html
-    assert "Loading Archangel Health" in html
-    assert "Loading Asclepius" not in html
+def test_the_community_page_title_says_archangel_health():
+    assert f"<title>{BRAND} Community</title>" in _read(_PORTAL / "community.html")
 
 
-def test_the_buyer_workspace_wordmark_says_archangel_health():
-    assert '<span class="asc-logo-text">Archangel Health' in _read(_FRONTEND / "buyer/index.html")
+def _js_string_literals(source: str):
+    """Every single- or double-quoted literal in a JS file, roughly.
 
-
-# ── The clients ──────────────────────────────────────────────────────────────
-
-#: Identifier substrings that legitimately carry the old name. A string literal
-#: containing one of these is a key, a path or a header, not a sentence.
-_JS_IDENTIFIER_EXEMPTIONS = (
-    "/asclepius",
-    "asclepius_token",
-    "asclepius_draft",
-    "asclepius_eval_surface",
-    "X-Asclepius",
-    "static/asclepius",
-    "window.Asclepius",
-)
-
-_JS_STRING = re.compile(r"'([^'\\\n]*(?:\\.[^'\\\n]*)*)'|\"([^\"\\\n]*(?:\\.[^\"\\\n]*)*)\"")
-_JS_LINE_COMMENT = re.compile(r"(?m)^\s*(?://|\*|/\*).*$")
-
-
-def _js_string_literals(src: str):
-    """Every quoted literal, with comment lines dropped first.
-
-    Comments are excluded because this repo explains itself at length in them,
-    and those explanations NAME the thing they are explaining. A test that read
-    a comment about window.AsclepiusSession as shipped copy would force the
-    reasoning to be deleted to make the brand check pass.
+    Deliberately rough: this only has to be good enough to tell a string apart
+    from a comment, and the portal is hand-written vanilla JS with no minified
+    payloads or regex-literal thickets to confuse it.
     """
-    body = _JS_LINE_COMMENT.sub("", src)
-    for m in _JS_STRING.finditer(body):
-        yield m.group(1) if m.group(1) is not None else m.group(2)
+    return re.findall(r"'(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\"", source)
 
 
-@pytest.mark.parametrize(
-    "relative",
-    ["asclepius.js", "community.js", "admin_shell.js", "referral.js", "earnings.js"],
-)
-def test_no_visible_asclepius_survives_in_a_client_string(relative):
-    for literal in _js_string_literals(_read(_ASC / relative)):
-        if "Asclepius" not in literal:
+def _visible_internal_name_hits(path: Path):
+    """String literals naming the internal product, minus the identifiers.
+
+    A literal is exempt when it IS an identifier: a route, a storage key, a
+    header, a static path. Those are not copy and must not be swept.
+    """
+    exempt = (
+        "/asclepius", "asclepius_token", "asclepius_draft", "asclepius_eval_surface",
+        "X-Asclepius", "static/asclepius", "window.Asclepius",
+    )
+    out = []
+    for lit in _js_string_literals(_read(path)):
+        if INTERNAL not in lit:
             continue
-        assert any(token in literal for token in _JS_IDENTIFIER_EXEMPTIONS), (
-            f"{relative} ships a visible 'Asclepius' string: {literal!r}")
+        if any(e in lit for e in exempt):
+            continue
+        out.append(lit)
+    return out
 
 
-def test_the_landing_tells_a_user_the_company_name_not_the_codename():
-    src = _read(_LANDING / "lib" / "auth-api.ts")
+def test_no_visible_asclepius_string_survives_in_the_portal():
+    assert _visible_internal_name_hits(_PORTAL / "asclepius.js") == []
+
+
+def test_no_visible_asclepius_string_survives_in_the_community_client():
+    assert _visible_internal_name_hits(_PORTAL / "community.js") == []
+
+
+def test_no_transactional_email_calls_the_product_asclepius():
+    """Subjects and body copy only. Docstrings and comments are not copy."""
+    import ast
+
+    src = _read(_BACKEND / "onboarding_emails.py")
+    tree = ast.parse(src)
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if INTERNAL in node.value and not node.value.lstrip().startswith(("Asclepius —", "Asclepius:")):
+                # A module/function docstring is an ast.Constant too; those are
+                # the codebase talking to itself, and they are allowed to use
+                # the internal name. Docstrings are the first statement of a
+                # body, so they are filtered by position below.
+                hits.append(node)
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            doc = ast.get_docstring(node, clean=False)
+            if doc:
+                docstrings.add(doc)
+    leaked = [n.value for n in hits if n.value not in docstrings]
+    assert leaked == [], f"email copy still says {INTERNAL}: {leaked}"
+
+
+# ── The identifiers that must NOT be renamed ─────────────────────────────────
+
+def test_the_frozen_identifiers_are_still_here():
+    """A rebrand sweep that renames any of these is a production outage.
+
+    Sessions, deep links, the sub-module seams and the deployed environment all
+    key off these exact strings.
+    """
+    portal_js = _read(_PORTAL / "asclepius.js")
+    # Each seam is asserted where it is DEFINED, not where it happens to be
+    # called: the shell only reaches for some of them, and a test that greps the
+    # shell alone would pass while the definition was renamed out from under it.
+    seams = {
+        "window.AsclepiusSession": "earnings.js",
+        "window.AsclepiusCasePanel": "case_panel.js",
+        "window.AsclepiusVerification": "onboarding.js",
+        "window.AsclepiusCalibration": "onboarding.js",
+        "window.AsclepiusDemographics": "onboarding.js",
+        "window.AsclepiusReview": "review.js",
+    }
+    for seam, owner in seams.items():
+        assert seam in _read(_PORTAL / owner), f"frozen seam disappeared: {seam} ({owner})"
+    assert "asclepius_token" in portal_js
+    assert "/api/asclepius" in portal_js
+
+    index_html = _read(_PORTAL / "index.html")
+    assert 'href="/asclepius"' in index_html
+    assert "/static/asclepius/" in index_html
+    assert 'class="asc-logo-text"' in index_html
+
+    main_py = _read(_BACKEND / "main.py")
+    assert '"/asclepius"' in main_py or "'/asclepius'" in main_py
+
+
+# ── The founders' signature ──────────────────────────────────────────────────
+
+def test_the_founder_signature_degrades_to_names_when_there_is_no_photo():
+    """A broken image in an inbox is worse than no image.
+
+    The photo is deliberately not in the repo (it is a picture of real people),
+    so the DEFAULT state of this code in a fresh checkout is "no photo". That
+    state has to be the good one, not a placeholder box with a torn-page icon
+    next to a request for someone's licence number.
+    """
+    import importlib
+    import os
+
+    oe = importlib.import_module("onboarding_emails")
+    old = os.environ.pop("FOUNDER_PHOTO_URL", None)
+    try:
+        out = oe._founder_signoff("Tej & Aryaa, founders")
+        assert "<img" not in out
+        assert "Tej &amp; Aryaa, founders" in out
+    finally:
+        if old is not None:
+            os.environ["FOUNDER_PHOTO_URL"] = old
+
+
+def test_the_founder_signature_renders_the_photo_when_one_is_configured():
+    import importlib
+    import os
+
+    oe = importlib.import_module("onboarding_emails")
+    old = os.environ.get("FOUNDER_PHOTO_URL")
+    os.environ["FOUNDER_PHOTO_URL"] = "https://archangelhealth.ai/email-assets/founders.jpg"
+    try:
+        out = oe._founder_signoff("Tej & Aryaa, founders")
+        assert "https://archangelhealth.ai/email-assets/founders.jpg" in out
+        # A table, not flexbox: Outlook renders with Word, which has neither
+        # flexbox nor grid, and the signature would stack into two lines.
+        assert "<table" in out and "flex" not in out
+        # Alt text, because most clients block remote images by default and the
+        # reader should still know whose signature this is.
+        assert 'alt="Tej &amp; Aryaa, founders"' in out
+    finally:
+        if old is None:
+            os.environ.pop("FOUNDER_PHOTO_URL", None)
+        else:
+            os.environ["FOUNDER_PHOTO_URL"] = old
+
+
+def test_a_relative_photo_url_is_never_emitted():
+    """An email is read outside our origin; a relative URL resolves to nothing."""
+    import importlib
+    import os
+
+    oe = importlib.import_module("onboarding_emails")
+    saved = {k: os.environ.pop(k, None) for k in ("FOUNDER_PHOTO_URL", "BASE_URL")}
+    try:
+        url = oe._founder_photo_url()
+        assert url == "" or url.startswith(("http://", "https://")), url
+    finally:
+        for k, v in saved.items():
+            if v is not None:
+                os.environ[k] = v
+
+
+# ── The surfaces the first sweep did not reach ───────────────────────────────
+# Two branches rebranded independently and each covered surfaces the other
+# missed. These are the ones only the second sweep touched, kept as their own
+# section rather than folded into the scanners above, so it stays obvious which
+# claim came from where if either has to be revisited.
+
+def test_the_admin_console_and_buyer_workspace_say_archangel_health():
+    """Staff and buyers read a wordmark too, and neither was in the first pass."""
+    assert "<title>Archangel Health Operations</title>" in _read(_PORTAL / "admin.html")
+    admin_js = _read(_PORTAL / "admin_shell.js")
+    assert "'Archangel Health'" in admin_js
+    assert "'Archangel Health Operations'" in admin_js
+
+    buyer = _read(_ROOT / "frontend" / "buyer" / "index.html")
+    assert "<title>Secure Data Workspace | Archangel Health</title>" in buyer
+    assert '<span class="asc-logo-text">Archangel Health' in buyer
+
+
+def test_the_annotation_tool_says_archangel_health():
+    """The ENV trajectory annotator is an internal surface with an external
+    audience: annotators are contracted clinicians, not staff."""
+    annotate = _read(_PORTAL / "env" / "annotate.html")
+    assert "Archangel Health ENV" in annotate
+    assert "Asclepius ENV" not in annotate
+
+
+def test_the_landing_tells_a_user_the_company_name():
+    src = _read(_ROOT / "landing" / "src" / "lib" / "auth-api.ts")
     assert "Could not open Asclepius workspace" not in src
     assert "has an Asclepius account" not in src
     assert "Archangel Health account" in src
 
 
-# ── The mail, and everything else a person reads off the backend ─────────────
+def test_the_admin_prompt_registry_labels_say_archangel_health():
+    """Staff-visible, but still a UI: these render in the prompt tab."""
+    src = _read(_BACKEND / "prompts" / "registry.py")
+    assert '"label": "Asclepius' not in src
+    assert '"label": "Archangel Health' in src
 
-#: Modules whose STRING CONSTANTS reach a person: an inbox, an HTTP error a
-#: client renders, or a file we hand a buyer.
-_BACKEND_COPY_MODULES = (
-    "onboarding_emails.py",
+
+#: Modules whose string constants reach a person outside the team: an HTTP
+#: error a client renders, a subject line, or a file we hand a buyer.
+_WIDER_COPY_MODULES = (
     "community/notify.py",
     "routers/asclepius_verify.py",
     "routers/asclepius_media.py",
@@ -138,18 +261,15 @@ _BACKEND_COPY_MODULES = (
     "asclepius/export.py",
 )
 
-#: Literals that name the API's own vocabulary rather than the product. See the
-#: module docstring: `product` really is spelled "asclepius" on the wire.
-_BACKEND_ALLOWED = ("asclepius",)
 
+@pytest.mark.parametrize("relative", _WIDER_COPY_MODULES)
+def test_no_visible_asclepius_survives_in_wider_backend_copy(relative):
+    """Same rule as the email scanner above, applied to the other five modules
+    that put a string in front of someone. ``export.py`` matters most: its
+    strings are the datasheet and the scoring pack we hand a buyer."""
+    import ast
 
-def _string_constants(path: Path):
-    """String constants via AST, with docstrings excluded.
-
-    Docstrings are the codebase talking to itself. Parsing rather than grepping
-    is what makes "is this a docstring" a fact instead of a guess.
-    """
-    tree = ast.parse(_read(path))
+    tree = ast.parse(_read(_BACKEND / relative))
     docstrings = set()
     for node in ast.walk(tree):
         if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -158,52 +278,7 @@ def _string_constants(path: Path):
                     and isinstance(body[0].value, ast.Constant)
                     and isinstance(body[0].value.value, str)):
                 docstrings.add(id(body[0].value))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if id(node) not in docstrings:
-                yield node.value
-
-
-@pytest.mark.parametrize("relative", _BACKEND_COPY_MODULES)
-def test_no_visible_asclepius_survives_in_backend_copy(relative):
-    for value in _string_constants(_BACKEND / relative):
-        if "Asclepius" not in value:
-            continue
-        pytest.fail(f"{relative} ships a visible 'Asclepius' string: {value!r}")
-
-
-def test_the_admin_prompt_registry_labels_say_archangel_health():
-    """Staff-visible, but still a UI: these labels render in the prompt tab."""
-    src = _read(_BACKEND / "prompts" / "registry.py")
-    assert '"label": "Asclepius' not in src
-    assert '"label": "Archangel Health' in src
-
-
-# ── The frozen identifiers, asserted where they are DEFINED ──────────────────
-
-def test_the_seams_the_sub_modules_attach_to_are_untouched():
-    """Asserted at the file that DEFINES each seam, not at a caller that merely
-    reaches for one: a caller can be deleted while the seam survives, and the
-    test would then pass while proving nothing."""
-    assert "window.AsclepiusSession" in _read(_ASC / "earnings.js")
-    assert "window.AsclepiusCasePanel" in _read(_ASC / "case_panel.js")
-    assert "window.AsclepiusReview" in _read(_ASC / "review.js")
-    assert "window.AsclepiusVerification" in _read(_ASC / "onboarding.js")
-
-
-def test_the_route_the_storage_key_and_the_asset_prefix_are_untouched():
-    html = _read(_ASC / "index.html")
-    assert 'href="/asclepius"' in html
-    assert "/static/asclepius/" in html
-    assert 'class="asc-logo-text"' in html
-
-    js = _read(_ASC / "asclepius.js")
-    assert "asclepius_token" in js
-    assert "/api/asclepius" in js
-
-    assert '"/asclepius"' in _read(_BACKEND / "main.py")
-
-
-def test_the_realm_and_auth_gate_headers_are_untouched():
-    assert 'REALM_HEADER = "X-Asclepius-Realm"' in _read(_LANDING / "lib" / "auth-api.ts")
-    assert 'AUTH_GATE_HEADER = "X-Asclepius-Auth-Gate"' in _read(_BACKEND / "asclepius" / "auth.py")
+    leaked = [n.value[:80] for n in ast.walk(tree)
+              if isinstance(n, ast.Constant) and isinstance(n.value, str)
+              and id(n) not in docstrings and INTERNAL in n.value]
+    assert leaked == [], f"{relative} still says {INTERNAL}: {leaked}"

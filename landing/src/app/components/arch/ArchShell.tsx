@@ -55,7 +55,7 @@ const TITLES: Record<ArchPath, { title: string; desc: string }> = {
   },
   "/physicians": {
     title: "Physicians & experts · Archangel Health",
-    desc: "Work through real de-identified cases and judge AI reasoning. Typically $150–$300+/hour, set per case. Open to physicians worldwide, including retired doctors and those in training.",
+    desc: "Work through real de-identified cases and judge AI reasoning. Typically $150-$300+/hour, set per case. Open to physicians worldwide, including retired doctors and those in training.",
   },
   "/mission": {
     title: "Mission · Archangel Health",
@@ -304,9 +304,22 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
                   <button type="button" className="chrome chrome-box hide-sm" onClick={logout}>Sign out</button>
                 </>
               ) : (
-                <button type="button" className="chrome chrome-box hide-sm" onClick={() => setSignInOpen(true)}>
-                  Sign in
-                </button>
+                <>
+                  {/* Sign in and Sign up, adjacent and labelled. The header used
+                      to offer only "Sign in", so a physician arriving to APPLY
+                      had to guess: the only other button was "Request products",
+                      which is the data-buyer door. Two labelled doors beside
+                      each other is the whole fix.
+                      goToJoin rather than a bare href, because it carries any
+                      ?ref= through and a plain anchor would silently drop a
+                      colleague's referral credit. */}
+                  <button type="button" className="chrome chrome-box hide-sm" onClick={() => setSignInOpen(true)}>
+                    Sign in
+                  </button>
+                  <button type="button" className="chrome chrome-box hide-sm" onClick={goToJoin}>
+                    Sign up
+                  </button>
+                </>
               ))}
             <button type="button" className="chrome chrome-box solid nav-cta-lead" onClick={() => setLeadModal("request_data")}>
               Request products
@@ -341,6 +354,10 @@ export default function ArchShell({ initialPath }: { initialPath?: string }) {
           onSignIn={() => {
             setMenuOpen(false);
             setSignInOpen(true);
+          }}
+          onSignUp={() => {
+            setMenuOpen(false);
+            goToJoin();
           }}
           onSignOut={logout}
           signedIn={Boolean(user)}

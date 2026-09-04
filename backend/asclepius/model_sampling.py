@@ -151,7 +151,7 @@ def eligible_judges(panel: List[str], model_provider_family: Optional[str], *,
     if len(eligible) < max(1, min_panel_size):
         return [], (
             f"only {len(eligible)} eligible judge(s) after recusing the "
-            f"{fam or 'unknown'} family; below min_panel_size={min_panel_size} — "
+            f"{fam or 'unknown'} family; below min_panel_size={min_panel_size}, "
             f"routing to physician adjudication")
     return eligible, None
 

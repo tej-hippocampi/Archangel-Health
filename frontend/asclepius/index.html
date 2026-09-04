@@ -16,7 +16,13 @@
     <div class="asc-header-inner">
       <a class="asc-logo" href="/asclepius">
         <span class="asc-logo-mark" aria-hidden="true"></span>
-        <span class="asc-logo-text">Archangel Health<span class="asc-logo-sub">Expert Evaluation Portal</span></span>
+        <!-- The wordmark a physician reads is the COMPANY, always. "Asclepius" is
+             the internal name of this codebase and survives in every identifier
+             (routes, window.Asclepius* seams, asc-* classes, env vars, the db
+             file), which is deliberate: renaming those would be a migration, not
+             a rebrand. The sub-label span is kept, empty, so the CSS grid that
+             sizes the wordmark is untouched. -->
+        <span class="asc-logo-text">Archangel Health<span class="asc-logo-sub"></span></span>
       </a>
       <nav class="asc-nav" id="ascNav" aria-label="Primary"></nav>
       <!-- The identity lives at the foot of the rail, once. There used to be a

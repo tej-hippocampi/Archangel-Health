@@ -496,7 +496,7 @@ def public_member_summary(member: Optional[Dict[str, Any]]) -> Optional[Dict[str
 _GHOST_MEMBER = {
     "user_id": None,
     "display_name": "Former member",
-    "initials": "—",
+    "initials": "-",
     "specialty": None,
     "specialty_accent": "green",
     "years_in_practice": None,
@@ -2121,7 +2121,7 @@ async def redeem_handoff(body: HandoffRedeem):
     uid = _redeem_handoff((body.token or "").strip())
     user = _astore().get_user_by_id(uid) if uid else None
     if not user or not _passes_gate(user):
-        raise HTTPException(status_code=401, detail="Handoff expired — sign in through the portal.")
+        raise HTTPException(status_code=401, detail="Handoff expired: sign in through the portal.")
     return {"token": asc_auth.create_token(user)}
 
 

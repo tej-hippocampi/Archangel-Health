@@ -110,7 +110,7 @@
       var lo = (r.ref_low === null || r.ref_low === undefined) ? '' : r.ref_low;
       var hi = (r.ref_high === null || r.ref_high === undefined) ? '' : r.ref_high;
       if (lo === '' && hi === '') return 'n/a';
-      return lo + '–' + hi;
+      return lo + '-' + hi;
     }
 
     // A trend table across all lab panels: one row per analyte, one column per

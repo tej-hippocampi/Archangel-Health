@@ -75,7 +75,7 @@ def _resolve_demo() -> Tuple[Dict[str, Any], str]:
     try:
         return row, assets.media_blob_path(row["sha256"])
     except assets.AssetError as exc:
-        log.error("[media] demo blob missing for sha %s — asset store may be ephemeral",
+        log.error("[media] demo blob missing for sha %s, asset store may be ephemeral",
                   str(row.get("sha256"))[:12])
         raise HTTPException(
             status_code=404,

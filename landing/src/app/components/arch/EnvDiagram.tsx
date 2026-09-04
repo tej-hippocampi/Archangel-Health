@@ -123,7 +123,7 @@ export function EnvDiagram() {
           className="env-svg"
           viewBox="0 0 900 320"
           role="img"
-          aria-label="A medical agent's episode over time: it orders labs, results return, the diagnosis is revised, a plan is submitted, the payer denies it, the plan is revised, follow-up happens, and the outcome resolves — across patient, payer, and care-team lanes."
+          aria-label="A medical agent's episode over time: it orders labs, results return, the diagnosis is revised, a plan is submitted, the payer denies it, the plan is revised, follow-up happens, and the outcome resolves, across patient, payer, and care-team lanes."
         >
           {LANES.map((lane) => (
             <g key={lane.label}>

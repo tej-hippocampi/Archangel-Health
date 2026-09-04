@@ -346,7 +346,8 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
             parsed = {}
     if not parsed:
         return {"status": "not_started", "version": None,
-                "gate_state": _caps.GATE_LOCKED, "attempts": 0}
+                "gate_state": _caps.GATE_LOCKED, "attempts": 0,
+                "resources_seen_at": None, "exam": {"state": "not_started"}}
 
     gate = parsed.get("gate")
     gate = gate if isinstance(gate, dict) else {}
@@ -354,6 +355,8 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
         attempts = int(gate.get("attempts") or 0)
     except (TypeError, ValueError):
         attempts = 0
+    exam = parsed.get("exam")
+    exam = exam if isinstance(exam, dict) else {}
     return {
         "status": parsed.get("status"),
         "version": parsed.get("version"),
@@ -361,6 +364,19 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
         "completed_at": parsed.get("completed_at"),
         "gate_state": _caps.practice_gate_state({"tutorial_json": parsed}),
         "attempts": attempts,
+        # Whether they have been through the pre-examination screen. Decides
+        # which button the credentialing dashboard shows, nothing more.
+        "resources_seen_at": parsed.get("resources_seen_at"),
+        # The examination, PROJECTED as hard as the practice case is. State and
+        # attempt count only: no submission id (nothing good comes of the
+        # client holding one) and above all no outcome, because whether this
+        # physician is good enough is a decision a person makes and this
+        # payload must not be able to leak it early.
+        "exam": {
+            "state": exam.get("state") or "not_started",
+            "attempt": exam.get("attempt") or 0,
+            "submitted_at": exam.get("submitted_at"),
+        },
     }
 
 
@@ -580,7 +596,7 @@ def ensure_admin_from_env(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
         if others > 0:
             log.error(
                 "Asclepius: ASCLEPIUS_ADMIN_EMAIL names '%s', which is a PHYSICIAN "
-                "account (role=evaluator). Refusing to convert it to an admin — "
+                "account (role=evaluator). Refusing to convert it to an admin, "
                 "doing so on every boot would revert the role set in the console "
                 "and keep this doctor out of the real-case queue. %d other active "
                 "admin(s) exist, so console access is not at risk. Point "
@@ -590,7 +606,7 @@ def ensure_admin_from_env(store: AsclepiusStore) -> Optional[Dict[str, Any]]:
             return None
         log.error(
             "Asclepius: ASCLEPIUS_ADMIN_EMAIL names '%s', which is a PHYSICIAN "
-            "account — but it is the ONLY active admin, so it is being promoted "
+            "account, but it is the ONLY active admin, so it is being promoted "
             "to avoid locking the console out entirely. Create a separate "
             "operations admin, then repoint ASCLEPIUS_ADMIN_EMAIL at it so this "
             "doctor can go back to labeling.",
@@ -837,7 +853,7 @@ def _seed_demo_contributors(store: AsclepiusStore, demo_evaluator: Dict[str, Any
         credentials_verified=True,
         ship={
             "degree": "MD",
-            "board_certifications": "ABIM — Internal Medicine; Nephrology (active)",
+            "board_certifications": "ABIM: Internal Medicine; Nephrology (active)",
             "primary_specialty": "nephrology",
             "subspecialties": ["dialysis", "transplant", "CKD"],
             "years_in_active_practice": 17,
@@ -857,7 +873,7 @@ def _seed_demo_contributors(store: AsclepiusStore, demo_evaluator: Dict[str, Any
             "medical_school_year": "2004",
             "residency": "Stanford University Medical Center",
             "residency_year": "2007",
-            "fellowship": "UCLA Medical Center — Nephrology",
+            "fellowship": "UCLA Medical Center: Nephrology",
             "fellowship_year": "2009",
             "practice_name": "Riverside Nephrology Associates",
             "practice_address": "1200 Riverside Dr, Suite 300, Sacramento, CA 95814",
@@ -874,7 +890,7 @@ def _seed_demo_contributors(store: AsclepiusStore, demo_evaluator: Dict[str, Any
             "verified": True,
             "ship": {
                 "degree": "DNP",
-                "board_certifications": "AANP — Adult-Gerontology Acute Care NP (active)",
+                "board_certifications": "AANP: Adult-Gerontology Acute Care NP (active)",
                 "primary_specialty": "nephrology",
                 "subspecialties": ["dialysis", "CKD"],
                 "years_in_active_practice": 9,
@@ -903,7 +919,7 @@ def _seed_demo_contributors(store: AsclepiusStore, demo_evaluator: Dict[str, Any
             "verified": True,
             "ship": {
                 "degree": "DO",
-                "board_certifications": "AOBIM — Nephrology (active)",
+                "board_certifications": "AOBIM: Nephrology (active)",
                 "primary_specialty": "nephrology",
                 "subspecialties": ["transplant", "glomerular disease"],
                 "years_in_active_practice": 22,
@@ -923,7 +939,7 @@ def _seed_demo_contributors(store: AsclepiusStore, demo_evaluator: Dict[str, Any
                 "medical_school_year": "1999",
                 "residency": "Rush University Medical Center",
                 "residency_year": "2002",
-                "fellowship": "Northwestern Memorial Hospital — Transplant Nephrology",
+                "fellowship": "Northwestern Memorial Hospital: Transplant Nephrology",
                 "fellowship_year": "2004",
                 "practice_name": "Lakeside Kidney Institute",
                 "practice_address": "55 Lakeshore Ave, Chicago, IL 60611",

@@ -21,17 +21,17 @@ const FINDINGS = [
   {
     tag: "Convergent failure",
     title: "Four labs, the same wrong diagnosis.",
-    line: "On a hyponatremia case built to be under-worked-up, all four models — Claude, Grok, Gemini, and GPT-5.5 — jumped to SIADH and fluid restriction before the case gave enough data to justify it. No model held back and asked for the missing workup.",
+    line: "On a hyponatremia case built to be under-worked-up, all four models, Claude, Grok, Gemini, and GPT-5.5: jumped to SIADH and fluid restriction before the case gave enough data to justify it. No model held back and asked for the missing workup.",
   },
   {
     tag: "Overcorrection trap",
     title: "Same anchor, a real injury risk.",
-    line: "On a separate, severe hyponatremia case actually caused by beer potomania and a thiazide diuretic, three of four models anchored on SIADH again and reached for aggressive hypertonic saline — risking osmotic demyelination syndrome instead of the slower, safer correction the case called for.",
+    line: "On a separate, severe hyponatremia case actually caused by beer potomania and a thiazide diuretic, three of four models anchored on SIADH again and reached for aggressive hypertonic saline, risking osmotic demyelination syndrome instead of the slower, safer correction the case called for.",
   },
   {
     tag: "Reasoning trap",
     title: "The right number, read the wrong way.",
-    line: "On an acute kidney injury case, three of four models trusted a lab value (FeNa) that becomes unreliable on diuretics, and used it to call the injury pre-renal — missing the drug-induced kidney inflammation the case was built to test for.",
+    line: "On an acute kidney injury case, three of four models trusted a lab value (FeNa) that becomes unreliable on diuretics, and used it to call the injury pre-renal, missing the drug-induced kidney inflammation the case was built to test for.",
   },
 ];
 

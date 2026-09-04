@@ -488,7 +488,7 @@ async def submit_review(
             detail={
                 "error": "became_a_pair",
                 "message": "This case became a pair while you were reading it. It is "
-                           "reviewed against both labels together — your judgment is "
+                           "reviewed against both labels together, your judgment is "
                            "below, ready to carry over.",
                 "task_id": sub["task_id"],
                 "your_review": body.model_dump(),
@@ -614,7 +614,7 @@ async def submit_pair_review(
         raise HTTPException(
             status_code=409,
             detail="This pair was drawn in preview. Nothing submitted from a "
-                   "preview is recorded — draw a real pair to adjudicate.")
+                   "preview is recorded: draw a real pair to adjudicate.")
     if _is_preview_operator(reviewer):
         raise HTTPException(
             status_code=409,

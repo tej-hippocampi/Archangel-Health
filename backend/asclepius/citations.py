@@ -221,7 +221,7 @@ async def _rerank_llm(text: str, candidates: List[Dict[str, Any]], k: int) -> Op
     except Exception:  # pragma: no cover - prompts/llm not available
         return None
     lines = [
-        f"[{i}] {c.get('identifier') or c.get('title')} — {c.get('snippet', '')}"
+        f"[{i}] {c.get('identifier') or c.get('title')}: {c.get('snippet', '')}"
         for i, c in enumerate(candidates)
     ]
     user = "CLINICAL TEXT:\n" + (text or "") + "\n\nCANDIDATE SOURCES:\n" + "\n".join(lines) + \

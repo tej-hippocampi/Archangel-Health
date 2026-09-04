@@ -133,7 +133,7 @@ async def fetch_pubmed(days: int = 7) -> List[Dict[str, Any]]:
             ))
         return out
     except Exception:
-        log.warning("[feeds] pubmed fetch failed — skipped", exc_info=True)
+        log.warning("[feeds] pubmed fetch failed: skipped", exc_info=True)
         return []
 
 
@@ -167,7 +167,7 @@ async def fetch_arxiv(days: int = 7) -> List[Dict[str, Any]]:
             ))
         return [i for i in out if i["url"] and i["title"]]
     except Exception:
-        log.warning("[feeds] arxiv fetch failed — skipped", exc_info=True)
+        log.warning("[feeds] arxiv fetch failed: skipped", exc_info=True)
         return []
 
 
@@ -196,7 +196,7 @@ async def fetch_medrxiv(days: int = 7) -> List[Dict[str, Any]]:
             ))
         return out
     except Exception:
-        log.warning("[feeds] medrxiv fetch failed — skipped", exc_info=True)
+        log.warning("[feeds] medrxiv fetch failed: skipped", exc_info=True)
         return []
 
 
@@ -242,5 +242,5 @@ async def fetch_rss() -> List[Dict[str, Any]]:
                         abstract=getattr(e, "summary", "") or "",
                     ))
             except Exception:
-                log.warning("[feeds] rss feed %r failed — skipped", key, exc_info=True)
+                log.warning("[feeds] rss feed %r failed: skipped", key, exc_info=True)
     return out

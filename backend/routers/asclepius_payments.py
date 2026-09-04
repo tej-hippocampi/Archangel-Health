@@ -48,6 +48,36 @@ def _store():
     return get_store()
 
 
+def _require_money_movement(
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
+) -> Dict[str, Any]:
+    """Holds the earnings SURFACE, and may also transact against it.
+
+    An applicant under review can now open the Earnings page. Seeing how they
+    will be paid before deciding whether to do the work is reasonable, and the
+    page reads zero, which is honest.
+
+    Opening a BILLABLE SESSION is a different act, and the surface was carrying
+    both permissions at once. A session accrues paid minutes, so an account
+    nobody has verified could have started one by hand against endpoints that
+    only ever asked "do you hold EARNINGS". The client never called them, which
+    is why it was invisible: the rail did not show the control, and an
+    entitlement that relies on the UI not offering it is not an entitlement.
+
+    Admins are exempt for the same reason they are exempt everywhere else in
+    this router: they operate the thing.
+    """
+    if user.get("role") == "admin":
+        return user
+    if asc_caps.access_level(user) == asc_caps.PROVISIONAL:
+        raise HTTPException(
+            status_code=403,
+            detail="This opens when your credentials are approved.",
+            headers={asc_auth.AUTH_GATE_HEADER: "pending"},
+        )
+    return user
+
+
 # ─── Earnings ─────────────────────────────────────────────────────────────────
 @router.get("/api/asclepius/earnings")
 async def my_earnings(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS))):
@@ -640,7 +670,7 @@ class OpenSessionBody(BaseModel):
 )
 async def open_session(
     body: OpenSessionBody,
-    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
+    user: Dict[str, Any] = Depends(_require_money_movement),
 ):
     """Open (or resume) a billable session. Idempotent — a client that opens twice
     gets the same session back, with the nonce it must beat with."""
@@ -696,7 +726,7 @@ RESUME_RATE_LIMIT = (4, 600)
 async def session_heartbeat(
     session_id: str,
     body: HeartbeatBody,
-    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
+    user: Dict[str, Any] = Depends(_require_money_movement),
 ):
     result = asc_payments.heartbeat(
         _store(), session_id=_owned(session_id, user), nonce=body.nonce,
@@ -728,7 +758,7 @@ class CloseSessionBody(BaseModel):
 async def close_session(
     session_id: str,
     body: CloseSessionBody,
-    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
+    user: Dict[str, Any] = Depends(_require_money_movement),
 ):
     """Close a session and settle it. Safe to call repeatedly — and it will be,
     because the client closes on both ``visibilitychange`` and ``pagehide``."""
@@ -745,7 +775,7 @@ async def close_session(
 )
 async def resume_session(
     session_id: str,
-    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
+    user: Dict[str, Any] = Depends(_require_money_movement),
 ):
     """Re-issue a beating credential to a client that legitimately lost one — a
     physician who reloaded the page mid-session.
@@ -768,7 +798,7 @@ async def resume_session(
 @router.get("/api/asclepius/sessions/{session_id}")
 async def session_state(
     session_id: str,
-    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.EARNINGS)),
+    user: Dict[str, Any] = Depends(_require_money_movement),
 ):
     """Server-authoritative state, for a client that reloaded mid-session and
     needs the truth back — including a fresh nonce to resume beating with."""
@@ -1402,7 +1432,7 @@ def _case_export_payload(store: Any, earning: Dict[str, Any]) -> Dict[str, Any]:
             raise HTTPException(
                 status_code=409,
                 detail=f"This case carries the identifying field {leak!r}, which the "
-                       "export gate rejects. It cannot ship in this state — fix the "
+                       "export gate rejects. It cannot ship in this state: fix the "
                        "record before paying for it.")
 
     return {
@@ -1418,7 +1448,7 @@ def _case_export_payload(store: Any, earning: Dict[str, Any]) -> Dict[str, Any]:
         "modality": asc_export._rec_modality(emitted[0]),
         "amount_cents": int(earning.get("amount_cents") or 0),
         "status": earning.get("status"),
-        "exported_for": "admin spot-check — not a buyer deliverable",
+        "exported_for": "admin spot-check: not a buyer deliverable",
         "cases": cases,
     }
 
@@ -1545,7 +1575,7 @@ _APPROVE_HTTP: Dict[str, Dict[str, Any]] = {
     "voided": {
         "status_code": 409,
         "detail": "That case was voided. Re-approving a void is a reversal, not "
-                  "an approval — it is not available here."},
+                  "an approval, it is not available here."},
     "quality_held": {
         "status_code": 409,
         "detail": "The payout algorithm proposed paying this case below the "
@@ -1553,7 +1583,7 @@ _APPROVE_HTTP: Dict[str, Dict[str, Any]] = {
                   "first, then approve."},
     "raced": {
         "status_code": 409,
-        "detail": "That row is no longer awaiting approval — it was decided by "
+        "detail": "That row is no longer awaiting approval, it was decided by "
                   "someone else (or by the auto-approve sweep) a moment ago."},
 }
 

@@ -172,7 +172,7 @@ async def tenant_grounding_inspector_recall(
     team_store = _ts(request)
     snap = team_store.get_latest_inspector_recall()
     if not snap:
-        return {"available": False, "message": "No inspector recall snapshot yet — run validation suite"}
+        return {"available": False, "message": "No inspector recall snapshot yet: run validation suite"}
     return {"available": True, **snap}
 
 

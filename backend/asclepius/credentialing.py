@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import hashlib
 import io
+import zipfile
+from xml.etree import ElementTree
 import json
 import logging
 import re
@@ -608,12 +610,135 @@ def classify_email_domain(email: str) -> str:
 # and failure anywhere in here is non-fatal: signup completes, the field is
 # empty, the admin sees the raw file.
 
-CV_ACCEPTED_MIMES = ("application/pdf", "text/plain")
+#: What a physician may actually attach.
+#:
+#: This was PDF and plain text only, and a doctor who attached the .docx their
+#: CV has lived in for fifteen years was told "unsupported CV type" with no
+#: list of what IS supported. DOCX, RTF and Markdown are ordinary ways to keep
+#: a CV, and a scan or a phone photo is how a lot of people have one at all.
+#:
+#: No new dependency for any of them. A .docx is a zip with an XML document
+#: inside, which stdlib reads; RTF is control words around the text; images go
+#: through the tesseract path already used for scanned PDFs.
+CV_ACCEPTED_MIMES = (
+    "application/pdf",
+    "text/plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/rtf",
+    "image/png",
+    "image/jpeg",
+)
+
+#: What the physician is TOLD, when we have to refuse. The mime list above is
+#: correct and unreadable; a rejection naming "application/vnd.openxmlformats-
+#: officedocument.wordprocessingml.document" is a rejection nobody can act on.
+CV_ACCEPTED_LABEL = "PDF, Word (.docx), RTF, plain text, or a photo or scan (PNG or JPEG)"
+
 CV_MAX_BYTES = 10 * 1024 * 1024  # a 10 MB cap comfortably fits any real CV
 
 
 class CvUploadError(ValueError):
     """Bad CV upload (mime/size). Caller maps this to a 4xx, not a 500."""
+
+
+def _is_docx(data: bytes) -> bool:
+    """A zip that actually contains a Word document part.
+
+    Not a filename check and not a magic-byte check: .docx, .xlsx, .pptx, .jar,
+    .epub and a plain .zip all start PK\x03\x04. Opening it and requiring
+    ``word/document.xml`` is what makes accepting zips safe at all.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            return "word/document.xml" in zf.namelist()
+    except Exception:
+        return False
+
+
+def _docx_text(data: bytes) -> str:
+    """Paragraph text out of a .docx, with stdlib only.
+
+    A .docx is a zip whose ``word/document.xml`` holds the text in <w:t>
+    elements, one paragraph per <w:p>. Walking the XML rather than adding
+    python-docx keeps this dependency-free, and the structure is stable: it is
+    a published format that has not moved since 2007.
+
+    Paragraph boundaries matter more than they look. The extractors downstream
+    are line-oriented (a board certification is a LINE, a training entry pairs
+    an institution line with the role line under it), so flattening the whole
+    document into one string would quietly break all of them.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            xml = zf.read("word/document.xml")
+    except Exception:
+        return ""
+    try:
+        root = ElementTree.fromstring(xml)
+    except Exception:
+        return ""
+    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    lines = []
+    for para in root.iter(f"{ns}p"):
+        # Tabs are separators in a two-column CV header; without them
+        # "Cleveland Clinic" and "Jul 2015" run together into one word.
+        parts = []
+        for node in para.iter():
+            if node.tag == f"{ns}t":
+                parts.append(node.text or "")
+            elif node.tag in (f"{ns}tab", f"{ns}br"):
+                parts.append(" ")
+        line = "".join(parts).strip()
+        if line:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+#: RTF control words, groups, and the escapes that carry the actual characters.
+_RTF_ESCAPE = re.compile(r"\\'([0-9a-fA-F]{2})")
+_RTF_CONTROL = re.compile(r"\\\*?\\?[a-zA-Z]{1,32}(?:-?\d{1,10})?[ ]?")
+_RTF_DISCARD = re.compile(r"\{\\\*.*?\}", re.DOTALL)
+
+
+def _rtf_text(data: bytes) -> str:
+    r"""Plain text out of an RTF, well enough for an extractor to read.
+
+    A full RTF parser is a large thing to own for a file format we see rarely.
+    This drops the destination groups that hold metadata rather than content,
+    then the control words, then unescapes the hex characters, and turns \par
+    into a newline so the line-oriented extractors downstream still see lines.
+    """
+    try:
+        text = data.decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+    text = _RTF_DISCARD.sub("", text)
+    text = re.sub(r"\\par[d]?\b", "\n", text)
+    text = re.sub(r"\\(?:line|tab)\b", " ", text)
+    text = _RTF_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)
+    text = _RTF_CONTROL.sub("", text)
+    text = text.replace("{", "").replace("}", "")
+    lines = [ln.strip() for ln in text.splitlines()]
+    return "\n".join(ln for ln in lines if ln)
+
+
+def _image_text(data: bytes) -> str:
+    """OCR a photo or scan of a CV. Empty when tesseract is not installed.
+
+    Same path scanned PDFs already take. A physician who only has a photo of
+    their CV is a physician we would otherwise have turned away at the door,
+    and an empty parse costs nothing: every field is optional and the admin
+    sees the file itself either way.
+    """
+    from asclepius.dicom_deid import ocr_available
+    if not ocr_available():
+        return ""
+    try:
+        import pytesseract
+        from PIL import Image
+        return pytesseract.image_to_string(Image.open(io.BytesIO(data))) or ""
+    except Exception:
+        return ""
 
 
 def sniff_cv_mime(data: bytes) -> Optional[str]:
@@ -629,11 +754,25 @@ def sniff_cv_mime(data: bytes) -> Optional[str]:
         return None
     if data[:5] == b"%PDF-":
         return "application/pdf"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    # A zip MIGHT be a .docx, and a .docx is the single most common thing a
+    # physician attaches. It is confirmed by opening it and finding the Word
+    # document part, so an arbitrary zip is still refused: the check is "this
+    # is a Word document", never "this starts with PK".
+    if data[:4] == b"PK\x03\x04":
+        return ("application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                if _is_docx(data) else None)
+    if data[:5] == b"{\\rtf":
+        return "application/rtf"
     # Anything carrying a known-executable/markup signature is rejected
-    # outright rather than being allowed through as "text".
+    # outright rather than being allowed through as "text". The stored blob is
+    # served inline from our own origin to an admin whose bearer token lives in
+    # localStorage, so markup here is stored XSS.
     for magic in (b"<?xml", b"<!DOCTYPE", b"<html", b"<HTML", b"<svg", b"<SVG",
-                  b"PK\x03\x04", b"\x7fELF", b"MZ", b"\x89PNG", b"GIF8",
-                  b"\xff\xd8\xff", b"%!PS"):
+                  b"\x7fELF", b"MZ", b"GIF8", b"%!PS"):
         if data[:len(magic)] == magic:
             return None
     head = data[:4096]
@@ -700,13 +839,12 @@ def store_cv(data: bytes, mime: str) -> Dict[str, Any]:
     # first bytes happen to decode. Browsers do send octet-stream for real
     # PDFs, so that one is allowed through to the sniffer.
     if declared and declared not in CV_ACCEPTED_MIMES and declared != "application/octet-stream":
-        raise CvUploadError(
-            f"unsupported CV type {declared!r}; accepted: {', '.join(CV_ACCEPTED_MIMES)}")
+        raise CvUploadError(f"We take {CV_ACCEPTED_LABEL}.")
     # The BYTES are the authority for what actually gets stored and served.
     sniffed = sniff_cv_mime(data)
     if sniffed is None or sniffed not in CV_ACCEPTED_MIMES:
         raise CvUploadError(
-            f"unsupported CV content; accepted: {', '.join(CV_ACCEPTED_MIMES)}")
+            f"That file does not look like a CV we can read. We take {CV_ACCEPTED_LABEL}.")
     if declared in CV_ACCEPTED_MIMES and declared != sniffed:
         log.info("[credentialing] CV declared %s but is %s; trusting the bytes",
                  declared, sniffed)
@@ -761,6 +899,12 @@ def extract_cv_text(data: bytes, mime: str) -> str:
             return ""
     if mime == "application/pdf":
         return _pdf_text(data)
+    if mime.endswith("wordprocessingml.document"):
+        return _docx_text(data)
+    if mime == "application/rtf":
+        return _rtf_text(data)
+    if mime in ("image/png", "image/jpeg"):
+        return _image_text(data)
     return ""
 
 
@@ -922,31 +1066,468 @@ def _extract_specialty(text: str, certs: List[str]) -> Optional[str]:
     return None
 
 
+# ─── Board certifications, training, licence: the Review screen's prefill ────
+#
+# These were rewritten after a founders' walkthrough. Uploading a real
+# nephrology CV produced three board certifications, and all three were wrong:
+#
+#     "Nephrologist"          <- the line under the name, a job title
+#     "nephrologist with"     <- "Board-certified nephrologist with 10 years
+#                                of clinical experience", truncated at the digit
+#     "ABIM"                  <- a bare acronym, listed as if it were a third
+#                                certification rather than the board issuing
+#                                the other two
+#
+# while the two REAL certifications on the CV, the fellowship, the residency and
+# both state licences were left blank. The physician was then looking at a form
+# that had invented three credentials and missed five.
+#
+# The old code captured free text after "board certified" and separately
+# appended every acronym it saw. The rewrite is structural instead: a
+# certification is a BOARD plus a FIELD, both of which have to be recognised
+# before anything is emitted, and the standing rule of this module decides every
+# close call. A wrong value is worse than a missing one, because a missing field
+# is an empty box a physician fills in ten seconds and a wrong one wears a "from
+# your CV" chip they have to notice, disbelieve and correct.
+
+#: The boards, by their acronym. Used both to recognise "(ABIM)" and to turn
+#: "American Board of Internal Medicine" into the short form a form field wants.
+_BOARDS = {
+    "ABIM": "American Board of Internal Medicine",
+    "ABFM": "American Board of Family Medicine",
+    "ABEM": "American Board of Emergency Medicine",
+    "ABOG": "American Board of Obstetrics and Gynecology",
+    "ABA": "American Board of Anesthesiology",
+    "ABP": "American Board of Pediatrics",
+    "ABS": "American Board of Surgery",
+    "ABR": "American Board of Radiology",
+    "ABPN": "American Board of Psychiatry and Neurology",
+    "ABOS": "American Board of Orthopaedic Surgery",
+    "ABU": "American Board of Urology",
+    "ABD": "American Board of Dermatology",
+    "ABPath": "American Board of Pathology",
+    "ABNM": "American Board of Nuclear Medicine",
+    "ABPMR": "American Board of Physical Medicine and Rehabilitation",
+    "ABPM": "American Board of Preventive Medicine",
+    "ABMG": "American Board of Medical Genetics and Genomics",
+    "ABTS": "American Board of Thoracic Surgery",
+    "ABNS": "American Board of Neurological Surgery",
+    "ABO": "American Board of Ophthalmology",
+    "ABOto": "American Board of Otolaryngology",
+    "ABPlS": "American Board of Plastic Surgery",
+    "ABCP": "American Board of Colon and Rectal Surgery",
+    "RCPSC": "Royal College of Physicians and Surgeons of Canada",
+    "MRCP": "Royal College of Physicians",
+    "FRCP": "Royal College of Physicians",
+}
+_BOARD_ACRONYM = re.compile(r"\b(" + "|".join(sorted(_BOARDS, key=len, reverse=True)) + r")\b")
+_AMERICAN_BOARD_OF = re.compile(
+    r"\b(?:the\s+)?american board of\s+([A-Za-z][A-Za-z &]{2,50}?)"
+    r"(?=\s*[(,;.–—|]|\s+in\b|\s*$)", re.IGNORECASE)
+
+#: Fields a board certifies in. The specialty REGISTRY cannot do this job: it
+#: holds the four specialties the product currently generates cases for, so
+#: "Internal Medicine" is not in it and never will be. This is a vocabulary for
+#: reading a CV, not a list of what we sell.
+_MEDICAL_FIELDS = {
+    "internal medicine", "family medicine", "emergency medicine", "pediatrics",
+    "paediatrics", "surgery", "general surgery", "anesthesiology",
+    "anaesthesiology", "radiology", "diagnostic radiology", "psychiatry",
+    "neurology", "orthopaedic surgery", "orthopedic surgery", "urology",
+    "dermatology", "pathology", "anatomic pathology", "clinical pathology",
+    "nuclear medicine", "physical medicine and rehabilitation",
+    "preventive medicine", "medical genetics", "thoracic surgery",
+    "neurological surgery", "ophthalmology", "otolaryngology", "plastic surgery",
+    "colon and rectal surgery", "obstetrics and gynecology",
+    "obstetrics and gynaecology", "nephrology", "cardiology",
+    "cardiovascular disease", "gastroenterology", "hepatology", "oncology",
+    "medical oncology", "hematology", "haematology", "endocrinology",
+    "rheumatology", "infectious disease", "infectious diseases",
+    "pulmonary disease", "pulmonology", "critical care medicine",
+    "geriatric medicine", "palliative medicine", "sleep medicine",
+    "sports medicine", "allergy and immunology", "transplant hepatology",
+    "interventional cardiology", "vascular medicine", "neonatology",
+    "hospice and palliative medicine", "clinical informatics",
+    "addiction medicine", "occupational medicine", "public health",
+}
+
+#: Words that end a captured field. "Board-certified nephrologist with 10 years"
+#: is what produced "nephrologist with", so the capture is trimmed rather than
+#: trusted.
+_FIELD_STOPWORDS = {
+    "with", "for", "and", "in", "at", "since", "by", "who", "the", "a", "an",
+    "of", "practising", "practicing", "specializing", "specialising",
+}
+
+
+def display_specialty(name: str) -> str:
+    """A specialty as a person writes it.
+
+    ``match_specialty`` returns the registry KEY, which is lowercase by design
+    because it is an identifier. Prefilling a form field with it put
+    "nephrology" in a box the physician had to correct to be shown their own
+    specialty properly, which is a small thing that reads as carelessness on a
+    screen asking them to vouch for their credentials.
+    """
+    raw = (name or "").strip()
+    if not raw:
+        return ""
+    small = {"and", "of", "the", "in"}
+    words = []
+    for i, word in enumerate(raw.split()):
+        low = word.lower()
+        if low in small and i > 0:
+            words.append(low)
+        elif word.isupper() and len(word) > 1:
+            words.append(word)               # ABIM, HIV, ICU stay as written
+        else:
+            words.append(word[:1].upper() + word[1:].lower())
+    return " ".join(words)
+
+
+#: Where a captured field ENDS. "Board Certified, Cardiovascular Disease -
+#: American Board of Internal Medicine" put the issuing board inside the field,
+#: and the whole run then resolved through an alias to "Cardiology": a
+#: certification this physician does not hold, in place of one they do.
+_FIELD_END = re.compile(
+    r"\s*(?:[–—|(]|,\s*(?:19|20)\d{2}|\s-\s|\bamerican board\b|\bboard of\b"
+    r"|\broyal college\b|\bdiplomate\b)", re.IGNORECASE)
+
+
+def _clean_field(raw: str) -> str:
+    """A captured certification field, trimmed to the words that are a field."""
+    text = _FIELD_END.split((raw or "").strip(), maxsplit=1)[0]
+    text = re.sub(r"[\s,;:.–—-]+$", "", text.strip())
+    text = re.sub(r"\s+", " ", text)
+    # Drop everything from the first digit: a year, a licence number or "10
+    # years of experience" is never part of a specialty name.
+    text = re.split(r"\d", text)[0].strip(" ,;:-")
+    words = text.split()
+    while words and words[-1].lower() in _FIELD_STOPWORDS:
+        words.pop()
+    return " ".join(words).strip(" ,;:-")
+
+
+def _known_field(value: str) -> str:
+    """The field, in display form, or "" when it is not one we recognise.
+
+    Recognition is the whole point. Anything unrecognised is DROPPED rather
+    than passed through, because the failure this replaces was a form
+    confidently showing a physician a certification in "nephrologist with".
+    """
+    from asclepius import specialties as _specialties
+
+    cleaned = _clean_field(value)
+    if not cleaned or len(cleaned) > 60:
+        return ""
+    low = cleaned.lower()
+    if low in _MEDICAL_FIELDS:
+        return display_specialty(cleaned)
+    # "Nephrologist" is the practitioner noun for a field we know.
+    hit = _specialties.match_specialty(cleaned)
+    if hit:
+        return display_specialty(hit)
+    return ""
+
+
+def _extract_board_certifications(lines: List[str]) -> List[Dict[str, Any]]:
+    """Board certifications as ``{board, specialty, subspecialty, active}``.
+
+    Two passes, and the order is the safety property.
+
+    The FIRST pass only reads lines that name a board, so the two sentences
+    that produced junk are structurally unable to: a professional summary
+    saying "Board-certified nephrologist with 10 years" names no board, and
+    neither does the job title under the physician's name. It also attaches the
+    acronym to the certification it belongs to instead of listing it as one.
+
+    The SECOND runs only if the first found nothing, for the many CVs that say
+    "Board certified in Cardiology" without naming the issuer. It is far
+    stricter in exchange: the field has to be one we recognise outright.
+    """
+    out: List[Dict[str, Any]] = []
+    seen = set()
+
+    def add(board: str, field: str) -> None:
+        # Deduped on the FIELD alone. A CV often states the certification and
+        # its issuer on two different lines:
+        #
+        #     Board Certified in Cardiovascular Disease
+        #     Diplomate, American Board of Internal Medicine
+        #
+        # Both passes below see that, and keying on (board, field) would file
+        # the same certification twice, once with an issuer and once without.
+        # The pass that names a board runs first, so the richer entry wins.
+        key = field.lower()
+        if not field or key in seen:
+            return
+        seen.add(key)
+        out.append({
+            "board": board,
+            "specialty": field,
+            "subspecialty": "",
+            # Never asserted from a CV. "Currently valid" is a compliance
+            # answer about today, and a document written last year cannot give
+            # it. The physician answers it on the form.
+            "active": None,
+        })
+
+    for line in lines:
+        if len(line) > 240:
+            continue
+        acronym = _BOARD_ACRONYM.search(line)
+        spelled = _AMERICAN_BOARD_OF.search(line)
+        if not acronym and not spelled:
+            continue
+        board = acronym.group(1) if acronym else ""
+        if not board and spelled:
+            spelled_field = _clean_field(spelled.group(1))
+            board = next(
+                (a for a, full in _BOARDS.items()
+                 if full.lower().endswith(spelled_field.lower()) and spelled_field),
+                "American Board of " + display_specialty(spelled_field),
+            )
+        # The field is what the line says was certified, which is usually
+        # before the board and occasionally after it.
+        field = ""
+        m = re.search(
+            r"board[\s\-]*certif\w*[\s,:]*(?:in\s+)?([A-Za-z][A-Za-z &/-]{2,60})",
+            line, re.IGNORECASE)
+        if m:
+            field = _known_field(m.group(1))
+        if not field:
+            m = re.search(r"diplomate[\s,:]*(?:of|in)?\s*([A-Za-z][A-Za-z &/-]{2,60})",
+                          line, re.IGNORECASE)
+            if m:
+                field = _known_field(m.group(1))
+        if not field and spelled:
+            field = _known_field(spelled.group(1))
+        add(board, field)
+
+    # The second pass ALWAYS runs, and used to run only when the first found
+    # nothing. That skipped every certification stated without its issuer on a
+    # CV that named an issuer somewhere else, which is the two-line layout
+    # above: "Cardiovascular Disease" was dropped because "American Board of
+    # Internal Medicine" had already matched on the line below it.
+    #
+    # It is safe to run unconditionally because it is strict: the field has to
+    # be one we recognise outright, and anything already found keeps the entry
+    # that knows which board issued it.
+    for line in lines:
+        if len(line) > 240:
+            continue
+        m = re.search(r"board[\s\-]*certif\w*[\s,:]*(?:in\s+)?([A-Za-z][A-Za-z &/-]{2,60})",
+                      line, re.IGNORECASE)
+        if not m:
+            continue
+        add("", _known_field(m.group(1)))
+    return out[:6]
+
+
+#: A licence line names the state and the number, and both have to be on it.
+#: An unlabelled alphanumeric on a CV is a pager, an office suite or a DEA
+#: number far more often than it is a licence.
+#: The NUMBER on a licence line. Deliberately greedy on the leading letters, so
+#: "#CA-A44219" is one number rather than a state abbreviation followed by
+#: "A44219", which is what a two-letter state pattern read it as.
+_LICENSE_NUMBER = re.compile(r"#\s*([A-Z]{0,4}[-\s]?\d[\dA-Z-]{2,15})|"
+                             r"\b([A-Z]{1,4}[-][\dA-Z-]{3,15})\b|"
+                             r"\bno\.?\s*([A-Z]{0,4}[-\s]?\d[\dA-Z-]{2,15})",
+                             re.IGNORECASE)
+
+_US_STATE_NAMES = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR",
+    "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE",
+    "district of columbia": "DC", "florida": "FL", "georgia": "GA", "hawaii": "HI",
+    "idaho": "ID", "illinois": "IL", "indiana": "IN", "iowa": "IA",
+    "kansas": "KS", "kentucky": "KY", "louisiana": "LA", "maine": "ME",
+    "maryland": "MD", "massachusetts": "MA", "michigan": "MI", "minnesota": "MN",
+    "mississippi": "MS", "missouri": "MO", "montana": "MT", "nebraska": "NE",
+    "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM",
+    "new york": "NY", "north carolina": "NC", "north dakota": "ND", "ohio": "OH",
+    "oklahoma": "OK", "oregon": "OR", "pennsylvania": "PA", "puerto rico": "PR",
+    "rhode island": "RI", "south carolina": "SC", "south dakota": "SD",
+    "tennessee": "TN", "texas": "TX", "utah": "UT", "vermont": "VT",
+    "virginia": "VA", "washington": "WA", "west virginia": "WV",
+    "wisconsin": "WI", "wyoming": "WY",
+}
+
+
+def _extract_licenses(lines: List[str]) -> List[Dict[str, str]]:
+    """State medical licences as ``{state, number, current}``.
+
+    Anchored on a LABELLED line, per the rule the NPI extractor already
+    follows. The CV in the walkthrough carried two active licences and the form
+    showed neither, so a physician re-typed something their own document had
+    already told us.
+    """
+    out: List[Dict[str, str]] = []
+    seen = set()
+    abbrevs = set(_US_STATE_NAMES.values())
+    for line in lines:
+        if len(line) > 200 or "licen" not in line.lower():
+            continue
+        num_match = _LICENSE_NUMBER.search(line)
+        if not num_match:
+            continue
+        number = next((g for g in num_match.groups() if g), "")
+        number = re.sub(r"\s+", "", number).strip("-").upper()
+        if not number:
+            continue
+
+        # The STATE, found by name first. "California Medical License #CA-A44219"
+        # has no "State of" on it, and falling straight to a two-letter pattern
+        # read the "CA" out of the middle of the licence number.
+        state = ""
+        low = line.lower()
+        for full, code in _US_STATE_NAMES.items():
+            if re.search(r"\b" + re.escape(full) + r"\b", low):
+                state = code
+                break
+        if not state:
+            # A bare abbreviation, but never one taken from inside the number
+            # we just captured.
+            without_number = line.replace(num_match.group(0), " ")
+            for cand in re.findall(r"\b([A-Z]{2})\b", without_number):
+                if cand in abbrevs:
+                    state = cand
+                    break
+        if not state or number in seen:
+            continue
+        seen.add(number)
+        out.append({
+            "state": state,
+            "number": number,
+            # "current" / "active" is on the same line or it is not claimed.
+            "current": "yes" if re.search(r"\b(current|active)\b", line, re.IGNORECASE) else "",
+        })
+    return out[:4]
+
+
+#: An employer/training header: the institution, then the dates, on one line.
+#: "Cleveland Clinic, Cleveland OH    Jul 2015 - Jun 2017"
+_ENTRY_HEADER = re.compile(
+    r"^(?P<institution>[A-Z][^\n]{3,90}?)\s*[,–—|-]?\s*"
+    r"(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,?\s*[A-Z]{2}\s*)?"
+    r"(?P<dates>(?:[A-Z][a-z]{2}\s+)?(?P<start>(?:19|20)\d{2})\s*[–—-]+\s*"
+    r"(?:[A-Z][a-z]{2}\s+)?(?P<end>(?:19|20)\d{2}|Present|Current))\s*$")
+
+_INSTITUTION_TAIL = re.compile(
+    r"\s*[,–—|-]\s*[A-Z][a-zA-Z .'-]+,?\s*[A-Z]{2}\s*$")
+
+#: A trailing place name with no state after it: "Sankara Cancer Centre -
+#: Bengaluru", "Tata Memorial Hospital - Mumbai". Only one or two capitalised
+#: words, and only when they are not themselves part of an institution's name,
+#: so "Mount Sinai - Beth Israel Medical Center" keeps its second half.
+_INSTITUTION_WORDS = re.compile(
+    r"\b(hospital|clinic|centre|center|university|college|school|institute|"
+    r"associates|health|medical|system|foundation|group|partners)\b",
+    re.IGNORECASE)
+_CITY_TAIL = re.compile(r"\s*[–—|-]\s*(?P<city>[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*$")
+
+
+def _clean_institution(raw: str) -> str:
+    """The institution's name, without the city trailing it.
+
+    Two shapes, because CVs use both: "Cleveland Clinic, Cleveland OH" and
+    "Sankara Cancer Centre - Bengaluru". The second one used to survive intact
+    and put a city inside the institution field on the form.
+    """
+    text = _INSTITUTION_TAIL.sub("", (raw or "").strip())
+    tail = _CITY_TAIL.search(text)
+    if tail and not _INSTITUTION_WORDS.search(tail.group("city")):
+        text = text[: tail.start()]
+    return re.sub(r"\s{2,}", " ", text).strip(" ,;:–—-")[:140]
+
+
 def _extract_training(lines: List[str]) -> List[Dict[str, Any]]:
     """Residency / fellowship / internship entries as {kind, institution, years}.
 
-    One entry per line that names a training kind AND an institution, capped at
-    eight, because a CV that produces more than eight is producing noise.
+    Two shapes, because CVs use both and only one of them used to work.
+
+    ONE LINE: "Nephrology Fellowship, Cleveland Clinic, 2015-2017". The old
+    code handled this and nothing else.
+
+    TWO LINES, which is how almost every real CV is laid out:
+
+        Cleveland Clinic, Cleveland OH          Jul 2015 - Jun 2017
+        Fellow, Nephrology
+
+    The kind is on the second line and the institution and dates are on the
+    first, so a per-line scan sees a line with an institution and no kind
+    followed by a line with a kind and no institution, and emits nothing. On
+    the walkthrough CV that meant a fellowship and a residency, both plainly
+    written, both dropped.
     """
     out: List[Dict[str, Any]] = []
-    for ln in lines:
-        if len(ln) > 200:
-            continue
-        kind = next((k for k, pat in _TRAINING_KIND if pat.search(ln)), None)
-        if not kind:
-            continue
-        if not _INSTITUTION_RE.search(ln):
-            continue
-        years = _YEAR_RANGE.search(ln)
+    seen = set()
+
+    def add(kind: str, institution: str, start: Optional[str], end: Optional[str]) -> None:
+        inst = _clean_institution(institution)
+        key = (kind, inst.lower(), start or "")
+        if not inst or key in seen:
+            return
+        seen.add(key)
         out.append({
-            "kind": kind,
-            "institution": ln.strip()[:140],
-            "start_year": years.group(1) if years else None,
-            "end_year": years.group(2) if years else None,
+            "kind": kind, "institution": inst,
+            "start_year": start, "end_year": end,
         })
+
+    for i, line in enumerate(lines):
+        if len(line) > 200:
+            continue
+        kind = next((k for k, pat in _TRAINING_KIND if pat.search(line)), None)
+
+        # Same line: a kind and an institution together.
+        if kind and _INSTITUTION_RE.search(line):
+            years = _YEAR_RANGE.search(line)
+            add(kind, line, years.group(1) if years else None,
+                years.group(2) if years else None)
+            continue
+
+        # Split across two: this line is the header, the kind is on the next.
+        # Bounded to the IMMEDIATELY following line on purpose. Scanning
+        # further would start pairing a training role with whatever employer
+        # happened to appear above it, which is a wrong institution on a
+        # credential rather than a missing one.
+        header = _ENTRY_HEADER.match(line)
+        if not header or i + 1 >= len(lines):
+            continue
+        nxt = lines[i + 1]
+        if len(nxt) > 120:
+            continue
+        next_kind = next((k for k, pat in _TRAINING_KIND if pat.search(nxt)), None)
+        if not next_kind:
+            continue
+        end = header.group("end")
+        add(next_kind, header.group("institution"), header.group("start"),
+            None if end.lower() in ("present", "current") else end)
         if len(out) >= 8:
             break
-    return out
+    return out[:8]
+
+
+def _extract_employer(lines: List[str]) -> str:
+    """Where they work NOW, from the most recent experience entry.
+
+    Only an entry whose dates end in "Present" or "Current" counts. A CV lists
+    every post someone has held, and prefilling "where do you practise" with a
+    job they left in 2017 is exactly the kind of confidently wrong answer this
+    module refuses to give.
+    """
+    for i, line in enumerate(lines):
+        if len(line) > 200:
+            continue
+        header = _ENTRY_HEADER.match(line)
+        if not header or header.group("end").lower() not in ("present", "current"):
+            continue
+        # Not if the role under it is training: a current fellow's institution
+        # is their training programme, which the training block already has.
+        if i + 1 < len(lines) and any(
+                pat.search(lines[i + 1]) for _, pat in _TRAINING_KIND):
+            continue
+        return _clean_institution(header.group("institution"))
+    return ""
 
 
 def _parse_cv_text(text: str) -> Dict[str, Any]:
@@ -962,14 +1543,16 @@ def _parse_cv_text(text: str) -> Dict[str, Any]:
         if len(institutions) >= 12:
             break
 
+    # Structured now: {board, specialty, subspecialty, active}. The flat list
+    # of strings is kept alongside it under the SAME key the tier scorer and
+    # the admin dossier have always read, so nothing downstream has to know
+    # this changed. See _extract_board_certifications for what went wrong.
+    board_certs = _extract_board_certifications(lines)
     certs: List[str] = []
-    for m in _BOARD_LINE.finditer(text):
-        val = m.group(1).strip(" .,;:").strip()
-        if val and val not in certs:
-            certs.append(val)
-    for m in _BOARD_ACRONYM.finditer(text):
-        if m.group(1) not in certs:
-            certs.append(m.group(1))
+    for entry in board_certs:
+        label = " ".join(p for p in [entry.get("board"), entry.get("specialty")] if p)
+        if label and label not in certs:
+            certs.append(label)
 
     years: Optional[int] = None
     m = _YEARS_EXPLICIT.search(text)
@@ -1017,7 +1600,18 @@ def _parse_cv_text(text: str) -> Dict[str, Any]:
         "full_name": _extract_name(lines),
         "degrees": _extract_degrees(text),
         "training": _extract_training(lines),
+        # The registry KEY, lowercase. propose_tier and the admin dossier read
+        # this and must keep getting the identifier.
         "specialty": _extract_specialty(text, certs),
+        # The same thing spelled the way a person writes it. The Review screen
+        # prefills from THIS one: putting "nephrology" in a box on a form that
+        # is asking a physician to vouch for their credentials reads as
+        # carelessness, and it is a correction they should not have to make.
+        "specialty_display": display_specialty(_extract_specialty(text, certs) or ""),
+        # ── Added for the Review screen's prefill ──
+        "board_certifications_structured": board_certs,
+        "licenses": _extract_licenses(lines),
+        "employer": _extract_employer(lines),
         "npi": _extract_npi(text),
         "linkedin_url": _extract_linkedin(text),
     }
@@ -1038,6 +1632,11 @@ def _empty_parse(asset_sha: str, reason: str) -> Dict[str, Any]:
         "years_in_practice": None, "publications_count": None,
         "full_name": None, "degrees": [], "training": [],
         "specialty": None, "npi": None, "linkedin_url": None,
+        # Added with the extraction rewrite, and added HERE at the same time:
+        # the docstring above is a note about three copies of this shape
+        # drifting once already, and the Review screen indexes these directly.
+        "specialty_display": None, "board_certifications_structured": [],
+        "licenses": [], "employer": None,
     }
 
 
@@ -1209,7 +1808,7 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
             f"+{TIER_WEIGHTS['npi_verified']} NPI verified against NPPES"
             + (f" ({cred})" if cred else ""))
     elif npi_result == NpiResult.UNAVAILABLE.value:
-        reasons.append("±0 NPI check unavailable — retry pending (not held against them)")
+        reasons.append("±0 NPI check unavailable: retry pending (not held against them)")
     elif npi_result == NpiResult.NOT_FOUND.value:
         reasons.append("±0 NPI not found in NPPES")
 
@@ -1229,7 +1828,7 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
     elif not npi_ok and registry_result in ("document_only", "queued"):
         reasons.append("±0 identity pending document review (no public registry to query)")
     elif not npi_ok and registry_result in ("inconclusive", "unavailable"):
-        reasons.append("±0 registry could not confirm — routed to document review")
+        reasons.append("±0 registry could not confirm: routed to document review")
 
     # Email domain: one weight, never a gate. A known health-system employer
     # domain corroborates current clinical employment, so it outranks generic
@@ -1336,7 +1935,7 @@ def propose_tier(user: Dict[str, Any], *, duplicate_npi: bool = False) -> Dict[s
     # mistyped is exactly who this is protecting from an automatic decision.
     for finding in plausibility.flags(user, _json_field(user, "credentials_json")):
         if finding["severity"] == plausibility.SEVERITY_HIGH:
-            detail = f" — {finding['detail']}" if finding.get("detail") else ""
+            detail = f", {finding['detail']}" if finding.get("detail") else ""
             blockers.append(
                 f"Implausible {finding['field'].replace('_', ' ')}: "
                 f"{finding['issue'].replace('_', ' ')}{detail}")

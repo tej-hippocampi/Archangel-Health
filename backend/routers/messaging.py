@@ -154,7 +154,7 @@ async def persist_and_notify_care_team_message(
         resource_code = (patient.get("resource_code") or "").strip()
         signature = _provider_email_signature(staff)
         subject_suffix = "URGENT CARE MESSAGE" if urgent else "New secure message"
-        subject = f"{signature} — {subject_suffix}"
+        subject = f"{signature}: {subject_suffix}"
         html_body = _build_care_team_notification_email_html(
             patient_name=str(patient.get("name") or "Patient"),
             sender_signature=signature,

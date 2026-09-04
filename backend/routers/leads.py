@@ -342,7 +342,7 @@ async def submit_lead(body: LeadBody, request: Request):
         # its "or email us" fallback instead of a false success.
         raise HTTPException(
             status_code=503,
-            detail="We couldn't send that just now — please email us instead.",
+            detail="We couldn't send that just now: please email us instead.",
         )
 
     # Them first, us second. A health system that just filled in nine fields is
@@ -358,7 +358,7 @@ async def submit_lead(body: LeadBody, request: Request):
         except Exception:
             pass
 
-    subject = f"[Lead] {_SOURCE_LABELS.get(body.source, body.source)} — {email}"
+    subject = f"[Lead] {_SOURCE_LABELS.get(body.source, body.source)}: {email}"
     qualifying = _qualifying_rows(body.source, body.model_dump())
     ok = await send_html_email(
         _notify_email(), subject,
@@ -366,7 +366,7 @@ async def submit_lead(body: LeadBody, request: Request):
     if not ok:
         raise HTTPException(
             status_code=503,
-            detail="We couldn't send that just now — please email us instead.",
+            detail="We couldn't send that just now: please email us instead.",
         )
     return {"ok": True}
 

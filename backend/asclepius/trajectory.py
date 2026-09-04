@@ -184,7 +184,7 @@ def is_relay(task: Optional[Dict[str, Any]]) -> bool:
 KAPPA_EXCLUSION_RELAY_SINGLE = "single_label"
 KAPPA_EXCLUSION_RELAY_RATIONALE = (
     "Relay trajectory points carry one label each and are excluded from the "
-    "Cohen's κ pool on that basis alone — the double-label floor, not the "
+    "Cohen's κ pool on that basis alone, the double-label floor, not the "
     "sequential-dependence rule that excludes solo walks. Each point in a relay "
     "walk was answered by a DIFFERENT physician, so the within-physician "
     "dependence that disqualifies a solo walk does not arise here."
@@ -529,7 +529,7 @@ LIMITATIONS = (
     ("not_a_controlled_experiment",
      "What happened next reflects the treatment actually given, not the physician's "
      "plan. When a physician proposes something different, the outcome does not test "
-     "their plan — it tests the one that was followed. Score anticipation of the "
+     "their plan, it tests the one that was followed. Score anticipation of the "
      "OBSERVED trajectory only; never counterfactual outcomes."),
     ("confounding_by_indication",
      "Sicker patients get more aggressive treatment, so a model trained naively on "
@@ -537,7 +537,7 @@ LIMITATIONS = (
      "scored object is the stated reasoning and expectation, not the plan's "
      "similarity to what was done."),
     ("uneven_density",
-     "Yield per chart is not predictable — one 5-year chart yields 13 decision "
+     "Yield per chart is not predictable, one 5-year chart yields 13 decision "
      "points, a 20-year chart yields 2. Price by decision point, never by chart."),
     ("survivorship",
      "These charts continue because the patient continued. Encounters ending in "
@@ -546,7 +546,7 @@ LIMITATIONS = (
     ("findings_policy_varies_within_a_trajectory",
      "study_findings_policy is computed per truncation: a window with no imaging is "
      "'visible', a later window carrying a study asset is 'hidden'. The same patient "
-     "therefore presents under two policies within one session, by design — findings "
+     "therefore presents under two policies within one session, by design, findings "
      "visibility reflects what that window actually contains."),
 )
 

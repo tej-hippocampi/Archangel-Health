@@ -109,6 +109,13 @@
     // startTutorial to {active, replay, idx}. Server state (user.tutorial) is
     // the launch authority; this is only the live tour position.
     tutorial: null,
+    // The credentialing EXAMINATION, when one is open. Null otherwise; set by
+    // startExam to {active, attempt, specialty, isOwnSpecialty}. Separate from
+    // `tutorial` on purpose: the two use the same workspace and mean opposite
+    // things, one being practice nobody reads and the other the case a person
+    // decides on, and one flag for both is how a practice run would get filed
+    // as somebody's examination.
+    exam: null,
     instrOpen: false,       // instruction drawer visibility
     // Admin-only (PRD-1 §4.1): the reviewer surface is being PREVIEWED, so the
     // draw is unclaimed, no session opens, and a submit is refused with a 409.
@@ -268,11 +275,17 @@
 
     const nav = document.getElementById('ascNav');
     clear(nav);
-    // Everyone gets a Dashboard tab so a doctor can return home from a case.
-    nav.appendChild(h('button', {
-      class: 'asc-nav-btn' + (state.view === 'home' ? ' active' : ''),
-      onClick: () => switchView('home'),
-    }, 'Dashboard'));
+    // TASKS AND DASHBOARD WERE THE SAME SCREEN UNDER TWO NAMES.
+    //
+    // A "Dashboard" button lived here and a "Tasks" item lived in the rail, and
+    // both called renderDashboardView(). A physician read that as two places,
+    // pressed both, and got the same page twice: the product looked like it had
+    // lost their work rather than like it had one home.
+    //
+    // The rail item stays, because the rail is where every other destination
+    // is. What is removed is the duplicate, and removing it is what surfaced
+    // the bug fixed in setPanel below: the header button was the only control
+    // that actually worked from inside a case.
     const isAdmin = state.user.role === 'admin' || state.user.role === 'qa_reviewer';
     if (isAdmin) {
       // Admin only. Evaluate opens a two-way chooser so an operator can see BOTH
@@ -541,6 +554,24 @@
     if (dest === 'tasks' && !sessionHasSurface('real_work')
         && !sessionHasSurface('tutorial')) return;
     if (dest === 'verification') { state.panel = dest; renderVerificationPanel(); return; }
+    // TASKS FROM INSIDE A CASE.
+    //
+    // A physician in a case already has state.panel === 'tasks', so the
+    // early return below made the rail's Tasks button do nothing at all. The
+    // header's Dashboard button was masking it, and removing that duplicate is
+    // what made it reachable: the only way out of a case would have been the
+    // browser's Back button.
+    //
+    // Handled BEFORE the early return rather than by weakening it, so every
+    // other destination keeps its "already here, do not refetch" behaviour.
+    if (dest === 'tasks' && state.panel === 'tasks' && state.view !== 'home') {
+      saveDraft();
+      if (state.view === 'review') teardownReview();
+      state.view = 'home';
+      renderSidePanel();
+      renderDashboardView();
+      return;
+    }
     if (dest === state.panel) return; // already here: no needless re-render/refetch
     // Leaving the review surface for another rail destination is a no-work
     // transition: Agent P's beats must stop and the keyboard handler must come
@@ -637,9 +668,13 @@
   }
 
   //: The per-destination styling hook, written out rather than built from
-  //: item.dest. Referral is the only entry that currently uses one (it is the
-  //: tab that pays, and it is the green one); the rest are here so a grep for
-  //: a class finds it and the CSS scanner can see it emitted.
+  //: item.dest, so a grep for a class finds it and the CSS scanner sees it.
+  //:
+  //: Referral used to be filled green here, as "the tab that pays". Beside four
+  //: plain tabs that reads as the one that needs attention, and for a physician
+  //: waiting on credentials it was the ONLY tab they could act on, so the rail
+  //: pointed them at referring colleagues rather than at their own application.
+  //: The class stays wired; the fill is gone from the stylesheet.
   const RAIL_ITEM_CLASS = {
     tasks: 'asc-rail-item-tasks',
     community: 'asc-rail-item-community',
@@ -656,9 +691,19 @@
     // waiting on credentials is going to get these in a day or two, and hiding
     // them makes the product look empty at exactly the moment we are trying to
     // show them what they joined.
-    { dest: 'tasks',     label: 'Tasks', surface: 'real_work',
-      lockedHint: 'Opens when your credentials clear' },
-    { dest: 'community', label: 'Community', surface: 'community_read', external: true },
+    // TASKS is gated on `tutorial`, not on `real_work`. It is the way to the
+    // practice case and to the examination, which are the only things an
+    // applicant is asked to do, so locking it locked the one door we want them
+    // to walk through. What is behind it changes with access: an approved
+    // physician gets their case queue, an applicant gets the credentialing
+    // path. See renderDashboardView.
+    { dest: 'tasks',     label: 'Tasks', surface: 'tutorial' },
+    // COMMUNITY has no `surface` any more, so it never locks. An applicant is
+    // not admitted to the real rooms and that has not changed: they are sent to
+    // a PREVIEW instead, rendered from a fixture through this same interface,
+    // so they can see what they are applying to without a single real colleague
+    // or real message reaching an account nobody has checked yet.
+    { dest: 'community', label: 'Community', external: true },
     // Referral (PRD-REF). Gated on the SURFACE, which every live account holds
     // including one still under review. It used to gate on the 'refer'
     // capability, which comes from a tier, which is only assigned at approval —
@@ -762,16 +807,37 @@
     return accents[hash % accents.length];
   }
 
-  // Best-effort human display name. The session user has no guaranteed `name`
-  // field (email is the identity), so fall back to a title-cased email local part.
+  /** Best-effort human display name.
+   *
+   *  The server-side name is the answer whenever there is one, and after the
+   *  signup rework there almost always is: the wizard writes first and last
+   *  name onto the account at provisioning.
+   *
+   *  The fallback is what this function is really about, because it used to be
+   *  wrong in a way that was worse than saying nothing. It title-cased the
+   *  email local part and prefixed "Dr.", so `angad18.bhatia@gmail.com` was
+   *  greeted as "Dr. Angad18 Bhatia" on his own dashboard: a typo we appeared
+   *  to have made about a physician's name, on the first screen he saw.
+   *
+   *  Two rules now. Digits come out, and any token that was nothing but digits
+   *  is dropped, because a mailbox number is not part of anyone's name. And no
+   *  honorific: an email address is not evidence that this person is a doctor,
+   *  and calling an unverified applicant "Dr." is a claim we have not checked.
+   *  When the server knows the name it carries whatever honorific it was given,
+   *  which is the only place one belongs.
+   */
   function railDisplayName() {
     const u = state.user || {};
-    const explicit = u.name || u.full_name || u.display_name;
-    if (explicit) return String(explicit);
-    const email = String(u.email || '');
-    const local = email.split('@')[0] || 'Clinician';
-    const pretty = local.replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
-    return pretty ? ('Dr. ' + pretty) : 'Clinician';
+    const explicit = String(u.name || u.full_name || u.display_name || '').trim();
+    if (explicit) return explicit;
+    const local = String(u.email || '').split('@')[0] || '';
+    const words = local
+      .replace(/[._+-]+/g, ' ')
+      .split(/\s+/)
+      .map((w) => w.replace(/\d+/g, ''))
+      .filter((w) => w.length >= 2);
+    if (!words.length) return 'Clinician';
+    return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
   /** The circle of initials (or the physician's photo) in the rail foot.
@@ -942,7 +1008,13 @@
         h('span', { class: 'asc-rail-ico', 'aria-hidden': 'true', html: RAIL_ICONS[item.dest] }),
         h('span', { class: 'asc-rail-label' }, item.label),
       ];
-      if (item.dest === 'community') children.push(communityBadgeEl());
+      if (item.dest === 'community' && sessionHasSurface('community_read')) {
+        children.push(communityBadgeEl());
+      }
+      if (sessionIsProvisional() && !isAdvisor()
+          && VIEW_ONLY_DESTS.indexOf(item.dest) !== -1) {
+        children.push(viewOnlyBadgeEl());
+      }
       if (item.locked) children.push(h('span', { class: 'asc-rail-lock', 'aria-hidden': 'true' }, '\u00b7'));
       nav.appendChild(h('button', {
         type: 'button',
@@ -1047,6 +1119,31 @@
 
   /* ── Community integration (Community PRD boundary; all endpoints optional) ── */
 
+  //: Which rail destinations are LOOK-ONLY while an application is under review.
+  //:
+  //: Not "locked". A locked tab says "you cannot go here"; these open, show the
+  //: real interface, and cannot be acted on. The distinction is the point of
+  //: the change: an applicant should be able to see what they are joining, and
+  //: a padlock on every tab told them nothing except to wait.
+  //:
+  //: Tasks is absent on purpose. The practice case and the examination ARE
+  //: their work, and marking the one tab they can act on "view only" would be
+  //: the exact opposite of true.
+  const VIEW_ONLY_DESTS = ['community', 'referral', 'earnings'];
+
+  function viewOnlyBadgeEl() {
+    // The full sentence goes in title/aria-label; the visible chip is two words
+    // because the icon-collapsed rail hides .asc-rail-label and a long chip
+    // would be clipped rather than read.
+    return h('span', {
+      class: 'asc-rail-badge asc-rail-badge-viewonly',
+      title: 'View only until your application is approved',
+      'aria-label': 'View only until your application is approved',
+    },
+      h('span', { class: 'dot dot-orange', 'aria-hidden': 'true' }),
+      h('span', { class: 'asc-rail-badge-n' }, 'View only'));
+  }
+
   function communityBadgeEl() {
     const n = state.community.unread | 0;
     const badge = h('span', {
@@ -1071,6 +1168,15 @@
   // pre-minted handoff token, if we have one, rides along to skip a second login.
   // noopener per the integration contract.
   function openCommunity() {
+    // An account that cannot read the real community opens the PREVIEW: the
+    // same interface, rendered from a fixture, so an applicant can see what
+    // they are applying to. Sending them to the real page would open a tab
+    // that 403s, which is what used to happen from the dashboard's "Meet the
+    // community" button.
+    if (!sessionHasSurface('community_read')) {
+      window.open('/community?preview=1', '_blank', 'noopener');
+      return;
+    }
     const t = state.community.handoffToken;
     // Handoff codes are SINGLE-USE server-side: consume it here so a second
     // click inside the refresh window opens bare (same-origin session covers
@@ -1896,7 +2002,7 @@
         h('p', {}, 'One screen, then you are in')),
       h('div', { class: 'asc-login-body' },
         h('p', { class: 'asc-fr-rotate-lede' },
-          'The password we emailed you is temporary — it stops working as soon '
+          'The password we emailed you is temporary, it stops working as soon '
           + 'as you pick your own. Nothing else about your account changes.'),
         form));
     setRoot(h('div', { class: 'asc-login-wrap' }, card));
@@ -1958,6 +2064,19 @@
   function firstRunMode() {
     if (!window.FirstRunWalkthrough || !state.user) return 'none';
     if (state.user.role !== 'evaluator' || isAdvisor()) return 'none';
+    // THE WELCOME PACKAGE IS FOR AN APPROVED COLLEAGUE.
+    //
+    // It is six stops of welcome letter, community, earnings and manual, and an
+    // applicant was walked through all of it on their first sign-in, before
+    // anybody had checked who they are. Half of it described things they cannot
+    // reach, and it buried the two things they actually have to do.
+    //
+    // Suppressing it here rather than in six places also closes the practice
+    // case's leave loop at the source: firstRunTourPending() reads this, and it
+    // was what pulled a physician straight back into the case they had just
+    // left. The package moves to approval, where it reads as a welcome instead
+    // of as an obstacle.
+    if (sessionIsProvisional()) return 'none';
     return window.FirstRunWalkthrough.mode(state.user);
   }
 
@@ -2098,45 +2217,26 @@
       },
     }, 'Forgot your password?');
 
-    // The applicant's door. Onboarding v2 deleted the password step, so an
-    // applicant who closes the tab before a decision holds no credential at
-    // all: without this, the only route back into their own practice case was
-    // to ask a person.
+    // THE "EMAIL ME A SIGN IN LINK" BUTTON IS GONE.
     //
-    // Offered UNCONDITIONALLY, and that is a security decision rather than a
-    // layout one. The endpoint answers identically whether or not the address
-    // has an account and whether or not it has a password, so branching this
-    // control on account state would rebuild the enumeration oracle the
-    // endpoint was written to avoid: the presence of the button would answer
-    // the question the response refuses to.
-    const signinLink = h('button', {
-      type: 'button',
-      class: 'asc-linkish asc-login-signin-link',
-      onClick: async () => {
-        const addr = (emailInput && emailInput.value || '').trim();
-        if (!addr) {
-          errBox.classList.add('asc-login-notice');
-          errBox.textContent = 'Enter your email above first.';
-          errBox.removeAttribute('hidden');
-          return;
-        }
-        try {
-          const res = await fetch(API_BASE + '/auth/signin-link', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: addr }),
-          });
-          const data = await res.json().catch(() => null);
-          errBox.classList.add('asc-login-notice');
-          errBox.textContent = (data && data.message)
-            || 'If that email can be signed in this way, a link is on its way.';
-        } catch (_) {
-          errBox.classList.add('asc-login-notice');
-          errBox.textContent = 'Could not reach the server. Try again in a moment.';
-        }
-        errBox.removeAttribute('hidden');
-      },
-    }, 'Email me a sign in link');
+    // It existed because onboarding v2 had no password step: an applicant who
+    // closed the tab before a decision held no credential at all, so the only
+    // route back to their own practice case was a magic link. The wizard now
+    // takes a password on screen 1, so every new physician has an ordinary
+    // credential and the ordinary door works.
+    //
+    // The BACKEND is deliberately untouched. /auth/signin-link and its exchange
+    // both still work, so every link already sitting in a mailbox redeems for
+    // its full fifteen minutes, and the legacy accounts that finished the
+    // wizard during the passwordless window can still be issued one by hand.
+    //
+    // Those accounts do not need one, though, and that is worth stating because
+    // it is not obvious: forgot_password mints a reset for ANY active user
+    // without consulting password_is_unset, and set_user_password clears
+    // must_change_password in the same statement. So "Forgot your password?"
+    // below turns a legacy passwordless applicant into a normal account holder
+    // with no admin, no magic link, and no new code. Hence the line under the
+    // password field pointing them at it.
 
     // New here? Until this existed the sign-in screen was a closed door: a
     // physician who had never signed up had no route anywhere from it, and the
@@ -2154,9 +2254,18 @@
           h('a', { href: signupUrl, class: 'asc-linkish' }, 'Apply to contribute'))
       : null;
 
+    // The one sentence a legacy passwordless applicant needs. They applied
+    // during the window when finishing the wizard minted no credential, so
+    // "forgot your password" reads as the wrong door to them: they never had
+    // one to forget. It is the right door anyway, because a reset SETS a
+    // password rather than replacing one.
+    const legacyHint = h('p', { class: 'asc-login-hint asc-login-legacy' },
+      'Applied before and never set a password? Use Forgot your password.');
+
     const body = h('div', { class: 'asc-login-body' },
       form,
-      h('div', { class: 'asc-login-forgot' }, forgot, signinLink),
+      h('div', { class: 'asc-login-forgot' }, forgot),
+      legacyHint,
       // Was "Board-certified clinician access only", which is narrower than
       // the policy and is the last thing a retired physician, a fellow, or a
       // doctor licensed outside the US reads before deciding they were not
@@ -2189,7 +2298,6 @@
       h('div', { class: 'asc-login-head' },
         h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
         h('h1', {}, 'Archangel Health'),
-        h('p', {}, 'Expert Evaluation Portal'),
       ),
       body,
     );
@@ -2292,7 +2400,7 @@
         h('div', { class: 'asc-login-head' },
           h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
           h('h1', {}, (sec && sec.title) || 'Your credentials are being verified'),
-          h('p', {}, 'Archangel Health · Expert Evaluation Portal'),
+          h('p', {}, 'Archangel Health'),
         ),
         body)));
   }
@@ -2718,11 +2826,241 @@
   // The landing surface after login: shows the cases this reviewer can pick right
   // now, a "start next case" CTA, or a reassuring empty state. It routes into the
   // EXISTING case flow (renderEvalView / the task workspace) without changing it.
+  /** Where an applicant is in the credentialing path.
+   *
+   *  Read off the session's tutorial blob, which the server projects with the
+   *  score and the pass flag stripped out: this decides which BUTTON to show,
+   *  and it must never be able to tell a physician how they did. That is the
+   *  admin's call and nobody else's.
+   */
+  function credentialingStage() {
+    const t = (state.user && state.user.tutorial) || {};
+    const exam = t.exam || {};
+    if (exam.state === 'submitted') return 'exam_submitted';
+    if (exam.state === 'in_progress') return 'exam_in_progress';
+    if (t.resources_seen_at) return 'exam_ready';
+    if (t.status === 'in_progress') return 'practice_in_progress';
+    return 'resources';
+  }
+
+  /** The one action on the credentialing dashboard.
+   *
+   *  For now it opens the practice case, which is the piece that exists. The
+   *  resources screen and the examination land on this same seam, so the
+   *  dashboard does not have to change again when they do.
+   */
+  /** The one action on the credentialing dashboard, routed by stage. */
+  function startCredentialing() {
+    const stage = credentialingStage();
+    if (stage === 'exam_ready' || stage === 'exam_in_progress') {
+      startExam();
+      return;
+    }
+    // Never `replay`. Replay clears the saved draft, and this is the button a
+    // physician presses to CONTINUE a practice case they left part way
+    // through, which is exactly the work that must survive.
+    if (stage === 'practice_in_progress') { startTutorial({ replay: false }); return; }
+    renderCredentialingResources();
+  }
+
+  /** Before the examination: the two things that help, and what it is for.
+   *
+   *  A physician used to be dropped into a case that decides about them with
+   *  no warning that it did. Both resources are OPTIONAL and say so; the
+   *  examination is not, and says that too. Being straight about which is
+   *  which is the whole screen.
+   */
+  function renderCredentialingResources() {
+    const resource = (title, body, label, onClick) =>
+      h('div', { class: 'asc-card asc-card-pad asc-res-card' },
+        h('h3', {}, title),
+        h('p', { class: 'asc-dim' }, body),
+        h('button', { class: 'asc-btn', onClick: onClick }, label));
+
+    const demoAvailable = !!(window.FirstRunWalkthrough
+      && window.FirstRunWalkthrough.demoAvailable
+      && window.FirstRunWalkthrough.demoAvailable());
+
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'chrome' }, 'BEFORE YOUR EXAMINATION'),
+        h('h2', {}, 'The next case is the one we read.'),
+        h('p', {},
+          'It is how we judge whether your reads are credible for this platform, '
+          + 'and it feeds what we can pay you. Two things exist to help you '
+          + 'before you sit it. Both are optional. The examination is not.'),
+        h('div', { class: 'asc-res-grid' },
+          demoAvailable
+            ? resource('Watch the demo', 'Three minutes, the whole product start to finish.',
+                'Play the demo',
+                () => {
+                  if (window.FirstRunWalkthrough && window.FirstRunWalkthrough.playDemo) {
+                    window.FirstRunWalkthrough.playDemo(firstRunCtx());
+                  }
+                })
+            : null,
+          resource('Do the practice case',
+            'One guided case, about four minutes. Nothing in it is recorded or scored.',
+            'Open the practice case', () => startTutorial({ replay: false }))),
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: startExam },
+          'Take my examination \u2192'),
+        h('p', { class: 'asc-dim asc-small' },
+          'Skipping either one costs you nothing here. They exist because '
+          + 'physicians who use them label better.'))));
+
+    // Stamped on ARRIVAL, not on leaving: they have been shown the help, and
+    // whether they took it is their business. Best-effort, because a failed
+    // stamp costs one extra visit to this screen and nothing else.
+    api('/me/tutorial', { method: 'PATCH', body: { action: 'resources_seen' } })
+      .then((u) => { if (u) state.user = u; })
+      .catch(() => { /* they will simply see this screen again */ });
+  }
+
+  /** The examination: the real workspace, one case, in their own specialty. */
+  async function startExam() {
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'loading-state' },
+          h('div', { class: 'loading-spinner' }), 'Opening your examination…'))));
+    let data;
+    try {
+      data = await api('/exam/task');
+    } catch (e) {
+      // Never trap them on a spinner. The dashboard says where they are.
+      if (e.status !== 401) {
+        toast('Could not open your examination: ' + e.message, 'error');
+        renderDashboardView();
+      }
+      return;
+    }
+    state.exam = { active: true, attempt: data.attempt,
+                   isOwnSpecialty: data.is_own_specialty !== false,
+                   specialty: data.specialty };
+    state.task = data.task;
+    state.portalChosen = true;
+    state.specialtyChosen = true;
+    initDraftForTask(state.task);
+    if (!state.draft || typeof state.draft.stage !== 'string') {
+      state.draft = newDraft(state.task);
+    }
+    state.draft.portal_version = 'v3';
+    saveDraft();
+    renderTaskWorkspace();
+  }
+
+  function examActive() { return !!(state.exam && state.exam.active); }
+
+  /** Step out of the examination and go back to the help.
+   *
+   *  A physician part way through, realising they are not ready, had two
+   *  options: guess, or abandon the tab. Both are worse for them and worse for
+   *  the person reading the result. The draft is saved on the way out, so the
+   *  answers they have already given survive, and the case is the same one
+   *  when they come back: pausing is not a retake and must not be treated as
+   *  one.
+   */
+  function pauseExam() {
+    saveDraft();
+    state.exam = null;
+    state.task = null;
+    renderCredentialingResources();
+  }
+
+  async function submitExamEvaluation() {
+    state.submitting = true;
+    updateSubmitState();
+    try {
+      const payload = Object.assign(buildSubmissionPayload(), {
+        task_id: state.task && state.task.task_id,
+      });
+      const res = await api('/exam/submit', { method: 'POST', body: payload });
+      if (res && res.user) state.user = res.user;
+      clearDraft(state.task && state.task.task_id);
+      state.exam = null;
+      state.task = null;
+      state.view = 'home';
+      renderExamSubmitted();
+    } catch (e) {
+      toast('Could not file your examination: ' + e.message, 'error');
+    } finally {
+      state.submitting = false;
+    }
+  }
+
+  /** After the examination. Says what happens next and claims nothing else.
+   *
+   *  No verdict, no score, no "well done": whether this physician is good
+   *  enough is the reading admin's call, and a screen that congratulated them
+   *  would be making it first and getting it wrong half the time.
+   */
+  function renderExamSubmitted() {
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'chrome' }, 'EXAMINATION FILED'),
+        h('h2', {}, 'That is everything we needed.'),
+        h('p', {},
+          'Your examination is with us. One of us reads it personally, '
+          + 'alongside the credentials you sent, and we will email you either '
+          + 'way. Usually one to two business days.'),
+        h('button', { class: 'asc-btn', onClick: renderDashboardView },
+          'Back to my dashboard'))));
+  }
+
+  /** What an applicant sees where the case queue will be.
+   *
+   *  Before this they got the approved physician's dashboard with most of it
+   *  crossed out: a specialty header for cases they cannot draw, a review card,
+   *  queue errors from a /tasks/next call that is a guaranteed 403 for them,
+   *  and a "Meet the community" button that opened a tab and 403'd there too.
+   *
+   *  Three things now, and nothing else. Where their application stands, what
+   *  is being asked of them, and the one button that does it.
+   */
+  function renderCredentialingDashboard() {
+    const stage = credentialingStage();
+    const cta = {
+      resources: ['Start', 'Two short things before your examination.'],
+      practice_in_progress: ['Continue practice case', 'You left one part way through. It is where you left it.'],
+      exam_ready: ['Take my examination', 'The practice case is done. This is the one we read.'],
+      exam_in_progress: ['Resume my examination', 'Your answers are saved.'],
+      exam_submitted: ['Your examination is with us', 'Nothing more to do. We will email you either way.'],
+    }[stage] || ['Start', ''];
+
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
+        h('div', { class: 'chrome' }, 'YOUR APPLICATION'),
+        h('h2', {}, 'We are checking your credentials.'),
+        h('p', { class: 'asc-dim' },
+          'Usually one to two business days. You do not need to do anything for '
+          + 'that part, and we will email you either way.'),
+        // Said plainly and in one place, because "what is actually being asked
+        // of me" was the question the old screen never answered.
+        h('p', {},
+          'Before we can verify you there are two pieces of case work here: a '
+          + 'practice case, and one examination case in the real interface. The '
+          + 'practice case is optional and it is there to help. The examination '
+          + 'is the one we read.'),
+        h('button', {
+          class: 'asc-btn asc-btn-primary',
+          disabled: stage === 'exam_submitted' ? 'disabled' : null,
+          onClick: () => { if (stage !== 'exam_submitted') startCredentialing(); },
+        }, cta[0]),
+        cta[1] ? h('p', { class: 'asc-dim asc-small' }, cta[1]) : null)));
+  }
+
   async function renderDashboardView() {
     state.view = 'home';
     stopTimer();
     updateHeaderProgress();
     renderHeader();
+    // Before the queue fetch, which for an applicant is a guaranteed 403 and
+    // used to paint a "could not load your queue" error onto the one screen
+    // that is supposed to be telling them their application is fine.
+    if (sessionIsProvisional() && !isAdvisor()) {
+      renderSidePanel();
+      renderCredentialingDashboard();
+      return;
+    }
     // Default the flow so opening a case needs no picker: V3 + the doctor's own
     // specialty. Both stay changeable from the dashboard / header.
     state.portalChosen = true;
@@ -3015,10 +3353,10 @@
       h('div', { class: 'asc-dash-widget-title' }, 'Your activity'),
       h('div', { class: 'asc-dash-widget-row' },
         h('span', { class: 'asc-dash-widget-label' }, 'Cases completed'),
-        h('span', { class: 'asc-dash-widget-n' }, total == null ? '–' : String(total))),
+        h('span', { class: 'asc-dash-widget-n' }, total == null ? '-' : String(total))),
       h('div', { class: 'asc-dash-widget-row' },
         h('span', { class: 'asc-dash-widget-label' }, 'This week'),
-        h('span', { class: 'asc-dash-widget-n asc-dash-widget-n-sm' }, week == null ? '–' : String(week))),
+        h('span', { class: 'asc-dash-widget-n asc-dash-widget-n-sm' }, week == null ? '-' : String(week))),
       h('div', { class: 'asc-dash-widget-row asc-dash-widget-row-last' },
         h('span', { class: 'asc-dash-widget-label' }, 'Last submission'),
         h('span', { class: 'asc-dash-widget-meta' }, formatRelativeTime(lastAt))));
@@ -3749,7 +4087,7 @@
         h('div', { class: 'asc-substage-title' }, 'Which of your expectations held?')),
       h('div', { class: 'asc-help', style: 'margin-bottom:12px' },
         'Judge against what this record actually shows. It reflects the treatment '
-        + 'that was actually given — where you proposed something different, this '
+        + 'that was actually given: where you proposed something different, this '
         + 'does not test your plan.'),
       rows, falsifierBlock,
       h('div', { class: 'asc-submit-row', style: 'margin-top:22px' }, hint, save));
@@ -4245,7 +4583,7 @@
       assignedOnly: true,
       blurb: 'Walk one real patient forward in time: decide at each encounter, then see what the chart did next.',
       bullets: [
-        'Read the chart truncated at one decision point — nothing after it exists',
+        'Read the chart truncated at one decision point, nothing after it exists',
         'Commit an assessment, a plan, and what you expect to see next',
         'Say what would tell you that you were wrong',
         'Then the record’s own next encounter is revealed and you score yourself',
@@ -4596,6 +4934,28 @@
       list('Would change my mind', ho.falsifiers));
   }
 
+  /** The one strip of chrome the examination adds to the ordinary workspace.
+   *
+   *  Deliberately one strip and no more: the case has to LOOK like the work,
+   *  because that is the whole reason to judge somebody on it, so this says
+   *  what the case is for and offers the way back to the help. Nothing else
+   *  about the screen changes.
+   */
+  function examBannerEl() {
+    if (!examActive()) return null;
+    const ex = state.exam || {};
+    return h('div', { class: 'asc-card asc-card-pad asc-exam-banner' },
+      h('div', { class: 'chrome' }, 'EXAMINATION'),
+      h('p', { class: 'asc-dim' },
+        ex.isOwnSpecialty
+          ? 'One case, read by a person. Take your time.'
+          : ('We do not have a case set for your specialty yet, so this one is '
+             + (ex.specialty || 'general') + '. Answer it as you would any '
+             + 'case outside your subspecialty.')),
+      h('button', { class: 'asc-btn asc-btn-sm', onClick: pauseExam },
+        'Pause and review the demo or practice case'));
+  }
+
   function renderTaskWorkspace() {
     const task = state.task;
     const d = state.draft;
@@ -4663,7 +5023,7 @@
     // The staged split-screen is a V3/V4 feature; V1 and V2 render exactly as
     // before so their submissions and exports stay byte-for-byte identical.
     if (!isV3()) {
-      const wrap = h('div', { class: 'asc-wrap' }, renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+      const wrap = h('div', { class: 'asc-wrap' }, examBannerEl(), renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
       if (d.stage === 'prompt_review') {
         wrap.appendChild(stageHeader('Review the prompt'));
         wrap.appendChild(renderPromptGate());
@@ -4692,7 +5052,7 @@
       // button on the screen that asks *is this case clinically valid* invites
       // answering without reading, and that gate feeds everything downstream.
       const wrap = h('div', { class: 'asc-wrap asc-wrap-case' },
-        renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+        examBannerEl(), renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
       wrap.appendChild(stageHeader(d.stage === 'prompt_review' ? 'Review the prompt' : 'Write your answer'));
       wrap.appendChild(d.stage === 'prompt_review' ? renderPromptGate() : renderIndependentAnswer());
       wrap.appendChild(blurredPlaceholder(d.stage === 'prompt_review'
@@ -4744,6 +5104,7 @@
       b.title = label;
     }
     const caseRail = h('aside', { class: 'asc-case-rail' },
+      examBannerEl(),
       promptCard,
       renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' },
                              promptText || 'n/a'),
@@ -6035,6 +6396,11 @@
               else crit.error_tag_reasons[tag] = r;
               saveDraft();
               Array.from(rRow.children).forEach((x) => x.classList.toggle('active', x.textContent === r.replace(/_/g, ' ') && crit.error_tag_reasons[tag] === r));
+              // Symmetric with the severity pills: whichever half is answered
+              // last closes the box. `maybeClose` is declared below in the same
+              // function body, which is fine because this only ever RUNS after
+              // the whole body has been evaluated.
+              maybeClose();
             },
           }, r.replace(/_/g, ' '));
           rRow.appendChild(b);
@@ -6043,13 +6409,23 @@
           h('div', { class: 'asc-label' }, 'Why?'), rRow));
       }
       const sRow = h('div', { class: 'asc-sev-pills' });
-      // Done just collapses the panel; it is never disabled, so a reviewer can
-      // always close the popover. The substage still cannot advance until a
-      // severity is set, because critiqueConditionsMet() gates the flow.
-      const doneBtn = h('button', {
-        class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
-        onClick: () => { closeTagPopover(); paintChips(); sync(); },
-      }, 'Done');
+      // THE TAG AND ITS SEVERITY ARE THE ANSWER, so answering closes the box.
+      //
+      // There used to be a Done button, and pressing it was the only thing it
+      // did: the severity was already saved, the chip already repainted, and
+      // the substage was gated by critiqueConditionsMet() either way. So it
+      // was a button that asked a physician to confirm something they had just
+      // said, once per tag, on a screen where tagging several is normal.
+      //
+      // Closed on a timeout rather than inline because closeTagPopover()
+      // removes the node this handler is attached to; the same reason
+      // tutClickAdvance defers its advance.
+      const maybeClose = () => {
+        const reasonsOffered = !!(reasons && reasons.length);
+        const answered = !!crit.severities[tag]
+          && (!reasonsOffered || !!crit.error_tag_reasons[tag]);
+        if (answered) setTimeout(() => { closeTagPopover(); paintChips(); }, 0);
+      };
       sevs.forEach((sv) => {
         const b = h('button', {
           class: 'asc-sev-pill' + (crit.severities[tag] === sv ? ' active' : ''),
@@ -6062,6 +6438,7 @@
             // if the reviewer then dismisses the popover by clicking outside it.
             paintChips();
             sync();
+            maybeClose();
           },
         }, sv);
         sRow.appendChild(b);
@@ -6076,8 +6453,7 @@
             delete crit.severities[tag]; delete crit.error_tag_anchors[tag]; delete crit.error_tag_reasons[tag];
             saveDraft(); closeTagPopover(); paintChips(); sync();
           },
-        }, 'Remove tag'),
-        doneBtn));
+        }, 'Remove tag')));
       // Portal it: nothing in the card tree can clip what is not in the card tree.
       document.body.appendChild(pop);
       state._tagPop = pop;
@@ -6790,7 +7166,7 @@
     const info = infoDot('Why we ask', [
       onTrajectory
         ? 'This chart continues. Once you submit, we show you what actually happened '
-          + 'next and you mark which of your expectations held — from the record, not '
+          + 'next and you mark which of your expectations held, from the record, not '
           + 'from a reviewer’s opinion.'
         : 'A stated expectation with a stated falsifier is a prediction rather than an '
           + 'opinion, and a prediction is the only thing an outcome can check.',
@@ -8308,6 +8684,19 @@
     const btn = document.getElementById('ascSubmit');
     const hint = document.getElementById('ascSubmitHint');
     if (!btn) return;
+    // THE PRACTICE CASE ALWAYS SUBMITS.
+    //
+    // Every gate below exists to protect a REAL record, and there is no real
+    // record here: nothing the practice case produces is stored, graded for
+    // access, sold, or paid for. Applying them to it meant a physician who
+    // used "Skip this step", which the tour offers, reached the end and found
+    // Submit dead, with the reason in a hint line below the fold. The case
+    // teaches; it does not enforce.
+    if (tutorialActive()) {
+      btn.disabled = !!state.submitting;
+      if (hint) hint.textContent = '';
+      return;
+    }
     const d = state.draft;
     let ok = true, msg = '';
     if (!d.verdict) { ok = false; msg = 'pick a verdict to continue'; }
@@ -8380,6 +8769,20 @@
   async function submitEvaluation() {
     if (state.submitting) return;
     saveDraft();
+    // Hoisted ABOVE every gate below, which is the fix rather than a shortcut.
+    // The tutorial branch used to sit after five checks that each `return`
+    // silently, so a practice submit with a skipped step did nothing at all:
+    // no error, no toast, no movement. The backend never applied these to a
+    // practice submission in the first place, so the block was entirely on
+    // this side.
+    //
+    // Validation is BYPASSED rather than autofilled. Filling a skipped field
+    // with a plausible answer would put words the physician did not write into
+    // a payload that reaches the admin dossier as evidence about them, and the
+    // "assisted" ledger exists precisely because autofilled content was
+    // polluting that. An empty field reads as an incomplete attempt, which is
+    // true and is real information.
+    if (tutorialActive()) { await submitTutorialEvaluation(); return; }
     const g = groundingSatisfied();
     if (!g.ok) { updateSubmitState(); return; }
     const sr = stepsReview();
@@ -8395,9 +8798,14 @@
       if (abVerdict && (!whyBetterConditionsMet() || !critiqueConditionsMet())) { updateSubmitState(); return; }
       if (!d0.confidence_set) { updateSubmitState(); return; }
     }
-    // Tutorial: grade against the answer key and show the reveal: the real
-    // submit pipeline (and its records/QA routing) is never touched.
-    if (tutorialActive()) { await submitTutorialEvaluation(); return; }
+    // The tutorial branch that used to be here has moved to the TOP of this
+    // function. Leaving a copy behind would be dead code that reads as the
+    // live one, and the whole bug was that it sat below five silent returns.
+    // The examination goes to its own endpoint, and it goes there AFTER every
+    // gate above. Unlike the practice case it is the work sample, so it is
+    // held to the same standard a paid case is: an examination somebody could
+    // submit half-finished would measure nothing.
+    if (examActive()) { await submitExamEvaluation(); return; }
     state.submitting = true;
     updateHeaderProgress(); // §16: the bar reads 100% while the submit runs
     const btn = document.getElementById('ascSubmit');
@@ -8782,7 +9190,7 @@
   function profileRow(label, value) {
     return h('div', { class: 'asc-prof-row' },
       h('span', { class: 'asc-prof-label' }, label),
-      h('span', { class: 'asc-prof-value' }, value || '—'));
+      h('span', { class: 'asc-prof-value' }, value || '-'));
   }
 
   /* ── The identity card ──────────────────────────────────────────────────── */
@@ -9519,9 +9927,9 @@
     // look the same to a physician.
     body.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
       h('div', { class: 'asc-error' },
-        'The Earnings section failed to load, so no figure is shown — this is '
+        'The Earnings section failed to load, so no figure is shown, this is '
         + 'not a statement that you have earned nothing. Reload the page; if it '
-        + 'persists, this is a deploy problem — check that earnings.js is '
+        + 'persists, this is a deploy problem, check that earnings.js is '
         + 'included in index.html. Nothing you have earned is affected.'))));
   }
 
@@ -9987,6 +10395,25 @@
     if (!t.welcomed) { renderTourWelcome(); return; }
     resolveTourIndex();
     let step = tutCurrentStep();
+    // THE TOUR DOES NOT ADVANCE OUT FROM UNDER A CURSOR.
+    //
+    // Several steps are satisfied by "this field is not empty", and the field
+    // writes the draft on every keystroke. A MutationObserver then ticked 80ms
+    // later, one character was already enough, and the tour moved on while the
+    // physician was still typing the first word of their answer. They were
+    // asked for a one-line gut check and the screen left before they gave it.
+    //
+    // A step whose own target holds the caret is a step somebody is still
+    // answering. Click and choice steps are untouched: their targets are
+    // buttons, and a button does not hold a text caret. Leaving the field
+    // re-ticks (see the focusout listener in mountTourEngine), so the tour
+    // advances the moment they are actually done.
+    const typing = document.activeElement;
+    if (step && step.target && isTypingTarget(typing)
+        && typing.closest && typing.closest(step.target)) {
+      renderTourSpotlight(step);
+      return;
+    }
     let moved = false;
     while (step && tutStepSatisfied(step)) { t.idx += 1; moved = true; step = tutCurrentStep(); t.bounced = false; }
     if (moved && step) tutPersistStep(step.id);
@@ -10027,6 +10454,10 @@
     window.addEventListener('scroll', scheduleTutTick, true);
     document.addEventListener('click', tutClickAdvance, true);
     document.addEventListener('keydown', tutKeydown, true);
+    // The other half of the focus guard in tutTick. Without a re-tick on blur,
+    // a step held open by the caret would stay open after the physician
+    // clicked away, because nothing else would necessarily mutate the DOM.
+    document.addEventListener('focusout', scheduleTutTick, true);
   }
 
   function teardownTutorial() {
@@ -10035,6 +10466,7 @@
     window.removeEventListener('scroll', scheduleTutTick, true);
     document.removeEventListener('click', tutClickAdvance, true);
     document.removeEventListener('keydown', tutKeydown, true);
+    document.removeEventListener('focusout', scheduleTutTick, true);
     clearTimeout(_tourTickTimer);
     clearTimeout(_tourPatchTimer);
     TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
@@ -10300,18 +10732,24 @@
   // ─── Start / skip / submit ─────────────────────────────────────────────────
   async function startTutorial(opts) {
     opts = opts || {};
-    // ALWAYS from the top, on a clean draft.
+    // THE DRAFT SURVIVES, and the pointer does not.
     //
-    // Mid-tour resume is gone. It read a saved server position and skipped the
-    // welcome screen whenever it fired, and the local draft it resumed onto
-    // was never cleared on abandon: not on the error path below, not in
-    // logout() (which SAVES the draft), and not on a reload. A single stale
-    // `draft.stage` was then enough to satisfy the first two steps at once and
-    // open the tour on step 3 of 14 with no orientation.
+    // Clearing on every entry was how the previous version fixed a real bug:
+    // a stale `draft.stage` satisfied the first two steps at once and opened
+    // the tour on step 3 of 14 with no orientation. But it also made the leave
+    // dialog's promise false. "Your work here is kept" was written on a button
+    // that threw the work away, and a physician who left half way through came
+    // back to an empty case.
     //
-    // The practice case is four minutes and is now mandatory, so
-    // cross-device resume was never worth the bug budget it was costing.
-    clearDraft(TUTORIAL_TASK_ID);
+    // Both hold if the two things are separated. The DRAFT is kept, because it
+    // is the physician's work. The tour POINTER always restarts at zero and
+    // the welcome screen is always shown, which is what the original fix was
+    // actually protecting: tutTick's fast-forward then walks the pointer to
+    // wherever the restored draft genuinely reaches, in one pass, with the
+    // welcome screen ahead of it.
+    //
+    // A replay is a fresh attempt by definition, so that one still clears.
+    if (opts.replay) clearDraft(TUTORIAL_TASK_ID);
     if (!opts.replay) {
       api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
         .then((u) => { state.user = u; }).catch(() => { /* best-effort */ });
@@ -10346,11 +10784,14 @@
     }
     state.task = data.task;
     initDraftForTask(state.task);
-    // initDraftForTask restores from localStorage, and the whole class of
-    // stale-draft failure above lives in what it can hand back. The tour's
-    // invariant is that a run begins at the first stage, so assert it here
-    // rather than hoping the clear above was enough.
-    if (state.draft.stage !== 'prompt_review') state.draft = newDraft(state.task);
+    // A STRUCTURALLY broken draft is repaired; a valid in-progress one is
+    // resumed onto. This used to reset any draft that was not at the first
+    // stage, which is every draft belonging to somebody who got part way
+    // through, and that is precisely the work "your work here is kept" promised
+    // to keep.
+    if (!state.draft || typeof state.draft.stage !== 'string') {
+      state.draft = newDraft(state.task);
+    }
     state.draft.portal_version = 'v3'; // the tutorial teaches the seamless flow
     saveDraft();
     mountTourEngine();
@@ -10375,7 +10816,12 @@
     const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
       h('div', { class: 'call-team-title' }, 'Leave the practice case?'),
       h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
-        'Real cases open once you have passed it. Your work here is kept, so you can pick up where you left off.'),
+        // "Once you have passed it" is no longer true: the practice case is
+        // practice, and the examination is the thing that is read. Saying it
+        // decides access made an optional exercise sound like a gate, which is
+        // the opposite of what it is for.
+        'Nothing here is scored. Your work is kept, so you can pick up where '
+        + 'you left off whenever you like.'),
       h('div', { style: 'display:flex;gap:10px' },
         h('button', { class: 'asc-btn asc-btn-primary', type: 'button',
           onClick: () => { overlay.remove(); tutTick(); } }, 'Keep going'),
@@ -10399,24 +10845,26 @@
     state.task = null;
     state.portalChosen = false;
     state.specialtyChosen = false;
-    // §6: a skipped practice case is a CLOSED stop, not an abandoned
-    // walkthrough. The server closes it from this same PATCH /me/tutorial
-    // 'skip', so the checklist shows it skipped and never asks again — but the
-    // remaining stops still have things to say, so resume rather than exit.
-    // state.user is refreshed by the PATCH above; re-read it there.
-    if (!wasReplay && window.FirstRunWalkthrough) {
-      api('/auth/me').then((u) => {
-        if (u) state.user = u;
-        // Carry on through the tour only while it is genuinely unfinished — some
-        // stop with no outcome at all. `firstRunPending()` is the wrong question
-        // here now that `deferred` keeps a stop open: it would walk a physician
-        // who replayed the practice case months later back through an onboarding
-        // they already declined, which is the nagging §2 removed.
-        if (firstRunTourPending()) resumeFirstRun(); else renderDashboardView();
-      }).catch(() => renderDashboardView());
-    } else {
-      renderDashboardView();
-    }
+    // "LEAVE FOR NOW" NOW LEAVES.
+    //
+    // It did not. The walkthrough's practice stop stays open when somebody
+    // leaves (the server refuses to record a skip), so firstRunTourPending()
+    // was still true, resumeFirstRun() asked the walkthrough where to go, and
+    // the walkthrough's first open stop was the practice case. Leave landed
+    // straight back in the case it had just left, twice, and the only way out
+    // was to close the tab.
+    //
+    // The loop is gone rather than patched: leaving means the dashboard, every
+    // time. An approved physician mid-walkthrough gets back to the remaining
+    // stops through the first-run chip and banner on that dashboard, which is
+    // the mechanism designed for exactly this and does not trap anybody.
+    //
+    // /auth/me is still refreshed, because the dashboard renders from it and
+    // the attempt that just happened changes what it should say.
+    api('/auth/me')
+      .then((u) => { if (u) state.user = u; })
+      .catch(() => { /* the dashboard renders from what we already hold */ })
+      .then(() => { state.view = 'home'; state.panel = 'tasks'; renderDashboardView(); });
     // First skip: pulse the corner ? tab once so they know where the written
     // instructions live: never auto-open a panel over their screen.
     let seen = null;
@@ -10459,7 +10907,9 @@
   // ─── The scored reveal ─────────────────────────────────────────────────────
   function renderTutorialReveal(result, opts) {
     opts = opts || {};
-    const passed = !!result.passed;
+    // `result.passed` is deliberately NOT read. The grade goes to the admin
+    // dossier; this screen shows a physician what the reference panel saw and
+    // nothing about how they scored against it.
     const mustAck = (result.must_acknowledge || []).slice();
     // A miss the physician never opened is a miss they never read. The primary
     // button waits on them opening each one: one click per miss, not a quiz.
@@ -10489,12 +10939,12 @@
           : null);
       if (!needsAck) {
         return h('div', { class: 'asc-tour-finding' + (f.matched ? ' matched' : '') },
-          h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, f.matched ? '✓' : '–'),
+          h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, f.matched ? '✓' : '-'),
           body);
       }
       const det = h('details', { class: 'asc-tour-finding asc-tour-finding-ack' },
         h('summary', {},
-          h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, '–'),
+          h('span', { class: 'asc-tour-finding-glyph', 'aria-hidden': 'true' }, '-'),
           h('span', { class: 'asc-tour-finding-label' }, f.label)),
         body);
       det.addEventListener('toggle', () => {
@@ -10525,37 +10975,41 @@
             : null)
       : null;
 
+    /* NOTHING ON THIS SCREEN TELLS A PHYSICIAN HOW THEY DID.
+     *
+     * It used to open "CALIBRATION CASE 1 · NOT YET" over a headline reading
+     * "you used Skip this step on the parts we score, and it is not a pass".
+     * Three things were wrong with that. It graded a practice case, which is
+     * practice. It graded it in a product where the decision about a physician
+     * belongs to the person reading their application, and this screen was
+     * making that call first and telling them about it. And it read as a
+     * rejection of them at the exact moment they had just done us a favour.
+     *
+     * The grading still happens: it lands in the admin dossier, as evidence
+     * for the human who decides. It just is not read out to the applicant.
+     *
+     * What survives is the TEACHING: what the reference panel read, and the
+     * findings shown as things to notice rather than as marks. That is the
+     * reason to do a practice case at all, and it contains no verdict.
+     */
     const closing = isAdvisor()
-      ? 'A physician who finished this would be graded exactly the way you '
-        + 'just were, and their next case would be a real one. Nothing from '
-        + 'this run was recorded.'
-      : passed
-        ? (opts.replay ? 'Practice case: nothing was recorded.'
-                       : 'Nothing from this case is recorded or sold. Your real cases start now.')
-        : 'Nothing from this case is recorded. Take it again when you are ready: '
-          + 'there is no limit on attempts.';
+      ? 'Nothing from this run was recorded.'
+      : 'Nothing here is scored for you. The examination is the case we read, '
+        + 'and a person reads it.';
 
     primaryBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
       onClick: () => {
         if (!primaryEnabled()) return;
-        if (!passed && !isAdvisor()) { startTutorial({ replay: true }); return; }
         state.portalChosen = false; state.specialtyChosen = false;
-        // Onboarding v2 §6 stop 3: the practice case is a STOP, so passing it
-        // hands control back to the walkthrough rather than dropping the
-        // physician on a dashboard halfway through being introduced to the
-        // product. Only on a PASS: a failed attempt has not finished the stop,
-        // and resuming would move them past the one thing they still owe.
+        if (isAdvisor()) { renderDashboardView(); return; }
         if (firstRunTourPending()) { resumeFirstRun(); return; }
         renderDashboardView();
       } },
-      isAdvisor() ? 'Back to the dashboard'
-        : !passed ? 'Take it again'
-          : firstRunTourPending() ? 'Keep going →' : 'Start real cases →');
+      isAdvisor() ? 'Back to the dashboard' : 'Take my examination →');
 
     const card = h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-tour-chrome' },
-        'CALIBRATION CASE 1 · ' + (passed ? 'PASSED' : 'NOT YET')),
-      h('h2', { class: 'asc-tour-headline' }, result.headline),
+      h('div', { class: 'asc-tour-chrome' }, 'PRACTICE CASE'),
+      h('h2', { class: 'asc-tour-headline' }, 'Practice case done.'),
       h('div', { class: 'asc-tour-findings' }, rows),
       planted ? h('div', { class: 'asc-tour-planted' },
         h('div', { class: 'asc-tour-planted-title' },

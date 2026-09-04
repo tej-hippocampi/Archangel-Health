@@ -267,9 +267,9 @@ def signature_rows(signature: Dict[str, Any]) -> List[Tuple[str, str]]:
         row("Title", signature.get("typed_title") or ""),
         row("Signed at (UTC)", signature.get("signed_at") or "", mono=True),
         row("Portal account", signature.get("signer_user_id") or "", mono=True),
-        row("Email of record", signature.get("signer_email") or "—"),
-        row("Network address", signature.get("ip") or "—", mono=True),
-        row("Client", (signature.get("user_agent") or "—")[:80]),
+        row("Email of record", signature.get("signer_email") or "-"),
+        row("Network address", signature.get("ip") or "-", mono=True),
+        row("Client", (signature.get("user_agent") or "-")[:80]),
         row("Agreement version", signature.get("doc_version") or ""),
         (pdf_render.KIND_GAP, ""),
         (pdf_render.KIND_BODY, "SHA-256 of the exact agreement text signed:"),
@@ -314,7 +314,7 @@ def render_pdf(*, organization: str, version: str, signature: Dict[str, Any]) ->
     # Sandbox PRD §5: a test signature can never be mistaken for a real one if
     # the file is ever moved — the document header says which realm signed it.
     if _realm.is_sandbox():
-        banner = "SANDBOX — test signature, not a real agreement · " + banner
+        banner = "SANDBOX: test signature, not a real agreement · " + banner
     return pdf_render.render_text_pdf(rows, banner=banner)
 
 

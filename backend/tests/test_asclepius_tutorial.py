@@ -369,8 +369,40 @@ def test_public_user_diff_is_exactly_the_tutorial_key():
     }
     assert baseline <= set(pub.keys())
     assert {"tier", "tier_word", "capabilities"} <= set(pub.keys())
-    assert pub["tutorial"] == {"status": "not_started", "version": None,
-                               "gate_state": "locked", "attempts": 0}
+    assert pub["tutorial"] == {
+        "status": "not_started", "version": None,
+        "gate_state": "locked", "attempts": 0,
+        # The credentialing path, projected as hard as the practice case is.
+        # `resources_seen_at` decides which button the dashboard offers; `exam`
+        # carries state and nothing else. No outcome, no submission id: whether
+        # this physician is good enough is a decision a person makes, and this
+        # payload must not be able to leak it early.
+        "resources_seen_at": None,
+        "exam": {"state": "not_started"},
+    }
+
+
+def test_the_session_can_never_carry_an_examination_outcome():
+    """The rule the founders were explicit about: no applicant is told they are
+    not ready, and the admin console has the only say.
+
+    Asserted against a blob that DOES hold a verdict, so this fails if the
+    projection is ever widened to pass the stored dict through.
+    """
+    import json
+
+    from asclepius.auth import _parse_tutorial
+
+    projected = _parse_tutorial(json.dumps({
+        "status": "completed",
+        "score": {"matched": 1, "total": 4},
+        "exam": {"state": "submitted", "attempt": 1,
+                 "passed": False, "exam_id": "ce-secret", "grade": 0.25},
+    }))
+    assert "score" not in projected
+    assert set(projected["exam"]) == {"state", "attempt", "submitted_at"}
+    assert "passed" not in json.dumps(projected)
+    assert "ce-secret" not in json.dumps(projected)
 
 
 # ─── 8. Pre-approval: the applicant's play-through ───────────────────────────

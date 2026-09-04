@@ -185,6 +185,25 @@ class Element extends Node {
     return { top, left: 0, width: 0, height: measure(this) };
   }
   focus() { globalThis.document.activeElement = this; }
+  /** Nearest self-or-ancestor matching `sel`, or null.
+   *
+   *  Added when tutTick started asking whether the caret is inside the current
+   *  step's own target. Without it `el.closest` was undefined, the guard's
+   *  `typing.closest &&` short-circuited, and a test written to prove the tour
+   *  holds still while somebody types passed for the wrong reason: the guard
+   *  was never evaluated at all.
+   *
+   *  Comma-separated selector lists are supported because TOUR_TARGETS uses
+   *  them (`[data-substage="refine"], [data-substage="from_scratch"]`).
+   */
+  closest(sel) {
+    const parts = String(sel).split(',').map((s) => s.trim()).filter(Boolean);
+    for (let n = this; n; n = n.parentNode) {
+      if (!(n instanceof Element)) continue;
+      for (const part of parts) if (n._matches(part)) return n;
+    }
+    return null;
+  }
   contains(other) {
     for (let n = other; n; n = n.parentNode) if (n === this) return true;
     return false;

@@ -165,7 +165,7 @@
       '<div class="env-green-affordance">' +
       '<div class="env-field"><label>Failure mode ' + info("How did the agent fail here?") + "</label>" +
         '<div class="env-label-row" data-fmoderow="' + num + '">' + chips + "</div></div>" +
-      '<div class="env-field"><label>Counterfactual — what should the agent have done instead? ' +
+      '<div class="env-field"><label>Counterfactual, what should the agent have done instead? ' +
         info("The single most valuable token in the record (PRD §7.1.2)") + "</label>" +
         '<textarea rows="2" oninput="ENV.counterfactual(' + num + ', this.value)" ' +
         'placeholder="The correct next action / reasoning at this step…">' + esc(ANN.counterfactual_by_step[num] || "") + "</textarea></div>" +
@@ -186,9 +186,9 @@
           '<input type="text" id="missed" placeholder="comma-separated, e.g. get_notes, order urine studies" oninput="ENV.missed(this.value)"></div>' +
 
         '<div class="env-field"><label>Reward validation ' + info("Confirm or correct the environment auto-reward (PRD §7.1.6)") + "</label>" +
-          '<div id="rewardGuard" class="env-anchor-guard">Enter your step labels first — the auto-reward is hidden to prevent anchoring.</div>' +
+          '<div id="rewardGuard" class="env-anchor-guard">Enter your step labels first, the auto-reward is hidden to prevent anchoring.</div>' +
           '<div id="rewardBox" style="display:none">' +
-            'Environment auto-reward: <span class="env-reward-num" id="autoReward">—</span> ' +
+            'Environment auto-reward: <span class="env-reward-num" id="autoReward">-</span> ' +
             '<div class="env-field"><label>Your ratified reward (0–1)</label>' +
             '<input type="text" id="ratified" placeholder="e.g. 0.8" oninput="ENV.ratify(this.value)"></div>' +
           "</div>" +
@@ -218,7 +218,7 @@
       : '<div class="env-anchor-guard">Sibling trajectory not available.</div>';
     return (
       '<div class="env-field"><label>Trajectory preference (blinded) ' +
-        info("Two agents ran the same environment — Agent A is the trajectory above; compare Agent B, then pick the better one (DPO signal, §7.1.7)") + "</label>" +
+        info("Two agents ran the same environment, Agent A is the trajectory above; compare Agent B, then pick the better one (DPO signal, §7.1.7)") + "</label>" +
         sibBlock +
         '<div class="env-pref">' +
           '<button class="env-btn green" id="pref-A" onclick="ENV.pref(\'A\')">Agent A better</button>' +
@@ -359,7 +359,7 @@
       await api("/" + encodeURIComponent(TASK.task_id) + "/annotate", {
         method: "POST", body: JSON.stringify(payload),
       });
-      if (msg) { msg.textContent = "Saved ✓ — loading next…"; }
+      if (msg) { msg.textContent = "Saved ✓: loading next…"; }
       setTimeout(() => location.reload(), 700);
     } catch (e) {
       if (msg) msg.textContent = "Error: " + e.message;
