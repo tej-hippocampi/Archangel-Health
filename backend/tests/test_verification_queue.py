@@ -592,14 +592,32 @@ def test_client_supplied_cv_sha_is_ignored(client: TestClient):
 
 
 def test_cv_upload_rejects_bad_type_and_bad_token(client: TestClient):
+    """.docx is accepted now, so the refusal this pins moved.
+
+    It used to be "we do not take Word files", which is no longer true and was
+    never a good answer: .docx is the single most common thing a physician
+    attaches. What is still refused is a file whose BYTES are not something we
+    can read, whatever it claims to be, and a zip that is not a Word document
+    is the sharpest version of that: .docx, .xlsx, .jar, .epub and a plain .zip
+    all begin PK\x03\x04, so accepting on the magic bytes would accept all of
+    them into a blob that is later served inline from our own origin.
+    """
+    import io
+    import zipfile
+
     token, _, _ = _seed_verified(client)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("payload.txt", "not a cv")
     r = client.post(
         "/api/onboarding/asclepius/cv",
         data={"token": token},
-        files={"file": ("cv.docx", b"zzz",
+        files={"file": ("cv.docx", buf.getvalue(),
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
     )
-    assert r.status_code == 400
+    assert r.status_code == 400, r.text
+    # And the refusal says what to attach instead, which the old one did not.
+    assert "PDF" in r.text and "Word" in r.text
     r = client.post(
         "/api/onboarding/asclepius/cv",
         data={"token": "bogus-token"},

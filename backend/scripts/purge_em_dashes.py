@@ -90,10 +90,19 @@ def _strip_ranges(text: str) -> str:
 def _has_dash(text: str) -> bool:
     """True when a READER would see a dash used as PUNCTUATION.
 
-    However it is spelled in source, and ignoring numeric ranges.
+    However it is spelled in source, ignoring numeric ranges, and ignoring
+    CHARACTER SETS. A literal with no letters in it is not a sentence: it is an
+    argument to ``str.strip`` or a regex class, like ``" ,;:-"``, and a dash in
+    one of those is a character to remove rather than a word joined to another
+    word. A bare "-" placeholder is still caught, because it is short.
     """
     decoded = _strip_ranges(_decode_escapes(text))
-    return DASH in decoded or EN_DASH in decoded
+    if DASH not in decoded and EN_DASH not in decoded:
+        return False
+    stripped = decoded.strip("\"'`rbf ")
+    if len(stripped) > 2 and not any(ch.isalpha() for ch in stripped):
+        return False
+    return True
 
 
 ROOT = Path(__file__).resolve().parents[2]

@@ -542,12 +542,28 @@ def test_store_cv_rejects_bad_mime_and_empty_and_oversize():
         store_cv(b"x" * (CV_MAX_BYTES + 1), "application/pdf")
 
 
+def test_an_image_is_accepted_now_and_a_photo_of_a_cv_is_a_cv():
+    """PNG used to be in the rejection list above, alongside svg and MZ.
+
+    It was there as "not a document" rather than as active content, and it cost
+    us every physician whose only copy of their CV is a photograph of a printed
+    one. It goes through the same OCR path a scanned PDF already took.
+    """
+    from asclepius.credentialing import sniff_cv_mime, store_cv
+
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+    assert sniff_cv_mime(png) == "image/png"
+    assert store_cv(png, "image/png")["mime"] == "image/png"
+
+
 @pytest.mark.parametrize("payload,declared", [
     (b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>", "text/plain"),
     (b"<!DOCTYPE html><html><script>alert(1)</script></html>", "text/plain"),
     (b"<?xml version='1.0'?><x/>", "text/plain"),
+    # A zip that is NOT a Word document. .docx is accepted now, and it is
+    # accepted by opening the archive and finding word/document.xml, never by
+    # the PK magic bytes: .xlsx, .jar, .epub and a plain .zip share them.
     (b"PK\x03\x04zzzz", "application/pdf"),
-    (b"\x89PNG\r\n\x1a\n", "application/pdf"),
     (b"MZ\x90\x00binary", "text/plain"),
     (b"text with a \x00 nul byte", "text/plain"),
 ])

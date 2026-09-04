@@ -416,8 +416,20 @@ export type CvParsed = {
   institutions?: string[] | null;
   training?: { kind: string; institution: string; start_year: string | null;
                end_year: string | null }[] | null;
+  /* The flat labels the admin dossier and the tier scorer read. */
   board_certifications?: string[] | null;
+  /* The same certifications, structured. The flat list could only ever fill a
+     board NAME, so the specialty and subspecialty columns beside it stayed
+     empty and the physician typed back in what their own CV had said. */
+  board_certifications_structured?:
+    { board: string; specialty: string; subspecialty: string;
+      active: boolean | null }[] | null;
+  licenses?: { state: string; number: string; current: string }[] | null;
+  employer?: string | null;
+  /* The registry key, lowercase: an identifier. */
   specialty?: string | null;
+  /* The same specialty spelled the way a person writes it. Prefill from THIS. */
+  specialty_display?: string | null;
   npi?: string | null;
   linkedin_url?: string | null;
   years_in_practice?: number | null;
@@ -1733,7 +1745,20 @@ function onboardingTokenFromLocation(): string {
 }
 
 const CV_MAX_BYTES = 10 * 1024 * 1024;
-const CV_ACCEPT = ".pdf,.txt,application/pdf,text/plain";
+/* Mirrors credentialing.CV_ACCEPTED_MIMES. This was ".pdf,.txt" only, and a
+   physician who attached the .docx their CV has lived in for fifteen years was
+   told "unsupported CV type" with no list of what IS supported. A photo counts
+   too: for a lot of people a picture of a printed CV is the only copy there is.
+
+   The extensions and the mime types are both listed because browsers disagree
+   about which they match against, and a file picker that greys out a real CV is
+   indistinguishable from a broken one. */
+const CV_ACCEPT = [
+  ".pdf", ".txt", ".md", ".docx", ".rtf", ".png", ".jpg", ".jpeg",
+  "application/pdf", "text/plain", "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/rtf", "image/png", "image/jpeg",
+].join(",");
 
 /** Optional CV upload.
  *
@@ -1834,7 +1859,7 @@ function CvUploadField({
             ? `${filename} attached`
             : documentRequired
               ? "PDF or image, up to 10 MB. This is how we verify you."
-              : "PDF or text, up to 10 MB. Optional."}
+              : "PDF, Word, RTF, text, or a photo. Up to 10 MB, and optional."}
         </span>
         <input
           ref={inputRef}
@@ -2065,7 +2090,7 @@ export function StepCv({
                 ? "We couldn’t read that one. Try another file?"
                 : "Drop your CV here, or choose a file"}
             </div>
-            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>PDF or text, up to 10 MB.</div>
+            <div style={{ fontSize: 13, color: "var(--ink-soft)" }}>PDF, Word, RTF, text, or a photo. Up to 10 MB.</div>
           </button>
           <input
             ref={inputRef}

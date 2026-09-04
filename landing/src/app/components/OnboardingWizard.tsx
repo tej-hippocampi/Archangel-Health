@@ -350,8 +350,12 @@ function applyCvParse(
   };
 
   fill("fullLegalName", parsed.full_name);
-  fill("primarySpecialty", parsed.specialty);
+  // The DISPLAY spelling, not the registry key. The key is lowercase because
+  // it is an identifier, and prefilling "nephrology" into a form asking a
+  // physician to vouch for their credentials reads as carelessness.
+  fill("primarySpecialty", parsed.specialty_display || parsed.specialty);
   fill("linkedinUrl", parsed.linkedin_url);
+  fill("healthSystem", parsed.employer);
   // The NPI is only carried across when the parse found a LABELLED,
   // checksum-valid one (the server does that check). Prefilling a ten-digit run
   // that happened to sit near the word NPI would put a wrong number behind a
@@ -370,19 +374,84 @@ function applyCvParse(
   }
   if (parsed.years_in_practice != null) fill("yearsInActivePractice", String(parsed.years_in_practice));
 
-  // Board certifications: only when the physician has not started their own, and
-  // only as a NAMED board with the rest left blank — the parse knows the board's
-  // name, not the subspecialty or whether it is still active, and inventing
-  // "active: true" would be putting words in their mouth on a compliance field.
-  const certs = (parsed.board_certifications || []).filter(Boolean);
+  /* Board certifications, now board AND field.
+   *
+   *  This used to fill a NAME into the board column and leave the rest blank,
+   *  because the parse produced a flat list of strings. On the CV from the
+   *  walkthrough it filled three: "Nephrologist", "nephrologist with" and
+   *  "ABIM", none of which is a certification, while the two real ones went
+   *  missing. The parser now emits {board, specialty} and refuses to emit
+   *  anything it cannot recognise as both.
+   *
+   *  `active` is still never asserted. "Currently valid" is a compliance
+   *  answer about today, and a document written last year cannot give it;
+   *  putting `true` there would be words in a physician's mouth on a field
+   *  they sign for. It stays false so the box is unticked and theirs to tick.
+   */
+  const structured = (parsed.board_certifications_structured || []).filter(
+    (c) => c && (c.board || c.specialty));
   const currentCerts = current.boardCertifications || [];
   const certsUntouched = currentCerts.every(
     (bc) => !bc.board.trim() && !bc.specialty.trim() && !bc.subspecialty.trim());
-  if (certs.length && certsUntouched) {
-    patch.boardCertifications = certs.slice(0, 4).map((name) => ({
-      board: name, specialty: "", subspecialty: "", active: true,
+  if (certsUntouched) {
+    if (structured.length) {
+      patch.boardCertifications = structured.slice(0, 4).map((c) => ({
+        board: c.board || "",
+        specialty: c.specialty || "",
+        subspecialty: c.subspecialty || "",
+        active: false,
+      }));
+      filled.push("boardCertifications");
+    } else {
+      // A parse from before this shape existed, or one that found labels it
+      // could not take apart. Same treatment as before: the name only.
+      const flat = (parsed.board_certifications || []).filter(Boolean);
+      if (flat.length) {
+        patch.boardCertifications = flat.slice(0, 4).map((name) => ({
+          board: name, specialty: "", subspecialty: "", active: false,
+        }));
+        filled.push("boardCertifications");
+      }
+    }
+  }
+
+  /* Fellowship and residency. The parse has carried these since v2 and nothing
+   *  ever read them, so a physician whose CV plainly listed both retyped both.
+   */
+  const training = (parsed.training || []).filter(Boolean);
+  const fellowships = training.filter((t) => t.kind === "fellowship");
+  const residencies = training.filter(
+    (t) => t.kind === "residency" || t.kind === "internship");
+  const fellowshipUntouched = (current.fellowship || []).every(
+    (f) => !f.institution.trim() && !f.specialty.trim() && !f.year.trim());
+  if (fellowships.length && fellowshipUntouched) {
+    patch.fellowship = fellowships.slice(0, 3).map((t) => ({
+      institution: t.institution || "",
+      // The parse knows WHERE and WHEN. It does not reliably know the
+      // fellowship's subject, so that box is left for the physician.
+      specialty: "",
+      year: t.end_year || "",
     }));
-    filled.push("boardCertifications");
+    filled.push("fellowship");
+  }
+  const residencyUntouched = (current.residency || []).every(
+    (r) => !r.institution.trim() && !r.year.trim());
+  if (residencies.length && residencyUntouched) {
+    patch.residency = residencies.slice(0, 3).map((t) => ({
+      institution: t.institution || "",
+      year: t.end_year || "",
+    }));
+    filled.push("residency");
+  }
+
+  /* The licence. Anchored on a labelled line server-side, so what arrives here
+   *  is a state and a number that were written down together.
+   */
+  const licences = (parsed.licenses || []).filter((l) => l && l.state && l.number);
+  const current_licence = licences.find((l) => l.current) || licences[0];
+  if (current_licence) {
+    fill("licenseNumber", current_licence.number);
+    fill("licenseState", current_licence.state);
   }
   return { patch, filled };
 }
