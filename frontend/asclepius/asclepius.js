@@ -6,6 +6,15 @@
   'use strict';
 
   const API_BASE = '/api/asclepius';
+  // Sandbox PRD §1.3: which realm this page IS. The shell served at
+  // /sandbox/asclepius (and /sandbox/admin) injects window.__REALM='sandbox';
+  // the live shell injects nothing. Every request sends the realm header, the
+  // stored token is keyed per realm (so a live and a sandbox session coexist
+  // in one browser), and cross-page links stay inside the realm.
+  const REALM = (window.__REALM === 'sandbox') ? 'sandbox' : 'live';
+  const REALM_HEADER = 'X-Asclepius-Realm';
+  function realmHeaders(h) { h = h || {}; h[REALM_HEADER] = REALM; return h; }
+  function realmPath(p) { return REALM === 'sandbox' ? '/sandbox' + p : p; }
   // Companion header on the credential-verification 403 (asclepius/auth.py
   // AUTH_GATE_HEADER): 'pending' or 'rejected'.
   const AUTH_GATE_HEADER = 'X-Asclepius-Auth-Gate';
@@ -20,7 +29,7 @@
   // reason as the two above, and it is what routes a refused draw to the
   // signature screen instead of to an error card.
   const AGREEMENT_GATE_HEADER = 'X-Asclepius-Agreement-Gate';
-  const TOKEN_KEY = 'asclepius_token';
+  const TOKEN_KEY = REALM === 'sandbox' ? 'asclepius_token_sandbox' : 'asclepius_token';
   // In-progress evaluation drafts, one key per task. Deliberately per-browser
   // and client-only: the drafts are not mirrored to the server.
   //
@@ -166,7 +175,7 @@
   // ─── Fetch helper (injects Bearer, parses JSON, handles 401) ────────────────
   async function api(path, opts) {
     opts = opts || {};
-    const headers = opts.headers || {};
+    const headers = realmHeaders(opts.headers || {});
     if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
     let body = opts.body;
     if (body !== undefined && !opts.isForm) {
@@ -301,9 +310,12 @@
       // is what lets an operator open it in a second tab beside the physician
       // surface they were checking, which is most of what they were doing with
       // it anyway.
-      nav.appendChild(h('a', {
+      const adminLink = h('a', {
         class: 'asc-nav-btn asc-nav-link', href: '/asclepius/admin',
-      }, 'Admin console'));
+      }, 'Admin console');
+      // Sandbox PRD §1.3: the console link stays inside the realm.
+      if (REALM === 'sandbox') adminLink.setAttribute('href', '/sandbox/admin');
+      nav.appendChild(adminLink);
     }
     // Community entry lives in the persistent SIDE PANEL (per the Community
     // PRD §1 and the Side Panel PRD), not the header: see renderSidePanel().
@@ -1170,7 +1182,7 @@
     // click inside the refresh window opens bare (same-origin session covers
     // it) instead of sending an already-spent code, and pre-mint the next one.
     state.community.handoffToken = null;
-    const url = t ? ('/community?t=' + encodeURIComponent(t)) : '/community';
+    const url = realmPath(t ? ('/community?t=' + encodeURIComponent(t)) : '/community');
     window.open(url, '_blank', 'noopener');
     refreshCommunityHandoff();
   }
@@ -1185,7 +1197,7 @@
     try {
       const res = await fetch('/community/handoff', {
         method: 'POST',
-        headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
+        headers: realmHeaders(state.token ? { 'Authorization': 'Bearer ' + state.token } : {}),
         credentials: 'include',
       });
       if (gen !== communityGen) return; // session changed mid-flight: drop result
@@ -1202,7 +1214,7 @@
     const gen = communityGen;
     try {
       const res = await fetch('/community/unread', {
-        headers: state.token ? { 'Authorization': 'Bearer ' + state.token } : {},
+        headers: realmHeaders(state.token ? { 'Authorization': 'Bearer ' + state.token } : {}),
         credentials: 'include',
       });
       if (gen !== communityGen) return; // session changed mid-flight: drop result
@@ -1597,7 +1609,7 @@
     try {
       const res = await fetch(API_BASE + '/auth/portal-handoff/consume', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: realmHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ handoff_code: code }),
       });
       if (!res.ok) return;
@@ -1641,6 +1653,13 @@
   }
 
   async function boot() {
+    if (REALM === 'sandbox') {
+      // Keep the logo inside the realm. The realm banner itself (§3.1) is
+      // painted by the /sandbox/* shell before any module runs, so it is on
+      // screen even if this script fails to load.
+      const logo = document.querySelector('.asc-logo');
+      if (logo) logo.setAttribute('href', realmPath('/asclepius'));
+    }
     await consumeHandoffFromUrl();
     await consumeSigninLinkFromUrl();
     // 1) Resume an existing Asclepius session if the stored token is still valid.
@@ -1708,7 +1727,7 @@
     try {
       res = await fetch(API_BASE + '/auth/sso', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: realmHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ token: doctorToken }),
       });
     } catch (e) {
@@ -2184,7 +2203,7 @@
         try {
           const res = await fetch(API_BASE + '/auth/password/forgot', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: realmHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ email: addr }),
           });
           const data = await res.json().catch(() => null);
@@ -3792,7 +3811,7 @@
   // holds: the bytes carry no provider/model/partner identity (V4 Image PRD §6).
   async function fetchAssetBlobUrl(assetId) {
     const res = await fetch(API_BASE + '/assets/' + encodeURIComponent(assetId), {
-      headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
+      headers: realmHeaders(state.token ? { Authorization: 'Bearer ' + state.token } : {}),
     });
     if (!res.ok) throw new Error('asset ' + res.status);
     const blob = await res.blob();
@@ -9328,6 +9347,10 @@
   function loadAvatarBlob(url) {
     if (avatarBlobCache[url]) return Promise.resolve(avatarBlobCache[url]);
     if (avatarBlobPending[url]) return avatarBlobPending[url];
+    // No realmHeaders() here on purpose: this function is extracted and run
+    // standalone by tests/test_portal_ux.py's node harness, where the helper
+    // does not exist. In the sandbox the /sandbox/* shell's fetch wrapper
+    // stamps the realm header on this request like on every other.
     const inflight = fetch(url, {
       headers: state.token ? { Authorization: 'Bearer ' + state.token } : {},
     }).then((res) => (res.ok ? res.blob() : null))

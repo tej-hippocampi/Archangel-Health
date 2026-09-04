@@ -14,7 +14,9 @@
   "use strict";
 
   const API_BASE = "/api/asclepius";
-  const TOKEN_KEY = "asclepius_buyer_token";
+  // Sandbox PRD §1.3 — the realm this page IS (see asclepius.js).
+  const REALM = (window.__REALM === "sandbox") ? "sandbox" : "live";
+  const TOKEN_KEY = REALM === "sandbox" ? "asclepius_buyer_token_sandbox" : "asclepius_buyer_token";
   const MIN_PW_LEN = 12;
 
   const root = document.getElementById("bwRoot");
@@ -31,12 +33,18 @@
 
   class AuthError extends Error {}
 
-  function authHeaders(extra) {
+  function _authHeadersBase(extra) {
     const h = Object.assign({ Accept: "application/json" }, extra || {});
     const tok = getToken();
     if (tok) h.Authorization = "Bearer " + tok;
     return h;
+  }  // Sandbox PRD §1.3: every request names the realm this page is in.
+  function authHeaders(extra) {
+    const h = _authHeadersBase(extra);
+    h["X-Asclepius-Realm"] = REALM;
+    return h;
   }
+
 
   async function parseJson(res) { return res.json().catch(() => ({})); }
 

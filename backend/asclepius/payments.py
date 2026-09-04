@@ -92,6 +92,7 @@ import json
 import logging
 import math
 import os
+import realm as _realm
 import statistics
 import time
 import uuid
@@ -103,6 +104,18 @@ from asclepius import compensation
 from asclepius import referrals as _referrals
 
 log = logging.getLogger("asclepius.payments")
+
+
+class SandboxNoDisbursement(Exception):
+    """Sandbox PRD §1.4: money never leaves the sandbox. ``mark_paid`` is the
+    one place the ledger records a real disbursement, and in the sandbox realm
+    it refuses — the routers map this to 403 ``sandbox_no_disbursement``. The
+    ledger still moves accrued→approved normally, so payout LOGIC is testable
+    end to end; only the final "money moved" record is denied."""
+
+    code = "sandbox_no_disbursement"
+    detail = "This is the sandbox realm: nothing is disbursed here. The ledger " \
+             "moved as it would in production; only the payment record is refused."
 
 
 class PaymentsDenied(Exception):
@@ -1998,6 +2011,8 @@ def mark_paid(
     a no-op, so a disbursement job that times out and retries is safe by
     construction rather than by the operator remembering.
     """
+    if _realm.is_sandbox():
+        raise SandboxNoDisbursement()
     batch = (payout_batch_id or "").strip()
     if not batch:
         raise PaymentsDenied("batch_required", "A payout batch id is required.")

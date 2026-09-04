@@ -50,6 +50,10 @@
   <!-- The community activity summary (PRD-F U11). Computed server-side; there
        is no assistant and no LLM call on this page. -->
   <script src="/static/asclepius/admin_community.js" defer></script>
+  <!-- Sandbox (Sandbox PRD §3) — defines window.AdminSandboxSection: the
+       Accounts and Outbox tabs. Mounted only when this page is the sandbox
+       realm (window.__REALM === 'sandbox', injected by /sandbox/admin). -->
+  <script src="/static/asclepius/admin_sandbox.js" defer></script>
   <script src="/static/asclepius/admin_shell.js" defer></script>
 </body>
 </html>

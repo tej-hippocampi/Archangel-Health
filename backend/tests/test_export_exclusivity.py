@@ -496,20 +496,38 @@ def test_every_class_the_exclusivity_panel_uses_exists_in_the_stylesheet():
     assert not missing, f"classes with no rule in asclepius.css: {missing}"
 
 
-def test_the_export_screen_asks_for_the_licence_and_shows_the_commitments():
-    """The register is only worth building if it sits where the decision is made.
-    Sending the terms with the cut, and painting what is already committed on the
-    same screen, is the whole of requirement 3."""
+def test_the_export_screen_no_longer_asks_for_licence_terms():
+    """Case Generation Fix PRD §B5: the export screen is the five scopes, the
+    preview and one button. The licence inputs (Licensed to / Exclusive /
+    Exclusive until), the explanatory paragraph, the "Export + send to" select
+    and the commitments register left the SCREEN. Nothing left the SERVER: the
+    bundle request still accepts ``licensed_to`` / ``exclusive`` (optional,
+    unused by this screen), the register endpoint still answers, and the tests
+    above still exercise both. This pins the screen half of that contract."""
     js = _admin_export_js()
-    assert "licensed_to" in js and "exclusive" in js
-    assert "/admin/export/exclusivity" in js
-    assert "window.confirm(" in js, "releasing a commitment must not be a stray click"
+    for gone in ("Licensed to", "Exclusive until", "Sold exclusively to this buyer",
+                 "Export + send to", "/admin/export/exclusivity",
+                 "licensed_to:", "license_expires_at:", "drawLicence", "refreshCommitments"):
+        assert gone not in js, f"{gone!r} is still on the export screen"
+    # The one button, and the scope selector it acts on, are still there.
+    assert "'Export bundle'" in js
+    assert "scope: p.scope" in js
+    assert "/admin/export/case-bundle" in js
 
 
-def test_a_successful_cut_disarms_the_exclusive_checkbox_for_the_next_one():
-    """The licence state is module-level so it survives tab switches, which means
-    an exclusive left set after one cut would silently record a brand-new
-    exclusive commitment on the next unrelated cut. The screen must clear it."""
-    js = _admin_export_js()
-    assert "licence.exclusive = false" in js, \
-        "exclusive must not persist into the next cut after a successful export"
+def test_the_bundle_endpoint_still_accepts_the_licence_fields_the_screen_stopped_sending():
+    """The screen changed; the API did not. A caller that sends no licence terms
+    (the screen, now) gets a plain cut with no licence block, and the register
+    endpoint the screen stopped reading still answers."""
+    store = _store()
+    _seed_records(store, 1)
+    h = _admin_h()
+    from fastapi.testclient import TestClient
+    client = TestClient(A.app)
+    plain = client.post("/api/asclepius/admin/export/case-bundle",
+                        json={"scope": "all", "include_exported": True}, headers=h)
+    assert plain.status_code == 200, plain.text
+    lic = plain.json().get("licensing") or {}
+    assert lic.get("exclusivity") != "exclusive", lic
+    reg = client.get("/api/asclepius/admin/export/exclusivity", headers=h)
+    assert reg.status_code == 200

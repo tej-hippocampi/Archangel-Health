@@ -26,6 +26,8 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
+import realm as _realm
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -543,12 +545,28 @@ _PRD_2_SEQUENCE_GATE = f"""(
 # ═══ END PRD-2 ═══════════════════════════════════════════════════════════════
 
 
+def _hs_origin_for_new_row() -> Optional[str]:
+    """Sandbox PRD §3.4: a health system created in the sandbox realm (fake
+    org onboarding, an operator's manual add) is stamped ``sandbox``; a live
+    row carries NULL; a snapshot copy of a live system is stamped
+    ``production`` by ``sandbox_copy`` (§4)."""
+    return "sandbox" if _realm.is_sandbox() else None
+
+
 class AsclepiusStore:
-    def __init__(self, db_path: Optional[str] = None):
-        base_dir = os.path.dirname(__file__)
-        # default lives next to the package, i.e. backend/asclepius.db
-        default_path = os.path.join(os.path.dirname(base_dir), "asclepius.db")
-        self.db_path = db_path or os.getenv("ASCLEPIUS_DB_PATH") or default_path
+    def __init__(self, db_path: Optional[str] = None, *, read_only: bool = False):
+        # The default is the LIVE realm's file; ``get_store()`` passes the
+        # current realm's path explicitly (Sandbox PRD §1.2). Resolution rules
+        # live in ``realm.live_asclepius_db`` so the two can never disagree.
+        self.db_path = db_path or _realm.live_asclepius_db()
+        # Read-only stores exist for ONE caller: ``realm.read_live()``, the
+        # sandbox snapshot copy (§4). No mkdir, no WAL pragma, no schema init:
+        # a read-only handle must not be able to touch the live file at all,
+        # and ``?mode=ro`` (see ``_conn``) makes sqlite refuse a write even if
+        # some code path tried.
+        self.read_only = bool(read_only)
+        if self.read_only:
+            return
         # Create the parent dir so ASCLEPIUS_DB_PATH can point straight into a
         # mounted persistent volume (e.g. /data/asclepius.db) on first boot.
         parent = os.path.dirname(os.path.abspath(self.db_path))
@@ -561,12 +579,23 @@ class AsclepiusStore:
             conn.execute("PRAGMA journal_mode = WAL")
             conn.execute("PRAGMA synchronous = NORMAL")
         self._init_schema()
+        self._ensure_sandbox_tables()
 
     # ─── Connection ──────────────────────────────────────────────────────────
+    def _connect_uri(self) -> str:
+        """The sqlite URI a read-only store opens. Public so the test that pins
+        ``?mode=ro`` on the live snapshot connection reads the same string the
+        connection is made with."""
+        from pathlib import Path as _Path
+        return f"{_Path(os.path.abspath(self.db_path)).as_uri()}?mode=ro"
+
     def _conn(self) -> sqlite3.Connection:
         # busy_timeout: wait (don't error) if another request holds the write
         # lock — FastAPI serves requests from a threadpool against one file.
-        conn = sqlite3.connect(self.db_path, timeout=30)
+        if self.read_only:
+            conn = sqlite3.connect(self._connect_uri(), uri=True, timeout=30)
+        else:
+            conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA busy_timeout = 30000")
@@ -5609,6 +5638,33 @@ class AsclepiusStore:
             row = conn.execute(
                 "SELECT upload_id FROM ingest_uploads WHERE sha256 = ? "
                 "ORDER BY created_at ASC, rowid ASC LIMIT 1", (sha256,)).fetchone()
+        return self.get_ingest_upload(row["upload_id"]) if row else None
+
+    def find_ingest_upload_by_partner_filename(
+        self, partner_id: str, filename: str,
+    ) -> Optional[Dict[str, Any]]:
+        """The oldest upload this partner sent under this filename, or None.
+
+        The SECOND idempotency key for the committed-fixture ingest (Case
+        Generation Fix PRD §A5). The first key is the sha256 of the packed bytes,
+        and the pack includes a synthesized manifest — so changing a bundle's
+        declared specialty changes the bytes, and a re-click would land the same
+        chart twice under two labels. A fixture is one chart with one name; the
+        name catches what the digest cannot. Scoped to the partner so a hospital
+        that happens to call its export ``patient-3.zip`` is never matched, and
+        blind to quarantined/rejected rows so a failed attempt never blocks —
+        or masks — the corrected bundle that follows it.
+        """
+        if not partner_id or not filename:
+            return None
+        # A quarantined or rejected attempt does not count as "already here": a
+        # corrected bundle must be able to re-enter, and once it has, THAT row is
+        # the one the key must find — not the failed attempt that preceded it.
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT upload_id FROM ingest_uploads WHERE partner_id = ? AND filename = ? "
+                "AND status NOT IN ('quarantined', 'rejected') "
+                "ORDER BY created_at ASC, rowid ASC LIMIT 1", (partner_id, filename)).fetchone()
         return self.get_ingest_upload(row["upload_id"]) if row else None
 
     def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0,
@@ -11383,12 +11439,13 @@ class AsclepiusStore:
             hs_id = self.hs_id_for_name(clean)
             now = _utcnow_iso()
             conn.execute(
-                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at) "
-                "VALUES (?, ?, ?, ?, 1, ?)",
-                (hs_id, clean, contact_email, notes, now),
+                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at, origin) "
+                "VALUES (?, ?, ?, ?, 1, ?, ?)",
+                (hs_id, clean, contact_email, notes, now, _hs_origin_for_new_row()),
             )
             return {"hs_id": hs_id, "name": clean, "contact_email": contact_email,
-                    "notes": notes, "active": 1, "created_at": now}
+                    "notes": notes, "active": 1, "created_at": now,
+                    "origin": _hs_origin_for_new_row()}
 
     def get_health_system(self, hs_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
@@ -11909,12 +11966,13 @@ class AsclepiusStore:
                                (hs_id,)).fetchone() is not None:
                 hs_id = f"{base}-{secrets.token_hex(2)}"
             conn.execute(
-                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at) "
-                "VALUES (?, ?, ?, NULL, 1, ?)",
-                (hs_id, clean, contact_email, now),
+                "INSERT INTO health_systems (hs_id, name, contact_email, notes, active, created_at, origin) "
+                "VALUES (?, ?, ?, NULL, 1, ?, ?)",
+                (hs_id, clean, contact_email, now, _hs_origin_for_new_row()),
             )
         return {"hs_id": hs_id, "name": clean, "contact_email": contact_email,
-                "notes": None, "active": 1, "created_at": now, "intake_at": None}
+                "notes": None, "active": 1, "created_at": now, "intake_at": None,
+                "origin": _hs_origin_for_new_row()}
 
     def health_systems_named_like(self, name: str, *,
                                   exclude_hs_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -15621,6 +15679,93 @@ class AsclepiusStore:
         return self.get_referral(paid["referral_id"])
     # ═══ END PRD-REF STORE METHODS ═══
 
+    # ═══ Sandbox PRD §1.4 / §3 — the sandbox email outbox ═══════════════════════
+    #
+    # In the sandbox realm ``email_utils.send_html_email`` never reaches a
+    # transport: it writes the message here, with the OTP code / magic link /
+    # DLA link extracted so the sandbox admin's Outbox tab can show them
+    # clickable in place. This table exists in BOTH realms' schemas (every
+    # store carries the live schema) but is only ever written in the sandbox.
+    def _ensure_sandbox_tables(self) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS sandbox_outbox (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    to_email     TEXT NOT NULL,
+                    subject      TEXT NOT NULL,
+                    html         TEXT NOT NULL,
+                    text_body    TEXT,
+                    codes_json   TEXT,          -- extracted OTP-looking codes
+                    links_json   TEXT,          -- extracted http(s) links
+                    attachments_json TEXT,      -- [{name, mime, bytes}], sizes only
+                    reply_to     TEXT,
+                    created_at   TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sandbox_outbox_created ON sandbox_outbox(created_at)")
+            # §3.4 / §4: where a health system came from. Live rows carry NULL;
+            # a sandbox copy of a production system is stamped 'production'
+            # with the copy time and source id, a system onboarded through the
+            # sandbox wizard is stamped 'sandbox'.
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(health_systems)").fetchall()}
+            if cols and "origin" not in cols:
+                conn.execute("ALTER TABLE health_systems ADD COLUMN origin TEXT")
+            if cols and "copied_at" not in cols:
+                conn.execute("ALTER TABLE health_systems ADD COLUMN copied_at TEXT")
+            if cols and "source_hs_id" not in cols:
+                conn.execute("ALTER TABLE health_systems ADD COLUMN source_hs_id TEXT")
+
+    def outbox_add(self, *, to_email: str, subject: str, html: str, text_body: str = "",
+                   codes: Optional[List[str]] = None, links: Optional[List[str]] = None,
+                   attachments: Optional[List[Dict[str, Any]]] = None,
+                   reply_to: Optional[str] = None) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO sandbox_outbox (to_email, subject, html, text_body, codes_json, "
+                "links_json, attachments_json, reply_to, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                (to_email, subject, html, text_body, json.dumps(codes or []),
+                 json.dumps(links or []), json.dumps(attachments or []), reply_to, _utcnow_iso()),
+            )
+            return int(cur.lastrowid)
+
+    def outbox_list(self, *, limit: int = 200) -> List[Dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, to_email, subject, codes_json, links_json, reply_to, created_at, "
+                "length(html) AS html_bytes FROM sandbox_outbox ORDER BY id DESC LIMIT ?",
+                (int(limit),),
+            ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["codes"] = json.loads(d.pop("codes_json") or "[]")
+            d["links"] = json.loads(d.pop("links_json") or "[]")
+            out.append(d)
+        return out
+
+    def outbox_get(self, outbox_id: int) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            r = conn.execute("SELECT * FROM sandbox_outbox WHERE id = ?", (int(outbox_id),)).fetchone()
+        if not r:
+            return None
+        d = dict(r)
+        d["codes"] = json.loads(d.pop("codes_json") or "[]")
+        d["links"] = json.loads(d.pop("links_json") or "[]")
+        d["attachments"] = json.loads(d.pop("attachments_json") or "[]")
+        return d
+
+    def outbox_count(self) -> int:
+        with self._conn() as conn:
+            return int(conn.execute("SELECT count(*) FROM sandbox_outbox").fetchone()[0])
+
+    def outbox_clear(self) -> int:
+        with self._conn() as conn:
+            n = int(conn.execute("SELECT count(*) FROM sandbox_outbox").fetchone()[0])
+            conn.execute("DELETE FROM sandbox_outbox")
+            return n
+
 
 # ─── PRD-I §F3: database durability ───────────────────────────────────────────
 def _db_storage_durable() -> tuple:
@@ -15673,19 +15818,48 @@ def _db_storage_durable() -> tuple:
     return True, f"database directory {db_dir} is durable and writable"
 
 
-# ─── Process-wide singleton ───────────────────────────────────────────────────
-_STORE: Optional[AsclepiusStore] = None
+# ─── One store per realm (Sandbox PRD §1.2) ───────────────────────────────────
+# Keyed on ``realm.current()``: a request in the sandbox realm gets a store
+# over ``asclepius_sandbox.db`` and can never reach the live file, because
+# there is no code path that hands it the live instance. Migrations run on
+# first open per realm, so the sandbox DB always carries the live schema.
+_STORES: Dict[str, AsclepiusStore] = {}
+_STORES_LOCK = threading.Lock()
 
 
 def get_store() -> AsclepiusStore:
-    global _STORE
-    if _STORE is None:
-        _STORE = AsclepiusStore()
-    return _STORE
+    r = _realm.current()
+    store = _STORES.get(r)
+    if store is None:
+        with _STORES_LOCK:
+            store = _STORES.get(r)
+            if store is None:
+                store = AsclepiusStore(db_path=_realm.paths(r)["asclepius"])
+                _STORES[r] = store
+    return store
 
 
 def reset_store_for_tests(db_path: Optional[str] = None) -> AsclepiusStore:
-    """Rebuild the singleton against a fresh DB path (test helper only)."""
-    global _STORE
-    _STORE = AsclepiusStore(db_path=db_path)
-    return _STORE
+    """Rebuild the CURRENT realm's store against a fresh DB path (test helper
+    only). Tests run in the live realm unless they enter ``realm.scoped``."""
+    r = _realm.current()
+    store = AsclepiusStore(db_path=db_path or _realm.paths(r)["asclepius"])
+    with _STORES_LOCK:
+        _STORES[r] = store
+    return store
+
+
+def bound_db_path(r: str) -> str:
+    """The file the realm ``r``'s store is (or would be) bound to. Differs from
+    ``realm.paths(r)`` only when the suite has rebound a realm to a temp file —
+    which is exactly when ``realm.read_live`` must follow the binding, not the
+    env, or the snapshot copy would read a database no test wrote to."""
+    store = _STORES.get(_realm.validate(r))
+    return store.db_path if store is not None else _realm.paths(r)["asclepius"]
+
+
+def drop_store_for_realm(r: str) -> None:
+    """Forget the cached store for ``r`` so the next ``get_store`` reopens the
+    file. Used by ``Reset sandbox`` after it deletes the sandbox DB."""
+    with _STORES_LOCK:
+        _STORES.pop(_realm.validate(r), None)

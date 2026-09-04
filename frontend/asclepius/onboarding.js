@@ -29,7 +29,9 @@
   'use strict';
 
   var API_BASE = '/api/asclepius';
-  var TOKEN_KEY = 'asclepius_token';
+  // Sandbox PRD §1.3: one token per realm, so a live and a sandbox session
+  // coexist in one browser (the /sandbox/* shell sets window.__REALM).
+  var TOKEN_KEY = (window.__REALM === 'sandbox') ? 'asclepius_token_sandbox' : 'asclepius_token';
 
   // ─── tiny DOM helper (mirror of asclepius.js h(); no innerHTML, ever) ─────
   function h(tag, attrs) {

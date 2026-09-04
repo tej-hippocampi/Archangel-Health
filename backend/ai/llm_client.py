@@ -10,7 +10,7 @@ from anthropic import Anthropic, AsyncAnthropic
 
 from ai.model_config import (
     APP_AI_CONFIG_VERSION, SAMPLING_PARAMS, accepts_sampling_params, api_model_id,
-    emits_thinking, resolve, resolve_provider, UnknownProvider,
+    emits_thinking, fake_llm_enabled, resolve, resolve_provider,
 )
 from team_store import TeamStore
 
@@ -64,10 +64,11 @@ def _sopenai():
 
 
 def _store() -> TeamStore:
-    global _event_store
-    if _event_store is None:
-        _event_store = TeamStore()
-    return _event_store
+    # Sandbox PRD §1.2: AI-call telemetry lands in the CURRENT realm's team DB,
+    # so a sandbox run never writes a row a live report can read. No pinned
+    # instance — ``get_team_store`` keeps one per realm.
+    from team_store import get_team_store  # noqa: PLC0415
+    return get_team_store()
 
 
 # ── Provider-agnostic response normalization ─────────────────────────────────
@@ -427,11 +428,26 @@ async def call_llm(
     **overrides: Any,
 ) -> tuple[Any, dict[str, Any]]:
     kwargs, cfg = _build_kwargs(role, system, messages, overrides)
-    provider = resolve_provider(cfg["model"])  # raises UnknownProvider on garbage ids
+    # Resolve the real vendor FIRST so a garbage model id still raises
+    # UnknownProvider under the fake, then let the switch override the transport.
+    # Written inline (rather than via model_config.active_provider) so that
+    # resolve_provider remains the monkeypatch seam tests already use to pin a
+    # provider — test_asclepius_two_frontier patches exactly this name.
+    provider = "fake" if fake_llm_enabled() else resolve_provider(cfg["model"])
     t0 = time.monotonic()
     timeout = _llm_timeout_sec()
 
     async def _do():
+        if provider == "fake":
+            # Inside _do() so the fake is subject to the same timeout as a real
+            # call — FAKE_LLM_LATENCY_MS can therefore exercise the timeout path.
+            from ai.fake_llm import build_response, latency_ms
+
+            ms = latency_ms()
+            if ms:
+                await asyncio.sleep(ms / 1000.0)
+            return build_response(role=role, purpose=purpose, system=system,
+                                  messages=messages, kwargs=kwargs)
         if provider == "openai":
             return await _openai_create_async(cfg["model"], system, messages,
                                               kwargs.get("max_tokens"), kwargs.get("temperature"))
@@ -522,9 +538,17 @@ def call_llm_sync(
     **overrides: Any,
 ) -> tuple[Any, dict[str, Any]]:
     kwargs, cfg = _build_kwargs(role, system, messages, overrides)
-    provider = resolve_provider(cfg["model"])
+    provider = "fake" if fake_llm_enabled() else resolve_provider(cfg["model"])
     t0 = time.monotonic()
-    if provider == "openai":
+    if provider == "fake":
+        from ai.fake_llm import build_response, latency_ms
+
+        ms = latency_ms()
+        if ms:
+            time.sleep(ms / 1000.0)
+        resp = build_response(role=role, purpose=purpose, system=system,
+                              messages=messages, kwargs=kwargs)
+    elif provider == "openai":
         resp = _openai_create_sync(cfg["model"], system, messages,
                                    kwargs.get("max_tokens"), kwargs.get("temperature"))
     else:

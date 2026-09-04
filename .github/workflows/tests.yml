@@ -101,6 +101,88 @@ jobs:
           echo "shard ${{ matrix.shard }}/$CI_TOTAL_SHARDS — $(echo "$FILES" | wc -l) file(s)"
           pytest -q --durations=10 $FILES
 
+  agents-md:
+    # Engineering Harness PRD H1 — the agent's first read of the repo must be true.
+    # Seconds to run, and it would have caught the AGENTS.md that described
+    # "CareGuide" with "No database" for as long as it sat on main.
+    name: AGENTS.md is current
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Check AGENTS.md
+        working-directory: backend
+        run: python3 scripts/check_agents_md.py
+
+  keyless:
+    # Fake LLM Provider PRD §4 — the proof that the sandbox rule actually holds.
+    #
+    # The claim the fake makes is "every LLM path runs with no API key". A claim
+    # like that decays silently: someone adds a call site with no fixture, or a
+    # test that only passed because a key happened to be exported, and nobody
+    # notices until an agent in a keyless sandbox hits it. So the suite is run
+    # once more with BOTH vendor keys explicitly removed from the environment and
+    # the removal asserted before pytest starts.
+    #
+    # It shards exactly like `backend` (same ci_shard.py assignment), so this is a
+    # second full pass, not a sample — four runners, ~4 minutes each.
+    name: Keyless suite (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      CI_TOTAL_SHARDS: 4
+      # Belt and braces: empty here, unset in the step below, asserted after that.
+      ANTHROPIC_API_KEY: ""
+      OPENAI_API_KEY: ""
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+      - name: Assert no vendor key is present
+        run: |
+          set -euo pipefail
+          unset ANTHROPIC_API_KEY OPENAI_API_KEY || true
+          python3 - <<'PY'
+          import os, sys
+          leaked = [k for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY") if (os.getenv(k) or "").strip()]
+          if leaked:
+              print(f"::error::{leaked} is set — this job must prove the suite runs WITHOUT a key")
+              sys.exit(1)
+          print("no vendor key present; the fake transport must carry every LLM path")
+          PY
+      - name: Run tests with no key
+        # conftest.py sets ASCLEPIUS_LLM_PROVIDER=fake, so every LLM path is served
+        # by ai/fake_llm.py. Any test that reaches for a real vendor fails here.
+        run: |
+          set -euo pipefail
+          unset ANTHROPIC_API_KEY OPENAI_API_KEY || true
+          FILES=$(python3 scripts/ci_shard.py "${{ matrix.shard }}" "$CI_TOTAL_SHARDS")
+          if [ -z "$FILES" ]; then
+            echo "::error::shard ${{ matrix.shard }}/$CI_TOTAL_SHARDS resolved to no \
+          test files — refusing to run, because bare pytest would collect everything"
+            exit 1
+          fi
+          echo "keyless shard ${{ matrix.shard }}/$CI_TOTAL_SHARDS — $(echo "$FILES" | wc -l) file(s)"
+          pytest -q --durations=10 $FILES
+
   visual:
     # Rendered-appearance gate for the Asclepius eval portal. Split out because it
     # is the only job needing a browser, and because a browser flake should read as

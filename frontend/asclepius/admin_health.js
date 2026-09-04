@@ -69,6 +69,20 @@
     declined: { label: 'Declined', cls: 'asc-badge-gray' },
   };
 
+  // Sandbox PRD §3.4: where a health system came from. Only ever non-empty in
+  // the sandbox realm — a live row carries no origin and renders nothing.
+  function originChip(h, fmtDate, r) {
+    if (!r.origin) return '';
+    if (r.origin === 'production') {
+      return h('span', {
+        class: 'asc-badge asc-badge-lime', style: 'margin-left: var(--sp-2)',
+        title: 'Snapshot of live ' + (r.source_hs_id || '') + (r.copied_at ? ' copied ' + fmtDate(r.copied_at) : ''),
+      }, 'production copy' + (r.copied_at ? ' · ' + fmtDate(r.copied_at) : ''));
+    }
+    return h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left: var(--sp-2)' },
+      r.origin === 'sandbox' ? 'sandbox onboarded' : r.origin);
+  }
+
   function stateChip(h, state) {
     const meta = STATE_CHIPS[state] || STATE_CHIPS.active;
     return h('span', { class: 'asc-badge ' + meta.cls }, meta.label);
@@ -120,10 +134,11 @@
     // always first when it does. A hospital sitting in review cannot upload,
     // so a queue nobody sees is a partner nobody answers.
     const pendingSlot = h('div', {});
-    // Two more slots filled after the systems table paints, for the same reason
-    // the pending queue has one: neither should hold the page open, and neither
-    // failing should take the systems list down with it.
-    const leadsSlot = h('div', {});
+    // One more slot filled after the systems table paints, for the same reason
+    // the pending queue has one: it should not hold the page open, and it
+    // failing should not take the systems list down with it. (The partner-leads
+    // card that used to sit beside it is gone — Case Generation Fix PRD §B3; the
+    // lead rows stay on the server as the landing-form audit trail.)
     const requestsSlot = h('div', {});
     let rows;
     try {
@@ -153,12 +168,7 @@
       card.appendChild(h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-empty' },
           'No health systems yet. Send an organization its upload access and it will appear here.')));
-      // The leads card renders here too. A deployment with zero partners is
-      // exactly the one whose inbound leads matter most: they are the
-      // organizations that have not become rows in this table yet.
-      container.appendChild(leadsSlot);
       container.appendChild(card);
-      renderPartnerLeads(leadsSlot, ctx);
       renderStoragePanel(container, ctx);
       renderDemoVideoPanel(container, ctx);
       return;
@@ -183,7 +193,9 @@
         // of each and collapsing them to a single value would have to pick a winner.
         const chips = (r.purposes || []).map((p) => purposeChip(h, p));
         const tr = h('tr', { class: 'asc-row-click' },
-          h('td', {}, h('strong', {}, r.name), r.active ? '' : h('span', { class: 'asc-badge asc-badge-gray', style: 'margin-left: var(--sp-2)' }, 'Inactive')),
+          h('td', {}, h('strong', {}, r.name),
+            r.active ? '' : h('span', { class: 'asc-badge asc-badge-gray', style: 'margin-left: var(--sp-2)' }, 'Inactive'),
+            originChip(h, fmtDate, r)),
           h('td', {}, stateChip(h, r.onboarding_state)),
           h('td', {}, dlaChip(h, fmtDate, r.agreement)),
           h('td', {}, h('code', { class: 'asc-mono asc-dim' }, r.hs_id)),
@@ -201,122 +213,27 @@
       })));
     card.appendChild(h('div', { class: 'asc-table-wrap' }, table));
     container.appendChild(pendingSlot);
-    container.appendChild(leadsSlot);
     container.appendChild(requestsSlot);
     container.appendChild(card);
     renderPendingSignups(pendingSlot, ctx, container);
-    renderPartnerLeads(leadsSlot, ctx);
-    renderDataRequests(requestsSlot, ctx, container);
+    renderDataRequests(requestsSlot, ctx, container, rows);
     renderStoragePanel(container, ctx);
     renderDemoVideoPanel(container, ctx);
   }
 
-  // ─── Partner leads ────────────────────────────────────────
-  // The landing forms have been writing into `lead_submissions` since they
-  // shipped and nothing has ever read them back. Every submission is an
-  // attestation about authority over de-identified data, which makes it a legal
-  // audit trail, and an audit trail nobody can read is a file nobody keeps.
-  //
-  // Above the systems list because a lead is the TOP of the same pipeline that
-  // list shows: these are the organizations that have not become rows yet.
-  //
-  // Read-only, deliberately. Replying happens in an inbox, so the control here
-  // is a mailto link rather than a compose box we would then have to keep in
-  // sync with a thread nobody can see from this page.
-  const LEAD_CHIPS = {
-    health_system_partner: 'asc-badge-green',
-    provide_data: 'asc-badge-lime',
-    request_data: 'asc-badge-amber',
-    research_notify: 'asc-badge-gray',
-  };
-  const LEAD_PAGE = 8;
-  // Mirrors routers/leads.py _UNANSWERED. Compared rather than reproduced: the
-  // server decides what an unanswered question reads as, this side only decides
-  // that it should look different from an answer.
-  const UNANSWERED = 'Not answered';
-
-  async function renderPartnerLeads(slot, ctx) {
-    const { h, api, clear, fmtDate } = ctx;
-    let data;
-    try {
-      // The lead table lives beside the public form that writes it, on
-      // /api/leads rather than under the asclepius prefix, so this read names
-      // its own base.
-      data = await api('/leads/admin?limit=' + LEAD_PAGE, { base: '/api' });
-    } catch (e) {
-      clear(slot);
-      slot.appendChild(h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-inline-error' },
-          e.message || 'Could not load partner leads.'))));
-      return;
-    }
-    clear(slot);
-    const rows = data.leads || [];
-    if (!rows.length) return;
-
-    const card = h('div', { class: 'asc-card asc-hs-bucket' },
-      h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Partner leads',
-          h('span', { class: 'asc-badge asc-badge-count', style: 'margin-left: var(--sp-2)' },
-            String(rows.length))),
-        h('div', { class: 'asc-card-sub' },
-          'Who wrote in through the landing forms, newest first. Every ' +
-          'submission is kept; replying happens in your inbox.'))));
-
-    rows.forEach((r) => {
-      const body = h('div', { class: 'asc-card-pad asc-hs-lead' });
-      body.appendChild(h('div', { class: 'asc-hs-lead-head' },
-        h('span', { class: 'asc-badge ' + (LEAD_CHIPS[r.source] || 'asc-badge-gray') },
-          r.source_label || r.source),
-        h('strong', {}, r.email || '(no address)'),
-        h('span', { class: 'asc-dim', style: 'font-size:12px' },
-          r.created_at ? fmtDate(r.created_at) : '')));
-      // The qualifying answers first, then the prose. These three are what the
-      // Sep 1 meeting agreed the form must ask, they are the part with legal
-      // weight, and an operator deciding whether this call is worth taking
-      // reads them before anything the visitor typed.
-      //
-      // Labels come off the wire. The server owns the wording of the questions
-      // and a second copy here is a second thing to reword.
-      const qual = r.qualifying || [];
-      if (qual.length) {
-        const dl = h('dl', { class: 'asc-hs-lead-qual' });
-        qual.forEach((q) => {
-          dl.appendChild(h('dt', { class: 'asc-hs-lead-qual-q' }, q.label || ''));
-          // "Not answered" is rendered dim rather than omitted: a question the
-          // form asked and nobody answered is a fact about the submission.
-          const missing = (q.answer || '') === UNANSWERED;
-          dl.appendChild(h('dd', {
-            class: 'asc-hs-lead-qual-a' + (missing ? ' asc-hs-lead-qual-none' : ''),
-          }, q.answer || ''));
-        });
-        body.appendChild(dl);
-      }
-      // VERBATIM. It is the attestation, and a truncated attestation is not one.
-      body.appendChild(h('div', { class: 'asc-hs-lead-message' }, r.message || ''));
-      body.appendChild(h('a', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
-                                href: 'mailto:' + (r.email || '') },
-                         'Reply by email'));
-      card.appendChild(body);
-    });
-    slot.appendChild(card);
-  }
-
   // ─── Data requests ────────────────────────────────────────
-  // "We need 100 nephrology cases", to every partner who has signed and may
-  // upload. The compose form and the open list live together because the thing
-  // an operator does after sending one is watch whether anyone answered.
+  // One form, pick recipients (Case Generation Fix PRD §B4). The message IS the
+  // request — the four structured fields it used to ask for (need / specialty /
+  // count / date) are gone, because an operator writes "Nephrology CKD cohorts,
+  // 2019–2023" and that sentence already says all four. Recipients are every
+  // organization with an ACTIVE agreement, multi-select with Select all; "every
+  // active partner" is the select-all case rather than a separate button.
   //
-  // The delivery tally is shown next to every request for a reason: a request
-  // that produced no replies has two very different explanations, and "nobody
-  // had the cases" and "nobody was told" look identical from here without it.
-  function requestField(h, id, label, attrs) {
-    const input = h('input', Object.assign({ class: 'asc-input', id: id,
-                                             placeholder: label }, attrs || {}));
-    return input;
-  }
-
-  async function renderDataRequests(slot, ctx, listContainer) {
+  // The delivery tally still shows on every sent request, for the reason it
+  // always did: a request that produced no replies has two very different
+  // explanations, and "nobody had the cases" and "nobody was told" look
+  // identical from here without it.
+  async function renderDataRequests(slot, ctx, listContainer, healthSystems) {
     const { h, api, clear, toast, fmtDate } = ctx;
     let data;
     try {
@@ -330,32 +247,110 @@
     }
     clear(slot);
     const rows = data.requests || [];
-    const open = rows.filter((r) => r.status === 'open');
+    // Only organizations the server would accept as recipients: active row,
+    // ACTIVE state. Mirrors hs_request_notify.eligible_health_systems.
+    const partners = (healthSystems || []).filter((r) =>
+      r.active !== false && (r.onboarding_state == null || r.onboarding_state === 'active'));
 
     const card = h('div', { class: 'asc-card asc-hs-bucket' },
       h('div', { class: 'asc-card-head' }, h('div', {},
         h('div', { class: 'asc-card-title' }, 'Data requests'),
         h('div', { class: 'asc-card-sub' },
-          'What we have asked partners for. Everyone who has signed and can ' +
-          'upload is emailed; several may answer and you approve what fits.'))));
+          'Tell partners what we need. Every member of each organization you ' +
+          'pick is emailed; several may answer and you approve what fits.'))));
 
-    if (!open.length) {
-      card.appendChild(h('div', { class: 'asc-card-pad' },
-        h('div', { class: 'asc-empty' }, 'Nothing open right now.')));
+    // ── The form ──────────────────────────────────────────────────────────
+    const messageEl = h('textarea', { class: 'asc-input', rows: '3',
+                                      id: 'ascReqMessage',
+                                      placeholder: 'Message to partners' });
+    const boxes = [];
+    const allBox = h('input', { type: 'checkbox', id: 'ascReqAll' });
+    allBox.addEventListener('change', () => {
+      boxes.forEach((b) => { b.checked = allBox.checked; });
+    });
+    const syncAll = () => {
+      allBox.checked = boxes.length > 0 && boxes.every((b) => b.checked);
+    };
+    const recipientRow = h('div', { style: 'display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:10px 0' },
+      h('span', { class: 'asc-dim' }, 'Send to:'));
+    if (partners.length) {
+      recipientRow.appendChild(h('label', { class: 'asc-checkbox-row' }, allBox,
+        h('span', {}, 'Select all')));
+      partners.forEach((r) => {
+        const box = h('input', { type: 'checkbox', value: r.hs_id });
+        box.addEventListener('change', syncAll);
+        boxes.push(box);
+        recipientRow.appendChild(h('label', { class: 'asc-checkbox-row' }, box,
+          h('span', {}, r.name || r.hs_id)));
+      });
+    } else {
+      recipientRow.appendChild(h('span', { class: 'asc-dim' },
+        'No partner has an active agreement yet, so there is nobody to send to.'));
     }
-    open.forEach((r) => {
-      const body = h('div', { class: 'asc-card-pad asc-hs-request' });
-      const d = r.delivery || {};
-      body.appendChild(h('div', { class: 'asc-hs-request-head' },
-        h('strong', {}, r.title),
-        h('span', { class: 'asc-badge asc-badge-gray' }, r.specialty),
-        h('span', { class: 'asc-dim', style: 'font-size:12px' },
-          r.case_count + ' cases' +
-          (r.due_date ? ' · by ' + r.due_date : '') +
-          (r.created_at ? ' · asked ' + fmtDate(r.created_at) : ''))));
-      if (r.details) {
-        body.appendChild(h('div', { class: 'asc-hs-lead-message' }, r.details));
+    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Send');
+    if (!partners.length) sendBtn.setAttribute('disabled', '');
+    sendBtn.addEventListener('click', async () => {
+      const message = (messageEl.value || '').trim();
+      const chosen = boxes.filter((b) => b.checked).map((b) => b.value);
+      if (!message) {
+        toast('Write the request before sending it.', 'error');
+        return;
       }
+      if (!chosen.length) {
+        toast('Choose at least one partner to send to.', 'error');
+        return;
+      }
+      sendBtn.setAttribute('disabled', '');
+      try {
+        // Select all sends the whole eligible list explicitly rather than an
+        // empty list: what was asked of whom is then in the request's own
+        // outbox, not inferred from who happened to be active that day.
+        const res = await api('/admin/hs-requests', { method: 'POST', body: {
+          message: message, recipient_hs_ids: chosen } });
+        toast('Queued for ' + (res.recipients || 0) + ' people.', 'success');
+        render(listContainer.parentNode, ctx);
+      } catch (e) {
+        sendBtn.removeAttribute('disabled');
+        toast(e.message || 'Could not send that.', 'error');
+      }
+    });
+    card.appendChild(h('div', { class: 'asc-card-pad asc-hs-payout-form' },
+      messageEl, recipientRow, sendBtn));
+
+    // ── History, collapsed ────────────────────────────────────────────────
+    // "Sent · Gray Scrubs, St. Mary's · 8/9 · "Nephrology CKD cohorts…"". One
+    // line per request, open ones first; the delivery tally and the replies
+    // hang off each line because that is what an operator comes back to check.
+    if (!rows.length) return void slot.appendChild(card);
+    const open = rows.filter((r) => r.status === 'open');
+    const closed = rows.filter((r) => r.status !== 'open');
+    const history = h('div', { class: 'asc-card-pad' });
+    const toggle = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
+      '▸ Sent (' + rows.length + ')');
+    const list = h('div', { hidden: true });
+    let openList = false;
+    toggle.addEventListener('click', () => {
+      openList = !openList;
+      if (openList) list.removeAttribute('hidden'); else list.setAttribute('hidden', '');
+      toggle.textContent = (openList ? '▾ ' : '▸ ') + 'Sent (' + rows.length + ')';
+    });
+    open.concat(closed).forEach((r) => list.appendChild(requestLine(r)));
+    history.appendChild(toggle);
+    history.appendChild(list);
+    card.appendChild(history);
+    slot.appendChild(card);
+
+    function requestLine(r) {
+      const d = r.delivery || {};
+      const who = (r.recipients || []).map((x) => x.name).join(', ') || 'every active partner';
+      const line = h('div', { class: 'asc-hs-request', style: 'margin-top:8px' });
+      line.appendChild(h('div', { class: 'asc-hs-request-head' },
+        h('span', { class: 'asc-badge ' + (r.status === 'open' ? 'asc-badge-green' : 'asc-badge-gray') },
+          r.status === 'open' ? 'Sent' : ('Closed · ' + (r.closed_reason || ''))),
+        h('span', { class: 'asc-dim', style: 'font-size:12px' }, who),
+        h('span', { class: 'asc-dim', style: 'font-size:12px' },
+          r.created_at ? fmtDate(r.created_at) : ''),
+        h('span', {}, '“' + (r.details || r.title) + '”')));
       const deliveryLine = h('div', { class: 'asc-dim', style: 'font-size:12px' },
         'Emailed ' + (d.sent || 0) + ' · waiting to send ' + (d.pending || 0) +
         ' · failed ' + (d.failed || 0));
@@ -380,23 +375,23 @@
         });
         deliveryLine.appendChild(retryBtn);
       }
-      body.appendChild(deliveryLine);
+      line.appendChild(deliveryLine);
+      if (r.status !== 'open') return line;
 
       const uploadsLine = h('div', { class: 'asc-dim', style: 'font-size:12px' }, 'Loading replies…');
-      body.appendChild(uploadsLine);
+      line.appendChild(uploadsLine);
       api('/admin/hs-requests/' + encodeURIComponent(r.id)).then((detail) => {
-        const partners = (detail.responders || []).length;
+        const n = (detail.responders || []).length;
         clear(uploadsLine);
         uploadsLine.appendChild(document.createTextNode(
           detail.uploads_count
             ? detail.uploads_count + ' upload' + (detail.uploads_count === 1 ? '' : 's') +
-              ' from ' + partners + ' partner' + (partners === 1 ? '' : 's')
+              ' from ' + n + ' partner' + (n === 1 ? '' : 's')
             : 'No uploads tagged with this request yet.'));
       }).catch(() => {
         clear(uploadsLine);
         uploadsLine.appendChild(document.createTextNode('Could not load replies.'));
       });
-
       const actions = h('div', { class: 'asc-hs-signup-actions' });
       ['fulfilled', 'withdrawn'].forEach((reason) => {
         actions.appendChild(btn(h, 'Close as ' + reason, 'asc-btn-subtle', async () => {
@@ -408,44 +403,9 @@
           } catch (e) { toast(e.message || 'Could not close that.', 'error'); }
         }));
       });
-      body.appendChild(actions);
-      card.appendChild(body);
-    });
-
-    // The compose form, at the bottom: an operator opening this page is far
-    // more often checking on a request than writing a new one.
-    const titleEl = requestField(h, 'ascReqTitle', 'What we need');
-    const specialtyEl = requestField(h, 'ascReqSpecialty', 'Specialty');
-    const countEl = requestField(h, 'ascReqCount', 'How many cases', { type: 'number', min: '1' });
-    const dueEl = requestField(h, 'ascReqDue', 'Useful by', { type: 'date' });
-    const detailsEl = h('textarea', { class: 'asc-input', rows: '3',
-                                      placeholder: 'Anything else they should know' });
-    const sendBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-sm' }, 'Send to every active partner');
-    sendBtn.addEventListener('click', async () => {
-      const count = parseInt(countEl.value, 10);
-      if (!titleEl.value.trim() || !specialtyEl.value.trim()) {
-        toast('A request needs a title and a specialty.', 'error');
-        return;
-      }
-      if (!isFinite(count) || count <= 0) {
-        toast('Ask for at least one case.', 'error');
-        return;
-      }
-      try {
-        const res = await api('/admin/hs-requests', { method: 'POST', body: {
-          title: titleEl.value.trim(), specialty: specialtyEl.value.trim(),
-          case_count: count, due_date: dueEl.value || '',
-          details: (detailsEl.value || '').trim() } });
-        toast('Queued for ' + (res.recipients || 0) + ' people.', 'success');
-        render(listContainer.parentNode, ctx);
-      } catch (e) { toast(e.message || 'Could not send that.', 'error'); }
-    });
-    card.appendChild(h('div', { class: 'asc-card-pad asc-hs-payout-form' },
-      h('div', { class: 'asc-card-title' }, 'Ask for data'),
-      h('div', { class: 'asc-hs-payout-grid' }, titleEl, specialtyEl, countEl, dueEl),
-      detailsEl, sendBtn));
-
-    slot.appendChild(card);
+      line.appendChild(actions);
+      return line;
+    }
   }
 
   // ─── The onboarding demo video (Onboarding v2 §0.1) ───────
@@ -533,8 +493,16 @@
         form.append('file', file, file.name);
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/asclepius/admin/assets/onboarding-demo');
+        // XMLHttpRequest, not fetch (progress events) — so the /sandbox/*
+        // shell's fetch wrapper never sees it. Key the token per realm and
+        // name the realm here, or a sandbox admin holding a live session in
+        // the same browser would write the video into the LIVE asset store.
+        const realm = (window.__REALM === 'sandbox') ? 'sandbox' : 'live';
         let token = null;
-        try { token = localStorage.getItem('asclepius_token'); } catch (e) { token = null; }
+        try {
+          token = localStorage.getItem(realm === 'sandbox' ? 'asclepius_token_sandbox' : 'asclepius_token');
+        } catch (e) { token = null; }
+        xhr.setRequestHeader('X-Asclepius-Realm', realm);
         if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
         xhr.upload.addEventListener('progress', (ev) => {
           if (!ev.lengthComputable) return;

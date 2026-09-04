@@ -16,6 +16,7 @@ report that back to the admin rather than guessing.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import html
 import logging
 import re
@@ -42,9 +43,15 @@ def _run_coro(coro: Any) -> Any:
     except RuntimeError:
         return asyncio.run(coro)
     box: Dict[str, Any] = {}
+    # A bare Thread starts with an EMPTY context: the realm ContextVar (and any
+    # other) is not inherited, so everything the coroutine touched ran in the
+    # live realm — a sandbox "send to all" announcement posted into the real
+    # #task-announcements, a sandbox upload notice sent as a real email. Run
+    # the worker inside a copy of the caller's context instead.
+    ctx = contextvars.copy_context()
 
     def _worker() -> None:
-        box["v"] = asyncio.run(coro)
+        box["v"] = ctx.run(asyncio.run, coro)
 
     t = threading.Thread(target=_worker, daemon=True)
     t.start()

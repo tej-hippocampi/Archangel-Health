@@ -177,13 +177,24 @@ def _installed_chromiums() -> list:
     ]
 
 
+# Grayscale text antialiasing, not LCD subpixel. Subpixel rendering paints
+# a blue fringe on one edge of every glyph and an orange one on the other, and
+# on light-on-dark text (the console's masthead) those fringes are saturated
+# enough to read as off-palette blue: ~1,500 pixels on a bar that holds no
+# blue at all. They are a rasteriser artefact of the runner's display
+# settings, not a colour any stylesheet paints, so the gate turns them off
+# and measures what the CSS actually asks for.
+_BROWSER_ARGS = ["--disable-lcd-text"]
+
+
 @pytest.fixture(scope="module")
 def browser():
     with playwright_api.sync_playwright() as p:
         attempts, last = [None] + _installed_chromiums(), None
         for exe in attempts:
             try:
-                b = p.chromium.launch(**({"executable_path": exe} if exe else {}))
+                b = p.chromium.launch(args=_BROWSER_ARGS,
+                                      **({"executable_path": exe} if exe else {}))
             except Exception as exc:                              # noqa: BLE001, PERF203
                 last = exc
                 continue

@@ -240,6 +240,25 @@ def ingest_committed_bundles(
             results.append(row)
             skipped += 1
             continue
+        # Second key, by name (Case Generation Fix PRD §A5). The synthesized
+        # manifest is part of the packed bytes, so a change to a bundle's declared
+        # specialty (patient-3 moved from nephrology to hepatology) changes the
+        # digest — and without this check the next click would land the same chart
+        # a second time under the new label. One chart, one row; an admin changes
+        # the specialty of the row that exists rather than ingesting a twin.
+        # The lookup itself ignores quarantined/rejected rows: a corrected bundle
+        # (new bytes) must be able to re-enter, exactly as the sha key allowed
+        # before this second key existed — and once it has, the key must find
+        # the corrected row rather than the failed attempt before it.
+        earlier = store.find_ingest_upload_by_partner_filename(FIXTURE_PARTNER_ID, f"{name}.zip")
+        if earlier:
+            row.update({"status": "skipped", "upload_id": earlier["upload_id"],
+                        "message": ("Already ingested under an earlier packing of this "
+                                    "bundle — set the specialty on the existing row "
+                                    "rather than ingesting it twice.")})
+            results.append(row)
+            skipped += 1
+            continue
 
         # The link is minted per bundle and one-time, exactly as the admin upload
         # modal does it, so the bytes travel the authorized path rather than an

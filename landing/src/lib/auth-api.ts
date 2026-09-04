@@ -60,6 +60,59 @@ export function signInServerHost(): string {
   }
 }
 
+/*
+ * ── Sandbox PRD §1.3 — the realm this landing session is in ─────────────
+ *
+ * `archangelhealth.ai/?realm=sandbox` puts the session in the sandbox realm:
+ * every request the landing makes then carries `X-Asclepius-Realm: sandbox`,
+ * so sign-in, the physician wizard and the health-system signup all land in
+ * the sandbox databases — the same code, a different file. The choice is
+ * persisted in sessionStorage because the wizard is a multi-page flow and the
+ * query string does not survive it. Without the param (or after `?realm=live`)
+ * the landing is live, and the header is not sent at all.
+ *
+ * Every fetch in this module goes through `apiHeaders()`; a lint test in the
+ * backend suite asserts no bare `headers: {` object remains here.
+ */
+export type Realm = "live" | "sandbox";
+const REALM_STORAGE_KEY = "asclepius_realm";
+export const REALM_HEADER = "X-Asclepius-Realm";
+
+export function currentRealm(): Realm {
+  if (typeof window === "undefined") return "live";
+  try {
+    const param = new URLSearchParams(window.location.search).get("realm");
+    if (param === "sandbox") {
+      window.sessionStorage.setItem(REALM_STORAGE_KEY, "sandbox");
+      return "sandbox";
+    }
+    if (param === "live") {
+      window.sessionStorage.removeItem(REALM_STORAGE_KEY);
+      return "live";
+    }
+    return window.sessionStorage.getItem(REALM_STORAGE_KEY) === "sandbox" ? "sandbox" : "live";
+  } catch {
+    return "live";
+  }
+}
+
+export function isSandbox(): boolean {
+  return currentRealm() === "sandbox";
+}
+
+/** The headers every backend request carries: yours, plus the realm. */
+export function apiHeaders(extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { ...(extra ?? {}) };
+  if (currentRealm() === "sandbox") h[REALM_HEADER] = "sandbox";
+  return h;
+}
+
+/** `?realm=sandbox` re-attached to a same-site link so the realm survives it. */
+export function withRealm(url: string): string {
+  if (currentRealm() !== "sandbox") return url;
+  return url + (url.includes("?") ? "&" : "?") + "realm=sandbox";
+}
+
 /** Backend origin for doctor portal redirects (no trailing slash). */
 export function dashboardBaseUrl(): string {
   return resolveBackendOrigin(
@@ -82,7 +135,10 @@ export function doctorSignInUrl(): string {
 /** Asclepius (data-training) portal — email/password sign-in lives here. */
 export function asclepiusPortalUrl(): string {
   const base = dashboardBaseUrl();
-  return base ? `${base}/asclepius` : "/asclepius";
+  // Sandbox PRD §1.3: a sandbox sign-in lands on the sandbox shell, whose
+  // page JS keys its token as asclepius_token_sandbox.
+  const path = currentRealm() === "sandbox" ? "/sandbox/asclepius" : "/asclepius";
+  return base ? `${base}${path}` : path;
 }
 
 /**
@@ -92,7 +148,8 @@ export function asclepiusPortalUrl(): string {
  */
 export function healthSystemPortalUrl(): string {
   const base = dashboardBaseUrl();
-  return base ? `${base}/provider` : "/provider";
+  const path = currentRealm() === "sandbox" ? "/sandbox/provider" : "/provider";
+  return base ? `${base}${path}` : path;
 }
 
 /*
@@ -218,7 +275,7 @@ async function errorDetail(res: Response, fallback: string): Promise<string> {
 
 export async function getDemoSignInRoutes(): Promise<Record<string, DemoSignInRoute>> {
   try {
-    const res = await fetch(`${API_BASE}/api/demo/sign-in-routes`);
+    const res = await fetch(`${API_BASE}/api/demo/sign-in-routes`, { headers: apiHeaders() });
     if (!res.ok) return {};
     const data = (await res.json()) as { routes?: Record<string, DemoSignInRoute> };
     return data.routes || {};
@@ -236,7 +293,7 @@ export async function tenantLogin(
   try {
     res = await fetch(`${API_BASE}/api/tenant/${encodeURIComponent(slug)}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ email, password }),
     });
   } catch {
@@ -251,10 +308,10 @@ export async function tenantLogin(
 export async function createPortalHandoff(accessToken: string): Promise<PortalHandoffResponse> {
   const res = await fetch(`${API_BASE}/api/auth/portal-handoff`, {
     method: "POST",
-    headers: {
+    headers: apiHeaders({
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
-    },
+    }),
     body: "{}",
   });
   if (!res.ok) {
@@ -288,7 +345,7 @@ export async function asclepiusLogin(email: string, password: string): Promise<A
   try {
     res = await fetch(`${API_BASE}/api/asclepius/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ email, password }),
     });
   } catch {
@@ -309,7 +366,7 @@ export async function asclepiusLogin(email: string, password: string): Promise<A
 export async function redirectToAsclepiusPortal(token: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/asclepius/auth/portal-handoff`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: apiHeaders({ Authorization: `Bearer ${token}` }),
   });
   if (!res.ok) {
     throw new Error("Could not open Asclepius workspace.");
@@ -324,7 +381,7 @@ export async function login(email: string, password: string): Promise<LoginResul
   try {
     res = await fetch(`${API_BASE}/api/auth/login`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ email, password }),
     });
   } catch (e) {
@@ -347,7 +404,7 @@ export async function register(
   try {
     res = await fetch(`${API_BASE}/api/auth/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         email,
         password,
@@ -371,7 +428,7 @@ export async function verifyEmailOtp(email: string, code: string): Promise<void>
   try {
     res = await fetch(`${API_BASE}/api/auth/verify-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ email, code }),
     });
   } catch {
@@ -385,7 +442,7 @@ export async function verifyEmailOtp(email: string, code: string): Promise<void>
 export async function verifyEmailToken(token: string): Promise<{ email: string }> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/auth/verify-email/by-token?${new URLSearchParams({ token })}`);
+    res = await fetch(`${API_BASE}/api/auth/verify-email/by-token?${new URLSearchParams({ token })}`, { headers: apiHeaders() });
   } catch {
     throw networkError();
   }
@@ -400,7 +457,7 @@ export async function resendVerification(email: string): Promise<void> {
   try {
     res = await fetch(`${API_BASE}/api/auth/verify-email/resend`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ email }),
     });
   } catch {
@@ -413,7 +470,7 @@ export async function resendVerification(email: string): Promise<void> {
 
 export async function getMe(token: string): Promise<User | null> {
   const res = await fetch(`${API_BASE}/api/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: apiHeaders({ Authorization: `Bearer ${token}` }),
   });
   if (!res.ok) return null;
   return res.json();
@@ -425,10 +482,10 @@ export async function doctorOnboard(
 ): Promise<DoctorProfile> {
   const res = await fetch(`${API_BASE}/api/doctor/onboard`, {
     method: "POST",
-    headers: {
+    headers: apiHeaders({
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
-    },
+    }),
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -440,7 +497,7 @@ export async function doctorOnboard(
 
 export async function getDoctorProfile(token: string): Promise<DoctorProfile | null> {
   const res = await fetch(`${API_BASE}/api/doctor/profile`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: apiHeaders({ Authorization: `Bearer ${token}` }),
   });
   if (!res.ok) return null;
   return res.json();
@@ -477,6 +534,7 @@ export async function fetchHsReferralPrefill(token: string): Promise<HsReferralP
   try {
     const res = await fetch(
       `${API_BASE}/api/asclepius/hs-referral/${encodeURIComponent(token)}`,
+      { headers: apiHeaders() },
     );
     if (!res.ok) return { found: false };
     return (await res.json()) as HsReferralPrefill;
@@ -509,7 +567,7 @@ export async function submitLead(payload: {
   try {
     res = await fetch(`${API_BASE}/api/leads`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     });
   } catch {
@@ -539,7 +597,7 @@ export async function createPhysicianOnboardingLink(payload: {
   try {
     res = await fetch(`${API_BASE}/api/onboarding/self-serve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(payload),
     });
   } catch {
@@ -559,7 +617,7 @@ export async function getPatientByCodes(
     health_system_code: healthSystemCode.trim(),
     resource_code: resourceCode.trim(),
   });
-  const res = await fetch(`${API_BASE}/api/patient/by-codes?${params}`);
+  const res = await fetch(`${API_BASE}/api/patient/by-codes?${params}`, { headers: apiHeaders() });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { detail?: string }).detail ?? "Invalid codes");
@@ -577,7 +635,7 @@ export async function getPatientByCodes(
 export async function asclepiusForgotPassword(email: string): Promise<{ message: string }> {
   const res = await fetch(`${API_BASE}/api/asclepius/auth/password/forgot`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ email }),
   });
   const body = await res.json().catch(() => ({}));
@@ -594,7 +652,7 @@ export async function asclepiusResetPassword(
 ): Promise<{ token: string }> {
   const res = await fetch(`${API_BASE}/api/asclepius/auth/password/reset`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ token, new_password: newPassword }),
   });
   const body = await res.json().catch(() => ({}));
@@ -639,7 +697,7 @@ export async function healthSystemSignup(input: {
 }): Promise<void> {
   const res = await fetch(`${API_BASE}/api/asclepius/hs/signup`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({
       full_name: input.fullName,
@@ -656,7 +714,7 @@ export async function healthSystemSignup(input: {
 export async function healthSystemResendCode(email: string): Promise<void> {
   await fetch(`${API_BASE}/api/asclepius/hs/signup/resend`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ email }),
   }).catch(() => undefined);
@@ -668,7 +726,7 @@ export async function healthSystemVerify(
 ): Promise<HealthSystemSignupResult> {
   const res = await fetch(`${API_BASE}/api/asclepius/hs/signup/verify`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     credentials: "include",
     body: JSON.stringify({ email, code }),
   });

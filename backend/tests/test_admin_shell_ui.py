@@ -23,6 +23,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
@@ -171,7 +172,15 @@ def _run(script: str, *, with_physicians: bool = False) -> dict:
         + "\n" + SHELL
         + "\nsetTimeout(function () {\n" + script + "\n}, 60);\n"
     )
-    proc = subprocess.run([node, "-e", full], capture_output=True, text=True, timeout=60)
+    # From a file, not `node -e`: the boot script embeds the whole console
+    # bundle, and a single argv entry is capped at 128KB on Linux (E2BIG,
+    # "Argument list too long") — which is how every test here went red the
+    # day the bundle outgrew it, with a failure that named node and not the
+    # size.
+    with tempfile.TemporaryDirectory() as tmp:
+        entry = pathlib.Path(tmp) / "console_harness.js"
+        entry.write_text(full, encoding="utf-8")
+        proc = subprocess.run([node, str(entry)], capture_output=True, text=True, timeout=60)
     if proc.returncode != 0:
         raise AssertionError(f"node failed:\n{proc.stderr}\n{proc.stdout}")
     return json.loads(proc.stdout.strip().splitlines()[-1])

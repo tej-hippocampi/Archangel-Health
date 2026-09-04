@@ -4,6 +4,7 @@ import hashlib
 import html
 import logging
 import os
+import realm as _realm
 import string
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -584,7 +585,7 @@ async def self_serve_invite(body: SelfServeBody, request: Request):
         )
         return {
             "ok": True,
-            "onboarding_url": f"{_landing_base()}/onboard/{secrets.token_urlsafe(32)}",
+            "onboarding_url": _realm.public_url(f"{_landing_base()}/onboard/{secrets.token_urlsafe(32)}"),
             "expires_at": decoy_expires,
         }
 
@@ -1859,7 +1860,7 @@ async def asclepius_add_member(body: AsclepiusAddMemberBody, request: Request):
         is_director=False,
     )
     member_token = ts.issue_asclepius_member_token(row["id"], member_email)
-    onboarding_url = f"{_landing_base()}/onboard/m/{member_token}"
+    onboarding_url = _realm.public_url(f"{_landing_base()}/onboard/m/{member_token}")
     director_name = " ".join(
         p for p in [
             (row.get("director_first_name") or "").strip(),
