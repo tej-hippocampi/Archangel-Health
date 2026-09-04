@@ -5760,15 +5760,13 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   border-top: 1px dashed var(--asc-line);
 }
 
-/* The applicant's door, beside the password recovery link. Two routes back in
-   sit on one line separated by a middot rather than stacking, because they
-   answer the same question ("I cannot get in") and a stack reads as two
-   escalating problems. */
-.asc-login-signin-link { margin-left: 10px; }
-.asc-login-signin-link::before {
-  content: "·";
-  margin-right: 10px;
-  text-decoration: none;
-  display: inline-block;
+/* The magic-link button that used to sit beside the password recovery link is
+   gone: the wizard takes a password on screen 1, so there is one route back in
+   and it is the ordinary one. What is left is the sentence pointing a legacy
+   passwordless applicant at the reset, which is the right door for them. */
+.asc-login-legacy {
+  margin-top: 10px;
+  text-align: center;
   color: var(--ink-faint);
+  font-size: 0.8rem;
 }

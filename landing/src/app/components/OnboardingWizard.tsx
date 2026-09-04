@@ -213,6 +213,10 @@ function formatApiError(data: unknown): string {
       .join("; ");
   }
   if (detail != null && typeof detail === "object") {
+    // A structured detail carries a human message. Printing the JSON at a
+    // physician is what put `{"code": "...", "message": "..."}` on screen.
+    const msg = (detail as { message?: unknown }).message;
+    if (typeof msg === "string" && msg) return msg;
     try {
       return JSON.stringify(detail);
     } catch {
@@ -220,6 +224,65 @@ function formatApiError(data: unknown): string {
     }
   }
   return "Request failed";
+}
+
+/** The API's machine-readable reason, when it gave one.
+ *
+ *  Only one code matters today: `onboarding_complete`. It is a terminal STATE
+ *  rather than an error, and treating it as an error is what turned the end of
+ *  a successful signup into a dead end. A physician who reached the thank-you
+ *  screen, opened the mission link and pressed Back landed on the verify step,
+ *  asked for a code, and was shown "Onboarding already completed for this link"
+ *  with no button anywhere on the page.
+ */
+function apiErrorCode(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  const detail = (data as { detail?: unknown }).detail;
+  if (!detail || typeof detail !== "object") return "";
+  const code = (detail as { code?: unknown }).code;
+  return typeof code === "string" ? code : "";
+}
+
+/* ── Terminal screens are STICKY ─────────────────────────────────────────────
+   The landing app has no router, so the "see our mission" link on the
+   thank-you screen is a full page navigation and Back is a fresh mount. Its
+   only source of truth is GET /session, and a physician who had already
+   finished came back to the VERIFY step, asked for a code, and hit a 410 with
+   nothing on screen but its message.
+
+   Three layers now hold that shut, and this is the client one: the terminal
+   step is pinned, and read BEFORE the fetch, so the resume ladder can never
+   overrule it. replaceState rather than pushState, or Back needs two presses.
+   The server sends Cache-Control: no-store for the same reason from the other
+   side. Belt and braces on purpose: which layer was actually failing is an
+   inference, and this is cheap. */
+const TERMINAL_STEPS = ["submitted", "ascSuccess", "success", "ascSignIn"] as const;
+
+function pinTerminalStep(token: string, step: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(`ah-onb-terminal:${token}`, step);
+  } catch {
+    /* private mode; the history state below still holds within the tab */
+  }
+  try {
+    window.history.replaceState(
+      { ...(window.history.state || {}), ahOnbStep: step }, "");
+  } catch {
+    /* nothing to do; the sessionStorage copy is the durable one */
+  }
+}
+
+function readPinnedStep(token: string): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const stored = window.sessionStorage.getItem(`ah-onb-terminal:${token}`);
+    if (stored) return stored;
+  } catch {
+    /* fall through to history state */
+  }
+  const fromHistory = (window.history.state || {}).ahOnbStep;
+  return typeof fromHistory === "string" ? fromHistory : "";
 }
 
 async function readResponseJson(r: Response): Promise<unknown> {
@@ -252,6 +315,8 @@ function initialData(): OnboardingData {
     cvParsed: null,
     cvAutofilled: [],
     awaitingReview: false,
+    password: "",
+    passwordSet: false,
   };
 }
 
@@ -352,9 +417,22 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   // Session bootstrap — resume in-progress onboarding.
   // ─────────────────────────────────────────
   const loadDirectorSession = useCallback(async () => {
+    // Read the pin FIRST. If this tab already reached a terminal screen for
+    // this token, that is the answer no matter what the resume ladder below
+    // would have decided, and it is decided before any network result can race
+    // it.
+    const pinned = readPinnedStep(token);
+
     const r = await api(`/api/onboarding/session?token=${encodeURIComponent(token)}`);
     const body = await readResponseJson(r);
     if (!r.ok) {
+      // A completed link is a STATE, not an error. It is where a successful
+      // signup ends up, so it gets the screen with the buttons on it.
+      if (apiErrorCode(body) === "onboarding_complete") {
+        setSignInReason("complete");
+        setStep("ascSignIn");
+        return;
+      }
       setBootError(formatApiError(body) || `HTTP ${r.status}`);
       return;
     }
@@ -408,9 +486,18 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       members: hydratedMembers,
       product,
       ascMembers,
-      credentials: savedCreds
-        ? { ...emptyCredentials(fullLegal), ...d.director_credentials }
-        : emptyCredentials(fullLegal),
+      credentials: (() => {
+        const base = savedCreds
+          ? { ...emptyCredentials(fullLegal), ...d.director_credentials }
+          : emptyCredentials(fullLegal);
+        // Screen 1's state answer prefills the Review screen's licence block,
+        // so the same fact is not asked for twice. Never over a value the
+        // physician already has there: the same rule applyCvParse follows.
+        const fromStep1 = (d.director_license_state ?? "").trim();
+        return fromStep1 && !base.licenseState
+          ? { ...base, licenseState: fromStep1 }
+          : base;
+      })(),
       attestations:
         d.director_attestations && Object.keys(d.director_attestations).length > 0
           ? { ...emptyAttestations(), ...d.director_attestations }
@@ -421,14 +508,32 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       // remember which fields were ours, and labelling values they have since
       // reviewed as unverified CV output would be the wrong claim to make.
       cvAutofilled: [],
+      // Whether a password is already on file for this application. A boolean
+      // from the server; the hash never leaves the backend. A physician
+      // resuming a half-finished application must not be asked again for
+      // something they already chose.
+      password: "",
+      passwordSet: Boolean(d.director_password_set),
     }));
+
+    // The pin wins. The data above is still hydrated, because a pinned screen
+    // still renders the physician's own name and email; only the CHOICE of
+    // screen is taken away from the ladder.
+    if (pinned && (TERMINAL_STEPS as readonly string[]).includes(pinned)) {
+      setStep(pinned as StepKey);
+      return;
+    }
 
     // A finished link, or an address that already has an account. Both are
     // "you do not need to sign up, you need to sign in" -- and the second one
     // MUST NOT walk the wizard again: /finish passes password_hash
     // unconditionally, so a second pass silently repoints the live account's
     // password to whatever gets typed on the way through.
-    if (d.status === "complete" || d.status === "account_exists") {
+    // `application_pending` used to be unhandled here and fell through to the
+    // resume ladder, which put somebody whose application is already in with us
+    // back on a half-filled form.
+    if (d.status === "complete" || d.status === "account_exists"
+        || d.status === "application_pending") {
       if (product === "asclepius" || d.status === "account_exists") {
         setSignInReason(d.status === "account_exists" ? "account_exists" : "complete");
         setStep("ascSignIn");
@@ -517,6 +622,15 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
     void loadSession();
   }, [loadSession]);
 
+  // Pin the moment a terminal screen is reached, so leaving the page and
+  // coming back lands here rather than on the verify step. See the helpers
+  // above for why this exists at all.
+  useEffect(() => {
+    if ((TERMINAL_STEPS as readonly string[]).includes(step)) {
+      pinTerminalStep(token, step);
+    }
+  }, [step, token]);
+
   const order = useMemo(
     () => orderFor(mode, data.product, signupKind),
     [mode, data.product, signupKind],
@@ -553,6 +667,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         first_name: data.firstName,
         last_name: data.lastName,
         email: data.email,
+        // Both optional on the wire. The server hashes the password on arrival
+        // and stores only the hash; `undefined` when the physician already set
+        // one on an earlier visit, so a resumed session cannot blank it.
+        password: data.password || undefined,
+        license_state: data.credentials.licenseState || "",
       }),
     });
     const body = await readResponseJson(r);
@@ -560,9 +679,13 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       setStepError(formatApiError(body) || `HTTP ${r.status}`);
       return false;
     }
+    // Drop the plaintext the instant it is spent. It lived in React state for
+    // one screen and it does not need to outlive the request.
+    setDataState((d) => ({ ...d, password: "", passwordSet: true }));
     setStep("verify");
     return true;
-  }, [token, data.firstName, data.lastName, data.email]);
+  }, [token, data.firstName, data.lastName, data.email, data.password,
+      data.credentials.licenseState]);
 
   const sendOtp = useCallback(async () => {
     setStepError("");
@@ -1212,6 +1335,10 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
             data={data}
             setData={setData}
             onNext={submitStep1}
+            onSignIn={() => {
+              setSignInReason("account_exists");
+              setStep("ascSignIn");
+            }}
             error={stepError}
             kind={mode === "member" ? "physician" : signupKind}
           />
@@ -1321,7 +1448,15 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
           />
         );
       case "submitted":
-        return <StepApplicationSubmitted data={data} />;
+        return (
+          <StepApplicationSubmitted
+            data={data}
+            onSignIn={() => {
+              setSignInReason("complete");
+              setStep("ascSignIn");
+            }}
+          />
+        );
       case "attestations":
         return (
           <Step6Attestations

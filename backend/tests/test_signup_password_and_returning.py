@@ -328,3 +328,122 @@ def test_the_session_reports_the_password_without_leaking_it(client, mail):
     assert body["director_license_state"] == "NY"
     assert "director_password_hash" not in body
     assert PW not in str(body)
+
+
+# ── The wizard, asserted on the shipped source ───────────────────────────────
+#
+# Structural rather than rendered, in the style the rest of this suite uses for
+# the landing app: there is no JS test runner here, and the properties that
+# broke are about which screen asks for what and where a physician can go from
+# it, which the source answers.
+
+from pathlib import Path  # noqa: E402
+
+_LANDING = Path(__file__).resolve().parents[2] / "landing" / "src" / "app" / "components"
+_WIZARD = (_LANDING / "OnboardingWizard.tsx").read_text(encoding="utf-8")
+_STEPS = (_LANDING / "onboarding" / "steps.tsx").read_text(encoding="utf-8")
+
+
+def _strip_js_comments(source: str) -> str:
+    """Same helper the other source-grep suites use. This codebase explains its
+    rules in prose next to the code that follows them, and a grep that reads
+    the prose as code fails on the very sentence describing the invariant."""
+    out, i, n = [], 0, len(source)
+    while i < n:
+        if source.startswith("/*", i):
+            end = source.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+        elif source.startswith("//", i):
+            end = source.find("\n", i)
+            i = n if end == -1 else end
+        else:
+            out.append(source[i])
+            i += 1
+    return "".join(out)
+
+
+
+def test_screen_one_asks_for_the_password_and_the_state():
+    assert "Choose a password" in _STEPS
+    assert "Confirm password" in _STEPS
+    assert "State you are licensed in" in _STEPS
+    # And it gates Continue on it, or the field is decoration.
+    assert "const pwOk = !needsPassword || passwordValid(" in _STEPS
+    assert "pwOk &&" in _STEPS
+
+
+def test_the_state_field_is_optional_and_says_so():
+    """A physician licensed outside the US has no answer, and a required field
+    somebody cannot fill is a wall on the very first screen."""
+    assert 'placeholder="Outside the US"' in _STEPS
+    # Not in the validity expression.
+    valid_block = _STEPS[_STEPS.index("const valid ="):][:400]
+    assert "licenseState" not in valid_block
+
+
+def test_the_password_policy_has_exactly_one_definition():
+    """Two copies drift, and the half that drifts is the one with fewer eyes."""
+    assert _STEPS.count("export const PASSWORD_MIN") == 1
+    assert _STEPS.count("PASSWORD_MIN = 12") == 1
+    # Both screens go through the shared helpers.
+    assert _STEPS.count("passwordValid(") >= 2
+    assert _STEPS.count("<PasswordChecklist") >= 2
+
+
+def test_the_wizard_sends_the_password_once_and_then_forgets_it():
+    body = _WIZARD[_WIZARD.index("/api/onboarding/step1-identity"):][:900]
+    assert "password: data.password || undefined" in body
+    assert "license_state:" in body
+    # Cleared the moment it is spent: it lived in React state for one screen.
+    assert 'password: "", passwordSet: true' in _WIZARD
+
+
+def test_the_wizard_never_stores_a_password_anywhere_durable():
+    """The one thing that would make this change worse than what it replaced."""
+    for sink in ("localStorage", "sessionStorage"):
+        for line in _WIZARD.splitlines():
+            if sink in line and "password" in line.lower():
+                raise AssertionError(f"a password reaches {sink}: {line.strip()}")
+
+
+def test_a_terminal_screen_is_pinned_so_back_returns_to_it():
+    """The back-button dead end, client half.
+
+    A physician who reached the thank-you screen, opened the mission link and
+    pressed Back landed on the VERIFY step and was told the link was already
+    used, with nothing on the page to press.
+    """
+    assert "function pinTerminalStep" in _WIZARD
+    assert "function readPinnedStep" in _WIZARD
+    # Read BEFORE the fetch, so the resume ladder cannot overrule it.
+    load = _WIZARD[_WIZARD.index("const loadDirectorSession"):]
+    pin_at = load.index("readPinnedStep(token)")
+    fetch_at = load.index("/api/onboarding/session")
+    assert pin_at < fetch_at, "the pin is read after the fetch and can be raced"
+    # replaceState, not pushState: pushing means Back needs two presses.
+    # Comment-stripped, because the code above this assertion explains the
+    # choice in prose and a grep that cannot tell prose from code fails on its
+    # own documentation.
+    code = _strip_js_comments(_WIZARD)
+    assert "replaceState" in code and "pushState" not in code
+
+
+def test_a_completed_link_renders_a_screen_rather_than_an_error():
+    assert 'apiErrorCode(body) === "onboarding_complete"' in _WIZARD
+    assert 'd.status === "application_pending"' in _WIZARD
+    # The literals test_signed_in_landing.py greps for are still here.
+    assert 'd.status === "account_exists"' in _WIZARD
+    assert 'setStep("ascSignIn")' in _WIZARD
+
+
+def test_the_mission_link_opens_in_a_new_tab():
+    """Removes the navigation the whole dead end hung off."""
+    block = _STEPS[_STEPS.index('href="/mission"') - 80:][:300]
+    assert 'target="_blank"' in block
+    assert 'rel="noopener noreferrer"' in block
+
+
+def test_both_screens_offer_a_way_out_to_sign_in():
+    assert "export function AlreadyHaveAnAccount" in _STEPS
+    assert _STEPS.count("<AlreadyHaveAnAccount") >= 2
+    assert "onSignIn={() => {" in _WIZARD

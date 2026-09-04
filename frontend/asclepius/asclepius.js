@@ -2100,45 +2100,26 @@
       },
     }, 'Forgot your password?');
 
-    // The applicant's door. Onboarding v2 deleted the password step, so an
-    // applicant who closes the tab before a decision holds no credential at
-    // all: without this, the only route back into their own practice case was
-    // to ask a person.
+    // THE "EMAIL ME A SIGN IN LINK" BUTTON IS GONE.
     //
-    // Offered UNCONDITIONALLY, and that is a security decision rather than a
-    // layout one. The endpoint answers identically whether or not the address
-    // has an account and whether or not it has a password, so branching this
-    // control on account state would rebuild the enumeration oracle the
-    // endpoint was written to avoid: the presence of the button would answer
-    // the question the response refuses to.
-    const signinLink = h('button', {
-      type: 'button',
-      class: 'asc-linkish asc-login-signin-link',
-      onClick: async () => {
-        const addr = (emailInput && emailInput.value || '').trim();
-        if (!addr) {
-          errBox.classList.add('asc-login-notice');
-          errBox.textContent = 'Enter your email above first.';
-          errBox.removeAttribute('hidden');
-          return;
-        }
-        try {
-          const res = await fetch(API_BASE + '/auth/signin-link', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: addr }),
-          });
-          const data = await res.json().catch(() => null);
-          errBox.classList.add('asc-login-notice');
-          errBox.textContent = (data && data.message)
-            || 'If that email can be signed in this way, a link is on its way.';
-        } catch (_) {
-          errBox.classList.add('asc-login-notice');
-          errBox.textContent = 'Could not reach the server. Try again in a moment.';
-        }
-        errBox.removeAttribute('hidden');
-      },
-    }, 'Email me a sign in link');
+    // It existed because onboarding v2 had no password step: an applicant who
+    // closed the tab before a decision held no credential at all, so the only
+    // route back to their own practice case was a magic link. The wizard now
+    // takes a password on screen 1, so every new physician has an ordinary
+    // credential and the ordinary door works.
+    //
+    // The BACKEND is deliberately untouched. /auth/signin-link and its exchange
+    // both still work, so every link already sitting in a mailbox redeems for
+    // its full fifteen minutes, and the legacy accounts that finished the
+    // wizard during the passwordless window can still be issued one by hand.
+    //
+    // Those accounts do not need one, though, and that is worth stating because
+    // it is not obvious: forgot_password mints a reset for ANY active user
+    // without consulting password_is_unset, and set_user_password clears
+    // must_change_password in the same statement. So "Forgot your password?"
+    // below turns a legacy passwordless applicant into a normal account holder
+    // with no admin, no magic link, and no new code. Hence the line under the
+    // password field pointing them at it.
 
     // New here? Until this existed the sign-in screen was a closed door: a
     // physician who had never signed up had no route anywhere from it, and the
@@ -2156,9 +2137,18 @@
           h('a', { href: signupUrl, class: 'asc-linkish' }, 'Apply to contribute'))
       : null;
 
+    // The one sentence a legacy passwordless applicant needs. They applied
+    // during the window when finishing the wizard minted no credential, so
+    // "forgot your password" reads as the wrong door to them: they never had
+    // one to forget. It is the right door anyway, because a reset SETS a
+    // password rather than replacing one.
+    const legacyHint = h('p', { class: 'asc-login-hint asc-login-legacy' },
+      'Applied before and never set a password? Use Forgot your password.');
+
     const body = h('div', { class: 'asc-login-body' },
       form,
-      h('div', { class: 'asc-login-forgot' }, forgot, signinLink),
+      h('div', { class: 'asc-login-forgot' }, forgot),
+      legacyHint,
       // Was "Board-certified clinician access only", which is narrower than
       // the policy and is the last thing a retired physician, a fellow, or a
       // doctor licensed outside the US reads before deciding they were not
