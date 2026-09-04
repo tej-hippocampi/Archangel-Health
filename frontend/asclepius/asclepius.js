@@ -6197,6 +6197,11 @@
               else crit.error_tag_reasons[tag] = r;
               saveDraft();
               Array.from(rRow.children).forEach((x) => x.classList.toggle('active', x.textContent === r.replace(/_/g, ' ') && crit.error_tag_reasons[tag] === r));
+              // Symmetric with the severity pills: whichever half is answered
+              // last closes the box. `maybeClose` is declared below in the same
+              // function body, which is fine because this only ever RUNS after
+              // the whole body has been evaluated.
+              maybeClose();
             },
           }, r.replace(/_/g, ' '));
           rRow.appendChild(b);
@@ -6205,13 +6210,23 @@
           h('div', { class: 'asc-label' }, 'Why?'), rRow));
       }
       const sRow = h('div', { class: 'asc-sev-pills' });
-      // Done just collapses the panel; it is never disabled, so a reviewer can
-      // always close the popover. The substage still cannot advance until a
-      // severity is set, because critiqueConditionsMet() gates the flow.
-      const doneBtn = h('button', {
-        class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
-        onClick: () => { closeTagPopover(); paintChips(); sync(); },
-      }, 'Done');
+      // THE TAG AND ITS SEVERITY ARE THE ANSWER, so answering closes the box.
+      //
+      // There used to be a Done button, and pressing it was the only thing it
+      // did: the severity was already saved, the chip already repainted, and
+      // the substage was gated by critiqueConditionsMet() either way. So it
+      // was a button that asked a physician to confirm something they had just
+      // said, once per tag, on a screen where tagging several is normal.
+      //
+      // Closed on a timeout rather than inline because closeTagPopover()
+      // removes the node this handler is attached to; the same reason
+      // tutClickAdvance defers its advance.
+      const maybeClose = () => {
+        const reasonsOffered = !!(reasons && reasons.length);
+        const answered = !!crit.severities[tag]
+          && (!reasonsOffered || !!crit.error_tag_reasons[tag]);
+        if (answered) setTimeout(() => { closeTagPopover(); paintChips(); }, 0);
+      };
       sevs.forEach((sv) => {
         const b = h('button', {
           class: 'asc-sev-pill' + (crit.severities[tag] === sv ? ' active' : ''),
@@ -6224,6 +6239,7 @@
             // if the reviewer then dismisses the popover by clicking outside it.
             paintChips();
             sync();
+            maybeClose();
           },
         }, sv);
         sRow.appendChild(b);
@@ -6238,8 +6254,7 @@
             delete crit.severities[tag]; delete crit.error_tag_anchors[tag]; delete crit.error_tag_reasons[tag];
             saveDraft(); closeTagPopover(); paintChips(); sync();
           },
-        }, 'Remove tag'),
-        doneBtn));
+        }, 'Remove tag')));
       // Portal it: nothing in the card tree can clip what is not in the card tree.
       document.body.appendChild(pop);
       state._tagPop = pop;
@@ -8470,6 +8485,19 @@
     const btn = document.getElementById('ascSubmit');
     const hint = document.getElementById('ascSubmitHint');
     if (!btn) return;
+    // THE PRACTICE CASE ALWAYS SUBMITS.
+    //
+    // Every gate below exists to protect a REAL record, and there is no real
+    // record here: nothing the practice case produces is stored, graded for
+    // access, sold, or paid for. Applying them to it meant a physician who
+    // used "Skip this step", which the tour offers, reached the end and found
+    // Submit dead, with the reason in a hint line below the fold. The case
+    // teaches; it does not enforce.
+    if (tutorialActive()) {
+      btn.disabled = !!state.submitting;
+      if (hint) hint.textContent = '';
+      return;
+    }
     const d = state.draft;
     let ok = true, msg = '';
     if (!d.verdict) { ok = false; msg = 'pick a verdict to continue'; }
@@ -8542,6 +8570,20 @@
   async function submitEvaluation() {
     if (state.submitting) return;
     saveDraft();
+    // Hoisted ABOVE every gate below, which is the fix rather than a shortcut.
+    // The tutorial branch used to sit after five checks that each `return`
+    // silently, so a practice submit with a skipped step did nothing at all:
+    // no error, no toast, no movement. The backend never applied these to a
+    // practice submission in the first place, so the block was entirely on
+    // this side.
+    //
+    // Validation is BYPASSED rather than autofilled. Filling a skipped field
+    // with a plausible answer would put words the physician did not write into
+    // a payload that reaches the admin dossier as evidence about them, and the
+    // "assisted" ledger exists precisely because autofilled content was
+    // polluting that. An empty field reads as an incomplete attempt, which is
+    // true and is real information.
+    if (tutorialActive()) { await submitTutorialEvaluation(); return; }
     const g = groundingSatisfied();
     if (!g.ok) { updateSubmitState(); return; }
     const sr = stepsReview();
@@ -8557,9 +8599,9 @@
       if (abVerdict && (!whyBetterConditionsMet() || !critiqueConditionsMet())) { updateSubmitState(); return; }
       if (!d0.confidence_set) { updateSubmitState(); return; }
     }
-    // Tutorial: grade against the answer key and show the reveal: the real
-    // submit pipeline (and its records/QA routing) is never touched.
-    if (tutorialActive()) { await submitTutorialEvaluation(); return; }
+    // The tutorial branch that used to be here has moved to the TOP of this
+    // function. Leaving a copy behind would be dead code that reads as the
+    // live one, and the whole bug was that it sat below five silent returns.
     state.submitting = true;
     updateHeaderProgress(); // §16: the bar reads 100% while the submit runs
     const btn = document.getElementById('ascSubmit');
@@ -10045,6 +10087,25 @@
     if (!t.welcomed) { renderTourWelcome(); return; }
     resolveTourIndex();
     let step = tutCurrentStep();
+    // THE TOUR DOES NOT ADVANCE OUT FROM UNDER A CURSOR.
+    //
+    // Several steps are satisfied by "this field is not empty", and the field
+    // writes the draft on every keystroke. A MutationObserver then ticked 80ms
+    // later, one character was already enough, and the tour moved on while the
+    // physician was still typing the first word of their answer. They were
+    // asked for a one-line gut check and the screen left before they gave it.
+    //
+    // A step whose own target holds the caret is a step somebody is still
+    // answering. Click and choice steps are untouched: their targets are
+    // buttons, and a button does not hold a text caret. Leaving the field
+    // re-ticks (see the focusout listener in mountTourEngine), so the tour
+    // advances the moment they are actually done.
+    const typing = document.activeElement;
+    if (step && step.target && isTypingTarget(typing)
+        && typing.closest && typing.closest(step.target)) {
+      renderTourSpotlight(step);
+      return;
+    }
     let moved = false;
     while (step && tutStepSatisfied(step)) { t.idx += 1; moved = true; step = tutCurrentStep(); t.bounced = false; }
     if (moved && step) tutPersistStep(step.id);
@@ -10085,6 +10146,10 @@
     window.addEventListener('scroll', scheduleTutTick, true);
     document.addEventListener('click', tutClickAdvance, true);
     document.addEventListener('keydown', tutKeydown, true);
+    // The other half of the focus guard in tutTick. Without a re-tick on blur,
+    // a step held open by the caret would stay open after the physician
+    // clicked away, because nothing else would necessarily mutate the DOM.
+    document.addEventListener('focusout', scheduleTutTick, true);
   }
 
   function teardownTutorial() {
@@ -10093,6 +10158,7 @@
     window.removeEventListener('scroll', scheduleTutTick, true);
     document.removeEventListener('click', tutClickAdvance, true);
     document.removeEventListener('keydown', tutKeydown, true);
+    document.removeEventListener('focusout', scheduleTutTick, true);
     clearTimeout(_tourTickTimer);
     clearTimeout(_tourPatchTimer);
     TUTORIAL_STEPS.forEach((s) => { s._waitSince = null; });
@@ -10358,18 +10424,24 @@
   // ─── Start / skip / submit ─────────────────────────────────────────────────
   async function startTutorial(opts) {
     opts = opts || {};
-    // ALWAYS from the top, on a clean draft.
+    // THE DRAFT SURVIVES, and the pointer does not.
     //
-    // Mid-tour resume is gone. It read a saved server position and skipped the
-    // welcome screen whenever it fired, and the local draft it resumed onto
-    // was never cleared on abandon: not on the error path below, not in
-    // logout() (which SAVES the draft), and not on a reload. A single stale
-    // `draft.stage` was then enough to satisfy the first two steps at once and
-    // open the tour on step 3 of 14 with no orientation.
+    // Clearing on every entry was how the previous version fixed a real bug:
+    // a stale `draft.stage` satisfied the first two steps at once and opened
+    // the tour on step 3 of 14 with no orientation. But it also made the leave
+    // dialog's promise false. "Your work here is kept" was written on a button
+    // that threw the work away, and a physician who left half way through came
+    // back to an empty case.
     //
-    // The practice case is four minutes and is now mandatory, so
-    // cross-device resume was never worth the bug budget it was costing.
-    clearDraft(TUTORIAL_TASK_ID);
+    // Both hold if the two things are separated. The DRAFT is kept, because it
+    // is the physician's work. The tour POINTER always restarts at zero and
+    // the welcome screen is always shown, which is what the original fix was
+    // actually protecting: tutTick's fast-forward then walks the pointer to
+    // wherever the restored draft genuinely reaches, in one pass, with the
+    // welcome screen ahead of it.
+    //
+    // A replay is a fresh attempt by definition, so that one still clears.
+    if (opts.replay) clearDraft(TUTORIAL_TASK_ID);
     if (!opts.replay) {
       api('/me/tutorial', { method: 'PATCH', body: { action: 'start' } })
         .then((u) => { state.user = u; }).catch(() => { /* best-effort */ });
@@ -10404,11 +10476,14 @@
     }
     state.task = data.task;
     initDraftForTask(state.task);
-    // initDraftForTask restores from localStorage, and the whole class of
-    // stale-draft failure above lives in what it can hand back. The tour's
-    // invariant is that a run begins at the first stage, so assert it here
-    // rather than hoping the clear above was enough.
-    if (state.draft.stage !== 'prompt_review') state.draft = newDraft(state.task);
+    // A STRUCTURALLY broken draft is repaired; a valid in-progress one is
+    // resumed onto. This used to reset any draft that was not at the first
+    // stage, which is every draft belonging to somebody who got part way
+    // through, and that is precisely the work "your work here is kept" promised
+    // to keep.
+    if (!state.draft || typeof state.draft.stage !== 'string') {
+      state.draft = newDraft(state.task);
+    }
     state.draft.portal_version = 'v3'; // the tutorial teaches the seamless flow
     saveDraft();
     mountTourEngine();
@@ -10433,7 +10508,12 @@
     const popup = h('div', { class: 'call-team-popup asc-tour-inter-pop', onClick: (e) => e.stopPropagation() },
       h('div', { class: 'call-team-title' }, 'Leave the practice case?'),
       h('p', { class: 'asc-help', style: 'margin:6px 0 16px' },
-        'Real cases open once you have passed it. Your work here is kept, so you can pick up where you left off.'),
+        // "Once you have passed it" is no longer true: the practice case is
+        // practice, and the examination is the thing that is read. Saying it
+        // decides access made an optional exercise sound like a gate, which is
+        // the opposite of what it is for.
+        'Nothing here is scored. Your work is kept, so you can pick up where '
+        + 'you left off whenever you like.'),
       h('div', { style: 'display:flex;gap:10px' },
         h('button', { class: 'asc-btn asc-btn-primary', type: 'button',
           onClick: () => { overlay.remove(); tutTick(); } }, 'Keep going'),
@@ -10457,24 +10537,26 @@
     state.task = null;
     state.portalChosen = false;
     state.specialtyChosen = false;
-    // §6: a skipped practice case is a CLOSED stop, not an abandoned
-    // walkthrough. The server closes it from this same PATCH /me/tutorial
-    // 'skip', so the checklist shows it skipped and never asks again — but the
-    // remaining stops still have things to say, so resume rather than exit.
-    // state.user is refreshed by the PATCH above; re-read it there.
-    if (!wasReplay && window.FirstRunWalkthrough) {
-      api('/auth/me').then((u) => {
-        if (u) state.user = u;
-        // Carry on through the tour only while it is genuinely unfinished — some
-        // stop with no outcome at all. `firstRunPending()` is the wrong question
-        // here now that `deferred` keeps a stop open: it would walk a physician
-        // who replayed the practice case months later back through an onboarding
-        // they already declined, which is the nagging §2 removed.
-        if (firstRunTourPending()) resumeFirstRun(); else renderDashboardView();
-      }).catch(() => renderDashboardView());
-    } else {
-      renderDashboardView();
-    }
+    // "LEAVE FOR NOW" NOW LEAVES.
+    //
+    // It did not. The walkthrough's practice stop stays open when somebody
+    // leaves (the server refuses to record a skip), so firstRunTourPending()
+    // was still true, resumeFirstRun() asked the walkthrough where to go, and
+    // the walkthrough's first open stop was the practice case. Leave landed
+    // straight back in the case it had just left, twice, and the only way out
+    // was to close the tab.
+    //
+    // The loop is gone rather than patched: leaving means the dashboard, every
+    // time. An approved physician mid-walkthrough gets back to the remaining
+    // stops through the first-run chip and banner on that dashboard, which is
+    // the mechanism designed for exactly this and does not trap anybody.
+    //
+    // /auth/me is still refreshed, because the dashboard renders from it and
+    // the attempt that just happened changes what it should say.
+    api('/auth/me')
+      .then((u) => { if (u) state.user = u; })
+      .catch(() => { /* the dashboard renders from what we already hold */ })
+      .then(() => { state.view = 'home'; state.panel = 'tasks'; renderDashboardView(); });
     // First skip: pulse the corner ? tab once so they know where the written
     // instructions live: never auto-open a panel over their screen.
     let seen = null;
@@ -10517,7 +10599,9 @@
   // ─── The scored reveal ─────────────────────────────────────────────────────
   function renderTutorialReveal(result, opts) {
     opts = opts || {};
-    const passed = !!result.passed;
+    // `result.passed` is deliberately NOT read. The grade goes to the admin
+    // dossier; this screen shows a physician what the reference panel saw and
+    // nothing about how they scored against it.
     const mustAck = (result.must_acknowledge || []).slice();
     // A miss the physician never opened is a miss they never read. The primary
     // button waits on them opening each one: one click per miss, not a quiz.
@@ -10583,37 +10667,41 @@
             : null)
       : null;
 
+    /* NOTHING ON THIS SCREEN TELLS A PHYSICIAN HOW THEY DID.
+     *
+     * It used to open "CALIBRATION CASE 1 · NOT YET" over a headline reading
+     * "you used Skip this step on the parts we score, and it is not a pass".
+     * Three things were wrong with that. It graded a practice case, which is
+     * practice. It graded it in a product where the decision about a physician
+     * belongs to the person reading their application, and this screen was
+     * making that call first and telling them about it. And it read as a
+     * rejection of them at the exact moment they had just done us a favour.
+     *
+     * The grading still happens: it lands in the admin dossier, as evidence
+     * for the human who decides. It just is not read out to the applicant.
+     *
+     * What survives is the TEACHING: what the reference panel read, and the
+     * findings shown as things to notice rather than as marks. That is the
+     * reason to do a practice case at all, and it contains no verdict.
+     */
     const closing = isAdvisor()
-      ? 'A physician who finished this would be graded exactly the way you '
-        + 'just were, and their next case would be a real one. Nothing from '
-        + 'this run was recorded.'
-      : passed
-        ? (opts.replay ? 'Practice case: nothing was recorded.'
-                       : 'Nothing from this case is recorded or sold. Your real cases start now.')
-        : 'Nothing from this case is recorded. Take it again when you are ready: '
-          + 'there is no limit on attempts.';
+      ? 'Nothing from this run was recorded.'
+      : 'Nothing here is scored for you. The examination is the case we read, '
+        + 'and a person reads it.';
 
     primaryBtn = h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
       onClick: () => {
         if (!primaryEnabled()) return;
-        if (!passed && !isAdvisor()) { startTutorial({ replay: true }); return; }
         state.portalChosen = false; state.specialtyChosen = false;
-        // Onboarding v2 §6 stop 3: the practice case is a STOP, so passing it
-        // hands control back to the walkthrough rather than dropping the
-        // physician on a dashboard halfway through being introduced to the
-        // product. Only on a PASS: a failed attempt has not finished the stop,
-        // and resuming would move them past the one thing they still owe.
+        if (isAdvisor()) { renderDashboardView(); return; }
         if (firstRunTourPending()) { resumeFirstRun(); return; }
         renderDashboardView();
       } },
-      isAdvisor() ? 'Back to the dashboard'
-        : !passed ? 'Take it again'
-          : firstRunTourPending() ? 'Keep going →' : 'Start real cases →');
+      isAdvisor() ? 'Back to the dashboard' : 'Take my examination →');
 
     const card = h('div', { class: 'asc-card asc-card-pad' },
-      h('div', { class: 'asc-tour-chrome' },
-        'CALIBRATION CASE 1 · ' + (passed ? 'PASSED' : 'NOT YET')),
-      h('h2', { class: 'asc-tour-headline' }, result.headline),
+      h('div', { class: 'asc-tour-chrome' }, 'PRACTICE CASE'),
+      h('h2', { class: 'asc-tour-headline' }, 'Practice case done.'),
       h('div', { class: 'asc-tour-findings' }, rows),
       planted ? h('div', { class: 'asc-tour-planted' },
         h('div', { class: 'asc-tour-planted-title' },

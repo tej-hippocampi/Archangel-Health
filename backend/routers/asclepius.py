@@ -1853,12 +1853,23 @@ async def tutorial_submit(
         current["skipped_at"] = None
         current.pop("step", None)
     else:
-        # Explicitly NOT "completed". A failed attempt leaves them mid-flow,
-        # which is the truth and is also what relaunches the tour on next login.
-        if gate.get("state") not in (asc_caps.GATE_PASSED,
-                                     asc_caps.GATE_GRANDFATHERED):
-            gate["state"] = asc_caps.GATE_LOCKED
-            current["status"] = "in_progress"
+        # A PRACTICE CASE THAT WAS ATTEMPTED IS COMPLETED.
+        #
+        # This used to stamp `in_progress` and lock the gate, which relaunched
+        # the tour on the next sign-in: a physician who finished the case and
+        # scored badly was silently put back at the start of it, with nothing
+        # saying why. That made an optional exercise behave like a test they
+        # had to keep resitting, and it made the product look broken.
+        #
+        # The grade is still recorded below, for the admin dossier, which is
+        # where a decision about a physician is made. What changes is that the
+        # exercise stops being a gate. What gates real work is approval, and
+        # what an admin reads before approving is the examination.
+        current["status"] = "completed"
+        if not already_done:
+            current["completed_at"] = now
+        current["skipped_at"] = None
+        current.pop("step", None)
 
     # Kept for the admin and for events, never shipped to the physician:
     # public_user projects it out (asclepius/auth.py::_parse_tutorial).
