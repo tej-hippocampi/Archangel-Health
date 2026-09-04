@@ -1385,6 +1385,14 @@ async def update_my_tutorial(
                 "gate": current.get("gate"),
             }
         # already in_progress: keep position, refresh nothing
+    elif action == "resources_seen":
+        # Stamped when the physician has been shown the two things that help
+        # before the examination: the demo and the practice case. Idempotent,
+        # first write wins, and it grants nothing. It decides which button the
+        # credentialing dashboard offers, so that somebody who has already read
+        # the page is not sent back to it every time they sign in.
+        if not current.get("resources_seen_at"):
+            current["resources_seen_at"] = now
     elif action == "advance":
         if status == "completed":
             return asc_auth.public_user(store.get_user_by_id(user["id"]))
@@ -1772,6 +1780,94 @@ async def get_tutorial_task(user: Dict[str, Any] = Depends(asc_auth.require_surf
     """The practice case, blinded EXACTLY like a real task (same
     ``_blind_task`` path: ground_truth stripped, answer texts withheld)."""
     return {"task": _blind_task(tutorial_raw_task())}
+
+
+# ─── The credentialing examination ───────────────────────────────────────────
+# The practice case teaches; this is the one a person reads. See
+# asclepius/exam_case.py for why the case comes from the gold set and why the
+# answers live in their own table.
+
+@router.get("/exam/task")
+async def get_exam_task(user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL))):
+    """One synthetic case in the applicant's own specialty.
+
+    Blinded through the SAME ``_blind_task`` path a paid case takes, so the
+    workspace they sit it in is the workspace they would work in, which is what
+    makes it worth reading.
+    """
+    from asclepius import exam_case  # noqa: PLC0415
+
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    exam = current.get("exam") if isinstance(current.get("exam"), dict) else {}
+    attempt = int(exam.get("attempt") or 0) or 1
+
+    task = exam_case.exam_task_for(store, user, attempt)
+    if not task:
+        raise HTTPException(
+            status_code=503,
+            detail="No examination case is available yet. We will email you.")
+
+    picked = exam_case.exam_specialty(user)
+    # Mark it in progress on the DRAW, so somebody who closes the tab mid-case
+    # comes back to "Resume my examination" rather than to a screen that has
+    # forgotten they started.
+    if exam.get("state") != "submitted":
+        current["exam"] = {**exam, "state": "in_progress", "attempt": attempt}
+        store.set_tutorial_state(user["id"], current)
+
+    return {
+        "task": _blind_task(task),
+        "attempt": attempt,
+        # Said out loud when we could not serve their own specialty. Handing a
+        # cardiologist a kidney case without a word would read as a broken
+        # product, and they would reasonably answer it as though we had erred.
+        "specialty": picked["specialty"],
+        "is_own_specialty": picked["is_own"],
+    }
+
+
+@router.post("/exam/submit")
+async def submit_exam(
+    body: Dict[str, Any],
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL)),
+):
+    """File the examination. Nothing here is graded, and that is deliberate.
+
+    The founders were explicit: no applicant is ever told they are not ready,
+    and the person operating the admin console has the only say. So this
+    records the work and stamps the state; it computes no verdict, and there is
+    nothing for a client to read one out of.
+    """
+    from asclepius import exam_case  # noqa: PLC0415
+
+    store = _store()
+    current = store.get_tutorial_state(user["id"])
+    exam = current.get("exam") if isinstance(current.get("exam"), dict) else {}
+    attempt = int(exam.get("attempt") or 0) or 1
+    task_id = str(body.get("task_id") or "").strip()
+    if not task_id:
+        raise HTTPException(status_code=400, detail="Which case is this?")
+
+    picked = exam_case.exam_specialty(user)
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    exam_id = store.record_credentialing_exam(
+        user_id=user["id"], task_id=task_id, specialty=picked["specialty"],
+        attempt=attempt, payload=body,
+        time_spent_sec=int(body.get("time_spent_sec") or 0),
+    )
+    current["exam"] = {"state": "submitted", "attempt": attempt,
+                       "submitted_at": now, "exam_id": exam_id}
+    store.set_tutorial_state(user["id"], current)
+    store.log_event(
+        entity_type="user", entity_id=user["id"],
+        event_type="credentialing_exam_submitted", actor=user["id"],
+        # The exam id and the case, never the answers: this log is read by
+        # people who should look at the dossier rather than at an event row.
+        payload={"exam_id": exam_id, "task_id": task_id, "attempt": attempt},
+    )
+    return {"ok": True,
+            "user": asc_auth.public_user(store.get_user_by_id(user["id"]))}
 
 
 @router.post("/tutorial/reveal")

@@ -212,6 +212,24 @@ def account_kind(user: Optional[Dict[str, Any]]) -> Optional[str]:
     return ((user or {}).get("account_kind") or "").strip().lower() or None
 
 
+def _retake_offered(user: Dict[str, Any]) -> bool:
+    """Has a human offered this rejected applicant another go?
+
+    Read out of ``tutorial_json``, where the rest of the credentialing path
+    already lives, rather than from a new column: this is a fact about their
+    case work, and the blob is the thing an admin decision already rewrites.
+    """
+    import json as _json
+
+    raw = user.get("tutorial_json")
+    if isinstance(raw, str):
+        try:
+            raw = _json.loads(raw)
+        except (TypeError, ValueError):
+            return False
+    return bool(isinstance(raw, dict) and raw.get("retake_offered_at"))
+
+
 def access_level(user: Optional[Dict[str, Any]]) -> str:
     """Map a user row to its access level. Reads the dict only, never SQL."""
     u = user or {}
@@ -222,6 +240,21 @@ def access_level(user: Optional[Dict[str, Any]]) -> str:
         return NONE
     status = u.get("verification_status")
     if status == "rejected":
+        # REJECTED MEANS "TRY AGAIN", once a retake has been offered.
+        #
+        # The founders' instruction: a physician we turn down is not finished
+        # with, they are asked to do the case work again. So a rejection now
+        # leaves them able to sign in and re-sit, and the account only truly
+        # closes through deactivation (`active = 0`), which is checked above.
+        #
+        # Gated on a STAMP rather than on the status alone, and that is a
+        # production-safety property rather than a stylistic one. Flipping every
+        # `rejected` row to PROVISIONAL would silently hand sign-in back to
+        # everybody rejected before this shipped, including whoever was rejected
+        # for not being a clinician at all. Rows written before the retake
+        # existed carry no stamp and keep exactly the behaviour they have today.
+        if _retake_offered(u):
+            return PROVISIONAL
         return NONE
     if status == "pending":
         return PROVISIONAL

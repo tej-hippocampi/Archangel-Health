@@ -1400,7 +1400,7 @@ def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
     return _shell(subject="You're now a reviewer on Archangel Health", body_html=body)
 
 
-def build_asclepius_rejected_email(*, full_name: str) -> str:
+def build_asclepius_rejected_email(*, full_name: str, sign_in_url: str = "") -> str:
     """Credential verification did not pass.
 
     We send one, unlike the health-system refusal above, and the reasoning does
@@ -1416,7 +1416,13 @@ def build_asclepius_rejected_email(*, full_name: str) -> str:
     suspicion, or a third party's name, none of which was drafted to be read by
     its subject. And a rejection that names the check that failed is a rejection
     an adversarial applicant tunes the next attempt against. The note stays in
-    verification_notes; the door back is a reply to a person.
+    verification_notes.
+
+    What HAS changed is the ending. This used to close the door ("your account
+    will not receive case work"), which is a permanent answer to a question
+    that is usually about one case read on one afternoon. A rejection now
+    offers another go at the case work, with every credential they already gave
+    us kept, so the message has somewhere to send them.
     """
     first = (full_name or "").strip() or "Doctor"
     body = (
@@ -1427,17 +1433,30 @@ def build_asclepius_rejected_email(*, full_name: str) -> str:
             "clinical team has reviewed the credentials you submitted, and we are not "
             "able to open your account for evaluation work."
         )
+        # THE DOOR IS OPEN, and this is the change.
+        #
+        # A rejected physician used to be told their account would never
+        # receive case work, which was a permanent answer to a question that is
+        # usually about one case read on one afternoon. They keep their
+        # credentials, their CV and everything else they gave us; what they are
+        # asked to do again is the case work, and the demo and practice case
+        # are offered again first.
         + _p(
-            "If you believe that is wrong, reply to this email. Tell us which licence or "
-            "registration you would like us to check, and a person will look again. We "
-            "keep the record of every decision, so a second look starts from what we "
-            "already hold."
+            "This is not final. Your account is still open, and everything you already "
+            "sent us is still on it: your credentials, your CV, all of it. What we would "
+            "like you to do again is the case work. Sign in and you will find the walk "
+            "through and the practice case waiting, and a fresh examination case after "
+            "them."
         )
+        + _cta(sign_in_url, "Sign in and try again")
         + _p(
-            "Your account will not receive case work. We will not email you again about "
-            "this unless you reply.",
+            "If you think we have this wrong, reply to this email. Tell us which licence "
+            "or registration you would like us to check, and a person will look again. We "
+            "keep the record of every decision, so a second look starts from what we "
+            "already hold.",
             muted=True, small=True,
         )
+        + _founder_signoff("Tej & Aryaa, founders")
     )
     # Not "You were rejected". That is the line they read on a phone in a
     # corridor, and the subject is not where the decision has to land.

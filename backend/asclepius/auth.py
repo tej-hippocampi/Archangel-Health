@@ -340,7 +340,8 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
             parsed = {}
     if not parsed:
         return {"status": "not_started", "version": None,
-                "gate_state": _caps.GATE_LOCKED, "attempts": 0}
+                "gate_state": _caps.GATE_LOCKED, "attempts": 0,
+                "resources_seen_at": None, "exam": {"state": "not_started"}}
 
     gate = parsed.get("gate")
     gate = gate if isinstance(gate, dict) else {}
@@ -348,6 +349,8 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
         attempts = int(gate.get("attempts") or 0)
     except (TypeError, ValueError):
         attempts = 0
+    exam = parsed.get("exam")
+    exam = exam if isinstance(exam, dict) else {}
     return {
         "status": parsed.get("status"),
         "version": parsed.get("version"),
@@ -355,6 +358,19 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
         "completed_at": parsed.get("completed_at"),
         "gate_state": _caps.practice_gate_state({"tutorial_json": parsed}),
         "attempts": attempts,
+        # Whether they have been through the pre-examination screen. Decides
+        # which button the credentialing dashboard shows, nothing more.
+        "resources_seen_at": parsed.get("resources_seen_at"),
+        # The examination, PROJECTED as hard as the practice case is. State and
+        # attempt count only: no submission id (nothing good comes of the
+        # client holding one) and above all no outcome, because whether this
+        # physician is good enough is a decision a person makes and this
+        # payload must not be able to leak it early.
+        "exam": {
+            "state": exam.get("state") or "not_started",
+            "attempt": exam.get("attempt") or 0,
+            "submitted_at": exam.get("submitted_at"),
+        },
     }
 
 

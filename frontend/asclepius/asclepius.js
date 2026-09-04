@@ -100,6 +100,13 @@
     // startTutorial to {active, replay, idx}. Server state (user.tutorial) is
     // the launch authority; this is only the live tour position.
     tutorial: null,
+    // The credentialing EXAMINATION, when one is open. Null otherwise; set by
+    // startExam to {active, attempt, specialty, isOwnSpecialty}. Separate from
+    // `tutorial` on purpose: the two use the same workspace and mean opposite
+    // things, one being practice nobody reads and the other the case a person
+    // decides on, and one flag for both is how a practice run would get filed
+    // as somebody's examination.
+    exam: null,
     instrOpen: false,       // instruction drawer visibility
     // Admin-only (PRD-1 §4.1): the reviewer surface is being PREVIEWED, so the
     // draw is unclaimed, no session opens, and a submit is refused with a 409.
@@ -2823,11 +2830,161 @@
    *  resources screen and the examination land on this same seam, so the
    *  dashboard does not have to change again when they do.
    */
+  /** The one action on the credentialing dashboard, routed by stage. */
   function startCredentialing() {
-    // Never `replay`. Replay clears the saved draft, and this button is the
-    // one a physician presses to CONTINUE a practice case they left part way
+    const stage = credentialingStage();
+    if (stage === 'exam_ready' || stage === 'exam_in_progress') {
+      startExam();
+      return;
+    }
+    // Never `replay`. Replay clears the saved draft, and this is the button a
+    // physician presses to CONTINUE a practice case they left part way
     // through, which is exactly the work that must survive.
-    startTutorial({ replay: false });
+    if (stage === 'practice_in_progress') { startTutorial({ replay: false }); return; }
+    renderCredentialingResources();
+  }
+
+  /** Before the examination: the two things that help, and what it is for.
+   *
+   *  A physician used to be dropped into a case that decides about them with
+   *  no warning that it did. Both resources are OPTIONAL and say so; the
+   *  examination is not, and says that too. Being straight about which is
+   *  which is the whole screen.
+   */
+  function renderCredentialingResources() {
+    const resource = (title, body, label, onClick) =>
+      h('div', { class: 'asc-card asc-card-pad asc-res-card' },
+        h('h3', {}, title),
+        h('p', { class: 'asc-dim' }, body),
+        h('button', { class: 'asc-btn', onClick: onClick }, label));
+
+    const demoAvailable = !!(window.FirstRunWalkthrough
+      && window.FirstRunWalkthrough.demoAvailable
+      && window.FirstRunWalkthrough.demoAvailable());
+
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'chrome' }, 'BEFORE YOUR EXAMINATION'),
+        h('h2', {}, 'The next case is the one we read.'),
+        h('p', {},
+          'It is how we judge whether your reads are credible for this platform, '
+          + 'and it feeds what we can pay you. Two things exist to help you '
+          + 'before you sit it. Both are optional. The examination is not.'),
+        h('div', { class: 'asc-res-grid' },
+          demoAvailable
+            ? resource('Watch the demo', 'Three minutes, the whole product start to finish.',
+                'Play the demo',
+                () => {
+                  if (window.FirstRunWalkthrough && window.FirstRunWalkthrough.playDemo) {
+                    window.FirstRunWalkthrough.playDemo(firstRunCtx());
+                  }
+                })
+            : null,
+          resource('Do the practice case',
+            'One guided case, about four minutes. Nothing in it is recorded or scored.',
+            'Open the practice case', () => startTutorial({ replay: false }))),
+        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: startExam },
+          'Take my examination \u2192'),
+        h('p', { class: 'asc-dim asc-small' },
+          'Skipping either one costs you nothing here. They exist because '
+          + 'physicians who use them label better.'))));
+
+    // Stamped on ARRIVAL, not on leaving: they have been shown the help, and
+    // whether they took it is their business. Best-effort, because a failed
+    // stamp costs one extra visit to this screen and nothing else.
+    api('/me/tutorial', { method: 'PATCH', body: { action: 'resources_seen' } })
+      .then((u) => { if (u) state.user = u; })
+      .catch(() => { /* they will simply see this screen again */ });
+  }
+
+  /** The examination: the real workspace, one case, in their own specialty. */
+  async function startExam() {
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'loading-state' },
+          h('div', { class: 'loading-spinner' }), 'Opening your examination…'))));
+    let data;
+    try {
+      data = await api('/exam/task');
+    } catch (e) {
+      // Never trap them on a spinner. The dashboard says where they are.
+      if (e.status !== 401) {
+        toast('Could not open your examination: ' + e.message, 'error');
+        renderDashboardView();
+      }
+      return;
+    }
+    state.exam = { active: true, attempt: data.attempt,
+                   isOwnSpecialty: data.is_own_specialty !== false,
+                   specialty: data.specialty };
+    state.task = data.task;
+    state.portalChosen = true;
+    state.specialtyChosen = true;
+    initDraftForTask(state.task);
+    if (!state.draft || typeof state.draft.stage !== 'string') {
+      state.draft = newDraft(state.task);
+    }
+    state.draft.portal_version = 'v3';
+    saveDraft();
+    renderTaskWorkspace();
+  }
+
+  function examActive() { return !!(state.exam && state.exam.active); }
+
+  /** Step out of the examination and go back to the help.
+   *
+   *  A physician part way through, realising they are not ready, had two
+   *  options: guess, or abandon the tab. Both are worse for them and worse for
+   *  the person reading the result. The draft is saved on the way out, so the
+   *  answers they have already given survive, and the case is the same one
+   *  when they come back: pausing is not a retake and must not be treated as
+   *  one.
+   */
+  function pauseExam() {
+    saveDraft();
+    state.exam = null;
+    state.task = null;
+    renderCredentialingResources();
+  }
+
+  async function submitExamEvaluation() {
+    state.submitting = true;
+    updateSubmitState();
+    try {
+      const payload = Object.assign(buildSubmissionPayload(), {
+        task_id: state.task && state.task.task_id,
+      });
+      const res = await api('/exam/submit', { method: 'POST', body: payload });
+      if (res && res.user) state.user = res.user;
+      clearDraft(state.task && state.task.task_id);
+      state.exam = null;
+      state.task = null;
+      state.view = 'home';
+      renderExamSubmitted();
+    } catch (e) {
+      toast('Could not file your examination: ' + e.message, 'error');
+    } finally {
+      state.submitting = false;
+    }
+  }
+
+  /** After the examination. Says what happens next and claims nothing else.
+   *
+   *  No verdict, no score, no "well done": whether this physician is good
+   *  enough is the reading admin's call, and a screen that congratulated them
+   *  would be making it first and getting it wrong half the time.
+   */
+  function renderExamSubmitted() {
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad' },
+        h('div', { class: 'chrome' }, 'EXAMINATION FILED'),
+        h('h2', {}, 'That is everything we needed.'),
+        h('p', {},
+          'Your examination is with us. One of us reads it personally, '
+          + 'alongside the credentials you sent, and we will email you either '
+          + 'way. Usually one to two business days.'),
+        h('button', { class: 'asc-btn', onClick: renderDashboardView },
+          'Back to my dashboard'))));
   }
 
   /** What an applicant sees where the case queue will be.
@@ -4758,6 +4915,28 @@
       list('Would change my mind', ho.falsifiers));
   }
 
+  /** The one strip of chrome the examination adds to the ordinary workspace.
+   *
+   *  Deliberately one strip and no more: the case has to LOOK like the work,
+   *  because that is the whole reason to judge somebody on it, so this says
+   *  what the case is for and offers the way back to the help. Nothing else
+   *  about the screen changes.
+   */
+  function examBannerEl() {
+    if (!examActive()) return null;
+    const ex = state.exam || {};
+    return h('div', { class: 'asc-card asc-card-pad asc-exam-banner' },
+      h('div', { class: 'chrome' }, 'EXAMINATION'),
+      h('p', { class: 'asc-dim' },
+        ex.isOwnSpecialty
+          ? 'One case, read by a person. Take your time.'
+          : ('We do not have a case set for your specialty yet, so this one is '
+             + (ex.specialty || 'general') + '. Answer it as you would any '
+             + 'case outside your subspecialty.')),
+      h('button', { class: 'asc-btn asc-btn-sm', onClick: pauseExam },
+        'Pause and review the demo or practice case'));
+  }
+
   function renderTaskWorkspace() {
     const task = state.task;
     const d = state.draft;
@@ -4825,7 +5004,7 @@
     // The staged split-screen is a V3/V4 feature; V1 and V2 render exactly as
     // before so their submissions and exports stay byte-for-byte identical.
     if (!isV3()) {
-      const wrap = h('div', { class: 'asc-wrap' }, renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+      const wrap = h('div', { class: 'asc-wrap' }, examBannerEl(), renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
       if (d.stage === 'prompt_review') {
         wrap.appendChild(stageHeader('Review the prompt'));
         wrap.appendChild(renderPromptGate());
@@ -4854,7 +5033,7 @@
       // button on the screen that asks *is this case clinically valid* invites
       // answering without reading, and that gate feeds everything downstream.
       const wrap = h('div', { class: 'asc-wrap asc-wrap-case' },
-        renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
+        examBannerEl(), renderExperienceBadge(), promptCard, renderCasePanel(), groundingBanner);
       wrap.appendChild(stageHeader(d.stage === 'prompt_review' ? 'Review the prompt' : 'Write your answer'));
       wrap.appendChild(d.stage === 'prompt_review' ? renderPromptGate() : renderIndependentAnswer());
       wrap.appendChild(blurredPlaceholder(d.stage === 'prompt_review'
@@ -4906,6 +5085,7 @@
       b.title = label;
     }
     const caseRail = h('aside', { class: 'asc-case-rail' },
+      examBannerEl(),
       promptCard,
       renderCasePanel() || h('div', { class: 'asc-readbox', style: 'white-space:pre-wrap' },
                              promptText || 'n/a'),
@@ -8602,6 +8782,11 @@
     // The tutorial branch that used to be here has moved to the TOP of this
     // function. Leaving a copy behind would be dead code that reads as the
     // live one, and the whole bug was that it sat below five silent returns.
+    // The examination goes to its own endpoint, and it goes there AFTER every
+    // gate above. Unlike the practice case it is the work sample, so it is
+    // held to the same standard a paid case is: an examination somebody could
+    // submit half-finished would measure nothing.
+    if (examActive()) { await submitExamEvaluation(); return; }
     state.submitting = true;
     updateHeaderProgress(); // §16: the bar reads 100% while the submit runs
     const btn = document.getElementById('ascSubmit');

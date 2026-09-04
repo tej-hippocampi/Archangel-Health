@@ -5772,3 +5772,21 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   color: var(--ink-faint);
   font-size: 0.8rem;
 }
+
+
+/* The credentialing path: the pre-examination resources screen, the one strip
+   of chrome the examination adds, and the applicant's dashboard. Kept minimal
+   on purpose: the examination has to LOOK like the work, because that is the
+   whole reason to judge somebody on it. */
+.asc-res-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-3, 14px);
+  margin: 18px 0;
+}
+.asc-res-card h3 { margin: 0 0 6px; font-weight: 500; }
+.asc-exam-banner { margin-bottom: var(--sp-3, 14px); }
+.asc-exam-banner .chrome { margin-bottom: 6px; }
+.asc-credentialing h2 { margin: 8px 0 10px; font-weight: 400; }
+.asc-credentialing .asc-btn-primary { margin-top: 18px; }
+.asc-small { font-size: 0.85rem; }

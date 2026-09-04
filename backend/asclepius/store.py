@@ -651,6 +651,29 @@ class AsclepiusStore:
                 CREATE INDEX IF NOT EXISTS idx_sub_evaluator ON submissions(evaluator_id);
                 CREATE INDEX IF NOT EXISTS idx_sub_dedupe ON submissions(dedupe_hash);
 
+                -- The credentialing examination: one case an applicant sits
+                -- so a human has something real to decide on.
+                --
+                -- ITS OWN TABLE, and that is the safety property rather than a
+                -- tidiness one. The examination is drawn from the gold set,
+                -- which is also served to paid physicians, so writing these
+                -- answers into `submissions` against a live task_id would put
+                -- an unverified applicant's work within reach of the pay and
+                -- export paths. There is no join from here into records, so it
+                -- cannot be shipped to a buyer or paid for by accident.
+                CREATE TABLE IF NOT EXISTS credentialing_exams (
+                    exam_id         TEXT PRIMARY KEY,
+                    user_id         TEXT NOT NULL,
+                    task_id         TEXT NOT NULL,
+                    specialty       TEXT,
+                    attempt         INTEGER NOT NULL DEFAULT 1,
+                    payload_json    TEXT NOT NULL DEFAULT '{}',
+                    time_spent_sec  INTEGER NOT NULL DEFAULT 0,
+                    submitted_at    TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_cred_exam_user
+                    ON credentialing_exams(user_id);
+
                 CREATE TABLE IF NOT EXISTS records (
                     record_id       TEXT PRIMARY KEY,
                     submission_id   TEXT NOT NULL,
@@ -5980,6 +6003,52 @@ class AsclepiusStore:
                 self.set_real_data_approved(u["id"], False, source="auto:approved_labeler")
                 revoked.append(u["id"])
         return {"granted": len(granted), "revoked": len(revoked), "eligible": eligible}
+
+
+    # ─── Credentialing examination ────────────────────────────────────────────
+
+    def record_credentialing_exam(
+        self, *, user_id: str, task_id: str, specialty: str,
+        attempt: int, payload: Dict[str, Any], time_spent_sec: int = 0,
+    ) -> str:
+        """File an applicant's examination. Returns the exam id.
+
+        Append-only: a retake writes a new row rather than replacing the old
+        one, so an admin looking at somebody who was asked to try again can see
+        both attempts and how they differ. That comparison is most of what a
+        second look is for.
+        """
+        exam_id = "ce-" + uuid.uuid4().hex[:12]
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO credentialing_exams
+                    (exam_id, user_id, task_id, specialty, attempt,
+                     payload_json, time_spent_sec, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (exam_id, user_id, task_id, specialty, int(attempt or 1),
+                 json.dumps(payload or {}), int(time_spent_sec or 0), _utcnow_iso()),
+            )
+        return exam_id
+
+    def list_credentialing_exams(self, user_id: str) -> List[Dict[str, Any]]:
+        """Every examination this applicant has filed, newest first."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM credentialing_exams WHERE user_id = ? "
+                "ORDER BY datetime(submitted_at) DESC",
+                (user_id,),
+            ).fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            try:
+                item["payload"] = json.loads(item.pop("payload_json") or "{}")
+            except (TypeError, ValueError):
+                item["payload"] = {}
+            out.append(item)
+        return out
 
     def get_tutorial_state(self, user_id: str) -> Dict[str, Any]:
         """The user's first-run tutorial state; a default not_started shape when

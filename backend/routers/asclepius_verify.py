@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import secrets
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -256,6 +257,48 @@ def _practice_case_block(user: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _examination_block(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
+    """The examination this applicant sat, for the decision screen.
+
+    THE thing an admin is deciding on. The practice case beside it is a guided
+    tour with a "Skip this step" button on every screen, which is a poor basis
+    for a decision about somebody; this is one case in their own specialty, in
+    the real workspace, with the real validation.
+
+    Every attempt is listed rather than only the latest, because a physician
+    who was asked to try again is being looked at precisely for what changed
+    between the two.
+
+    No verdict is computed here and none is stored. Whether this person is good
+    enough is the reading admin's call, and putting a number next to their
+    answers would be this code making it first.
+    """
+    try:
+        exams = store.list_credentialing_exams(user["id"])
+    except Exception:
+        log.exception("[verify] could not read the examinations for %s", user.get("id"))
+        exams = []
+    blob = asc_caps._tutorial_blob(user)
+    state = blob.get("exam") if isinstance(blob.get("exam"), dict) else {}
+    return {
+        "state": state.get("state") or ("submitted" if exams else "not_started"),
+        "attempts": len(exams),
+        "retake_offered_at": blob.get("retake_offered_at"),
+        "submissions": [
+            {
+                "exam_id": e["exam_id"],
+                "task_id": e["task_id"],
+                "specialty": e.get("specialty"),
+                "attempt": e.get("attempt"),
+                "submitted_at": e.get("submitted_at"),
+                "time_spent_sec": e.get("time_spent_sec"),
+                "payload": e.get("payload") or {},
+            }
+            for e in exams
+        ],
+    }
+
+
 def _has_credential_evidence(user: Dict[str, Any]) -> bool:
     """Enough to check somebody against a registry: a CV, or a number.
 
@@ -272,12 +315,21 @@ def _has_credential_evidence(user: Dict[str, Any]) -> bool:
 
 
 def _is_ready_for_review(user: Dict[str, Any]) -> bool:
-    """Both things the applicant owes us: something to verify, and the practice
-    case done. Advisory only, per the PRD: founders keep the ability to reject
-    an obviously bad application, or approve a known colleague, without waiting
-    on a grading ledger that the client declares."""
-    return (_has_credential_evidence(user)
-            and asc_caps.practice_gate_state(user) != asc_caps.GATE_LOCKED)
+    """Both things the applicant owes us: something to verify, and case work
+    filed for a person to read.
+
+    The second half is now the EXAMINATION rather than the practice case. The
+    practice case is optional and skippable by design, so requiring it filtered
+    the queue on something an applicant was told they need not do; the
+    examination is the one piece of work this decision is actually about.
+
+    Advisory only, per the PRD, and unchanged in that: founders keep the
+    ability to reject an obviously bad application, or approve a known
+    colleague, without waiting on a ledger.
+    """
+    blob = asc_caps._tutorial_blob(user)
+    exam = blob.get("exam") if isinstance(blob.get("exam"), dict) else {}
+    return _has_credential_evidence(user) and exam.get("state") == "submitted"
 
 
 def _queue_row(store: Any, user: Dict[str, Any],
@@ -335,6 +387,10 @@ def _queue_row(store: Any, user: Dict[str, Any],
         # screen: it is half of what an applicant owes us, so "who is actually
         # ready to look at" has to be answerable while skimming.
         "practice_case": _practice_case_block(user),
+        # The examination, on the ROW as well as on the decision screen, for
+        # the same reason the practice case is: "who is actually ready to look
+        # at" has to be answerable while skimming the queue.
+        "examination": _examination_block(store, user),
         "ready_for_review": _is_ready_for_review(user),
     }
 
@@ -835,11 +891,37 @@ async def reject_signup(
         raise HTTPException(status_code=400, detail="Rejection requires a note.")
     store = _store()
     _load_user_or_404(user_id)
+
+    # A REJECTION OFFERS ANOTHER GO.
+    #
+    # The founders were explicit: a physician we turn down is not finished with.
+    # They are asked to do the case work again, keeping every credential and CV
+    # answer they already gave us, because none of that is what we are asking
+    # them to redo.
+    #
+    # Two writes, in this order, and the order matters: the stamp is what makes
+    # `access_level` return PROVISIONAL for a rejected row, so it has to be on
+    # the account before the status lands or a concurrent sign-in in between
+    # would be refused.
+    current = store.get_tutorial_state(user_id) or {}
+    now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    store.set_tutorial_state(user_id, {
+        **current,
+        "retake_offered_at": now,
+        # Both pieces of case work reopen. `resources_seen_at` is cleared so
+        # the demo and the practice case are offered again, which is the point:
+        # somebody being asked to re-sit should be shown the help first, not
+        # dropped straight back into the examination that went badly.
+        "resources_seen_at": None,
+        "exam": {"state": "retake", "attempt": int(
+            ((current.get("exam") or {}).get("attempt") or 0)) + 1},
+    })
+
     updated = store.record_verification_decision(
         user_id, status="rejected", decided_by=admin["email"], note=note)
     store.log_event(
         entity_type="user", entity_id=user_id, event_type="verification_rejected",
-        actor=admin["email"], payload={"note": note},
+        actor=admin["email"], payload={"note": note, "retake_offered": True},
     )
     try:
         store.advance_referral_for_user(user_id, "declined")

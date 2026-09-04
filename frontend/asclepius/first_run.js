@@ -105,6 +105,13 @@
   var stops = {};          // { stopId: 'done' | 'deferred' }
   var current = null;      // stop id on screen
   var demoMeta = null;     // { available, url, version } once probed
+  //: True while the player was opened OUTSIDE the walkthrough, from the
+  //: pre-examination resources screen. It changes exactly one thing: the panel
+  //: after the video must not close a walkthrough stop or launch the practice
+  //: case, because the account watching may have no walkthrough at all (an
+  //: applicant's is suppressed until approval) and the screen they came from
+  //: owns where they go next.
+  var standaloneDemo = false;
   var demoProbe = null;    // the in-flight probe, so stop 2 can wait on it
   var escHandler = null;
   var reentryEsc = null;   // §3: Esc leaves the re-entry page
@@ -440,6 +447,7 @@
   /* ── The player: expands IN PLACE, never a route change. ── */
 
   function closeDemo() {
+    standaloneDemo = false;
     var overlay = document.getElementById('ascFrDemo');
     if (overlay) overlay.remove();
     if (escHandler) { document.removeEventListener('keydown', escHandler); escHandler = null; }
@@ -468,7 +476,11 @@
           h('span', {}, 'Ready to try one?'),
           h('button', {
             class: 'asc-btn asc-btn-primary', type: 'button',
-            onClick: function () { closeDemo(); close('start', 'done', runPracticeCase); },
+            onClick: function () {
+              closeDemo();
+              if (standaloneDemo) return;   // the resources screen is still behind it
+              close('start', 'done', runPracticeCase);
+            },
           }, 'Start the practice case →'))));
 
     // Clicking the dim closes, the frame does not. Same behaviour as every
@@ -986,6 +998,31 @@
      *  should land on their dashboard rather than be walked through an
      *  onboarding they finished with. `deferred` is "asked and declined", so it
      *  counts as touched here even though it is still open for the cadence. */
+    /** Play the demo on its own, outside the walkthrough.
+     *
+     *  The pre-examination resources screen offers the same three-minute video
+     *  the walkthrough does, and an applicant has no walkthrough: theirs is
+     *  suppressed until approval. So this reuses the player rather than
+     *  building a second one, and sets the flag that stops the panel after the
+     *  video from closing a stop that is not open.
+     *
+     *  Resolves false when there is no demo uploaded, so the caller can leave
+     *  the card out rather than offering a button that does nothing.
+     */
+    playDemo: function (context) {
+      ctx = context;
+      standaloneDemo = true;
+      return probeDemo().then(function () {
+        if (!demoMeta || !demoMeta.available) { standaloneDemo = false; return false; }
+        openDemo();
+        return true;
+      });
+    },
+
+    /** Whether a demo has been uploaded at all, for a caller deciding whether
+     *  to draw the card. Answers from the last probe; false before one. */
+    demoAvailable: function () { return !!(demoMeta && demoMeta.available); },
+
     tourPending: function (user) {
       var s = readState(user);
       return STOPS.some(function (id) { return s[id] === undefined; });
