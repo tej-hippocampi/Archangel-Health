@@ -2071,7 +2071,7 @@
           const data = await res.json().catch(() => null);
           errBox.classList.add('asc-login-notice');
           errBox.textContent = (data && data.message)
-            || "If that email has an Asclepius account, we've sent a reset link.";
+            || "If that email has an Archangel Health account, we've sent a reset link.";
         } catch (_) {
           errBox.classList.add('asc-login-notice');
           errBox.textContent = 'Could not reach the server. Try again in a moment.';
@@ -2169,8 +2169,7 @@
     const card = h('div', { class: 'asc-login-card' },
       h('div', { class: 'asc-login-head' },
         h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
-        h('h1', {}, 'Asclepius'),
-        h('p', {}, 'Expert Evaluation Portal'),
+        h('h1', {}, 'Archangel Health'),
       ),
       body,
     );
@@ -2273,7 +2272,7 @@
         h('div', { class: 'asc-login-head' },
           h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
           h('h1', {}, (sec && sec.title) || 'Your credentials are being verified'),
-          h('p', {}, 'Asclepius · Expert Evaluation Portal'),
+          h('p', {}, 'Archangel Health'),
         ),
         body)));
   }

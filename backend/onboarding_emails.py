@@ -585,7 +585,7 @@ def build_asclepius_invite_email(
         )
 
     body = (
-        _eyebrow("Invitation · Asclepius")
+        _eyebrow("Invitation · Archangel Health")
         + _h1(f"You&rsquo;re invited to contribute to {org_spec_label}.")
         + referral_line
         + _p(
@@ -593,7 +593,7 @@ def build_asclepius_invite_email(
             + _strong(director_full_name or "your director")
             + " has invited you to join "
             + _strong((org_name or "your organization"))
-            + " on Asclepius, Archangel Health&rsquo;s expert data-training product, where "
+            + " on Archangel Health, our expert data-training product, where "
             "clinicians review and label AI answers in their specialty."
         )
         + _inset_card(_detail_rows(rows))
@@ -622,12 +622,11 @@ def build_asclepius_admin_invite_email(
     references an org and specialty which do not exist yet here, since this
     recipient has not started onboarding at all)."""
     body = (
-        _eyebrow("Invitation · Asclepius")
-        + _h1(f"Welcome to Asclepius, {html.escape(invitee_name or 'there')}.")
+        _eyebrow("Invitation · Archangel Health")
+        + _h1(f"Welcome to Archangel Health, {html.escape(invitee_name or 'there')}.")
         + _p(
-            "You have been invited to join Asclepius, Archangel Health&rsquo;s expert "
-            "data-training product, where physicians review and label AI answers in "
-            "their specialty."
+            "You have been invited to join Archangel Health, our expert data-training "
+            "product, where physicians review and label AI answers in their specialty."
         )
         + _cta(onboarding_url, "Start your onboarding →")
         + _p(
@@ -677,7 +676,7 @@ def build_asclepius_complete_email(
     intro = (
         html.escape(safe_org)
         + (" · " + html.escape(safe_spec) if safe_spec else "")
-        + " is live on Asclepius. You can now open your training console, pick up "
+        + " is live on Archangel Health. You can now open your training console, pick up "
         "evaluation tasks, and start contributing expert-labeled data."
     )
 
@@ -695,7 +694,7 @@ def build_asclepius_complete_email(
     )
 
     body = (
-        _eyebrow("Onboarding complete · Asclepius")
+        _eyebrow("Onboarding complete · Archangel Health")
         + _h1("Your workspace is ready.")
         + _p(intro)
         + verification_html
@@ -713,7 +712,7 @@ def build_asclepius_complete_email(
         # instruction, and it must not come between them and their workspace.
         + _partner_intro_line(partner_url)
     )
-    return _shell(subject="Your Asclepius workspace is ready", body_html=body)
+    return _shell(subject="Your Archangel Health workspace is ready", body_html=body)
 
 
 def build_asclepius_task_notification_email(
@@ -725,15 +724,15 @@ def build_asclepius_task_notification_email(
     plural = "task" if task_count == 1 else "tasks"
     is_are = "is" if task_count == 1 else "are"
     body = (
-        _eyebrow("New work · Asclepius")
+        _eyebrow("New work · Archangel Health")
         + _h1(f"{task_count} new {html.escape(specialty_label)} {plural} ready.")
         + _p(
             f"{task_count} new {html.escape(specialty_label)} {plural} "
-            f"{is_are} ready to review in your Asclepius workspace."
+            f"{is_are} ready to review in your Archangel Health workspace."
         )
         + _cta(workspace_url, "Open my workspace →")
     )
-    subject = f"{task_count} new {specialty_label} {plural} ready in your Asclepius workspace"
+    subject = f"{task_count} new {specialty_label} {plural} ready in your Archangel Health workspace"
     return _shell(subject=subject, body_html=body)
 
 
@@ -1273,24 +1272,24 @@ def build_asclepius_approved_email(*, full_name: str, workspace_url: str,
                "record your clinical judgment, and every case you file is graded.")
         )
     body = (
-        _eyebrow("Verified · Asclepius")
+        _eyebrow("Verified · Archangel Health")
         + _h1("You&rsquo;re approved.")
         + _p(
-            f"{_strong(first)}, your credentials have been verified and your Asclepius "
+            f"{_strong(first)}, your credentials have been verified and your Archangel Health "
             "account is now open for evaluation work."
         )
         + tier_para
         + _cta(workspace_url, "Open your workspace →")
         + _p(
             "Your seat in the "
-            + _strong("Asclepius Community")
+            + _strong("Archangel Health Community")
             + " is open too, a private space for verified physicians. Find it in the "
             "side panel: introduce yourself, follow the medical-AI digest, and meet the "
             "colleagues you will be working alongside."
         )
         + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
     )
-    return _shell(subject="You're approved for Asclepius", body_html=body)
+    return _shell(subject="You're approved for Archangel Health", body_html=body)
 
 
 def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
@@ -1308,7 +1307,7 @@ def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
     """
     first = (full_name or "").strip() or "Doctor"
     body = (
-        _eyebrow("Asclepius")
+        _eyebrow("Archangel Health")
         + _h1("You&rsquo;re now a reviewer.")
         + _p(
             f"{_strong(first)}, on the strength of the cases you have filed, your "
@@ -1322,7 +1321,7 @@ def build_asclepius_promoted_email(*, full_name: str, workspace_url: str,
         + _cta(workspace_url, "Open your workspace →")
         + _p("Questions? Reply to this email and a person will read it.", muted=True, small=True)
     )
-    return _shell(subject="You're now a reviewer on Asclepius", body_html=body)
+    return _shell(subject="You're now a reviewer on Archangel Health", body_html=body)
 
 
 def build_asclepius_rejected_email(*, full_name: str) -> str:
@@ -1345,10 +1344,10 @@ def build_asclepius_rejected_email(*, full_name: str) -> str:
     """
     first = (full_name or "").strip() or "Doctor"
     body = (
-        _eyebrow("Asclepius")
+        _eyebrow("Archangel Health")
         + _h1("About your application.")
         + _p(
-            f"{_strong(first)}, thank you for applying to contribute to Asclepius. Our "
+            f"{_strong(first)}, thank you for applying to contribute to Archangel Health. Our "
             "clinical team has reviewed the credentials you submitted, and we are not "
             "able to open your account for evaluation work."
         )
@@ -1366,7 +1365,7 @@ def build_asclepius_rejected_email(*, full_name: str) -> str:
     )
     # Not "You were rejected". That is the line they read on a phone in a
     # corridor, and the subject is not where the decision has to land.
-    return _shell(subject="About your Asclepius application", body_html=body)
+    return _shell(subject="About your Archangel Health application", body_html=body)
 
 
 def build_enterprise_note_email(
@@ -1604,7 +1603,7 @@ def build_community_digest_email(
         for lead, rest in activity_items
     ]
     body = (
-        _eyebrow("Community · Asclepius")
+        _eyebrow("Community · Archangel Health")
         + _h1("While you were away.")
         + _lead_list(items)
         + _cta(community_url, "Open the community →")
@@ -1625,7 +1624,7 @@ def build_community_digest_email(
             else ""
         )
     )
-    return _shell(subject="New activity in your Asclepius community", body_html=body)
+    return _shell(subject="New activity in your Archangel Health community", body_html=body)
 
 
 def build_community_event_reminder_email(
@@ -1645,7 +1644,7 @@ def build_community_event_reminder_email(
     if (host or "").strip():
         rows.append(("Host", host.strip(), False))
     body = (
-        _eyebrow("Event · Asclepius")
+        _eyebrow("Event · Archangel Health")
         + _h1(html.escape(title))
         + _p(f"Hi {_strong(first_name or 'there')}, this is starting soon.")
         + _inset_card(_detail_rows(rows))
@@ -1692,7 +1691,7 @@ def build_asclepius_password_reset_email(*, email: str, reset_url: str, expires_
     can type an email address."""
     safe_url = html.escape(reset_url, quote=True)
     body = (
-        _eyebrow("Password reset · Asclepius")
+        _eyebrow("Password reset · Archangel Health")
         + _h1("Set a new password.")
         + _p(
             f"Use the button below to choose a new password for {_strong(email)}. "
@@ -1754,7 +1753,7 @@ def build_asclepius_password_changed_email(*, email: str) -> str:
     physician finds out their account was taken over, so it is sent on every
     password write and never suppressed."""
     body = (
-        _eyebrow("Security · Asclepius")
+        _eyebrow("Security · Archangel Health")
         + _h1("Your password was changed.")
         + _p(f"The password for {_strong(email)} has just been changed.")
         + _p(
@@ -1812,7 +1811,7 @@ def build_asclepius_admin_signup_alert(
             small=True,
         )
     )
-    return _shell(subject=f"[Asclepius] {decision}: {physician_name}", body_html=body)
+    return _shell(subject=f"[Archangel Health] {decision}: {physician_name}", body_html=body)
 
 
 def build_community_news_digest_email(
@@ -1872,7 +1871,7 @@ def build_community_news_digest_email(
         + inner
         + _cta(community_url, "Discuss in the community →")
         + _p(
-            f'You get this because you are an Asclepius contributor. '
+            f'You get this because you are an Archangel Health contributor. '
             f'<a href="{html.escape(unsubscribe_url, quote=True)}" '
             f'style="color:{_GREEN_DEEP};">Change how often, or stop these</a>.',
             muted=True,

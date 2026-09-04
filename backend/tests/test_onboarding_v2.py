@@ -625,7 +625,7 @@ def test_approving_an_account_that_already_has_a_password_does_not_rotate_it(cli
         rows = [dict(r) for r in conn.execute(
             "SELECT subject FROM admin_notify_outbox WHERE recipient_email = ? "
             "AND kind = 'physician_approved'", (member["email"],))]
-    assert [r["subject"] for r in rows] == ["You're approved for Asclepius"]
+    assert [r["subject"] for r in rows] == ["You're approved for Archangel Health"]
 
 
 def test_first_login_forces_a_password_change_and_the_second_does_not(client: TestClient):
@@ -1192,4 +1192,4 @@ def test_the_submitted_email_is_what_a_v2_application_receives(client: TestClien
     client.post("/api/onboarding/asclepius/finish", json={"token": token})
     subjects = [m["subject"] for m in sent if m["to"] == email]
     assert "We've got your application" in subjects
-    assert "Your Asclepius workspace is ready" not in subjects
+    assert "Your Archangel Health workspace is ready" not in subjects

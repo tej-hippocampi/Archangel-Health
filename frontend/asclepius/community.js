@@ -298,17 +298,17 @@
   function renderSignedOut() {
     setRoot(h('div', { class: 'cm-gate' },
       h('div', { class: 'cm-gate-card' },
-        h('div', { class: 'chrome cm-gate-kicker' }, 'Asclepius · Community'),
+        h('div', { class: 'chrome cm-gate-kicker' }, 'Archangel Health · Community'),
         h('h1', { class: 'cm-gate-title' }, 'Sign in through the doctor portal'),
         h('p', { class: 'cm-gate-sub' },
-          'The community opens from inside the Asclepius portal. Sign in there, then choose Community from the side panel.'),
+          'The community opens from inside the Archangel Health portal. Sign in there, then choose Community from the side panel.'),
         h('div', { class: 'cm-gate-actions' },
           h('a', { class: 'cm-btn cm-btn-primary', href: '/asclepius' }, 'Open the doctor portal')))));
   }
   function renderGate() {
     setRoot(h('div', { class: 'cm-gate' },
       h('div', { class: 'cm-gate-card' },
-        h('div', { class: 'chrome cm-gate-kicker' }, 'Asclepius · Community'),
+        h('div', { class: 'chrome cm-gate-kicker' }, 'Archangel Health · Community'),
         h('h1', { class: 'cm-gate-title' }, 'Community access is for verified contributors'),
         h('p', { class: 'cm-gate-sub' },
           'This space is reserved for credential-verified contributor physicians. Once your credentials are verified you’ll be able to join the conversation.'),
@@ -393,7 +393,7 @@
     if (!rail) return;
     clear(rail);
     rail.appendChild(h('div', { class: 'cm-rail-head' },
-      h('div', { class: 'chrome' }, 'Asclepius'),
+      h('div', { class: 'chrome' }, 'Archangel Health'),
       h('div', { class: 'cm-rail-title' }, 'Community')));
 
     const scrollBox = h('div', { class: 'cm-rail-scroll' });
@@ -744,7 +744,7 @@
     const isGeneral = slug === 'general';
     const copy = EMPTY_COPY[slug];
 
-    const title = isGeneral ? 'Asclepius Community' : ('#' + (ch.name || slug));
+    const title = isGeneral ? 'Archangel Health Community' : ('#' + (ch.name || slug));
     const body = isGeneral
       ? 'Every physician here is credential-verified. Discuss cases, shape how '
         + 'tasks get built, and tell us when something is wrong.'

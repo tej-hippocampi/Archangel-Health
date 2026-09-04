@@ -392,7 +392,7 @@ export function Step1NameEmail({
   const COPY: Record<SignupKind, { title: string; lede: string; hint: string }> = {
     physician: {
       title: isAsclepius
-        ? "Welcome to Asclepius, let's start your journey."
+        ? "Welcome to Archangel Health, let's start your journey."
         : "Let's get you set up.",
       lede: isAsclepius
         ? "A few minutes to get your evaluator workspace ready. We'll start with you."

@@ -351,7 +351,7 @@ async def login(body: LoginRequest):
 _FORGOT_ANSWER = {
     "ok": True,
     "message": (
-        "If that email has an Asclepius account, we've sent a reset link. "
+        "If that email has an Archangel Health account, we've sent a reset link. "
         "It expires in 60 minutes."
     ),
 }
@@ -585,7 +585,7 @@ async def change_password(
     user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_user_optional),
 ):
     if user is None:
-        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+        raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     store = _store()
     if not _verify_password(body.current_password, user["password_hash"]):
         raise HTTPException(status_code=400, detail="That is not your current password.")
@@ -702,7 +702,7 @@ async def create_asclepius_portal_handoff(
     user: Optional[Dict[str, Any]] = Depends(asc_auth.get_current_user_optional),
 ):
     if user is None or not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+        raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     _cleanup_asc_handoffs()
     token = authorization.removeprefix("Bearer ").strip()
     code = secrets.token_urlsafe(24)

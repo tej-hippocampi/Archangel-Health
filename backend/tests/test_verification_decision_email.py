@@ -85,7 +85,7 @@ def test_the_paths_that_used_to_say_nothing_now_tell_the_physician(path):
 
     rows = _outbox(store, email=user["email"], kind="physician_approved")
     assert len(rows) == 1, f"{path} told the physician nothing"
-    assert rows[0]["subject"] == "You're approved for Asclepius"
+    assert rows[0]["subject"] == "You're approved for Archangel Health"
 
 
 def test_approving_twice_emails_once():
@@ -187,7 +187,7 @@ def test_a_rejection_reaches_the_physician_and_never_quotes_the_internal_note():
                                        decided_by="admin@x", note=_INTERNAL_NOTE)
     rows = _outbox(store, email=user["email"], kind="physician_rejected")
     assert len(rows) == 1
-    assert rows[0]["subject"] == "About your Asclepius application"
+    assert rows[0]["subject"] == "About your Archangel Health application"
     body = rows[0]["body_html"]
     for leak in ("Jane Doe", "fraud", "NPI"):
         assert leak not in body, leak
