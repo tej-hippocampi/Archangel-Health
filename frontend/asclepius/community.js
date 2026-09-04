@@ -230,18 +230,38 @@
   }
 
   // ─── Client-side PHI pre-check (§7.1 — a UX nicety; the server decides) ────
+  //
+  // The third element is whether the pattern still counts INSIDE A URL. Most of
+  // these are shape-only — a long digit run, a date-looking token, a
+  // capitalized pair — and inside a link that shape is a path segment or a
+  // share id, not an identifier. Pasting
+  // https://www.linkedin.com/feed/update/urn:li:share:7501080186667581440/ was
+  // warning a physician that they had posted an account number.
+  //
+  // An SSN and a keyword-anchored date of birth are the exceptions: those are
+  // identifiers wherever they appear, and a link is not a laundering channel.
+  // This mirrors community/phi_gate.py's _SHAPE_ONLY_CATEGORIES exactly; the
+  // server is still the one that decides.
+  const URL_RE = /(?:https?:\/\/|www\.)\S+/gi;
   const PHI_HINTS = [
-    [/\b(MRN|MBI|medical record)\b/i, 'an MRN'],
-    [/\b\d{3}-\d{2}-\d{4}\b/, 'an SSN'],
-    [/\b(DOB|date of birth)\b/i, 'a date of birth'],
-    [/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/, 'an exact date'],
-    [/(?:^|\D)\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)/, 'a phone number'],
-    [/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/, 'an email address'],
-    [/\b\d{7,}\b/, 'a long identifier-like number'],
-    [/\b(patient|pt)\.?\s+(name\s*)?(is\s*)?[A-Z][a-z]+\s+[A-Z][a-z]+\b/, 'a patient name'],
+    [/\b(MRN|MBI|medical record)\b/i, 'an MRN', false],
+    [/\b\d{3}-\d{2}-\d{4}\b/, 'an SSN', true],
+    [/\b(DOB|date of birth)\b/i, 'a date of birth', true],
+    [/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/, 'an exact date', false],
+    [/(?:^|\D)\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}(?!\d)/, 'a phone number', false],
+    [/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/, 'an email address', true],
+    [/\b\d{7,}\b/, 'a long identifier-like number', false],
+    [/\b(patient|pt)\.?\s+(name\s*)?(is\s*)?[A-Z][a-z]+\s+[A-Z][a-z]+\b/, 'a patient name', false],
   ];
+  // Same length, so nothing about the rest of the text shifts under the mask.
+  function maskUrls(text) {
+    return String(text || '').replace(URL_RE, (u) => ' '.repeat(u.length));
+  }
   function phiHint(text) {
-    for (const [re, label] of PHI_HINTS) if (re.test(text)) return label;
+    const masked = maskUrls(text);
+    for (const [re, label, insideUrl] of PHI_HINTS) {
+      if (re.test(insideUrl ? text : masked)) return label;
+    }
     return null;
   }
 
@@ -303,17 +323,17 @@
   function renderSignedOut() {
     setRoot(h('div', { class: 'cm-gate' },
       h('div', { class: 'cm-gate-card' },
-        h('div', { class: 'chrome cm-gate-kicker' }, 'Asclepius · Community'),
+        h('div', { class: 'chrome cm-gate-kicker' }, 'Archangel Health · Community'),
         h('h1', { class: 'cm-gate-title' }, 'Sign in through the doctor portal'),
         h('p', { class: 'cm-gate-sub' },
-          'The community opens from inside the Asclepius portal. Sign in there, then choose Community from the side panel.'),
+          'The community opens from inside the Archangel Health portal. Sign in there, then choose Community from the side panel.'),
         h('div', { class: 'cm-gate-actions' },
           h('a', { class: 'cm-btn cm-btn-primary', href: realmPath('/asclepius') }, 'Open the doctor portal')))));
   }
   function renderGate() {
     setRoot(h('div', { class: 'cm-gate' },
       h('div', { class: 'cm-gate-card' },
-        h('div', { class: 'chrome cm-gate-kicker' }, 'Asclepius · Community'),
+        h('div', { class: 'chrome cm-gate-kicker' }, 'Archangel Health · Community'),
         h('h1', { class: 'cm-gate-title' }, 'Community access is for verified contributors'),
         h('p', { class: 'cm-gate-sub' },
           'This space is reserved for credential-verified contributor physicians. Once your credentials are verified you’ll be able to join the conversation.'),
@@ -344,7 +364,16 @@
   // peer: a two-party DM whose other side left also has no peer, and it is
   // still a DM.
   function isCaseRoom(d) { return !!d && d.kind === 'case_room'; }
-  function roomTitle(d) { return (d && d.title) || 'Case room'; }
+  // A group somebody opened. Same object as a case room — a title, a roster, no
+  // peer — and rendered the same way, but it is NOT a case room and the
+  // distinction is load-bearing: the server opens a case room to Archangel
+  // admins so a founder can step into a stuck case, and a group is private to
+  // its participants exactly like a two-party DM.
+  function isGroup(d) { return !!d && d.kind === 'group'; }
+  function isRoster(d) { return isCaseRoom(d) || isGroup(d); }
+  function roomTitle(d) {
+    return (d && d.title) || (isGroup(d) ? 'Group' : 'Case room');
+  }
   function roomRoster(d) {
     return ((d && d.participants) || []).map((m) => m.display_name).filter(Boolean);
   }
@@ -398,7 +427,7 @@
     if (!rail) return;
     clear(rail);
     rail.appendChild(h('div', { class: 'cm-rail-head' },
-      h('div', { class: 'chrome' }, 'Asclepius'),
+      h('div', { class: 'chrome' }, 'Archangel Health'),
       h('div', { class: 'cm-rail-title' }, 'Community')));
 
     const scrollBox = h('div', { class: 'cm-rail-scroll' });
@@ -491,32 +520,51 @@
      * was routed to you, which is work, and a DM appears because a colleague
      * chose to talk to you, which is not. */
     const rooms = state.dms.filter(isCaseRoom);
-    const dms = state.dms.filter((d) => !isCaseRoom(d));
+    const groups = state.dms.filter(isGroup);
+    const dms = state.dms.filter((d) => !isRoster(d));
+
+    // Case rooms and member-made groups render identically — a title and a head
+    // count, because neither has a peer to be named by — so they share one row
+    // builder and differ only in which section they sit under.
+    function rosterRow(d) {
+      const isActive = d.id === state.active;
+      const people = (d.participants || []).length;
+      return h('button', {
+        class: 'cm-chan cm-room-row' + (isActive ? ' active' : ''),
+        'aria-current': isActive ? 'page' : null,
+        onClick: () => openDm(d.id),
+      },
+        h('span', { class: 'cm-room-mark', 'aria-hidden': 'true' }),
+        h('span', { class: 'cm-chan-name cm-room-name' }, roomTitle(d)),
+        people ? h('span', { class: 'cm-room-count' }, String(people)) : null,
+        d.unread > 0 && !isActive
+          ? h('span', { class: 'cm-chan-unread' }, d.unread > 99 ? '99+' : String(d.unread))
+          : null);
+    }
 
     if (rooms.length) {
       const roomSection = h('div', { class: 'cm-rail-section' },
         h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Case rooms')));
-      for (const d of rooms) {
-        const isActive = d.id === state.active;
-        const people = (d.participants || []).length;
-        roomSection.appendChild(h('button', {
-          class: 'cm-chan cm-room-row' + (isActive ? ' active' : ''),
-          'aria-current': isActive ? 'page' : null,
-          onClick: () => openDm(d.id),
-        },
-          h('span', { class: 'cm-room-mark', 'aria-hidden': 'true' }),
-          h('span', { class: 'cm-chan-name cm-room-name' }, roomTitle(d)),
-          people ? h('span', { class: 'cm-room-count' }, String(people)) : null,
-          d.unread > 0 && !isActive
-            ? h('span', { class: 'cm-chan-unread' }, d.unread > 99 ? '99+' : String(d.unread))
-            : null));
-      }
+      for (const d of rooms) roomSection.appendChild(rosterRow(d));
       scrollBox.appendChild(roomSection);
+    }
+
+    if (groups.length) {
+      const groupSection = h('div', { class: 'cm-rail-section' },
+        h('div', { class: 'cm-rail-label' }, h('span', { class: 'chrome' }, 'Groups')));
+      for (const d of groups) groupSection.appendChild(rosterRow(d));
+      scrollBox.appendChild(groupSection);
     }
 
     const dmSection = h('div', { class: 'cm-rail-section' },
       h('div', { class: 'cm-rail-label' },
-        h('span', { class: 'chrome' }, 'Direct messages')));
+        h('span', { class: 'chrome' }, 'Direct messages'),
+        state.canPost
+          ? h('button', {
+              class: 'cm-rail-add', type: 'button', title: 'Start a group conversation',
+              'aria-label': 'New group', onClick: openNewGroup,
+            }, 'New group')
+          : null));
     if (!dms.length) {
       dmSection.appendChild(h('div', { class: 'cm-rail-hint' },
         'Open a colleague’s profile to start one.'));
@@ -581,12 +629,110 @@
     scrollBox.appendChild(mSection);
     rail.appendChild(scrollBox);
 
+    // The avatar is already a button (it opens the profile), so the way into
+    // notification settings is its own control beside the name rather than a
+    // wrapper around it: a button inside a button is invalid markup and the
+    // browser breaks the inner one out of the outer, taking the row apart.
     rail.appendChild(h('div', { class: 'cm-rail-foot' },
       h('div', { class: 'cm-rail-me' },
         avatarEl(me, 'small'),
-        h('span', {}, me.display_name || '')),
+        h('span', { class: 'cm-rail-me-name' }, me.display_name || ''),
+        h('button', {
+          class: 'cm-rail-me-prefs chrome',
+          title: 'Choose which emails you get',
+          onClick: () => openNotificationPrefs(),
+        }, 'Notifications')),
       h('div', { class: 'cm-rail-retention' },
         state.retention || 'Messages are retained indefinitely unless an admin removes them.')));
+  }
+
+  /* ── Notification settings ──────────────────────────────────────────────
+   *
+   * There was no preferences UI at all. The only way to stop community email
+   * was the unsubscribe link in the footer of a message, and that link stops
+   * EVERYTHING: a member who wanted fewer pins had one button, and pressing it
+   * also silenced the mention that tells them a colleague asked them
+   * something. The four switches below are the four the server keeps, and the
+   * panel writes them one at a time so a stale tab cannot revert a change made
+   * somewhere else.
+   *
+   * Reached from the member's own name in the rail foot, which is where a
+   * person looks for their own settings and is the only thing down there that
+   * is about them rather than about the room. */
+  const NEWS_FREQUENCY_LABELS = {
+    daily: 'Every day',
+    weekly: 'Once a week',
+    off: 'Never',
+  };
+
+  const NOTIFICATION_SWITCHES = [
+    ['activity_emails', 'Mentions, direct messages and announcements',
+     'Someone writes to you or names you.'],
+    ['post_emails', 'New posts in your channels',
+     'The morning brief, the news digest, and anything else the Archangel account posts.'],
+    ['pin_emails', 'Pinned messages',
+     'A colleague marks something in a channel as worth reading.'],
+  ];
+
+  function openNotificationPrefs() {
+    openModal('Notifications', (close) => {
+      const body = h('div', { class: 'cm-modal-body' },
+        h('div', { class: 'cm-prefs-loading chrome' }, 'Reading your settings…'));
+
+      function paintPrefs(prefs) {
+        clear(body);
+        // One PATCH-shaped write per switch. Sending the whole object back
+        // would let a tab that has been open all afternoon overwrite a
+        // change made in another one.
+        async function save(patch, revert) {
+          try {
+            const next = await api('/prefs', { method: 'POST', body: patch });
+            paintPrefs(next);
+          } catch (e) {
+            revert();
+            toast(e.message, 'error');
+          }
+        }
+
+        const freq = h('select', { class: 'cm-persona-channel', onChange: (e) => {
+          save({ news_frequency: e.target.value }, () => { e.target.value = prefs.news_frequency; });
+        } },
+          (prefs.options || ['daily', 'weekly', 'off']).map((value) => h('option', {
+            value: value,
+            selected: prefs.news_frequency === value ? 'selected' : null,
+          }, NEWS_FREQUENCY_LABELS[value] || value)));
+
+        body.appendChild(h('p', { class: 'cm-persona-note' },
+          'Everything here is email only. Your unread badges and the messages '
+          + 'themselves are unaffected.'));
+        body.appendChild(field('The medical AI digest', freq));
+        NOTIFICATION_SWITCHES.forEach(([key, label, note]) => {
+          const box = h('input', {
+            type: 'checkbox',
+            checked: prefs[key] === false ? null : 'checked',
+            onChange: (e) => {
+              const wanted = e.target.checked;
+              const patch = {};
+              patch[key] = wanted;
+              save(patch, () => { e.target.checked = !wanted; });
+            },
+          });
+          body.appendChild(h('label', { class: 'cm-prefs-switch' }, box,
+            h('span', {},
+              h('span', { class: 'cm-prefs-switch-label' }, label),
+              h('span', { class: 'cm-prefs-switch-note' }, note))));
+        });
+        body.appendChild(h('div', { class: 'cm-modal-actions' },
+          h('button', { class: 'cm-btn cm-btn-ghost', onClick: close }, 'Done')));
+      }
+
+      api('/prefs').then(paintPrefs).catch((e) => {
+        clear(body);
+        body.appendChild(h('p', { class: 'cm-persona-note' },
+          'Could not read your settings: ' + e.message));
+      });
+      return body;
+    });
   }
 
   function activeChannel() {
@@ -599,16 +745,26 @@
     clear(head);
     if (isDmKey(state.active)) {
       const d = activeDm();
-      if (isCaseRoom(d)) {
-        // The roster is the header. Who else is on this case is the first
-        // thing you need before you say anything in here, and it is not
-        // derivable from a name the way a DM's other side is.
+      if (isRoster(d)) {
+        // The roster is the header. Who else is in here is the first thing you
+        // need before you say anything, and it is not derivable from a name the
+        // way a DM's other side is.
         const roster = roomRoster(d);
         head.appendChild(h('span', { class: 'cm-head-name' }, roomTitle(d)));
         head.appendChild(h('span', { class: 'cm-head-desc' },
-          roster.length
-            ? 'On this case: ' + roster.join(', ') + '. Colleague discussion only — no PHI.'
-            : 'A room for the colleagues on this case. Colleague discussion only — no PHI.'));
+          isGroup(d)
+            ? (roster.length
+                ? 'In this group: ' + roster.join(', ') + '. Colleague discussion only, no PHI.'
+                : 'A group conversation. Colleague discussion only, no PHI.')
+            : (roster.length
+                ? 'On this case: ' + roster.join(', ') + '. Colleague discussion only, no PHI.'
+                : 'A room for the colleagues on this case. Colleague discussion only, no PHI.')));
+        if (isGroup(d) && state.canPost) {
+          head.appendChild(h('button', {
+            class: 'cm-head-btn', type: 'button', title: 'Add colleagues to this group',
+            onClick: () => openAddGroupMembers(d),
+          }, 'Add people'));
+        }
       } else {
         const peer = (d && d.peer) || {};
         head.appendChild(h('span', { class: 'cm-head-name' }, peer.display_name || 'Conversation'));
@@ -749,7 +905,7 @@
     const isGeneral = slug === 'general';
     const copy = EMPTY_COPY[slug];
 
-    const title = isGeneral ? 'Asclepius Community' : ('#' + (ch.name || slug));
+    const title = isGeneral ? 'Archangel Health Community' : ('#' + (ch.name || slug));
     const body = isGeneral
       ? 'Every physician here is credential-verified. Discuss cases, shape how '
         + 'tasks get built, and tell us when something is wrong.'
@@ -807,12 +963,12 @@
           copy = [roomTitle(d),
             'A room for the colleagues on this case'
             + (roster.length ? ': ' + roster.join(', ') : '')
-            + '. Colleague discussion only — no PHI.'];
+            + '. Colleague discussion only, no PHI.'];
         } else {
           const peer = (d || {}).peer || {};
           copy = ['A private conversation',
             'This is the beginning of your direct messages with '
-            + (peer.display_name || 'this colleague') + '. Colleague discussion only — no PHI.'];
+            + (peer.display_name || 'this colleague') + '. Colleague discussion only, no PHI.'];
         }
       } else {
         // A real channel: the branded panel, not two lines of grey.
@@ -1231,6 +1387,87 @@
 
   function field(label, input) {
     return h('label', { class: 'cm-field' }, h('span', {}, label), input);
+  }
+
+  /* ── Group conversations ────────────────────────────────────────────────
+   *
+   * A group is a DM with a roster and a name its author chose. The picker is
+   * built from ``state.membersById``, which is the SAME directory the rail and
+   * the @mention completion read, so the people offered here are exactly the
+   * colleagues who could already be DM'd one at a time. There is no second
+   * source of "who exists", and so no way for this to offer somebody the
+   * server would then refuse.
+   */
+  function memberPicker(excludeIds) {
+    const skip = new Set(excludeIds || []);
+    if (state.me) skip.add(state.me.user_id);
+    const picked = new Set();
+    const list = h('div', { class: 'cm-picker' });
+    const people = state.members
+      .filter((m) => !skip.has(m.user_id))
+      .sort((a, b) => String(a.display_name || '').localeCompare(String(b.display_name || '')));
+    if (!people.length) {
+      list.appendChild(h('div', { class: 'cm-rail-hint' }, 'No colleagues to add.'));
+    }
+    for (const m of people) {
+      const cb = h('input', { type: 'checkbox' });
+      cb.addEventListener('change', () => {
+        if (cb.checked) picked.add(m.user_id); else picked.delete(m.user_id);
+      });
+      list.appendChild(h('label', { class: 'cm-picker-row' }, cb,
+        h('span', {}, m.display_name),
+        m.specialty ? h('span', { class: 'chrome' }, m.specialty) : null));
+    }
+    return { el: list, chosen: () => Array.from(picked) };
+  }
+
+  function openNewGroup() {
+    openModal('New group', (close) => {
+      const title = h('input', { type: 'text', maxlength: '120',
+        placeholder: 'Transplant call rota' });
+      const picker = memberPicker([]);
+      return h('div', { class: 'cm-modal-body' },
+        field('Name', title),
+        field('People', picker.el),
+        h('div', { class: 'cm-modal-actions' },
+          h('button', { class: 'cm-btn cm-btn-ghost', onClick: close }, 'Cancel'),
+          h('button', { class: 'cm-btn cm-btn-primary', onClick: async () => {
+            const name = title.value.trim();
+            const ids = picker.chosen();
+            if (!name) { toast('Give the group a name.', 'error'); return; }
+            if (!ids.length) { toast('Pick at least one colleague.', 'error'); return; }
+            try {
+              const d = await api('/dms/group',
+                { method: 'POST', body: { title: name, user_ids: ids } });
+              close();
+              if (!state.dms.some((x) => x.id === d.id)) state.dms.unshift(d);
+              renderRail();
+              await openDm(d.id, { force: true });
+            } catch (e) { toast(e.message, 'error'); }
+          } }, 'Create group')));
+    });
+  }
+
+  function openAddGroupMembers(dm) {
+    openModal('Add people', (close) => {
+      const already = ((dm && dm.participants) || []).map((m) => m.user_id);
+      const picker = memberPicker(already);
+      return h('div', { class: 'cm-modal-body' },
+        field('People', picker.el),
+        h('div', { class: 'cm-modal-actions' },
+          h('button', { class: 'cm-btn cm-btn-ghost', onClick: close }, 'Cancel'),
+          h('button', { class: 'cm-btn cm-btn-primary', onClick: async () => {
+            const ids = picker.chosen();
+            if (!ids.length) { toast('Pick at least one colleague.', 'error'); return; }
+            try {
+              const updated = await api('/dms/' + encodeURIComponent(dm.id) + '/members',
+                { method: 'POST', body: { user_ids: ids } });
+              close();
+              applyDmSummary(updated);
+              renderHead();
+            } catch (e) { toast(e.message, 'error'); }
+          } }, 'Add')));
+    });
   }
 
   function openNewEvent() {
@@ -1914,6 +2151,13 @@
       body: { body, attachment_ids: cs.attachments.map((a) => a.asset_id) },
     });
     ingestMessage(msg);
+    /* Your own send sticks to the bottom.
+     *
+     * ``ingestMessage`` renders with ``{}``, which keeps the scroll position
+     * unless the reader was already at the bottom — right for somebody else's
+     * message arriving while you read history, and wrong for your own, which
+     * then lands off-screen and reads as a message that did not send. */
+    if (dmId === state.active) renderMessages({ stickBottom: true });
     const d = state.dms.find((x) => x.id === dmId);
     if (d) { d.last_message_id = msg.id; d.last_message_at = msg.created_at; }
   }
@@ -1960,15 +2204,41 @@
   }
 
   // ─── Member profile panel + hover card (§2) ────────────────────────────────
+  /* "SA" means nothing to a colleague reading a profile; "Saudi Arabia" does.
+   * Resolved in the browser rather than by adding a display name to the member
+   * payload, because the payload is the card's whitelist and this is a
+   * rendering concern. Falls back to the raw code for a region the platform has
+   * no name for, which is still better than a blank line — the same rule
+   * asclepius/card.py::_country_display states for the card itself. */
+  function countryLabel(code) {
+    const raw = String(code || '').trim().toUpperCase();
+    if (!raw) return null;
+    try {
+      const names = new Intl.DisplayNames([navigator.language || 'en'], { type: 'region' });
+      return names.of(raw) || raw;
+    } catch (e) { return raw; }
+  }
+
+  /* THE SAME FACTS AS THE VERIFIED CARD, and no others.
+   *
+   * backend/asclepius/card.py::CARD_FIELDS is the one place that decides what a
+   * verified physician's profile says: picture, name, checkmark, specialty,
+   * years in practice, country. Three surfaces render that card and they are
+   * required not to drift; this panel was a fourth surface rendering a
+   * different, longer set (institution, board certification, fellowship
+   * training), so a colleague opening a name in the community saw something
+   * other than what the same person shares as their card.
+   *
+   * The avatar, the name and the checkmark are drawn by the panel head below;
+   * these are the remaining three. Nothing gets added here without being added
+   * to CARD_FIELDS first, and the contributor score never appears on either —
+   * a physician is not shown their own, so a colleague certainly is not. */
   function profileRows(m) {
     const rows = [];
     const add = (k, v) => { if (v != null && v !== '') rows.push(h('div', { class: 'cm-profile-row' }, h('dt', {}, k), h('dd', {}, String(v)))); };
     add('Specialty', m.specialty);
     add('Years in practice', m.years_in_practice);
-    add('Institution', m.institution);
-    add('Board-certified', m.board_certified ? 'Yes' : null);
-    add('Fellowship-trained', m.fellowship_trained ? 'Yes' : null);
-    add('Status', m.is_staff ? 'Archangel Health team' : (m.verified ? 'Credential-verified' : null));
+    add('Country', countryLabel(m.country));
     return rows;
   }
 
@@ -2284,6 +2554,12 @@
         break;
       }
       case 'message.created': ingestMessage(ev.message); break;
+      /* A conversation that now exists for you: somebody opened a DM with you,
+       * the bot opened one to route you a case, or a case room was created and
+       * you are on it. Every one of those used to be invisible until a reload,
+       * because the client stops polling while the socket is healthy and the
+       * server never pushed anything when it wrote them. */
+      case 'dm.created': applyDmSummary(ev.dm); break;
       case 'message.updated': {
         const msg = ev.message;
         const st = state.msgs[msg.channel];
@@ -2365,6 +2641,28 @@
     }
   }
 
+  /* Insert or refresh one conversation in the rail.
+   *
+   * Merged rather than replaced, and this is the reason: a ``dm.created`` for a
+   * conversation already on screen (a case room that gained a member, a group
+   * somebody was added to) carries no unread count and no last-message id,
+   * because the server built it from the conversation row rather than from this
+   * viewer's read cursor. Overwriting would silently zero the unread badge of a
+   * conversation with unread messages in it.
+   */
+  function applyDmSummary(dm) {
+    if (!dm || !dm.id) return;
+    const i = state.dms.findIndex((x) => x.id === dm.id);
+    if (i === -1) state.dms.unshift(dm);
+    else state.dms[i] = Object.assign({}, state.dms[i], dm, {
+      unread: dm.unread != null && dm.unread > 0 ? dm.unread : state.dms[i].unread,
+      last_message_id: dm.last_message_id || state.dms[i].last_message_id,
+      last_message_at: dm.last_message_at || state.dms[i].last_message_at,
+    });
+    renderRail();
+    if (dm.id === state.active) renderHead();
+  }
+
   function ingestMessage(msg) {
     if (!msg) return;
     // Direct messages: their own container, no threads.
@@ -2375,16 +2673,26 @@
         st.list.sort((a, b) => a.id - b.id);
         if (msg.dm === state.active) renderMessages({});
       }
+      const mine = state.me && msg.author && msg.author.user_id === state.me.user_id;
+      const viewing = msg.dm === state.active && !document.hidden;
+      const counts = !mine && !viewing;
       let dm = state.dms.find((x) => x.id === msg.dm);
       if (!dm) {
-        // first message of a conversation someone just opened with us
-        loadDms().then(renderRail).catch(() => { /* transient */ });
+        /* First message of a conversation we do not hold yet. The refetch used
+         * to be the whole branch, and it dropped the unread: ``loadDms`` reads
+         * the count off the server's read cursor, and on a message that arrived
+         * a millisecond ago that cursor has not moved, so the badge came back
+         * correct only by luck of timing. Bump it explicitly once the row is
+         * here, exactly as the known-conversation branch does. */
+        loadDms().then(() => {
+          const fresh = state.dms.find((x) => x.id === msg.dm);
+          if (fresh && counts && !(fresh.unread > 0)) fresh.unread = 1;
+          renderRail();
+        }).catch(() => { /* transient */ });
       } else {
         dm.last_message_id = msg.id;
         dm.last_message_at = msg.created_at;
-        const mine = state.me && msg.author && msg.author.user_id === state.me.user_id;
-        const viewing = msg.dm === state.active && !document.hidden;
-        if (!mine && !viewing) dm.unread = (dm.unread || 0) + 1;
+        if (counts) dm.unread = (dm.unread || 0) + 1;
         state.dms.sort((a, b) => (b.last_message_id || 0) - (a.last_message_id || 0));
         renderRail();
       }

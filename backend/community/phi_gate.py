@@ -60,7 +60,13 @@ _PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
     (
         "dob",
         re.compile(
-            r"\b(?:DOB|D\.O\.B\.?|date\s+of\s+birth|born(?:\s+on)?)\b\s*[:\-]?\s*"
+            # ``=`` joins the separators because a query parameter is how a
+            # date of birth is spelled inside a URL (``?DOB=4/12/1958``), and a
+            # URL is exactly where the keyword-anchored rule has to keep
+            # working: the shape-only ``exact_date`` is dropped inside links,
+            # so without this the labelled form would be the one that got
+            # through.
+            r"\b(?:DOB|D\.O\.B\.?|date\s+of\s+birth|born(?:\s+on)?)\b\s*[:\-=]?\s*"
             r"(?:" + _NUM_DATE + r"|" + _MONTHS + r"\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{2,4})?)",
             re.I,
         ),
@@ -150,6 +156,54 @@ _PATTERNS: List[Tuple[str, "re.Pattern[str]"]] = [
     ("account_number", re.compile(r"\b\d{7,}\b")),
 ]
 
+# ─── A link is not an identifier ──────────────────────────────────────────────
+# The bare long-digit-run pattern above matches the share id inside
+# ``https://www.linkedin.com/feed/update/urn:li:share:7501080186667581440/``
+# exactly as if a physician had pasted a member number, so posting a link to
+# your own conference talk was refused as PHI.
+#
+# The BOT path never had this problem: ``system_posts._mask_urls`` blanks every
+# URL before it scans. That made the member path STRICTER than the bot path,
+# which is the actual defect — the two paths are meant to apply one rule.
+# ``system_posts._mask_urls`` is the older twin of the regex below and should
+# adopt it, so a link cannot start meaning two different things depending on who
+# posted it.
+_URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.I)
+
+#: Categories whose whole evidence is SHAPE: a long digit run, a date-looking
+#: token, a capitalized pair, a numbered street. Inside a URL that shape is a
+#: path segment, a slug or a tracking parameter, so a finding contained entirely
+#: within a link is dropped for these.
+#:
+#: ``ssn`` and the keyword-anchored ``dob`` are deliberately NOT here. Those two
+#: are identifiers wherever they appear, and a URL must not become a laundering
+#: channel for them: a link with a social security number in its path has still
+#: put a social security number in the room. ``email`` stays for the same
+#: reason — a mailto or a query parameter carrying a real address identifies the
+#: person exactly as well inside a link as outside one.
+_SHAPE_ONLY_CATEGORIES = frozenset({
+    "account_number", "exact_date", "phone", "mrn", "address", "patient_name",
+})
+
+
+def _url_spans(text: str) -> List[Tuple[int, int]]:
+    return [(m.start(), m.end()) for m in _URL_RE.finditer(text)]
+
+
+def _contained(span: Tuple[int, int], spans: List[Tuple[int, int]]) -> bool:
+    """Is this span entirely inside one of those? Containment, not overlap: a
+    finding that merely touches a link still straddles ordinary prose."""
+    return any(start <= span[0] and span[1] <= end for start, end in spans)
+
+
+def mask_urls(text: Optional[str]) -> str:
+    """Blank every URL, character for character, so offsets are preserved.
+
+    Same-length replacement matters: the shared-scanner pass and the span
+    patterns must be able to talk about the same string positions.
+    """
+    return _URL_RE.sub(lambda m: " " * (m.end() - m.start()), text or "")
+
 # Map kinds reported by the shared platform scanner onto our category
 # vocabulary (defense-in-depth pass; anything unknown maps to itself).
 _SHARED_KIND_MAP = {
@@ -189,10 +243,17 @@ def scan_text(
     """
     if not text:
         return []
+    # Dropped BEFORE the de-overlap pass, not after: a shape-only match sitting
+    # inside a link would otherwise shadow a real finding that overlaps it, and
+    # the whole message would then post clean.
+    urls = _url_spans(text)
     raw: List[Tuple[str, Tuple[int, int]]] = []
     for category, pat in _PATTERNS:
         for m in pat.finditer(text):
-            raw.append((category, (m.start(), m.end())))
+            span = (m.start(), m.end())
+            if category in _SHAPE_ONLY_CATEGORIES and _contained(span, urls):
+                continue
+            raw.append((category, span))
 
     # Most-specific-first de-overlap: patterns were applied in priority order,
     # so keep earlier-listed matches and drop later ones that overlap them.
@@ -217,7 +278,12 @@ def scan_text(
     # instead of flagging the entire message.
     if not findings:
         try:
-            shared_kinds = set(residual_identifiers(text))
+            # On URL-MASKED text, so the second opinion applies the same rule
+            # about links as the span patterns above. Handing it the raw string
+            # would re-block the LinkedIn share id one layer down, as a
+            # whole-text finding with no span to highlight — strictly worse than
+            # the bug it replaced.
+            shared_kinds = set(residual_identifiers(mask_urls(text)))
         except Exception:  # pragma: no cover — the shared scanner must never 500 a post
             shared_kinds = set()
         for kind in sorted(shared_kinds - _SHARED_KINDS_COVERED):

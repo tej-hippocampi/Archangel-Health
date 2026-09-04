@@ -165,7 +165,23 @@
   padding: var(--sp-3) var(--sp-4);
   font-size: var(--t-sm);
 }
+/* The member's own row: their avatar, their name, and the way into the only
+   settings this product has. */
 .cm-rail-me { display: flex; align-items: center; gap: 0.7em; margin-bottom: var(--sp-2); }
+.cm-rail-me-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-rail-me-prefs {
+  margin-left: auto;
+  flex: none;
+  padding: 2px 6px;
+  background: none;
+  border: 0;
+  border-radius: var(--r-chip);
+  color: var(--ink-faint);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.cm-rail-me-prefs:hover { color: var(--ink); background: var(--card-in); }
+.cm-rail-me-prefs:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .cm-rail-retention {
   font-size: 0.6875rem;
   color: var(--ink-faint);
@@ -961,6 +977,27 @@
 }
 .cm-persona-note { margin: 0; font-size: var(--t-sm); color: var(--ink-faint); }
 
+/* Notification settings. Four switches, one line of consequence under each:
+   a preference nobody can predict the effect of is a preference nobody
+   changes, and the one they reach for instead is the unsubscribe link. */
+.cm-prefs-loading { display: block; }
+.cm-prefs-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+.cm-prefs-switch input { margin-top: 3px; flex: none; }
+.cm-prefs-switch-label { display: block; color: var(--ink); }
+.cm-prefs-switch-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+  line-height: 1.45;
+}
+
 @media (max-width: 640px) {
   .cm-field-row { flex-direction: column; gap: var(--sp-2); }
   .cm-event-actions { gap: 6px; }
@@ -1069,3 +1106,42 @@
   font-size: var(--t-chrome);
   color: var(--ink-faint);
 }
+
+/* "New group", sitting on the Direct messages rail label. Quiet by default: it
+   is an affordance, not a call to action, and the rail is a place people are
+   scanning for a name rather than for a button. */
+.cm-rail-add {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.cm-rail-add:hover { color: var(--ink); }
+
+/* The member picker inside the group modals. Scrolls rather than growing, so a
+   thousand-colleague directory cannot push the modal's buttons off screen. */
+.cm-picker {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-sm);
+  padding: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cm-picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px var(--sp-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: var(--t-sm);
+}
+.cm-picker-row:hover { background: rgba(26,27,26,0.04); }

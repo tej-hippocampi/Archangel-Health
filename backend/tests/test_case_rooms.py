@@ -322,6 +322,70 @@ def test_admin_can_read_case_room_but_not_private_dm():
                        headers=ah).status_code == 404
 
 
+def test_a_member_made_group_is_not_readable_by_an_uninvolved_admin():
+    """WHY: the D3 exception is for ``kind='case_room'``, and a group is not one.
+
+    A group is the SAME database object as a case room -- a title, a roster in
+    ``community_dm_members``, no peer -- so the temptation when groups landed
+    was to widen ``_dm_access`` to "anything with a roster". That would have
+    handed admins a read of every conversation the physicians started
+    themselves, silently, while the product still says otherwise. The room
+    exception exists because a founder has to be able to step into a stuck CASE,
+    and it says so out loud inside the room; a group carries no such notice and
+    is entitled to none of it.
+    """
+    store = _store()
+    admin = A.make_user(store, role="admin")
+    a, b = _doc(store), _doc(store)
+
+    made = client.post(f"{COMMUNITY}/dms/group",
+                       json={"title": "Transplant call rota", "user_ids": [b["id"]]},
+                       headers=A.headers_for(a))
+    assert made.status_code == 200, made.text
+    group_id = made.json()["id"]
+    assert made.json()["kind"] == "group"
+
+    mid = client.post(f"{COMMUNITY}/dms/{group_id}/messages",
+                      json={"body": "swapping Thursday with Friday"},
+                      headers=A.headers_for(a)).json()["id"]
+
+    ah = A.headers_for(admin)
+    assert client.get(f"{COMMUNITY}/dms/{group_id}/messages", headers=ah).status_code == 404
+    assert client.get(f"{COMMUNITY}/messages/{mid}/thread", headers=ah).status_code == 404
+    assert client.post(f"{COMMUNITY}/dms/{group_id}/messages",
+                       json={"body": "should never land"}, headers=ah).status_code == 404
+    # And the admin cannot add themselves to one either -- membership is the
+    # access, so a route that let an outsider join would be the read exception
+    # rebuilt one call further along.
+    assert client.post(f"{COMMUNITY}/dms/{group_id}/members",
+                       json={"user_ids": [admin["id"]]}, headers=ah).status_code == 404
+    # The participant, meanwhile, reads it exactly as they should.
+    assert client.get(f"{COMMUNITY}/dms/{group_id}/messages",
+                      headers=A.headers_for(b)).status_code == 200
+
+
+def test_a_group_roster_cannot_be_widened_into_a_case_room():
+    """The members route is scoped to groups on purpose.
+
+    A case room's roster IS the routed team: it changes when an assignment
+    changes, and letting somebody in the room add a colleague would put a
+    physician on a case nobody assigned them to, with a label that counts
+    towards kappa.
+    """
+    store = _store()
+    a, b, c = _doc(store), _doc(store), _doc(store)
+    task = store.insert_task(prompt="c", specialty="cardiology")
+    RN.notify_routed(store, assignments=[
+        {"task_id": task["task_id"], "user_id": a["id"], "role": "label"},
+        {"task_id": task["task_id"], "user_id": b["id"], "role": "label"}])
+    room = _rooms()[0]
+
+    r = client.post(f"{COMMUNITY}/dms/{room['id']}/members",
+                    json={"user_ids": [c["id"]]}, headers=A.headers_for(a))
+    assert r.status_code == 400, r.text
+    assert c["id"] not in _cstore().room_participants(room["id"])
+
+
 def test_two_party_dms_unchanged():
     """WHY: the migration backfilled every existing DM into a members table.
 
