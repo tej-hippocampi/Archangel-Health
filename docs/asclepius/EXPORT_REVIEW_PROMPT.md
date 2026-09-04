@@ -28,7 +28,9 @@ Work in this order and report as you go.
 STEP 0 — RUN THE EXISTING GATE FIRST
     python3 backend/scripts/export_audit.py <bundle.zip>
 Exit 2 means stop and fix; a clean exit means nothing here is proven yet. Then
-continue with every step below.
+continue with every step below. Do NOT skip this because the bundle "looks
+finished" — the Centaur sample went out having never been run through it, and it
+failed on three assertions the moment it was.
 
 STEP 1 — VERIFY THE MANIFEST BEFORE READING ANYTHING ELSE
 Recompute SHA-256 for every entry in batch.json's `content_hashes` and compare.
@@ -134,6 +136,7 @@ single-case nephrology sample cut for Centaur, and every one passed
 | 6 | `data_dictionary.md` defined `portal_version` as v1/v2; records were v4, and `source` omitted `partner_ehr` | The decoder does not decode the batch |
 | 7 | Related-party disclosure on a bundle with `related_party: false` everywhere | Discloses a conflict that does not exist |
 | 8 | `note: "Admin export cut"` in the buyer's manifest | Internal jargon on the artefact of record |
+| 0 | `export_audit.py` exit 2: no license, no specialty, no portal_version in `batch.json` | The bundle failed Archangel's own CI gate, unrun |
 
 ## Where the generator fixes belong
 
@@ -148,6 +151,14 @@ future bundle until the generator is fixed:
   `stats` and prints inside the per-batch report.
 - The `portal_version` and `source` rows of `_data_dictionary_md`
   (`backend/asclepius/export.py:533`, `:536`) predate v3/v4/v5 and `partner_ehr`.
+
+The manifest gap behind Step 0 is a generator bug too: `batch.json` gets a
+`licensing` block only when an export is cut against a licensed key
+(`backend/asclepius/export.py:2275`), so an unlicensed cut names no terms at all
+even though every record carries `license` and the datasheet states it. Specialty
+and portal version are likewise recorded only indirectly — in `scope` and in
+`counts.by_portal_version` — which is not where a consumer or the audit script
+looks. The manifest should state all three plainly, derived from the records.
 
 Steps 1, 4, 5 and 7 are worth adding as assertions to
 `backend/scripts/export_audit.py` so they fail CI rather than a buyer's inbox.
