@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import logging
 import os
+import realm as _realm
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
@@ -658,16 +659,18 @@ def start_morning_loop() -> None:
             # Sleep first: startup should never wait on this, and a task
             # created during startup begins at the first await anyway.
             await asyncio.sleep(_TICK_SEC)
-            try:
-                await run_morning()
-            except Exception:  # pragma: no cover - the loop must survive
-                log.warning("[morning] tick failed", exc_info=True)
-            try:
-                from community import newsletter as _cnewsletter  # noqa: PLC0415
+            for r in _realm.active_realms():  # Sandbox PRD §1.3
+                with _realm.scoped(r):
+                    try:
+                        await run_morning()
+                    except Exception:  # pragma: no cover - the loop must survive
+                        log.warning("[morning] tick failed (%s)", r, exc_info=True)
+                    try:
+                        from community import newsletter as _cnewsletter  # noqa: PLC0415
 
-                await _cnewsletter.run_newsletter()
-            except Exception:  # pragma: no cover
-                log.warning("[morning] newsletter tick failed", exc_info=True)
+                        await _cnewsletter.run_newsletter()
+                    except Exception:  # pragma: no cover
+                        log.warning("[morning] newsletter tick failed (%s)", r, exc_info=True)
 
     _loop_task = asyncio.get_running_loop().create_task(_run())
     log.info("[morning] in-process loop started (hourly; fires at %02d:00 local per scope)",

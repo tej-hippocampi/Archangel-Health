@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 import jwt
 
 from token_revocation import is_revoked
+import realm as _realm
 
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
 ALGORITHM = "HS256"
@@ -43,6 +44,7 @@ def create_tenant_staff_token(
         "jti": uuid.uuid4().hex,
         "exp": expire,
     }
+    _realm.stamp(payload)  # Sandbox PRD §1.3
     return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
 
 
@@ -54,6 +56,8 @@ def decode_tenant_staff_token(token: str) -> Optional[Dict[str, Any]]:
     if payload.get("typ") != "tenant_staff":
         return None
     if is_revoked(payload.get("jti")):
+        return None
+    if not _realm.token_matches(payload):  # Sandbox PRD §1.3 / §6.2
         return None
     return payload
 

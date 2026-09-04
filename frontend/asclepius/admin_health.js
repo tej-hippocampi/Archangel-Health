@@ -69,6 +69,20 @@
     declined: { label: 'Declined', cls: 'asc-badge-gray' },
   };
 
+  // Sandbox PRD §3.4: where a health system came from. Only ever non-empty in
+  // the sandbox realm — a live row carries no origin and renders nothing.
+  function originChip(h, fmtDate, r) {
+    if (!r.origin) return '';
+    if (r.origin === 'production') {
+      return h('span', {
+        class: 'asc-badge asc-badge-lime', style: 'margin-left: var(--sp-2)',
+        title: 'Snapshot of live ' + (r.source_hs_id || '') + (r.copied_at ? ' copied ' + fmtDate(r.copied_at) : ''),
+      }, 'production copy' + (r.copied_at ? ' · ' + fmtDate(r.copied_at) : ''));
+    }
+    return h('span', { class: 'asc-badge asc-badge-amber', style: 'margin-left: var(--sp-2)' },
+      r.origin === 'sandbox' ? 'sandbox onboarded' : r.origin);
+  }
+
   function stateChip(h, state) {
     const meta = STATE_CHIPS[state] || STATE_CHIPS.active;
     return h('span', { class: 'asc-badge ' + meta.cls }, meta.label);
@@ -183,7 +197,9 @@
         // of each and collapsing them to a single value would have to pick a winner.
         const chips = (r.purposes || []).map((p) => purposeChip(h, p));
         const tr = h('tr', { class: 'asc-row-click' },
-          h('td', {}, h('strong', {}, r.name), r.active ? '' : h('span', { class: 'asc-badge asc-badge-gray', style: 'margin-left: var(--sp-2)' }, 'Inactive')),
+          h('td', {}, h('strong', {}, r.name),
+            r.active ? '' : h('span', { class: 'asc-badge asc-badge-gray', style: 'margin-left: var(--sp-2)' }, 'Inactive'),
+            originChip(h, fmtDate, r)),
           h('td', {}, stateChip(h, r.onboarding_state)),
           h('td', {}, dlaChip(h, fmtDate, r.agreement)),
           h('td', {}, h('code', { class: 'asc-mono asc-dim' }, r.hs_id)),
@@ -533,8 +549,16 @@
         form.append('file', file, file.name);
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/asclepius/admin/assets/onboarding-demo');
+        // XMLHttpRequest, not fetch (progress events) — so the /sandbox/*
+        // shell's fetch wrapper never sees it. Key the token per realm and
+        // name the realm here, or a sandbox admin holding a live session in
+        // the same browser would write the video into the LIVE asset store.
+        const realm = (window.__REALM === 'sandbox') ? 'sandbox' : 'live';
         let token = null;
-        try { token = localStorage.getItem('asclepius_token'); } catch (e) { token = null; }
+        try {
+          token = localStorage.getItem(realm === 'sandbox' ? 'asclepius_token_sandbox' : 'asclepius_token');
+        } catch (e) { token = null; }
+        xhr.setRequestHeader('X-Asclepius-Realm', realm);
         if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
         xhr.upload.addEventListener('progress', (ev) => {
           if (!ev.lengthComputable) return;

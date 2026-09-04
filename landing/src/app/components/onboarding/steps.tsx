@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-import { API_BASE, asclepiusPortalUrl, redirectToAsclepiusPortal } from "@/lib/auth-api";
+import { API_BASE, apiHeaders, asclepiusPortalUrl, redirectToAsclepiusPortal } from "@/lib/auth-api";
 import { npiWarning } from "@/lib/npi";
 
 import {
@@ -1520,7 +1520,7 @@ function useCredentialConfig(): CredentialConfig {
   const [cfg, setCfg] = useState<CredentialConfig>(CREDENTIAL_CONFIG_FALLBACK);
   useEffect(() => {
     let live = true;
-    fetch(`${API_BASE}/api/onboarding/credential-config`)
+    fetch(`${API_BASE}/api/onboarding/credential-config`, { headers: apiHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (live && data && Array.isArray(data.countries) && data.countries.length) {
@@ -1601,6 +1601,7 @@ function CvUploadField({
       // with no backend, so the upload 404s for every real applicant.
       const res = await fetch(`${API_BASE}/api/onboarding/asclepius/cv`, {
         method: "POST",
+        headers: apiHeaders(),
         body: form,
       });
       if (!res.ok) {

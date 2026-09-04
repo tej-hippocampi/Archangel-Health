@@ -43,8 +43,11 @@ _TABLE_LOCK = threading.Lock()
 
 
 def _db_path() -> str:
-    base_dir = os.path.dirname(os.path.dirname(__file__))
-    return os.getenv("TEAM_DB_PATH") or os.path.join(base_dir, "team.db")
+    # Realm-keyed (Sandbox PRD §1.2): a sandbox tenant's requests are audited
+    # into the sandbox team DB, not the live trail an admin reads.
+    import realm as _realm  # noqa: PLC0415
+
+    return _realm.paths()["team"]
 
 
 def _conn() -> sqlite3.Connection:

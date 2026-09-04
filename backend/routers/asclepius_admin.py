@@ -15,6 +15,7 @@ from __future__ import annotations
 import html
 import logging
 import os
+import realm as _realm
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -2589,7 +2590,7 @@ async def resend_signup_link(
             role_label=(person.get("clinical_role") or "").replace("_", " ").title(),
             org_name=org_name,
             specialty=(hs.get("specialty") or "").strip(),
-            onboarding_url=f"{_landing_base()}/onboard/m/{token}",
+            onboarding_url=_realm.public_url(f"{_landing_base()}/onboard/m/{token}"),
             invitee_email=email,
         )
         expires_at = person.get("member_token_expires_at")
@@ -3054,6 +3055,12 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
             "state_changed_at": hs.get("state_changed_at"),
             "application": _hs_application_summary(store, hs["hs_id"]),
             "agreement": _hs_agreement_chip(store, hs["hs_id"]),
+            # Sandbox PRD §3.4: where the row came from. NULL for every live
+            # row; 'production' (+ copied_at, source_hs_id) for a snapshot
+            # copy in the sandbox; 'sandbox' for a system onboarded there.
+            "origin": hs.get("origin"),
+            "copied_at": hs.get("copied_at"),
+            "source_hs_id": hs.get("source_hs_id"),
         })
     return {"health_systems": out}
 
@@ -3357,7 +3364,7 @@ async def invite_to_community(
         token_hash=_hash_invite_token(raw_token),
         expires_at=expires_at, created_by=admin["email"])
 
-    join_url = f"{_community_base()}/community/join/{raw_token}"
+    join_url = _realm.public_url(f"{_community_base()}/community/join/{raw_token}")
     # The SAME mailer as /admin/signups/resend. One email path, so a transport
     # change cannot fix one surface and silently miss the other.
     sent = await send_html_email(

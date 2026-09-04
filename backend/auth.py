@@ -20,6 +20,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
 
 from token_revocation import is_revoked
+import realm as _realm
 
 # ─── Config ──────────────────────────────────────────────────
 AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-elysium")
@@ -116,6 +117,7 @@ def _create_token(sub: str) -> str:
         "jti": uuid.uuid4().hex,
         "typ": TOKEN_TYPE_SESSION,
     }
+    _realm.stamp(payload)  # Sandbox PRD §1.3
     return jwt.encode(payload, AUTH_SECRET, algorithm=ALGORITHM)
 
 
@@ -150,6 +152,8 @@ def _decode_token(token: str) -> Optional[str]:
     elif typ != TOKEN_TYPE_SESSION:
         return None
     if is_revoked(payload.get("jti")):
+        return None
+    if not _realm.token_matches(payload):  # Sandbox PRD §1.3 / §6.2
         return None
     return payload.get("sub")
 

@@ -25,6 +25,7 @@ import logging
 import os
 import re
 import zipfile
+import realm as _realm
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -90,8 +91,7 @@ def _export_root_path() -> Path:
         the check silently misses. The default here IS ``/tmp/asclepius-exports``,
         so that is the one path this probe must never fail to recognise.
     """
-    return Path(os.path.abspath(
-        os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports"))
+    return Path(os.path.abspath(_realm.paths(_realm.LIVE)["exports"]))
 
 
 # ─── Exclusivity (audit U5) ───────────────────────────────────────────────────
@@ -212,8 +212,11 @@ def enforce_exclusivity(
 
 def export_root() -> Path:
     """The export dir, created and ready to write into. Real filesystem use only —
-    a durability check wants ``_export_root_path`` instead."""
-    root = Path(os.getenv("ASCLEPIUS_EXPORT_DIR") or "/tmp/asclepius-exports").resolve()
+    a durability check wants ``_export_root_path`` instead.
+
+    Realm-scoped (Sandbox PRD §1.1): a sandbox export is built under
+    ``<root>/sandbox/`` so a sandbox bundle never sits beside a live one."""
+    root = Path(_realm.paths()["exports"]).resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 
@@ -901,7 +904,7 @@ def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
         f"{c.get('submissions')} submissions, {c.get('total_hours')}h"
         for c in contributors
     ) or "- n/a"
-    return f"""# Datasheet — Asclepius Expert Evaluation Export `{export_id}`
+    return f"""{SANDBOX_STAMP_MD if _realm.is_sandbox() else ""}# Datasheet — Asclepius Expert Evaluation Export `{export_id}`
 
 Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 
@@ -2396,6 +2399,21 @@ def _collect_and_write_image_assets(records: List[Dict[str, Any]], out_dir: "Pat
                 "path": fname,
             }
     return list(seen.values())
+
+
+#: Sandbox PRD §1.4: a bundle built in the sandbox says so in its filename and
+#: at the top of its datasheet, so a file that is ever moved out of the sandbox
+#: cannot be mistaken for a deliverable.
+SANDBOX_STAMP = "SANDBOX — not a deliverable"
+SANDBOX_STAMP_MD = f"> **{SANDBOX_STAMP}.** This bundle was built in the sandbox realm " \
+                   "from sandbox data. It must not be shipped to anyone.\n\n"
+
+
+def bundle_filename(export_id: str) -> str:
+    """The download name for an export archive, realm-stamped in the sandbox."""
+    if _realm.is_sandbox():
+        return f"SANDBOX-not-a-deliverable-{export_id}.zip"
+    return f"{export_id}.zip"
 
 
 def zip_export(export: Dict[str, Any]) -> bytes:

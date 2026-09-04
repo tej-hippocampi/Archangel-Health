@@ -81,6 +81,8 @@ Other words that carry meaning:
 - Email prints to stdout (`EMAIL_DEV_MODE=1`); nothing is delivered.
 - Four SQLite stores, not zero: `ASCLEPIUS_DB_PATH`, `COMMUNITY_DB_PATH`,
   `TEAM_DB_PATH`, and the export dir `ASCLEPIUS_EXPORT_DIR`.
+- The **Sandbox realm** (`docs/asclepius/SANDBOX_REALM.md`, `/sandbox/admin`) is a different thing: a second realm of the
+  deployed product in `*_sandbox.db` files. Every store call is realm-scoped via `realm.current()`; never instantiate a store.
 
 ## How to work here
 

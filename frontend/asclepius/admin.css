@@ -122,39 +122,44 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    PRD-F: Asclepius Operations, the console as its own surface
 
-   "The same as the product, but flipped."
+   "The same as the product, on its own page."
 
    The physician's chrome is paper over paper, with a progress bar for the one
    case in front of them. An operator is never looking at their own work, they
-   are looking at everybody's, so the chrome inverts to ink and the workspace
-   stays the paper the physician sees. Same tokens, same type scale, same
-   cards: the ground and the figure swapped, and no second palette. That
-   inversion is also the only wordless signal separating this page from the
-   physician surface an admin can preview from it, which is a safety property
-   rather than a flourish.
+   are looking at everybody's — but the chrome is the same paper the physician
+   sees, in the same tokens, the same type scale, the same cards. (It was
+   briefly inverted to ink; once the sandbox console reused this shell that
+   read as the sandbox's look, so the paper is back.) What separates this page
+   from the physician surface an admin can preview from it is the wordmark
+   ("Operations"), the role chip and the URL, not a second palette.
 
    Everything below is scoped to .asc-admin-* / the gallery / the two new
    sections. Nothing here restyles a shared class, so the console cannot drift
    the product by accident.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* The bar is the whole navigation. The old console stacked a header, a pill
-   strip and a second pill strip before any content: three rows of chrome for
-   one axis of choice. */
+/* The bar is the whole navigation, in the product's own chrome: the same
+   paper header the physician sees, with the section strip as the pill strip
+   the console always used. It was briefly inverted to ink; that read as a
+   different product (and, once the sandbox reused the shell, as the sandbox),
+   so the paper is back. What separates this page from the physician surface
+   is the wordmark ("Operations") and the role chip, not a second palette. */
 .asc-admin-bar {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: var(--ink);
-  color: var(--card);
-  border-bottom: 1px solid var(--ink-hover);
+  background: rgba(251, 252, 250, 0.85);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  color: var(--asc-text);
+  border-bottom: 1px solid var(--asc-line);
 }
 .asc-admin-bar-inner {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 8px 16px;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: var(--sp-5);
   min-height: 58px;
 }
@@ -165,6 +170,7 @@
   gap: 10px;
   text-decoration: none;
   flex: none;
+  color: inherit;
 }
 .asc-admin-mark-dot {
   width: 9px; height: 9px;
@@ -179,55 +185,59 @@
   display: flex;
   flex-direction: column;
   line-height: 1.15;
+  color: var(--asc-text);
 }
 .asc-admin-mark-sub {
   font-family: var(--mono);
   font-size: var(--t-chrome);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--card);
-  opacity: 0.5;
+  color: var(--ink-faint);
 }
 
+/* The section strip: the pill strip (.asc-subnav) the console always had,
+   sized to its content and sitting in the bar rather than on a row of its own. */
 .asc-admin-tabs {
   display: flex;
-  align-items: stretch;
-  gap: 2px;
-  flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-right: auto;
+  background: var(--card);
+  border: 1px solid var(--asc-line);
+  border-radius: var(--r-chip);
+  padding: 4px;
   overflow-x: auto;
-  /* The bar must not grow a second row on a laptop; a console tab that wraps
-     under the wordmark reads as a different control. */
+  /* The bar must not grow a second row on a laptop by itself; when the strip
+     cannot fit, admin_shell.js measures it and stacks it (below). */
   scrollbar-width: none;
 }
 .asc-admin-tabs::-webkit-scrollbar { display: none; }
 
-/* Mono chrome at chrome size, which the product spends only on micro-labels.
-   Here it is the navigation: an instrument panel is labelled, not titled. */
 .asc-admin-tab {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 0 14px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  padding: 7px 16px;
+  border-radius: var(--r-chip);
   white-space: nowrap;
-  font-family: var(--mono);
-  font-size: var(--t-chrome);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--card);
-  opacity: 0.55;
-  border-bottom: 2px solid transparent;
-  transition: opacity 0.16s cubic-bezier(.4,0,.2,1),
-              border-color 0.16s cubic-bezier(.4,0,.2,1);
+  cursor: pointer;
+  transition: background 0.16s cubic-bezier(.4,0,.2,1),
+              color 0.16s cubic-bezier(.4,0,.2,1);
 }
-.asc-admin-tab:hover { opacity: 0.85; }
-.asc-admin-tab.active {
-  opacity: 1;
-  border-bottom-color: var(--lime);
-}
-.asc-admin-tab:focus-visible { outline: 2px solid var(--lime); outline-offset: -4px; }
-/* The QA backlog, on the tab QA lives under. Lime because it is the system's
-   "needs attention now" marker and it is the one colour that reads on ink. */
+.asc-admin-tab:hover { background: var(--card-in); color: var(--asc-text); }
+.asc-admin-tab.active { background: var(--ink); color: var(--card); }
+.asc-admin-tab:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* The QA backlog, on the tab QA lives under: the system's "needs attention
+   now" marker, readable on both the paper pill and the ink one. */
 .asc-admin-tab-count {
   background: var(--lime);
   color: var(--ink);
@@ -241,26 +251,36 @@
   flex: none;
   font-size: var(--t-sm);
 }
-.asc-admin-who-email { color: var(--card); opacity: 0.8; }
+.asc-admin-who-email { color: var(--ink-soft); }
 /* The role word belongs here and nowhere on the physician surface: on the
    console it says which door you came through, which is a real fact about the
    session rather than a job title printed at somebody. */
-.asc-admin-who-role { color: var(--card); opacity: 0.5; }
+.asc-admin-who-role { color: var(--ink-faint); }
 .asc-admin-out,
 .asc-admin-signout {
   font-family: var(--mono);
   font-size: var(--t-chrome);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--card);
-  opacity: 0.65;
+  color: var(--ink-soft);
+  background: var(--card);
   text-decoration: none;
   padding: 6px 11px;
-  border: 1px solid var(--card);
+  border: 1px solid var(--asc-line-strong);
   border-radius: 7px;
-  transition: opacity 0.16s cubic-bezier(.4,0,.2,1);
+  cursor: pointer;
+  transition: color 0.16s cubic-bezier(.4,0,.2,1), border-color 0.16s cubic-bezier(.4,0,.2,1);
 }
-.asc-admin-out:hover, .asc-admin-signout:hover { opacity: 1; }
+.asc-admin-out:hover, .asc-admin-signout:hover { color: var(--asc-text); border-color: var(--ink); }
+
+/* The strip drops onto its own row when the bar cannot hold it: on a narrow
+   viewport by media query, and on ANY viewport when admin_shell.js measures the
+   strip overflowing (seven sections beside a long operator address). A
+   hidden-scrollbar strip that clips its last sections is not a fallback — it
+   is a section nobody can find. */
+.asc-admin-bar-inner.stacked { flex-wrap: wrap; padding-bottom: 6px; }
+.asc-admin-bar-inner.stacked .asc-admin-tabs { order: 3; flex-basis: 100%; margin-right: 0; }
+.asc-admin-bar-inner.stacked .asc-admin-who { margin-left: auto; }
 
 @media (max-width: 900px) {
   .asc-admin-bar-inner { flex-wrap: wrap; padding-bottom: 6px; }

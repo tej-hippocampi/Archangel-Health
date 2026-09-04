@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 
-import { API_BASE } from "@/lib/auth-api";
+import { API_BASE, apiHeaders } from "@/lib/auth-api";
 import * as authApi from "@/lib/auth-api";
 import { authDialogStyles } from "./authDialogStyles";
 
@@ -16,7 +16,7 @@ export default function TenantSignIn({ slug }: Props) {
     setError("");
     const r = await fetch(`${API_BASE}/api/tenant/${encodeURIComponent(slug)}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ email, password }),
     });
     const data = await r.json().catch(() => ({}));
