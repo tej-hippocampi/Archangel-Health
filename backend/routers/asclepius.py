@@ -6270,19 +6270,55 @@ def _validate_upload_token_lenient(store: Any, token: Optional[str]) -> Dict[str
 
 
 # ─── Admin: ingestion review ──────────────────────────────────────────────────
-def _partner_label_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[str]:
-    """The human-readable partner label ('Gray Scrubs Lab'). Magic-link uploads
-    carry it on the link row; account-door uploads carry it as the provider's
-    org_name. Falls back to the raw partner_id."""
+def _partner_label_for_upload(store: Any, upload: Dict[str, Any]) -> str:
+    """The human-readable partner label ('Gray Scrubs Hospitals'). Magic-link
+    uploads carry it on the link row; account-door uploads carry it as the
+    provider's org_name; health-system portal uploads carry the HEALTH-SYSTEM id
+    as their ``partner_id`` (``hs-gray-scrubs-hospitals-64bebe``), which is
+    neither — and used to resolve to None, so every hospital upload read
+    "Unknown sender" on the screen that exists to say who sent it (Case
+    Generation Fix PRD §B2). Falls back to the raw ``partner_id``; never None."""
     link_id = upload.get("link_id")
     if link_id and link_id != "account":
         link = store.get_upload_link(link_id)
         if link and (link.get("partner_label") or "").strip():
             return link["partner_label"].strip()
-    prov = store.get_data_provider(upload.get("partner_id") or "")
+    partner_id = str(upload.get("partner_id") or "").strip()
+    prov = store.get_data_provider(partner_id) if partner_id else None
     if prov and (prov.get("org_name") or "").strip():
         return prov["org_name"].strip()
-    return None
+    hs = store.get_health_system(partner_id) if partner_id else None
+    if hs and (hs.get("name") or "").strip():
+        return hs["name"].strip()
+    return partner_id or "Unknown sender"
+
+
+def _upload_content_view(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Row-level chart facts for an upload, summed over its ingest cases.
+
+    The specialty inference is taken from the first ingested case's recorded
+    summary — a bundle is one patient after unification, so "first" is "the"
+    chart in every case this screen was built for."""
+    out: Dict[str, Any] = {"charts": len(cases), "notes": 0, "lab_panels": 0,
+                           "studies": 0, "encounters": 0, "decision_points": 0,
+                           "specialty_inferred": None, "specialty_confidence": None,
+                           "specialty_clears_floor": None, "specialty_floor": None}
+    for c in cases:
+        summary = ((c.get("report") or {}).get("content_summary")) or {}
+        body = c.get("case") or {}
+        if summary:
+            for k in ("notes", "lab_panels", "studies", "encounters", "decision_points"):
+                out[k] += int(summary.get(k) or 0)
+        else:
+            out["notes"] += len(body.get("notes") or [])
+            out["lab_panels"] += len(body.get("lab_panels") or [])
+            out["studies"] += len(body.get("studies") or [])
+        if summary and out["specialty_inferred"] is None and c.get("status") in ("ingested", "promoted"):
+            out["specialty_inferred"] = summary.get("specialty_inferred")
+            out["specialty_confidence"] = summary.get("specialty_confidence")
+            out["specialty_clears_floor"] = summary.get("specialty_clears_floor")
+            out["specialty_floor"] = summary.get("specialty_floor")
+    return out
 
 
 def _contact_email_for_upload(store: Any, upload: Dict[str, Any]) -> Optional[str]:
@@ -6369,6 +6405,12 @@ async def list_ingestion_uploads(
     uploads = store.list_ingest_uploads(limit=limit, offset=offset, status=status)
     for u in uploads:
         u["partner_label"] = _partner_label_for_upload(store, u)
+        # Always an integer (§B2). The column is nullable for rows that predate it;
+        # the row renders a size and "null MB" is not one.
+        try:
+            u["size_bytes"] = int(u.get("size_bytes") or 0)
+        except (TypeError, ValueError):
+            u["size_bytes"] = 0
         # How many ingested cases are ready to promote from THIS upload file —
         # drives the upload-scoped promote UI.
         cases = store.list_ingest_cases(upload_id=u["upload_id"])
@@ -6384,6 +6426,11 @@ async def list_ingestion_uploads(
         # the promote endpoints apply, computed from rows already in hand rather
         # than with a second query per upload.
         ingested = [c for c in cases if c.get("status") == "ingested"]
+        # What the bundle unified into (§B1): "1 chart · 12 encounters · 79
+        # notes · 45 panels · Hepatology (inferred 0.71)". Read from the summary
+        # ingest recorded; a row that predates the summary gets the cheap counts
+        # from its stored case and no inference.
+        u["content"] = _upload_content_view(cases)
         promotable = [c for c in ingested
                       if not asc_ingestion.blocks_promotion(
                           c.get("purpose") or u.get("purpose"))]

@@ -5610,6 +5610,27 @@ class AsclepiusStore:
                 "ORDER BY created_at ASC, rowid ASC LIMIT 1", (sha256,)).fetchone()
         return self.get_ingest_upload(row["upload_id"]) if row else None
 
+    def find_ingest_upload_by_partner_filename(
+        self, partner_id: str, filename: str,
+    ) -> Optional[Dict[str, Any]]:
+        """The oldest upload this partner sent under this filename, or None.
+
+        The SECOND idempotency key for the committed-fixture ingest (Case
+        Generation Fix PRD §A5). The first key is the sha256 of the packed bytes,
+        and the pack includes a synthesized manifest — so changing a bundle's
+        declared specialty changes the bytes, and a re-click would land the same
+        chart twice under two labels. A fixture is one chart with one name; the
+        name catches what the digest cannot. Scoped to the partner so a hospital
+        that happens to call its export ``patient-3.zip`` is never matched.
+        """
+        if not partner_id or not filename:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT upload_id FROM ingest_uploads WHERE partner_id = ? AND filename = ? "
+                "ORDER BY created_at ASC, rowid ASC LIMIT 1", (partner_id, filename)).fetchone()
+        return self.get_ingest_upload(row["upload_id"]) if row else None
+
     def list_ingest_uploads(self, *, limit: int = 200, offset: int = 0,
                             status: Optional[str] = None) -> List[Dict[str, Any]]:
         where, params = "", []

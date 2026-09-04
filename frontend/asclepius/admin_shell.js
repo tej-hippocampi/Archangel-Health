@@ -164,6 +164,27 @@
     return 'Request failed (' + status + ')';
   }
 
+  /** The one sentence an error should show an operator (Case Generation Fix PRD §A6).
+   *
+   *  `api()` rejects with `{status, detail, message}`. `detail` is a string for
+   *  our 400s, an OBJECT for the plan/generate endpoints ({error, message,
+   *  blockers}) and a LIST for a FastAPI 422 — and appending an object to the DOM
+   *  prints "[object Object]" at the operator. Every catch in this file goes
+   *  through here so the shape of one endpoint's detail can never leak into a
+   *  toast. Preference: the detail's own message, then its error code (readable
+   *  by construction: "nothing_generatable"), then a string detail, then the
+   *  normalized message, then the caller's fallback. */
+  function errText(e, fallback) {
+    const d = e && e.detail;
+    if (d && typeof d === 'object' && !Array.isArray(d)) {
+      if (typeof d.message === 'string' && d.message) return d.message;
+      if (typeof d.error === 'string' && d.error) return d.error.replace(/_/g, ' ');
+    }
+    if (typeof d === 'string' && d) return d;
+    if (e && typeof e.message === 'string' && e.message) return e.message;
+    return fallback || 'Request failed.';
+  }
+
   function handleUnauthorized() {
     state.token = null;
     state.user = null;
@@ -709,8 +730,7 @@
         // `detail` is a string for our 400s but a LIST of objects for a FastAPI
         // 422, and assigning that to textContent prints "[object Object]" at the
         // operator. `message` is already normalized by detailToMessage.
-        err.textContent = (typeof e.detail === 'string' && e.detail)
-          || e.message || 'Could not set the specialty.';
+        err.textContent = errText(e, 'Could not set the specialty.');
         err.removeAttribute('hidden');
         sel.removeAttribute('disabled');
         setBtn.removeAttribute('disabled');
@@ -1208,7 +1228,7 @@
       }).catch((e) => {
         view.busy = false;
         const d = e && e.detail;
-        view.err = (d && d.message) || (e && e.message) || 'Relay send failed.';
+        view.err = errText(e, 'Relay send failed.');
         paint();
       });
     }
@@ -2198,7 +2218,7 @@
         if ((c.cases_held || 0) > 0) loadIngestionLists();
         toast('Reconciliation complete.', 'success');
       } catch (e) {
-        toast('Reconciliation failed: ' + (e.detail || e.message || ''), 'error');
+        toast('Reconciliation failed: ' + (errText(e, '')), 'error');
       } finally {
         btn.removeAttribute('disabled'); btn.textContent = 'Run reconciliation';
       }
@@ -2355,7 +2375,7 @@
       toast('Sender notified' + (res && res.detail ? ': ' + res.detail : ''), 'success');
       renderUploadsTable(_uploadsOffset);   // reflect the notified state
     } catch (e) {
-      toast('Could not notify sender: ' + (e.detail || e.message || ''), 'error');
+      toast('Could not notify sender: ' + (errText(e, '')), 'error');
     }
   }
 
@@ -2508,7 +2528,7 @@
       loadIngestionLists();
     } catch (e) {
       clear(status);
-      status.appendChild(h('div', { class: 'asc-inline-error' }, e.detail || e.message || 'Clear failed.'));
+      status.appendChild(h('div', { class: 'asc-inline-error' }, errText(e, 'Clear failed.')));
     }
   }
 
@@ -2522,7 +2542,7 @@
       loadIngestionLists();
     } catch (e) {
       clear(status);
-      status.appendChild(h('div', { class: 'asc-inline-error' }, e.detail || e.message || 'Reject failed.'));
+      status.appendChild(h('div', { class: 'asc-inline-error' }, errText(e, 'Reject failed.')));
     }
   }
 
@@ -2666,14 +2686,16 @@
     } catch (e) {
       clear(statusBox);
       statusBox.appendChild(h('div', { class: 'asc-inline-error' },
-        (e && e.detail && e.detail.error) || e.message || 'Could not build a case plan.'));
+        errText(e, 'Could not build a case plan.')));
       return;
     }
     clear(statusBox);
     statusBox.appendChild(h('div', { class: 'asc-card-sub' },
       (ic.patient_key || 'chart') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
       + (plan.generatable || 0) + ' generatable'));
-    openCasePlanModal(upload, ic, plan, statusBox);
+    openCasePlanModal(upload, ic, plan, statusBox, {
+      replan: () => { loadIngestionLists(); openCasePreview(upload, statusBox); },
+    });
   }
 
   const _diffBadgeClass = (band) => (
@@ -2764,6 +2786,18 @@
         style: 'margin-top:8px;padding:8px 10px;border-radius:8px;'
           + 'background:var(--lime-wash);border:1px solid var(--lime-line);color:var(--lime-deep)',
       }, 'Not generatable: ' + (p.blockers || []).join(' · ')));
+      // §A5 — when the blocker is the specialty, the picker is the fix, and it
+      // belongs on the row that names the problem. Re-plans once the server
+      // confirms, so the operator sees the encounter turn generatable rather
+      // than a toast and a stale modal.
+      const specialtyBlocked = (p.blockers || []).some((b) => /specialty not served/i.test(b));
+      if (specialtyBlocked && ic && ic.upload_id && refresh) {
+        wrap.appendChild(h('div', { class: 'asc-card-sub', style: 'margin-top:8px' },
+          'Set the specialty to build this encounter — the chart’s own signal reads '
+          + (p.specialty_confidence != null ? Number(p.specialty_confidence).toFixed(2) : 'below')
+          + ' against a floor the planner will not guess past. ',
+          specialtyResolver(ic.upload_id, () => refresh('specialty'))));
+      }
       return wrap;
     }
 
@@ -2786,7 +2820,7 @@
         if (ok && refresh) refresh();
       } catch (e) {
         status.appendChild(h('div', { class: 'asc-inline-error' },
-          (e && e.detail && e.detail.error) || e.message || 'Generation failed.'));
+          errText(e, 'Generation failed.')));
       }
       btn.removeAttribute('disabled');
       btn.textContent = 'Generate this case';
@@ -2810,8 +2844,19 @@
     });
     const list = h('div', {});
     const proposals = plan.proposals || [];
-    proposals.forEach((p) => list.appendChild(
-      renderProposalRow(ic, p, () => loadIngestionLists())));
+    // `refresh('specialty')` comes from the row-level picker (§A5): the upload
+    // now declares a specialty, so the plan this modal shows is stale. Close it
+    // and re-plan through the caller's `replan`, which re-runs the same dry run
+    // that opened this one.
+    const onRowRefresh = (why) => {
+      if (why === 'specialty' && opts && typeof opts.replan === 'function') {
+        overlay.remove();
+        opts.replan();
+        return;
+      }
+      loadIngestionLists();
+    };
+    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, p, onRowRefresh)));
 
     const status = h('div', { style: 'margin-top:12px' });
     const nGen = plan.generatable || 0;
@@ -2838,7 +2883,7 @@
         loadIngestionLists();
       } catch (e) {
         status.appendChild(h('div', { class: 'asc-inline-error' },
-          (e && e.detail && e.detail.error) || e.message || 'Generation failed.'));
+          errText(e, 'Generation failed.')));
         allBtn.removeAttribute('disabled');
         allBtn.textContent = 'Generate all ' + nGen + ' case(s)';
       }
@@ -2883,7 +2928,7 @@
         loadIngestionLists();
       } catch (e) {
         status.appendChild(h('div', { class: 'asc-inline-error' },
-          (e && e.detail && e.detail.error) || e.message || 'Trajectory generation failed.'));
+          errText(e, 'Trajectory generation failed.')));
         trajBtn.removeAttribute('disabled');
         trajBtn.textContent = 'Chain ' + nPoints + ' decision point(s) into one trajectory';
       }
@@ -3080,7 +3125,7 @@
         .catch((e) => {
           // The 409 the server raises on brokering → task creation is a RULE,
           // not a failure. Render its sentence, which explains the rule.
-          toast((e && e.detail) || e.message || 'Could not set the purpose.', 'error');
+          toast(errText(e, 'Could not set the purpose.'), 'error');
         });
     }
 
@@ -3104,7 +3149,9 @@
           h('div', { class: 'asc-dim' },
             (upload.partner_label || 'Unknown sender') + ' · '
             + (upload.filename || 'bundle') + ' · '
-            + ((upload.case_counts || {}).total || 0) + ' case(s)'),
+            + ((upload.content || {}).charts != null
+                ? (upload.content.charts + ' chart' + (upload.content.charts === 1 ? '' : 's'))
+                : (((upload.case_counts || {}).total || 0) + ' case(s)'))),
           h('div', { style: 'display:flex;gap:10px;margin-top:16px' },
             go,
             h('button', {
@@ -3119,7 +3166,7 @@
       api('/admin/uploads/' + encodeURIComponent(upload.upload_id) + '/task-mode',
           { method: 'POST', body: { task_mode: mode } })
         .then(() => load())
-        .catch((e) => toast((e && e.detail) || e.message || 'Could not set the mode.', 'error'));
+        .catch((e) => toast(errText(e, 'Could not set the mode.'), 'error'));
     }
 
     /* Static: the two-step promote that already exists. `prepare` converts and
@@ -3136,7 +3183,7 @@
         .catch((e) => {
           clear(statusBox);
           statusBox.appendChild(h('div', { class: 'asc-inline-error' },
-            (e && e.detail) || e.message || 'Could not prepare a sample.'));
+            errText(e, 'Could not prepare a sample.')));
         });
     }
 
@@ -3156,57 +3203,133 @@
                      { method: 'POST', body: { dry_run: true, trajectory: true } })
             .then((plan) => {
               clear(statusBox);
-              openCasePlanModal(upload, first, plan, statusBox, { trajectory: true });
+              openCasePlanModal(upload, first, plan, statusBox, {
+                trajectory: true,
+                // A specialty set from inside the modal re-plans the walk (§A5)
+                // and refreshes the rows, so the chip on the row agrees with it.
+                replan: () => { load(); previewLongitudinal(upload, statusBox); },
+              });
             });
         })
         .catch((e) => {
           clear(statusBox);
           statusBox.appendChild(h('div', { class: 'asc-inline-error' },
-            (e && e.detail) || e.message || 'Could not plan this chart.'));
+            errText(e, 'Could not plan this chart.')));
         });
     }
 
     // ─── Rows ───────────────────────────────────────────────────────────────
-    // ``withCounts`` off in Box 2: that row prints a richer count line of its
-    // own immediately below, and §6.2 gives a row three lines, not four.
-    function headerLines(u, withCounts) {
-      const counts = u.case_counts || {};
+    // One row = one bundle, three lines, two decisions (Case Generation Fix PRD
+    // §B1). Line 1: who, what file, how big, digest, when. Line 2: the specialty
+    // (declared, or inferred with its confidence) and what the bundle unified
+    // into — "1 chart", never "3 case(s)". Line 3: the partner's description.
+    function humanBytes(n) {
+      const v = Number(n) || 0;
+      if (v <= 0) return null;
+      if (v < 1024) return v + ' B';
+      if (v < 1048576) return Math.round(v / 1024) + ' KB';
+      if (v < 1073741824) return (v / 1048576).toFixed(v < 10485760 ? 1 : 0) + ' MB';
+      return (v / 1073741824).toFixed(2) + ' GB';
+    }
+    const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : s);
+
+    function headerLines(u) {
       const bits = [
-        u.partner_label || 'Unknown sender',
-        u.created_at ? ('uploaded ' + fmtDate(u.created_at)) : null,
+        u.partner_label || u.partner_id || 'Unknown sender',
         u.filename || null,
-        u.size_bytes ? (Math.round(u.size_bytes / 1048576) + ' MB') : null,
+        humanBytes(u.size_bytes),
       ].filter(Boolean);
       const integrity = u.verified_at
-        ? h('span', { class: 'asc-chip asc-chip-ok', title: 'Whole-file digest recomputed and matched' }, 'sha ✓')
-        : h('span', { class: 'asc-chip', title: 'No verified whole-file digest on this row' }, 'sha —');
+        ? h('span', { class: 'asc-chip asc-chip-ok', title: 'Whole-file digest recomputed and matched' }, 'SHA ✓')
+        : h('span', { class: 'asc-chip', title: 'No verified whole-file digest on this row' }, 'SHA —');
       return h('div', {},
-        h('div', { class: 'asc-stage-head' }, bits.join(' · '), ' ', integrity),
-        h('div', { class: 'asc-stage-desc' },
-          (u.specialties || []).length
-            ? h('span', { class: 'asc-badge asc-badge-primary' }, specialtiesLabel(u))
-            // Amber, not primary. An unset specialty renders in the same slot as
-            // a real one, and both promote endpoints 409 on it — so a chip that
-            // looked like every other specialty would hide the one fact on the
-            // row that stops the bundle progressing.
-            : h('span', { class: 'asc-badge asc-badge-amber',
-                title: 'Ingest refuses to guess a specialty, and both promote '
-                     + 'endpoints refuse this upload until one is set.' },
-                'specialty not set'),
-          ' ',
+        h('div', { class: 'asc-stage-head' }, bits.join(' · '), ' ', integrity,
+          u.created_at ? h('span', { class: 'asc-dim' }, ' · ' + fmtDate(u.created_at)) : null),
+        h('div', { class: 'asc-stage-desc' }, specialtyChip(u), ' · ', chartFacts(u)),
+        h('div', { class: 'asc-stage-counts' },
           u.description
             ? h('span', {}, '“' + u.description + '”')
-            : h('span', { class: 'asc-dim' }, 'No description was sent with this bundle.')),
-        withCounts === false ? null : h('div', { class: 'asc-stage-counts' },
-          (counts.total || 0) + ' ingest case(s)',
-          counts.needs_review ? (' · ' + counts.needs_review + ' need review') : '',
-          counts.quarantined ? (' · ' + counts.quarantined + ' quarantined') : '',
-          counts.promoted ? (' · ' + counts.promoted + ' already tasks') : ''));
+            : h('span', { class: 'asc-dim' }, 'No description was sent with this bundle.')));
+    }
+
+    /* The specialty as the row knows it. Declared on the upload → primary chip.
+     * Not declared → what the chart's own signal reads, WITH its confidence, in
+     * amber: "Hepatology (inferred 0.58)" tells an operator both what the
+     * planner thinks and that it will not act on it unaided. */
+    function specialtyChip(u) {
+      if ((u.specialties || []).length) {
+        return h('span', { class: 'asc-badge asc-badge-primary' },
+          u.specialties.map(cap).join(', '));
+      }
+      const c = u.content || {};
+      if (c.specialty_inferred) {
+        return h('span', { class: 'asc-badge asc-badge-amber',
+          title: c.specialty_clears_floor
+            ? 'Read off the chart. Ingest never guesses; confirm it in Task creation.'
+            : 'Below the confidence floor (' + (c.specialty_floor || 0.6) + '). '
+              + 'Ingest refuses to guess — set it before building tasks.' },
+          cap(c.specialty_inferred) + ' (inferred ' + Number(c.specialty_confidence || 0).toFixed(2) + ')');
+      }
+      // Amber, not primary. An unset specialty renders in the same slot as a
+      // real one, and both promote endpoints 409 on it — so a chip that looked
+      // like every other specialty would hide the one fact on the row that
+      // stops the bundle progressing.
+      return h('span', { class: 'asc-badge asc-badge-amber',
+        title: 'Ingest refuses to guess a specialty, and both promote '
+             + 'endpoints refuse this upload until one is set.' },
+        'specialty not set');
+    }
+
+    /* What the bundle unified into. Counts come from the ingest case the
+     * bundle's files merged into, so a FHIR export plus its own HL7 and CSV reads
+     * "1 chart", which is what it is. */
+    function chartFacts(u) {
+      const counts = u.case_counts || {};
+      const c = u.content || {};
+      const charts = c.charts != null ? c.charts : (counts.total || 0);
+      const bits = [charts + ' chart' + (charts === 1 ? '' : 's')];
+      if (c.encounters) bits.push(c.encounters + ' encounter' + (c.encounters === 1 ? '' : 's'));
+      if (c.notes) bits.push(c.notes + ' note' + (c.notes === 1 ? '' : 's'));
+      if (c.lab_panels) bits.push(c.lab_panels + ' panel' + (c.lab_panels === 1 ? '' : 's'));
+      if (c.studies) bits.push(c.studies + ' stud' + (c.studies === 1 ? 'y' : 'ies'));
+      if (counts.needs_review) bits.push(counts.needs_review + ' need review');
+      if (counts.quarantined) bits.push(counts.quarantined + ' quarantined');
+      if (counts.promoted) bits.push(counts.promoted + ' already tasks');
+      return h('span', {}, bits.join(' · '));
     }
 
     function specialtiesLabel(u) {
       const s = u.specialties || [];
       return s.length ? s.join(', ') : 'specialty not set';
+    }
+
+    /* §A5 — the specialty is a REQUIRED step before Build when the chart's own
+     * signal does not clear the floor. The planner refuses every encounter with
+     * "specialty not served", and until now the row disabled nothing and said
+     * nothing: the operator found out from a [object Object]. Returns
+     * `{required, node}`: `required` gates the Build button; `node` is the
+     * picker with copy saying why, or null when the declaration exists. */
+    function specialtyGate(u) {
+      if ((u.specialties || []).length) return { required: false, node: null };
+      const c = u.content || {};
+      const required = !c.specialty_clears_floor;
+      const why = c.specialty_inferred
+        ? ('The chart reads as ' + cap(c.specialty_inferred) + ' at '
+           + Number(c.specialty_confidence || 0).toFixed(2)
+           + (required
+              ? (', below the ' + (c.specialty_floor || 0.6) + ' floor the planner needs. ')
+              : ', which the planner would accept — confirm it, or choose another. '))
+        : 'The chart carries too little signal to read a specialty from. ';
+      return {
+        required,
+        node: h('div', { class: 'asc-stage-counts' },
+          h('div', { class: required ? 'asc-inline-warn' : 'asc-dim' },
+            (required ? 'Set the specialty before building. ' : '')
+            + why
+            + 'Ingest never guesses: a wrong specialty routes the cases to the '
+            + 'wrong physician pool and mislabels them in the export.'),
+          specialtyResolver(u.upload_id, () => load())),
+      };
     }
 
     function describeBtn(u) {
@@ -3278,12 +3401,14 @@
         href: '/api/asclepius/ingestion/uploads/' + encodeURIComponent(u.upload_id) + '/download',
       }, 'Download');
 
+      // Two decisions on the right, nothing explaining irreversibility inline:
+      // "Brokering can't be undone" is the confirm dialog's sentence (§B1).
       return h('div', { class: 'asc-stage-row' },
         headerLines(u),
         h('div', { class: 'asc-stage-actions' },
           dl, previewCasesBtn(u), describeBtn(u),
           h('span', { class: 'asc-stage-spacer' }),
-          h('span', { class: 'asc-dim' }, 'This data is for: '),
+          h('span', { class: 'asc-dim' }, '→ '),
           toTasks, toBroker),
         casesDrawer(u));
     }
@@ -3316,7 +3441,7 @@
           .catch((e) => {
             input.checked = !input.checked;
             input.removeAttribute('disabled');
-            toast((e && e.detail) || e.message || 'Could not change that.', 'error');
+            toast(errText(e, 'Could not change that.'), 'error');
           });
       });
       return h('label', { class: 'asc-stage-radio',
@@ -3365,9 +3490,14 @@
       });
 
       const eligible = counts.ingested || 0;
+      // §A5: no specialty and a below-floor inference means every encounter
+      // would come back "specialty not served". The picker is the step, and the
+      // button says so instead of silently doing nothing.
+      const gate = specialtyGate(u);
       const create = h('button', {
         class: 'asc-btn asc-btn-primary asc-btn-sm', type: 'button',
-        disabled: !mode || !eligible,
+        disabled: !mode || !eligible || gate.required,
+        title: gate.required ? 'Set the specialty first — the planner refuses to guess it.' : null,
       }, mode === 'longitudinal'
         ? ('Build the chart walk →')
         : ('Create ' + eligible + ' task' + (eligible === 1 ? '' : 's') + ' →'));
@@ -3383,11 +3513,12 @@
           : null);
 
       return h('div', { class: 'asc-stage-row' },
-        headerLines(u, false),
+        headerLines(u),
         h('div', { class: 'asc-stage-counts' },
-          (counts.total || 0) + ' case(s) · ' + eligible + ' eligible'
+          eligible + ' eligible'
           + (counts.needs_review ? (' · ' + counts.needs_review + ' blocked (review)') : '')
           + ' · ' + (counts.promoted || 0) + ' made into tasks'),
+        gate.node,
         h('div', { class: 'asc-stage-actions' },
           h('span', { class: 'asc-dim' }, 'Make tasks as: '), radios,
           autoGenerateToggle(u),
@@ -3438,18 +3569,19 @@
             'Data arrives, you say what it is for, then you turn it into tasks.')),
         uploadButton()));
 
-      // Box 1
+      // Box 1 (§B1): a heading, one sentence, the rows. The empty state is one
+      // quiet line, not a 200px box, and the irreversibility of "Brokering" is
+      // said in the confirm dialog rather than repeated under the heading.
       const b1 = h('div', { class: 'asc-card' }, h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-stage-actions' },
           h('h3', {}, 'Incoming data'),
           h('span', { class: 'asc-stage-spacer' }),
           ingestFixturesBtn()),
         h('div', { class: 'asc-dim' },
-          'Every bundle whose purpose has not been decided yet. Choosing '
-          + '“Brokering” cannot be undone.'),
+          'Bundles that arrived and haven’t been told what they’re for.'),
         box1.length
           ? h('div', { class: 'asc-stage-list' }, box1.map(box1Row))
-          : h('div', { class: 'asc-empty' }, h('p', {}, 'Nothing waiting on a decision.'))));
+          : h('div', { class: 'asc-dim', style: 'margin-top:8px' }, 'Nothing waiting on a decision.')));
       host.appendChild(b1);
 
       // Box 2
@@ -3495,7 +3627,7 @@
             });
             load();
           })
-          .catch((e) => toast((e && e.detail) || e.message || 'Could not ingest the records.', 'error'))
+          .catch((e) => toast(errText(e, 'Could not ingest the records.'), 'error'))
           .finally(() => {
             b.removeAttribute('disabled');
             b.textContent = 'Ingest committed patient records';
@@ -3603,7 +3735,7 @@
         go.setAttribute('disabled', '');
         const done = (node) => { clear(status); status.appendChild(node); go.removeAttribute('disabled'); };
         const fail = (e) => done(h('div', { class: 'asc-inline-error' },
-          (e && e.detail) || (e && e.message) || 'Upload failed.'));
+          errText(e, 'Upload failed.')));
 
         if (mode === 'gold') {
           status.appendChild(loadingCard('Loading ratified gold cases…'));

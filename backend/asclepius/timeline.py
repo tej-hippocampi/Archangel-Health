@@ -179,10 +179,19 @@ def _parse_token(text: str) -> Optional[date]:
     return None
 
 
-def parse_datetime(value: Any) -> Optional[date]:
+def parse_datetime(value: Any, *, date_order: str = DATE_ORDER_MDY) -> Optional[date]:
     """Best-effort parse of a STRUCTURED field value (adapter-supplied
     ``collected_at``, FHIR ``effectiveDateTime``, HL7 ``OBR-7``…) to a date.
-    Returns None when it isn't a parseable date."""
+    Returns None when it isn't a parseable date.
+
+    ``date_order`` is the record's day-first/month-first reading
+    (``infer_date_order``) and only matters for a slash token: ``06/01/2024`` is
+    June 1 in an MDY record and January 6 in a DMY one. The structured path used
+    to ignore the order the free-text rewriter had already inferred (Case
+    Generation Fix PRD §A4), so a partner exporting ``dd/mm/yyyy`` in a CSV or
+    HL7 field had every lab panel placed on the wrong day — silently, which
+    corrupts encounter grouping and the longitudinal answer key. The default is
+    unchanged for callers that have no record in hand."""
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -208,7 +217,7 @@ def parse_datetime(value: Any) -> Optional[date]:
             return None
     m3 = _MDY_RE.match(s)
     if m3 and m3.start() == 0:
-        return _mdy_to_date(m3)
+        return _mdy_to_date(m3, date_order)
     return None
 
 
@@ -463,24 +472,72 @@ def _free_text_fields(case: Dict[str, Any]) -> List[str]:
     return out
 
 
-def _collect_structured_dates(fragments: Dict[str, Any]) -> List[date]:
-    """Every parseable STRUCTURED timestamp in the assembled fragments — the pool
-    the index event is chosen from (labs, vitals timestamps; not note text)."""
-    found: List[date] = []
-    for lp in fragments.get("lab_panels") or []:
-        d = parse_datetime(lp.get("collected_at"))
-        if d:
-            found.append(d)
-        off = lp.get("collected_offset_days")
-        if isinstance(off, str):
-            d2 = parse_datetime(off)
-            if d2:
-                found.append(d2)
+#: Every STRUCTURED calendar field an adapter may attach to a chart item, per
+#: collection. ONE declaration, read by the anchor pool, the day-first inference
+#: and the offset assignment — so a collection can never anchor on a field it does
+#: not convert, or convert one the anchor pool never saw.
+_STRUCTURED_DATE_KEYS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ("lab_panels", ("collected_at",)),
+    ("notes", ("collected_at", "authored_on", "recorded_at")),
+    ("studies", ("collected_at", "effective_at", "recorded_at")),
+    ("problem_list", ("recorded_at", "recorded_date", "collected_at")),
+    ("medications", ("authored_on", "ordered_at", "collected_at")),
+)
+
+
+def _structured_date_strings(fragments: Dict[str, Any]) -> List[str]:
+    """Every raw structured date STRING in the fragments (before conversion), for
+    the day-first inference. An ISO or HL7 value carries no slash and adds no
+    evidence; a ``dd/mm/yyyy`` CSV column does, and used to be ignored."""
+    out: List[str] = []
+    for key, fields in _STRUCTURED_DATE_KEYS:
+        for item in fragments.get(key) or []:
+            if not isinstance(item, dict):
+                continue
+            for f in fields:
+                v = item.get(f)
+                if isinstance(v, str) and v:
+                    out.append(v)
+            off = item.get("collected_offset_days")
+            if isinstance(off, str):
+                out.append(off)
+    return out
+
+
+def _collect_structured_dates(
+    fragments: Dict[str, Any], *, date_order: str = DATE_ORDER_MDY,
+) -> List[Tuple[date, str]]:
+    """Every parseable STRUCTURED timestamp in the assembled fragments, as
+    ``(date, collection)`` — the pool the index event is chosen from.
+
+    Widened from lab panels alone to every dated collection (Case Generation Fix
+    PRD §A3): a fragment that carries notes and no panels — the notes-only slice a
+    split bundle produces — used to get ``index = None``, and with no anchor
+    every real date in every note was masked into the "unresolved date-like
+    tokens" hold. The dates were never unparseable; there was nothing to measure
+    them against. With note/study/problem/medication timing in the pool, such a
+    fragment anchors on its latest dated item. Structured timing never comes from
+    free text — this reads the adapter-supplied calendar fields only."""
+    found: List[Tuple[date, str]] = []
+    for key, fields in _STRUCTURED_DATE_KEYS:
+        for item in fragments.get(key) or []:
+            if not isinstance(item, dict):
+                continue
+            raw = next((item.get(f) for f in fields if item.get(f) is not None), None)
+            d = parse_datetime(raw, date_order=date_order)
+            if d:
+                found.append((d, key))
+            off = item.get("collected_offset_days")
+            if isinstance(off, str):
+                d2 = parse_datetime(off, date_order=date_order)
+                if d2:
+                    found.append((d2, key))
     return found
 
 
 def _assign_offset(
-    item: Dict[str, Any], index: Optional[date], report: Dict[str, Any], *, date_keys: Tuple[str, ...]
+    item: Dict[str, Any], index: Optional[date], report: Dict[str, Any], *,
+    date_keys: Tuple[str, ...], date_order: str = DATE_ORDER_MDY,
 ) -> Dict[str, Any]:
     """Convert an item's raw calendar date (any of ``date_keys``) into a relative
     ``collected_offset_days`` and DELETE the raw date. Shared by notes, studies,
@@ -499,7 +556,7 @@ def _assign_offset(
             raw = v
     if isinstance(item.get("collected_offset_days"), int):
         return item
-    d = parse_datetime(raw)
+    d = parse_datetime(raw, date_order=date_order)
     if d is not None and index is not None:
         item["collected_offset_days"] = (d - index).days
     elif raw is not None:
@@ -599,23 +656,36 @@ def normalize_timeline(
     _strip_provenance_from_case(case, report)
 
     # Day-first vs month-first is decided ONCE, from every free-text field in the
-    # case, before a single token is rewritten. Deciding per token would let one
-    # chart carry both readings.
-    date_order, order_evidence = infer_date_order(_free_text_fields(case))
+    # case AND every raw structured date string, before a single token is
+    # rewritten or converted. Deciding per token would let one chart carry both
+    # readings; deciding from free text alone let a ``dd/mm/yyyy`` CSV column be
+    # read month-first while the notes beside it were read day-first (§A4).
+    date_order, order_evidence = infer_date_order(
+        _free_text_fields(case) + _structured_date_strings(case))
     report["date_order"] = date_order
     report["date_order_evidence"] = order_evidence
 
     index: Optional[date] = None
     if index_event:
-        index = parse_datetime(index_event)
+        index = parse_datetime(index_event, date_order=date_order)
         if index is None:
             raise TimelineError(f"manifest index_event {_mask(str(index_event))!r} is not a parseable date")
         report["index_source"] = "manifest"
     else:
-        pool = _collect_structured_dates(case)
+        pool = _collect_structured_dates(case, date_order=date_order)
         if pool:
-            index = max(pool)
-            report["index_source"] = "latest_observation"
+            index = max(d for d, _ in pool)
+            # Provenance only — never the date. ``latest_observation`` is kept for
+            # the lab-anchored case (its historical name); a chart that anchored on
+            # a note or a study says so, because an admin reading the report needs
+            # to know the axis came from narrative timing rather than a lab draw.
+            at_index = {coll for d, coll in pool if d == index}
+            report["index_source"] = ("latest_observation" if "lab_panels" in at_index
+                                      else "latest_" + sorted(at_index)[0])
+            counts: Dict[str, int] = {}
+            for _d, coll in pool:
+                counts[coll] = counts.get(coll, 0) + 1
+            report["index_pool"] = counts
 
     # Structured panel timestamps → integer offsets.
     panels = case.get("lab_panels") or []
@@ -627,7 +697,8 @@ def normalize_timeline(
         if isinstance(off, int):
             pass  # already relative (synthetic-style input) — leave untouched
         else:
-            d = parse_datetime(raw) or (parse_datetime(off) if isinstance(off, str) else None)
+            d = (parse_datetime(raw, date_order=date_order)
+                 or (parse_datetime(off, date_order=date_order) if isinstance(off, str) else None))
             lp.pop("collected_offset_days", None)
             if d is not None:
                 if index is None:
@@ -654,11 +725,12 @@ def normalize_timeline(
     probs = []
     for p in case.get("problem_list") or []:
         p = dict(p)
-        d = parse_datetime(p.get("since"))
+        d = parse_datetime(p.get("since"), date_order=date_order)
         if d is not None:
             p["since"] = str(d.year)
         probs.append(_assign_offset(p, index, report,
-                                    date_keys=("recorded_at", "recorded_date", "collected_at")))
+                                    date_keys=_date_keys_for("problem_list"),
+                                    date_order=date_order))
     if probs:
         case["problem_list"] = probs
 
@@ -668,7 +740,8 @@ def normalize_timeline(
     meds = []
     for m in case.get("medications") or []:
         meds.append(_assign_offset(dict(m), index, report,
-                                   date_keys=("authored_on", "ordered_at", "collected_at")))
+                                   date_keys=_date_keys_for("medications"),
+                                   date_order=date_order))
     if meds:
         case["medications"] = meds
 
@@ -679,14 +752,14 @@ def normalize_timeline(
     # make ``ClinicalCase(**case)`` raise and break ingestion outright.
     notes = [
         _assign_offset(dict(n), index, report,
-                       date_keys=("collected_at", "authored_on", "recorded_at"))
+                       date_keys=_date_keys_for("notes"), date_order=date_order)
         for n in case.get("notes") or []
     ]
     if notes:
         case["notes"] = notes
     studies = [
         _assign_offset(dict(s), index, report,
-                       date_keys=("collected_at", "effective_at", "recorded_at"))
+                       date_keys=_date_keys_for("studies"), date_order=date_order)
         for s in case.get("studies") or []
     ]
     if studies:
@@ -732,7 +805,7 @@ def normalize_timeline(
             # it; the key is stripped before any agent read.
             marker = vitals_at if vitals_at is not None else case.pop("_vitals_at", None)
             if marker is not None and not isinstance(vit.get("collected_offset_days"), int):
-                d = parse_datetime(marker)
+                d = parse_datetime(marker, date_order=date_order)
                 if d is not None:
                     vit["collected_offset_days"] = (d - index).days
                 else:
@@ -744,10 +817,31 @@ def normalize_timeline(
         case.pop("_vitals_at", None)
         # No anchor: only acceptable when nothing carries a date at all. If any
         # date-like token exists in the free text, we cannot rewrite → unresolved.
+        leftovers: List[str] = []
         for text in _free_text_fields(case):
-            report["unresolved"].extend(datelike_leftovers_in_text(text))
+            leftovers.extend(datelike_leftovers_in_text(text))
+        if leftovers:
+            report["unresolved"].extend(leftovers)
+            # Name the hold for what it is (§A3). "unresolved date-like tokens"
+            # says the dates could not be read; here they were never tried,
+            # because there was nothing to measure them against. An admin can act
+            # on "no anchor — supply a manifest index_event"; they cannot act on
+            # a list of masked tokens that were fine all along.
+            report["hold_reason"] = (
+                f"no index anchor: {len(leftovers)} date-like token(s) in the chart "
+                "text, no dated structured item, and no manifest index_event — "
+                "supply an index_event or a dated lab/note and the dates resolve")
 
     return case, report
+
+
+def _date_keys_for(collection: str) -> Tuple[str, ...]:
+    """The structured date fields ``normalize_timeline`` converts for ``collection``
+    — the same declaration the anchor pool reads (``_STRUCTURED_DATE_KEYS``)."""
+    for key, fields in _STRUCTURED_DATE_KEYS:
+        if key == collection:
+            return fields
+    return ()
 
 
 def datelike_leftovers_in_text(text: str) -> List[str]:

@@ -45,7 +45,7 @@ Measured on these exact trees, through the shipped ingestion path, and pinned by
 |---|---|---|---|---|---|
 | patient-1 | hepatology | 22 | **13** | 12 | ingested |
 | patient-2 | oncology | 16 | 2 | 1 | **quarantined** — see below |
-| patient-3 | nephrology | 5 | 4 | 3 | ingested |
+| patient-3 | hepatology | 5 | 4 | 3 | ingested |
 | patient-4 | cardiology | 12 | 3 | 2 | ingested |
 
 `LONGITUDINAL_CASES.md` quotes **59 → 25 → 21** for these four charts. That figure
@@ -57,7 +57,10 @@ exactly. Treat 55/22/18 as the reproducible figure and the published one as
 provenance.
 
 If a change makes these numbers move, read §2 of `LONGITUDINAL_CASES.md` before
-deciding it is progress. Lowering the event floor raises `decision_points` (the
+deciding it is progress. (patient-3 is declared **hepatology** — decompensated
+HCV cirrhosis with renal monitoring; the chart's own signal splits hepatology and
+nephrology almost evenly, which is why the declaration matters. See
+`docs/asclepius/CASE_GENERATION_CHECK.md` for the run that measured it.) Lowering the event floor raises `decision_points` (the
 number quoted in a pitch) and leaves `verifiable_decision_points` (the number that
 matters) alone — which is precisely how a lowered gate misleads.
 
