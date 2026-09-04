@@ -755,11 +755,15 @@ def _sole_shipped_value(emitted: List[Dict[str, Any]], mapped_objs: List[Dict[st
     if not mapped_objs:
         return None
     seen = _shipped_values(emitted, mapped_objs, prof, field)
-    return seen.pop() if len(seen) == 1 and None not in seen else None
+    # ``next(iter(...))`` rather than ``pop()``: the returned set is frozen, and
+    # this function is called once per field alongside the plural derivation, so
+    # memoising it is the obvious next change. A ``pop()`` on a cached set would
+    # drain it and silently empty the plural key.
+    return next(iter(seen)) if len(seen) == 1 and None not in seen else None
 
 
 def _shipped_values(emitted: List[Dict[str, Any]], mapped_objs: List[Dict[str, Any]],
-                    prof: Dict[str, Any], field: str) -> set:
+                    prof: Dict[str, Any], field: str) -> frozenset:
     """Every distinct value the shipped lines carry for ``field``, ``None`` included.
 
     The single derivation behind both the singular and the plural manifest keys.
@@ -783,7 +787,7 @@ def _shipped_values(emitted: List[Dict[str, Any]], mapped_objs: List[Dict[str, A
         rtype = ((rec.get("payload") or {}).get("type")) or rec.get("type")
         fm = profiles.field_map_for(prof, rtype) or {}
         seen.add(mapped.get(fm.get(field, field)))
-    return seen
+    return frozenset(seen)
 
 
 def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
@@ -2424,11 +2428,15 @@ def build_export(
         # "this bundle does not record its specialties", which is what the audit
         # gate concluded from the singular key alone.
         "specialty": _sole_shipped_value(emitted, mapped_objs, prof, "specialty"),
-        "specialties": sorted(v for v in _shipped_values(
-            emitted, mapped_objs, prof, "specialty") if v is not None),
+        # ``key=str`` keeps the sort total. These are raw payload values now, not
+        # ``_counts``' coerced string keys, and a batch mixing types would raise
+        # here — after ``records.jsonl`` is written and records are marked
+        # exported, in the region the code above marks as not undoable.
+        "specialties": sorted((v for v in _shipped_values(
+            emitted, mapped_objs, prof, "specialty") if v is not None), key=str),
         "portal_version": _sole_shipped_value(emitted, mapped_objs, prof, "portal_version"),
-        "portal_versions": sorted(v for v in _shipped_values(
-            emitted, mapped_objs, prof, "portal_version") if v is not None),
+        "portal_versions": sorted((v for v in _shipped_values(
+            emitted, mapped_objs, prof, "portal_version") if v is not None), key=str),
         "preference_variant": prof.get("preference_variant", "flat"),
         "record_count": len(emitted),
         "submission_count": len({r["submission_id"] for r in emitted}),

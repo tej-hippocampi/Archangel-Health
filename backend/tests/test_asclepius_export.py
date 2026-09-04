@@ -136,6 +136,15 @@ def test_export_writes_all_companions_and_manifest():
     assert {r["license"] for r in shipped} == {batch["license"]}
     assert batch["specialty"] == shipped[0]["specialty"]
     assert batch["portal_version"] == shipped[0]["portal_version"]
+    # The plural keys, read off the same file. Asserted here and not only in a
+    # unit test, because a unit test that re-derives the manifest's expression
+    # stays green when the manifest stops using it.
+    assert batch["specialties"] == sorted({r["specialty"] for r in shipped})
+    assert batch["portal_versions"] == sorted({r["portal_version"] for r in shipped})
+    # And never a value no line carries — counts may bucket absences under a
+    # display name; these keys may not.
+    assert set(batch["specialties"]) <= {r["specialty"] for r in shipped}
+    assert set(batch["portal_versions"]) <= {r["portal_version"] for r in shipped}
 
     # records.jsonl validates as JSON, one object per line, carrying provenance.
     lines = (out_dir / "records.jsonl").read_text().strip().splitlines()
@@ -708,3 +717,35 @@ def test_the_manifest_plural_keys_never_carry_a_counts_sentinel():
     # All-absent yields an empty list, which is what lets the gate fire.
     assert sorted(v for v in _shipped_values(emitted, [{}, {}], {}, "portal_version")
                   if v is not None) == []
+
+
+def test_every_narrowing_parameter_of_build_export_is_recorded_in_filters():
+    """The unscoped manifest scope says "the whole eligible set under `filters`".
+
+    That sentence is true only while `filters` records every parameter that
+    narrows the record set. Nothing else checks it, so adding a narrowing
+    parameter tomorrow without adding it to `filters` would silently turn the
+    scope label into a false claim. Licensing parameters are allow-listed: they
+    describe terms, not which rows matched.
+    """
+    import inspect
+    from asclepius.export import build_export
+
+    licensing = {"licensed_to", "license_label", "license_exclusivity",
+                 "license_expires_at", "license_note"}
+    infrastructure = {"store", "created_by", "profile", "note", "scope", "out_root",
+                      "export_id", "realm", "verify_values"}
+    params = {n for n in inspect.signature(build_export).parameters
+              if n not in licensing and n not in infrastructure}
+
+    admin_h, ev_h = _admin_h(), _evaluator_h()
+    _submit_export_ready(admin_h, ev_h)
+    manifest = client.post("/api/asclepius/exports", json={"profile": "default"},
+                           headers=admin_h).json()
+    filters = json.loads(
+        (Path(manifest["dir_path"]) / "batch.json").read_text())["filters"]
+
+    missing = sorted(p for p in params if p not in filters)
+    assert not missing, (
+        f"{missing} narrow the cut but are recorded nowhere in the manifest, so "
+        f"the unscoped scope label claims more than `filters` can account for")
