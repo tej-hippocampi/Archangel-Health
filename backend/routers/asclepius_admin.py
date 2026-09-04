@@ -3090,15 +3090,33 @@ async def list_health_systems(_admin: Dict[str, Any] = Depends(asc_auth.require_
 # for it later would be a different feature, not a missing half of this one.
 
 class HsDataRequestBody(BaseModel):
+    """One of two shapes (Case Generation Fix PRD §B4).
+
+    The console now sends a MESSAGE and a list of recipients: the message is the
+    request, and the four structured fields (what / specialty / how many / by
+    when) are optional colour. The original structured shape is still accepted
+    unchanged, because the partner portal and the letter render those fields when
+    they are present, and nothing that sent them should start failing.
+    """
     model_config = ConfigDict(extra="forbid")
 
-    title: str = Field(min_length=1, max_length=140)
+    # The request, in the operator's words. Either this or ``title`` must be set.
+    message: str = Field(default="", max_length=4000)
+    # Health-system ids to send to. ABSENT = every eligible partner (the
+    # structured shape's historical behaviour); PRESENT must name at least one,
+    # and the console's "Select all" sends the whole eligible list explicitly so
+    # who was asked is in the request's own outbox.
+    recipient_hs_ids: Optional[List[str]] = None
+
+    title: str = Field(default="", max_length=140)
     # Free text rather than the enabled-specialty enum. We ask partners for data
     # in specialties we do not yet have a corpus for -- that is what sourcing
     # is -- so validating against ``specialties.list_specialties`` would refuse
-    # exactly the requests worth sending.
-    specialty: str = Field(min_length=1, max_length=80)
-    case_count: int = Field(gt=0, le=1_000_000)
+    # exactly the requests worth sending. Empty = "any": the message says.
+    specialty: str = Field(default="", max_length=80)
+    # 0 = unspecified. The letter and the portal omit the line rather than
+    # print "0 cases".
+    case_count: int = Field(default=0, ge=0, le=1_000_000)
     due_date: str = Field(default="", max_length=32)
     details: str = Field(default="", max_length=4000)
 
@@ -3127,7 +3145,21 @@ def _hs_request_view(store: Any, row: Dict[str, Any],
         "closed_at": row.get("closed_at"),
         "closed_reason": row.get("closed_reason") or "",
         "delivery": stats,
+        # Who it went to, by organization name (§B4 "Sent · Gray Scrubs, St.
+        # Mary's"). Derived from the outbox rather than stored twice: the outbox
+        # IS the record of who was written to.
+        "recipients": _hs_request_recipients(store, row["id"]),
     }
+
+
+def _hs_request_recipients(store: Any, request_id: str) -> List[Dict[str, str]]:
+    names = {hs["hs_id"]: hs["name"] for hs in store.list_health_systems()}
+    seen: List[str] = []
+    for row in store.list_hs_request_outbox(request_id):
+        hs_id = row.get("hs_id") or ""
+        if hs_id and hs_id not in seen:
+            seen.append(hs_id)
+    return [{"hs_id": h, "name": names.get(h) or h} for h in seen]
 
 
 def _hs_request_delivery_counts(store: Any, request_id: str) -> Dict[str, int]:
@@ -3161,16 +3193,46 @@ async def create_hs_data_request(
     from asclepius import hs_request_notify
 
     store = _store()
+    message = (body.message or "").strip()
+    title = (body.title or "").strip()
+    if not title and not message:
+        raise HTTPException(status_code=400,
+                            detail="Write the request before sending it.")
+    if not title:
+        # The headline is the message's first line, which is how an operator
+        # writes one anyway ("Nephrology CKD cohorts, 2019–2023").
+        title = message.splitlines()[0].strip()[:140] or "Data request"
+    details = (body.details or "").strip()
+    if message and message != title:
+        # The message travels as the letter's free-text block; when the operator
+        # also filled the old details field, both are kept, message first.
+        details = message if not details else f"{message}\n\n{details}"
+    recipients = None
+    if body.recipient_hs_ids is not None:
+        eligible = {hs["hs_id"] for hs in hs_request_notify.eligible_health_systems(store)}
+        recipients = [r for r in dict.fromkeys(str(x).strip() for x in body.recipient_hs_ids) if r]
+        unknown = sorted(r for r in recipients if r not in eligible)
+        if unknown:
+            raise HTTPException(
+                status_code=400,
+                detail=("These recipients are not active partners who may upload: "
+                        + ", ".join(unknown[:5])
+                        + ". Only organizations with an active agreement can be asked."))
+        if not recipients:
+            raise HTTPException(status_code=400,
+                                detail="Choose at least one partner to send to.")
     req = store.create_hs_data_request(
-        title=body.title.strip(), specialty=body.specialty.strip(),
-        case_count=int(body.case_count), due_date=body.due_date.strip() or None,
-        details=body.details.strip() or None, created_by=admin["id"],
+        title=title, specialty=(body.specialty or "").strip() or "any",
+        case_count=int(body.case_count or 0), due_date=body.due_date.strip() or None,
+        details=details or None, created_by=admin["id"],
     )
-    enqueued = hs_request_notify.enqueue_for_request(store, request_id=req["id"])
+    enqueued = hs_request_notify.enqueue_for_request(
+        store, request_id=req["id"], recipient_hs_ids=recipients)
     store.log_event(entity_type="hs_data_request", entity_id=req["id"],
                     event_type="hs_data_request_created", actor=admin["id"],
                     payload={"specialty": req["specialty"],
                              "case_count": req["case_count"],
+                             "recipient_hs_ids": recipients,
                              "recipients": enqueued})
     return {"request": _hs_request_view(store, req), "recipients": enqueued}
 

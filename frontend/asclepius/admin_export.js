@@ -15,7 +15,7 @@
      Preview: 3 cases · 7 labeler submissions · 2 reviews · 1 specialty
               ⚠ 4 submissions on these cases are not approved and will
                 not ship — [ Approve all 4 ]  [ show ]
-     Estimated bundle 412 KB    [ Export bundle ]  [ Export + send to ▾ ]
+     Estimated bundle 412 KB    [ Export bundle ]
 
      HISTORY …
 
@@ -53,13 +53,8 @@
   };
   // Licensing terms for the NEXT cut (audit U5). Kept out of `filters` because
   // they do not narrow the slice, they say what we are promising about it.
-  // `exclusive` describes ONE deal and is cleared after each successful cut
-  // (see runExport); buyer + expiry persist as prefill for re-deliveries.
-  var licence = { licensed_to: '', exclusive: false, expires_at: '' };
-  var exclusiveBoxEl = null;
   var migration = null;      // /admin/export/migration-report, fetched once
   var options = null;        // /admin/export/case-options, fetched once
-  var buyers = null;         // buyer accounts for "Export + send to"
   var preview = null;        // null | 'loading' | slice | {error}
   var showExcluded = false;
   var busy = false;
@@ -100,12 +95,18 @@
   }
 
   function errText(e) {
-    // The exclusivity refusal (409) carries an object detail {message,
-    // conflicts} naming the licence that blocked the cut. Show the message in
-    // full: "export failed" would send the operator hunting for a bug instead
-    // of to a contract.
-    if (e && e.detail && typeof e.detail === 'object') return e.message || 'Request failed';
-    return (e && (e.detail || e.message)) || 'no response';
+    // A 409 carries an object detail {message, conflicts} naming what blocked
+    // the cut; a 422 carries a list. Show the detail's own message in full —
+    // "export failed" would send the operator hunting for a bug instead of to a
+    // contract — and never append an object to the DOM (Case Generation Fix
+    // PRD §A6).
+    var d = e && e.detail;
+    if (d && typeof d === 'object' && !Array.isArray(d)) {
+      if (typeof d.message === 'string' && d.message) return d.message;
+      if (typeof d.error === 'string' && d.error) return d.error.replace(/_/g, ' ');
+    }
+    if (typeof d === 'string' && d) return d;
+    return (e && typeof e.message === 'string' && e.message) || 'no response';
   }
 
   function caseIdList() {
@@ -142,10 +143,8 @@
       scopeRow: h('div', { class: 'asc-scope-row' }),
       picker: h('div', {}),
       preview: h('div', { class: 'asc-export-preview', style: 'margin-top:14px' }),
-      licence: h('div', {}),
       actions: h('div', { class: 'asc-export-actions' }),
       status: h('div', { style: 'width:100%' }),
-      commitments: h('div', {}),
       history: h('div', { class: 'asc-card', id: 'ascExportHistory' }),
     };
 
@@ -155,14 +154,10 @@
         h('div', { class: 'asc-card-title' }, 'Export'),
         h('div', { class: 'asc-card-sub' },
           'Pick a scope. The preview below is what will ship — and what will '
-          + 'not, with the reason.'))),
+          + 'not, with the reason. One button builds the bundle; buyer '
+          + 'deliveries happen from the buyer portal.'))),
       h('div', { class: 'asc-card-pad' },
-        ui.scopeRow, ui.picker, ui.preview, ui.licence, ui.actions, ui.status)));
-
-    // The exclusive-commitments register (audit U5): what is already promised
-    // to one buyer, painted on the same screen the next cut is decided on.
-    body.appendChild(ui.commitments);
-    refreshCommitments();
+        ui.scopeRow, ui.picker, ui.preview, ui.actions, ui.status)));
 
     ui.history.appendChild(ctx.loadingCard('Loading export history…'));
     body.appendChild(ui.history);
@@ -182,44 +177,11 @@
     drawScopes();
     drawPicker();
     drawPreview();
-    drawLicence();
     drawActions();
     drawMigration();
     if (!options) loadOptions();
     loadMigration();
     refreshPreview();
-  }
-
-  // Licensing sits in the same card as the scope and above the button, so the
-  // terms are decided while the slice is, not remembered afterwards. Built ONCE
-  // (like the picker): a redraw on every preview would blow away the buyer the
-  // operator is typing.
-  function drawLicence() {
-    var ctx = ui.ctx, h = ctx.h;
-    ctx.clear(ui.licence);
-    var buyerInput = h('input', { class: 'asc-input', placeholder: 'buyer email or account key', value: licence.licensed_to });
-    var exclusiveBox = h('input', { type: 'checkbox', class: 'asc-checkbox' });
-    exclusiveBox.checked = licence.exclusive;
-    exclusiveBoxEl = exclusiveBox;
-    var expiryInput = h('input', { class: 'asc-input', type: 'date', value: licence.expires_at });
-    var onLicenceChange = function () {
-      licence.licensed_to = buyerInput.value.trim();
-      licence.exclusive = exclusiveBox.checked;
-      licence.expires_at = expiryInput.value;
-    };
-    buyerInput.addEventListener('input', onLicenceChange);
-    exclusiveBox.addEventListener('change', onLicenceChange);
-    expiryInput.addEventListener('change', onLicenceChange);
-    ui.licence.appendChild(h('div', { class: 'asc-form-row-3', style: 'margin-top:14px' },
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Licensed to'), buyerInput),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Exclusive'),
-        h('label', { class: 'asc-checkbox-row' }, exclusiveBox,
-          h('span', {}, 'Sold exclusively to this buyer'))),
-      h('div', { class: 'asc-field' }, h('label', { class: 'asc-label' }, 'Exclusive until'), expiryInput)));
-    ui.licence.appendChild(h('div', { class: 'asc-dim' },
-      'Exclusive means these exact records cannot go to anyone else until the '
-      + 'commitment is released or expires. Leave it off for an ordinary '
-      + 'non-exclusive sale, which is the default and blocks nothing.'));
   }
 
   /* ── The migration verdict, shown rather than looked up ───────────────────
@@ -564,37 +526,6 @@
     exportBtn.addEventListener('click', function () { runExport(null); });
     ui.actions.appendChild(exportBtn);
 
-    // Export + send to ▾ — the one thing the retired buyer CRM did that
-    // mattered, now attached to the export itself (PRD §5). The buyer receives
-    // the exact bundle previewed here, not a second one rebuilt from different
-    // filters.
-    var sel = h('select', { class: 'asc-input', style: 'max-width:300px' },
-      h('option', { value: '' }, 'Export + send to…'),
-      (buyers || []).map(function (b) { return h('option', { value: b.email }, b.email); }),
-      h('option', { value: '__new__' }, 'a new buyer…'));
-    var newBuyer = h('input', {
-      class: 'asc-input', style: 'max-width:260px;display:none', type: 'email',
-      placeholder: 'buyer@lab.example',
-    });
-    var sendBtn = h('button', { class: 'asc-btn asc-btn-subtle', type: 'button' }, 'Send');
-    if (blocked) {
-      sel.setAttribute('disabled', '');
-      sendBtn.setAttribute('disabled', '');
-    }
-    sel.addEventListener('change', function () {
-      newBuyer.style.display = sel.value === '__new__' ? '' : 'none';
-    });
-    sendBtn.addEventListener('click', function () {
-      var email = sel.value === '__new__' ? newBuyer.value.trim() : sel.value;
-      if (!email) {
-        ctx.toast('Choose a buyer, or type an email to send to.', 'error');
-        return;
-      }
-      runExport(email);
-    });
-    ui.actions.appendChild(sel);
-    ui.actions.appendChild(newBuyer);
-    ui.actions.appendChild(sendBtn);
   }
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -609,10 +540,6 @@
       options = { specialties: [], versions: ['V3', 'V4', 'V5'], cases: [], physicians: [] };
       drawPicker();
     });
-    ctx.api('/admin/buyer-deliveries').then(function (res) {
-      buyers = (res && res.buyers) || [];
-      drawActions();
-    }).catch(function () { buyers = []; drawActions(); });
   }
 
   function refreshPreview() {
@@ -684,10 +611,6 @@
       version: p.version || null,
       annotator_id_hashed: p.annotator_id_hashed || null,
       buyer_email: buyerEmail || null,
-      // Licensing (audit U5): terms travel WITH the cut they describe.
-      licensed_to: licence.licensed_to || null,
-      exclusive: !!licence.exclusive,
-      license_expires_at: licence.expires_at || null,
     } })
       .then(function (res) {
         busy = false;
@@ -714,22 +637,7 @@
             + (res.delivery.email_sent ? ' — credentials emailed.'
                                        : ' — the notification email did NOT send.')));
         }
-        if (res.licensing) {
-          ui.status.appendChild(h('div', { class: 'asc-dim', style: 'margin-top:8px' },
-            (res.licensing.exclusivity === 'exclusive' ? 'Exclusive' : 'Non-exclusive')
-            + ' licence ' + res.licensing.license_id + ' to ' + res.licensing.licensed_to
-            + (res.licensing.expires_at ? ', until ' + res.licensing.expires_at : '') + '.'));
-        }
-        // Exclusivity is a term of ONE deal. Left set, the next unrelated cut
-        // would silently record a brand-new exclusive commitment nobody decided
-        // to make, so it clears after every successful export. Buyer and expiry
-        // stay as prefill: re-deliveries to the same buyer are routine.
-        licence.exclusive = false;
-        if (exclusiveBoxEl) exclusiveBoxEl.checked = false;
         loadHistory();
-        // A cut that just took records off the market has to show that in the
-        // same breath, or the register on screen is already wrong.
-        refreshCommitments();
         // The records just shipped are now `exported`, so the slice changed.
         refreshPreview();
       })
@@ -738,88 +646,6 @@
         drawActions();
         ctx.clear(ui.status);
         ui.status.appendChild(h('div', { class: 'asc-inline-error' }, errText(e)));
-      });
-  }
-
-  // ── The exclusive-commitments register (audit U5) ─────────────────────────
-  // Lives beside the export builder rather than in a surface of its own,
-  // because the question it answers ("can I sell this?") is asked while
-  // cutting a bundle, not on a separate screen somebody remembers to visit.
-  function refreshCommitments() {
-    var ctx = ui.ctx, h = ctx.h;
-    var box = ui.commitments;
-    ctx.clear(box);
-    ctx.api('/admin/export/exclusivity').then(function (data) {
-      var active = data.active || [];
-      var ended = data.ended || [];
-      var pad = h('div', { class: 'asc-card-pad' });
-      if (!active.length) {
-        pad.appendChild(h('div', { class: 'asc-empty' },
-          'Nothing is committed exclusively. Every record is free to sell.'));
-      } else {
-        var table = h('table', { class: 'asc-table' },
-          h('thead', {}, h('tr', {},
-            h('th', {}, 'Buyer'), h('th', {}, 'Records'), h('th', {}, 'Cases'),
-            h('th', {}, 'Until'), h('th', {}, 'Licence'), h('th', {}, ''))));
-        var tbody = h('tbody', {});
-        active.forEach(function (lic) {
-          var relBtn = h('button', { class: 'asc-btn asc-btn-subtle asc-btn-sm', type: 'button' }, 'Release');
-          relBtn.addEventListener('click', function () { releaseCommitment(lic, relBtn); });
-          tbody.appendChild(h('tr', {},
-            h('td', {}, h('span', { class: 'asc-badge asc-badge-lime' }, 'Exclusive'),
-              h('span', {}, ' ' + lic.buyer)),
-            h('td', {}, String(lic.record_count || 0)),
-            h('td', {}, String(lic.case_count || 0)),
-            h('td', {}, lic.expires_at || 'No end date'),
-            h('td', {}, h('span', { class: 'asc-tag' }, lic.license_id)),
-            h('td', {}, relBtn)));
-        });
-        table.appendChild(tbody);
-        pad.appendChild(table);
-        pad.appendChild(h('div', { class: 'asc-dim', style: 'margin-top:10px' },
-          String(data.committed_record_count || 0) + ' record'
-          + ((data.committed_record_count === 1) ? '' : 's')
-          + ' cannot be sold to anyone else while these stand.'));
-      }
-      if (ended.length) {
-        pad.appendChild(h('div', { class: 'asc-dim', style: 'margin-top:10px' },
-          String(ended.length) + ' ended commitment'
-          + (ended.length === 1 ? '' : 's') + ' kept on record: '
-          + ended.map(function (l) { return l.buyer + ' (' + l.license_id + ')'; }).join(', ') + '.'));
-      }
-      box.appendChild(h('div', { class: 'asc-card', style: 'margin-top:16px' },
-        h('div', { class: 'asc-card-head' }, h('div', {},
-          h('div', { class: 'asc-card-title' }, 'Exclusive commitments'),
-          h('div', { class: 'asc-card-sub' },
-            'What we have promised to one buyer and cannot sell again. An export '
-            + 'that overlaps any of these is refused and names the licence.'))),
-        pad));
-    }).catch(function (e) {
-      box.appendChild(h('div', { class: 'asc-card', style: 'margin-top:16px' },
-        h('div', { class: 'asc-card-pad' },
-          h('div', { class: 'asc-inline-error' },
-            errText(e) || 'Could not load exclusive commitments.'))));
-    });
-  }
-
-  function releaseCommitment(lic, btn) {
-    var ctx = ui.ctx;
-    var ok = window.confirm(
-      'Release the exclusive commitment to ' + lic.buyer + '? '
-      + (lic.record_count || 0) + ' record(s) become sellable to anyone again. '
-      + 'Do this only when the agreement actually allows it.');
-    if (!ok) return;
-    btn.setAttribute('disabled', '');
-    btn.textContent = 'Releasing\u2026';
-    ctx.api('/admin/export/exclusivity/' + lic.license_id + '/release',
-      { method: 'POST', body: { reason: 'Released from the admin export view' } })
-      .then(function () {
-        ctx.toast('Released: ' + (lic.record_count || 0) + ' record(s) freed.', 'success');
-        refreshCommitments();
-      })
-      .catch(function (e) {
-        ctx.toast(errText(e) || 'Could not release that commitment.', 'error');
-        refreshCommitments();
       });
   }
 

@@ -1765,6 +1765,7 @@ def unify_patient_keys(
     merged: List[Dict[str, Any]] = []
     for key in sorted(per_patient, key=lambda k: (k != winner, k)):
         merged.extend(per_patient[key])
+    unkeyed = len(per_patient.get("default") or [])
     report = {
         "unified": True,
         "into_source": winner_source,
@@ -1775,6 +1776,14 @@ def unify_patient_keys(
         "sources": {s: sorted(opaque_patient_key(k) for k in ks)
                     for s, ks in identity_by_source.items()},
     }
+    if unkeyed:
+        # Named in the report (Case Generation Fix PRD §A2): the plain-text notes
+        # and a CSV with no patient column carry no identity at all, and they were
+        # folded into the one keyed patient this bundle describes. Recorded so an
+        # admin reading "1 chart" can see that 80 unkeyed files were absorbed
+        # rather than assume every file minted the same id.
+        report["unification"] = "single_keyed_patient_absorbed_unkeyed"
+        report["unkeyed_fragments_absorbed"] = unkeyed
     return {winner: merged}, report
 
 
@@ -2025,8 +2034,12 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
             report["timeline"] = treport
             quarantine_body = normalized
             if treport.get("unresolved"):
+                # The no-anchor case names itself (Case Generation Fix PRD §A3):
+                # the dates were never unparseable, there was nothing to measure
+                # them against — and that is the message an admin can act on.
                 raise cf.CaseIngestError(
-                    "unresolved date-like tokens: " + ", ".join(treport["unresolved"][:5]))
+                    treport.get("hold_reason")
+                    or ("unresolved date-like tokens: " + ", ".join(treport["unresolved"][:5])))
             verification = deid_verify.verify_deid(normalized)
             report["verification"] = verification
             if verification["status"] == "flagged":
@@ -2107,6 +2120,15 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
                               "footer should carry no dates at all — report this to the partner.")
             blocking = [r for r in review_reasons if r["severity"] == "blocking"]
             case_status = "needs_review" if blocking else "ingested"
+            # What the chart contains, measured once here so the Box 1 row can say
+            # "1 chart · 12 encounters · 79 notes · 45 panels · Hepatology
+            # (inferred 0.71)" without re-scanning every stored chart on every
+            # list request (Case Generation Fix PRD §B1). Advisory only — a
+            # failure here must never change the ingest outcome.
+            try:
+                report["content_summary"] = content_summary(case)
+            except Exception as exc:  # pragma: no cover - defensive
+                log.warning("content summary failed for upload %s: %s", upload_id, exc)
             ic = store.insert_ingest_case(upload_id=upload_id,
                                           patient_key=opaque_patient_key(pk),
                                           specialty=specialty, case=case,
@@ -2213,6 +2235,49 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     return {"status": status, "ingested": ingested, "quarantined": quarantined,
             "needs_review": needs_review, "imaging_rejected": imaging_rejected,
             "files": file_outcomes}
+
+
+def content_summary(case: Dict[str, Any]) -> Dict[str, Any]:
+    """The row-level facts about one ingested chart (Case Generation Fix PRD §B1).
+
+    Counts of what the chart carries, how many encounters the segmenter finds and
+    how many clear the density gate, and what the specialty inference reads off
+    the WHOLE chart with its confidence. The planner scores each encounter's
+    visible window separately (``real_cases.plan_cases``), and a single
+    encounter can read higher than the whole chart — measured on the committed
+    charts: 0.36–0.38 whole-chart against 0.43–0.58 per encounter. So the row's
+    number is the conservative one: below the floor here means the picker is
+    the reliable step before Build; above it means the planner will accept the
+    chart unaided. Never the answer key: ``infer_specialty`` reads the
+    model-visible surface only.
+    """
+    from asclepius import real_cases as rc
+
+    c = case or {}
+    encounters = rc.segment_longitudinal_record(c)
+    undated = len(encounters) == 1 and bool(encounters[0].get("undated"))
+    decision_points = 0 if undated else sum(
+        1 for e in encounters if rc.qualify_encounter(c, e)["qualifies"])
+    specialty, confidence, _scores = rc.infer_specialty(c)
+    best = None
+    if _scores:
+        best = max(_scores, key=lambda s: _scores[s])
+    return {
+        "notes": len(c.get("notes") or []),
+        "lab_panels": len(c.get("lab_panels") or []),
+        "studies": len(c.get("studies") or []),
+        "medications": len(c.get("medications") or []),
+        "problem_list": len(c.get("problem_list") or []),
+        "encounters": 0 if undated else len(encounters),
+        "decision_points": decision_points,
+        # ``specialty_inferred`` is the winner even below the floor, so the row
+        # can say "Hepatology (inferred 0.58)"; ``specialty_clears_floor`` says
+        # whether the planner would accept it unaided.
+        "specialty_inferred": specialty or best,
+        "specialty_confidence": round(float(confidence or 0.0), 3),
+        "specialty_clears_floor": specialty is not None,
+        "specialty_floor": rc._SPECIALTY_CONFIDENCE_FLOOR,
+    }
 
 
 def sha256_hex(data: bytes) -> str:
