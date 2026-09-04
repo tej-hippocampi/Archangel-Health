@@ -2266,6 +2266,26 @@ class AsclepiusStore:
             # are different answers.
             if "invited_by" not in cols("hs_portal_users"):
                 conn.execute("ALTER TABLE hs_portal_users ADD COLUMN invited_by TEXT")
+            # The claim link that replaced the temporary passphrase. A member is
+            # invited by a colleague and SETS THEIR OWN password on arrival, so
+            # nothing that guards their account has ever travelled through email.
+            #
+            # Only the HASH is stored, following the partner-upload token
+            # precedent (``routers/asclepius.py::_token_hash``): the cleartext
+            # exists in the process that minted it and in the letter it went
+            # into, and nowhere else. A database that holds live invite tokens
+            # is a database whose backup is a set of working accounts.
+            #
+            # NULL on every existing row, and NULL is the whole point: it means
+            # "no invite outstanding", which is what an account that has already
+            # been claimed looks like, and is what claiming writes back.
+            _hspu_invite_cols = cols("hs_portal_users")
+            if "invite_token_hash" not in _hspu_invite_cols:
+                conn.execute(
+                    "ALTER TABLE hs_portal_users ADD COLUMN invite_token_hash TEXT")
+            if "invite_expires_at" not in _hspu_invite_cols:
+                conn.execute(
+                    "ALTER TABLE hs_portal_users ADD COLUMN invite_expires_at TEXT")
             # ═══ END HS ONBOARDING ═══
             # ═══ PROFILE PICTURE — owned by the own-profile surface ═══════════
             # Its own fenced block rather than an edit to PRD-B or PRD-D above,
@@ -11439,14 +11459,97 @@ class AsclepiusStore:
         """Set the password and stamp ``password_changed_at``. The stamp is what
         invalidates outstanding session cookies (FIX-C C-2.3) — without it a
         leaked cookie outlived the victim's own password reset by up to the full
-        12-hour session TTL."""
+        12-hour session TTL.
+
+        Any outstanding INVITE dies here too. A self-signup is signed in on the
+        session that created it AND mailed a claim link, so it can arrive at the
+        forced-reset screen and set a password without ever following the link;
+        leaving the token armed would leave a live password-setting door in an
+        inbox, on an account that already has an owner. ``provision_account``
+        re-arms it immediately on the paths that mean to, so the order there is
+        password first, invite second.
+        """
         with self._conn() as conn:
             conn.execute(
                 "UPDATE hs_portal_users SET password_hash = ?, must_reset = ?, "
                 "failed_logins = 0, locked_until = NULL, password_changed_at = ?, "
-                "session_epoch = session_epoch + 1 WHERE username = ?",
+                "session_epoch = session_epoch + 1, invite_token_hash = NULL, "
+                "invite_expires_at = NULL WHERE username = ?",
                 (hash_password(new_password), 1 if must_reset else 0, _utcnow_iso(),
                  (username or "").lower()),
+            )
+
+    # ─── The claim link ─────────────────────────────────────────────────────
+    # An invited member never receives a credential. They receive a one-time
+    # link, and the password that guards their account is one they typed. The
+    # three methods below are the whole mechanism: mint, look up by hash, and
+    # spend.
+
+    def set_hs_portal_invite(self, username: str, *, token_hash: str,
+                             expires_at: str, invited_by: Optional[str] = None) -> None:
+        """Arm an unclaimed invite on an account.
+
+        Overwrites any invite already on the row rather than refusing. Re-issuing
+        an invite is what happens when the first letter did not arrive, and the
+        older token must stop working the moment the newer one exists, or a
+        forwarded copy of the first email is a second live door.
+        """
+        uname = (username or "").strip().lower()
+        with self._conn() as conn:
+            if invited_by:
+                conn.execute(
+                    "UPDATE hs_portal_users SET invite_token_hash = ?, "
+                    "invite_expires_at = ?, invited_by = ? WHERE username = ?",
+                    (token_hash, expires_at, invited_by, uname))
+            else:
+                conn.execute(
+                    "UPDATE hs_portal_users SET invite_token_hash = ?, "
+                    "invite_expires_at = ? WHERE username = ?",
+                    (token_hash, expires_at, uname))
+
+    def get_hs_portal_user_by_invite_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        """The account an invite token belongs to, or None.
+
+        Returns the row WITHOUT its password hash, because every caller of this
+        is a public endpoint holding a token out of an email. Expiry is not
+        checked here: the caller decides what an expired invite means, and for
+        the lookup route it means the same 200 as an unknown one.
+        """
+        digest = (token_hash or "").strip()
+        if not digest:
+            return None
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM hs_portal_users WHERE invite_token_hash = ?", (digest,)
+            ).fetchone()
+        return self._hs_user_public(row) if row else None
+
+    def claim_hs_portal_invite(self, username: str, *, password: str,
+                               full_name: Optional[str] = None) -> None:
+        """Spend an invite: set the password and the name, clear the token.
+
+        ONE statement, so the token cannot survive a partial write. Single use is
+        this write and nothing else: the hash is set to NULL, so the same link
+        opened twice finds no row the second time and the page says so rather
+        than offering to set a second password on an account that now has an
+        owner.
+
+        ``must_reset`` is cleared because there is nothing to replace. The whole
+        reason that flag exists is that a mailed passphrase has to stop guarding
+        the account, and no passphrase was ever mailed here. ``session_epoch``
+        still moves, exactly as ``set_hs_portal_password`` moves it: whatever
+        sessions existed against the unclaimed account are not this person's.
+        """
+        uname = (username or "").strip().lower()
+        name = (full_name or "").strip()
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE hs_portal_users SET password_hash = ?, must_reset = 0, "
+                "failed_logins = 0, locked_until = NULL, password_changed_at = ?, "
+                "session_epoch = session_epoch + 1, invite_token_hash = NULL, "
+                "invite_expires_at = NULL, full_name = COALESCE(NULLIF(?, ''), full_name) "
+                "WHERE username = ?",
+                (hash_password(password), _utcnow_iso(), name, uname),
             )
 
     def set_hs_portal_active(self, username: str, active: bool) -> None:

@@ -369,10 +369,10 @@ export async function redirectToAsclepiusPortal(token: string): Promise<void> {
     headers: apiHeaders({ Authorization: `Bearer ${token}` }),
   });
   if (!res.ok) {
-    throw new Error("Could not open Asclepius workspace.");
+    throw new Error("Could not open your Archangel Health workspace.");
   }
   const handoff = (await res.json()) as PortalHandoffResponse;
-  if (!handoff.handoff_code) throw new Error("Could not open Asclepius workspace.");
+  if (!handoff.handoff_code) throw new Error("Could not open your Archangel Health workspace.");
   window.location.href = `${asclepiusPortalUrl()}?asc_handoff=${encodeURIComponent(handoff.handoff_code)}`;
 }
 
@@ -554,6 +554,11 @@ export async function submitLead(payload: {
   /* Ties this submission back to the physician who made the introduction, so
      their funnel row advances on its own. */
   referral_token?: string;
+  /* The physician's own referral code, off `/partner?ref=CODE`. A separate key
+     from `referral_token`: that one names a specific introduction we sent, this
+     one names the physician whose link was forwarded, and only the first can
+     prefill a form. Optional, and an unknown code is a no-op on the server. */
+  referral_code?: string;
   /* The three qualifying answers from /partner, carried beside `message`
      rather than only inside it. They land in their own columns because the
      archived submission is what an authority attestation actually is, and a
@@ -642,7 +647,7 @@ export async function asclepiusForgotPassword(email: string): Promise<{ message:
   return {
     message:
       (body && body.message) ||
-      "If that email has an Asclepius account, we've sent a reset link.",
+      "If that email has an Archangel Health account, we've sent a reset link.",
   };
 }
 

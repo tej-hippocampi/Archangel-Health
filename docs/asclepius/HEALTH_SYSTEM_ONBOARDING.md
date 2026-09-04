@@ -12,12 +12,21 @@ landing dialog          three fields, one Continue
   ▼
 six-digit code          POST /api/asclepius/hs/signup/verify
   │                     ├─ health_systems row (never merged by name)
-  │                     ├─ portal account, temporary passphrase, must_reset=1
+  │                     ├─ portal account, invite token hash, must_reset=1
   │                     ├─ onboarding_state = intake
-  │                     └─ the §2.3 access email
+  │                     └─ the §2.3 access email, carrying a CLAIM LINK
+  ▼
+portal · claim          /provider?invite=<token>
+  │                     GET  /hs/invite/{token}          (found:false, never 404)
+  │                     POST /hs/invite/{token}/claim
+  │                     ├─ their name and THEIR password
+  │                     ├─ token cleared, must_reset cleared, session_epoch++
+  │                     └─ signed in, no second login
   ▼
 portal · intake         four questions + teammates
   │                     POST /hs/application  → state = submitted
+  │                     a teammate added here gets the SAME claim link,
+  │                     never a passphrase
   ▼
 admin · submitted       the four answers verbatim, two buttons
   │                     POST /admin/health-systems/{id}/approve
@@ -38,6 +47,76 @@ portal · active         uploads open
 `Decline` is the other outcome at the admin step: a required reason on every
 account, every account deactivated, `state = declined`, and no email — at this
 deal size a refusal is a conversation somebody has.
+
+## Nothing that guards an account travels by email
+
+Two of the three doors used to mail a generated passphrase and a username
+derived from the organization name (`unique_hs_username`: "Mass General
+Hospital" becomes `massgeneral`). Both now mail a **claim link** instead, and
+the recipient sets their own password on arrival.
+
+| Door | What is mailed | Where |
+|---|---|---|
+| A colleague adds a teammate | claim link | `POST /hs/members` |
+| Self-signup clears its code | claim link | `POST /hs/signup/verify` |
+| An operator provisions a partner | passphrase, still | `routers/asclepius_admin.py` |
+
+The third one keeps the passphrase deliberately. It is the case where somebody
+is handed an account they did not ask for, during a call, and the credential is
+read out loud rather than clicked.
+
+Three things the link buys, in order of how much they matter:
+
+* **No credential in an inbox.** A passphrase in an email is a passphrase in
+  every forward of that email, and it guarded the account until somebody got
+  round to replacing it.
+* **No forced-reset screen.** The first thing a partner did in the product used
+  to be replacing something we had given them a minute earlier.
+* **A name.** The account had none, so the portal header rendered the derived
+  username and greeted a hospital executive as "Berkeley Health System /
+  Berkeley 2". Claiming asks for a name, which is why `renderHeader` has one to
+  show, and why it now falls back to the account email rather than to the
+  username.
+
+Only the SHA-256 of the token is stored (`hs_portal_users.invite_token_hash`),
+following `routers/asclepius.py::_token_hash`: a database holding live invite
+tokens is a database whose backup is a set of working accounts. The claim clears
+the hash in the same statement that writes the password, which is what makes it
+single use. `GET /hs/invite/{token}` answers **200 with `found: false`** for
+unknown, expired and already-spent alike, for the same reason
+`GET /api/asclepius/hs-referral/{token}` does: a 404 turns a token guess into a
+question about whether a health system is talking to us.
+
+## Before any of this: the /partner lead
+
+`/partner` is the other door, the link at the bottom of the health-system
+one-pager, and it produces a `lead_submissions` row rather than an account. It
+used to end at a Calendly button on its own success screen, so a visitor who did
+not click it in that second was gone: nothing had been sent, there was no
+address we had said anything to, and nothing to follow up.
+
+The screen now says thank you and offers nothing to click. The booking link
+lives in the email the submit triggers, where it can be forwarded to whoever
+holds the calendar. Three clock columns on the row carry the whole schedule, and
+each is written by exactly one thing:
+
+| Column | Written by | Means |
+|---|---|---|
+| `thanks_sent_at` | `submit_lead`, only on a send that succeeded | the reminder's clock has started |
+| `reminder_sent_at` | `partner_lead_nudge.sweep`, claimed before sending | the one reminder is spent |
+| `call_booked_at` | an operator, `POST /api/leads/admin/{id}/booked` | stop chasing |
+
+There is no second reminder, ever. Idempotency is the conditional
+`UPDATE ... WHERE reminder_sent_at IS NULL`, not something the scheduler
+remembers, so a restart cannot double-send and two workers racing one row cannot
+both send. The sweep rides the verification agent's poll loop beside
+`onboarding_nudge`, which is the same cadence and the same reason: a second
+scheduler is a second thing to get wrong on deploy.
+
+Calendly does not call us back, so `call_booked_at` can only be set by the person
+who saw the meeting appear in their calendar. That is the button on the lead row
+in the admin console, and what it buys is silence rather than a letter asking a
+partner to book a meeting they are already coming to.
 
 ## Two gates, not one
 
@@ -141,6 +220,8 @@ operator to work around the workflow rather than through it.
 |---|---|
 | The state machine | `backend/asclepius/hs_states.py` |
 | Minting an account (one path, three callers) | `backend/asclepius/hs_provisioning.py` |
+| The lead that arrives before any of this (`/partner`) | `backend/routers/leads.py`, `landing/.../PartnerInterest.tsx` |
+| Its thanks letter, and the one reminder | `backend/asclepius/partner_lead_nudge.py` |
 | Agreement source, rendering, hashing, PDF | `backend/asclepius/dla.py`, `docs/legal/DLA_v1.md` |
 | The PDF writer | `backend/asclepius/pdf_render.py` |
 | Partner-facing routes | `backend/routers/asclepius_provider.py` |
@@ -148,7 +229,7 @@ operator to work around the workflow rather than through it.
 | The portal | `frontend/provider/` |
 | The admin section | `frontend/asclepius/admin_health.js` |
 | The landing dialogs | `landing/src/app/components/Sign{In,Up}Dialog.tsx` |
-| Tests | `backend/tests/test_hs_onboarding.py`, `test_hs_signin_split.py` |
+| Tests | `backend/tests/test_hs_onboarding.py`, `test_hs_signin_split.py`, `test_hs_invite_claim.py`, `test_partner_lead_followup.py` |
 
 ## One duplication, on purpose
 

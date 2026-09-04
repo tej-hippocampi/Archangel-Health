@@ -64,6 +64,17 @@ def sent(monkeypatch):
     return box
 
 
+def _founder_letter(sent) -> str:
+    """The notification TO US, out of everything the submit sent.
+
+    A health-system submission now also sends a letter to the visitor, carrying
+    the booking link that used to be a button on the success screen. Picked by
+    subject rather than by position, so the order the two go out in stays the
+    router's business.
+    """
+    return next(html for _to, subject, html in sent if subject.startswith("[Lead]"))
+
+
 @pytest.fixture()
 def client(store):
     app = FastAPI()
@@ -190,8 +201,7 @@ def test_the_founder_email_carries_all_three_answers(client, store, sent):
     is where the decision to take the call gets made. An answer only in the
     database is an answer nobody acts on."""
     _submit(client)
-    assert len(sent) == 1
-    html = sent[0][2]
+    html = _founder_letter(sent)
     for text in (AUTHORITY, DEID, SCALE):
         assert text in html, f"the notification email dropped {text!r}"
     for label in ("Authority to license", "De-identify and date-shift",
@@ -204,7 +214,7 @@ def test_the_founder_email_says_when_the_authority_question_went_unanswered(
     """Same reason as the console. An email that quietly omits the question is
     indistinguishable from one where the answer was yes."""
     _submit(client, authority_answer="")
-    html = sent[0][2]
+    html = _founder_letter(sent)
     assert "Authority to license" in html and "Not answered" in html
 
 

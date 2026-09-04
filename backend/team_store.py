@@ -798,6 +798,29 @@ class TeamStore:
             self._add_column_if_missing(
                 conn, "lead_submissions", "deidentification_answer", "TEXT")
             self._add_column_if_missing(conn, "lead_submissions", "data_scale_answer", "TEXT")
+            # Where a health-system lead is in the one conversation that follows
+            # it. Three clock columns rather than one status string, for the
+            # same reason ``health_systems.nudge_sent_at`` is a clock: the
+            # reminder sweep claims a row with "WHERE reminder_sent_at IS NULL",
+            # so idempotency is a property of the column instead of something a
+            # scheduler has to remember between restarts. A status enum would
+            # have to be read, compared and written back, and two workers doing
+            # that at once both send.
+            #
+            # NULL means "has not happened", on all three, on every row that
+            # predates this. Nothing is backfilled: a lead that arrived before
+            # the thanks email existed never got one, and stamping it would say
+            # the opposite.
+            self._add_column_if_missing(conn, "lead_submissions", "thanks_sent_at", "TEXT")
+            self._add_column_if_missing(conn, "lead_submissions", "reminder_sent_at", "TEXT")
+            self._add_column_if_missing(conn, "lead_submissions", "call_booked_at", "TEXT")
+            # The physician whose ``?ref=`` link this submission arrived on, as
+            # the asclepius user id it resolved to. Resolved at write time and
+            # stored, not kept as the raw code: a code can be reissued, and the
+            # question this column answers months later is which PERSON made the
+            # introduction.
+            self._add_column_if_missing(
+                conn, "lead_submissions", "referred_by_user_id", "TEXT")
 
     @staticmethod
     def _migrate_team_member_roles_v4(conn: sqlite3.Connection) -> None:
@@ -2620,6 +2643,7 @@ class TeamStore:
         authority_answer: Optional[str] = None,
         deidentification_answer: Optional[str] = None,
         data_scale_answer: Optional[str] = None,
+        referred_by_user_id: Optional[str] = None,
     ) -> int:
         """Append a landing lead-capture submission ("Request products" / "Provide
         data"). Public form data, no PHI. Returns the new row id.
@@ -2640,11 +2664,13 @@ class TeamStore:
                 """
                 INSERT INTO lead_submissions (source, email, message, user_agent, client_ip,
                                               created_at, authority_answer,
-                                              deidentification_answer, data_scale_answer)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                              deidentification_answer, data_scale_answer,
+                                              referred_by_user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (source, email, message, user_agent, client_ip, ts,
-                 authority_answer, deidentification_answer, data_scale_answer),
+                 authority_answer, deidentification_answer, data_scale_answer,
+                 referred_by_user_id),
             )
             return int(cur.lastrowid)
 
@@ -2673,6 +2699,11 @@ class TeamStore:
         The three qualifying answers ARE returned. They are the part of the
         attestation with legal weight, so a console that showed the prose and
         hid them would be an audit trail nobody can audit.
+
+        So are the three follow-up clocks and the referring physician. The
+        operator's question about a lead is no longer only "what did they say",
+        it is "and where did it get to", and a console that cannot answer the
+        second one leaves the founder to reconstruct it from a sent-mail folder.
         """
         clauses = []
         params: List[Any] = []
@@ -2687,11 +2718,101 @@ class TeamStore:
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT id, source, email, message, created_at, authority_answer, "
-                "deidentification_answer, data_scale_answer FROM lead_submissions"
+                "deidentification_answer, data_scale_answer, thanks_sent_at, "
+                "reminder_sent_at, call_booked_at, referred_by_user_id "
+                "FROM lead_submissions"
                 + where + " ORDER BY id DESC LIMIT ?",
                 tuple(params),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    # ─── The one conversation a health-system lead is owed ───────────────────
+    # /partner used to end at a Calendly link on the success screen, and a
+    # visitor who did not click it right then was never heard from again. The
+    # booking now lives in an email, which means the row has to remember what
+    # has been said to it: the thanks, the single reminder, and whether a call
+    # was booked. Each method below writes exactly one of those clocks, and the
+    # two that a sweep calls are CONDITIONAL writes rather than read-then-write,
+    # because "has this already been sent" must be answered by the database and
+    # not by the caller that is about to send it.
+
+    def get_lead_submission(self, lead_id: int) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM lead_submissions WHERE id = ?", (int(lead_id),)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def stamp_lead_thanks_sent(self, lead_id: int, *, when: Optional[str] = None) -> bool:
+        """Record that the thanks email went out. True if this call stamped it.
+
+        Conditional on the column being NULL so a retry of the submit path
+        cannot overwrite the moment the first one was actually sent, which is
+        what the reminder's age is measured from.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE lead_submissions SET thanks_sent_at = ? "
+                "WHERE id = ? AND thanks_sent_at IS NULL",
+                (when or _utcnow_iso(), int(lead_id)),
+            )
+            return cur.rowcount > 0
+
+    def list_leads_awaiting_partner_reminder(
+        self, *, source: str, older_than_hours: float, limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Health-system leads old enough to chase, that nobody has chased.
+
+        Only rows whose thanks actually went out are candidates. A lead that
+        never got the first letter must not be sent the reminder to it, which
+        would arrive referring to a message it is the only copy of.
+        """
+        cutoff = (datetime.utcnow() - timedelta(hours=float(older_than_hours))
+                  ).replace(microsecond=0).isoformat()
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM lead_submissions WHERE source = ? "
+                "AND thanks_sent_at IS NOT NULL AND thanks_sent_at <= ? "
+                "AND reminder_sent_at IS NULL AND call_booked_at IS NULL "
+                "ORDER BY id ASC LIMIT ?",
+                (source, cutoff, max(1, min(int(limit), 200))),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def claim_lead_reminder(self, lead_id: int, *, when: Optional[str] = None) -> bool:
+        """Take the right to send this lead its one reminder. True if we got it.
+
+        The whole idempotency of the reminder is this statement. It is claimed
+        BEFORE the send, so a crash between claim and send costs one email and a
+        race between two workers costs none: sqlite gives the row to exactly one
+        of them.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE lead_submissions SET reminder_sent_at = ? "
+                "WHERE id = ? AND reminder_sent_at IS NULL AND call_booked_at IS NULL",
+                (when or _utcnow_iso(), int(lead_id)),
+            )
+            return cur.rowcount > 0
+
+    def mark_lead_call_booked(self, lead_id: int, *, when: Optional[str] = None) -> bool:
+        """Stamp that this lead booked its call. False when the row is unknown.
+
+        Idempotent by design: booking a lead twice is an operator clicking the
+        button twice, and the first time is the one that is true.
+        """
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE lead_submissions SET call_booked_at = ? "
+                "WHERE id = ? AND call_booked_at IS NULL",
+                (when or _utcnow_iso(), int(lead_id)),
+            )
+            if cur.rowcount > 0:
+                return True
+            row = conn.execute(
+                "SELECT 1 FROM lead_submissions WHERE id = ?", (int(lead_id),)
+            ).fetchone()
+        return row is not None
 
     def get_latest_preop_intake_submission(self, patient_id: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:

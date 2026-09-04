@@ -252,7 +252,7 @@
   const UNANSWERED = 'Not answered';
 
   async function renderPartnerLeads(slot, ctx) {
-    const { h, api, clear, fmtDate } = ctx;
+    const { h, api, clear, fmtDate, toast } = ctx;
     let data;
     try {
       // The lead table lives beside the public form that writes it, on
@@ -310,9 +310,58 @@
       }
       // VERBATIM. It is the attestation, and a truncated attestation is not one.
       body.appendChild(h('div', { class: 'asc-hs-lead-message' }, r.message || ''));
-      body.appendChild(h('a', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
-                                href: 'mailto:' + (r.email || '') },
-                         'Reply by email'));
+
+      // Where this lead got to. The booking now happens in an email rather than
+      // on the form's success screen, so the row has a life after the submit
+      // and an operator who cannot see it is left reconstructing it from a
+      // sent-mail folder. Three facts, in the order they happen.
+      const trail = [];
+      if (r.thanks_sent_at) trail.push('thanks sent ' + fmtDate(r.thanks_sent_at));
+      if (r.reminder_sent_at) trail.push('reminder sent ' + fmtDate(r.reminder_sent_at));
+      if (r.call_booked_at) trail.push('booked ' + fmtDate(r.call_booked_at));
+      // The referring physician, when there is one. This is money: a physician
+      // who hands us a health system is the cheapest introduction we get, and
+      // an attribution nobody can see is one nobody pays.
+      if (r.referred_by) trail.push('referred by ' + r.referred_by);
+      if (trail.length) {
+        body.appendChild(h('div', { class: 'asc-dim', style: 'font-size:12px' },
+                           trail.join(' · ')));
+      }
+
+      const actions = h('div', { style: 'margin-top: var(--sp-2)' },
+        h('a', { class: 'asc-btn asc-btn-subtle asc-btn-sm',
+                 href: 'mailto:' + (r.email || '') },
+          'Reply by email'));
+      // Only the health-system pipeline books calls, and only a person can know
+      // that one was booked: Calendly does not call us back, so the operator who
+      // saw it land in their calendar is the only source there is. What the
+      // button BUYS is the reminder: a booked lead is never chased.
+      if (r.source === 'health_system_partner') {
+        if (r.call_booked_at) {
+          actions.appendChild(h('span', {
+            class: 'asc-badge asc-badge-green', style: 'margin-left: var(--sp-2)',
+          }, 'Call booked'));
+        } else {
+          const bookedBtn = h('button', {
+            class: 'asc-btn asc-btn-subtle asc-btn-sm',
+            style: 'margin-left: var(--sp-2)',
+          }, 'Call booked');
+          bookedBtn.addEventListener('click', async () => {
+            bookedBtn.disabled = true;
+            try {
+              await api('/leads/admin/' + encodeURIComponent(r.id) + '/booked',
+                        { base: '/api', method: 'POST' });
+              toast('Marked as booked. No reminder will go out.', 'success');
+              renderPartnerLeads(slot, ctx);
+            } catch (e) {
+              bookedBtn.disabled = false;
+              toast(e.message || 'Could not mark that as booked.', 'error');
+            }
+          });
+          actions.appendChild(bookedBtn);
+        }
+      }
+      body.appendChild(actions);
       card.appendChild(body);
     });
     slot.appendChild(card);
