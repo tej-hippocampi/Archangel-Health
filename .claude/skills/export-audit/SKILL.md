@@ -42,3 +42,11 @@ hand-edited bundle is unreproducible, and the next one has the same bug.
 ## Before delivery
 
 Run `/data-inventory` too if the export path ran a migration or a backfill.
+
+## The other half
+
+`export_audit.py` checks what must never be IN a bundle. It cannot check whether
+the bundle's prose agrees with its records — the defect class that put seven
+errors into the Centaur nephrology sample while this audit passed. Before any
+bundle goes out, also run the review in
+`docs/asclepius/EXPORT_REVIEW_PROMPT.md`.
