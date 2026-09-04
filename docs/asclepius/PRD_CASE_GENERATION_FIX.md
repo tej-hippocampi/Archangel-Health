@@ -8,6 +8,20 @@ before assuming a defect below is still open.
 
 ---
 
+## §0 The invariant — read first
+
+**Nothing a partner sent is lost, and nothing a physician sees leaks the
+future.** Every change in Part A adds timing to items that already existed —
+it never invents a date, never guesses a date it cannot read (an unparseable or
+absent one leaves the item undated, which `real_cases._visible` fails closed
+on), and never moves a gate. The density-gate constants, the multi-patient
+never-merge rule, `deidentify()`, the provenance strip and the clinical-ratio
+exemption are untouched, and the per-chart yield triples the front-door test
+pins are unchanged. Part B removes nothing but screen furniture: no endpoint,
+table, row, upload, lead, request or export changes.
+
+---
+
 # PART A — Why static and longitudinal generation fail on real records
 
 ## §A0 The symptom chain, in one line
@@ -21,24 +35,28 @@ Each arrow is a separate defect. The five below are in pipeline order.
 
 ## §A1 Defect 1 — the note adapter threw the note's date away — **fixed**
 
-`asclepius/adapters/note_text.py:139 parse()` used to emit `{note_type,
+`asclepius/adapters/note_text.py:150 parse()` used to emit `{note_type,
 author_role, text}` and nothing else. The date is available twice in every
 partner file — the filename (`072_2025-07-01_discharge-summary.txt`) and the
 header (`Service date: 2025-07-01`) — and the adapter read neither.
 
 Measured: after `normalize_timeline`, **74 of 155** notes on patient-3 carried
 an offset, every one of them a FHIR `DocumentReference`; **0 of the 79** text
-files did. `real_cases._timed_offsets` (`asclepius/real_cases.py:100`) only
+files did. `_timed_offsets` (`asclepius/real_cases.py:100`) only
 counts items with an integer offset, so undated notes never formed or joined an
 encounter, and `cases.py:495` "no clinical note ≥ 200 chars" was true of the
 visible window on a chart with four discharge summaries.
 
-**Fix.** `note_text.note_date_from` (`asclepius/adapters/note_text.py:102`)
+**Fix.** `note_date_from` (`asclepius/adapters/note_text.py:112`)
 sets `collected_at` from, in order: `manifest.date`; the header line `Service
-date:` (also `Date of service`, `Report date`, `Admission Date`); the filename
-pattern `^\d+_(\d{4}-\d{2}-\d{2})_`. Only a date-shaped value is emitted, so
-`unknown-date` pages stay undated instead of quarantining the chart.
-`note_type` comes from the filename token (`asclepius/adapters/note_text.py:66`):
+date:` (also `Date of service`, `Report date` — never `Admission Date`, which
+dates the stay rather than the document and would place a discharge summary
+before the course it narrates); the filename pattern
+`^\d+_(\d{4}-\d{2}-\d{2})_`. Only a value `parse_datetime` reads is emitted, so
+`unknown-date` pages and malformed headers stay undated instead of quarantining
+the chart.
+`note_type` comes from the filename token (`_FILENAME_TYPE_TOKENS`,
+`asclepius/adapters/note_text.py:68`):
 `discharge-summary → Discharge`, `clinical-note → Progress`, `radiology-report →
 Radiology`, `*-lab / rft / cbc / lft / electrolytes / … → Lab report`.
 Result on patient-3: **149 / 155** notes dated; 56 Lab report · 15 Radiology ·
@@ -146,7 +164,7 @@ actually did", item 4.
 
 ## §B1 Incoming data (Box 1) — **done**
 
-`frontend/asclepius/admin_shell.js:3236 headerLines` / `:3389 box1Row`. One row
+`frontend/asclepius/admin_shell.js:3236 headerLines` / `:3398 box1Row`. One row
 = one bundle, three lines, two decisions: sender · file · size · SHA · time;
 specialty (declared, or "Hepatology (inferred 0.71)" in amber) · "1 chart · 12
 encounters · 79 notes · 45 panels"; the description. Sizes read "260 KB", not
@@ -174,7 +192,7 @@ recipient row (every organization with an ACTIVE agreement, multi-select with
 Select all), Send, and a collapsed history reading "Sent · Gray Scrubs, St.
 Mary's · date · "message"". The four structured fields are gone from the screen.
 Backend: `HsDataRequestBody` (`routers/asclepius_admin.py:3081`) accepts
-`message` + `recipient_hs_ids` (`:3096`) alongside the original structured shape,
+`message` + `recipient_hs_ids` (`:3098`) alongside the original structured shape,
 which still works; `enqueue_for_request` (`asclepius/hs_request_notify.py:69`)
 filters to the chosen organizations, and an ineligible recipient is refused by
 name. The letter (`onboarding_emails.py:2343`) omits the specialty/count rows
@@ -226,7 +244,7 @@ provenance-footer strip · the clinical-ratio exemption in `_DATELIKE_RE`.
    what the inference says.** The renal panels pull the score toward nephrology
    on every encounter. The declaration is the fix, and the row now demands it.
 4. **The blocker §A7's "≥3 generatable" runs into is the medication floor** in
-   `cases.assert_multimodal_content` (`asclepius/cases.py:501`, "never
+   `assert_multimodal_content` (`asclepius/cases.py:433`, "never
    weakened"): patient-3's FHIR bundle carries no `MedicationStatement`, and
    its medication lists live in discharge summaries written *after* each
    decision point, so they are sealed as outcome — correctly. Making the

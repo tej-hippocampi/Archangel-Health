@@ -3312,14 +3312,23 @@
     function specialtyGate(u) {
       if ((u.specialties || []).length) return { required: false, node: null };
       const c = u.content || {};
-      const required = !c.specialty_clears_floor;
-      const why = c.specialty_inferred
-        ? ('The chart reads as ' + cap(c.specialty_inferred) + ' at '
-           + Number(c.specialty_confidence || 0).toFixed(2)
-           + (required
-              ? (', below the ' + (c.specialty_floor || 0.6) + ' floor the planner needs. ')
-              : ', which the planner would accept — confirm it, or choose another. '))
-        : 'The chart carries too little signal to read a specialty from. ';
+      // Three states, not two. `null` means the chart was ingested before the
+      // summary existed — nothing was measured — and a row must not be gated on
+      // a measurement nobody took, nor told its chart "carries too little
+      // signal" when it was never read.
+      const measured = c.specialty_clears_floor === true || c.specialty_clears_floor === false;
+      const required = measured && !c.specialty_clears_floor;
+      const why = !measured
+        ? ('This chart was ingested before specialty inference was recorded, so '
+           + 'nothing has been measured. Set the specialty here, or build and let '
+           + 'the planner read each encounter. ')
+        : (c.specialty_inferred
+          ? ('The chart as a whole reads as ' + cap(c.specialty_inferred) + ' at '
+             + Number(c.specialty_confidence || 0).toFixed(2)
+             + (required
+                ? (', below the ' + (c.specialty_floor || 0.6) + ' the planner needs on each encounter it builds. ')
+                : ', which the planner would accept — confirm it, or choose another. '))
+          : 'The chart carries too little signal to read a specialty from. ');
       return {
         required,
         node: h('div', { class: 'asc-stage-counts' },

@@ -73,10 +73,24 @@ def test_filename_date_is_the_fallback_when_no_header_carries_one():
     assert frag["notes"][0]["note_type"] == "Lab report"
 
 
-def test_admission_date_inside_the_body_is_read_last():
+def test_admission_date_inside_the_body_does_not_date_the_document():
+    """``Admission Date`` dates the stay, not the summary written at discharge.
+    Reading it would place the summary BEFORE the course it narrates — and
+    before the decision point it must stay sealed behind. Undated fails closed."""
     text = "Discharge Summary\nAdmission Date: 28/06/2025\nDischarge Date: 01/07/2025\n"
     frag = note_text.parse(text, manifest={"filename": "summary.txt"})
-    assert frag["notes"][0]["collected_at"] == "28/06/2025"
+    assert "collected_at" not in frag["notes"][0]
+
+
+@pytest.mark.parametrize("bad", ["2025-13-45", "13/13/2025", "31/04/2025", "12345678", "n/a"])
+def test_a_malformed_header_date_leaves_the_note_undated_rather_than_quarantining(bad):
+    """Before §A1 the header was ignored; a chart with a mangled header ingested
+    fine. Emitting a date-shaped but unparseable value would quarantine it."""
+    frag = note_text.parse(f"Service date: {bad}\n\nfindings", manifest={"filename": "x.txt"})
+    assert "collected_at" not in frag["notes"][0]
+    case, report = TL.normalize_timeline({"notes": frag["notes"], "lab_panels": [
+        {"panel": "CBC", "collected_at": "2026-04-23", "results": []}]})
+    assert report["unresolved"] == []
 
 
 def test_unknown_date_stays_undated_rather_than_quarantining_the_chart():
@@ -170,6 +184,19 @@ def test_a_notes_only_fragment_anchors_on_its_latest_note():
     assert [n["collected_offset_days"] for n in case["notes"]] == [-6, 0]
     assert "[day -9]" in case["notes"][0]["text"]
     assert "collected_at" not in case["notes"][0]
+
+
+def test_a_note_dated_after_the_last_lab_moves_the_anchor_and_says_so():
+    """Widening the pool means the index is the latest DATED ITEM, not the
+    latest lab. Relative intervals are unchanged; the provenance names the
+    collection so an admin can see the axis came from narrative timing."""
+    case, report = TL.normalize_timeline({
+        "lab_panels": [{"panel": "A", "collected_at": "2026-01-31", "results": []}],
+        "notes": [{"note_type": "P", "author_role": "x", "collected_at": "2026-02-05", "text": "ok"}],
+    })
+    assert report["index_source"] == "latest_notes"
+    assert case["lab_panels"][0]["collected_offset_days"] == -5
+    assert case["notes"][0]["collected_offset_days"] == 0
 
 
 def test_lab_anchored_charts_keep_their_historical_provenance_name():
@@ -370,6 +397,9 @@ def test_box_two_gates_build_on_the_specialty_and_says_why():
     assert "function specialtyGate(u)" in js
     assert "disabled: !mode || !eligible || gate.required" in js
     assert "Set the specialty before building." in js
+    # a row ingested before the summary existed is not gated on a measurement
+    # nobody took
+    assert "const measured = c.specialty_clears_floor === true || c.specialty_clears_floor === false;" in js
     # and the plan modal offers the picker on a specialty-blocked proposal
     assert "specialty not served" in js and "refresh('specialty')" in js
 

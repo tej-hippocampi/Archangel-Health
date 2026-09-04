@@ -2242,11 +2242,14 @@ def content_summary(case: Dict[str, Any]) -> Dict[str, Any]:
 
     Counts of what the chart carries, how many encounters the segmenter finds and
     how many clear the density gate, and what the specialty inference reads off
-    the chart with its confidence. The inference is the same call the planner
-    makes, so the number on the Box 1 row is the number the plan will refuse on
-    — an admin who reads "inferred 0.58" knows the picker is a required step
-    before Build, not a formality. Never the answer key: ``infer_specialty``
-    reads the model-visible surface only.
+    the WHOLE chart with its confidence. The planner scores each encounter's
+    visible window separately (``real_cases.plan_cases``), and a single
+    encounter can read higher than the whole chart — measured on the committed
+    charts: 0.36–0.38 whole-chart against 0.43–0.58 per encounter. So the row's
+    number is the conservative one: below the floor here means the picker is
+    the reliable step before Build; above it means the planner will accept the
+    chart unaided. Never the answer key: ``infer_specialty`` reads the
+    model-visible surface only.
     """
     from asclepius import real_cases as rc
 

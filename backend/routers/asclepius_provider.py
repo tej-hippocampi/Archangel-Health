@@ -2056,11 +2056,15 @@ def _hs_request_view(row: Dict[str, Any]) -> Dict[str, Any]:
     """One open request, in partner words. An explicit field list, like every
     other provider serializer in this file: a column added to the table later
     must not ship to a hospital because somebody splatted a row."""
+    # A message-only request (Case Generation Fix PRD §B4) is stored with
+    # specialty "any" and case_count 0; the portal shows neither, because "any
+    # · 0 cases" tells a hospital less than nothing.
+    specialty = (row.get("specialty") or "").strip()
     return {
         "request_id": row["id"],
         "title": row["title"],
-        "specialty": row["specialty"],
-        "case_count": row["case_count"],
+        "specialty": "" if specialty.lower() == "any" else specialty,
+        "case_count": int(row.get("case_count") or 0),
         "due_date": row.get("due_date") or "",
         "details": row.get("details") or "",
         "asked_at": row.get("created_at"),

@@ -21,7 +21,7 @@ cd backend && python3 -m pytest tests/test_longitudinal_front_door.py tests/test
 | Record | Ingest cases | Notes with offset | Encounters | Density-gate pass | Verifiable | Generatable static (declared specialty) | Longitudinal points (declared specialty) |
 |---|---|---|---|---|---|---|---|
 | patient-1 | **1** | 244 / 278 · all dated files | 22 | 13 | 12 | 16 | 11 |
-| patient-2 | 1 (quarantined — see below) | 244 / 278 | — | — | — | — | — |
+| patient-2 | 1 (quarantined — see below) | not measured (quarantined body) | — | — | — | — | — |
 | patient-3 | **1** (was 1 through this door; 3 only on the older tree the PRD was written against) | **149 / 155** (was 74 / 155) | 5 | 4 | 3 | **1** | **1** |
 | patient-4 | **1** | 301 / 329 | 12 | 3 | 2 | 5 | 3 |
 
@@ -44,7 +44,7 @@ The PRD was verified against an older snapshot. Running it here:
 
 | § | Claim | Found | Done |
 |---|---|---|---|
-| A1 | Text notes carry no date → 0/79 with offset | **True.** 74 of 155 notes had an offset, all of them FHIR `DocumentReference`s; every plain-text file was undated. | `adapters/note_text.py` reads `manifest.date` → `Service date:` header (also `Date of service`, `Report date`, `Admission Date`) → the `NNN_YYYY-MM-DD_` filename; `note_type` from the filename token. Result: 149/155 dated; 56 "Lab report", 15 "Radiology", 4 "Discharge" instead of 79 "Progress". |
+| A1 | Text notes carry no date → 0/79 with offset | **True.** 74 of 155 notes had an offset, all of them FHIR `DocumentReference`s; every plain-text file was undated. | `adapters/note_text.py` reads `manifest.date` → `Service date:` header (also `Date of service`, `Report date`; `Admission Date` is deliberately NOT read — it dates the stay, not the document) → the `NNN_YYYY-MM-DD_` filename; `note_type` from the filename token. Result: 149/155 dated; 56 "Lab report", 15 "Radiology", 4 "Discharge" instead of 79 "Progress". |
 | A2 | A bundle splits into 2–3 ingest cases | **Does not reproduce.** `unify_patient_keys` already folds `default`-keyed fragments into the one keyed patient (patient-3 without any manifest: 3 groups → 1), and the fixture door already declares `manifest.patient_key`. | Report now names it (`unification: single_keyed_patient_absorbed_unkeyed`, `unkeyed_fragments_absorbed: 80`); the bare-zip path is pinned by test. A second idempotency key (partner + filename) stops a re-packed fixture from landing twice. |
 | A3 | Notes-only fragment has no anchor → every date becomes a "hold" | **True in the code path**, rare in practice once A2 holds. | `_collect_structured_dates` reads notes/studies/problems/medications; `index_source` says `latest_notes` when a note anchored the chart; the no-anchor hold reads `no index anchor: N date-like token(s) … no manifest index_event`. |
 | A4 | Structured dates ignore the record's day-first reading | **True.** `parse_datetime("06/01/2024")` was June 1 in a DMY record. | `parse_datetime(date_order=)` threaded through every structured call; structured slash dates now also count as inference evidence. Patient-3's CSV is ISO, so its numbers do not move — the fix is for the next partner. |

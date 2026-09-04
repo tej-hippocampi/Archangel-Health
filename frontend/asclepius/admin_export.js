@@ -95,12 +95,18 @@
   }
 
   function errText(e) {
-    // The exclusivity refusal (409) carries an object detail {message,
-    // conflicts} naming the licence that blocked the cut. Show the message in
-    // full: "export failed" would send the operator hunting for a bug instead
-    // of to a contract.
-    if (e && e.detail && typeof e.detail === 'object') return e.message || 'Request failed';
-    return (e && (e.detail || e.message)) || 'no response';
+    // A 409 carries an object detail {message, conflicts} naming what blocked
+    // the cut; a 422 carries a list. Show the detail's own message in full —
+    // "export failed" would send the operator hunting for a bug instead of to a
+    // contract — and never append an object to the DOM (Case Generation Fix
+    // PRD §A6).
+    var d = e && e.detail;
+    if (d && typeof d === 'object' && !Array.isArray(d)) {
+      if (typeof d.message === 'string' && d.message) return d.message;
+      if (typeof d.error === 'string' && d.error) return d.error.replace(/_/g, ' ');
+    }
+    if (typeof d === 'string' && d) return d;
+    return (e && typeof e.message === 'string' && e.message) || 'no response';
   }
 
   function caseIdList() {

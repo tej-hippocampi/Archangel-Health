@@ -3091,8 +3091,10 @@ class HsDataRequestBody(BaseModel):
 
     # The request, in the operator's words. Either this or ``title`` must be set.
     message: str = Field(default="", max_length=4000)
-    # Health-system ids to send to. Empty or absent = every eligible partner
-    # (the "Select all" case — not a separate button).
+    # Health-system ids to send to. ABSENT = every eligible partner (the
+    # structured shape's historical behaviour); PRESENT must name at least one,
+    # and the console's "Select all" sends the whole eligible list explicitly so
+    # who was asked is in the request's own outbox.
     recipient_hs_ids: Optional[List[str]] = None
 
     title: str = Field(default="", max_length=140)

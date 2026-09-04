@@ -247,7 +247,10 @@ def ingest_committed_bundles(
         # a second time under the new label. One chart, one row; an admin changes
         # the specialty of the row that exists rather than ingesting a twin.
         earlier = store.find_ingest_upload_by_partner_filename(FIXTURE_PARTNER_ID, f"{name}.zip")
-        if earlier:
+        if earlier and earlier.get("status") not in ("quarantined", "rejected"):
+            # A quarantined or rejected earlier attempt does NOT block: a
+            # corrected bundle (new bytes) must be able to re-enter, which is
+            # exactly what the sha key allowed before this second key existed.
             row.update({"status": "skipped", "upload_id": earlier["upload_id"],
                         "message": ("Already ingested under an earlier packing of this "
                                     "bundle — set the specialty on the existing row "

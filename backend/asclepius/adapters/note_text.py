@@ -38,14 +38,16 @@ _ROLE_OK_RE = re.compile(r"^[a-z][a-z /&-]{1,40}$")
 _HONORIFIC_RE = re.compile(r"\b(dr|md|do|rn|np|pa)\b\.?", re.IGNORECASE)
 
 # ─── Where a text note's date lives ──────────────────────────────────────────
-# Header lines, in order of authority. ``Service date`` is what the partner's
-# exporter writes for the document itself; ``Admission Date`` sits INSIDE a
-# discharge summary's content and describes the stay, so it is the last resort.
+# Header lines, in order of authority — each one names the DOCUMENT's own
+# date. ``Admission Date`` is deliberately not here: it sits inside a discharge
+# summary's content and describes the start of the stay, so dating the summary
+# by it would place the document BEFORE the course it narrates (and before the
+# decision point it should be sealed behind). A note with only that line stays
+# undated, which fails closed.
 _DATE_HEADER_RES = tuple(re.compile(
     r"^[ \t]*" + label + r"[ \t]*:[ \t]*(?P<value>\S[^\n]*?)[ \t]*$", re.IGNORECASE | re.MULTILINE)
     for label in (
         r"service\s+date", r"date\s+of\s+service", r"report\s+date",
-        r"admission\s+date",
     ))
 # The partner's filename convention: ``<index>_<YYYY-MM-DD>_<document-type>.txt``.
 _FILENAME_DATE_RE = re.compile(r"^\d+_(\d{4}-\d{2}-\d{2})_")
@@ -95,8 +97,16 @@ def _note_type_from(filename: Optional[str], manifest_type: Optional[str]) -> st
 
 
 def _date_shaped(value: Optional[str]) -> Optional[str]:
+    """``value`` if it is a date ``timeline.parse_datetime`` will actually read,
+    else None. The shape check alone let ``2025-13-45`` or an eight-digit
+    document number through, and an emitted-but-unparseable ``collected_at``
+    quarantines the whole chart — over a header that was ignored before."""
+    from asclepius.timeline import parse_datetime
+
     v = str(value or "").strip()
-    return v if v and _DATE_SHAPED_RE.match(v) else None
+    if not v or not _DATE_SHAPED_RE.match(v):
+        return None
+    return v if parse_datetime(v) is not None else None
 
 
 def note_date_from(text: str, filename: Optional[str], manifest_date: Optional[Any] = None,
@@ -104,9 +114,10 @@ def note_date_from(text: str, filename: Optional[str], manifest_date: Optional[A
     """The note's service date as a RAW date string, or None.
 
     Precedence (§A1): ``manifest.date`` → a header line (``Service date`` /
-    ``Date of service`` / ``Report date`` / ``Admission Date``) → the filename
-    pattern ``^\\d+_YYYY-MM-DD_``. Only a date-shaped value is returned; a file
-    whose header and name both say ``unknown-date`` stays undated.
+    ``Date of service`` / ``Report date``) → the filename pattern
+    ``^\\d+_YYYY-MM-DD_``. Only a value ``parse_datetime`` reads is returned; a
+    file whose header and name both say ``unknown-date`` stays undated, and so
+    does one whose header carries a malformed date.
     """
     if manifest_date is not None:
         d = _date_shaped(str(manifest_date))

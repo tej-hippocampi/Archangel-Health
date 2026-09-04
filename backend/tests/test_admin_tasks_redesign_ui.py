@@ -725,6 +725,14 @@ var UPLOADS = { uploads: [
               specialty_clears_floor:false, specialty_floor:0.6 },
     case_counts:{total:1,ingested:1,promoted:0,needs_review:0,quarantined:0},
     tasks_created:0, task_creation_complete:false },
+  { upload_id:'u-old', partner_label:'Legacy Row', filename:'old.zip', size_bytes:1048576,
+    created_at:'2026-07-01T00:00:00', staging:'task_creation', purpose:'task_creation',
+    specialties:[], description:null, task_mode:'longitudinal',
+    content:{ charts:1, encounters:0, notes:40, lab_panels:12, studies:0,
+              specialty_inferred:null, specialty_confidence:null,
+              specialty_clears_floor:null, specialty_floor:null },
+    case_counts:{total:1,ingested:1,promoted:0,needs_review:0,quarantined:0},
+    tasks_created:0, task_creation_complete:false },
   { upload_id:'u-set', partner_label:'Alpha', filename:'a.zip', size_bytes:1048576,
     created_at:'2026-08-29T00:00:00', staging:'task_creation', purpose:'task_creation',
     specialties:['hepatology'], description:null, task_mode:'longitudinal',
@@ -801,3 +809,10 @@ def test_build_is_disabled_until_the_specialty_is_set_when_inference_is_below_fl
     assert ok["buildDisabled"] is False, ok
     assert ok["hasPicker"] is False
     assert "Hepatology" in ok["text"]
+    # ingested before the summary existed: nothing measured, so not gated — the
+    # picker is offered, Build stays live, and the copy says why
+    old = [r for r in out["rows"] if "Legacy Row" in r["text"]][0]
+    assert old["buildDisabled"] is False, old
+    assert old["hasPicker"] is True
+    assert "before specialty inference was recorded" in old["text"]
+    assert "too little signal" not in old["text"]
