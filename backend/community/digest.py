@@ -15,13 +15,19 @@ Failure policy: every run is recorded in ``community_digest_runs``
 scheduler loop can never crash. Three consecutive failures of a kind logs a
 grep-able ``ADMIN ATTENTION`` line.
 
-The scheduled loop is gated on ``COMMUNITY_NEWS_ENABLED=1``; the internal
-trigger endpoint fires a run on demand either way. The gate defaults to OFF,
-which dates from when the community was empty and no bot-authored post
-belonged in it. That is no longer the case, so a deployment that wants the
-digest must set the variable, and ``/internal/community/status`` reports
-whether it did, because a loop that never started is otherwise indis-
-tinguishable from a quiet week.
+The scheduled loop reads ``COMMUNITY_NEWS_ENABLED``, which now defaults to ON;
+setting it to 0 is the operator's kill switch, and the internal trigger
+endpoint fires a run on demand either way. It used to default to OFF, which
+dated from when the community was empty and no bot-authored post belonged in
+it. That stopped being true and the default did not follow, so the pipeline sat
+dormant in production looking exactly like a quiet week.
+``/internal/community/status`` still reports which way the gate resolved and
+whether the loop actually started, because those two can differ.
+
+Every run also records WHY it posted nothing. ``ok=1, items_posted=0`` is
+written for a real quiet day and for a run with no model key, and an operator
+cannot tell a dead pipeline from a slow news week without the reason beside the
+count.
 """
 
 from __future__ import annotations
@@ -270,6 +276,27 @@ async def _email_digest(kind: str, body: str) -> int:
     return sent
 
 
+# ─── Why a run posted nothing ────────────────────────────────────────────────
+# Same argument as the morning's: a successful run with zero items is written
+# for a quiet week and for a pipeline that cannot reach a model, and only the
+# reason tells them apart.
+REASON_POSTED = "posted"
+REASON_NOTHING_FETCHED = "no_source_items"
+REASON_NOTHING_FRESH = "nothing_new"
+REASON_NOTHING_KEPT = "nothing_worth_posting"
+REASON_NO_MODEL_KEY = "no_model_key"
+REASON_ERROR = "run_failed"
+REASON_BLOCKED = "post_blocked"
+
+
+def _failure_reason() -> str:
+    """The reason behind a raised run. A missing key is the one worth naming:
+    every LLM call fails identically without it, and the fix is one variable."""
+    if not (os.getenv("ANTHROPIC_API_KEY") or "").strip():
+        return REASON_NO_MODEL_KEY
+    return REASON_ERROR
+
+
 async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[str, Any]:
     """One full digest run. Never raises — the outcome lands in
     ``community_digest_runs`` and the returned summary dict.
@@ -304,24 +331,31 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
         fresh = [it for it in cstore.new_content_items(max_age_days=3)
                  if str(it.get("source") or "").startswith(prefixes)]
         if not fresh:
-            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
+            reason = REASON_NOTHING_FETCHED if not fetched else REASON_NOTHING_FRESH
+            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
+                                     items_posted=0, reason=reason)
             log.info("[digest] %s run: nothing fresh (%d fetched), no post", kind, fetched)
             return {"ok": True, "kind": kind, "fetched": fetched, "fresh": 0,
-                    "posted": 0, "emailed": 0}
+                    "posted": 0, "emailed": 0, "reason": reason}
 
         body, summaries = await _curate(kind, fresh)
         if body is None:
             # Fresh items, none worth keeping — a valid quiet day.
             cstore.mark_content_items(
                 [it["id"] for it in fresh], status="skipped", summaries=summaries)
-            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched, items_posted=0)
+            cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
+                                     items_posted=0, reason=REASON_NOTHING_KEPT)
             log.info("[digest] %s run: %d fresh, none kept, no post", kind, len(fresh))
             return {"ok": True, "kind": kind, "fetched": fetched,
-                    "fresh": len(fresh), "posted": 0, "emailed": 0}
+                    "fresh": len(fresh), "posted": 0, "emailed": 0,
+                    "reason": REASON_NOTHING_KEPT}
 
         posted = await post_system_message(
             channel_slug=DIGEST_CHANNEL, body=body,
             kind=("digest_papers" if kind == "papers" else "digest_news"),
+            # The digest is a bot post in a room nobody is watching at 13:00
+            # UTC; without this it produced no notification row at all.
+            announce=True,
         )
         if posted is None:
             raise RuntimeError("system post was skipped (channel or PHI gate)")
@@ -341,14 +375,14 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
                                   posted_message_id=posted["id"], summaries=summaries)
         cstore.mark_content_items(other_ids, status="skipped", summaries=summaries)
         cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
-                                 items_posted=len(kept_ids))
+                                 items_posted=len(kept_ids), reason=REASON_POSTED)
         log.info("[digest] %s run: posted %d of %d fresh (message %s)",
                  kind, len(kept_ids), len(fresh), posted["id"])
         return {"ok": True, "kind": kind, "fetched": fetched, "fresh": len(fresh),
                 "posted": len(kept_ids), "emailed": emailed, "message_id": posted["id"]}
     except Exception as exc:
         cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
-                                 error=str(exc)[:500])
+                                 error=str(exc)[:500], reason=_failure_reason())
         log.warning("[digest] %s run failed: %s", kind, exc, exc_info=True)
         fails = cstore.consecutive_digest_failures(kind)
         if fails >= 3:
@@ -427,7 +461,8 @@ async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
     try:
         pool = cstore.candidate_items_for_spotlight()
         if not pool:
-            cstore.finish_digest_run(run_id, ok=True, items_posted=0)
+            cstore.finish_digest_run(run_id, ok=True, items_posted=0,
+                                     reason=REASON_NOTHING_FRESH)
             log.info("[spotlight] nothing in the pool, no post")
             return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "quiet", "posted": 0}
 
@@ -437,12 +472,16 @@ async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
                 body=_spotlight_body(item),
                 kind=SPOTLIGHT_KIND,
                 cards=[_spotlight_card(item)],
+                # Staff-only, and the fan-out knows it: ``channel_member_ids``
+                # narrows a staff_only room to staff, so this mails the team
+                # and nobody else.
+                announce=True,
             )
             if posted is not None:
                 cstore.mark_content_items([item["id"]], status=SPOTLIGHT_STATUS,
                                           posted_message_id=posted["id"])
                 cstore.finish_digest_run(run_id, ok=True, items_fetched=len(pool),
-                                         items_posted=1)
+                                         items_posted=1, reason=REASON_POSTED)
                 log.info("[spotlight] posted %r (message %s)",
                          item.get("title"), posted["id"])
                 return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "posted",
@@ -458,22 +497,27 @@ async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
             cstore.mark_content_items([item["id"]], status="blocked")
             log.warning("[spotlight] item %s (%r) blocked by the PHI gate, "
                         "trying the next candidate", item["id"], item.get("title"))
-        cstore.finish_digest_run(run_id, ok=True, items_fetched=len(pool), items_posted=0)
+        cstore.finish_digest_run(run_id, ok=True, items_fetched=len(pool),
+                                 items_posted=0, reason=REASON_BLOCKED)
         log.info("[spotlight] every candidate was gated, no post")
         return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "quiet", "posted": 0}
     except Exception as exc:
-        cstore.finish_digest_run(run_id, ok=False, error=str(exc)[:500])
+        cstore.finish_digest_run(run_id, ok=False, error=str(exc)[:500],
+                                 reason=_failure_reason())
         log.warning("[spotlight] run failed: %s", exc, exc_info=True)
         return {"ok": False, "kind": SPOTLIGHT_KIND, "error": str(exc)[:500]}
 
 
 # ─── Scheduler (in-process, restart-safe, gated OFF by default) ──────────────
 def news_enabled() -> bool:
-    # Defaults to OFF. Set COMMUNITY_NEWS_ENABLED=1 to run the scheduled loop.
-    # Startup logs which way this resolved: an unset variable used to disable
-    # the whole pipeline in total silence, which is how it stayed off in
-    # production for weeks without anyone being able to tell.
-    return (os.getenv("COMMUNITY_NEWS_ENABLED") or "0").strip() in ("1", "true", "yes", "on")
+    # Defaults to ON, with COMMUNITY_NEWS_ENABLED=0 as the operator kill
+    # switch. It defaulted to off, and an unset variable disabled the whole
+    # pipeline in total silence, which is how it stayed off in production for
+    # weeks without anyone being able to tell. Startup still logs which way it
+    # resolved. One definition of "off", shared with the morning gate.
+    from community.morning import gate_on  # noqa: PLC0415 - one gate rule
+
+    return gate_on("COMMUNITY_NEWS_ENABLED")
 
 
 def _news_hour_utc() -> int:
@@ -511,6 +555,40 @@ def _due(kind: str, now: datetime, last_ok_started: Optional[str]) -> bool:
     return last < fire_at
 
 
+async def run_scheduled_digest(
+    kind: str, *, now: Optional[datetime] = None
+) -> Dict[str, Any]:
+    """One tick of the digest SCHEDULE. Safe to call every hour, by anything.
+
+    ``run_digest`` reserves no window and therefore always runs, which is right
+    for a manual trigger (the operator decided) and exactly wrong for a cron:
+    an hourly job pointed at it would post a fresh digest every hour. This
+    applies the three checks the in-process loop applies and nothing else, so
+    an external scheduler and the loop drive identical behaviour and cannot
+    both post: due today, not inside the failure backoff, and the day reserved
+    before anything is composed.
+    """
+    if kind not in ("news", "papers"):
+        return {"ok": False, "kind": kind, "error": f"unknown digest kind {kind!r}"}
+    cstore = get_community_store()
+    at = now or datetime.utcnow()
+    if not _due(kind, at, cstore.last_successful_run_at(kind)):
+        return {"ok": True, "kind": kind, "outcome": "not_due", "posted": 0}
+    # Failure backoff: after a failed attempt, wait 2h before retrying (not
+    # every tick) — an all-day-broken source or a missing API key must not
+    # hammer the LLM 40× a day. The manual trigger bypasses this deliberately.
+    last_try = cstore.last_run_attempt_at(kind)
+    if last_try:
+        try:
+            since = (at - datetime.fromisoformat(last_try.rstrip("Z"))).total_seconds()
+        except ValueError:
+            since = None
+        if since is not None and since < 7200 and \
+                cstore.consecutive_digest_failures(kind) > 0:
+            return {"ok": True, "kind": kind, "outcome": "backing_off", "posted": 0}
+    return await run_digest(kind, claim_window=_window_key(at))
+
+
 _loop_task: Optional[asyncio.Task] = None
 _TICK_SEC = 900  # 15 min
 
@@ -523,26 +601,8 @@ def start_content_loop() -> None:
         return
 
     async def _tick_one_realm() -> None:
-        cstore = get_community_store()
-        now = datetime.utcnow()
         for kind in ("news", "papers"):
-            if not _due(kind, now, cstore.last_successful_run_at(kind)):
-                continue
-            # Failure backoff: after a failed attempt, wait 2h before
-            # retrying (not every tick) — an all-day-broken source or a
-            # missing API key must not hammer the LLM 40× a day. The
-            # manual trigger bypasses this deliberately.
-            last_try = cstore.last_run_attempt_at(kind)
-            if last_try:
-                try:
-                    since = (now - datetime.fromisoformat(
-                        last_try.rstrip("Z"))).total_seconds()
-                except ValueError:
-                    since = None
-                if since is not None and since < 7200 and \
-                        cstore.consecutive_digest_failures(kind) > 0:
-                    continue
-            await run_digest(kind, claim_window=_window_key(now))
+            await run_scheduled_digest(kind)
         # After the digests, so on a normal day the spotlight is
         # choosing from a pool the news run has already scored and
         # marked. It reads 'skipped' rows too, so the reverse order

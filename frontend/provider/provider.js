@@ -425,7 +425,15 @@
     org.textContent = (currentUser && currentUser.organization) || "";
     const user = document.createElement("span");
     user.className = "asc-user-role";
-    user.textContent = (currentUser && currentUser.username) || "Health system";
+    // The person's NAME, then their address, and never the username. The
+    // username is derived from the organization ("Berkeley Health System" ->
+    // "berkeley2"), so this line used to read "Berkeley Health System /
+    // Berkeley 2" at somebody who had never chosen either string. Every account
+    // minted through a claim link has a name because claiming asks for one; an
+    // older account may not, and its address is at least something its owner
+    // recognises.
+    user.textContent = (currentUser && (currentUser.full_name || currentUser.email))
+      || "Health system";
     userBadge.appendChild(org);
     userBadge.appendChild(user);
     header.hidden = false;
@@ -1003,6 +1011,138 @@
         showError(errBox, e.message || "That code is not right, or it has expired.");
         btn.disabled = false;
         btn.textContent = "Confirm";
+      }
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SCREEN 6 — CLAIM AN INVITE
+  //
+  //  Reached only with ?invite=<token> in the URL, which is what the two
+  //  letters that used to carry a temporary passphrase now carry instead: a
+  //  colleague adding a teammate, and a three-field signup clearing its code.
+  //  Nothing that guards the account has travelled by email, the person sets
+  //  their own password, and claiming signs them straight in.
+  //
+  //  renderLogin and renderReset are untouched. Every account that already
+  //  exists still gets exactly the screens it had.
+  // ══════════════════════════════════════════════════════════
+  function inviteTokenFromUrl() {
+    try {
+      return (new URLSearchParams(window.location.search).get("invite") || "").trim();
+    } catch (_) {
+      return "";
+    }
+  }
+
+  // Take the token out of the address bar once it has been spent. It is a live
+  // secret until it is claimed and a URL is the most copied string there is:
+  // it lands in screenshots, in support tickets, and in the next tab's referrer.
+  function dropInviteFromUrl() {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("invite");
+      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    } catch (_) {}
+  }
+
+  function showClaimDead() {
+    document.getElementById("prvClaimLive").hidden = true;
+    const dead = document.getElementById("prvClaimDead");
+    dead.hidden = false;
+    document.getElementById("prvClaimSub").textContent = "This link is no longer live";
+    document.getElementById("prvClaimToLogin").addEventListener("click", () => {
+      dropInviteFromUrl();
+      renderLogin();
+    });
+  }
+
+  async function renderClaim(token) {
+    header.hidden = true;
+    hideRail();
+    mountTemplate("tplClaim");
+    const errBox = document.getElementById("prvClaimError");
+    const btn = document.getElementById("prvClaimBtn");
+    const emailEl = document.getElementById("prvClaimEmail");
+    const nameEl = document.getElementById("prvClaimName");
+    const pwEl = document.getElementById("prvClaimPw");
+    const confirmEl = document.getElementById("prvClaimConfirm");
+    const strengthEl = document.getElementById("prvClaimStrength");
+
+    let invite;
+    try {
+      invite = await apiGet("/hs/invite/" + encodeURIComponent(token));
+    } catch (_) {
+      // A lookup that could not complete is not a dead link, but it is not a
+      // form we can fill in either. Same screen, because the alternative is an
+      // empty box that fails on submit.
+      showClaimDead();
+      return;
+    }
+    // found:false covers used, expired and never-existed, and the server
+    // answers 200 for all three on purpose: a 404 would turn this route into a
+    // way to test which tokens are live.
+    if (!invite || invite.found !== true) {
+      showClaimDead();
+      return;
+    }
+
+    emailEl.value = invite.email || "";
+    document.getElementById("prvClaimSub").textContent =
+      invite.organization ? "Joining " + invite.organization : "Choose a password and you are in";
+    if (invite.invited_by) {
+      document.getElementById("prvClaimLede").textContent =
+        invite.invited_by + " added you to " + (invite.organization || "the workspace") +
+        ". Set a password of your own and the account is yours.";
+    }
+    nameEl.focus();
+
+    pwEl.addEventListener("input", () => {
+      const pw = pwEl.value || "";
+      if (!pw) { strengthEl.textContent = ""; strengthEl.className = "prv-strength"; return; }
+      const s = scorePassword(pw);
+      strengthEl.textContent = s.label;
+      strengthEl.className = "prv-strength " + s.cls;
+    });
+
+    document.getElementById("prvClaimForm").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      showError(errBox, "");
+      const fullName = (nameEl.value || "").trim();
+      const pw = pwEl.value || "";
+      if (!fullName) {
+        showError(errBox, "Please tell us your name.");
+        nameEl.focus();
+        return;
+      }
+      if (pw.length < MIN_PW_LEN) {
+        showError(errBox, "Your password must be at least " + MIN_PW_LEN + " characters.");
+        pwEl.focus();
+        return;
+      }
+      if (pw !== (confirmEl.value || "")) {
+        showError(errBox, "The two passwords don't match.");
+        confirmEl.focus();
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Setting up…";
+      try {
+        // The email is NOT sent. The account's address is whatever the invite
+        // was minted against and the server ignores anything a body says about
+        // it; sending it would imply otherwise.
+        const data = await apiPost("/hs/invite/" + encodeURIComponent(token) + "/claim",
+                                   { full_name: fullName, password: pw });
+        try { localStorage.setItem("prv_last_username", data.username); } catch (_) {}
+        dropInviteFromUrl();
+        // Straight into the portal. No second sign-in and no forced-reset
+        // screen: they chose this password ten seconds ago, and there is
+        // nothing of ours left to replace.
+        await loadProfileAndRoute();
+      } catch (e) {
+        showError(errBox, e.message || "Could not set up your account.");
+        btn.disabled = false;
+        btn.textContent = "Set up my account";
       }
     });
   }
@@ -1913,7 +2053,16 @@
   });
 
   // ─── Boot ───────────────────────────────────────────────────
-  // The session cookie is HttpOnly (invisible to JS), so probe /hs/me: a 401
-  // lands on login, anything else routes to the right screen.
-  loadProfileAndRoute();
+  // A claim link wins over everything, including a live session: the person
+  // holding it may well be sitting at a shared workstation where a colleague is
+  // still signed in, and routing them into somebody else's portal because a
+  // cookie was present is the one outcome this screen exists to prevent.
+  const bootInvite = inviteTokenFromUrl();
+  if (bootInvite) {
+    renderClaim(bootInvite);
+  } else {
+    // The session cookie is HttpOnly (invisible to JS), so probe /hs/me: a 401
+    // lands on login, anything else routes to the right screen.
+    loadProfileAndRoute();
+  }
 })();

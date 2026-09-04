@@ -39,7 +39,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 from asclepius import capabilities as caps
-from asclepius import credentialing, onboarding_nudge, tiering
+from asclepius import credentialing, onboarding_nudge, partner_lead_nudge, tiering
 
 log = logging.getLogger("asclepius.verification_agent")
 
@@ -440,6 +440,19 @@ async def run_agent_loop() -> None:
                             # verification jobs below are not the nudges'
                             # business to break.
                             log.exception("[verify-agent] nudge sweep failed (loop continues)")
+                        try:
+                            # The health-system lead reminder, on the same tick
+                            # and behind its own try for the same reason. It
+                            # reads the TEAM store rather than this realm's
+                            # asclepius store, because a /partner lead has no
+                            # account yet; the cadence is shared because both
+                            # are "one letter, once, when a row has gone quiet"
+                            # and a second scheduler is a second thing to get
+                            # wrong on deploy.
+                            await partner_lead_nudge.sweep()
+                        except Exception:
+                            log.exception(
+                                "[verify-agent] partner lead sweep failed (loop continues)")
                     # Every store call here is synchronous sqlite. Running it
                     # directly would put it ON THE EVENT LOOP, where one
                     # lock-wait stalls every request in the process rather

@@ -11,6 +11,14 @@
 # twice, or late, or by hand still produces one brief per channel per day, so
 # GitHub's cron drift (it is best-effort, not to-the-minute) costs nothing.
 #
+# It drives the WHOLE content routine, not only the morning brief. The morning
+# and the newsletter had a scheduler here and the digests, the staff spotlight
+# and the webinar series had none at all: they depended entirely on the
+# in-process loop, which only exists while COMMUNITY_NEWS_ENABLED is on and
+# only in a process that has not been restarted at the wrong minute. Every step
+# below is idempotent by the same run ledger, so the two schedulers cannot
+# double-post and calling any of them late or twice costs nothing.
+#
 # Setup: two repository secrets.
 #   MORNING_BASE_URL      https://app.archangelhealth.ai
 #   INTERNAL_TOOL_SECRET  the same value the backend has
@@ -65,5 +73,59 @@ jobs:
             --max-time 900 \
             "$BASE/internal/community/run-newsletter")
           cat /tmp/newsletter.json
+          echo
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]
+
+      # scheduled=true is load-bearing. Bare, /run-digest runs unconditionally,
+      # which is what a person pressing a button means and what an hourly cron
+      # must never do: it would post a fresh digest every hour. With the flag
+      # the endpoint applies its own schedule (due today, failure backoff, day
+      # reserved before composing), so this can fire hourly and #medical-ai-news
+      # still gets one digest a day and one papers post a week.
+      - name: Post the news and papers digests, if either is due
+        env:
+          BASE: ${{ secrets.MORNING_BASE_URL }}
+          SECRET: ${{ secrets.INTERNAL_TOOL_SECRET }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$SECRET" ]; then exit 0; fi
+          for kind in news papers; do
+            code=$(curl -sS -o /tmp/digest.json -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $SECRET" \
+              --max-time 900 \
+              "$BASE/internal/community/run-digest?kind=$kind&scheduled=true")
+            cat /tmp/digest.json
+            echo
+            [ "$code" -ge 200 ] && [ "$code" -lt 300 ] || exit 1
+          done
+
+      # Already once-a-day by its own ledger, so no flag is needed here.
+      - name: Post the staff AI spotlight, if today's has not been posted
+        env:
+          BASE: ${{ secrets.MORNING_BASE_URL }}
+          SECRET: ${{ secrets.INTERNAL_TOOL_SECRET }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$SECRET" ]; then exit 0; fi
+          code=$(curl -sS -o /tmp/spotlight.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $SECRET" \
+            --max-time 900 \
+            "$BASE/internal/community/run-spotlight")
+          cat /tmp/spotlight.json
+          echo
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]
+
+      # Idempotent on (channel, title, start time). It also rides the morning
+      # tick, and it is here because the morning tick is the in-process loop:
+      # a deploy without that loop running had no webinar series at all.
+      - name: Top the weekend webinar series back up
+        env:
+          BASE: ${{ secrets.MORNING_BASE_URL }}
+          SECRET: ${{ secrets.INTERNAL_TOOL_SECRET }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "$SECRET" ]; then exit 0; fi
+          code=$(curl -sS -o /tmp/webinars.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $SECRET" \
+            --max-time 900 \
+            "$BASE/internal/community/run-webinars")
+          cat /tmp/webinars.json
           echo
           [ "$code" -ge 200 ] && [ "$code" -lt 300 ]

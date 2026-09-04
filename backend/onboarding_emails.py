@@ -427,6 +427,26 @@ def _last_name(full_or_last: str) -> str:
 #: two must never drift.
 FOUNDER_INTRO_CALENDLY = "https://calendly.com/tejpatel-berkeley/intro-with-tej-patel"
 
+#: Where a health system books the call that /partner used to book on its own
+#: success screen. A DIFFERENT calendar from the one above, on a different
+#: founder's account, which is why it is a second constant rather than a second
+#: use of the first.
+#:
+#: The same string is ``PARTNER_BOOKING_FALLBACK`` in
+#: ``landing/src/app/config.ts``, and the two are held together by
+#: ``tests/test_landing_config.py``. They have to be stated twice because the
+#: page and the email are built by different toolchains, and the test is what
+#: stops the pair from drifting the way the two hardcoded Calendly links in the
+#: landing components once did.
+#:
+#: Env-overridable so a founder moving their calendar is a deploy variable
+#: rather than a release, and named for the landing variable it mirrors so one
+#: value can drive both.
+PARTNER_BOOKING_CALENDLY = (
+    os.getenv("PARTNER_BOOKING_URL") or os.getenv("VITE_CALENDLY_URL")
+    or "https://calendly.com/aryaabhatia-berkeley/new-meeting?month=2026-03"
+).strip()
+
 
 # ─── Public builders ────────────────────────────────────────────────────────
 
@@ -2242,29 +2262,24 @@ _MISSION_BLOCK = (
          "where that judgment gets exercised.")
 )
 
-#: Rendered under every credentials card. The password in this mail is a
-#: one-time credential and the letter has to say so in the same breath it hands
-#: it over -- §0.1.1, and the same compromise the physician onboarding makes.
-_TEMP_PASSWORD_NOTE = (
-    "This password is temporary. You will choose your own the first time you "
-    "sign in, and this one stops working the moment you do."
-)
-
-
-def _credentials_card(*, username: str, temp_password: str) -> str:
-    return _inset_card(
-        _detail_rows([
-            ("Sign in with", username, True),
-            ("Temporary password", temp_password, True),
-        ])
-        + _p(_TEMP_PASSWORD_NOTE, muted=True, small=True)
-    )
+#: WHERE THE CREDENTIALS CARD WENT. Both health-system letters below used to
+#: render a derived username and a temporary passphrase, and both now send a
+#: claim link instead: the recipient sets their own password on arrival and no
+#: credential ever travels through email. That also fixed what the portal header
+#: showed, which was the derived username ("Berkeley 2") because it was the only
+#: identifier the account had.
+#:
+#: One door still mails a passphrase, and it is the one that cannot do this:
+#: ``routers/asclepius_admin.py::_build_credentials_email``, for an account an
+#: operator provisions from a call. Its own builder, in its own file, and it
+#: stays that way.
 
 
 def _bookmark_line(portal_url: str) -> str:
     """The literal instruction the PRD asks for. It reads like housekeeping and
-    it is not: the username is derived rather than chosen, so for a self-signup
-    this mail is the only record of how to get back in."""
+    it is not: for a self-signup this mail is the only record of where the
+    portal is, and a partner who cannot find the door does not ask, they wait
+    for us to email them again."""
     return _p(
         f"Bookmark this email, your portal lives at "
         f"{_strong(portal_url.replace('https://', '').replace('http://', ''))}.",
@@ -2275,13 +2290,20 @@ def _bookmark_line(portal_url: str) -> str:
 _SIGNED_OFF = _p("Tej &amp; Aryaa<br>Archangel Health", muted=True, small=True)
 
 
-def build_hs_access_email(*, organization: str, full_name: str, username: str,
-                          temp_password: str, portal_url: str) -> str:
+def build_hs_access_email(*, organization: str, full_name: str, claim_url: str,
+                          portal_url: str) -> str:
     """Email 1 of 5: sent the moment a health system clears its signup code.
 
     Sent immediately after the code verifies rather than at the end of intake,
     because the portal is reachable from that second and a session that is lost
     before this mail exists is an organization with no way back to it.
+
+    It carries a CLAIM LINK, not a passphrase. This letter goes to the door
+    where somebody signed up with three fields and chose no password, so the old
+    version handed them a generated one and a username derived from their
+    organization name. They then had to replace the password on first login and
+    remember a username nobody picked, and the portal header greeted them by it.
+    A link they follow once, and a password they type, removes all three.
     """
     greeting = f"{html.escape(full_name.strip())}," if (full_name or "").strip() else "Welcome."
     body = (
@@ -2292,8 +2314,8 @@ def build_hs_access_email(*, organization: str, full_name: str, username: str,
         + _p(f"Your portal for {_strong(organization)} is open. It walks you "
              "through four questions about what your organization holds, and "
              "nothing in it commits you to anything until you sign an agreement.")
-        + _credentials_card(username=username, temp_password=temp_password)
-        + _cta(portal_url, "Open your portal →")
+        + _p("Set a password of your own and it is yours. The link works once.")
+        + _cta(claim_url, "Set up your account")
         + _bookmark_line(portal_url)
         + _SIGNED_OFF
     )
@@ -2301,15 +2323,22 @@ def build_hs_access_email(*, organization: str, full_name: str, username: str,
                   body_html=body)
 
 
-def build_hs_member_added_email(*, organization: str, added_by: str, username: str,
-                                temp_password: str, portal_url: str,
+def build_hs_member_added_email(*, organization: str, added_by: str,
+                                claim_url: str, portal_url: str,
                                 awaiting_dla: bool = False) -> str:
     """Email 2 of 5: a colleague added you.
 
     Names who added them in the subject line and again in the first sentence. An
-    unexpected credentials email from a company you have not heard of is
-    indistinguishable from a phishing attempt; the name of a colleague is the
-    single thing that makes it legible.
+    unexpected email from a company you have not heard of, asking you to set a
+    password, is indistinguishable from a phishing attempt; the name of a
+    colleague is the single thing that makes it legible. That was true when this
+    letter carried credentials and it is more true now that it carries a link.
+
+    It says what the person is being added FOR, because the recipient usually
+    did not fill the form in. Somebody else on their team did, and the reason
+    they are being added is to look at those answers and join the team, so the
+    letter says exactly that rather than leaving them to guess why a hospital
+    data platform is writing to them.
 
     ``awaiting_dla`` closes a hole in the letter trail rather than adding a
     flourish. Email 3 goes to every member the moment the organization is
@@ -2322,22 +2351,28 @@ def build_hs_member_added_email(*, organization: str, added_by: str, username: s
     who = (added_by or "").strip() or "A colleague"
     agreement = ""
     if awaiting_dla:
-        agreement = (
-            _p("One thing is outstanding for your organization: the data "
-               "licensing agreement is rendered and waiting for a signature. "
-               "One person with signing authority signs it, once, on behalf of "
-               f"{_strong(organization)}. Uploading unlocks the moment it is "
-               "signed.")
-            + _cta(portal_url, "Read and sign →")
-        )
+        # Prose, and no second button. It used to carry its own "Read and sign"
+        # CTA, which cannot work now: the agreement is behind a session and this
+        # recipient has no account until they follow the link above. One door,
+        # and the thing waiting behind it is described rather than linked.
+        agreement = _p(
+            "One thing is outstanding for your organization: the data licensing "
+            "agreement is rendered and waiting for a signature. One person with "
+            "signing authority signs it, once, on behalf of "
+            f"{_strong(organization)}. You will find it in the portal, and "
+            "uploading unlocks the moment it is signed.")
     body = (
         _eyebrow("Your portal access")
         + _h1(f"{html.escape(who)} added you.")
         + _p(f"{_strong(who)} added you to {_strong(organization)}'s Archangel "
-             "Health workspace. You have your own sign-in below.")
+             "Health workspace. You will have your own sign-in.")
+        + _p("Somebody at your organization told us about the clinical data you "
+             "hold. It may not have been you, and your teammate is adding you so "
+             "you can read through what was submitted and join the team on it.")
         + _MISSION_BLOCK
-        + _credentials_card(username=username, temp_password=temp_password)
-        + _cta(portal_url, "Open your portal →")
+        + _p("Set a password of your own and the account is yours. The link "
+             "works once.")
+        + _cta(claim_url, "Set up your account")
         + agreement
         + _bookmark_line(portal_url)
         + _SIGNED_OFF
@@ -2515,3 +2550,92 @@ def build_hs_application_alert(*, organization: str, hs_id: str, full_name: str,
     )
     return _shell(subject=f"[Health system] Application: {organization}",
                   body_html=body)
+
+
+# ─── /partner, before there is an account ───────────────────────────────────
+# These two are the only letters a health system gets BEFORE it has a portal at
+# all. They exist because the /partner form used to end at a Calendly link on
+# its own success screen, and a CIO who did not click it in that second was
+# never heard from again: nothing was sent, so there was nothing to reply to and
+# nothing to follow up. The booking now lives here instead, where it can be
+# forwarded to whoever actually holds the calendar.
+
+
+def _partner_call_path(booking_url: str) -> str:
+    """The three sentences that say what a call is FOR.
+
+    One block, shared by both letters, because a reminder that describes the
+    process differently from the letter it is reminding you of reads as a
+    second, different ask. Same rule ``build_hs_member_added_email`` follows
+    with the agreement wording.
+    """
+    return (
+        _p("A short call is how a partner gets verified. We go through what you "
+           "hold, how it is de-identified, and what you would be able to "
+           "license.")
+        + _p("The data licensing agreement and your partner access follow that "
+             "call. Nothing moves and no data is shared before it is signed.")
+        + _cta(booking_url, "Book a time with us")
+    )
+
+
+def build_hs_interest_thanks_email(*, full_name: str, organization: str,
+                                   booking_url: str) -> str:
+    """Sent the moment a health system submits the /partner interest form.
+
+    The form's success screen says thank you and nothing else, deliberately: the
+    booking control was taken off it so that the one place to book is a message
+    the recipient keeps. That makes this letter load-bearing rather than a
+    courtesy. If it does not arrive, the lead has no way forward at all, which
+    is why ``submit_lead`` stamps ``thanks_sent_at`` only on a send that
+    actually happened and why the reminder is gated on that stamp.
+    """
+    greeting = (f"{_strong(full_name.strip())}," if (full_name or "").strip()
+                else "Hello,")
+    org = (organization or "").strip()
+    about = (f"We would love to understand more about what {_strong(org)} holds "
+             "and the scope of it." if org else
+             "We would love to understand more about what you hold and the "
+             "scope of it.")
+    body = (
+        _eyebrow("Health systems")
+        + _h1("Thank you for submitting.")
+        + _p(greeting)
+        + _p("We read every one of these ourselves. " + about)
+        + _partner_call_path(booking_url)
+        + _p("If none of the times work, reply to this email and we will find "
+             "one. If someone else at your organization should be on the call, "
+             "forward this to them.", muted=True, small=True)
+        + _SIGNED_OFF
+    )
+    return _shell(subject="Thank you for submitting", body_html=body)
+
+
+def build_hs_interest_reminder_email(*, full_name: str, organization: str,
+                                     booking_url: str) -> str:
+    """The ONE reminder, sent by ``asclepius/partner_lead_nudge.py``.
+
+    Short, and short on purpose. The recipient already has the long version;
+    what they do not have is a time in their calendar, so this is the same link
+    with as little around it as the sentence can carry. There is no second
+    reminder, ever: at this deal size a person who has not booked after two
+    letters is telling us something, and a third is how a partnership
+    conversation becomes a spam complaint.
+    """
+    first = _first_name(full_name) if (full_name or "").strip() else ""
+    greeting = f"{_strong(first)}," if first else "Hello,"
+    org = (organization or "").strip()
+    subject_org = f" about {org}" if org else ""
+    body = (
+        _eyebrow("Health systems")
+        + _h1("Still keen to talk.")
+        + _p(greeting)
+        + _p("You wrote to us about licensing clinical data and we have not "
+             "found a time yet. The call is twenty minutes and it is where we "
+             "work out whether there is something here for both of us.")
+        + _cta(booking_url, "Book a time with us")
+        + _p("This is the only reminder we will send. If the timing is wrong, "
+             "reply and tell us when to come back.", muted=True, small=True)
+        + _SIGNED_OFF
+    )
+    return _shell(subject=f"A time to talk{subject_org}", body_html=body)

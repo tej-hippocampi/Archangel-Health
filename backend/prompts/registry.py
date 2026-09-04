@@ -247,7 +247,7 @@ PROMPT_REGISTRY: dict = {
         "version": "1.0.0",
     },
     "asclepius_critic": {
-        "label": "Asclepius — Evaluation Consistency Critic",
+        "label": "Archangel Health: Evaluation Consistency Critic",
         "content": ASCLEPIUS_CRITIC_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_CRITIC_SYSTEM",
@@ -255,7 +255,7 @@ PROMPT_REGISTRY: dict = {
         "version": "1.0.0",
     },
     "asclepius_candidate_gen": {
-        "label": "Asclepius — Candidate Answer Generation",
+        "label": "Archangel Health: Candidate Answer Generation",
         "content": ASCLEPIUS_CANDIDATE_GEN_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_CANDIDATE_GEN_SYSTEM",
@@ -263,7 +263,7 @@ PROMPT_REGISTRY: dict = {
         "version": "2.0.0",
     },
     "asclepius_prompt_gen": {
-        "label": "Asclepius Seedmaker — Prompt Generation (nephrology)",
+        "label": "Archangel Health Seedmaker: Prompt Generation (nephrology)",
         "content": ASCLEPIUS_PROMPT_GEN_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_PROMPT_GEN_SYSTEM",
@@ -271,7 +271,7 @@ PROMPT_REGISTRY: dict = {
         "version": "1.0.0",
     },
     "asclepius_prompt_judge": {
-        "label": "Asclepius Seedmaker — Prompt / Error-Likelihood Judge",
+        "label": "Archangel Health Seedmaker: Prompt / Error-Likelihood Judge",
         "content": ASCLEPIUS_PROMPT_JUDGE_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_PROMPT_JUDGE_SYSTEM",
@@ -279,7 +279,7 @@ PROMPT_REGISTRY: dict = {
         "version": "1.0.0",
     },
     "asclepius_grounding": {
-        "label": "Asclepius — Evidence Grounding Check",
+        "label": "Archangel Health: Evidence Grounding Check",
         "content": ASCLEPIUS_GROUNDING_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_GROUNDING_SYSTEM",
@@ -287,7 +287,7 @@ PROMPT_REGISTRY: dict = {
         "version": "1.0.0",
     },
     "asclepius_reasoning_split": {
-        "label": "Asclepius — Reasoning Step Splitter",
+        "label": "Archangel Health: Reasoning Step Splitter",
         "content": ASCLEPIUS_REASONING_SPLIT_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_REASONING_SPLIT_SYSTEM",
@@ -295,7 +295,7 @@ PROMPT_REGISTRY: dict = {
         "version": "1.0.0",
     },
     "asclepius_prelabel": {
-        "label": "Asclepius — A/B Pre-Label Suggestion (verify, don't author)",
+        "label": "Archangel Health: A/B Pre-Label Suggestion (verify, don't author)",
         "content": ASCLEPIUS_PRELABEL_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_PRELABEL_SYSTEM",
@@ -303,7 +303,7 @@ PROMPT_REGISTRY: dict = {
         "version": "1.0.0",
     },
     "asclepius_reasoning_pregrade": {
-        "label": "Asclepius — Reasoning Step Splitter + Pre-Grader",
+        "label": "Archangel Health: Reasoning Step Splitter + Pre-Grader",
         "content": ASCLEPIUS_REASONING_PREGRADE_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_REASONING_PREGRADE_SYSTEM",
@@ -311,7 +311,7 @@ PROMPT_REGISTRY: dict = {
         "version": "1.0.0",
     },
     "asclepius_stt_cleanup": {
-        "label": "Asclepius — Dictation Transcript Cleanup",
+        "label": "Archangel Health: Dictation Transcript Cleanup",
         "content": ASCLEPIUS_STT_CLEANUP_SYSTEM,
         "file": "backend/asclepius/prompts.py",
         "variable": "ASCLEPIUS_STT_CLEANUP_SYSTEM",

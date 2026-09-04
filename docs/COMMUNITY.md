@@ -88,8 +88,9 @@ message and deactivate (community-ban) a member.
 | `COMMUNITY_DIGEST_INTERVAL_SEC` | `300` | Mention/announcement email digest flush interval |
 | `COMMUNITY_SPECIALTY_MIN_MEMBERS` | `3` | Verified members of a specialty required before its channel appears (v2) |
 | `COMMUNITY_EVENT_REMINDER_MIN` | `60` | Minutes before an event starts that interested members are emailed (v2.1) |
-| `COMMUNITY_NEWS_ENABLED` | `0` (off) | `1` starts the scheduled #medical-ai-news content loop (v2) |
-| `COMMUNITY_MORNING_ENABLED` | `0` (off) | `1` starts the morning routine: #events, #research-and-opportunities, the weekly discussion prompt, and the per-doctor 7am email. See `docs/asclepius/MORNING_ROUTINE_SETUP.md` |
+| `COMMUNITY_NEWS_ENABLED` | **`1` (on)** | Kill switch for the scheduled #medical-ai-news content loop (v2). Set to `0` to stop it; unset or blank means on |
+| `COMMUNITY_MORNING_ENABLED` | **`1` (on)** | Kill switch for the morning routine: #events, #research-and-opportunities, the daily discussion prompt, and the per-doctor 7am email. Set to `0` to stop it. See `docs/asclepius/MORNING_ROUTINE_SETUP.md` |
+| `COMMUNITY_DISCUSSION_DOW` | unset (**every day**) | Pins the #future-of-medical-ai discussion prompt to ONE weekday (Python weekday, `2` = Wednesday). Anything that is not a weekday number means every morning |
 | `COMMUNITY_NEWS_FEEDS` | built-in reporter set | Comma-separated `key=url` RSS overrides (v2) |
 | `COMMUNITY_NEWS_KEYWORDS` | built-in AI-in-medicine list | Comma-separated keyword filter for reporter feeds (v2) |
 | `COMMUNITY_DIGEST_MAX_ITEMS` | `15` | Max stories per digest post (v2) |
@@ -127,7 +128,10 @@ text-layer PDFs, and all messaging work regardless.
   pub/sub) — polling keeps the product functional in the meantime.
 * **Email digests**: queued durably in `community_notifications`, flushed by a
   background loop started on app startup; one digest email per user per flush.
-  Send failures are logged and not retried (at-most-once by design).
+  A failed send leaves the rows PENDING and counts an `attempts` against them,
+  so the next flush retries; after three attempts the queue gives up on those
+  rows and logs it. (It used to mark every row sent whether or not the send
+  worked, so one transient vendor error ate a member's mail silently.)
 * **Retention**: messages are retained indefinitely unless an admin removes
   them; this is stated in the community footer.
 * **Channels are fixed in code** (v2, +#events in v2.1): core channels —
@@ -233,6 +237,84 @@ New tables: `community_events`, `community_event_rsvps`, `community_polls`,
   (`scripts/demo_community_v2.py`) now also plants an event, a poll, a pinned
   message, two bookmarks, and a broadcast.
 
+## The routine is on by default, and says why it posted nothing
+
+Two changes, and they answer the same complaint: the community subsystem was
+built, complete, and switched off, and every way it switched itself off was
+silent.
+
+* **The gates ship ON.** `COMMUNITY_MORNING_ENABLED` and
+  `COMMUNITY_NEWS_ENABLED` default to on and exist as KILL SWITCHES: set either
+  to `0` on the platform and a restart stops that half with no deploy. Blank
+  reads as unset, matching the .env loader's own rule. The discussion prompt in
+  `#future-of-medical-ai` also fires every morning now rather than on one
+  weekday; `COMMUNITY_DISCUSSION_DOW=2` pins it back.
+* **Every run records WHY.** `community_digest_runs` gained a `reason` column,
+  because `ok=1, items_posted=0` was written both for a genuinely quiet day and
+  for a run with no `ANTHROPIC_API_KEY`, no configured search provider, or a
+  provider that was down. `websearch.record_sourcing()` collects the reasons a
+  sourcing pass noted and `morning.quiet_reason` picks the one worth storing,
+  most-fixable first. Reasons: `posted`, `nothing_found` / `nothing_new` /
+  `no_source_items` / `nothing_worth_posting`, `no_search_provider`,
+  `no_model_key`, `provider_error`, `search_budget_exhausted`, `post_blocked`,
+  `run_failed`.
+
+Where to read it: `GET /api/asclepius/admin/community/summary` grew an
+`automation` block (gates, whether each loop is actually running, whether a
+search provider and a model key are configured, and the last run of every scope
+with its item count and reason), rendered as "The daily routine" on the admin
+community tab. `GET /internal/community/status` is unchanged and still the
+Bearer-authenticated version for the cron.
+
+The scheduler in `.github/workflows/community-morning.yml` now drives the WHOLE
+routine, not only the brief and the newsletter: it also calls `run-digest`
+(news and papers), `run-spotlight` and `run-webinars`, all hourly and all
+idempotent through the same run ledger. `run-digest` takes `scheduled=true`
+there, which applies the schedule (due today, failure backoff, day reserved);
+bare, it still runs unconditionally, which is what a person pressing a button
+means.
+
+## Email when the community moves
+
+`notify._KIND_LABELS` knew four kinds (`mention`, `announcement`, `broadcast`,
+`dm`), and every bot post was written with `announce=False`, so the entire
+daily content run produced zero notification rows. Two kinds were added:
+
+* **`post`** — a new top-level post in a channel, fanned out to that channel's
+  members. It is OPT-IN PER WRITE (`announce=True`), and the only writers that
+  opt in are the bot content paths: the morning routine (every scope, the
+  discussion poll included), the news and papers digests, and the staff
+  spotlight. An ordinary member's message enqueues nothing, exactly as before,
+  and so does an admin persona post outside `#task-announcements`, because the
+  admin route still clamps `announce` to that one channel (PRD-E requirement
+  12). That is deliberate: human chatter arrives in bursts, already lights the
+  unread badge,
+  and is usually being written by the person who would be mailed about it, so
+  fanning it out would mean a "While you were away" email every five minutes
+  describing a conversation the member is having. Someone who wants a specific
+  human message mailed has `@mention`, and the author decides.
+* **`pin`** — enqueued when a message is pinned, to the channel's members,
+  never the pinner or the author. Pinning was WebSocket-only and therefore
+  invisible to anyone not connected in that second, which is most people.
+
+Both ride the existing batching loop and the existing "While you were away"
+email; there is no new send path and no new template. A `staff_only` channel's
+posts fan out to staff only (`system_posts.channel_member_ids`), the same rule
+the REST list, the by-id path and the WS hub already apply.
+
+**Preferences.** `community_email_prefs` gained `post_emails` and `pin_emails`
+beside `activity_emails`, all defaulting on. `GET`/`POST /prefs` now expose all
+four knobs (`set_activity_emails` previously had no route and no UI at all),
+writing one key at a time so a stale tab cannot revert another. The community
+client has a Notifications panel, opened from the member's own name in the rail
+foot. `GET /unsubscribe?token=` takes an optional `kind` (`activity`, `post`,
+`pin`) so a one-click link stops only the stream the mail came from; with no
+`kind` it behaves exactly as it always has and turns everything off, because
+links in mail already sent must not come to mean less than they said. The
+activity email carries a kinded link only when every row in that batch is the
+same kind; a mixed batch keeps the broad one, since the template takes a single
+unsubscribe URL.
+
 ## Direct messages
 
 Added at the product owner's request (the original PRD deferred DMs to v2).
@@ -257,3 +339,57 @@ digests (recipient only). Two invariants make them private:
 
 No threads inside DMs; unread counts feed the same portal badge
 (`dm_unread` + channel unread).
+
+### Group conversations
+
+A group is the SAME object as a case room — a `community_dms` row with a
+`kind`, a stored `title`, and its roster in `community_dm_members` — opened by
+a member instead of by routing (`POST /dms/group`, `POST /dms/{dm_id}/members`).
+It rides the identical message pipeline: PHI gate, digests, targeted delivery,
+participant-only access.
+
+Two rules, and both exist because the two kinds share so much plumbing:
+
+* **The admin read exception is `kind='case_room'` and nothing else.** A
+  founder can step into a stuck CASE, which is why a room says out loud that
+  admins can see it. A group carries no such notice and is private to its
+  participants exactly like a two-party DM. `_dm_access` tests
+  `_is_case_room`, never "has a roster"; `test_case_rooms.py` pins it from
+  both ends.
+* **Only a group takes new members.** A case room's roster is the routed team
+  and changes when an assignment does; a two-party DM's privacy is the whole
+  thing it is. `POST /dms/{dm_id}/members` refuses both.
+
+History is NOT filtered by join date: somebody added later reads what was said
+before they arrived, because a group is a room you are shown into and a handoff
+you cannot read is not a handoff. The PHI gate is what makes that safe.
+
+### Live delivery
+
+Persisting a message and delivering it are two acts, and `community/live.py` is
+the one implementation of the second: enqueue the digest for every participant
+but the author, then `hub.send_to_users` a `message.created`; plus `dm.created`
+for a conversation that is new to a viewer, sent per-user because a DM summary
+is viewer-relative.
+
+Everything that writes a conversation goes through it — `post_dm_message`,
+`POST /dms`, and the bot-authored writes in `asclepius/route_notify.py`
+(`_dm_one`, `ensure_case_room`). The server-side writers used to call
+`insert_message` and stop, and the client stops polling while its socket is
+healthy, so a routed physician's DM and their whole case room existed in the
+database and were invisible on screen until a reload. Every call is
+best-effort: a community failure must never roll back a committed assignment.
+
+### PHI: a link is not an identifier
+
+`phi_gate.scan_text` drops a finding contained entirely inside a URL for the
+SHAPE-ONLY categories (`account_number`, `exact_date`, `phone`, `mrn`,
+`address`, `patient_name`), and runs the shared-scanner second pass on
+URL-masked text. `ssn` and the keyword-anchored `dob` still block inside a URL:
+those are identifiers wherever they appear.
+
+The bot path has always masked URLs (`system_posts._mask_urls`), so before this
+the member path was the stricter of the two — a physician linking their own
+conference talk was refused because the LinkedIn share id is a 19-digit run.
+`system_posts._mask_urls` is the older twin of `phi_gate._URL_RE` and should
+adopt it.

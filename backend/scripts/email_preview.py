@@ -256,19 +256,22 @@ def _cases() -> list[tuple[str, str, str, str]]:
         (
             "31-hs-access", "Health system: portal access",
             "Sent the second a health system clears its signup code. Mission "
-            "block, temporary credentials, and where the portal lives.",
+            "block, a one-time claim link instead of a passphrase, and where "
+            "the portal lives.",
             oe.build_hs_access_email(
                 organization="St Mary's Health", full_name="Dana Reyes",
-                username="stmarys", temp_password="harbor-thistle-meadow-41",
+                claim_url=PORTAL + "?invite=preview-token",
                 portal_url=PORTAL),
         ),
         (
             "32-hs-member-added", "Health system: a colleague added you",
             "The same access letter for someone a partner added, named for the "
-            "colleague who added them so it does not read as phishing.",
+            "colleague who added them so it does not read as phishing, and "
+            "saying why they are being added: their teammate filled the form "
+            "in and wants them on it.",
             oe.build_hs_member_added_email(
                 organization="St Mary's Health", added_by="Dana Reyes",
-                username="stmarys2", temp_password="cedar-lagoon-quartz-b7",
+                claim_url=PORTAL + "?invite=preview-token",
                 portal_url=PORTAL),
         ),
         (
@@ -308,6 +311,23 @@ def _cases() -> list[tuple[str, str, str, str]]:
                               "Nephrology, Cardiology"),
                 ],
                 members=["d.reyes@stmarys.org", "k.patel@stmarys.org"]),
+        ),
+        (
+            "37-hs-interest-thanks", "Health system: thank you for submitting",
+            "Sent the moment the /partner form is submitted. The booking link "
+            "used to be a button on that page's success screen; it lives here "
+            "now, where it can be forwarded and followed up.",
+            oe.build_hs_interest_thanks_email(
+                full_name="Dana Reyes", organization="St Mary's Health",
+                booking_url=oe.PARTNER_BOOKING_CALENDLY),
+        ),
+        (
+            "38-hs-interest-reminder", "Health system: one reminder to book",
+            "Three days later, once, if nobody has booked. There is no second "
+            "reminder, ever.",
+            oe.build_hs_interest_reminder_email(
+                full_name="Dana Reyes", organization="St Mary's Health",
+                booking_url=oe.PARTNER_BOOKING_CALENDLY),
         ),
     ]
 

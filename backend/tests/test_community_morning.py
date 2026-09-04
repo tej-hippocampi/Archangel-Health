@@ -40,10 +40,84 @@ def _fresh_store() -> CommunityStore:
 def _quiet_env(monkeypatch):
     monkeypatch.setenv("COMMUNITY_MORNING_HOUR_LOCAL", "7")
     monkeypatch.setenv("ARCHANGEL_HOME_TZ", "America/New_York")
+    # 0 disables the per-provider daily call cap, and this file needs it off.
+    # The budget ledger is DURABLE and the suite's community DB sits at a fixed
+    # /tmp path that outlives the run, so after roughly forty sourcing calls
+    # across a day of test runs every search here starts returning [] for a
+    # reason that has nothing to do with what is being tested. The cap itself
+    # has its own coverage; this file is about the morning.
+    monkeypatch.setenv("COMMUNITY_SEARCH_DAILY_CALL_CAP", "0")
 
 
 def _utc(y, m, d, hh, mm=0):
     return datetime(y, m, d, hh, mm, tzinfo=timezone.utc)
+
+
+# ─── The routine is on unless somebody turns it off ──────────────────────────
+def test_the_morning_routine_runs_without_anybody_setting_a_variable(monkeypatch):
+    """It shipped off by default, which is how a complete content routine sat
+    dormant in production for weeks looking exactly like a quiet community. The
+    working state is now the default."""
+    monkeypatch.delenv("COMMUNITY_MORNING_ENABLED", raising=False)
+    assert morning.enabled() is True
+
+
+def test_a_blank_gate_variable_reads_as_unset_rather_than_as_off(monkeypatch):
+    """Matches the .env loader's own rule: an empty value in a file never wipes
+    a value already set, so an empty value must not be a silent kill switch
+    either."""
+    monkeypatch.setenv("COMMUNITY_MORNING_ENABLED", "   ")
+    assert morning.enabled() is True
+
+
+@pytest.mark.parametrize("value", ["0", "false", "no", "off", "OFF"])
+def test_an_operator_can_still_stop_the_routine_without_a_deploy(monkeypatch, value):
+    """The variable is the kill switch now, and it has to keep working: the
+    whole reason the default flipped is that nobody could tell the routine was
+    off, not that nobody should ever be able to turn it off."""
+    monkeypatch.setenv("COMMUNITY_MORNING_ENABLED", value)
+    assert morning.enabled() is False
+
+
+def test_the_news_digest_gate_reads_the_same_way(monkeypatch):
+    """Two gates, one rule. A second definition of "off" is a second thing to
+    get wrong."""
+    from community import digest as cdigest
+
+    monkeypatch.delenv("COMMUNITY_NEWS_ENABLED", raising=False)
+    assert cdigest.news_enabled() is True
+    monkeypatch.setenv("COMMUNITY_NEWS_ENABLED", "0")
+    assert cdigest.news_enabled() is False
+
+
+# ─── The discussion prompt is a daily question, not a weekly one ─────────────
+def test_the_discussion_prompt_fires_every_morning_by_default(monkeypatch):
+    """A room asked a question once a week is a room people open once a week.
+    ``None`` is what ``is_due`` already reads as "no weekday restriction"."""
+    monkeypatch.delenv("COMMUNITY_DISCUSSION_DOW", raising=False)
+    assert morning.discussion_dow() is None
+    # Wednesday and Thursday, and it is due on both.
+    assert morning.is_due(None, "America/New_York",
+                          now=_utc(2026, 3, 11, 20), dow=morning.discussion_dow()) is True
+    assert morning.is_due(None, "America/New_York",
+                          now=_utc(2026, 3, 12, 20), dow=morning.discussion_dow()) is True
+
+
+def test_the_discussion_prompt_can_still_be_pinned_to_one_weekday(monkeypatch):
+    monkeypatch.setenv("COMMUNITY_DISCUSSION_DOW", "2")   # Wednesday
+    assert morning.discussion_dow() == 2
+    assert morning.is_due(None, "America/New_York",
+                          now=_utc(2026, 3, 11, 20), dow=2) is True
+    assert morning.is_due(None, "America/New_York",
+                          now=_utc(2026, 3, 12, 20), dow=2) is False
+
+
+def test_a_typo_in_the_weekday_means_every_day_not_no_days(monkeypatch):
+    """The failure that matters here is a variable that quietly mutes the room
+    six days out of seven, so an unparseable value falls back to the loud
+    side."""
+    monkeypatch.setenv("COMMUNITY_DISCUSSION_DOW", "wednesday")
+    assert morning.discussion_dow() is None
 
 
 # ─── Due-ness: 7am where the doctor is ───────────────────────────────────────
@@ -207,6 +281,92 @@ def test_a_quiet_day_posts_nothing_and_still_counts_as_a_run(wired, monkeypatch)
     assert wired.last_successful_run_at("morning:events")
 
 
+# ─── A silent morning must not look like a working one ───────────────────────
+def _last_run(store, key):
+    return next(r for r in store.latest_run_per_kind() if r["kind"] == key)
+
+
+def test_a_morning_with_no_search_provider_records_why_it_posted_nothing(
+        wired, monkeypatch):
+    """The defect this closes: with no ANTHROPIC_API_KEY and no paid retriever
+    every search returns [] in silence, the run records ok with zero items, and
+    from the admin tab a dead routine is indistinguishable from a Tuesday on
+    which the web had nothing new. The reason is the only thing that separates
+    them."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+    scope = morning.Scope(key="morning:events", channel="events",
+                          tz="America/New_York")
+
+    result = asyncio.run(morning.run_scope(scope, force=True))
+
+    assert result["outcome"] == "quiet"
+    assert result["reason"] == websearch.NO_MODEL_KEY
+    row = _last_run(wired, "morning:events")
+    assert row["ok"] == 1 and row["items_posted"] == 0
+    assert row["reason"] == websearch.NO_MODEL_KEY
+
+
+def test_a_provider_that_fails_is_not_recorded_as_a_quiet_day(wired, monkeypatch):
+    """A search API having a bad morning and the web being quiet are different
+    facts, and only one of them is worth waking somebody up about."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+
+    async def _boom(**kwargs):
+        raise RuntimeError("the search tool is down")
+
+    import ai.llm_client as llm
+
+    monkeypatch.setattr(llm, "call_llm", _boom)
+    scope = morning.Scope(key="morning:news", channel="medical-ai-news",
+                          tz="America/New_York")
+
+    result = asyncio.run(morning.run_scope(scope, force=True))
+
+    assert result["outcome"] == "quiet"
+    assert result["reason"] == websearch.PROVIDER_ERROR
+    assert _last_run(wired, "morning:news")["reason"] == websearch.PROVIDER_ERROR
+
+
+def test_a_genuinely_quiet_day_says_it_found_nothing(wired, monkeypatch):
+    """The other half of the same property: a run that could search and found
+    nothing must NOT be blamed on a missing key, or the reason column becomes
+    noise an operator learns to ignore."""
+    async def _none(**kwargs):
+        return []
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(websearch, "search_events", _none)
+    scope = morning.Scope(key="morning:events", channel="events",
+                          tz="America/New_York")
+
+    result = asyncio.run(morning.run_scope(scope, force=True))
+
+    assert result["reason"] == morning.REASON_NOTHING_FOUND
+    assert _last_run(wired, "morning:events")["reason"] == morning.REASON_NOTHING_FOUND
+
+
+def test_a_run_that_posted_records_that_it_posted(wired, monkeypatch):
+    async def _one(**kwargs):
+        return [{"title": "Riyadh Health AI Summit", "url": "https://example.org/s",
+                 "when": "14 March", "location": "Riyadh", "why": "Clinical AI."}]
+
+    monkeypatch.setattr(websearch, "search_events", _one)
+    scope = morning.Scope(key="morning:events", channel="events", tz="America/New_York")
+    assert asyncio.run(morning.run_scope(scope, force=True))["outcome"] == "posted"
+    row = _last_run(wired, "morning:events")
+    assert row["reason"] == morning.REASON_POSTED and row["items_posted"] == 1
+
+
+def test_the_missing_provider_beats_the_provider_error_in_the_reason(wired):
+    """Most fixable first. A run that noted both should name the thing an
+    operator can actually go and set."""
+    assert morning.quiet_reason(
+        {websearch.PROVIDER_ERROR, websearch.NO_PROVIDER}) == websearch.NO_PROVIDER
+    assert morning.quiet_reason(set()) == morning.REASON_NOTHING_FOUND
+
+
 def test_a_brief_is_posted_once_and_not_again_the_same_day(wired, monkeypatch):
     async def _one(**kwargs):
         return [{"title": "Riyadh Health AI Summit", "url": "https://example.org/s",
@@ -331,6 +491,67 @@ def test_the_morning_never_posts_into_a_hidden_channel(wired, monkeypatch):
     monkeypatch.setattr(morning, "_visible_channel_slugs", lambda: {"general"})
     scopes = morning.build_scopes()
     assert all(s.channel == "general" for s in scopes)
+
+
+# ─── The operator can see all of that ────────────────────────────────────────
+def test_the_admin_summary_reports_the_last_run_of_each_scope_with_its_reason(
+        wired, monkeypatch):
+    """The counts on the admin community tab answer "is the community alive".
+    They cannot answer "is the BOT alive", because a run with no model key
+    writes the same ok-with-zero-items row a quiet day writes. This is the read
+    that separates them, and it is asserted end to end rather than on the store
+    method alone: the value of the panel is that the reason reaches a screen.
+    """
+    from fastapi.testclient import TestClient
+
+    from tests import _asclepius as A
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+    scope = morning.Scope(key="morning:events", channel="events",
+                          tz="America/New_York")
+    asyncio.run(morning.run_scope(scope, force=True))
+
+    # The endpoint reads the process-global community store, which ``wired``
+    # deliberately does not rebind (it patches the module's getter instead), so
+    # point the global at the same DB the run just wrote.
+    import community.store as cstore_mod
+
+    monkeypatch.setattr(cstore_mod, "_store", wired, raising=False)
+    monkeypatch.setattr(cstore_mod, "get_community_store", lambda: wired)
+    monkeypatch.setattr("community.router._cstore", lambda: wired)
+
+    store = A.fresh_store()
+    admin = A.make_user(store, role="admin")
+    with TestClient(A.app) as client:
+        body = client.get("/api/asclepius/admin/community/summary",
+                          headers=A.headers_for(admin)).json()
+
+    automation = body["automation"]
+    assert [g["var"] for g in automation["gates"]] == [
+        "COMMUNITY_MORNING_ENABLED", "COMMUNITY_NEWS_ENABLED"]
+    assert all(g["on"] for g in automation["gates"]), \
+        "both gates default on, and the panel must say so"
+    assert automation["dependencies"]["anthropic_api_key"] is False
+    row = next(r for r in automation["runs"] if r["kind"] == "morning:events")
+    assert row["items_posted"] == 0
+    assert row["reason"] == websearch.NO_MODEL_KEY
+    assert "ANTHROPIC_API_KEY" in row["reason_text"], \
+        "the reason has to read as an instruction, not as a token"
+
+
+def test_the_run_panel_does_not_list_one_row_per_doctor(wired):
+    """The newsletter ledgers a kind per DOCTOR per day. Listing those would
+    bury the dozen scopes an operator is looking at under the roster."""
+    wired.claim_digest_run("morning:newsletter:member:u-someone", window_key=None)
+    wired.claim_digest_run("morning:events", window_key=None)
+
+    kinds = [r["kind"] for r in wired.latest_run_per_kind(
+        exclude_prefixes=["morning:newsletter:member:"])]
+
+    assert "morning:events" in kinds
+    assert not any(k.startswith("morning:newsletter:member:") for k in kinds)
 
 
 # ─── Pinned topics ───────────────────────────────────────────────────────────

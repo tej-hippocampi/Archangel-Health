@@ -167,7 +167,7 @@ def test_demo_credentials_includes_asclepius_mock_with_portal():
     accounts = list_demo_credentials(cedar_password="x")
     mock = next((a for a in accounts if a.get("id") == "asclepius-mock-contributor"), None)
     assert mock is not None
-    assert mock["label"] == "Asclepius — Mock Contributor Account"
+    assert mock["label"] == "Archangel Health Mock Contributor Account"
     assert mock["email"] == asc_auth.mock_credentials()["email"]
     assert mock["password"] == asc_auth.mock_credentials()["password"]
     assert mock["signInUrls"]["asclepiusPortal"].endswith("/asclepius")

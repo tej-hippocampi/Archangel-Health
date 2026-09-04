@@ -23,6 +23,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 _ROOT = Path(__file__).resolve().parents[2]
 _PORTAL = _ROOT / "frontend" / "asclepius"
 _BACKEND = _ROOT / "backend"
@@ -207,3 +209,76 @@ def test_a_relative_photo_url_is_never_emitted():
         for k, v in saved.items():
             if v is not None:
                 os.environ[k] = v
+
+
+# ── The surfaces the first sweep did not reach ───────────────────────────────
+# Two branches rebranded independently and each covered surfaces the other
+# missed. These are the ones only the second sweep touched, kept as their own
+# section rather than folded into the scanners above, so it stays obvious which
+# claim came from where if either has to be revisited.
+
+def test_the_admin_console_and_buyer_workspace_say_archangel_health():
+    """Staff and buyers read a wordmark too, and neither was in the first pass."""
+    assert "<title>Archangel Health Operations</title>" in _read(_PORTAL / "admin.html")
+    admin_js = _read(_PORTAL / "admin_shell.js")
+    assert "'Archangel Health'" in admin_js
+    assert "'Archangel Health Operations'" in admin_js
+
+    buyer = _read(_ROOT / "frontend" / "buyer" / "index.html")
+    assert "<title>Secure Data Workspace | Archangel Health</title>" in buyer
+    assert '<span class="asc-logo-text">Archangel Health' in buyer
+
+
+def test_the_annotation_tool_says_archangel_health():
+    """The ENV trajectory annotator is an internal surface with an external
+    audience: annotators are contracted clinicians, not staff."""
+    annotate = _read(_PORTAL / "env" / "annotate.html")
+    assert "Archangel Health ENV" in annotate
+    assert "Asclepius ENV" not in annotate
+
+
+def test_the_landing_tells_a_user_the_company_name():
+    src = _read(_ROOT / "landing" / "src" / "lib" / "auth-api.ts")
+    assert "Could not open Asclepius workspace" not in src
+    assert "has an Asclepius account" not in src
+    assert "Archangel Health account" in src
+
+
+def test_the_admin_prompt_registry_labels_say_archangel_health():
+    """Staff-visible, but still a UI: these render in the prompt tab."""
+    src = _read(_BACKEND / "prompts" / "registry.py")
+    assert '"label": "Asclepius' not in src
+    assert '"label": "Archangel Health' in src
+
+
+#: Modules whose string constants reach a person outside the team: an HTTP
+#: error a client renders, a subject line, or a file we hand a buyer.
+_WIDER_COPY_MODULES = (
+    "community/notify.py",
+    "routers/asclepius_verify.py",
+    "routers/asclepius_media.py",
+    "asclepius/referrals.py",
+    "asclepius/export.py",
+)
+
+
+@pytest.mark.parametrize("relative", _WIDER_COPY_MODULES)
+def test_no_visible_asclepius_survives_in_wider_backend_copy(relative):
+    """Same rule as the email scanner above, applied to the other five modules
+    that put a string in front of someone. ``export.py`` matters most: its
+    strings are the datasheet and the scoring pack we hand a buyer."""
+    import ast
+
+    tree = ast.parse(_read(_BACKEND / relative))
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            body = getattr(node, "body", None)
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                docstrings.add(id(body[0].value))
+    leaked = [n.value[:80] for n in ast.walk(tree)
+              if isinstance(n, ast.Constant) and isinstance(n.value, str)
+              and id(n) not in docstrings and INTERNAL in n.value]
+    assert leaked == [], f"{relative} still says {INTERNAL}: {leaked}"

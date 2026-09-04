@@ -303,6 +303,77 @@
     </div>
   </template>
 
+  <!-- 4b) CLAIM AN INVITE — the screen a claim link opens.
+       Somebody was added by a colleague, or signed up with three fields and no
+       password. Either way nothing that guards this account has travelled by
+       email: the link is one-time, the password is theirs, and the name they
+       type here is what the portal header shows from then on. The header used
+       to render the derived username, so a hospital executive was greeted as
+       "Berkeley 2". -->
+  <template id="tplClaim">
+    <div class="prv-auth-wrap">
+      <div class="asc-login-card prv-auth-card">
+        <div class="asc-login-head">
+          <div class="asc-login-mark" aria-hidden="true"></div>
+          <h1>Set up your account</h1>
+          <p id="prvClaimSub">Choose a password and you are in</p>
+        </div>
+        <div class="asc-login-body">
+          <!-- Shown instead of the form for a link that is used, expired, or was
+               never ours. Deliberately the SAME message for all three: the
+               lookup answers 200 either way so that a status code cannot be
+               used to test whether an organization is a partner. -->
+          <div class="asc-login-body" id="prvClaimDead" hidden>
+            <p class="prv-lead">
+              This link has expired or has already been used. If you have
+              already set a password, sign in below. Otherwise reply to the
+              email that brought you here and we will send a new link.
+            </p>
+            <button type="button" class="asc-btn asc-btn-primary asc-btn-lg asc-btn-block"
+                    id="prvClaimToLogin">Go to sign in</button>
+          </div>
+          <div id="prvClaimLive">
+            <p class="prv-lead" id="prvClaimLede">
+              Your account is ready. Set a password of your own and nothing we
+              generated ever guards it.
+            </p>
+            <div class="asc-login-error" id="prvClaimError" role="alert" hidden></div>
+            <form id="prvClaimForm" novalidate>
+              <div class="asc-field">
+                <label class="asc-label" for="prvClaimEmail">Your email</label>
+                <!-- Read-only, and not because the field is precious: the
+                     account's address is whatever the invite was minted
+                     against, the server ignores anything the body says about
+                     it, and an editable box would promise otherwise. -->
+                <input class="asc-input" id="prvClaimEmail" name="email" type="email"
+                       autocomplete="username" readonly />
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="prvClaimName">Your name</label>
+                <input class="asc-input" id="prvClaimName" name="full_name" type="text"
+                       autocomplete="name" required />
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="prvClaimPw">Create a password
+                  <span class="asc-label-hint">at least 12 characters</span></label>
+                <input class="asc-input" id="prvClaimPw" name="password" type="password"
+                       autocomplete="new-password" minlength="12" required />
+                <div class="prv-strength" id="prvClaimStrength" aria-live="polite"></div>
+              </div>
+              <div class="asc-field">
+                <label class="asc-label" for="prvClaimConfirm">Confirm password</label>
+                <input class="asc-input" id="prvClaimConfirm" name="confirm_password"
+                       type="password" autocomplete="new-password" minlength="12" required />
+              </div>
+              <button type="submit" class="asc-btn asc-btn-primary asc-btn-lg asc-btn-block"
+                      id="prvClaimBtn">Set up my account</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <!-- 5) CONFIRM EMAIL — six digits, not a link. Enterprise mail security
        pre-fetches links, which would auto-confirm an address nobody opened. -->
   <template id="tplVerify">

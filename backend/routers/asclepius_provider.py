@@ -1691,7 +1691,13 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
     minted = asc_hs_provisioning.provision_account(
         store, hs_id=hs["hs_id"], org_name=organization, email=email,
         full_name=staged["full_name"], signup_source="self_serve",
-        approval_status="pending", must_reset=wants_temp)
+        approval_status="pending", must_reset=wants_temp,
+        # A three-field signup chose no password, so instead of generating one
+        # and mailing it we mint a claim link and mail that. They are signed in
+        # here either way, on the session this response sets; the link is what
+        # gets them back in from any other device, and what lets them set a
+        # password of their own rather than replace one of ours.
+        mint_invite=wants_temp)
     username = minted["username"]
     if not wants_temp:
         # Carry the password they actually chose, which we only ever held
@@ -1711,7 +1717,7 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
                   store.health_systems_named_like(organization, exclude_hs_id=hs["hs_id"])]
     background.add_task(_notify_hs_signup, store, staged["full_name"], email,
                         organization, hs["hs_id"], username, collisions,
-                        minted["passphrase"] if wants_temp else "")
+                        minted["invite_token"] if wants_temp else "")
 
     fresh = store.get_hs_portal_user(username) or {}
     _set_hs_cookie(response, _hs_token(username, hs["hs_id"],
@@ -1723,19 +1729,20 @@ async def hs_signup_verify(body: HsSignupVerifyRequest, background: BackgroundTa
 
 def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
                       hs_id: str, username: str, collisions: List[str],
-                      temp_password: str = "") -> None:
+                      claim_token: str = "") -> None:
     """Background because this route is behind the portal time budget on the way
     out, and a SendGrid round trip is several times it.
 
     Two welcome letters, one per door. A signup that chose its own password gets
     the letter that delivers the USERNAME, because that is the only thing they
     do not already have. A three-field signup gets the §2.3 access letter, which
-    carries the mission, the temporary credential, and the line telling them to
-    bookmark it -- and it has to go out immediately, because for that door this
-    email is the only record of how to get back in.
+    carries the mission, the claim link, and the line telling them to bookmark
+    it -- and it has to go out immediately, because for that door this email is
+    the only record of how to get back in.
 
-    ``temp_password`` is a live credential. It exists in this process, in this
-    email, and nowhere else: never log it, and never put it in an event payload.
+    ``claim_token`` is a live secret: anyone holding it can set the password on
+    that account. It exists in this process, in this email, and as a hash on the
+    row. Never log it, and never put it in an event payload.
     """
     try:
         import notifications
@@ -1751,11 +1758,11 @@ def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
                 hs_id=hs_id, username=username, name_collisions=collisions),
             dedupe_key=hs_id, coalesce=False)
         if is_email_transport_configured():
-            if temp_password:
+            if claim_token:
                 subject = "Welcome to Archangel Health: your portal access"
                 body = build_hs_access_email(
                     organization=organization, full_name=full_name,
-                    username=username, temp_password=temp_password,
+                    claim_url=_hs_claim_url(claim_token),
                     portal_url=_hs_portal_url())
             else:
                 subject = "Your Archangel Health upload portal"
@@ -1769,6 +1776,162 @@ def _notify_hs_signup(store: Any, full_name: str, email: str, organization: str,
             _run_coro(send_html_email(email, subject, body))
     except Exception:
         log.exception("hs signup: notification failed")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  THE CLAIM LINK — how somebody who was invited gets an account
+#
+#  Both doors that used to mail a temporary passphrase now mail a link instead:
+#  a colleague adding a teammate, and a three-field signup clearing its code.
+#  What that buys, in order of how much it matters:
+#
+#    * no credential of ours ever guards their account, because the password is
+#      one they typed and we never saw another one;
+#    * no forced-reset screen, so the first thing they do in the product is not
+#      replacing something we gave them thirty seconds earlier;
+#    * a NAME. The account had none, so the portal header rendered the derived
+#      username and a hospital executive was greeted as "Berkeley 2". Claiming
+#      asks for their name and the header has had one to show ever since.
+#
+#  The operator-provisioned door keeps the passphrase (asclepius_admin.py). It
+#  is the one case where somebody is handed an account they did not ask for, on
+#  a call, and the passphrase is read out loud rather than clicked.
+# ════════════════════════════════════════════════════════════════════════════
+
+class HsInviteClaimRequest(BaseModel):
+    """What the claim screen sends. NO EMAIL FIELD, deliberately.
+
+    The account's address is whatever the invite was minted against, and the
+    body is written by whoever holds the link. Letting it name the address would
+    make a forwarded invite a way to attach an account on somebody else's
+    organization to an address of your choosing, which is the exact hole
+    ``/hs/members`` closes by taking the organization from the session.
+    """
+
+    full_name: str = ""
+    password: str
+
+
+def _hs_claim_url(token: str) -> str:
+    """Where a claim link points. Absolute, for the same reason
+    ``_hs_portal_url`` is: it is going into an email."""
+    return f"{_hs_portal_url()}?invite={token}"
+
+
+def _hs_invite_row(store: Any, token: str) -> Optional[Dict[str, Any]]:
+    """The account an unexpired invite belongs to, or None.
+
+    One resolver for both routes below so "expired" cannot mean two different
+    things to the page that reads the invite and the route that spends it.
+    Deactivated accounts and deactivated organizations resolve to None as well:
+    a revoked partner's outstanding invite is not a door.
+    """
+    digest = asc_hs_provisioning.invite_token_hash((token or "").strip())
+    user = store.get_hs_portal_user_by_invite_hash(digest) if digest else None
+    if not user or not user.get("active"):
+        return None
+    try:
+        if datetime.utcnow().isoformat() > str(user.get("invite_expires_at")):
+            return None
+    except Exception:
+        return None
+    hs = store.get_health_system(user["hs_id"])
+    if not hs or not hs.get("active"):
+        return None
+    return {"user": user, "health_system": hs}
+
+
+def _hs_inviter_name(store: Any, user: Dict[str, Any]) -> str:
+    """The colleague who added them, by NAME, or an empty string.
+
+    Never the ``invited_by`` username. That column holds the derived portal
+    username, which is the identifier this whole change exists to keep off the
+    screen, and "berkeley2 added you" tells the recipient nothing about whether
+    to trust the letter they are holding.
+    """
+    inviter = (user.get("invited_by") or "").strip()
+    if not inviter:
+        return ""
+    row = store.get_hs_portal_user_public(inviter) or {}
+    return (row.get("full_name") or "").strip()
+
+
+@portal_router.get("/hs/invite/{token}",
+                   dependencies=[Depends(rate_limiter("hs_invite_lookup", 60, 3600))])
+async def hs_invite_lookup(token: str):
+    """What the claim screen needs to render itself. PUBLIC and unauthenticated.
+
+    **An unknown or expired token is a 200 with ``found: false``, never a 404.**
+    Exactly the reasoning ``GET /api/asclepius/hs-referral/{token}`` states: a
+    404 makes this a membership oracle, feed it tokens and the status code tells
+    you which ones are live, and on this route a live token additionally names a
+    health system that is talking to us. The page renders its "this link has
+    already been used" state either way, which is what it should do for a stale
+    link regardless of why the link is stale.
+
+    Nothing here is new to the holder of the token. Their own address, the
+    organization they are being added to and the first name of the colleague who
+    added them were all in the email the link came in. Built by whitelist, as
+    that endpoint is: no username, no approval status, no password state.
+    """
+    store = _store()
+    found = _hs_invite_row(store, token)
+    if not found:
+        return {"found": False}
+    return {
+        "found": True,
+        "email": found["user"].get("email") or "",
+        "organization": found["health_system"]["name"],
+        "invited_by": _hs_inviter_name(store, found["user"]),
+    }
+
+
+@portal_router.post("/hs/invite/{token}/claim",
+                    dependencies=[Depends(rate_limiter("hs_invite_claim", 10, 600))])
+async def hs_invite_claim(token: str, body: HsInviteClaimRequest, response: Response):
+    """Spend an invite: set a name and a password, and sign in.
+
+    Signs them straight into the portal rather than bouncing to the login form,
+    for the same reason ``/hs/signup/verify`` does: the username was derived
+    from their organization's name and they have never seen it, so "now enter
+    your username" would strand every single person this letter reaches.
+
+    Single use is enforced by the store, which clears the hash in the same
+    statement that writes the password. A second visit to the link therefore
+    finds nothing, which is the correct answer: the account now has an owner.
+    """
+    store = _store()
+    generic = HTTPException(
+        status_code=400,
+        detail="That link has expired or has already been used.")
+    found = _hs_invite_row(store, token)
+    if not found:
+        raise generic
+    user, hs = found["user"], found["health_system"]
+    email = (user.get("email") or "").strip()
+    # Their password, held to the same policy the signup door holds. A real 400
+    # here, unlike the one above: it is about what THEY typed, so it tells an
+    # attacker nothing they did not already supply.
+    try:
+        asc_passwords.validate(body.password or "", email=email)
+    except asc_passwords.PasswordRejected as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    full_name = " ".join((body.full_name or "").split())[:120]
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Please tell us your name.")
+
+    store.claim_hs_portal_invite(
+        user["username"], password=body.password, full_name=full_name)
+    store.log_event(entity_type="hs_portal", entity_id=user["username"],
+                    event_type="invite_claimed", actor=user["username"],
+                    payload={"hs_id": hs["hs_id"]})
+    fresh = store.get_hs_portal_user(user["username"]) or {}
+    _set_hs_cookie(response, _hs_token(user["username"], hs["hs_id"],
+                                       session_epoch=fresh.get("session_epoch")))
+    # The same shape ``/hs/login`` returns. must_reset is False and cannot be
+    # anything else: they just chose the password themselves.
+    return {"ok": True, "username": user["username"], "organization": hs["name"],
+            "must_reset": False}
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2459,7 +2622,7 @@ async def hs_members_post(
     background: BackgroundTasks,
     portal_user: Dict[str, Any] = Depends(require_hs_surface(hs_access.INTAKE)),
 ):
-    """Add teammates. Each gets their own account and their own credentials.
+    """Add teammates. Each gets their own account and their own claim link.
 
     THE ORGANIZATION IS FIXED BY THE SESSION. This route takes addresses and
     nothing else -- no hs_id, no organization name -- so there is no version of
@@ -2469,6 +2632,11 @@ async def hs_members_post(
     Adding an address that already has an active account on this organization
     ROTATES nothing and sends nothing: re-adding a colleague by accident must
     not invalidate the password they are already using.
+
+    NOTHING THAT GUARDS THE NEW ACCOUNT TRAVELS BY EMAIL. Each address gets a
+    one-time claim link and sets its own password on arrival, which is also
+    where the account finally gets a NAME: it had none before, so the portal
+    header rendered the derived username at a hospital executive.
     """
     store = _store()
     hs = portal_user["health_system"]
@@ -2498,12 +2666,16 @@ async def hs_members_post(
             signup_source="member_invite", invited_by=portal_user["username"],
             # The same decision their colleague's account got. A member is not a
             # lesser account: they can answer the questions and they can sign.
-            approval_status=(portal_user.get("approval_status") or None))
+            approval_status=(portal_user.get("approval_status") or None),
+            mint_invite=True)
         store.log_event(entity_type="health_system", entity_id=hs["hs_id"],
                         event_type="member_added", actor=portal_user["username"],
                         payload={"username": minted["username"], "email": addr})
+        # The token is carried to the background task and nowhere else. It is a
+        # live secret, exactly as the passphrase it replaced was: whoever holds
+        # it can set the password on this account.
         added.append({"email": addr, "username": minted["username"],
-                      "passphrase": minted["passphrase"]})
+                      "claim_token": minted["invite_token"]})
 
     inviter = (portal_user.get("full_name") or "").strip() or "A colleague"
     # Read here, on the row this request already holds, rather than inside the
@@ -2514,9 +2686,10 @@ async def hs_members_post(
                         hs_states.state_of(hs) == hs_states.AWAITING_DLA)
     fresh = [u for u in store.list_hs_portal_users(hs["hs_id"]) if u.get("active")]
     return {
-        # The passphrases are NOT echoed. They go to the address they belong to
+        # The claim links are NOT echoed. They go to the address they belong to
         # and nowhere else -- a colleague who can read another colleague's
-        # credential out of a JSON response is a credential that is not theirs.
+        # invite out of a JSON response can take over that account before its
+        # owner ever opens the email.
         "ok": True,
         "added": [a["email"] for a in added],
         "members": [_hs_member_view(u, me=portal_user["username"]) for u in fresh],
@@ -2526,7 +2699,7 @@ async def hs_members_post(
 def _notify_hs_members_added(organization: str, inviter: str,
                              added: List[Dict[str, Any]],
                              awaiting_dla: bool = False) -> None:
-    """One letter per new member, each carrying only its own credential.
+    """One letter per new member, each carrying only its own claim link.
 
     ``awaiting_dla`` is passed in rather than looked up. This runs after the
     response has gone out, so there is no request row to read and no session to
@@ -2544,7 +2717,7 @@ def _notify_hs_members_added(organization: str, inviter: str,
                 f"{inviter} added you to {organization}'s Archangel Health workspace",
                 build_hs_member_added_email(
                     organization=organization, added_by=inviter,
-                    username=member["username"], temp_password=member["passphrase"],
+                    claim_url=_hs_claim_url(member["claim_token"]),
                     portal_url=_hs_portal_url(), awaiting_dla=awaiting_dla)))
     except Exception:
         log.exception("hs members: invite email failed")

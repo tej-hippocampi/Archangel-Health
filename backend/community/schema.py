@@ -44,6 +44,30 @@ class DmMessageIn(BaseModel):
     attachment_ids: List[str] = Field(default_factory=list, max_length=MAX_ATTACHMENTS)
 
 
+#: How many people one group conversation may hold. A cap rather than no cap
+#: because a group is delivered per-participant on every write (digest row, then
+#: a targeted socket send), and an unbounded "group" is a broadcast channel
+#: wearing a DM's clothes -- which the community already has, gated to admins.
+MAX_GROUP_MEMBERS = 30
+
+
+class GroupCreate(BaseModel):
+    """A member-created group conversation.
+
+    The title is REQUIRED and is not derived from the roster. A group named by
+    its members renames itself every time somebody is added, and a conversation
+    that renames itself is a different conversation to the person reading it --
+    the same reasoning the case-room ``title`` column was added under.
+    """
+
+    title: str = Field(min_length=1, max_length=120)
+    user_ids: List[str] = Field(default_factory=list, max_length=MAX_GROUP_MEMBERS)
+
+
+class GroupMembersIn(BaseModel):
+    user_ids: List[str] = Field(min_length=1, max_length=MAX_GROUP_MEMBERS)
+
+
 # ─── Community v2.1: events / polls / bookmarks ───────────────────────────────
 class EventIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)

@@ -1834,6 +1834,8 @@ def _tri_state(v: Any) -> Optional[bool]:
 
 @router.get("/physicians")
 async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admin)):
+    from asclepius import review as _review
+
     store = _store()
     hs_names = _hs_name_map(store)
     out: List[Dict[str, Any]] = []
@@ -1868,6 +1870,15 @@ async def list_physicians(_admin: Dict[str, Any] = Depends(asc_auth.require_admi
             "specialty": u.get("specialty"),
             "tier": tier,
             "tier_word": asc_caps.tier_word(tier),
+            # Whether this account can be named as a REVIEWER on a send. Read
+            # from ``review.can_review`` rather than compared against a tier
+            # literal here, so this row and the send-time guard in
+            # ``_resolve_send_targets`` can never disagree -- a roster that says
+            # one thing and a 400 that says another is how "the Send button is
+            # not working" gets reported. The Batches picker disables the
+            # Reviewer radio on this, which turns an atomic 400 on the whole
+            # send into a control the admin cannot click by mistake.
+            "can_review": bool(_review.can_review(u)),
             # Advisor is NOT a tier (capabilities.py:12 — the tier is retired and
             # rows carrying it migrate to reviewer on boot). It lives on
             # ``users.advisor_since``, and without it here the roster rendered
@@ -5363,4 +5374,102 @@ async def community_activity_summary(
             }
             for r in rooms
         ],
+        "automation": _automation_status(cstore),
     }
+
+
+# ─── Is the routine actually running, and what did it last do ────────────────
+# The counts above answer "is the community alive". They cannot answer "is the
+# BOT alive", and that is the harder question, because every way this subsystem
+# switches itself off is silent: an unset gate posts nothing, a missing model
+# key records a SUCCESSFUL run with zero items, and a search provider that is
+# down does the same. From this tab all three used to look like a community
+# with nothing to say.
+#
+# /internal/community/status already answers it, but it is Bearer-authenticated
+# for the cron and returns nothing an operator can read at a glance, so this is
+# the same facts through the door the admin tab already knocks on. The
+# frontend never learns a secret's value: gates are booleans, dependencies are
+# booleans, and the runs carry a count and a reason.
+
+#: Ledger kinds that are a per-doctor delivery record rather than a scope. One
+#: row per member per day would bury the dozen rows worth looking at.
+_RUN_KIND_NOISE = ("morning:newsletter:member:",)
+
+#: What a stored reason means in a sentence an operator can act on. A reason
+#: the code has not seen is passed through as itself rather than dropped: a new
+#: token showing up unexplained is better than a panel that silently omits it.
+_RUN_REASON_TEXT = {
+    "posted": "posted",
+    "nothing_found": "nothing found to post",
+    "nothing_new": "nothing new since the last run",
+    "no_source_items": "no source returned anything",
+    "nothing_worth_posting": "found items, none worth posting",
+    "no_search_provider": "NO SEARCH PROVIDER configured",
+    "no_model_key": "NO ANTHROPIC_API_KEY set",
+    "provider_error": "the search provider failed",
+    "search_budget_exhausted": "the daily search budget was spent",
+    "post_blocked": "the post was blocked by the PHI gate",
+    "run_failed": "the run raised",
+}
+
+
+def _automation_status(cstore: Any) -> Dict[str, Any]:
+    """Gates, loops, dependencies and the last run of every scope."""
+    from community import digest as cdigest  # noqa: PLC0415
+    from community import morning as cmorning  # noqa: PLC0415
+
+    try:
+        runs = cstore.latest_run_per_kind(exclude_prefixes=list(_RUN_KIND_NOISE))
+    except Exception as exc:  # noqa: BLE001 - the ledger itself can be the fault
+        return {"error": str(exc)[:200]}
+
+    return {
+        "gates": [
+            {
+                "name": "Morning routine",
+                "var": "COMMUNITY_MORNING_ENABLED",
+                "on": cmorning.enabled(),
+                "loop_running": cmorning.loop_running(),
+            },
+            {
+                "name": "News and papers digests",
+                "var": "COMMUNITY_NEWS_ENABLED",
+                "on": cdigest.news_enabled(),
+                "loop_running": cdigest.loop_running(),
+            },
+        ],
+        "dependencies": {
+            # Booleans only. This payload reaches a browser.
+            "search_provider": cwebsearch_enabled(),
+            "anthropic_api_key": bool((os.getenv("ANTHROPIC_API_KEY") or "").strip()),
+        },
+        "runs": [
+            {
+                "kind": r["kind"],
+                "started_at": r["started_at"],
+                "finished_at": r["finished_at"],
+                # None while a run is still in flight, which is a third state
+                # and not the same as a failure.
+                "ok": None if r["ok"] is None else bool(r["ok"]),
+                "items_posted": int(r["items_posted"] or 0),
+                "reason": r.get("reason"),
+                "reason_text": _RUN_REASON_TEXT.get(
+                    r.get("reason") or "", r.get("reason") or ""),
+                "error": r.get("error"),
+            }
+            for r in runs
+        ],
+    }
+
+
+def cwebsearch_enabled() -> bool:
+    """Whether any search provider could actually be called right now.
+
+    Wrapped because ``websearch.enabled()`` notes a reason into whatever
+    sourcing context is open, and this read must not pollute a run's ledger
+    entry from an admin page refresh.
+    """
+    from community import search_providers as sp  # noqa: PLC0415
+
+    return any(sp.available(name) for name in sp.provider_order())

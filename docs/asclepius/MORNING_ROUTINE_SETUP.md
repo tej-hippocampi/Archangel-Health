@@ -1,21 +1,32 @@
 # Turning the morning routine on
 
 The routine posts one brief per channel per day at 7am local and emails each
-doctor what landed in their rooms. It ships **off**.
+doctor what landed in their rooms. **It now ships ON**: it defaulted to off, and
+an off-by-default gate is indistinguishable from a quiet community, which is
+how a finished routine sat dormant in production for weeks.
+`COMMUNITY_MORNING_ENABLED=0` is the kill switch and still works.
 
 ## 1. Environment (Railway)
 
 ```
-COMMUNITY_MORNING_ENABLED=1
 ANTHROPIC_API_KEY=...            # sourcing needs it; without it nothing is searched
 PUBLIC_BASE_URL=https://app.archangelhealth.ai   # unsubscribe links die without it
 INTERNAL_TOOL_SECRET=...         # already set if the other /internal endpoints work
+COMMUNITY_MORNING_ENABLED=0      # ONLY if you want it off
 ```
 
 Optional, with sensible defaults: `COMMUNITY_MORNING_HOUR_LOCAL=7`,
 `ARCHANGEL_HOME_TZ=America/New_York`, `COMMUNITY_COUNTRY_MIN_MEMBERS=3`,
-`COMMUNITY_EVENTS_MAX=3`, `COMMUNITY_DISCUSSION_DOW=2`,
-`COMMUNITY_WEBSEARCH_MAX_USES=5`.
+`COMMUNITY_EVENTS_MAX=3`, `COMMUNITY_WEBSEARCH_MAX_USES=5`.
+`COMMUNITY_DISCUSSION_DOW` is unset by default, which means the discussion
+prompt fires **every** morning; set it to a weekday number (`2` = Wednesday) to
+pin it back to one day.
+
+Without a key or a provider nothing breaks and nothing posts, and the run says
+so: every run records a `reason` (`no_model_key`, `no_search_provider`,
+`provider_error`, `nothing_found` …), surfaced on the admin community tab under
+"The daily routine". A silent morning and a working one are no longer the same
+row.
 
 ### Paid retrieval (recommended)
 
@@ -55,9 +66,9 @@ is one too many. The in-app digest post is unaffected.
 
 ## 2. The clock
 
-With `COMMUNITY_MORNING_ENABLED=1` the app drives itself: an hourly in-process
-tick calls the same code the endpoint does. That is enough, and it is why this
-feature does not *depend* on anything outside Railway.
+With the gate on the app drives itself: an hourly in-process tick calls the
+same code the endpoint does. That is enough, and it is why this feature does
+not *depend* on anything outside Railway.
 
 The more reliable path is an external trigger, because it survives a restart at
 the wrong moment and leaves a log a person can read. `community-morning.workflow.yml`
@@ -81,6 +92,10 @@ Then two repository secrets (Settings → Secrets and variables → Actions):
 | `MORNING_BASE_URL` | `https://app.archangelhealth.ai` |
 | `INTERNAL_TOOL_SECRET` | the same value the backend has |
 
+The workflow drives the whole routine, not only the brief: the morning, the
+per-doctor newsletter, the news and papers digests
+(`run-digest?...&scheduled=true`, which applies the digest schedule rather than
+posting on every call), the staff spotlight and the weekend webinar series.
 Both triggers share the run ledger, so running both cannot double-post:
 whichever arrives first marks the run and the other finds nothing due.
 

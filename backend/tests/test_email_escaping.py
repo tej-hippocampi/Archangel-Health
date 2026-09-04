@@ -69,11 +69,19 @@ def test_a_partner_facing_letter_escapes_the_organization_too():
     so the attacker chooses both the organization and the recipient."""
     for body in (
         oe.build_hs_access_email(organization=EVIL, full_name="Dana",
-                                 username="u", temp_password="p",
+                                 claim_url="https://example.org/provider?invite=t",
                                  portal_url="https://example.org/provider"),
         oe.build_hs_member_added_email(organization=EVIL, added_by="Dana",
-                                       username="u", temp_password="p",
+                                       claim_url="https://example.org/provider?invite=t",
                                        portal_url="https://example.org/provider"),
+        # The two /partner letters, which reach an organization we have never
+        # met: the name in them is whatever a stranger typed into a public form.
+        oe.build_hs_interest_thanks_email(
+            full_name="Dana", organization=EVIL,
+            booking_url="https://example.org/book"),
+        oe.build_hs_interest_reminder_email(
+            full_name=EVIL, organization=EVIL,
+            booking_url="https://example.org/book"),
         oe.build_hs_dla_request_email(organization=EVIL,
                                       portal_url="https://example.org/provider"),
         oe.build_hs_uploads_open_email(organization=EVIL,
