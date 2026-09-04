@@ -114,9 +114,31 @@ both send. The sweep rides the verification agent's poll loop beside
 scheduler is a second thing to get wrong on deploy.
 
 Calendly does not call us back, so `call_booked_at` can only be set by the person
-who saw the meeting appear in their calendar. That is the button on the lead row
-in the admin console, and what it buys is silence rather than a letter asking a
-partner to book a meeting they are already coming to.
+who saw the meeting appear in their calendar. What that buys is silence rather
+than a letter asking a partner to book a meeting they are already coming to.
+
+**The reminder ships OFF, and this is why.** The button that sets
+`call_booked_at` was going to live on the Systems tab's Partner-leads card, and
+Case Generation Fix PRD §B3 deleted that card in the same window this was
+written. The column, the endpoint and the sweep are all real; there is no screen
+with the button on it. Sending anyway is the one option nobody chose, because
+every health system that had already booked would be asked to book.
+
+So `PARTNER_LEAD_REMINDER_ENABLED` defaults to `0`. A disabled sweep lists
+nothing and **claims** nothing, so switching it on later still finds every
+waiting lead's one reminder unspent, and a test pins that. Everything else on
+the path is live: the thanks letter goes out on submit, and `call_booked_at`
+records a booking the moment anything writes it.
+
+Two ways to finish it, and the choice is a product one:
+
+* give the button a home (a small unbooked-leads queue is the obvious shape, and
+  it is deliberately NOT the card §B3 removed, which listed every lead from
+  every landing form read-only); or
+* wire the Calendly webhook, which is the better answer and needs a signing
+  secret and a configured endpoint we do not have yet.
+
+Either way the flip is one variable.
 
 ## Two gates, not one
 

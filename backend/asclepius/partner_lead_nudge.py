@@ -45,6 +45,29 @@ log = logging.getLogger("asclepius.partner_lead_nudge")
 PARTNER_LEAD_REMINDER_HOURS = float(
     os.getenv("PARTNER_LEAD_REMINDER_HOURS", "72") or 72)
 
+
+def enabled() -> bool:
+    """Off until somebody can say a call happened.
+
+    The reminder is gated on ``call_booked_at``, and the control that sets it
+    was going to live on the Systems tab's Partner-leads card. Case Generation
+    Fix PRD §B3 deleted that card in the same window this was written, so the
+    column is real, the endpoint that flips it is real, and there is currently
+    no screen with the button on it.
+
+    Sending anyway is the one option nobody chose: every health system that had
+    already booked would receive a note asking them to book. That reads as a
+    system that is not paying attention, to exactly the audience whose
+    compliance office is deciding whether we are a vendor that mails people.
+
+    So this ships off, and the flip is one variable once the control has a home.
+    Everything else on the path is live: the thanks letter still goes out on
+    submit, and ``call_booked_at`` still records a booking the moment anything
+    writes it.
+    """
+    return (os.getenv("PARTNER_LEAD_REMINDER_ENABLED") or "0").strip().lower() \
+        in ("1", "true", "yes", "on")
+
 #: A cap per pass, so a backlog drains over several sweeps rather than trying to
 #: send hundreds of emails inside one loop iteration.
 _BATCH = int(os.getenv("PARTNER_LEAD_REMINDER_BATCH", "50") or 50)
@@ -94,6 +117,10 @@ async def sweep(ts: Optional[Any] = None) -> Dict[str, int]:
     from team_store import get_team_store  # noqa: PLC0415
 
     sent = {"reminder": 0}
+    if not enabled():
+        # Nothing listed and nothing claimed, so turning it on later still
+        # finds every lead's reminder unspent. See enabled().
+        return sent
     if not is_email_transport_configured():
         # Nothing to do, and, critically, nothing CLAIMED. A deployment with no
         # mail transport must not silently burn every lead's one reminder.

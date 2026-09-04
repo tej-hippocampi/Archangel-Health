@@ -71,6 +71,11 @@ def sent(monkeypatch):
     monkeypatch.setattr(leads_mod, "send_html_email", _capture)
     monkeypatch.setattr("email_utils.send_html_email", _capture)
     monkeypatch.setattr("email_utils.is_email_transport_configured", lambda: True)
+    # The reminder ships OFF (partner_lead_nudge.enabled), because the control
+    # that marks a call booked has no screen yet. Every test below is about what
+    # the sweep does once it is on, so it is turned on here rather than in
+    # fifteen places; the two tests that pin the OFF posture set it themselves.
+    monkeypatch.setenv("PARTNER_LEAD_REMINDER_ENABLED", "1")
     return box
 
 
@@ -306,3 +311,35 @@ def test_the_success_screen_offers_no_way_to_book():
     assert "Thank you for submitting." in sent_state
     assert "calendly" not in sent_state.lower()
     assert "PrimaryButton" not in sent_state
+
+
+def test_the_reminder_ships_off_because_nothing_can_mark_a_call_booked(monkeypatch):
+    """WHY: the reminder is gated on ``call_booked_at``, and the control that
+    sets it was going to live on the Systems tab's Partner-leads card, which
+    Case Generation Fix PRD §B3 deleted in the same window this was written.
+
+    Shipping it on anyway is the one option nobody chose: every health system
+    that had already booked would be asked to book. So the default is off, and
+    this pins the default rather than the behaviour, because a default is
+    exactly the kind of thing a later reader flips without noticing what it was
+    protecting.
+    """
+    monkeypatch.delenv("PARTNER_LEAD_REMINDER_ENABLED", raising=False)
+    assert partner_lead_nudge.enabled() is False
+    for on in ("1", "true", "yes", "on"):
+        monkeypatch.setenv("PARTNER_LEAD_REMINDER_ENABLED", on)
+        assert partner_lead_nudge.enabled() is True, on
+
+
+def test_a_disabled_sweep_claims_nothing_so_turning_it_on_loses_no_reminder(
+        client, store, sent, monkeypatch):
+    """The claim is what makes a reminder single-use, so a sweep that ran while
+    disabled must not spend one. If it did, the day this is switched on would be
+    the day every waiting lead silently lost its only follow-up."""
+    _submit(client)
+    _age_the_thanks(store, _row(store)["id"])
+    monkeypatch.setenv("PARTNER_LEAD_REMINDER_ENABLED", "0")
+    assert asyncio.run(partner_lead_nudge.sweep(store)) == {"reminder": 0}
+
+    monkeypatch.setenv("PARTNER_LEAD_REMINDER_ENABLED", "1")
+    assert asyncio.run(partner_lead_nudge.sweep(store)) == {"reminder": 1}

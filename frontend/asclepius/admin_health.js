@@ -140,7 +140,6 @@
     // card that used to sit beside it is gone — Case Generation Fix PRD §B3; the
     // lead rows stay on the server as the landing-form audit trail.)
     const requestsSlot = h('div', {});
-    const callsSlot = h('div', {});
     let rows;
     try {
       const res = await api('/admin/health-systems');
@@ -169,9 +168,7 @@
       card.appendChild(h('div', { class: 'asc-card-pad' },
         h('div', { class: 'asc-empty' },
           'No health systems yet. Send an organization its upload access and it will appear here.')));
-      container.appendChild(callsSlot);
       container.appendChild(card);
-      renderLeadsAwaitingCall(callsSlot, ctx);
       renderStoragePanel(container, ctx);
       renderDemoVideoPanel(container, ctx);
       return;
@@ -216,94 +213,12 @@
       })));
     card.appendChild(h('div', { class: 'asc-table-wrap' }, table));
     container.appendChild(pendingSlot);
-    container.appendChild(callsSlot);
     container.appendChild(requestsSlot);
     container.appendChild(card);
     renderPendingSignups(pendingSlot, ctx, container);
-    renderLeadsAwaitingCall(callsSlot, ctx);
     renderDataRequests(requestsSlot, ctx, container, rows);
     renderStoragePanel(container, ctx);
     renderDemoVideoPanel(container, ctx);
-  }
-
-  // ─── Health systems waiting on a call ─────────────────────
-  // NOT the Partner leads card. That one listed every lead from every landing
-  // form, read-only, and Case Generation Fix PRD §B3 deleted it because nobody
-  // read it; the rows and /api/leads/admin stayed as the audit trail and that
-  // is still true.
-  //
-  // This is a work queue with exactly one action on it, and it exists because
-  // the /partner follow-up reminder is gated on a human saying the call
-  // happened. Without somewhere to say it, every health system that already
-  // booked would get nudged to book. Health-system leads only, unbooked only,
-  // and it renders NOTHING when the queue is empty, so a quiet week shows an
-  // operator an empty tab rather than an empty box.
-  //
-  // The flip is a person's judgment rather than a Calendly webhook. The webhook
-  // is the better answer and needs configuration we do not have; until then a
-  // funnel an operator can drive beats one that mails everybody regardless.
-  async function renderLeadsAwaitingCall(slot, ctx) {
-    const { h, api, clear, toast, fmtDate } = ctx;
-    let rows;
-    try {
-      // Under /api rather than the asclepius prefix, which is where the lead
-      // reader has always lived.
-      const res = await api('/leads/admin?source=health_system_partner&limit=50',
-                            { base: '/api' });
-      rows = (res.leads || []).filter((r) => !r.call_booked_at);
-    } catch (e) {
-      // Quiet. This is a convenience queue beside the pipeline, and a lead
-      // reader that is down must not put an error banner across the tab an
-      // operator opened to approve a hospital.
-      return;
-    }
-    clear(slot);
-    if (!rows.length) return;
-
-    const card = h('div', { class: 'asc-card asc-hs-bucket' },
-      h('div', { class: 'asc-card-head' }, h('div', {},
-        h('div', { class: 'asc-card-title' }, 'Waiting on a call',
-          h('span', { class: 'asc-badge asc-badge-count', style: 'margin-left: var(--sp-2)' },
-            String(rows.length))),
-        h('div', { class: 'asc-card-sub' },
-          'Health systems that asked to talk to us and have not been marked as '
-          + 'booked. Each gets one reminder to book, then nothing.'))));
-
-    const body = h('div', { class: 'asc-card-pad' });
-    rows.forEach((r) => {
-      const trail = [];
-      if (r.thanks_sent_at) trail.push('thanks sent ' + fmtDate(r.thanks_sent_at));
-      if (r.reminder_sent_at) trail.push('reminder sent ' + fmtDate(r.reminder_sent_at));
-      if (r.referred_by) trail.push('referred by ' + r.referred_by);
-
-      const bookedBtn = h('button', {
-        class: 'asc-btn asc-btn-subtle asc-btn-sm',
-      }, 'Call booked');
-      bookedBtn.addEventListener('click', async () => {
-        bookedBtn.disabled = true;
-        try {
-          await api('/leads/admin/' + encodeURIComponent(r.id) + '/booked',
-                    { base: '/api', method: 'POST' });
-          toast('Marked as booked. No reminder will go out.', 'success');
-          renderLeadsAwaitingCall(slot, ctx);
-        } catch (e) {
-          bookedBtn.disabled = false;
-          toast(e.message || 'Could not mark that as booked.', 'error');
-        }
-      });
-
-      body.appendChild(h('div', { class: 'asc-hs-callrow' },
-        h('div', {},
-          h('div', { class: 'asc-hs-callwho' },
-            h('a', { href: 'mailto:' + r.email }, r.email),
-            h('span', { class: 'asc-dim' }, ' · ' + fmtDate(r.created_at))),
-          trail.length
-            ? h('div', { class: 'asc-card-sub' }, trail.join(' · '))
-            : null),
-        bookedBtn));
-    });
-    card.appendChild(body);
-    slot.appendChild(card);
   }
 
   // ─── Data requests ────────────────────────────────────────

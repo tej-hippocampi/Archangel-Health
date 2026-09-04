@@ -720,17 +720,3 @@
   gap: 10px;
 }
 .asc-review-case { background: var(--card); }
-
-/* The "Waiting on a call" queue: one lead per row, the action on the right.
-   Same bucket chrome as "Waiting on you" above it, because they are the same
-   kind of object to an operator - a thing to act on, not a thing to read. */
-.asc-hs-callrow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  padding: var(--sp-2) 0;
-  border-bottom: 1px solid var(--hairline);
-}
-.asc-hs-callrow:last-child { border-bottom: 0; }
-.asc-hs-callwho { font-size: 13px; }
