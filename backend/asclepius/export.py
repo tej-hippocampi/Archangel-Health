@@ -28,7 +28,7 @@ import zipfile
 import realm as _realm
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("asclepius.export")
 
@@ -47,10 +47,20 @@ JSONL_NAME = "records.jsonl"
 CASES_NAME = "cases.jsonl"
 MANIFEST_NAME = "batch.json"
 DICTIONARY_NAME = "data_dictionary.md"
-#: Buyer-facing label for each portal version. One table, so a new version cannot
-#: be added to one document and missed in another — and an unknown version reads as
-#: unknown rather than being silently labelled as the default (v5 used to render as
-#: "assisted" here, which is what a stale vocabulary looks like from the outside).
+DATASHEET_NAME = "datasheet.md"
+
+
+def _portal_version_legend() -> str:
+    """The portal-version legend, rendered from the one table. Hand-maintained
+    copies of this vocabulary are how `v5` came to render as "assisted" in one
+    document while another listed it correctly."""
+    return " · ".join(f"{k.upper()} {v}" for k, v in PORTAL_VERSION_LABELS.items())
+QUALITY_NAME = "quality_report.md"
+
+#: Buyer-facing label for each portal version. ONE table: a version added to one
+#: document and missed in another is how `v5` rendered as "assisted" in the quality
+#: report while the datasheet listed it correctly. An unknown version must read as
+#: unknown here, never fall through to a plausible default.
 PORTAL_VERSION_LABELS = {
     "v1": "classic",
     "v2": "assisted",
@@ -58,9 +68,6 @@ PORTAL_VERSION_LABELS = {
     "v4": "REAL de-identified cases",
     "v5": "REAL longitudinal chart walks",
 }
-
-DATASHEET_NAME = "datasheet.md"
-QUALITY_NAME = "quality_report.md"
 # Grader export (FEAT-2): shipped alongside the data when the batch carries rubric
 # records, so a buyer can run rubric-based LLM-as-judge scoring out of the box.
 GRADER_PROMPT_NAME = "grader_prompt.txt"
@@ -726,19 +733,31 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
     # partner_ehr chart with a model-authored question. A datasheet that names a
     # field value the records do not carry is a contradiction a buyer finds with
     # one grep, so the value is read out of the records instead of typed here.
-    sources: Dict[str, int] = {}
+    # CHART provenance is ``case_source``, and ``_case_provenance`` already
+    # computes it — the same count the manifest ships. ``source`` is TASK ORIGIN
+    # (constants.TASK_SOURCES), a different axis, and naming it "chart" here is
+    # what produced the contradiction this section exists to avoid. Both are
+    # reported, each under its own name, each counted off the records.
+    # Ties sort by name so two cuts of one set cannot render different text.
+    def _tally(pairs: Dict[str, int], noun: str) -> str:
+        return " · ".join(
+            f"**{n}/{len(records)}** `{k}`"
+            for k, n in sorted(pairs.items(), key=lambda kv: (-kv[1], kv[0]))
+        ) or f"no {noun} recorded"
+
+    chart_line = _tally(_case_provenance(records), "case_source")
+    origins: Dict[str, int] = {}
+    n_no_origin = 0
     for r in records:
-        s = (r.get("payload") or {}).get("source") or "unspecified"
-        sources[s] = sources.get(s, 0) + 1
-    source_line = " · ".join(
-        f"**{n}/{len(records)}** carry `source: {s}`"
-        + (" — a real encounter de-identified by the data partner before transfer"
-           if s == "partner_ehr" else
-           " — authored from the internal prompt bank, not a real encounter"
-           if s == "internal_prompt_bank" else
-           " — supplied by the buyer" if s == "lab_supplied" else "")
-        for s, n in sorted(sources.items(), key=lambda kv: -kv[1])
-    ) or "no `source` recorded"
+        s = (r.get("payload") or {}).get("source")
+        if s:
+            origins[s] = origins.get(s, 0) + 1
+        else:
+            # Counted as absent, never rendered as a made-up value: a datasheet
+            # naming `source: unspecified` sends the buyer to grep records.jsonl
+            # for a string that is not in TASK_SOURCES and not in the file.
+            n_no_origin += 1
+    origin_line = _tally(origins, "`source`")
     if ratified:
         ratify_line = (
             "- The seed corpus driving generation is **clinician-ratified**."
@@ -757,7 +776,7 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
         ratify_line = (
             "- ⚠️ **The seed corpus driving generation is NOT yet clinician-ratified** "
             "(`seed_corpus_ratified: false`). These prompts are AI-drafted and pending "
-            "nephrologist sign-off; treat the prompt material as provisional. The expert "
+            "specialist sign-off; treat the prompt material as provisional. The expert "
             "training signal is the specialist's chosen/ideal answer and revision — not "
             "the synthetic prompt itself."
         )
@@ -767,7 +786,14 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
 Where the CHART came from and where the QUESTION came from are two independent
 axes. They are stated separately because collapsing them into one word is how a
 real de-identified chart gets described as a synthetic dataset.
-- **Chart:** {source_line}
+- **Chart** (`context.case_source`, the same count the manifest reports under
+  `case_provenance`): {chart_line}. `real_deid` is a real encounter de-identified
+  by the data partner before transfer; `synthetic` is authored against a
+  clinician-curated archetype; `unspecified` is a text record carrying no case.
+- **Task origin** (`source`, where the task entered the portal — a different axis
+  from both the chart and the question): {origin_line}{f" · **{n_no_origin}/{len(records)}** record(s) carry no `source`" if n_no_origin else ""}.
+  Defined in `data_dictionary.md`; no gloss is asserted here that the field does
+  not carry.
 - **Question:** **{len(synthetic)}/{len(records)}** records carry a model-authored
   question, counted in the manifest as `model_generated_question_count`. Questions
   were synthesized by the Asclepius Seedmaker engine, grounded in a curated
@@ -953,7 +979,7 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 - Total records: **{counts['total']}**
 {type_lines}
 - Specialties: {", ".join(specialties) or "n/a"}
-- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} (V1 classic · V2 assisted · V3 seamless synthetic · **V4 REAL de-identified static cases** · **V5 REAL longitudinal chart walks**)
+- By product version: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_portal_version', {}).items())) or "n/a"} ({_portal_version_legend()})
 - By modality: {", ".join(f"{k} — {v}" for k, v in sorted(counts.get('by_modality', {}).items())) or "n/a"} (text vs structured-multimodal case)
 {_composition_scope_line(scope)}
 {_longitudinal_scope_md(records)}
@@ -1197,12 +1223,15 @@ more than by an hourly rate. The count is stated so the pool is fully described.
 {conf_lines}
 
 ## QA & integrity flags
-- **This batch**: {batch_subs} submission(s), {counts['total']} records, all
-  export-ready — a record is not emitted until its submission clears QA, so every
-  record here passed. This is a statement about what shipped, not a pass RATE:
-  submissions that failed QA are not in this cut to be counted.
-- QA pass rate — platform-wide to date, for context and NOT a statistic about this
-  batch: **{qa.get('pass_rate')}** ({qa.get('passed')}/{qa.get('reviewed')} reviewed submissions)
+- **This batch**: {batch_subs} submission(s), {counts['total']} records, all of
+  which reached `export_ready`. That is a statement of what shipped, not a pass
+  RATE: a submission that did not reach `export_ready` is not in this cut, so a
+  per-batch rate would have the batch as its own denominator and read 1.0 always.
+- Packaging outcome rate, platform-wide to date — context, NOT a statistic about
+  this batch: **{qa.get('pass_rate')}** ({qa.get('passed')} of {qa.get('reviewed')}
+  submissions that reached a terminal packaging outcome, i.e. `export_ready`,
+  `exported` or `rejected`). Submissions still in flight are outside both numbers,
+  and this figure does not assert how many submissions a human reviewed.
 - Average agreement (this batch): {avg_agreement if avg_agreement is not None else "n/a"}
 - Too-fast (time-floor) flags: {flags.get('too_fast', 0)}
 - Duplicate flags: {flags.get('duplicate', 0)}
@@ -2266,9 +2295,14 @@ def build_export(
     # the cut was against a licensed key, even though every record carries one. A
     # consumer reading batch.json alone could not name the terms it shipped under,
     # and ``scripts/export_audit.py`` failed every unlicensed bundle on exactly that.
-    # Single-valued or None: a mixed batch asserts nothing rather than picking one.
-    def _sole(values: Iterable[Any]) -> Optional[Any]:
-        uniq = {v for v in values if v is not None}
+    # Read off ``mapped_objs`` — the objects records.jsonl is written from — never
+    # off ``emitted``, which is the raw store record and carries the CAPTURED
+    # values. Single-valued or None: a mixed batch asserts nothing rather than
+    # picking one, and a value absent from the shipped lines is absent here too,
+    # so ``export_audit.py``'s "records no 'specialty'" check still fires instead
+    # of being satisfied by a sentinel this function invented.
+    def _sole(key: str) -> Optional[Any]:
+        uniq = {m.get(key) for m in mapped_objs if m.get(key) is not None}
         return uniq.pop() if len(uniq) == 1 else None
 
     manifest = {
@@ -2276,9 +2310,11 @@ def build_export(
         "created_at": exported_at,
         "created_by": created_by,
         "profile": profile_name,
-        "license": _sole((r.get("payload") or {}).get("license") for r in emitted),
-        "specialty": _sole(counts.get("by_specialty", {})),
-        "portal_version": _sole(counts.get("by_portal_version", {})),
+        # ``_license_terms`` is the license stamped onto every emitted line at
+        # ship time; the manifest states that same value, never the captured one.
+        "license": _license_terms,
+        "specialty": _sole("specialty"),
+        "portal_version": _sole("portal_version"),
         "preference_variant": prof.get("preference_variant", "flat"),
         "record_count": len(emitted),
         "submission_count": len({r["submission_id"] for r in emitted}),

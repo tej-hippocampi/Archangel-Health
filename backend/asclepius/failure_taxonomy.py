@@ -253,7 +253,7 @@ def taxonomy_markdown(bundle: Dict[str, Any]) -> str:
 # The runnable per-failure-mode scorer shipped in failure_eval/ (§D-4). Reuses the
 # rubric grader contract (grader_prompt.txt / score.py) and rolls scores up by mode.
 SCORE_FAILUREMODE_PY = '''#!/usr/bin/env python3
-"""Per-failure-mode eval scorer (Asclepius §D-4).
+"""Per-failure-mode eval scorer.
 
 Runs YOUR model against the held-out cases and scores each answer with the shipped
 rubric grader (grader_prompt.txt), then rolls the results up BY FAILURE MODE — e.g.

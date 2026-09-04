@@ -128,10 +128,14 @@ def test_export_writes_all_companions_and_manifest():
     # indirectly — specialty in `scope`, portal version in `counts` — and the
     # license nowhere at all unless the cut was against a licensed key, which is
     # what failed every unlicensed bundle in scripts/export_audit.py.
-    assert batch["license"] == json.loads(
-        (out_dir / "records.jsonl").read_text().strip().splitlines()[0])["license"]
-    assert batch["specialty"] == "nephrology"
-    assert batch["portal_version"] in (None, "v1", "v2", "v3", "v4", "v5")
+    shipped = [json.loads(l) for l in
+               (out_dir / "records.jsonl").read_text().strip().splitlines()]
+    # Every value the manifest asserts must be the value the LINES carry. Read off
+    # the file, not off the manifest's own inputs, or the assertion is circular.
+    assert batch["license"] == shipped[0]["license"]
+    assert {r["license"] for r in shipped} == {batch["license"]}
+    assert batch["specialty"] == shipped[0]["specialty"]
+    assert batch["portal_version"] == shipped[0]["portal_version"]
 
     # records.jsonl validates as JSON, one object per line, carrying provenance.
     lines = (out_dir / "records.jsonl").read_text().strip().splitlines()
@@ -288,15 +292,36 @@ def _partner_ehr_rec():
 def test_datasheet_never_asserts_a_source_the_records_do_not_carry():
     md = _synthetic_provenance_md([_partner_ehr_rec(), _partner_ehr_rec()])
     # The value the records actually carry, stated; the one they do not, absent.
-    assert "`source: partner_ehr`" in md
-    assert "source: internal_prompt_bank" not in md
-    # Chart provenance and question authorship stay separate axes.
-    assert "**Chart:**" in md and "**Question:**" in md
+    assert "`partner_ehr`" in md
+    assert "internal_prompt_bank" not in md
+    # Chart, task origin and question authorship stay three separate axes.
+    assert "**Chart**" in md and "**Task origin**" in md and "**Question:**" in md
+
+
+def test_datasheet_reports_chart_and_task_origin_as_separate_axes():
+    """`source` is task origin; `case_source` is where the chart came from. The
+    datasheet used to answer 'where did the chart come from' with `source`, which
+    is a different question with a different vocabulary."""
+    rec = {"payload": {
+        "source": "partner_ehr",
+        "context": {"case_source": "real_deid"},
+        "prompt_clinician_reviewed": True,
+        "generation": {"seed_corpus_version": "nephrology.v1"},
+    }}
+    md = _synthetic_provenance_md([rec, rec])
+    assert "`real_deid`" in md and "context.case_source" in md
+    assert "`partner_ehr`" in md and "`source`" in md
+    # No gloss invented for a value, and no value invented for an absent field.
+    md_missing = _synthetic_provenance_md([{"payload": {
+        "generation": {"seed_corpus_version": "x"}}}])
+    assert "unspecified`" not in md_missing.split("Task origin")[1].split("\n-")[0]
+    assert "carry no `source`" in md_missing
 
 
 def test_datasheet_still_names_internal_prompt_bank_when_that_is_the_source():
     md = _synthetic_provenance_md([_synthetic_rec(reviewed=True)])
-    assert "`source: internal_prompt_bank`" in md
+    assert "`internal_prompt_bank`" in md
+    assert "partner_ehr" not in md
 
 
 def test_quality_report_labels_the_platform_wide_qa_figure():
@@ -309,26 +334,71 @@ def test_quality_report_labels_the_platform_wide_qa_figure():
         stats={"qa_pass_rate": {"pass_rate": 1.0, "passed": 37, "reviewed": 37},
                "kappa": {}, "flag_counts": {}, "contributors": []},
     )
-    # A store-wide number may appear, but never unqualified under a batch heading:
-    # a 1-record batch reporting a bare "37/37" is what shipped before.
-    assert "platform-wide" in md
-    assert "NOT a statistic about this" in md
-    # And the batch's own line claims a fact, not a pass rate it did not measure.
-    assert "not a pass RATE" in md
+    batch_line = next(l for l in md.splitlines() if l.startswith("- **This batch**"))
+    # The batch line carries the BATCH's numbers and none of the store's.
+    assert "1 submission(s), 1 records" in batch_line
+    assert "37" not in batch_line
+    # The store-wide figure may appear, but never unqualified under a per-batch
+    # heading: an unlabelled "37/37" in a 1-record batch is what shipped before.
+    flat = " ".join(md.split())
+    assert "platform-wide to date — context, NOT a statistic about this batch" in flat
+    assert "**1.0** (37 of 37" in flat
+    # It must not be called a QA pass rate over "reviewed" submissions: the
+    # denominator is export_ready + exported + rejected, which is a packaging
+    # outcome, not evidence anybody reviewed anything.
+    assert "reviewed submissions" not in md
 
 
-def test_quality_report_does_not_mislabel_an_unknown_portal_version():
+def test_manifest_license_is_the_shipped_license_not_the_captured_one():
+    """The license is re-stamped at emit, so a record captured under the old NC
+    license ships commercial. The manifest must say what shipped: reading it off
+    the stored record instead put `CC-BY-NC-4.0-clinical-eval` in batch.json
+    beside `archangel-commercial-v1` in records.jsonl — and tripped
+    export_audit.py's non-commercial check on a wholly commercial bundle."""
+    admin_h, ev_h = _admin_h(), _evaluator_h()
+    _submit_export_ready(admin_h, ev_h)
+    store = _store()
+    # Rewrite one record's CAPTURED license to the historical NC value — the state
+    # the entire back catalogue is actually in, and which is deliberately never
+    # migrated (export.py re-stamps at emit instead).
+    rows = store.list_records(status="export_ready")
+    assert rows, "no export_ready records to patch"
+    store.patch_record_payload(rows[0]["record_id"],
+                               {"license": "CC-BY-NC-4.0-clinical-eval"})
+
+    manifest = client.post("/api/asclepius/exports", json={"profile": "default"},
+                           headers=admin_h).json()
+    out_dir = Path(manifest["dir_path"])
+    batch = json.loads((out_dir / "batch.json").read_text())
+    shipped = {json.loads(l)["license"]
+               for l in (out_dir / "records.jsonl").read_text().strip().splitlines()}
+    assert shipped == {batch["license"]}, (
+        f"manifest says {batch['license']!r}, lines carry {shipped!r}")
+    assert "NC" not in batch["license"]
+
+
+def test_quality_report_labels_an_unknown_portal_version_as_unknown():
     from asclepius.export import _quality_report_md, PORTAL_VERSION_LABELS
 
+    # v5 is a KNOWN version that used to fall through a dict default to
+    # "assisted"; v9 is genuinely unknown and must not be given a plausible label.
+    for known in PORTAL_VERSION_LABELS:
+        md = _quality_report_md(
+            export_id="exp-t", profile_name="default",
+            records=[{"payload": {"portal_version": known}, "type": "preference",
+                      "submission_id": "s-1"}],
+            stats={"kappa": {}, "flag_counts": {}, "contributors": []},
+        )
+        assert f"{known} ({PORTAL_VERSION_LABELS[known]})" in md
     md = _quality_report_md(
         export_id="exp-t", profile_name="default",
-        records=[{"payload": {"portal_version": "v5"}, "type": "preference",
+        records=[{"payload": {"portal_version": "v9"}, "type": "preference",
                   "submission_id": "s-1"}],
         stats={"kappa": {}, "flag_counts": {}, "contributors": []},
     )
-    # v5 used to render as "assisted" via a dict default — a silent mislabel.
-    assert PORTAL_VERSION_LABELS["v5"] in md
-    assert "v5 (assisted)" not in md
+    assert "v9 (unrecognised portal version)" in md
+    for label in PORTAL_VERSION_LABELS.values():
+        assert f"v9 ({label})" not in md
 
 
 def test_data_dictionary_covers_every_vocabulary_value_the_records_can_carry():
@@ -342,18 +412,33 @@ def test_data_dictionary_covers_every_vocabulary_value_the_records_can_carry():
         assert f"`{version}`" in dd, f"data_dictionary.md does not define {version!r}"
 
 
-def test_companions_carry_no_internal_spec_references():
-    """PRD/opt section numbers point at documents the buyer cannot open."""
-    from asclepius.export import _data_dictionary_md, _quality_report_md, _SCORE_PY
+def test_no_shipped_text_artifact_carries_an_internal_spec_reference():
+    """PRD/opt section numbers point at documents no buyer can open.
 
-    shipped = [
-        _data_dictionary_md("default"),
-        _quality_report_md(export_id="exp-t", profile_name="default",
-                           records=[{"payload": {}, "type": "preference",
-                                     "submission_id": "s-1"}],
-                           stats={"kappa": {}, "flag_counts": {}, "contributors": []}),
-        _SCORE_PY,
-    ]
-    for doc in shipped:
-        assert "§" not in doc, "an internal spec reference is shipping to the buyer"
-        assert "FEAT-" not in doc and "PRD" not in doc
+    Asserted over every generated text artifact, not a sample of them: checking
+    three functions while claiming a property of the bundle is how
+    `failure_eval/score_failuremode.py` kept shipping `§D-4` after its sibling
+    `score.py` was cleaned.
+    """
+    from asclepius import export as E
+    from asclepius.failure_taxonomy import SCORE_FAILUREMODE_PY
+
+    empty_stats = {"kappa": {}, "flag_counts": {}, "contributors": []}
+    rec = [{"payload": {"portal_version": "v4", "source": "partner_ehr",
+                        "generation": {"seed_corpus_version": "x"}},
+            "type": "preference", "submission_id": "s-1"}]
+    artifacts = {
+        "data_dictionary.md": E._data_dictionary_md("default"),
+        "quality_report.md": E._quality_report_md(
+            export_id="exp-t", profile_name="default", records=rec, stats=empty_stats),
+        "datasheet.md": E._datasheet_md(
+            export_id="exp-t", profile_name="default", counts=E._counts(rec),
+            records=rec, contributors=[], scope=None, eval_pack=None),
+        "score.py": E._SCORE_PY,
+        "grader_prompt.txt": E._GRADER_PROMPT,
+        "failure_eval/score_failuremode.py": SCORE_FAILUREMODE_PY,
+    }
+    for name, doc in artifacts.items():
+        assert "§" not in doc, f"{name} ships an internal spec reference"
+        assert "FEAT-" not in doc, f"{name} ships a ticket id"
+        assert "PRD" not in doc, f"{name} ships an internal document name"
