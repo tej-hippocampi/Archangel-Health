@@ -1419,7 +1419,7 @@ async def retier_physician(
         try:
             emailed = bool(await send_html_email(
                 user["email"],
-                "You're now a reviewer on Asclepius",
+                "You're now a reviewer on Archangel Health",
                 build_asclepius_promoted_email(
                     full_name=(user.get("full_name") or "").strip(),
                     workspace_url=_portal_base() + "/asclepius",

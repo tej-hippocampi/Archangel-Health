@@ -951,7 +951,7 @@ def _ensure_director_person(ts: Any, row: Dict[str, Any]) -> Optional[str]:
 
 def _require_asclepius(row: Dict[str, Any]) -> None:
     if (row.get("product") or "archangel").strip().lower() != "asclepius":
-        raise HTTPException(status_code=409, detail="This workspace is not an Asclepius workspace.")
+        raise HTTPException(status_code=409, detail="This workspace is not an evaluation workspace.")
 
 
 #: Grace window before a signup alert sends. The agent normally reports in well
@@ -1009,7 +1009,7 @@ def _queue_verification_and_alert(store: Any, user_id: str) -> None:
             idempotency_key=(f"signup|{user_id}" if len(recipients) == 1
                              else f"signup|{user_id}|{addr}"),
             kind="signup",
-            subject=f"[Asclepius] New signup: {name}",
+            subject=f"[Archangel Health] New signup: {name}",
             body_html=body,
             recipient_email=addr,
             send_after=send_after,
@@ -1931,7 +1931,7 @@ async def asclepius_finish(body: OnboardTokenBody, request: Request):
             partner_url=_partner_intro_url(request, director_email),
         )
         await send_html_email(
-            director_email, "Your Asclepius workspace is ready", html_body,
+            director_email, "Your Archangel Health workspace is ready", html_body,
             importance_headers=True
         )
     return {"ok": True, "workspace_url": workspace_url, "token": session_token,
@@ -2087,7 +2087,7 @@ async def member_finish(body: OnboardTokenBody, request: Request):
         partner_url=_partner_intro_url(request, person["email"]),
     )
     await send_html_email(
-        person["email"], "Your Asclepius workspace is ready", html_body, importance_headers=True
+        person["email"], "Your Archangel Health workspace is ready", html_body, importance_headers=True
     )
     # Mint a session, exactly as the director path does. This route returned no
     # token at all, so an INVITED clinician could never land signed in: they

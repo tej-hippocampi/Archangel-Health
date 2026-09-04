@@ -98,7 +98,7 @@ def _asclepius_mock_account(urls: Dict[str, str]) -> List[Dict[str, Any]]:
     return [
         {
             "id": "asclepius-mock-contributor",
-            "label": "Asclepius — Mock Contributor Account",
+            "label": "Archangel Health Mock Contributor Account",
             "role": "Evaluator · sandbox (data excluded from exports)",
             "email": cfg["email"],
             "password": cfg["password"],

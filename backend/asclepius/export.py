@@ -479,7 +479,7 @@ def _passes_filters(
 
 # ─── Companions ───────────────────────────────────────────────────────────────
 def _data_dictionary_md(profile_name: str) -> str:
-    return f"""# Asclepius Export — Data Dictionary
+    return f"""# Archangel Health Export: Data Dictionary
 
 Buyer profile: `{profile_name}` · Taxonomy version: `{ASCLEPIUS_TAXONOMY_VERSION}` · Config version: `{ASCLEPIUS_CONFIG_VERSION}`
 
@@ -735,7 +735,7 @@ def _synthetic_provenance_md(records: List[Dict[str, Any]]) -> str:
 ## Synthetic prompt provenance (Seedmaker)
 - **{len(synthetic)}/{len(records)}** records derive from internally auto-generated
   prompts (`source: internal_prompt_bank`), not lab-supplied content.
-- Prompts were synthesized by the Asclepius Seedmaker engine, grounded in a
+- Prompts were synthesized by the Archangel Health Seedmaker engine, grounded in a
   curated nephrology seed corpus{(' (versions: ' + ', '.join(versions) + ')') if versions else ''},
   then novelty-/contamination-checked and passed an error-likelihood quality gate
   before any specialist evaluated them.
@@ -904,7 +904,7 @@ def _datasheet_md(*, export_id: str, profile_name: str, counts: Dict[str, Any],
         f"{c.get('submissions')} submissions, {c.get('total_hours')}h"
         for c in contributors
     ) or "- n/a"
-    return f"""{SANDBOX_STAMP_MD if _realm.is_sandbox() else ""}# Datasheet — Asclepius Expert Evaluation Export `{export_id}`
+    return f"""{SANDBOX_STAMP_MD if _realm.is_sandbox() else ""}# Datasheet: Archangel Health Expert Evaluation Export `{export_id}`
 
 Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 
@@ -926,7 +926,7 @@ examples, and PRM800K-style step-level reasoning traces for frontier-lab trainin
 {_synthetic_provenance_md(records)}
 
 ## Collection process
-Answers were evaluated in the Asclepius portal. Each submission was
+Answers were evaluated in the Archangel Health portal. Each submission was
 auto-packaged, schema-validated (completeness, time-floor, PHI scan, dedupe,
 contamination), double-checked by an LLM consistency critic, and gated through
 human QA (sampled + all flagged) before becoming export-ready.
@@ -1114,7 +1114,7 @@ is reported separately below.
         f"premium {c.get('premium_submissions')} ({c.get('premium_hours')}h)"
         for c in contributors
     ) or "- n/a"
-    return f"""# Quality Report — Asclepius Export `{export_id}`
+    return f"""# Quality Report: Archangel Health Export `{export_id}`
 
 Generated: {datetime.utcnow().isoformat()}Z · Buyer profile: `{profile_name}`
 
@@ -1290,7 +1290,7 @@ def _points_of(c: Dict[str, Any]) -> float:
 
 
 _SCORE_PY = '''#!/usr/bin/env python3
-"""Rubric-based LLM-as-judge scorer for an Asclepius export (FEAT-2).
+"""Rubric-based LLM-as-judge scorer for an Archangel Health export (FEAT-2).
 
 Reads the rubric records from ``records.jsonl`` and scores a candidate answer
 against each rubric\'s weighted criteria using an LLM judge with ``grader_prompt.txt``.
@@ -1301,7 +1301,7 @@ Usage:
     python score.py --answers-file answers.jsonl   # {"task_id":..., "answer":...} per line
 
 With no API key it prints the rubric(s) it WOULD score so the pipeline is inspectable offline.
-This file is a runnable scaffold — adapt the model id / provider to your stack.
+This file is a runnable scaffold: adapt the model id / provider to your stack.
 """
 import argparse, json, os, sys, pathlib
 
@@ -1458,7 +1458,7 @@ def _eval_pack_summary(rubric_records: List[Dict[str, Any]]) -> Dict[str, Any]:
     recurring_value = round(sum(_rubric_marginal(r) for r in rubric_records), 2)
     return {
         "sku": "asclepius_eval_pack",
-        "title": "Asclepius Rubric Eval Pack",
+        "title": "Archangel Health Rubric Eval Pack",
         "licensing": "re-licensable-per-model-version",
         "billing": "recurring",
         # The eval pack's discriminative validity is proven against ONE model version;
@@ -1510,7 +1510,7 @@ def _eval_pack_md(export_id: str, summary: Dict[str, Any]) -> str:
     standalone reusable grader that re-licenses per model version (recurring), and how
     to run it. This file is what makes the eval pack legible as a separate line item."""
     files = "\n".join(f"- `{f}`" for f in summary["files"])
-    return f"""# Asclepius Rubric Eval Pack — `{export_id}`
+    return f"""# Archangel Health Rubric Eval Pack: `{export_id}`
 
 **SKU:** `{summary['sku']}` · **Billing:** {summary['billing']} ·
 **Licensing:** {summary['licensing']}

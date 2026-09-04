@@ -412,7 +412,7 @@ def get_current_account(
     to pick one is restrictive rather than open.
     """
     if user is None:
-        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+        raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     # Deny-by-default (EHR PRD §4): a ``data_partner`` may use ONLY the locked-down
     # provider portal endpoints (``require_data_partner``). Since every evaluator /
     # admin / QA path depends on this, denying the role here excludes it from the
@@ -506,7 +506,7 @@ def require_data_partner(
     an evaluator/admin/QA token is rejected here, and a ``data_partner`` is
     rejected everywhere else (see ``get_current_user``)."""
     if user is None:
-        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+        raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     if user.get("role") != "data_partner":
         raise HTTPException(status_code=403, detail="Data provider role required")
     return user
@@ -519,7 +519,7 @@ def require_buyer(
     evaluator/admin/QA/data_partner token is rejected here, and a ``buyer`` is
     rejected everywhere else (see ``get_current_user``)."""
     if user is None:
-        raise HTTPException(status_code=401, detail="Asclepius authentication required")
+        raise HTTPException(status_code=401, detail="Archangel Health authentication required")
     if user.get("role") != "buyer":
         raise HTTPException(status_code=403, detail="Buyer role required")
     return user
