@@ -2352,10 +2352,14 @@ def build_hs_data_request_email(*, title: str, specialty_label: str,
     reply would be the only one who ever answered a second one.
     """
     noun = "case" if case_count == 1 else "cases"
-    rows = [
-        ("Specialty", specialty_label, False),
-        ("How many", f"{case_count} {noun}", False),
-    ]
+    # A message-only request (Case Generation Fix PRD §B4) carries no specialty
+    # and no count; the message is the request, and a card reading "Any · 0
+    # cases" would say less than nothing.
+    rows = []
+    if (specialty_label or "").strip().lower() not in ("", "any"):
+        rows.append(("Specialty", specialty_label, False))
+    if int(case_count or 0) > 0:
+        rows.append(("How many", f"{case_count} {noun}", False))
     if (due_date or "").strip():
         rows.append(("Useful by", due_date.strip()[:10], True))
     detail_block = ""
@@ -2366,7 +2370,7 @@ def build_hs_data_request_email(*, title: str, specialty_label: str,
         + _h1(html.escape(title))
         + _p("We are looking for de-identified cases from our partner health "
              "systems, and this is what we need right now.")
-        + _inset_card(_detail_rows(rows))
+        + (_inset_card(_detail_rows(rows)) if rows else "")
         + detail_block
         + _cta(portal_url, "Upload in your portal →")
         + _p("Several partners are being asked for this, and more than one may "

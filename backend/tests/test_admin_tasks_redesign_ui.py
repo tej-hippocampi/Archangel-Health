@@ -702,3 +702,117 @@ setTimeout(function () {
     assert "Send" in out["text"], out["text"][:200]
     # And the preview gate is present rather than skipped by the crash.
     assert "Open one of these cases first" in out["text"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Case Generation Fix PRD §B1 / §A5 — the row, and the specialty gate on Build
+# ═══════════════════════════════════════════════════════════════════════════════
+_CONTENT_UPLOADS = """
+var UPLOADS = { uploads: [
+  { upload_id:'u-gs', partner_label:'Gray Scrubs Hospitals', filename:'patient-4-abc.zip',
+    size_bytes: 266240, created_at:'2026-08-09T23:45:00', verified_at:'x',
+    staging:'undecided', purpose:null, specialties:[], description:null,
+    content:{ charts:1, encounters:12, notes:79, lab_panels:45, studies:0,
+              specialty_inferred:'hepatology', specialty_confidence:0.71,
+              specialty_clears_floor:true, specialty_floor:0.6 },
+    case_counts:{total:1,ingested:1,promoted:0,needs_review:0,quarantined:0},
+    tasks_created:0, task_creation_complete:false },
+  { upload_id:'u-low', partner_label:'St Mary', filename:'p3.zip', size_bytes: 3145728,
+    created_at:'2026-08-10T00:00:00', staging:'task_creation', purpose:'task_creation',
+    specialties:[], description:null, task_mode:'longitudinal',
+    content:{ charts:1, encounters:5, notes:155, lab_panels:113, studies:0,
+              specialty_inferred:'nephrology', specialty_confidence:0.38,
+              specialty_clears_floor:false, specialty_floor:0.6 },
+    case_counts:{total:1,ingested:1,promoted:0,needs_review:0,quarantined:0},
+    tasks_created:0, task_creation_complete:false },
+  { upload_id:'u-old', partner_label:'Legacy Row', filename:'old.zip', size_bytes:1048576,
+    created_at:'2026-07-01T00:00:00', staging:'task_creation', purpose:'task_creation',
+    specialties:[], description:null, task_mode:'longitudinal',
+    content:{ charts:1, encounters:0, notes:40, lab_panels:12, studies:0,
+              specialty_inferred:null, specialty_confidence:null,
+              specialty_clears_floor:null, specialty_floor:null },
+    case_counts:{total:1,ingested:1,promoted:0,needs_review:0,quarantined:0},
+    tasks_created:0, task_creation_complete:false },
+  { upload_id:'u-set', partner_label:'Alpha', filename:'a.zip', size_bytes:1048576,
+    created_at:'2026-08-29T00:00:00', staging:'task_creation', purpose:'task_creation',
+    specialties:['hepatology'], description:null, task_mode:'longitudinal',
+    content:{ charts:1, encounters:22, notes:300, lab_panels:100, studies:0,
+              specialty_inferred:'hepatology', specialty_confidence:0.9,
+              specialty_clears_floor:true, specialty_floor:0.6 },
+    case_counts:{total:1,ingested:1,promoted:0,needs_review:0,quarantined:0},
+    tasks_created:0, task_creation_complete:false },
+]};
+function api(path, opts) {
+  CALLS.push((opts && opts.method || 'GET') + ' ' + path);
+  if (path === '/specialties') return Promise.resolve({ specialties: ['hepatology', 'nephrology'] });
+  return Promise.resolve(UPLOADS);
+}
+var state = { dataCreation: null, adminSub: { work: 'tasks' } };
+// The real picker loads /specialties and posts the choice; here the property
+// under test is that the ROW offers it and gates Build on it, so a marker span
+// carrying the picker's class stands in for the control.
+function specialtyResolver(uploadId, onDone) {
+  CALLS.push('specialtyResolver:' + uploadId);
+  return h('span', { class: 'asc-spec-resolver' });
+}
+"""
+
+
+def _content_page(after: str) -> dict:
+    return _run(_CONTENT_UPLOADS + CREATION + f"""
+var body = document.createElement('div');
+renderAdminTasks(body);
+setTimeout(function () {{ {after} }}, 30);
+""")
+
+
+def test_a_box_one_row_reads_one_chart_with_its_counts_and_the_inferred_specialty():
+    """§B1: "Gray Scrubs Hospitals · patient-4-abc.zip · 260 KB · SHA ✓" then
+    "Hepatology (inferred 0.71) · 1 chart · 12 encounters · 79 notes · 45
+    panels". Not "3 case(s)", not "0 MB", not "Unknown sender"."""
+    out = _content_page("console.log(JSON.stringify({ text: tidy(body) }));")
+    t = out["text"]
+    assert "Gray Scrubs Hospitals" in t and "patient-4-abc.zip" in t
+    assert "260 KB" in t
+    assert not re.search(r"(?<![\d.])0 MB", t), "a 260 KB bundle must not round to 0 MB"
+    assert "Hepatology (inferred 0.71)" in t
+    assert "1 chart · 12 encounters · 79 notes · 45 panels" in t
+    assert "No description was sent with this bundle." in t
+    assert "case(s)" not in t.split("Task creation")[0], "Box 1 counts charts, not cases"
+    assert "cannot be undone" not in t, "irreversibility belongs to the confirm dialog, not the heading"
+
+
+def test_build_is_disabled_until_the_specialty_is_set_when_inference_is_below_floor():
+    """§A5: the picker is a required step before Build when the chart's own signal
+    does not clear the floor. The row says so, and the button is dead until then."""
+    out = _content_page("""
+      var rows = findAll(body, 'asc-stage-row');
+      var info = rows.map(function (r) {
+        var btns = [];
+        (function walk(el) {
+          if (el.tagName === 'BUTTON') btns.push(el);
+          (el.childNodes || []).forEach(function (c) { if (c.tagName) walk(c); });
+        })(r);
+        var build = btns.filter(function (b) { return tidy(b).indexOf('Build the chart walk') !== -1; })[0];
+        return { text: tidy(r), buildDisabled: build ? build.getAttribute('disabled') !== null : null,
+                 hasPicker: findAll(r, 'asc-spec-resolver').length > 0 };
+      });
+      console.log(JSON.stringify({ rows: info }));
+    """)
+    rows = {r["text"][:12]: r for r in out["rows"]}
+    low = [r for r in out["rows"] if "St Mary" in r["text"]][0]
+    ok = [r for r in out["rows"] if "Alpha" in r["text"]][0]
+    assert low["buildDisabled"] is True, low
+    assert low["hasPicker"] is True
+    assert "Set the specialty before building." in low["text"]
+    assert "nephrology at 0.38" in low["text"].lower() or "Nephrology at 0.38" in low["text"]
+    assert ok["buildDisabled"] is False, ok
+    assert ok["hasPicker"] is False
+    assert "Hepatology" in ok["text"]
+    # ingested before the summary existed: nothing measured, so not gated — the
+    # picker is offered, Build stays live, and the copy says why
+    old = [r for r in out["rows"] if "Legacy Row" in r["text"]][0]
+    assert old["buildDisabled"] is False, old
+    assert old["hasPicker"] is True
+    assert "before specialty inference was recorded" in old["text"]
+    assert "too little signal" not in old["text"]

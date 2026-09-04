@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from asclepius import hs_states
 from asclepius.ingest_notify import _run_coro
@@ -66,9 +66,14 @@ def eligible_health_systems(store: Any) -> List[Dict[str, Any]]:
             if hs.get("active", 1) and hs_states.can_upload(hs)]
 
 
-def enqueue_for_request(store: Any, *, request_id: str) -> int:
+def enqueue_for_request(store: Any, *, request_id: str,
+                        recipient_hs_ids: Optional[List[str]] = None) -> int:
     """Enqueue one outbox row per active portal member of every eligible
-    organization. Returns how many rows were newly created.
+    organization — or, with ``recipient_hs_ids``, of those organizations only
+    (Case Generation Fix PRD §B4: the operator picks recipients; "every active
+    partner" is the select-all case). An id that is not eligible is ignored
+    here, because the router has already refused it. Returns how many rows were
+    newly created.
 
     Re-broadcasting an already-broadcast request returns 0: every key it would
     write already exists. That is deliberate rather than incidental, because the
@@ -81,8 +86,12 @@ def enqueue_for_request(store: Any, *, request_id: str) -> int:
     """
     try:
         enqueued = 0
+        wanted = ({str(x) for x in recipient_hs_ids}
+                  if recipient_hs_ids is not None else None)
         for hs in eligible_health_systems(store):
             hs_id = hs["hs_id"]
+            if wanted is not None and hs_id not in wanted:
+                continue
             for member in store.list_hs_portal_users(hs_id):
                 if not member.get("active"):
                     continue

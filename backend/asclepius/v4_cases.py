@@ -888,7 +888,12 @@ def V4_HOLDS() -> Dict[str, str]:
 FIXTURE_BUNDLE_SPECIALTIES: Dict[str, str] = {
     "patient-1": "hepatology",
     "patient-2": "oncology",
-    "patient-3": "nephrology",
+    # Hepatology, not nephrology (Case Generation Fix PRD §A5). The chart is a
+    # decompensated HCV cirrhosis ("K/C HCV / DCLD", ascites, splenomegaly) whose
+    # renal panels are monitoring; the specialty inference on its own scores
+    # hepatology and nephrology within a few points of each other on every
+    # encounter, which is exactly why the declaration has to be made here.
+    "patient-3": "hepatology",
     "patient-4": "cardiology",
 }
 

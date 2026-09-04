@@ -582,7 +582,7 @@
       meta.className = "prv-request-meta";
       meta.textContent = [
         r.specialty,
-        r.case_count + (r.case_count === 1 ? " case" : " cases"),
+        r.case_count > 0 ? r.case_count + (r.case_count === 1 ? " case" : " cases") : "",
         r.due_date ? "useful by " + r.due_date : ""
       ].filter(Boolean).join(" · ");
       line.appendChild(name);
