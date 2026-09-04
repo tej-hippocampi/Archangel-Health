@@ -245,12 +245,17 @@ def test_the_form_will_not_submit_without_the_authority_attestation():
         assert existing in gate
 
 
-def test_every_class_the_lead_answers_use_has_a_rule():
-    """A class with no rule renders as unstyled text in the middle of an admin
-    card, where it reads as a bug rather than as a line."""
+def test_the_admin_card_is_gone_and_left_no_orphan_rules():
+    """Case Generation Fix PRD §B3 removed the Partner-leads card from the
+    Systems tab: the answers still reach ``/api/leads/admin`` with their
+    questions (the tests above), replying happens in an inbox, and nothing is
+    deleted server-side. What must not be left behind is a renderer nobody
+    calls or a rule nothing emits — an orphan class is how a later reader
+    resurrects the card by accident."""
     js = ADMIN_JS.read_text(encoding="utf-8")
     css = ADMIN_CSS.read_text(encoding="utf-8")
-    for cls in ("asc-hs-lead-qual", "asc-hs-lead-qual-q", "asc-hs-lead-qual-a",
-                "asc-hs-lead-qual-none"):
-        assert f"'{cls}" in js or f" {cls}'" in js, f"{cls} is on no element"
-        assert f".{cls}" in css, f"{cls} has no rule in asclepius.css"
+    assert "renderPartnerLeads" not in js and "/leads/admin" not in js
+    for cls in ("asc-hs-lead", "asc-hs-lead-head", "asc-hs-lead-message", "asc-hs-lead-qual",
+                "asc-hs-lead-qual-q", "asc-hs-lead-qual-a", "asc-hs-lead-qual-none"):
+        assert cls not in js, f"{cls} is still on an element"
+        assert f".{cls}" not in css, f"{cls} still has a rule in asclepius.css"
