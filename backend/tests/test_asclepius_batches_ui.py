@@ -281,3 +281,128 @@ def test_the_chain_loads_for_a_walk_that_is_already_out():
     """A stalled walk should be visible on the screen an admin is already looking
     at, not only to somebody who thinks to go looking for it."""
     assert "loadChain" in BATCHES and "'/admin/batches/relay/'" in BATCHES
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# The send controls say why they cannot act
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_send_button_states_the_step_it_is_waiting_on():
+    """WHY: "the Send button isn't working" was literally true, and silent.
+
+    The gate is right and is kept -- nothing goes to a physician that nobody
+    here has read. What was wrong is that it rendered ``disabled: seen ? null :
+    ''``, and ``h()`` skips a falsy ``disabled``, so the attribute never landed:
+    the button looked live, took the click, and the handler's own ``if (seen)``
+    dropped it on the floor. One paragraph of prose further down the panel was
+    the only clue.
+
+    A control that cannot act must either look inert or do the thing that puts
+    it back in action. This does the second.
+    """
+    assert "seen ? 'Send' : 'Preview a case first'" in BATCHES
+    # The button's own attribute object, not the comment that explains it.
+    start = BATCHES.index("'asc-btn asc-btn-primary' + (seen")
+    attrs = BATCHES[start:BATCHES.index("'Preview a case first'", start)]
+    assert "disabled" not in attrs, (
+        "the attribute that never landed is gone, not restored")
+    assert "asc-btn-blocked" in attrs and ".asc-btn.asc-btn-blocked" in CSS
+
+
+def test_pressing_the_blocked_send_opens_the_preview_it_is_waiting_for():
+    """The click does the operator's next step rather than nothing. It previews
+    the FIRST selected case, which is also what the gate accepts: at least one,
+    not all -- an admin sending a thirteen-point walk should not have to open
+    thirteen cases."""
+    go = BATCHES[BATCHES.index("seen ? 'Send' : 'Preview a case first'"):][:600]
+    assert "preview(chosen[0])" in go
+    assert "if (seen) { send(false); return; }" in go
+
+
+def test_the_gate_itself_is_untouched():
+    """The point of the change is legibility, not permission. Send still refuses
+    to send until a human has opened a case in THIS session."""
+    assert "const seen = chosen.some(function (id) { return view.previewed[id]; });" in BATCHES
+    assert "Nothing goes to a physician that nobody" in BATCHES
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# A role the account cannot take is not offered
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_reviewer_radio_is_disabled_without_the_tier():
+    """WHY: naming a labeler as Reviewer 400s the WHOLE send atomically at the
+    server's ``not_a_reviewer`` guard -- not that one name, all of it. The row
+    now carries the eligibility and the radio cannot be clicked, so the refusal
+    happens where the admin can still fix it."""
+    picker = _fn(ADMIN_JS, "doctorPicker")
+    assert "const noReviewTier = d.can_review === false;" in picker
+    assert "const off = role === 'review' && noReviewTier;" in picker
+    assert "disabled: off ? true : null," in picker
+
+
+def test_the_reason_is_on_the_row_not_only_in_a_tooltip():
+    """A greyed control with the reason in a ``title`` is a reason nobody reads.
+    It has to survive a screenshot."""
+    picker = _fn(ADMIN_JS, "doctorPicker")
+    assert "'no reviewer tier'" in picker
+    assert "asc-route-why" in picker
+    assert ".asc-route-role.is-off" in CSS
+
+
+def test_the_row_shows_eligibility_where_there_is_no_specialty():
+    """The label used to read ``name · specialty`` and print a bare dash for the
+    staff accounts that have no specialty, spending the column on nothing."""
+    picker = _fn(ADMIN_JS, "doctorPicker")
+    assert "(d.specialty || eligibility || 'no specialty on file')" in picker
+    assert "' · ' + (d.specialty || '—')" not in picker
+
+
+def test_the_roster_fetch_carries_the_review_eligibility():
+    """Both send-time refusals are now visible in the picker.
+    ``real_data_approved`` was already filtered on; ``can_review`` was not, and
+    it is the same class of fact."""
+    loader = _fn(ADMIN_JS, "loadDoctors")
+    assert "'/admin/physicians'" in loader
+    assert "d.real_data_approved" in loader
+    assert "can_review" in loader
+    assert "d.can_review === undefined || d.can_review === null" in loader, (
+        "an older server that does not send the field must read as unknown, "
+        "not as no -- disabling every Reviewer radio would be worse")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Every refusal the server can produce is decoded
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_decoder_handles_the_pydantic_422_shape():
+    """``_roles_are_a_known_vocabulary`` and ``_one_targeting_mode`` are model
+    validators, so their refusals arrive as ``{"detail": [{loc, msg, type}]}`` --
+    a different SHAPE, not a different error code. Both were written to explain
+    themselves, and both were being flattened to "Send failed."."""
+    send = _fn(ADMIN_JS, "send")
+    assert "Array.isArray(d)" in send
+    assert "item.msg" in send
+    assert "Value error" in send, "the pydantic prefix is stripped, not shown"
+
+
+def test_an_unrecognised_named_refusal_prints_the_servers_own_message():
+    """Every structured refusal here carries a ``message`` written for an
+    operator. Swallowing it to say "Send failed." is the product knowing exactly
+    what is wrong and declining to say."""
+    send = _fn(ADMIN_JS, "send")
+    assert "} else if (d && d.error) {" in send
+    assert "view.err = d.message ||" in send
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# What actually went out
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_the_panel_reports_what_the_send_delivered():
+    """``notified`` has always been in the allocate response and was never
+    rendered. ``notify_routed`` swallows its own failures by design -- a
+    community outage must not roll back routing the queue is already honouring --
+    so counting what went out is the only way anybody learns it did not."""
+    block = _fn(ADMIN_JS, "deliveryBlock")
+    assert "view.sent.notified" in block
+    assert "' DMs'" in block and "' case rooms'" in block
+    assert "Nobody was notified" in block, "zero DMs must not look like success"
+    assert "errs.map" in block, "server errors are printed verbatim"
+    assert "view.sent = {" in BATCHES, "held past the selection reset that follows a send"

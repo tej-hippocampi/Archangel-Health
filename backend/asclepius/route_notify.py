@@ -138,6 +138,52 @@ def compose_dm(
     return "\n".join(lines)
 
 
+def compose_review_dm(
+    *, doctor: Dict[str, Any], tasks: Sequence[Dict[str, Any]],
+    due_at: Optional[str] = None,
+) -> str:
+    """The message body for one doctor named as REVIEWER on this send.
+
+    Not ``compose_dm`` with a word swapped, and the difference is the reason
+    this function exists. The labeler copy says cases landed in your queue and
+    tells you to hit Start new case. A reviewer sent that goes looking for work
+    that is not there, finds an empty queue, and concludes the routing is broken
+    -- which is exactly what the reviewer tier already looks like when it is
+    granted quietly.
+
+    What a reviewer actually needs is: a case has your name on it, it reaches
+    you when the labeling physician submits, and it lives in Review rather than
+    in the case queue. Nothing here promises them something to open right now,
+    because there usually is not anything to open right now.
+    """
+    rows = list(tasks or [])
+    classes = [classify(t) for t in rows]
+    n = len(rows)
+    label = CLASS_LABELS[classes[0]] if len(set(classes)) == 1 else "new"
+    lines = [
+        "A case is waiting on your review",
+        "",
+        f"Dr. {_last_name(doctor)}, you're the reviewer on {n} {label} "
+        f"case{'s' if n != 1 else ''}:",
+        "",
+    ]
+    for t, cls in zip(rows, classes):
+        bits = [str(t.get("specialty") or "general"), str(t.get("difficulty") or "-"),
+                CLASS_LABELS[cls]]
+        if cls == "longitudinal" and t.get("sequence_index") is not None:
+            bits.append(f"decision {int(t['sequence_index']) + 1}")
+        lines.append("  · " + " · ".join(bits))
+    lines += [
+        "",
+        "They reach you under Review, not in the case queue, and only once the "
+        "labeling physician has submitted. Nothing to open until then.",
+    ]
+    if due_at:
+        lines += ["", f"These are yours to review until {str(due_at)[:10]}."]
+    lines += ["", "Questions mid-case? Post in #questions-help.", "- Archangel"]
+    return "\n".join(lines)
+
+
 def compose_channel_post(tasks: Sequence[Dict[str, Any]]) -> str:
     """The #task-announcements post, for a send-to-all only."""
     rows = list(tasks or [])
@@ -153,12 +199,38 @@ def compose_channel_post(tasks: Sequence[Dict[str, Any]]) -> str:
     return body
 
 
+async def _deliver(cstore: Any, dm: Dict[str, Any],
+                   message: Optional[Dict[str, Any]] = None) -> None:
+    """Put a bot-written conversation on the live socket. Never raises.
+
+    Writing the row is not delivering it. The community client stops polling
+    while its WebSocket is healthy, so a message nobody pushed down that socket
+    is a message the doctor does not see until they reload the page -- which is
+    how a routing DM and a whole case room could both exist in the database and
+    be invisible on screen at the same time.
+
+    Same rule as everything else in this module: the row is the truth and the
+    push is a courtesy, so a hub that is down costs a refresh and never the
+    routing.
+    """
+    try:
+        from community import live as clive
+
+        await clive.announce_conversation(cstore, dm)
+        if message is not None:
+            await clive.deliver_message(cstore, dm, message)
+    except Exception as exc:  # pragma: no cover - delivery must never raise here
+        log.info("route_notify: live delivery for %s failed: %s",
+                 (dm or {}).get("id"), exc)
+
+
 async def _dm_one(cstore: Any, *, doctor_id: str, body: str) -> bool:
     from community.system_posts import SYSTEM_USER_ID
 
     dm = cstore.get_or_create_dm(SYSTEM_USER_ID, doctor_id)
-    cstore.insert_message(channel_id=dm["id"], author_user_id=SYSTEM_USER_ID,
-                          body=body, kind=ANNOUNCEMENT_KIND)
+    msg = cstore.insert_message(channel_id=dm["id"], author_user_id=SYSTEM_USER_ID,
+                                body=body, kind=ANNOUNCEMENT_KIND)
+    await _deliver(cstore, dm, msg)
     return True
 
 
@@ -293,14 +365,21 @@ def ensure_case_room(cstore: Any, *, case_ref: str,
     room = cstore.get_or_create_case_room(
         case_ref, [p["user"]["id"] for p in people if (p.get("user") or {}).get("id")],
         title=room_title(specialty=specialty, class_label=class_label))
+    intro = None
     if room.get("created"):
-        cstore.insert_message(
+        intro = cstore.insert_message(
             channel_id=room["id"], author_user_id=SYSTEM_USER_ID,
             body=compose_room_intro(people=people, specialty=specialty,
                                     class_label=class_label),
             kind=ROOM_KIND)
         _audit_room("community.case_room_created", case_ref=case_ref,
                     dm_id=room["id"], detail={"participants": len(people)})
+    # Announced on EVERY call, not only the creating one. A reassignment reuses
+    # the room and adds a member, and that member's rail has to gain the room
+    # they were just put on -- which is the same "the case room is never
+    # created" report from the other end. The client inserts a conversation it
+    # does not hold and updates one it does, so a repeat is harmless.
+    _run_coro(_deliver(cstore, room, intro))
     return room
 
 
@@ -345,18 +424,28 @@ def notify_routed(
         return report
 
     # ── the targeted half: one DM per doctor, listing their cases ────────────
+    # Split by ROLE, because the two roles are being told different things. A
+    # reviewer used to be told nothing at all: they were skipped here on the
+    # theory that the case room addresses the whole team, and the room is
+    # skipped when fewer than two people are on the case. One doctor labeling
+    # and one reviewing is the commonest send there is, and it produced a
+    # reviewer with an assignment and no message.
     by_user: Dict[str, List[Dict[str, Any]]] = {}
+    review_by_user: Dict[str, List[Dict[str, Any]]] = {}
     for a in (assignments or []):
-        if (a.get("role") or "label") != "label":
-            continue
         task = store.get_task(a.get("task_id"))
-        if task:
+        if not task:
+            continue
+        if (a.get("role") or "label") == "label":
             by_user.setdefault(a["user_id"], []).append(task)
+        else:
+            review_by_user.setdefault(a["user_id"], []).append(task)
 
     # ── the room half: one per CASE, labelers plus reviewer (PRD B4) ─────────
-    # Reviewers are in the room and not in the DM loop above on purpose: the DM
-    # says "cases landed in your queue", which is not what a reviewer was sent.
-    # The room is the one place the whole team is addressed at once.
+    # Reviewers are in the room AND, since the gap above, in their own DM loop
+    # with their own copy. The room remains the one place the whole team is
+    # addressed at once, and it is still not a substitute for telling somebody
+    # directly: a two-person case opens no room at all.
     #
     # A send-to-all writes no assignments by design, so this loop is empty for
     # one and no room is created (B6): there is no roster to introduce.
@@ -387,13 +476,14 @@ def notify_routed(
             log.info("route_notify: case room for %s failed: %s", ref, exc)
             report["errors"].append(f"room:{ref}:{exc}")
 
-    for user_id, tasks in by_user.items():
+    def _sorted(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return sorted(tasks, key=lambda t: (t.get("trajectory_id") or "",
+                                            t.get("sequence_index")
+                                            if t.get("sequence_index") is not None
+                                            else -1))
+
+    def _send(user_id: str, body: str) -> None:
         try:
-            doctor = store.get_user_by_id(user_id) or {"id": user_id}
-            tasks.sort(key=lambda t: (t.get("trajectory_id") or "",
-                                      t.get("sequence_index") if t.get("sequence_index")
-                                      is not None else -1))
-            body = compose_dm(doctor=doctor, tasks=tasks, due_at=due_at)
             if _run_coro(_dm_one(cstore, doctor_id=user_id, body=body)):
                 report["dms"] += 1
         except Exception as exc:
@@ -401,6 +491,21 @@ def notify_routed(
             # must not cost anybody their assignment.
             log.info("route_notify: DM to %s failed: %s", user_id, exc)
             report["errors"].append(f"dm:{user_id}:{exc}")
+
+    for user_id, tasks in by_user.items():
+        doctor = store.get_user_by_id(user_id) or {"id": user_id}
+        _send(user_id, compose_dm(doctor=doctor, tasks=_sorted(tasks), due_at=due_at))
+
+    # ONE message per doctor per send is still the rule (see the module
+    # docstring). A doctor who labels one case in this send and reviews another
+    # already has a message from the loop above, and a second one that begins
+    # "a case is waiting on your review" would be the same send arriving twice.
+    for user_id, tasks in review_by_user.items():
+        if user_id in by_user:
+            continue
+        doctor = store.get_user_by_id(user_id) or {"id": user_id}
+        _send(user_id,
+              compose_review_dm(doctor=doctor, tasks=_sorted(tasks), due_at=due_at))
 
     # ── the send-to-all half: one channel post, and no DMs ──────────────────
     if to_all:

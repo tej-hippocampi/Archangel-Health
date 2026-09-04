@@ -478,7 +478,7 @@
     bar.appendChild(h('div', { class: 'asc-admin-bar-inner' },
       h('a', { class: 'asc-admin-mark', href: adminPath() },
         h('span', { class: 'asc-admin-mark-dot', 'aria-hidden': 'true' }),
-        h('span', { class: 'asc-admin-mark-text' }, 'Asclepius',
+        h('span', { class: 'asc-admin-mark-text' }, 'Archangel Health',
           h('span', { class: 'asc-admin-mark-sub' }, 'Operations'))),
       nav, who));
     fitMasthead();
@@ -521,7 +521,7 @@
     const card = h('div', { class: 'asc-admin-gate-card' });
     card.appendChild(h('div', { class: 'asc-admin-gate-mark' },
       h('span', { class: 'asc-admin-mark-dot', 'aria-hidden': 'true' }),
-      h('span', { class: 'chrome' }, 'Asclepius Operations')));
+      h('span', { class: 'chrome' }, 'Archangel Health Operations')));
 
     if (wrongAccount) {
       card.appendChild(h('h1', { class: 'asc-admin-gate-title' }, 'Admin credentials required'));
@@ -805,7 +805,11 @@
           err: null, mode: 'explicit', userIds: [physician && physician.id].filter(Boolean),
           specialty: '', doctors: physician ? [physician] : null, proposal: null,
           resolved: null, relay: false, relayWalk: null, relaySeed: null,
-          relayPreview: null, chain: null, roles: {},
+          relayPreview: null, chain: null,
+      // What the last REAL send delivered (``notified`` off the allocate
+      // response). Held past the selection reset so the report survives the
+      // reload of the batch that follows a send.
+      sent: null, roles: {},
         };
         renderAdminView();
       },
@@ -1087,10 +1091,29 @@
         .catch(() => paint());               // an unsent walk has no chain yet
     }
 
+    /* The roster the picker is built from: approved for real de-identified
+     * cases, and carrying whether the account may be named as a REVIEWER.
+     *
+     * Both facts are send-time refusals on the server, and both used to be
+     * invisible here. ``real_data_approved`` was filtered out of the list years
+     * ago; ``can_review`` was not, so an admin could tick Reviewer beside a
+     * labeler and the ENTIRE send would 400 atomically at the not_a_reviewer
+     * guard. Carrying it means the control the admin cannot use is the control
+     * they cannot click.
+     *
+     * ``can_review`` is normalised to true / false / null. Null is "the server
+     * did not say", which the picker treats as unknown rather than as no:
+     * disabling every Reviewer radio against an older server would be a worse
+     * failure than the one this fixes. */
     function loadDoctors() {
       if (view.doctors) return Promise.resolve(view.doctors);
       return api('/admin/physicians').then((res) => {
-        view.doctors = (res.physicians || res.rows || []).filter((d) => d.real_data_approved);
+        view.doctors = (res.physicians || res.rows || [])
+          .filter((d) => d.real_data_approved)
+          .map((d) => Object.assign({}, d, {
+            can_review: d.can_review === undefined || d.can_review === null
+              ? null : !!d.can_review,
+          }));
         return view.doctors;
       }).catch(() => { view.doctors = []; return view.doctors; });
     }
@@ -1129,6 +1152,14 @@
         .then((res) => {
           view.proposal = res; view.busy = false;
           if (!dryRun) {
+            /* What actually went out, kept on screen after the selection is
+             * cleared. ``notified`` has always been in the response and has
+             * never been rendered, so an admin had no way to know whether the
+             * ping happened -- they found out when a physician said nobody told
+             * them, which is the same class of silence as the dead Send button
+             * above. */
+            view.sent = { targeting: res.targeting, cases: ids.length,
+                          notified: res.notified || null };
             toast(res.targeting === 'all'
               ? `${ids.length} case(s) released to the open queue.`
               : `Sent ${ids.length} case(s) to ${Object.keys(res.per_physician || {}).length} doctor(s).`);
@@ -1144,6 +1175,22 @@
            * and making the admin diff two lists by hand would be the product
            * knowing something and not saying it. */
           const d = e && e.detail;
+          /* FastAPI/Pydantic validation failures arrive as
+           * ``{"detail": [{loc, msg, type}, ...]}`` -- a different SHAPE, not a
+           * different error code -- and every one of them here comes from a
+           * model validator that was written to explain itself
+           * (``_roles_are_a_known_vocabulary``, ``_one_targeting_mode``). They
+           * were being flattened to "Send failed." along with everything else
+           * the decoder did not recognise, which is the product knowing exactly
+           * what is wrong and declining to say. */
+          if (Array.isArray(d)) {
+            const msgs = d.map((item) => (item && (item.msg || item.message)) || '')
+              .map((m) => m.replace(/^Value error,\s*/, ''))
+              .filter(Boolean);
+            view.err = msgs.length ? msgs.join(' · ')
+              : 'That send was rejected as malformed.';
+            paint(); return;
+          }
           if (d && d.error === 'missing_trajectory_predecessors') {
             view.err = 'That selection skips earlier points in a chart walk: '
               + Object.keys(d.missing).map((k) => '#' + d.missing[k].join(', #')).join(' · ')
@@ -1157,8 +1204,15 @@
             view.err = 'Not approved for real de-identified cases: '
               + (d.emails || []).join(', ') + '. Approve them first, or the '
               + 'assignment could never be served.';
+          } else if (d && d.error) {
+            /* A named refusal the decoder has no branch for. Print the server's
+             * own message rather than the code: every one of these carries a
+             * ``message`` written for an operator, and swallowing it to say
+             * "Send failed." is the reason this bug was reported as the button
+             * not working. */
+            view.err = d.message || (d.error + ': ' + ((e && e.message) || 'send refused.'));
           } else {
-            view.err = (e && e.message) || 'Send failed.';
+            view.err = (typeof d === 'string' && d) || (e && e.message) || 'Send failed.';
           }
           paint();
         });
@@ -1430,6 +1484,7 @@
           'Select cases to route them. The controls here follow the selection — '
           + 'a chart walk and a set of standalone cases are sent by different '
           + 'rules, so they are never offered the same ones.'));
+        if (view.sent) panel.appendChild(deliveryBlock());
         return panel;
       }
 
@@ -1479,10 +1534,32 @@
        * At least one, not all: an admin sending a thirteen-point walk should not
        * have to open thirteen cases, and reading point 0 of a chart tells them
        * whether the chart is right. */
+      /* THE GATE IS KEPT; WHAT CHANGES IS THAT IT SAYS SO.
+       *
+       * This used to render ``disabled: seen ? null : ''`` beside a click
+       * handler that checked ``seen`` again. The attribute never actually
+       * landed -- ``h()`` skips a falsy ``disabled`` -- so the button looked
+       * live, took the click, and did nothing, with one paragraph of prose
+       * somewhere below as the only clue. That is the whole of "the Send button
+       * isn't working".
+       *
+       * A control that cannot act must either be visibly out of action or do
+       * the thing that would put it back in action. This does the second: the
+       * label states the missing step, and pressing it opens the preview for
+       * the first selected case, which is exactly what the admin has to do
+       * next. The gate itself is untouched -- nothing reaches a physician that
+       * nobody here has read. */
       const seen = chosen.some(function (id) { return view.previewed[id]; });
-      const go = h('button', { class: 'asc-btn asc-btn-primary', type: 'button',
-                               disabled: seen ? null : '' }, 'Send');
-      go.addEventListener('click', () => { if (seen) send(false); });
+      const go = h('button', {
+        class: 'asc-btn asc-btn-primary' + (seen ? '' : ' asc-btn-blocked'),
+        type: 'button',
+        title: seen ? null
+          : 'Nothing goes to a physician that nobody here has read.',
+      }, seen ? 'Send' : 'Preview a case first');
+      go.addEventListener('click', () => {
+        if (seen) { send(false); return; }
+        preview(chosen[0]);
+      });
       panel.appendChild(h('div', { class: 'asc-stage-actions' }, dry, go));
       if (!seen) {
         panel.appendChild(h('div', { class: 'asc-dim' },
@@ -1499,7 +1576,39 @@
           (view.proposal.notes || []).map((n) => h('div', { class: 'asc-dim' }, n))));
       }
       if (view.relayPreview) panel.appendChild(relayPreviewBlock());
+      if (view.sent) panel.appendChild(deliveryBlock());
       return panel;
+    }
+
+    /* What the send actually delivered, in the panel the admin is still looking
+     * at. ``notified`` is the report ``notify_routed`` builds by COUNTING what
+     * went out rather than what was attempted -- it swallows its own failures
+     * by design, on the rule that a community outage must never roll back
+     * routing the queue is already honouring. That design only pays off if
+     * somebody sees the result, and until now nobody did: zero DMs and three
+     * DMs looked identical on screen.
+     *
+     * Errors are printed VERBATIM. They are server-side strings naming which
+     * doctor or which case room failed, and paraphrasing them into "some
+     * notifications failed" would throw away the only thing that makes the
+     * failure actionable. */
+    function deliveryBlock() {
+      const n = (view.sent && view.sent.notified) || {};
+      const bits = [];
+      if (n.dms) bits.push(n.dms + (n.dms === 1 ? ' DM' : ' DMs'));
+      if (n.rooms) bits.push(n.rooms + (n.rooms === 1 ? ' case room' : ' case rooms'));
+      if (n.channel) bits.push('1 announcement in #task-announcements');
+      const errs = n.errors || [];
+      return h('div', { class: 'asc-route-sent' },
+        h('div', { style: 'font-weight:600' },
+          'Sent ' + view.sent.cases + ' case(s)'),
+        h('div', { class: 'asc-dim' },
+          bits.length ? ('Delivered: ' + bits.join(' · '))
+            : 'Nobody was notified. The cases are routed; no message went out.'),
+        errs.length
+          ? h('div', { class: 'asc-inline-warn' },
+              errs.map((x) => h('div', {}, String(x))))
+          : null);
     }
 
     /* Static and synthetic: three ways to choose who, and a per-doctor ROLE.
@@ -1558,24 +1667,45 @@
           }
           paint();
         });
+        /* Naming a doctor without the reviewer tier as Reviewer 400s the WHOLE
+         * send at the server's not_a_reviewer guard: not that one name, all of
+         * it, atomically. So the radio is disabled rather than the send being
+         * refused after the fact, and the reason sits on the row instead of
+         * arriving as an error the admin has to map back to a person. */
+        const noReviewTier = d.can_review === false;
         // Roles only for a doctor who is actually selected. Greyed radios beside
         // an unchecked name are noise, and a pre-selected "Labeler" on somebody
         // nobody chose reads as a decision that was never made.
         const roles = (withRoles && on) ? ['label', 'review'].map((role) => {
+          const off = role === 'review' && noReviewTier;
           const rb = h('input', {
             type: 'radio', name: 'role-' + d.id, value: role,
             checked: (view.roles[d.id] || 'label') === role,
+            disabled: off ? true : null,
           });
           rb.addEventListener('change', () => {
             if (rb.checked) { view.roles[d.id] = role; paint(); }
           });
-          return h('label', { class: 'asc-route-role' }, rb, role === 'label' ? 'Labeler' : 'Reviewer');
+          return h('label', {
+            class: 'asc-route-role' + (off ? ' is-off' : ''),
+            title: off ? 'This account does not carry the reviewer tier.' : null,
+          }, rb, role === 'label' ? 'Labeler' : 'Reviewer');
         }) : null;
+        /* The row used to read ``name · specialty`` and print a bare dash for
+         * the staff accounts that have no specialty, spending the column on
+         * nothing. What an admin composing a send needs off this row is whether
+         * the person can take the role they are about to be handed, so that is
+         * what fills the space when there is no specialty to show. */
+        const eligibility = d.can_review === false ? 'no reviewer tier'
+          : (d.can_review === true ? 'reviewer tier' : null);
         list.appendChild(h('div', { class: 'asc-route-doc' },
           cb,
           h('span', { class: 'asc-route-doc-name' },
-            (d.name || d.email) + ' · ' + (d.specialty || '—')),
-          roles ? h('span', { class: 'asc-route-roles' }, roles) : null));
+            (d.name || d.email) + ' · ' + (d.specialty || eligibility || 'no specialty on file')),
+          roles ? h('span', { class: 'asc-route-roles' }, roles) : null,
+          (withRoles && on && noReviewTier)
+            ? h('span', { class: 'asc-route-why' }, 'no reviewer tier')
+            : null));
       });
       if (!(view.doctors || []).length) {
         list.appendChild(h('div', { class: 'asc-dim' }, 'No approved doctors to name.'));
