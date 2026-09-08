@@ -124,8 +124,51 @@ def live_asclepius_db() -> str:
     return os.getenv("ASCLEPIUS_DB_PATH") or os.path.join(_backend_dir(), "asclepius.db")
 
 
+def _durable_data_dir() -> str:
+    """The directory the Asclepius plane already resolved to, or "" when the
+    process was told nothing.
+
+    ``ASCLEPIUS_DB_PATH`` is the one path a deploy always sets, because losing
+    it loses the product. Reading it here is how a store whose own variable was
+    forgotten can still land on the volume rather than inside the container.
+    """
+    db = (os.getenv("ASCLEPIUS_DB_PATH") or "").strip()
+    if db:
+        return os.path.dirname(os.path.abspath(db)) or "/"
+    data_dir = (os.getenv("ASCLEPIUS_DATA_DIR") or "").strip()
+    if data_dir:
+        return os.path.abspath(data_dir)
+    return ""
+
+
 def live_community_db() -> str:
-    return os.getenv("COMMUNITY_DB_PATH") or os.path.join(_backend_dir(), "community.db")
+    """Where the community lives, in order of how much it was actually chosen.
+
+    ``COMMUNITY_DB_PATH`` wins because an operator said so. Otherwise the file
+    is placed BESIDE the Asclepius database, which is on the persistent volume
+    on every deploy that works at all — the fix for the failure this whole
+    ordering exists for: no ``COMMUNITY_DB_PATH`` in the Railway variables, so
+    community.db sat inside the container and every post, DM, reaction and
+    dedup-ledger row was destroyed on each redeploy, which is many times a day.
+
+    The beside-the-code path stays last, and it also wins ahead of a derived
+    directory that has no database yet when the local file DOES exist: a
+    developer who adds ``ASCLEPIUS_DB_PATH`` should not silently open an empty
+    community and conclude their history is gone. ``backend/*.db`` is
+    gitignored, so that file never exists in a fresh container and this branch
+    cannot re-strand a deployment on ephemeral disk.
+    """
+    explicit = (os.getenv("COMMUNITY_DB_PATH") or "").strip()
+    if explicit:
+        return explicit
+    local = os.path.join(_backend_dir(), "community.db")
+    derived_dir = _durable_data_dir()
+    if not derived_dir:
+        return local
+    derived = os.path.join(derived_dir, "community.db")
+    if os.path.exists(derived) or not os.path.exists(local):
+        return derived
+    return local
 
 
 def live_team_db() -> str:
