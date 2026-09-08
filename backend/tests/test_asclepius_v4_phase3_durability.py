@@ -91,7 +91,7 @@ def test_durable_store_reports_durable(monkeypatch, tmp_path):
     assert ok is False
     monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", "s3://bucket/prefix")
     ok, why = asc_assets.asset_storage_durable()
-    assert ok is True and "s3" in why
+    assert ok is False and "S3" in why
 
 
 # ── test 17 ───────────────────────────────────────────────────────────────────

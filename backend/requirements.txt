@@ -36,6 +36,8 @@ pytesseract>=0.3.13
 Pillow>=12.2.0
 
 # File uploads
+boto3==1.43.89
+psycopg[binary]==3.3.3
 python-multipart>=0.0.32
 
 # Environment config

@@ -6025,7 +6025,8 @@ class AsclepiusStore:
         retention purge skips these paths."""
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT upload_id, raw_path FROM ingest_uploads WHERE retain_raw = 1"
+                "SELECT upload_id, raw_path FROM ingest_uploads WHERE retain_raw = 1 "
+                "OR COALESCE(purpose, 'storage') != 'task_creation'"
             ).fetchall()
         return [dict(r) for r in rows]
 
