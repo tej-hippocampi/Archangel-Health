@@ -439,8 +439,6 @@ def test_a_digest_run_stores_its_payload_and_the_api_serves_it(monkeypatch, tmp_
     monkeypatch.setattr(llm, "call_llm", fake_call_llm)
     monkeypatch.setattr(llm, "first_text", lambda resp: resp)
     monkeypatch.setattr(cfeeds, "fetch_rss", fake_rss)
-    monkeypatch.setattr(cdigest, "_email_digest",
-                        lambda *a, **k: asyncio.sleep(0, result=0))
 
     result = asyncio.new_event_loop().run_until_complete(cdigest.run_digest("news"))
     assert result["ok"] is True and result["posted"] == 3
@@ -535,3 +533,77 @@ def test_a_digest_answers_to_the_news_cadence_and_not_to_the_post_toggle(
                                            "display_name": "Dr Test"}))
     assert sent == []
     assert store.unsent_notifications() == []
+
+
+def test_a_digest_run_mails_through_the_queue_and_nowhere_else(monkeypatch, tmp_path):
+    """ONE sender. A digest run must not mail anybody directly.
+
+    There were two: the run queued a notification for every member AND walked
+    the member map sending the same email itself. They never collided only
+    because the direct sender switched itself off whenever the morning routine
+    was enabled, which is the default — so the duplicate was dormant, and one
+    person setting COMMUNITY_MORNING_ENABLED=0 would have mailed every
+    physician the same digest twice.
+
+    Asserted at the run level rather than by reading the source: this catches a
+    second sender however it is reintroduced.
+    """
+    import asyncio
+
+    import ai.llm_client as llm
+    from community import feeds as cfeeds
+    from community import router as crouter
+
+    previous = community_store.get_community_store()
+    monkeypatch.setattr(community_store, "_stores",
+                        dict(community_store._stores), raising=False)
+    store = community_store.reset_community_store_for_tests(
+        db_path=str(tmp_path / "community.db"))
+    # A real member: with an empty map there is nobody to queue for, and the
+    # test would pass by having no fan-out rather than by having one sender.
+    member = {"user_id": "u-1", "display_name": "Dr Test", "is_staff": False,
+              "email": "d@example.test"}
+    monkeypatch.setattr(crouter, "member_map", lambda **kw: {"u-1": member})
+    store.ensure_default_channels()
+    assert previous is not None
+
+    async def fake_call_llm(*, role, system, messages, **kw):
+        sent_in = json.loads(messages[0]["content"])
+        if "digest_kind" in sent_in:
+            return json.dumps({"items": [
+                {"headline": it["title"][:60],
+                 "why_it_matters": "It changes what a clinic does.",
+                 "source": "Fake Wire", "url": it["url"], "section": "Research"}
+                for it in sent_in["items"]]}), {}
+        return json.dumps({"items": [
+            {"id": it["id"], "keep": True, "relevance": 0.9,
+             "one_liner": "what happened"} for it in sent_in["items"]]}), {}
+
+    async def fake_rss():
+        return [cfeeds._item("rss:test", url=f"https://example.com/q{i}",
+                             title=f"AI model cleared for clinical use {i}",
+                             abstract="An artificial intelligence system.")
+                for i in range(3)]
+
+    sent = []
+
+    async def fake_send(to, subject, body):
+        sent.append(subject)
+        return True
+
+    monkeypatch.setattr(llm, "call_llm", fake_call_llm)
+    monkeypatch.setattr(llm, "first_text", lambda resp: resp)
+    monkeypatch.setattr(cfeeds, "fetch_rss", fake_rss)
+    monkeypatch.setattr("email_utils.send_html_email", fake_send)
+    # The direct sender's own off-switch, turned OFF: this is the configuration
+    # under which the duplicate would have fired.
+    monkeypatch.setenv("COMMUNITY_MORNING_ENABLED", "0")
+
+    result = asyncio.new_event_loop().run_until_complete(cdigest.run_digest("news"))
+    assert result["ok"] is True and result["posted"] == 3
+    # Nothing was mailed by the RUN. The mail is queued, and the flush sends it.
+    assert sent == []
+    assert result.get("email_queued") is True
+
+    pending = store.unsent_notifications()
+    assert pending, "the run must queue the digest for the flush to mail"

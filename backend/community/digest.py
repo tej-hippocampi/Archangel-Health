@@ -266,69 +266,32 @@ async def _fetch(kind: str) -> List[Dict[str, Any]]:
     return _keyword_filter(items, require=True)
 
 
-async def _email_digest(kind: str, payload: Dict[str, Any]) -> int:
-    """Mail the digest to members whose preference matches this run.
-
-    News is the daily habit; papers ride the weekly preference. Members who have
-    never been asked get the default the moment their prefs row is created,
-    which happens here on first read.
-
-    Renders the STRUCTURE (PRD §2.4), not a markdown body. The old builder
-    parsed the model's prose into an email, and the parse was lossy in the one
-    way that shows: ``**Medical AI Digest**`` and ``[Opinion: ...](url)``
-    reached inboxes as literal punctuation. Same object as the web card, same
-    section order, no markdown anywhere in the path.
-    """
-    from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
-    from onboarding_emails import (  # noqa: PLC0415
-        build_community_digest_post_email, digest_email_subject,
-    )
-    from community.router import member_map  # noqa: PLC0415
-
-    if not is_email_transport_configured():
-        return 0
-
-    # When the morning routine is on it owns the daily email, and this digest
-    # is one of the things it carries. Two automated emails on the same morning
-    # from the same product is one too many, and the one people would unsubscribe
-    # from is whichever arrived second. The in-app post still happens.
-    from community import morning as _cmorning  # noqa: PLC0415
-
-    if _cmorning.enabled():
-        log.info("[digest] morning routine owns the daily email; skipping the digest send")
-        return 0
-    cstore = get_community_store()
-    weekly = kind == "papers"
-    subject = digest_email_subject(payload)
-
-    sent = 0
-    for uid, member in (member_map(include_email=True) or {}).items():
-        email = (member or {}).get("email")
-        if not email:
-            continue
-        prefs = cstore.email_prefs(uid)
-        want = "weekly" if weekly else "daily"
-        if prefs.get("news_frequency") != want:
-            continue
-        unsub = links.unsubscribe_url(prefs.get("unsubscribe_token") or "")
-        try:
-            ok = await send_html_email(
-                email,
-                subject,
-                build_community_digest_post_email(
-                    payload=payload,
-                    community_url=links.community_url(),
-                    unsubscribe_url=unsub,
-                    first_name=((member.get("display_name") or "").split()
-                                or ["there"])[0],
-                ),
-            )
-            if ok:
-                sent += 1
-        except Exception:
-            log.warning("[digest] email failed for one recipient", exc_info=True)
-    log.info("[digest] %s emailed to %d member(s)", kind, sent)
-    return sent
+# ─── Who mails the digest ────────────────────────────────────────────────────
+# ONE SENDER, and it is the notification queue.
+#
+# There used to be two. ``post_system_message(announce=True)`` queues a ``post``
+# notification for every member and ``notify.flush_pending`` mails it, and
+# ``_email_digest`` ALSO walked the member map and sent the same thing directly.
+# The two were kept apart by ``_email_digest`` switching itself off whenever the
+# morning routine was enabled — which is the default — so in production only the
+# queue ever sent, and the second sender was dead code that would wake up the
+# moment somebody set COMMUNITY_MORNING_ENABLED=0 and mail every physician the
+# same digest twice.
+#
+# That guard was aimed at the right problem and hit the wrong target. The
+# morning routine has no mailer of its own; it posts with ``announce=True`` and
+# rides the same queue. So "the morning owns the daily email" was never a reason
+# for a second sender to exist, only a reason for it to be quiet, and a sender
+# whose correctness depends on staying switched off is a duplicate waiting for a
+# configuration change.
+#
+# The queue does everything this did and does it better: it batches per member
+# per flush, it retries a failed send instead of dropping it, it counts attempts
+# and gives up loudly, and ``notify._wants_digest`` applies the same news-cadence
+# rule this applied (news daily, papers weekly, off takes both). The one thing it
+# does differently is timing — the mail goes out on the next flush rather than
+# inside the run — and for a daily digest that is not a property worth a second
+# code path to preserve.
 
 
 # ─── Why a run posted nothing ────────────────────────────────────────────────
@@ -429,15 +392,18 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
         if posted is None:
             raise RuntimeError("system post was skipped (channel or PHI gate)")
 
-        # Email fan-out, AFTER the in-app post succeeded. Ordering matters: the
-        # channel post is the durable record, and mailing a digest that failed
-        # to post would point people at a discussion that does not exist.
-        emailed = 0
-        try:
-            emailed = await _email_digest(kind, payload)
-        except Exception:
-            log.exception("[digest] email fan-out failed (the post stands)")
-
+        # The email fan-out already happened, inside ``post_system_message``:
+        # ``announce=True`` queued a notification for every member, and the
+        # notify flush turns that into the designed digest email. Ordering is
+        # still right for the reason it always was — the channel post is the
+        # durable record, and mail that pointed at a discussion which failed to
+        # post would be a link to nothing — but it is now guaranteed by
+        # construction rather than by a second call placed after this one.
+        #
+        # ``emailed`` is what the queue accepted, not what a transport
+        # confirmed. A count of delivered mail is not knowable here any more,
+        # and reporting the recipients as if it were is how a run summary
+        # starts lying about a broken transport.
         kept_ids = [iid for iid, s in summaries.items() if s.get("kept")]
         other_ids = [it["id"] for it in fresh if it["id"] not in set(kept_ids)]
         cstore.mark_content_items(kept_ids, status="posted",
@@ -448,7 +414,8 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
         log.info("[digest] %s run: posted %d of %d fresh (message %s)",
                  kind, len(kept_ids), len(fresh), posted["id"])
         return {"ok": True, "kind": kind, "fetched": fetched, "fresh": len(fresh),
-                "posted": len(kept_ids), "emailed": emailed, "message_id": posted["id"]}
+                "posted": len(kept_ids), "emailed": None, "message_id": posted["id"],
+                "email_queued": True}
     except Exception as exc:
         cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
                                  error=str(exc)[:500], reason=_failure_reason(exc))
