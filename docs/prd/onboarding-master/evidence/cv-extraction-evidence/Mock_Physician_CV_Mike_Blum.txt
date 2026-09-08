@@ -1,0 +1,40 @@
+Mike Blum, MD, MPH
+SYNTHETIC TEST CV - NOT A REAL PHYSICIAN
+
+PROFILE
+Nephrologist with 10 years of clinical practice.
+Clinical interests: chronic kidney disease, dialysis, and hypertension.
+Email: mike.blum.test@example.com | Phone: (202) 555-0147
+NPI: 9999999995
+LinkedIn: https://www.linkedin.com/in/archangel-fictional-mike-blum-test
+
+CURRENT APPOINTMENT
+Cedar Example Medical Center, Los Angeles CA    2016 - Present
+Attending Physician, Nephrology
+Clinical care, physician education, and medical reasoning evaluation.
+
+EDUCATION AND TRAINING
+North Example University School of Medicine    2007 - 2011
+Doctor of Medicine (MD)
+West Example University School of Public Health    2010 - 2011
+Master of Public Health (MPH)
+Harbor Example University Hospital, Boston MA    2011 - 2014
+Resident, Internal Medicine
+Cedar Example Medical Center, Los Angeles CA    2014 - 2016
+Fellow, Nephrology
+
+BOARD CERTIFICATIONS
+Board Certified in Nephrology (ABIM), 2016
+Board Certified in Internal Medicine (ABIM), 2014
+
+MEDICAL LICENSES
+California Medical License #TEST-900001 - Active
+Massachusetts Medical License #TEST-900002 - Active
+
+SELECTED PUBLICATIONS
+Blum M. Dialysis reasoning assessment. Fictional Research Notes. 2024.
+Blum M. Longitudinal kidney care evaluation. Fictional Research Notes. 2023.
+
+All people, institutions, identifiers, and publications are fictional test data.
+The NPI tests checksum extraction only; no registry identity is claimed.
+The LinkedIn URL is a format fixture, not a verified profile.

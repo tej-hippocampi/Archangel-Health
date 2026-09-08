@@ -1,0 +1,19 @@
+{
+  "scope": "Existing _record_cv_on_person AST executed unchanged with an in-memory store. Demonstrates late A write after B upload; no production race was induced.",
+  "expected": {
+    "cvAssetSha": "B",
+    "cvFilename": "B.pdf",
+    "cvParseStage": "reading"
+  },
+  "actual": {
+    "cvAssetSha": "A",
+    "cvMime": "application/pdf",
+    "cvFilename": "B.pdf",
+    "cvParseStage": "done",
+    "cvParsed": {
+      "full_name": "Applicant A",
+      "ok": true
+    }
+  },
+  "passed": false
+}

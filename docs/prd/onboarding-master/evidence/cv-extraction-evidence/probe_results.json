@@ -1,0 +1,1227 @@
+{
+  "scope": "Existing parser executed locally; targeted diagnostic corpus, not population accuracy. New expectations are proposed acceptance behavior, including missing capabilities. No uploads or registry calls.",
+  "text_cases": [
+    {
+      "name": "baseline",
+      "input": "Mike Blum, MD, MPH\nSYNTHETIC TEST CV - NOT A REAL PHYSICIAN\n\nPROFILE\nNephrologist with 10 years of clinical practice.\nClinical interests: chronic kidney disease, dialysis, and hypertension.\nEmail: mike.blum.test@example.com | Phone: (202) 555-0147\nNPI: 9999999995\nLinkedIn: https://www.linkedin.com/in/archangel-fictional-mike-blum-test\n\nCURRENT APPOINTMENT\nCedar Example Medical Center, Los Angeles CA    2016 - Present\nAttending Physician, Nephrology\nClinical care, physician education, and medical reasoning evaluation.\n\nEDUCATION AND TRAINING\nNorth Example University School of Medicine    2007 - 2011\nDoctor of Medicine (MD)\nWest Example University School of Public Health    2010 - 2011\nMaster of Public Health (MPH)\nHarbor Example University Hospital, Boston MA    2011 - 2014\nResident, Internal Medicine\nCedar Example Medical Center, Los Angeles CA    2014 - 2016\nFellow, Nephrology\n\nBOARD CERTIFICATIONS\nBoard Certified in Nephrology (ABIM), 2016\nBoard Certified in Internal Medicine (ABIM), 2014\n\nMEDICAL LICENSES\nCalifornia Medical License #TEST-900001 - Active\nMassachusetts Medical License #TEST-900002 - Active\n\nSELECTED PUBLICATIONS\nBlum M. Dialysis reasoning assessment. Fictional Research Notes. 2024.\nBlum M. Longitudinal kidney care evaluation. Fictional Research Notes. 2023.\n\nAll people, institutions, identifiers, and publications are fictional test data.\nThe NPI tests checksum extraction only; no registry identity is claimed.\nThe LinkedIn URL is a format fixture, not a verified profile.\n",
+      "expected": {
+        "full_name": "Mike Blum",
+        "specialty": "nephrology",
+        "years_in_practice": 10,
+        "employer": "Cedar Example Medical Center"
+      },
+      "actual": {
+        "full_name": "Mike Blum",
+        "specialty": "nephrology",
+        "years_in_practice": 10,
+        "employer": "Cedar Example Medical Center"
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [
+          "Cedar Example Medical Center, Los Angeles CA    2016 - Present",
+          "North Example University School of Medicine    2007 - 2011",
+          "West Example University School of Public Health    2010 - 2011",
+          "Harbor Example University Hospital, Boston MA    2011 - 2014",
+          "Cedar Example Medical Center, Los Angeles CA    2014 - 2016"
+        ],
+        "board_certifications": [
+          "ABIM Nephrology",
+          "ABIM Internal Medicine"
+        ],
+        "years_in_practice": 10,
+        "publications_count": 2,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD",
+          "MPH"
+        ],
+        "training": [
+          {
+            "kind": "residency",
+            "institution": "Harbor Example University Hospital",
+            "start_year": "2011",
+            "end_year": "2014"
+          },
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [
+          {
+            "board": "ABIM",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          },
+          {
+            "board": "ABIM",
+            "specialty": "Internal Medicine",
+            "subspecialty": "",
+            "active": null
+          }
+        ],
+        "licenses": [
+          {
+            "state": "CA",
+            "number": "TEST-900001",
+            "current": "yes"
+          },
+          {
+            "state": "MA",
+            "number": "TEST-900002",
+            "current": "yes"
+          }
+        ],
+        "employer": "Cedar Example Medical Center",
+        "npi": "9999999995",
+        "linkedin_url": "https://www.linkedin.com/in/archangel-fictional-mike-blum-test"
+      }
+    },
+    {
+      "name": "accented_name",
+      "input": "José Muñoz, MD\nNephrology\n12 years of clinical practice",
+      "expected": {
+        "full_name": "José Muñoz"
+      },
+      "actual": {
+        "full_name": null
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": 12,
+        "publications_count": null,
+        "full_name": null,
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "honorific",
+      "input": "Dr. Mike Blum, MD\nNephrology\n10 years of clinical practice",
+      "expected": {
+        "full_name": "Mike Blum"
+      },
+      "actual": {
+        "full_name": null
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": 10,
+        "publications_count": null,
+        "full_name": null,
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "all_caps_name",
+      "input": "MIKE BLUM, MD\nNephrology\n10 years of clinical practice",
+      "expected": {
+        "full_name": "MIKE BLUM"
+      },
+      "actual": {
+        "full_name": "MIKE BLUM"
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": 10,
+        "publications_count": null,
+        "full_name": "MIKE BLUM",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "name_after_nine_heading_lines",
+      "input": "CURRICULUM VITAE\nCURRICULUM VITAE\nCURRICULUM VITAE\nCURRICULUM VITAE\nCURRICULUM VITAE\nCURRICULUM VITAE\nCURRICULUM VITAE\nCURRICULUM VITAE\nCURRICULUM VITAE\nMike Blum, MD\nNephrology",
+      "expected": {
+        "full_name": "Mike Blum"
+      },
+      "actual": {
+        "full_name": null
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": null,
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "no_degree_from_reference",
+      "input": "Mike Blum\nNephrology\nReferences\nSarah Example, MD\nExample Hospital",
+      "expected": {
+        "degrees": []
+      },
+      "actual": {
+        "degrees": [
+          "MD"
+        ]
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [
+          "Example Hospital"
+        ],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "no_board_from_negation",
+      "input": "Mike Blum, MD\nNot board certified in Nephrology\n10 years of clinical practice",
+      "expected": {
+        "board_certifications_structured": []
+      },
+      "actual": {
+        "board_certifications_structured": [
+          {
+            "board": "",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          }
+        ]
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [
+          "Nephrology"
+        ],
+        "years_in_practice": 10,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [
+          {
+            "board": "",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          }
+        ],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "no_board_from_in_progress",
+      "input": "Mike Blum, MD\nBoard certification in Nephrology (ABIM) pending examination",
+      "expected": {
+        "board_certifications_structured": []
+      },
+      "actual": {
+        "board_certifications_structured": [
+          {
+            "board": "ABIM",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          }
+        ]
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [
+          "ABIM Nephrology"
+        ],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [
+          {
+            "board": "ABIM",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          }
+        ],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "board_specialty_priority",
+      "input": "Mike Blum, MD\nPrimary specialty: Nephrology\nBoard Certified in Internal Medicine (ABIM)\nBoard Certified in Nephrology (ABIM)",
+      "expected": {
+        "specialty": "nephrology"
+      },
+      "actual": {
+        "specialty": "nephrology"
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [
+          "ABIM Internal Medicine",
+          "ABIM Nephrology"
+        ],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [
+          {
+            "board": "ABIM",
+            "specialty": "Internal Medicine",
+            "subspecialty": "",
+            "active": null
+          },
+          {
+            "board": "ABIM",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          }
+        ],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "single_line_training",
+      "input": "Mike Blum, MD\nNephrology Fellowship, Cedar Example Medical Center, 2014-2016",
+      "expected": {
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ]
+      },
+      "actual": {
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Nephrology Fellowship, Cedar Example Medical Center, 2014-2016",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ]
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [
+          "Nephrology Fellowship, Cedar Example Medical Center, 2014-2016"
+        ],
+        "board_certifications": [],
+        "years_in_practice": 10,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Nephrology Fellowship, Cedar Example Medical Center, 2014-2016",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "training_month_ranges",
+      "input": "Mike Blum, MD\nCedar Example Medical Center    Jul 2014 - Jun 2016\nFellow, Nephrology",
+      "expected": {
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ]
+      },
+      "actual": {
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ]
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [
+          "Cedar Example Medical Center    Jul 2014 - Jun 2016"
+        ],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "ambiguous_years_since_training",
+      "input": "Mike Blum, MD\nCedar Example Medical Center    2014 - 2016\nFellow, Nephrology",
+      "expected": {
+        "years_in_practice": null
+      },
+      "actual": {
+        "years_in_practice": null
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [
+          "Cedar Example Medical Center    2014 - 2016"
+        ],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "single_line_inferred_active_years",
+      "input": "Mike Blum, MD\nNephrology Fellowship, Cedar Example Medical Center, 2014-2016\nCareer break 2016-2025",
+      "expected": {
+        "years_in_practice": null
+      },
+      "actual": {
+        "years_in_practice": 10
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [
+          "Nephrology Fellowship, Cedar Example Medical Center, 2014-2016"
+        ],
+        "board_certifications": [],
+        "years_in_practice": 10,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Nephrology Fellowship, Cedar Example Medical Center, 2014-2016",
+            "start_year": "2014",
+            "end_year": "2016"
+          }
+        ],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "license_no_hash",
+      "input": "Mike Blum, MD\nCalifornia Medical License: A123456 - Active",
+      "expected": {
+        "licenses": [
+          {
+            "state": "CA",
+            "number": "A123456",
+            "current": "yes"
+          }
+        ]
+      },
+      "actual": {
+        "licenses": []
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": null,
+        "specialty_display": "",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "license_not_active",
+      "input": "Mike Blum, MD\nCalifornia Medical License #TEST-900001 - Not active",
+      "expected": {
+        "licenses": [
+          {
+            "state": "CA",
+            "number": "TEST-900001",
+            "current": ""
+          }
+        ]
+      },
+      "actual": {
+        "licenses": [
+          {
+            "state": "CA",
+            "number": "TEST-900001",
+            "current": "yes"
+          }
+        ]
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": null,
+        "specialty_display": "",
+        "board_certifications_structured": [],
+        "licenses": [
+          {
+            "state": "CA",
+            "number": "TEST-900001",
+            "current": "yes"
+          }
+        ],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "license_split_lines",
+      "input": "Mike Blum, MD\nCalifornia Medical License\n#TEST-900001 - Active",
+      "expected": {
+        "licenses": [
+          {
+            "state": "CA",
+            "number": "TEST-900001",
+            "current": "yes"
+          }
+        ]
+      },
+      "actual": {
+        "licenses": []
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": null,
+        "specialty_display": "",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "employer_lowercase_present",
+      "input": "Mike Blum, MD\nCedar Example Medical Center    2016 - present\nAttending Physician, Nephrology",
+      "expected": {
+        "employer": "Cedar Example Medical Center"
+      },
+      "actual": {
+        "employer": ""
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [
+          "Cedar Example Medical Center    2016 - present"
+        ],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "not_employer_publication_header",
+      "input": "Mike Blum, MD\nSelected Publications    2020 - Present\nArticles about Nephrology",
+      "expected": {
+        "employer": ""
+      },
+      "actual": {
+        "employer": "Selected Publications"
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "Selected Publications",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "explicit_mobile",
+      "input": "Mike Blum, MD\nMobile: +1 (202) 555-0147\nOffice: +1 (202) 555-0180",
+      "expected": {
+        "phone": "+1 (202) 555-0147"
+      },
+      "actual": {
+        "phone": null
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": null,
+        "specialty_display": "",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "explicit_languages",
+      "input": "Mike Blum, MD\nLanguages: English, Spanish\nNephrology",
+      "expected": {
+        "languages": [
+          "English",
+          "Spanish"
+        ]
+      },
+      "actual": {
+        "languages": null
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "international_primary_qualification",
+      "input": "Asha Example, MBBS\nPrimary medical qualification: MBBS\nPostgraduate MD, Internal Medicine\nGMC registration: 7654321\nCountry of licensure: United Kingdom",
+      "expected": {
+        "primary_qualification": "MBBS",
+        "registration_number": "7654321",
+        "country_of_licensure": "GB"
+      },
+      "actual": {
+        "primary_qualification": null,
+        "registration_number": null,
+        "country_of_licensure": null
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Asha Example",
+        "degrees": [
+          "MD",
+          "MBBS"
+        ],
+        "training": [],
+        "specialty": null,
+        "specialty_display": "",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "unlabelled_phone_not_npi",
+      "input": "Mike Blum, MD\nPhone: 9999999995\nNephrology",
+      "expected": {
+        "npi": null
+      },
+      "actual": {
+        "npi": null
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "bad_checksum_not_npi",
+      "input": "Mike Blum, MD\nNPI: 9999999994\nNephrology",
+      "expected": {
+        "npi": null
+      },
+      "actual": {
+        "npi": null
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "single_board_acronym_not_certification",
+      "input": "Mike Blum, MD\nInterested in ABIM\nNephrology",
+      "expected": {
+        "board_certifications_structured": []
+      },
+      "actual": {
+        "board_certifications_structured": []
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "future_fellowship",
+      "input": "Mike Blum, MD\nCedar Example Medical Center    2026 - 2028\nFellow, Nephrology",
+      "expected": {
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2026",
+            "end_year": "2028"
+          }
+        ],
+        "years_in_practice": null
+      },
+      "actual": {
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2026",
+            "end_year": "2028"
+          }
+        ],
+        "years_in_practice": null
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [
+          "Cedar Example Medical Center    2026 - 2028"
+        ],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2026",
+            "end_year": "2028"
+          }
+        ],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "specialty_from_publication_not_identity",
+      "input": "Mike Blum, MD\nPrimary specialty: Cardiology\nPublications\nChen et al. Nephrology evaluation. 2024.",
+      "expected": {
+        "specialty": "cardiology"
+      },
+      "actual": {
+        "specialty": "cardiology"
+      },
+      "passed": true,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [],
+        "years_in_practice": null,
+        "publications_count": 1,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "cardiology",
+        "specialty_display": "Cardiology",
+        "board_certifications_structured": [],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    },
+    {
+      "name": "multiline_board",
+      "input": "Mike Blum, MD\nBoard Certified in Nephrology\nAmerican Board of Internal Medicine",
+      "expected": {
+        "board_certifications_structured": [
+          {
+            "board": "ABIM",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          }
+        ]
+      },
+      "actual": {
+        "board_certifications_structured": [
+          {
+            "board": "ABIM",
+            "specialty": "Internal Medicine",
+            "subspecialty": "",
+            "active": null
+          },
+          {
+            "board": "",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          }
+        ]
+      },
+      "passed": false,
+      "parsed": {
+        "institutions": [],
+        "board_certifications": [
+          "ABIM Internal Medicine",
+          "Nephrology"
+        ],
+        "years_in_practice": null,
+        "publications_count": null,
+        "full_name": "Mike Blum",
+        "degrees": [
+          "MD"
+        ],
+        "training": [],
+        "specialty": "nephrology",
+        "specialty_display": "Nephrology",
+        "board_certifications_structured": [
+          {
+            "board": "ABIM",
+            "specialty": "Internal Medicine",
+            "subspecialty": "",
+            "active": null
+          },
+          {
+            "board": "",
+            "specialty": "Nephrology",
+            "subspecialty": "",
+            "active": null
+          }
+        ],
+        "licenses": [],
+        "employer": "",
+        "npi": null,
+        "linkedin_url": null
+      }
+    }
+  ],
+  "existing_fixture_checks": [
+    {
+      "name": "us_md_nephrologist",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "name": "do_cardiologist",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "name": "img_mbbs_oncologist",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "name": "minimal_one_pager",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "name": "academic_long_cv",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "name": "labelled_npi_and_a_phone",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "name": "multi_licence",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "name": "resident_in_training",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "name": "no_board_named",
+      "passed": true,
+      "errors": []
+    }
+  ],
+  "pdf_cases": [
+    {
+      "name": "single_column",
+      "expected": {
+        "full_name": "Mike Blum",
+        "specialty": "nephrology",
+        "npi": "9999999995"
+      },
+      "actual": {
+        "full_name": "Mike Blum",
+        "specialty": "nephrology",
+        "npi": "9999999995"
+      },
+      "passed": true,
+      "text_chars": 1540,
+      "extracted_text": "Mike Blum, MD, MPH\n\nSYNTHETIC TEST CV - NOT A REAL PHYSICIAN\n\nPROFILE\n\nNephrologist with 10 years of clinical practice.\n\nClinical interests: chronic kidney disease, dialysis, and hypertension.\n\nEmail: mike.blum.test@example.com | Phone: (202) 555-0147\n\nNPI: 9999999995\n\nLinkedIn: https://www.linkedin.com/in/archangel-fictional-mike-blum-test\n\nCURRENT APPOINTMENT\n\nCedar Example Medical Center, Los Angeles CA    2016 - Present\n\nAttending Physician, Nephrology\n\nClinical care, physician education, and medical reasoning evaluation.\n\nEDUCATION AND TRAINING\n\nNorth Example University School of Medicine    2007 - 2011\n\nDoctor of Medicine (MD)\n\nWest Example University School of Public Health    2010 - 2011\n\nMaster of Public Health (MPH)\n\nHarbor Example University Hospital, Boston MA    2011 - 2014\n\nResident, Internal Medicine\n\nCedar Example Medical Center, Los Angeles CA    2014 - 2016\n\nFellow, Nephrology\n\nBOARD CERTIFICATIONS\n\nBoard Certified in Nephrology (ABIM), 2016\n\nBoard Certified in Internal Medicine (ABIM), 2014\n\nMEDICAL LICENSES\n\nCalifornia Medical License #TEST-900001 - Active\n\nMassachusetts Medical License #TEST-900002 - Active\n\nSELECTED PUBLICATIONS\n\nBlum M. Dialysis reasoning assessment. Fictional Research Notes. 2024.\n\nBlum M. Longitudinal kidney care evaluation. Fictional Research Notes. 2023.\n\nAll people, institutions, identifiers, and publications are fictional test data.\n\nThe NPI tests checksum extraction only; no registry identity is claimed.\n\nThe LinkedIn URL is a format fixture, not a verified profile.\n\n\f"
+    },
+    {
+      "name": "two_columns",
+      "expected": {
+        "full_name": "Mike Blum",
+        "specialty": "nephrology",
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2014",
+            "end_year": "2016"
+          },
+          {
+            "kind": "residency",
+            "institution": "Harbor Example University Hospital",
+            "start_year": "2011",
+            "end_year": "2014"
+          }
+        ]
+      },
+      "actual": {
+        "full_name": "Mike Blum",
+        "specialty": "nephrology",
+        "training": [
+          {
+            "kind": "fellowship",
+            "institution": "Cedar Example Medical Center",
+            "start_year": "2014",
+            "end_year": "2016"
+          },
+          {
+            "kind": "residency",
+            "institution": "Harbor Example University Hospital",
+            "start_year": "2011",
+            "end_year": "2014"
+          }
+        ]
+      },
+      "passed": true,
+      "text_chars": 254,
+      "extracted_text": "Mike Blum, MD\n\nNephrology\n\n10 years of clinical practice\n\nCalifornia Medical License #TEST-900001 - Active\n\nCedar Example Medical Center    2014 - 2016\n\nFellow, Nephrology\n\nHarbor Example University Hospital    2011 - 2014\n\nResident, Internal Medicine\n\n\f"
+    },
+    {
+      "name": "mixed_text_and_scan",
+      "expected": {
+        "full_name": "Mike Blum",
+        "npi": "9999999995"
+      },
+      "actual": {
+        "full_name": null,
+        "npi": null
+      },
+      "passed": false,
+      "text_chars": 59,
+      "extracted_text": "CURRICULUM VITAE - SYNTHETIC TEST COPY FOR EXTRACTION QA\n\n\f"
+    },
+    {
+      "name": "image_only",
+      "expected": {
+        "full_name": "Mike Blum",
+        "npi": "9999999995"
+      },
+      "actual": {
+        "full_name": null,
+        "npi": null
+      },
+      "passed": false,
+      "text_chars": 0,
+      "extracted_text": ""
+    },
+    {
+      "name": "blank",
+      "expected": {
+        "full_name": null,
+        "npi": null
+      },
+      "actual": {
+        "full_name": null,
+        "npi": null
+      },
+      "passed": true,
+      "text_chars": 0,
+      "extracted_text": ""
+    },
+    {
+      "name": "multipage",
+      "expected": {
+        "full_name": "Mike Blum",
+        "npi": "9999999995",
+        "board_certifications": [
+          "ABIM Nephrology"
+        ]
+      },
+      "actual": {
+        "full_name": "Mike Blum",
+        "npi": "9999999995",
+        "board_certifications": [
+          "ABIM Nephrology"
+        ]
+      },
+      "passed": true,
+      "text_chars": 84,
+      "extracted_text": "Mike Blum, MD\n\nNephrology\n\n\fBoard Certified in Nephrology (ABIM)\n\nNPI: 9999999995\n\n\f"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "observed_local_date": "2026-09-07",
+  "git_head": "cdf99f827d43a0153abda8084055172929480b7e",
+  "deployed_version": "Not established; live response and visible form observed separately.",
+  "source_sha256": {
+    "backend/asclepius/credentialing.py": "d3b6088c44f8bec5d37dc0cc61e8dff5e931bb175d1027d34c3306990936b858",
+    "backend/routers/onboarding.py": "c3a1b345bea07aafd13f0a9082874d52acff312cf1954a4a4870c803e52305e8",
+    "backend/team_store.py": "fddde0ab7b7e20f8e5747c5bc88d06deae2818da21b5390224ad80cdd238b2da",
+    "backend/asclepius/tiering.py": "4b8c12210750075c6e424d8cf3a872f16895a2e3f925e5908689b46b76c672e3",
+    "landing/src/app/components/OnboardingWizard.tsx": "054d51285fb7c61cf7fda910b9f7c013ab6db7a037cc037b3fa61e731898de7d",
+    "landing/src/app/components/onboarding/steps.tsx": "37fbdcadb91f2ff3fb380786bce87aa61c7a127f44063edc9306411228c5ea1c",
+    "landing/src/app/components/onboarding/primitives.tsx": "9cf40f174c2e23f9f6d9f939a036df9d2b3e5b653c06099cc79e6bfc8b3d0978",
+    "backend/tests/test_cv_parse_quality.py": "90db8a927e524a1a64bdac6166294e8f1b64c3112113e5de164474e5661f9507"
+  },
+  "local_ocr_available": false
+}

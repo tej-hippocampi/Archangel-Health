@@ -1,0 +1,131 @@
+{
+  "scope": "Actual TypeScript helpers stripped with Node and executed, no React rendering or application mutations. Expectations describe desired behavior, not existing contracts.",
+  "baseline_patch": {
+    "patch": {
+      "primarySpecialty": "Nephrology",
+      "linkedinUrl": "https://www.linkedin.com/in/archangel-fictional-mike-blum-test",
+      "healthSystem": "Cedar Example Medical Center",
+      "npi": "9999999995",
+      "degree": "MD",
+      "qualification": "MD",
+      "yearsInActivePractice": "10",
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": false
+        },
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": false
+        }
+      ],
+      "fellowship": [
+        {
+          "institution": "Cedar Example Medical Center",
+          "specialty": "",
+          "year": "2016"
+        }
+      ],
+      "residency": [
+        {
+          "institution": "Harbor Example University Hospital",
+          "year": "2014"
+        }
+      ],
+      "licenseNumber": "TEST-900001",
+      "licenseState": "CA"
+    },
+    "filled": [
+      "primarySpecialty",
+      "linkedinUrl",
+      "healthSystem",
+      "npi",
+      "degree",
+      "qualification",
+      "yearsInActivePractice",
+      "boardCertifications",
+      "fellowship",
+      "residency",
+      "licenseNumber",
+      "licenseState"
+    ]
+  },
+  "cases": [
+    {
+      "name": "unknown_board_validity_stays_unanswered",
+      "actual": [
+        false,
+        false
+      ],
+      "expected": [
+        null,
+        null
+      ],
+      "passed": false
+    },
+    {
+      "name": "fellowship_subject_reaches_form",
+      "actual": "",
+      "expected": "Nephrology",
+      "passed": false
+    },
+    {
+      "name": "single_completed_residency_year_reaches_gate_field",
+      "actual": null,
+      "expected": "2014",
+      "passed": false
+    },
+    {
+      "name": "handwritten_name_preserved",
+      "actual": null,
+      "expected": null,
+      "passed": true
+    },
+    {
+      "name": "handwritten_license_number_preserved",
+      "actual": null,
+      "expected": null,
+      "passed": true
+    },
+    {
+      "name": "license_pair_is_not_mixed",
+      "actual": "TEST-900001",
+      "expected": null,
+      "passed": false
+    },
+    {
+      "name": "untouched_old_cv_employer_can_refresh",
+      "actual": null,
+      "expected": "New Example Medical Center",
+      "passed": false
+    },
+    {
+      "name": "extra_certifications_not_silently_lost",
+      "actual": 4,
+      "expected": 5,
+      "passed": false
+    },
+    {
+      "name": "failed_parse_leaves_fields_alone",
+      "actual": {
+        "patch": {},
+        "filled": []
+      },
+      "expected": {
+        "patch": {},
+        "filled": []
+      },
+      "passed": true
+    },
+    {
+      "name": "manual_new_certification_starts_unanswered",
+      "actual": true,
+      "expected": null,
+      "passed": false
+    }
+  ]
+}
