@@ -57,6 +57,14 @@ def media(monkeypatch, tmp_path):
     monkeypatch.setenv("ASCLEPIUS_MEDIA_DATABASE_URL", os.getenv("MEDIA_TEST_POSTGRES_URL") or "sqlite:///" + str(tmp_path / "media.db"))
     store = M.get_store()
     store.migrate()
+    # A shared Postgres DSN keeps rows between tests where a per-test SQLite file
+    # does not, and `tick` scans the whole realm by design — so a row abandoned by
+    # an earlier test gets leased here, against an ObjectStorage double that has
+    # never heard of its upload. Every test starts from an empty control plane.
+    with store.transaction() as q:
+        for table in ("media_files", "media_collections", "media_orgs",
+                      "media_audit", "media_deliveries"):
+            q(f"DELETE FROM {table}")
     remote = ObjectStorage()
     monkeypatch.setattr(B, "get_storage", lambda: remote)
     return store, remote
