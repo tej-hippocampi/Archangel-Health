@@ -73,6 +73,18 @@ def _fn(name: str) -> str:
 
 @pytest.fixture()
 def client():
+    # fresh_store() BEFORE the app boots, not after.
+    #
+    # Entering TestClient runs the startup hooks, and two of them WRITE: it seeds
+    # the three v4 real de-identified cases, and `sync_real_data_approval` sweeps
+    # the users table. Booting first and calling fresh_store() inside the test
+    # body — which is what this fixture used to do — pointed both of those at
+    # whichever store the PREVIOUS test happened to leave bound, so this file
+    # wrote real_deid tasks and approval changes into a neighbour's database.
+    #
+    # Harmless in isolation, which is why it survived review; it is not harmless
+    # in a shard, and it is not this file's business either way.
+    fresh_store()
     with TestClient(app) as c:
         yield c
 
