@@ -25,10 +25,11 @@ miss MEANS:
                 simply absent (Germany, Egypt). The doctor uploads their
                 registration certificate and a human reads it.
 
-Adding a country is an entry here plus, if it is ``api``/``scrape``, an
-adapter in ``adapters/``. Nothing else in the codebase should carry a country
-list. Countries with no entry fall back to ``DEFAULT_REGISTRY`` so the wizard
-can never dead-end on a nationality we have not thought about yet.
+The selectable countries live in countries.json, mirrored in the landing
+app for loading/offline use (see COUNTRIES.md). Adding registry-specific
+verification means an entry here plus, for ``api``/``scrape``, an adapter in
+``adapters/``. Countries with no registry entry use ``DEFAULT_REGISTRY``
+for document review; adapter coverage never limits who can apply.
 
 Sources for formats and lookup URLs are cited per entry; they were verified
 against the live registries when this was written. Regexes here are ADVISORY
@@ -39,8 +40,17 @@ who cannot get past a regex is a doctor we lose to a guess about punctuation.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
+
+# All ISO 3166-1 countries/territories, plus XK for Kosovo. Registry adapters
+# describe verification capability, not which physicians can apply.
+COUNTRY_NAMES: Dict[str, str] = json.loads(
+    Path(__file__).with_name("countries.json").read_text(encoding="utf-8")
+)
 
 # Verification methods (see the module docstring for what each one means).
 METHOD_API = "api"
@@ -476,11 +486,11 @@ def for_country(country: Optional[str]) -> RegistryConfig:
         return DEFAULT_REGISTRY
     from dataclasses import replace
 
-    return replace(DEFAULT_REGISTRY, country=code, country_name=code)
+    return replace(DEFAULT_REGISTRY, country=code, country_name=COUNTRY_NAMES.get(code, code))
 
 
 def supported_countries() -> Tuple[Dict[str, Any], ...]:
-    """Every configured country, for the signup form's picker.
+    """Every selectable country, with configured or document-review metadata.
 
     Sorted by name so the list reads alphabetically; the caller decides what
     to float to the top.
@@ -506,7 +516,10 @@ def supported_countries() -> Tuple[Dict[str, Any], ...]:
                 for f in cfg.extra_fields
             ],
         }
-        for cfg in sorted(REGISTRY_CONFIGS.values(), key=lambda c: c.country_name)
+        for cfg in sorted(
+            (for_country(code) for code in COUNTRY_NAMES),
+            key=lambda c: c.country_name,
+        )
     )
 
 
