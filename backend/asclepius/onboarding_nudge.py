@@ -87,6 +87,21 @@ SWEEP_INTERVAL_SECONDS = float(os.getenv("ASCLEPIUS_NUDGE_SWEEP_SECONDS", "900")
 APPLICANT_NUDGE_AFTER_HOURS = int(
     os.getenv("ASCLEPIUS_APPLICANT_NUDGE_AFTER_HOURS", "24") or 24)
 
+#: The examination waits longer than the other two, on purpose. Somebody who
+#: chose "start onboarding now" usually finishes in the same sitting, so a
+#: chase at twenty four hours mostly reaches people who are still going to do
+#: it and reads as impatience. Two days is a pause, not a pester.
+EXAM_NUDGE_AFTER_HOURS = int(
+    os.getenv("ASCLEPIUS_EXAM_NUDGE_AFTER_HOURS", "48") or 48)
+
+#: One place the per-kind schedule lives, so adding a fourth kind is a line
+#: here rather than a branch inside the loop.
+_APPLICANT_NUDGE_HOURS = {
+    "credentials": APPLICANT_NUDGE_AFTER_HOURS,
+    "practice": APPLICANT_NUDGE_AFTER_HOURS,
+    "exam": EXAM_NUDGE_AFTER_HOURS,
+}
+
 #: The floor between two profile questions to the same physician. Enforced in
 #: the store (``stamp_profile_nudge``), named here so the schedule is readable
 #: in one place.
@@ -155,13 +170,33 @@ def _still_owes(kind: str, user: Dict[str, Any]) -> bool:
 
     if kind == "credentials":
         return not _has_credential_evidence(user)
+    if kind == "exam":
+        return _exam_state(user) not in ("submitted", "in_progress")
+    # THE PRACTICE CASE IS NOT WHAT WE READ, so somebody who has already sat
+    # the examination must not be chased about the optional warm-up in front
+    # of it. Before this, they were: the gate stays locked when a physician
+    # skips straight to the examination, which is a route the product
+    # explicitly offers them.
+    if _exam_state(user) == "submitted":
+        return False
     return caps.practice_gate_state(user) == caps.GATE_LOCKED
+
+
+def _exam_state(user: Dict[str, Any]) -> str:
+    """Where the examination stands, read from the same blob the admin queue
+    and the portal read. Never re-derived, for the reason in _still_owes."""
+    from asclepius import capabilities as caps  # noqa: PLC0415
+
+    blob = caps._tutorial_blob(user)
+    exam = blob.get("exam") if isinstance(blob.get("exam"), dict) else {}
+    return str(exam.get("state") or "not_started")
 
 
 async def _send_applicant_one(kind: str, user: Dict[str, Any]) -> bool:
     from email_utils import send_html_email  # noqa: PLC0415
     from onboarding_emails import (  # noqa: PLC0415
-        build_credentials_nudge_email, build_practice_case_nudge_email,
+        build_credentials_nudge_email, build_exam_nudge_email,
+        build_practice_case_nudge_email,
     )
 
     email = (user.get("email") or "").strip()
@@ -172,6 +207,9 @@ async def _send_applicant_one(kind: str, user: Dict[str, Any]) -> bool:
     if kind == "credentials":
         subject = "One thing missing from your application"
         html_body = build_credentials_nudge_email(first_name=name, portal_url=url)
+    elif kind == "exam":
+        subject = "Your examination is the last piece"
+        html_body = build_exam_nudge_email(first_name=name, portal_url=url)
     else:
         subject = "Your practice case is waiting"
         html_body = build_practice_case_nudge_email(first_name=name, portal_url=url)
@@ -234,11 +272,11 @@ async def _send_profile_one(gap: Dict[str, str], user: Dict[str, Any]) -> bool:
 async def _sweep_applicants(store: Any, sent: Dict[str, int]) -> None:
     import asyncio  # noqa: PLC0415
 
-    for kind in ("credentials", "practice"):
+    for kind, hours in _APPLICANT_NUDGE_HOURS.items():
         try:
             rows = await asyncio.to_thread(
                 store.list_applicants_needing_nudge,
-                kind, APPLICANT_NUDGE_AFTER_HOURS, _BATCH,
+                kind, hours, _BATCH,
             )
         except Exception:
             log.exception("[nudge] could not list %s candidates", kind)
@@ -315,7 +353,7 @@ async def sweep(ts: Optional[Any] = None, store: Optional[Any] = None) -> Dict[s
     from team_store import get_team_store  # noqa: PLC0415
 
     sent = {"resume": 0, "nudge": 0, "expiry": 0,
-            "credentials": 0, "practice": 0, "profile": 0}
+            "credentials": 0, "practice": 0, "exam": 0, "profile": 0}
     if not is_email_transport_configured():
         # Nothing to do, and — critically — nothing STAMPED. A deployment with no
         # mail transport must not silently burn every physician's one nudge.

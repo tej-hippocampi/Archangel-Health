@@ -356,14 +356,36 @@ async def _compose_news(cstore: Any, scope: Scope) -> Optional[Dict[str, Any]]:
 
 
 async def _compose_opportunities(cstore: Any, scope: Scope) -> Optional[Dict[str, Any]]:
-    items = await websearch.search_opportunities(
+    """Opportunities AND new research, in one post.
+
+    New research used to reach a physician only through the separate weekly
+    papers digest, so a daily reader saw no papers six mornings out of seven.
+    It rides this brief rather than becoming a fifth daily post, because
+    ``_compose_brief`` is right that three bot posts a morning in a room of
+    forty people is a feed nobody reads.
+    """
+    opps = await websearch.search_opportunities(
         country_name=scope.country_name, specialty=scope.specialty, limit=3)
-    items = _dedupe_new(cstore, items, "websearch:opps")[:3]
-    if not items:
+    opps = _dedupe_new(cstore, opps, "websearch:opps")[:3]
+
+    papers = await websearch.search_new_research(
+        country_name=scope.country_name, specialty=scope.specialty, limit=2)
+    papers = _dedupe_new(cstore, papers, "websearch:research")[:2]
+
+    if not opps and not papers:
         return None
-    body = "**Open to you right now**\n\nGrants, fellowships and calls worth an application."
-    return {"body": body, "kind": KIND_OPPORTUNITIES,
-            "cards": [_card(i, meta_keys=("deadline",)) for i in items], "items": items}
+
+    parts: List[str] = []
+    cards: List[Dict[str, Any]] = []
+    if opps:
+        parts.append("**Open to you right now**\n\nGrants, fellowships and "
+                     "calls worth an application.")
+        cards += [_card(i, meta_keys=("deadline",)) for i in opps]
+    if papers:
+        parts.append("**Worth reading**\n\nPublished in the last month.")
+        cards += [_card(i, meta_keys=("when",)) for i in papers]
+    return {"body": "\n\n".join(parts), "kind": KIND_OPPORTUNITIES,
+            "cards": cards, "items": opps + papers}
 
 
 #: Every discussion poll carries this, so the poll never forecloses the

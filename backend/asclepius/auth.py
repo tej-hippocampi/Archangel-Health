@@ -347,7 +347,9 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
     if not parsed:
         return {"status": "not_started", "version": None,
                 "gate_state": _caps.GATE_LOCKED, "attempts": 0,
-                "resources_seen_at": None, "exam": {"state": "not_started"}}
+                "resources_seen_at": None, "exam": {"state": "not_started"},
+                "welcome_seen_at": None, "onboarding_choice": None,
+                "info_seen_at": None}
 
     gate = parsed.get("gate")
     gate = gate if isinstance(gate, dict) else {}
@@ -367,6 +369,15 @@ def _parse_tutorial(raw: Any) -> Dict[str, Any]:
         # Whether they have been through the pre-examination screen. Decides
         # which button the credentialing dashboard shows, nothing more.
         "resources_seen_at": parsed.get("resources_seen_at"),
+        # The applicant journey, in the same spirit: three marks saying which
+        # screens between "application received" and the examination this
+        # person has already been through. They grant nothing and they carry no
+        # outcome. NULL on every account that predates them, which is correct:
+        # absent means not-done, and the client's stage ordering keeps anyone
+        # mid-application where they already were.
+        "welcome_seen_at": parsed.get("welcome_seen_at"),
+        "onboarding_choice": parsed.get("onboarding_choice"),
+        "info_seen_at": parsed.get("info_seen_at"),
         # The examination, PROJECTED as hard as the practice case is. State and
         # attempt count only: no submission id (nothing good comes of the
         # client holding one) and above all no outcome, because whether this

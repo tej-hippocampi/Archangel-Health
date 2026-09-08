@@ -160,6 +160,13 @@ def _tool_payload(kwargs: dict, rng: random.Random) -> Optional[tuple[str, dict]
     tools = kwargs.get("tools") or []
     if not tools:
         return None
+    # A SERVER-SIDE tool is not a tool the caller expects a payload back from.
+    # Anthropic's hosted web search carries a `type` and no `input_schema`; the
+    # caller wants the model's TEXT, having searched. Intercepting it returned
+    # an empty string, which is why every community sourcing call parsed to []
+    # under the fake transport no matter which fixture was registered.
+    if all(isinstance(t, dict) and not t.get("input_schema") for t in tools):
+        return None
     choice = kwargs.get("tool_choice") or {}
     wanted = choice.get("name") if isinstance(choice, dict) else None
     tool = None
@@ -372,6 +379,45 @@ def _f_community_items(ctx: _Ctx) -> str:
     return _j({"items": [], "selected": [], "scores": []})
 
 
+def _f_community_morning(ctx: _Ctx) -> str:
+    """A JSON ARRAY in the shape the morning composers read.
+
+    These two purposes used to map to `_f_prose`, which returns the sentence
+    "Fake model reply...". `_parse_items` then parsed that to [], every composer
+    returned None, and the routine recorded a quiet day. So the whole feature
+    was unobservable offline even once the two blockers above it were fixed.
+
+    Every key any composer touches is present: events read when/location/
+    organizer, news and opportunities read summary, the discussion prompt reads
+    prompt/options. URLs sit on a domain that is obviously not real, because a
+    fixture that looks like a citation is a fixture somebody will eventually
+    quote.
+    """
+    # Keyed on the call's own digest, so two SCOPES asking on the same morning
+    # get different items. Without it every scope produced the identical three
+    # URLs, the cross-channel dedupe correctly swallowed all but the first, and
+    # the harness could only ever demonstrate one channel per run. Deterministic
+    # still: the digest is a function of the call, not of the clock.
+    tag = ctx.digest[:8]
+    n = ctx.rng.randint(2, 3)
+    return _j([
+        {
+            "title": f"Fake morning item {i + 1} ({tag})",
+            "url": f"https://example.invalid/{tag}/fake-item-{i + 1}",
+            "when": "Next month",
+            "location": "Online",
+            "organizer": "Fake Organizer",
+            "why": "One sentence on who this is for, from the fake transport.",
+            "summary": "Two sentences of fake summary. It exists so the card "
+                       "renders with a caption rather than empty.",
+            "deadline": "Next month",
+            "prompt": "A fake discussion prompt for the fake transport.",
+            "options": ["Fake stance A", "Fake stance B"],
+        }
+        for i in range(n)
+    ])
+
+
 # Keyed by ``purpose`` first, then by ``role`` for the call sites that declare no
 # purpose. Both spaces are closed and enumerable, and both are asserted against
 # the live code by test_fake_llm_provider.py's AST scan.
@@ -395,8 +441,8 @@ _FIXTURES: dict[str, Callable[[_Ctx], str]] = {
     "asclepius_real_case_question": _f_real_case_question,
     "asclepius_reasoning_pregrade": _f_reasoning_pregrade,
     "asclepius_reasoning_split": _f_reasoning_split,
-    "community morning content": _f_prose,
-    "community morning content (grounded)": _f_prose,
+    "community morning content": _f_community_morning,
+    "community morning content (grounded)": _f_community_morning,
     # THESE KEYS ARE IDENTIFIERS, NOT COPY, and they must match the `purpose=`
     # at the call site (community/digest.py) character for character.
     #

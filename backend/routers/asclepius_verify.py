@@ -269,10 +269,25 @@ def _examination_block(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
     who was asked to try again is being looked at precisely for what changed
     between the two.
 
-    No verdict is computed here and none is stored. Whether this person is good
+    NO VERDICT IS COMPUTED HERE AND NONE IS STORED. Whether this person is good
     enough is the reading admin's call, and putting a number next to their
     answers would be this code making it first.
+
+    What each attempt now carries alongside it is ``observations``: the case's
+    own answer key, lined up against what they wrote. Which candidate the case
+    was authored to make wrong and which one they rejected; which of the key's
+    data points their prose reached for and which it did not. Those are facts,
+    not a judgement, and the difference is the whole reason they may sit here.
+    An admin was already doing this comparison by hand, in their head, and
+    differently every time.
+
+    Computed on READ, never on submit. ``/exam/submit`` promises in its own
+    docstring that it leaves nothing a client could read a verdict out of, and
+    that promise is worth more than the microseconds. It also means the answer
+    key can be corrected in ``gold_cases`` without a backfill.
     """
+    from asclepius import exam_grading  # noqa: PLC0415
+
     try:
         exams = store.list_credentialing_exams(user["id"])
     except Exception:
@@ -293,10 +308,33 @@ def _examination_block(store: Any, user: Dict[str, Any]) -> Dict[str, Any]:
                 "submitted_at": e.get("submitted_at"),
                 "time_spent_sec": e.get("time_spent_sec"),
                 "payload": e.get("payload") or {},
+                # Whether the case was theirs. None on every row filed before
+                # the column existed, and rendered as "not recorded" rather
+                # than as "no", because those are different claims.
+                "is_own_specialty": exam_grading.own_specialty(e),
+                "applied_specialty": e.get("applied_specialty"),
+                "observations": exam_grading.observations(
+                    _exam_task(store, e.get("task_id")), e.get("payload") or {}),
             }
             for e in exams
         ],
     }
+
+
+def _exam_task(store: Any, task_id: Optional[str]) -> Dict[str, Any]:
+    """The case an examination was sat on, with its held-out key.
+
+    Best effort by contract: a case that has been retired since somebody sat it
+    leaves ``observations`` ungraded, and the dossier says so. Failing the whole
+    verification screen because one answer key moved would be the worse trade.
+    """
+    if not task_id:
+        return {}
+    try:
+        return store.get_task(task_id) or {}
+    except Exception:
+        log.exception("[verify] could not load the examination case %s", task_id)
+        return {}
 
 
 def _has_credential_evidence(user: Dict[str, Any]) -> bool:

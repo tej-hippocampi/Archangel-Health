@@ -70,8 +70,14 @@ def mail(monkeypatch):
 
 
 def _applicant(store, *, hours_old=48, creds=None, npi=None, cv=None,
-               practice_passed=False, email=None):
-    """A submitted, undecided clinical applicant of a given age."""
+               practice_passed=False, exam_filed=False, email=None):
+    """A submitted, undecided clinical applicant of a given age.
+
+    ``exam_filed`` exists because the examination joined the sweep after these
+    tests were written: an applicant who has done everything ELSE is still owed
+    the examination nudge, correctly, so a test about credentials or the
+    practice case has to say that the examination is done too or it is really
+    testing the examination."""
     user = A.make_user(store, role="evaluator", tier=None, practice_case=practice_passed,
                        specialty="nephrology",
                        email=email or f"applicant-{A.uniq()}@example.com")
@@ -83,6 +89,11 @@ def _applicant(store, *, hours_old=48, creds=None, npi=None, cv=None,
             "credentials_json = ?, npi = ?, cv_asset_sha = ?, full_name = 'Dr Amara Reid' "
             "WHERE id = ?",
             (created, json.dumps(creds or {}), npi, cv, user["id"]))
+    if exam_filed:
+        current = store.get_tutorial_state(user["id"])
+        current["exam"] = {"state": "submitted", "attempt": 1,
+                           "submitted_at": datetime.utcnow().isoformat()}
+        store.set_tutorial_state(user["id"], current)
     return store.get_user_by_id(user["id"])
 
 
@@ -133,7 +144,8 @@ def test_an_applicant_who_already_did_the_thing_gets_no_email(mail):
     NPI and a JSON blob. So the sweep re-asks the question the admin queue asks,
     and a physician who uploaded a CV yesterday hears nothing."""
     store = A.fresh_store()
-    done = _applicant(store, cv="sha-of-a-real-cv", practice_passed=True)
+    done = _applicant(store, cv="sha-of-a-real-cv", practice_passed=True,
+                      exam_filed=True)
 
     _sweep(store)
     assert _subjects(mail, done["email"]) == []
@@ -146,7 +158,7 @@ def test_a_registration_number_counts_as_evidence_for_a_non_us_physician(mail):
     licence does not count."""
     store = A.fresh_store()
     doc = _applicant(store, creds={"registrationNumber": "GMC-7712345"},
-                     practice_passed=True)
+                     practice_passed=True, exam_filed=True)
     _sweep(store)
     assert _subjects(mail, doc["email"]) == []
 
@@ -159,27 +171,36 @@ def test_each_kind_is_sent_once_and_only_once(mail):
     doc = _applicant(store)
 
     first = _sweep(store)
-    assert first["credentials"] == 1 and first["practice"] == 1
+    assert first["credentials"] == 1 and first["practice"] == 1 and first["exam"] == 1
     assert sorted(_subjects(mail, doc["email"])) == sorted([
         "One thing missing from your application",
         "Your practice case is waiting",
+        "Your examination is the last piece",
     ])
 
     second = _sweep(store)
     assert second["credentials"] == 0 and second["practice"] == 0
-    assert len(_subjects(mail, doc["email"])) == 2
+    assert second["exam"] == 0
+    assert len(_subjects(mail, doc["email"])) == 3
 
 
 def test_the_two_kinds_have_separate_stamps():
     """One column per kind, so an applicant who was chased about credentials is
     still chaseable about the practice case. Sharing a stamp would silently
-    swallow whichever nudge lost the race."""
+    swallow whichever nudge lost the race.
+
+    The examination has its own for the same reason and one more: it arrived
+    after the other two, so anyone already chased about the practice case would
+    never have been chased about the examination if it had reused that column.
+    """
     store = A.fresh_store()
     doc = _applicant(store)
 
     assert store.stamp_applicant_nudge(doc["id"], "credentials") is True
     assert store.stamp_applicant_nudge(doc["id"], "practice") is True
+    assert store.stamp_applicant_nudge(doc["id"], "exam") is True
     assert store.stamp_applicant_nudge(doc["id"], "credentials") is False
+    assert store.stamp_applicant_nudge(doc["id"], "exam") is False
 
 
 def test_a_racing_worker_cannot_claim_a_row_that_is_already_claimed():
@@ -213,7 +234,7 @@ def test_a_claimed_but_unsent_nudge_is_never_retried(mail, monkeypatch):
     # claim committed before the send that failed.
     monkeypatch.setattr(email_utils, "send_html_email", _capture(mail))
     assert _sweep(store) == {"resume": 0, "nudge": 0, "expiry": 0,
-                             "credentials": 0, "practice": 0, "profile": 0}
+                             "credentials": 0, "practice": 0, "exam": 0, "profile": 0}
     assert _subjects(mail, doc["email"]) == []
 
 
@@ -228,7 +249,7 @@ def test_no_mail_transport_stamps_nothing(monkeypatch):
     import email_utils
     monkeypatch.setattr(email_utils, "is_email_transport_configured", lambda: False)
     assert _sweep(store) == {"resume": 0, "nudge": 0, "expiry": 0,
-                             "credentials": 0, "practice": 0, "profile": 0}
+                             "credentials": 0, "practice": 0, "exam": 0, "profile": 0}
 
     row = store.get_user_by_id(doc["id"])
     assert row["nudge_credentials_sent_at"] is None
@@ -236,7 +257,7 @@ def test_no_mail_transport_stamps_nothing(monkeypatch):
 
 
 # ─── The copy ────────────────────────────────────────────────────────────────
-def test_neither_email_carries_a_long_dash_or_a_deadline(mail):
+def test_no_applicant_email_carries_a_long_dash_or_a_deadline(mail):
     """House style on the dash. On the deadline: these nudges chase a person
     who is waiting on US to decide, so inventing a countdown for them would be
     the product manufacturing urgency it does not actually have."""
@@ -245,8 +266,56 @@ def test_neither_email_carries_a_long_dash_or_a_deadline(mail):
     _sweep(store)
 
     bodies = [m["body"] for m in mail if m["to"] == doc["email"]]
-    assert len(bodies) == 2
+    assert len(bodies) == 3
     for body in bodies:
         assert "—" not in body and "–" not in body
         for word in ("deadline", "expires", "last chance", "final"):
             assert word not in body.lower()
+
+
+# ─── The examination joins the sweep ─────────────────────────────────────────
+def test_the_practice_nudge_stops_chasing_somebody_who_sat_the_examination(mail):
+    """The practice case is NOT what we read, and the product offers a route
+    that skips straight past it to the examination. Taking that route leaves
+    the practice gate locked, so the practice nudge would chase a physician
+    about an optional warm-up for a decision they have already completed."""
+    store = A.fresh_store()
+    doc = _applicant(store, cv="sha-of-a-real-cv", exam_filed=True)
+
+    sent = _sweep(store)
+    assert sent["practice"] == 0
+    assert sent["exam"] == 0, "a filed examination is not owed an examination nudge"
+    assert _subjects(mail, doc["email"]) == []
+
+
+def test_an_examination_in_progress_is_left_alone(mail):
+    """They are doing it right now. A mail saying it is the last piece would
+    arrive while they are looking at it."""
+    store = A.fresh_store()
+    doc = _applicant(store, cv="sha-of-a-real-cv", practice_passed=True)
+    current = store.get_tutorial_state(doc["id"])
+    current["exam"] = {"state": "in_progress", "attempt": 1}
+    store.set_tutorial_state(doc["id"], current)
+
+    assert _sweep(store)["exam"] == 0
+    assert _subjects(mail, doc["email"]) == []
+
+
+def test_the_examination_waits_longer_than_the_other_two():
+    """Somebody who chose to start onboarding usually finishes in one sitting,
+    so a chase the next morning mostly reaches people who were always going to
+    do it, and reads as impatience."""
+    assert onboarding_nudge.EXAM_NUDGE_AFTER_HOURS > onboarding_nudge.APPLICANT_NUDGE_AFTER_HOURS
+
+
+def test_the_examination_nudge_says_it_is_the_decision_and_not_more_homework(mail):
+    """An applicant who reads it as optional waits for a verdict that is
+    waiting on them."""
+    store = A.fresh_store()
+    doc = _applicant(store, cv="sha-of-a-real-cv", practice_passed=True)
+    _sweep(store)
+    body = [m["body"] for m in mail if m["to"] == doc["email"]][0].lower()
+    assert "examination" in body
+    assert "own specialty" in body
+    for verdict in ("passed", "failed", "score", "grade you"):
+        assert verdict not in body

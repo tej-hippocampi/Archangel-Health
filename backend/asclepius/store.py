@@ -138,6 +138,11 @@ def password_is_unset(user: Dict[str, Any]) -> bool:
 _APPLICANT_NUDGE_COLUMNS = {
     "credentials": "nudge_credentials_sent_at",
     "practice": "nudge_practice_sent_at",
+    # The examination is the piece we read, so it gets its OWN column
+    # rather than reusing the practice one. Sharing would make the column
+    # name a lie, and worse: anybody who had already been chased about the
+    # practice case would never be chased about the examination.
+    "exam": "nudge_exam_sent_at",
 }
 
 
@@ -698,7 +703,17 @@ class AsclepiusStore:
                     attempt         INTEGER NOT NULL DEFAULT 1,
                     payload_json    TEXT NOT NULL DEFAULT '{}',
                     time_spent_sec  INTEGER NOT NULL DEFAULT 0,
-                    submitted_at    TEXT NOT NULL
+                    submitted_at    TEXT NOT NULL,
+                    -- Whether the case served was the applicant's OWN specialty,
+                    -- and what they had applied with. `specialty` above records
+                    -- only what was SERVED, so a nephrology case sat by a
+                    -- hepatologist is indistinguishable from one sat by a
+                    -- nephrologist once the row is written. Those two rows say
+                    -- different things about the person and must not be read as
+                    -- if they said the same thing. NULL means unknown, which is
+                    -- the honest value for every row filed before this existed.
+                    is_own_specialty  INTEGER,
+                    applied_specialty TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_cred_exam_user
                     ON credentialing_exams(user_id);
@@ -1146,6 +1161,16 @@ class AsclepiusStore:
             if "annotations_json" not in cols("env_runs"):
                 conn.execute("ALTER TABLE env_runs ADD COLUMN annotations_json TEXT")
 
+            # Added after credentialing_exams shipped. No backfill: NULL means
+            # "we did not record whether this was their own specialty", which is
+            # exactly true of every row written before this, and is read as
+            # unknown rather than as False everywhere downstream.
+            exam_cols = cols("credentialing_exams")
+            if "is_own_specialty" not in exam_cols:
+                conn.execute("ALTER TABLE credentialing_exams ADD COLUMN is_own_specialty INTEGER")
+            if "applied_specialty" not in exam_cols:
+                conn.execute("ALTER TABLE credentialing_exams ADD COLUMN applied_specialty TEXT")
+
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
                 conn.execute("ALTER TABLE tasks ADD COLUMN grounding_mode TEXT NOT NULL DEFAULT 'optional'")
@@ -1189,6 +1214,8 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_credentials_sent_at TEXT")
             if "nudge_practice_sent_at" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_practice_sent_at TEXT")
+            if "nudge_exam_sent_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN nudge_exam_sent_at TEXT")
 
             # The shareable verified card. Opt-in and revocable, so the token is
             # stored hashed like every other token here: a read of the users
@@ -2016,7 +2043,13 @@ class AsclepiusStore:
                     reward_state    TEXT,            -- NULL until an admin decides
                     reward_earning_id TEXT,
                     client_ip       TEXT,
-                    fraud_flag      TEXT
+                    fraud_flag      TEXT,
+                    -- WHEN the physician attested that they know this contact.
+                    -- The claim was always made (the endpoint refuses a request
+                    -- without it) and was never RECORDED: not on this row, not
+                    -- in the audit event. If it were ever challenged there was
+                    -- nothing to produce. NULL means the row predates this.
+                    consent_at      TEXT
                 )
                 """
             )
@@ -2031,6 +2064,14 @@ class AsclepiusStore:
             # rows whose token was cleared after resolution do not collide.
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_hs_referrals_token "
                          "ON hs_referrals(landing_token) WHERE landing_token IS NOT NULL")
+
+            # Added after the table shipped, and it has to sit AFTER the
+            # CREATE above rather than up in the users migration block:
+            # PRAGMA table_info on a table that does not exist yet raises,
+            # which takes the whole boot with it on a fresh database.
+            # No backfill. NULL means the row predates the column.
+            if "consent_at" not in cols("hs_referrals"):
+                conn.execute("ALTER TABLE hs_referrals ADD COLUMN consent_at TEXT")
 
             # Admin-entry only, by construction: there is no accrual path from a
             # health system's uploads to money, no schedule, and no Stripe. The
@@ -6086,6 +6127,7 @@ class AsclepiusStore:
     def record_credentialing_exam(
         self, *, user_id: str, task_id: str, specialty: str,
         attempt: int, payload: Dict[str, Any], time_spent_sec: int = 0,
+        is_own_specialty: Optional[bool] = None, applied_specialty: str = "",
     ) -> str:
         """File an applicant's examination. Returns the exam id.
 
@@ -6100,11 +6142,14 @@ class AsclepiusStore:
                 """
                 INSERT INTO credentialing_exams
                     (exam_id, user_id, task_id, specialty, attempt,
-                     payload_json, time_spent_sec, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     payload_json, time_spent_sec, submitted_at,
+                     is_own_specialty, applied_specialty)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (exam_id, user_id, task_id, specialty, int(attempt or 1),
-                 json.dumps(payload or {}), int(time_spent_sec or 0), _utcnow_iso()),
+                 json.dumps(payload or {}), int(time_spent_sec or 0), _utcnow_iso(),
+                 None if is_own_specialty is None else int(bool(is_own_specialty)),
+                 (applied_specialty or "").strip() or None),
             )
         return exam_id
 
@@ -13213,8 +13258,8 @@ class AsclepiusStore:
                                           contact_name, contact_email, contact_role,
                                           hs_name, relationship, note, status,
                                           invited_at, enrich_state, landing_token,
-                                          client_ip)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                          client_ip, consent_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (rid, referrer_id, referral_code,
                  (contact_name or "").strip(),
@@ -13223,7 +13268,10 @@ class AsclepiusStore:
                  (hs_name or "").strip(),
                  (relationship or "").strip(),
                  note, None, _utcnow_iso(), "pending", token,
-                 (client_ip or "").strip() or None),
+                 (client_ip or "").strip() or None,
+                 # Written unconditionally: the router refuses the request
+                 # without consent, so reaching this line IS the attestation.
+                 _utcnow_iso()),
             )
         return self.get_hs_referral(rid)  # type: ignore[return-value]
 

@@ -22,6 +22,8 @@ The properties worth pinning are not "the endpoint returns 200":
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -337,10 +339,21 @@ def test_the_examination_can_be_paused_without_losing_the_answers():
 
 
 def test_nothing_after_the_examination_congratulates_anybody():
-    screen = _CODE[_CODE.index("function renderExamSubmitted"):][:1200]
+    # Bounded at the next declaration rather than by a character count. The
+    # fixed 1200-char window used to run past the end of this function into its
+    # neighbour, so the positive half of this test was being satisfied by copy
+    # on a different screen and would have kept passing if this one lost it.
+    start = _CODE.index("function renderExamSubmitted")
+    # _CODE has its comments stripped, so the bound has to be a declaration.
+    ends = [_CODE.find(tok, start + 1) for tok in ("\n  function ", "\n  var ", "\n  const ")]
+    screen = _CODE[start:min(e for e in ends if e != -1)]
     for verdict in ("passed", "Well done", "score", "Congratulations", "failed"):
         assert verdict not in screen, verdict
-    assert "read" in screen and "email you either way" in screen
+    # Whitespace-normalised: the sentence is wrapped across two string literals
+    # in the source, and an assertion that a line break defeats is an assertion
+    # about formatting rather than about copy.
+    flat = re.sub(r"'\s*\+\s*'", "", screen)
+    assert "read" in flat and "email you either way" in flat
 
 
 def test_the_standalone_demo_cannot_close_a_walkthrough_stop():

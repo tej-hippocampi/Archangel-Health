@@ -1,133 +1,125 @@
-# Asclepius — the labeling product, start to finish
+# Asclepius, start to finish, on your machine
 
-Running now on your machine. Portal `http://localhost:8000/asclepius`, landing `http://localhost:5173`.
+Start it:  `cd "~/Claude Code/Archangel-Health" && ./scripts/dev-hub.sh`
 
-Restart later:  `cd "~/Claude Code/Archangel-Health" && ./scripts/dev-hub.sh`
+Portal `http://localhost:8000/asclepius` · landing `http://localhost:5173` ·
+admin `http://localhost:8000/asclepius/admin` · community
+`http://localhost:8000/community`
 
 Emails are never sent. `EMAIL_DEV_MODE=1` prints them to the server terminal.
 
 ---
 
-## The cast (all created and verified against a live login)
+## The cast
 
-| Role | Login | Password | State |
-|---|---|---|---|
-| **Brand-new physician** | `newdoc@demo.local` | `NewDoc-2026` | No tier. Tutorial not started. **Start here.** |
-| Second labeler | `labeler2@demo.local` | `Labeler2-2026` | Tier: Labeler |
-| Reviewer | `reviewer@demo.local` | `Reviewer-2026` | Tier: Reviewer |
-| Sandbox contributor | `mockadmin` | `MockContributor-2026` | Tier: Labeler, exports excluded |
-| Admin | `admin@localhost` | `dev-admin-password` | Approves, tiers, exports |
+| Role | Login | Password |
+|---|---|---|
+| Approved labeler | `newdoc@demo.local` | `NewDoc-2026` |
+| Second labeler | `labeler2@demo.local` | `Labeler2-2026` |
+| Reviewer | `reviewer@demo.local` | `Reviewer-2026` |
+| Sandbox contributor | `mockadmin` | `MockContributor-2026` |
+| Admin | `admin@localhost` | `dev-admin-password` |
 
-All sign in at the same door: **http://localhost:8000/asclepius**
+Everyone signs in at **http://localhost:8000/asclepius**, except the admin
+console, which has its own door at **/asclepius/admin**.
+
+**There is no standing "brand-new physician" account, on purpose.** The point of
+that state is the twenty minutes after somebody applies, and the honest way to
+see it is to apply. §1 takes about three minutes.
 
 ---
 
-## 1 · How a physician arrives
+## 1 · Apply, as a physician who has never been here
 
 **http://localhost:5173/physicians** → "Become a contributor" → **/join**
 
-Enter an email; the backend mints a 7-day onboarding link and "emails" it (it
-prints to the server terminal). The wizard at `/onboard/<token>` collects
-credentials, training, board certification, CV and attestations, then an email
-OTP.
+Or mint a link straight into the wizard. Note the address: `.local` is a
+reserved TLD and the validator refuses it, so use `example.com`.
 
-A live link is already minted for you:
+```bash
+curl -s -X POST http://localhost:8000/api/onboarding/self-serve \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","first_name":"Ada","last_name":"Reyes"}'
+```
 
-  http://localhost:5173/onboard/1bZCEqBGSvmuoPgmWNSgLLwXLBtlPCyU_Mw2PPU-mEY
+Screen 1 takes a password you choose. Screen 2 wants a six-digit code, which is
+printed to the server terminal rather than sent:
 
-Mint another for any address:
+```bash
+grep -i "DEV ONBOARDING OTP" <the dev-hub terminal>
+```
 
-    curl -s -X POST http://localhost:8000/api/onboarding/self-serve \
-      -H 'Content-Type: application/json' \
-      -d '{"email":"you@example.com","first_name":"Ada","last_name":"Reyes"}'
+Then the CV step, then **the review screen**, which is the one worth looking at.
+It is three collapsible boxes, each saying why it is asking, with an honest
+count. Only two fields block Submit and they say `Required`. The NPI says
+`Needed` in pink with a note underneath, and **you can still submit without it**:
+red means "missing and it matters", never "you may not send this". Fields the CV
+filled in carry a lime `from your CV` chip, because those are our reading of
+your CV and not yet your word.
 
-Referral links are the other door: every contributor gets one
-(`/join?ref=CODE`), worth **$50** to the referrer and **$25** to the new joiner.
+## 2 · The twenty minutes after applying
 
-## 2 · The waiting room — sign in as `newdoc@demo.local`
+Sign in as the account you just made. You land on **Welcome to Archangel**, not
+inside a case, and you are offered two doors: be emailed when we decide, or
+start onboarding now.
 
-http://localhost:8000/asclepius → `newdoc@demo.local` / `NewDoc-2026`
+Take "start onboarding". You get the explainer, then **step one: learning how to
+label** (a demo video and the practice case, both optional and both labelled so),
+then the examination.
 
-This is the most important screen in the product and it is the one people skip.
-The account has **no tier**, so it cannot draw work. Try it and the server says:
+Choosing "just email me" is not a dead end. The dashboard still offers the way
+in, because the commonest reason to pick it is not yet knowing the rest is
+fifteen minutes.
 
-> Your account is not yet assigned a contributor tier, so it cannot draw or
-> submit tasks. An admin assigns one when your credentials are approved.
+The left rail: Tasks is open, Community, Referral and Earnings each carry a
+small padlock. They are **view only**, and they work: clicking Community opens a
+fixture of what the rooms look like, clearly banded as a preview, so an applicant
+can see what they are applying to without a single real colleague reaching an
+account nobody has checked.
 
-Notice the left rail does not hide Tasks — it shows it **locked**, with
-"Opens when your credentials clear". Hiding it would make the product look
-empty at the exact moment a new physician is most excited. Referral, Earnings,
-Guide and Profile are all live right now, before verification. Earnings reads
-$0, which is true rather than hidden.
+## 3 · The examination
 
-## 3 · The practice case — Calibration Case 1
+One real case in the applicant's own specialty, in the real workspace with the
+real validation. A cardiologist gets a cardiology case; someone whose specialty
+we hold no case set for gets nephrology **and is told so on screen**.
 
-Available to `newdoc` immediately, before any approval, and now **mandatory**:
-no real case opens until it is passed.
+You can pause it and go back to the learning materials, and the draft survives.
 
-A real hard nephrology case: creatinine rising 1.4 to 1.9 on IV furosemide in
-acute decompensated heart failure. Interpret the rise, decide what to do with
-the diuresis.
+Nothing is graded on submit and no verdict is ever shown to the physician.
 
-- It opens at **step 1 of 14** with a welcome screen, from a cold start and
-  after abandoning mid-tour. (It used to open on step 3.)
-- **Pass** = you chose the answer the reference panel chose, AND matched 3 of
-  its 4 findings, AND did not use "Skip this step" on a graded step.
-- Failing shows you what you wrote next to what the panel read, and offers
-  "Take it again". Retries are unlimited.
-- You never see a score. The headline is a verdict in words.
+## 4 · Approve them
 
-Try clicking "Skip this step" through the whole tour: it scores 4 of 4 and
-still does not pass, because the placeholders are the answer key's own words.
+`admin@localhost` → **Physicians**. The queue has an **Examination** column
+beside Practice case. Open a row and the dossier leads with the **Examination**
+card: which candidate the case was authored to make wrong and which they
+rejected, which of the answer key's data points their writing reached for, the
+key itself, and what they wrote before they saw either candidate.
 
-## 4 · Admin approves them and assigns a tier
+Every line is a fact with the key beside it. There is no score, no band and no
+pass mark, because whether this physician is good enough is your call.
 
-Sign in as `admin@localhost` / `dev-admin-password` → **Physicians** → the
-verification queue → approve → **assign a tier**.
+Approve, then **assign a tier**:
 
-Tier is the whole access model:
+- **Labeler** draws and labels cases
+- **Reviewer** can additionally adjudicate a completed pair
 
-- **Labeler** — can draw and label cases
-- **Reviewer** — can additionally adjudicate a completed pair
+No tier means no work.
 
-No tier means no work. That refusal in step 2 was the guard, not a bug.
+## 5 · Label, pair, adjudicate
 
-## 5 · Label a case
+Sign in as a labeler → **Tasks**. **12 nephrology cases are queued**, 10
+multimodal and 2 text, all rated hard.
 
-Sign in as a labeler → **Tasks** → draw. **12 nephrology cases are queued**,
-10 multimodal and 2 text, all rated hard.
+The anti-peeking mechanism is the thing to look at: the AI's candidate answers
+are withheld until your own answer commits server-side, and the order is
+enforced by the API rather than the honour system, so at packaging time we can
+prove the physician wrote first.
 
-A real one: confusion with a serum sodium of 110 — full problem list,
-medications, vitals, and a flagged BMP panel. Classify the hyponatremia and
-correct it safely.
+Three cases sit at "awaiting second label". Sign in as `labeler2@demo.local`,
+label one of those, and the pair completes. Then `reviewer@demo.local` can
+adjudicate it.
 
-**The anti-peeking mechanism is the thing to look at.** The AI's candidate
-answers are withheld. You write your own independent answer first, it commits
-server-side, and only that commit reveals the AI answers. The order is enforced
-by the API, not by the honor system — so at packaging time we can prove the
-physician's answer was written before they saw the model's.
-
-Then: grade the candidates, capture reasoning step by step, and cite evidence
-for each claim.
-
-Newest annotation UI: http://localhost:8000/asclepius/v5/annotate
-
-## 6 · Complete a pair
-
-Every case wants two independent labels. **Three cases are already sitting at
-"awaiting second label" right now** — sign in as `labeler2@demo.local`, label
-one of those same cases, and the pair completes.
-
-## 7 · Adjudicate
-
-Sign in as `reviewer@demo.local` / `Reviewer-2026` → the pair queue.
-
-Reviewer stats read: `unreviewed 3 · awaiting_second 3 · review_ready 0`.
-After step 6 one of those moves to review_ready and you can adjudicate it.
-
-## 8 · Money
-
-Real rates, live in the product:
+## 6 · Money
 
 | | |
 |---|---|
@@ -136,53 +128,78 @@ Real rates, live in the product:
 | Referral bounty (referrer) | **$50** |
 | Referral bonus (new joiner) | **$25** |
 
-Earnings shows accrual the moment you submit, and separately what is still
-pending review. A review session only qualifies for payout past a minimum
-duration floor — I set it to **60 seconds** locally
-(`ASCLEPIUS_TR_MIN_SECONDS=60`) so a demo pays out in one sitting. Production
-is 20 minutes.
+A review session only qualifies past a minimum duration floor. It is 60 seconds
+locally (`ASCLEPIUS_TR_MIN_SECONDS=60`) so a demo pays out in one sitting;
+production is 20 minutes.
+
+## 7 · Referral
+
+Two things for a physician: a personalised link whose **Copy invite** puts a
+whole message on the clipboard rather than a bare URL, and an email invitation.
+
+Three for a health system: a copy link, "I work at a health system, connect it",
+and a three-field introduction. No consent checkbox: what we do with it is
+stated beside the button, and the attestation is now recorded rather than merely
+demanded.
+
+## 8 · The community, and the morning routine
+
+`newdoc@demo.local` → Community opens the real thing.
+
+The morning routine posts events, medical AI news, research and opportunities,
+and a discussion prompt at 7am local per channel. It needs `ANTHROPIC_API_KEY`
+to source anything. To watch it work with no key at all, on throwaway
+databases:
+
+```bash
+TMP=$(mktemp -d)
+cd backend && ASCLEPIUS_LLM_PROVIDER=fake COMMUNITY_FAKE_SEARCH=1 \
+  COMMUNITY_MORNING_ENABLED=1 COMMUNITY_DB_PATH=$TMP/c.db \
+  ASCLEPIUS_DB_PATH=$TMP/a.db TEAM_DB_PATH=$TMP/t.db \
+  python3 -c "import asyncio, main; from community import morning; \
+  print(asyncio.run(morning.run_morning(force=True)))"
+```
+
+See `docs/asclepius/MORNING_ROUTINE_SETUP.md` for what each reason means.
 
 ## 9 · Where cases come from
 
-Admin → mint an upload link (purpose is required at mint time: task creation
-vs brokering). Hospital-side portal: **http://localhost:8000/provider**
+Admin → mint an upload link (purpose is required at mint time). Hospital portal:
+**http://localhost:8000/provider**
 
 Uploads arrive with **no specialty**, because specialty is a property of the
-data and hospital IT is never asked for it. The row shows "Specialty not set"
-and **Promote stays disabled until you pick one.**
-
-Say this part out loud when you demo it: ingest refusing to guess is the
-product working. A wrong specialty routes the case to the wrong physician pool
-and mislabels it in the export, invisibly, and neither is recoverable once the
-bundle ships.
+data and hospital IT is never asked for it. Promote stays disabled until you
+pick one. Say that part out loud when you demo it: ingest refusing to guess is
+the product working, because a wrong specialty routes the case to the wrong
+physician pool and mislabels it in the export, invisibly, and neither is
+recoverable once the bundle ships.
 
 ## 10 · Quality and export
 
-Admin → Exports and Metrics: per-contributor and per-organization quality,
-value-per-time, credential summaries, and export bundles.
+Admin → Exports and Metrics. **κ will read `null`.** The floor is 30
+double-labeled observations; below that the report prints "kappa is not
+reportable below 30" instead of a number. Say it before a buyer finds it: we
+return nothing rather than a number nobody should trust.
 
-**κ will read `null`.** The floor is 30 double-labeled observations; below that
-the report prints "kappa is not reportable below 30" instead of a number.
-Say it before a buyer discovers it: *we return nothing rather than a number
-nobody should trust.* Do not lower the threshold to make it look better — a κ
-computed on n=4 is exactly what the floor exists to prevent.
-
-`mockadmin` submissions are hard-excluded from every export, so you can click
-around the sandbox without polluting a shipped batch.
-
-## 11 · Community
-
-http://localhost:8000/community — contributor channels, digests, events, polls.
+`mockadmin` submissions are hard-excluded from every export.
 
 ---
 
-## What I changed to make this work
+## Two things this instance has that a stock one does not
 
-Created three accounts (`newdoc@`, `labeler2@`, `reviewer@demo.local`) via the
-admin API, and appended two lines to `backend/.env` (original backed up
-alongside as `.env.bak-*`):
+Two lines in `backend/.env` (local dev only; delete them for the stock
+instance):
 
     DEMO_MODE=1                  # seeds demo data
     ASCLEPIUS_TR_MIN_SECONDS=60  # payout floor, so earnings appear in one sitting
 
-Local dev only. Delete the two lines to get the stock instance back.
+## What is deliberately missing
+
+**No founder photograph is committed.** Three files are referenced by name and
+none is in git: they are photographs of real people, `/email-assets` is public
+and unauthenticated, and a blank placeholder would be worse than the absence,
+since every consumer degrades to something deliberate (initials, or the names
+alone, or no image element). See `backend/assets/README.md` for the three paths.
+
+**No onboarding demo video is installed.** The "Watch the demo" card hides
+itself until an admin uploads one under Admin → Health.

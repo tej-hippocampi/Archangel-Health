@@ -888,9 +888,20 @@ class TutorialStateUpdate(BaseModel):
     #: sign-in. Enumerated here rather than accepted as free text for the same
     #: reason the stops are: an action the server has never heard of must not be
     #: able to write state nobody can reproduce.
-    action: Literal["start", "advance", "skip", "complete", "reset", "resources_seen"]
+    #: The three added by the applicant journey are stamps in the same shape as
+    #: ``resources_seen``: idempotent, first write wins, granting nothing. They
+    #: decide which screen an applicant lands on between submitting an
+    #: application and sitting the examination, and nothing else reads them.
+    action: Literal[
+        "start", "advance", "skip", "complete", "reset", "resources_seen",
+        "welcome_seen", "onboarding_choice", "info_seen",
+    ]
     step: Optional[str] = None
     version: Optional[int] = None
+    #: Only meaningful for ``onboarding_choice``. Enumerated for the same reason
+    #: the actions are: a third value nobody can reproduce would strand an
+    #: applicant on a screen the client has no branch for.
+    choice: Optional[Literal["email_me", "start_now"]] = None
 
 
 #: Onboarding v2 §6 — the six walkthrough stops, in order. Enumerated here and

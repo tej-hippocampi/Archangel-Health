@@ -2538,7 +2538,44 @@ body.asc-sheet-open { overflow: hidden; }
   color: currentColor;
 }
 .asc-rail-ico svg { width: 20px; height: 20px; display: block; }
-.asc-rail-label { flex: 1 1 auto; min-width: 0; }
+/* min-width:0 alone is a no-op: it lets the box shrink but nothing clips the
+   text, so a label wider than its box paints straight over whatever sits to
+   its right. That is how "COMMUNITY" ended up under the view-only chip. */
+.asc-rail-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* View-only marker: a bare padlock, no chip. It must never inherit
+   .asc-rail-badge (the unread-count pill), which is sized for a two-digit
+   count and cannot shrink. */
+.asc-rail-viewonly {
+  flex: none;
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--orange);
+  opacity: 0.75;
+}
+.asc-rail-viewonly svg { width: 12px; height: 12px; display: block; }
+
+/* Four call sites write `asc-chrome` where the shared eyebrow class is plain
+   `chrome` (_base.css:61), so those four eyebrows rendered as unstyled body
+   text. Aliased rather than renamed: the alias fixes every one at once and
+   cannot miss a fifth that a source rename would. */
+.asc-chrome {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
 
 /* Community unread badge: lime dot + mono count; hidden at 0 (JS sets hidden). */
 .asc-rail-badge {
@@ -2690,6 +2727,13 @@ body.asc-has-rail .asc-main {
     margin: 0; padding: 0; gap: 0; background: none; border: none;
   }
   body.asc-rail-compact .asc-rail-badge-n { display: none; }
+  /* The padlock keeps its shape at the icon corner: unlike a dot, it still
+     reads as "locked" rather than as an unread mark. */
+  body.asc-rail-compact .asc-rail-viewonly {
+    position: absolute; top: 4px; right: 4px;
+    margin: 0; width: 12px; height: 12px; opacity: 1;
+  }
+  body.asc-rail-compact .asc-rail-viewonly svg { width: 11px; height: 11px; }
 }
 @media (max-width: 700px) { .asc-rail-collapse { display: none; } }
 
@@ -2764,6 +2808,11 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   /* Collapse the badge to a corner dot (no count) over the icon. */
   .asc-rail-badge { position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; gap: 0; background: none; border: none; }
   .asc-rail-badge-n { display: none; }
+  .asc-rail-viewonly {
+    position: absolute; top: 4px; right: 4px;
+    margin: 0; width: 12px; height: 12px; opacity: 1;
+  }
+  .asc-rail-viewonly svg { width: 11px; height: 11px; }
 }
 
 /* ─── Rail: mobile bottom tab bar (≤700px) ─────────────────────────────── */
@@ -2813,6 +2862,14 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   .asc-rail-footlinks { display: none; }
   .asc-rail-user { padding: 0 10px; }
   .asc-rail-badge { position: absolute; top: 6px; right: calc(50% - 20px); margin: 0; padding: 0 5px; }
+  /* The old text chip was never hidden here, so the words "View only" floated
+     loose over three of five tabs on a phone. The padlock sits where the
+     unread mark sits and stays inside the tab. */
+  .asc-rail-viewonly {
+    position: absolute; top: 6px; right: calc(50% - 22px);
+    margin: 0; width: 12px; height: 12px; opacity: 1;
+  }
+  .asc-rail-viewonly svg { width: 11px; height: 11px; }
   body.asc-has-rail .asc-main { padding-left: 16px; padding-bottom: 84px; }
   /* Lift toasts clear of the bottom tab bar so they never sit under it. */
   body.asc-has-rail .asc-toast-region { bottom: 76px; }
@@ -3894,25 +3951,15 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-ref-extras[open] > .asc-ref-extras-summary::before { content: "\2212"; }
 .asc-ref-extras-summary:hover { color: var(--asc-text); }
 
-.asc-ref-consent {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
+/* What we do with the introduction, stated where the consent checkbox used to
+   sit. Not a control: it is read, not answered, so it carries no pointer and no
+   hover state. */
+.asc-ref-attest {
   margin-top: var(--sp-4);
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--asc-muted);
-  cursor: pointer;
 }
-.asc-ref-check {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  margin-top: 1px;
-  accent-color: var(--green);
-  cursor: pointer;
-}
-.asc-ref-consent:hover { color: var(--asc-text); }
 
 /* The copyable message. Shown before it is copied, because the physician is
    about to send it to a colleague in their own name and gets to read it
@@ -5807,6 +5854,53 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .vq-practice-passed { color: var(--green); border-color: var(--green); }
 .vq-practice-locked { color: var(--asc-muted); }
 .vq-practice-grandfathered { color: var(--asc-muted); border-style: dashed; }
+
+/* The examination, on the decision screen. Facts with the answer key beside
+   them, so nothing in here is coloured to mean "good enough": green marks that
+   they reached a data point the key turns on, never that they passed. */
+.vq-exam-attempt {
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.vq-exam-attempt:last-of-type { border-bottom: 0; }
+.vq-exam-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.vq-exam-fact {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+}
+.vq-exam-keys {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vq-exam-key {
+  font-size: var(--t-chrome);
+  font-family: var(--mono);
+  padding: 2px 8px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--hairline);
+}
+.vq-exam-key.hit { color: var(--green-deep); background: var(--green-wash); border-color: var(--green-line); }
+/* Not pink. A data point their prose did not reach for is a thing to read, not
+   an error, and phrase matching is too weak to call it one. */
+.vq-exam-key.miss { color: var(--ink-faint); }
+.vq-exam-key-answer, .vq-exam-answer { margin-top: var(--sp-3); font-size: var(--t-sm); }
+.vq-exam-key-answer summary, .vq-exam-answer summary { cursor: pointer; color: var(--ink-soft); }
+.vq-exam-key-answer p, .vq-exam-answer p { margin: var(--sp-2) 0 0; line-height: var(--lh-body); }
+
 .vq-practice-head {
   display: flex;
   align-items: center;
@@ -5869,3 +5963,45 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-credentialing h2 { margin: 8px 0 10px; font-weight: 400; }
 .asc-credentialing .asc-btn-primary { margin-top: 18px; }
 .asc-small { font-size: 0.85rem; }
+
+/* The applicant journey: welcome, the two doors, the explainer.
+   All three reuse .asc-credentialing for the card, so only the pieces that do
+   not exist elsewhere are defined here. */
+.asc-info-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin: 18px 0 4px;
+}
+.asc-info-row h3 { margin: 0 0 4px; font-weight: 500; font-size: var(--t-h3); }
+.asc-info-row p { margin: 0; }
+
+/* The founders. Sits under the copy it signs, hairlined off rather than boxed:
+   a card inside a card reads as an advertisement, which is the opposite of the
+   point. */
+.asc-founders {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--hairline);
+}
+.asc-founders-photo {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-3);
+}
+.asc-founders-mission {
+  margin: 0 0 4px;
+  font-size: var(--t-h3);
+  line-height: var(--lh-tight);
+}
+.asc-founders-sign {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}

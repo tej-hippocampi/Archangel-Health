@@ -318,7 +318,7 @@
         num: '16',
         chromeLabel: 'GETTING HELP',
         title: 'Getting help',
-        note: 'Questions about a case, a rubric, or a payout? Post in #questions-help or #general in the Community, or email Tej directly at tejpatel@berkeley.edu.',
+        note: 'Questions about a case, a rubric, or a payout? Post in #questions-help or #general in the Community, where a physician who has hit the same thing usually answers first. Tej and Aryaa read every channel and you can message either of us directly there, or book twenty minutes with us if it is easier to say out loud.',
       },
     ],
   };

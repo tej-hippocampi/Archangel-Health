@@ -259,6 +259,24 @@
 .cm-search-empty { padding: var(--sp-4); color: var(--ink-faint); font-size: var(--t-sm); text-align: center; }
 
 /* ---------- messages ---------- */
+/* Preview banner: sits between the head and the stream, outside the scroller,
+   so it cannot be scrolled away. Orange because it is a state of the page and
+   not an error, and flex:none so a long sentence wraps rather than stealing
+   height from the messages. */
+.cm-preview-banner {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--orange-wash);
+  border-bottom: 1px solid var(--orange-line);
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+  color: var(--orange-deep);
+}
+.cm-preview-banner .dot { margin-top: 6px; }
+
 .cm-scroll {
   flex: 1;
   min-height: 0;
@@ -846,7 +864,24 @@
   color: var(--pink-deep); background: var(--pink-wash);
   padding: 1px 6px; border-radius: var(--r-chip); border: 1px solid var(--pink-line);
 }
-.cm-pin-marker { font-size: 0.7rem; opacity: 0.75; }
+/* PINNED. The marker was a 0.7rem emoji at 75% opacity, smaller than the
+   timestamp beside it, on a message somebody pinned precisely so the room would
+   not scroll past it. It borrows the treatment .cm-event-card.pinned already
+   uses below, which is the one thing in here that currently looks pinned. */
+.cm-pin-marker {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  color: var(--orange-deep);
+  background: var(--orange-wash);
+  border: 1px solid var(--orange-line);
+  border-radius: var(--r-chip);
+  padding: 1px 6px;
+}
+.cm-msg-pinned {
+  border-left: 2px solid var(--orange-line);
+  background: linear-gradient(90deg, var(--orange-wash), transparent 40%);
+}
 .cm-act.on { background: var(--orange-wash); border-radius: var(--r-chip); }
 
 /* ── Events banner + card ── */

@@ -423,9 +423,24 @@ def _last_name(full_or_last: str) -> str:
 
 
 #: Onboarding v2 §4.4 §4: the founders meet every physician one on one. One
-#: constant, because it appears in the welcome email and the walkthrough and the
-#: two must never drift.
-FOUNDER_INTRO_CALENDLY = "https://calendly.com/tejpatel-berkeley/intro-with-tej-patel"
+#: constant, because it appears in the welcome email, the walkthrough and the
+#: applicant's own dashboard, and the three must never drift.
+#:
+#: ONE PHYSICIAN LINK. This pointed at a second calendar for a while, so a
+#: doctor invited to "book twenty minutes with us" from an email and the same
+#: doctor booking from the portal landed on different founders' calendars. They
+#: are one audience having one conversation, so they get one link.
+#:
+#: The health-system pair below is deliberately NOT collapsed into this: those
+#: are a different audience, and which founder takes that call is a routing
+#: decision rather than a tidiness one.
+#:
+#: Env-overridable for the same reason PARTNER_BOOKING_CALENDLY is: a founder
+#: moving their calendar should be a deploy variable, not a release.
+FOUNDER_INTRO_CALENDLY = (
+    os.getenv("FOUNDER_INTRO_URL")
+    or "https://calendly.com/aryaabhatia-berkeley/new-meeting"
+).strip()
 
 #: Where a health system books the call that /partner used to book on its own
 #: success screen. A DIFFERENT calendar from the one above, on a different
@@ -1082,7 +1097,7 @@ def build_application_start_email(
         + _p(f"Your progress saves automatically, so you can stop anywhere and come "
              f"back to exactly where you were. This link is yours for {expires_days} days.",
              muted=True, small=True)
-        + _founder_signoff("Tej & Aryaa, founders")
+        + _founder_signoff("Tej and Aryaa, founders")
     )
     return _shell(subject="Pick up your Archangel Health application any time",
                   body_html=body)
@@ -1102,7 +1117,7 @@ def build_application_nudge_email(*, first_name: str, onboarding_url: str) -> st
              "you left them.")
         + _cta(onboarding_url, "Finish my application")
         + _p("We read every application personally. We&rsquo;d love to see yours.")
-        + _founder_signoff("Tej & Aryaa, founders")
+        + _founder_signoff("Tej and Aryaa, founders")
     )
     return _shell(subject="Your application is waiting: 2 minutes to finish",
                   body_html=body)
@@ -1126,7 +1141,7 @@ def build_application_expiring_email(
         + _cta(onboarding_url, "Finish my application")
         + _p("If it lapses, just start again from the website and write to us, "
              "we&rsquo;ll pick it back up with you.", muted=True, small=True)
-        + _founder_signoff("Tej & Aryaa, founders")
+        + _founder_signoff("Tej and Aryaa, founders")
     )
     return _shell(subject="Your Archangel Health link expires tomorrow",
                   body_html=body)
@@ -1159,24 +1174,106 @@ def build_credentials_nudge_email(*, first_name: str, portal_url: str) -> str:
 def build_practice_case_nudge_email(*, first_name: str, portal_url: str) -> str:
     """The practice-case half of the post-submit nudge, sent once ever.
 
-    Deliberately framed as the interesting part rather than as homework. It is
-    the only clinical judgment we get to see before deciding about somebody,
-    and it is also the thing most applicants enjoy, so the copy leads with what
-    it is instead of with the fact that it is outstanding.
+    Deliberately framed as the interesting part rather than as homework: it is
+    the thing most applicants enjoy, so the copy leads with what it is instead
+    of with the fact that it is outstanding.
+
+    IT NO LONGER CLAIMS TO BE WHAT WE READ. The examination is, and it says so
+    in the mail below and on every screen. Two messages arriving days apart,
+    each naming a different case as the decisive one, is how a physician ends
+    up doing neither properly.
     """
     body = (
         _eyebrow("Your application")
         + _h1("Your practice case is waiting.")
         + _p(f"{_strong(_first_name(first_name))}, there is one short case sitting in "
              "your account. It takes about ten minutes, it is a real piece of "
-             "clinical reasoning rather than a form, and it is the part of your "
-             "application we read most closely.")
+             "clinical reasoning rather than a form, and physicians who do it "
+             "find the examination afterwards much easier.")
         + _cta(portal_url, "Open my practice case")
         + _p("No grade is published and there is no time limit on it.",
              muted=True, small=True)
         + _founder_signoff("Tej and Aryaa, founders")
     )
     return _shell(subject="Your practice case is waiting",
+                  body_html=body)
+
+
+def build_exam_nudge_email(*, first_name: str, portal_url: str) -> str:
+    """The examination has not been sat. Once ever, at 48 hours.
+
+    Later than the other two on purpose: somebody who chose to start onboarding
+    usually finishes in the same sitting, so a chase the next morning mostly
+    reaches people who were always going to do it.
+
+    The one thing this mail has to carry is that the examination is not more
+    homework, it is the decision. An applicant who thinks it is optional waits
+    for a verdict that is waiting on them.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1("One case, and then it is with us.")
+        + _p(f"{_strong(_first_name(first_name))}, your credentials are in and read. "
+             "What is left is the examination: one real case in your own "
+             "specialty, in the interface you would work in.")
+        + _p("It is the piece we read when we make the decision, so it is the "
+             "only thing still standing between you and an answer. Most people "
+             "take about fifteen minutes over it.")
+        + _cta(portal_url, "Take my examination")
+        + _p("You can stop part way and pick it up where you left it. No grade "
+             "is ever published.", muted=True, small=True)
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="Your examination is the last piece",
+                  body_html=body)
+
+
+def build_onboarding_started_email(*, first_name: str, portal_url: str) -> str:
+    """A receipt, sent when somebody chooses to start onboarding now.
+
+    Not a nudge and not on the sweep: it fires on the action, at the moment of
+    the action, and its idempotency comes from the choice being first-write-wins
+    rather than from a stamp column. A receipt that can arrive four hours late
+    is not a receipt.
+
+    It exists because the choice is the one place an applicant commits to
+    something, and a commitment nobody acknowledges reads as a button that did
+    nothing.
+    """
+    body = (
+        _eyebrow("Your application")
+        + _h1("Good. Here is what it involves.")
+        + _p(f"{_strong(_first_name(first_name))}, you chose to get started rather "
+             "than wait, which is the thing that actually moves your application "
+             "along. Thank you.")
+        + _p("There is a short explainer, then two optional pieces of help, then "
+             "one examination case in your own specialty. About fifteen minutes "
+             "in total, and you can stop at any point.")
+        + _cta(portal_url, "Pick up where I left off")
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="Picking up your onboarding",
+                  body_html=body)
+
+
+def build_exam_received_email(*, first_name: str) -> str:
+    """A receipt for the filed examination. No verdict, by construction.
+
+    The rule the founders were explicit about: no applicant is told they are
+    not ready, and nothing outside the admin console has an opinion. So this
+    confirms arrival and says what happens next, and there is nothing in it a
+    reader could mistake for a result.
+    """
+    body = (
+        _eyebrow("Your examination")
+        + _h1("It is with us.")
+        + _p(f"{_strong(_first_name(first_name))}, your examination is filed. One of "
+             "us reads it personally, alongside the credentials you sent.")
+        + _p("Usually one to two business days, and we will write to you either "
+             "way. There is nothing else you need to do.")
+        + _founder_signoff("Tej and Aryaa, founders")
+    )
+    return _shell(subject="We have your examination",
                   body_html=body)
 
 
@@ -1252,7 +1349,7 @@ def build_application_submitted_email(*, full_name: str, portal_url: str = "") -
              "and that starts with how we welcome physicians. You&rsquo;ll hear from us "
              "either way.")
         + waiting
-        + _founder_signoff("Tej Patel & Aryaa Bhatia")
+        + _founder_signoff("Tej and Aryaa")
     )
     return _shell(subject="We&rsquo;ve got your application", body_html=body)
 
@@ -1327,7 +1424,7 @@ def build_application_welcome_email(
              "most. Book 20 minutes with us: about the mission, the platform, your "
              "specialty, or anything else. We&rsquo;d genuinely love to learn from you.")
         + _cta(calendly_url, "Book 20 minutes")
-        + _founder_signoff("Tej & Aryaa, co-founders")
+        + _founder_signoff("Tej and Aryaa, co-founders")
     )
     return _shell(subject=subject, body_html=body)
 
@@ -1476,7 +1573,7 @@ def build_asclepius_rejected_email(*, full_name: str, sign_in_url: str = "") -> 
             "already hold.",
             muted=True, small=True,
         )
-        + _founder_signoff("Tej & Aryaa, founders")
+        + _founder_signoff("Tej and Aryaa, founders")
     )
     # Not "You were rejected". That is the line they read on a phone in a
     # corridor, and the subject is not where the decision has to land.
@@ -2287,7 +2384,7 @@ def _bookmark_line(portal_url: str) -> str:
     )
 
 
-_SIGNED_OFF = _p("Tej &amp; Aryaa<br>Archangel Health", muted=True, small=True)
+_SIGNED_OFF = _p("Tej and Aryaa<br>Archangel Health", muted=True, small=True)
 
 
 def build_hs_access_email(*, organization: str, full_name: str, claim_url: str,

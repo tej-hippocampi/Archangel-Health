@@ -379,6 +379,14 @@ def test_public_user_diff_is_exactly_the_tutorial_key():
         # payload must not be able to leak it early.
         "resources_seen_at": None,
         "exam": {"state": "not_started"},
+        # The applicant journey, in the same spirit: three marks saying which
+        # screens between "application received" and the examination this person
+        # has been through. NULL on a fresh account, and NULL on every account
+        # that predates them, which is what lets the client leave somebody
+        # mid-application exactly where they already were.
+        "welcome_seen_at": None,
+        "onboarding_choice": None,
+        "info_seen_at": None,
     }
 
 

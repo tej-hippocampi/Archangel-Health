@@ -29,7 +29,10 @@ import {
   TextArea,
   TextField,
   YesNoToggle,
+  OnboardingSection,
+  ReviewChecklist,
 } from "./primitives";
+import { reviewSections, checklistRows, identifierField } from "./completeness";
 
 /* Shared shape — same across all steps so the wizard owns one state object. */
 
@@ -1981,7 +1984,7 @@ export function SavedProgressNote() {
         color: "var(--ink-faint)",
       }}
     >
-      Your progress is saved — you can come back any time from the link in your email.
+      Your progress is saved. You can come back any time from the link in your email.
     </p>
   );
 }
@@ -2202,6 +2205,7 @@ export function Step5Credentials({
     });
   };
   const show = (n: 1 | 2 | 3) => reviewMode || phase === undefined || phase === n;
+
   /** A field label, with the "from your CV" chip when this key was prefilled. */
   const lbl = (key: string, text: ReactNode): ReactNode =>
     autofilled.has(key) ? (<>{text} <FromCvChip /></>) : text;
@@ -2230,6 +2234,46 @@ export function Step5Credentials({
     !new RegExp(registry.id_regex).test(c.registrationNumber.trim())
       ? "That does not look like the usual format, worth a second check, but you can continue."
       : "";
+
+  /* THE REVIEW PAGE'S GROUPING. Only computed for reviewMode, which is the one
+     rendering that puts every field on one scroll; the three-screen path is
+     already grouped by being three screens. */
+  const sections = reviewSections(c, autofilled, {
+    isUS,
+    countrySet: !!(c.countryOfLicensure || "").trim(),
+    registryName: registry?.id_label || "",
+  });
+  const ident = identifierField(c, {
+    isUS,
+    countrySet: !!(c.countryOfLicensure || "").trim(),
+    registryName: registry?.id_label || "",
+  });
+  /* A section opens when it holds something missing that matters, OR anything
+     the CV wrote that nobody has confirmed. The second half is the safety
+     property: a collapsed box must never hide a value we guessed on somebody's
+     behalf. The first section is always open, because it holds the two fields
+     that gate Submit. */
+  const openBy = (i: number, sec: { hasNeeded: boolean; hasUnconfirmedCv: boolean }) =>
+    i === 0 || sec.hasNeeded || sec.hasUnconfirmedCv;
+  /* In reviewMode a phase block becomes a titled box; everywhere else it stays
+     exactly the bare fragment it has always been. */
+  const Group = ({ n, children }: { n: 0 | 1 | 2; children: ReactNode }) => {
+    if (!reviewMode) return <>{children}</>;
+    const sec = sections[n];
+    return (
+      <OnboardingSection
+        id={"onb-sec-" + sec.id}
+        title={sec.title}
+        why={sec.why}
+        filled={sec.filled}
+        total={sec.total}
+        attention={sec.hasNeeded}
+        defaultOpen={openBy(n, sec)}
+      >
+        {children}
+      </OnboardingSection>
+    );
+  };
 
   const identityValid =
     c.fullLegalName.trim().length > 0 &&
@@ -2318,12 +2362,15 @@ export function Step5Credentials({
         </div>
       )}
 
-      {show(1) && (<>
+      {reviewMode && <ReviewChecklist rows={checklistRows(sections, c, !!data.cvParsed?.ok)} />}
+
+      {show(1) && (<Group n={0}>
       <TextField
         label={lbl("fullLegalName", "Full legal name")}
         placeholder="Dr. Tej Patel"
         value={c.fullLegalName}
         onChange={(v) => set({ fullLegalName: v })}
+        requirement={reviewMode && !c.fullLegalName.trim() ? "required" : undefined}
       />
 
       {/* Where they practise and where they are licensed, asked separately
@@ -2350,6 +2397,15 @@ export function Step5Credentials({
           value={c.countryOfLicensure}
           onChange={(v) => set({ countryOfLicensure: v, registrationNumber: "", registryExtras: {} })}
           options={countryOptions}
+          // `isUS` treats an unanswered country as the US, so without this a
+          // consultant in Riyadh would be shown a red marker on an NPI field
+          // they can never hold. Until this is answered the identifier question
+          // is unanswerable, so the marker belongs here instead.
+          requirement={reviewMode && ident.key === "countryOfLicensure"
+            ? "needed" : undefined}
+          needed={reviewMode && ident.key === "countryOfLicensure"
+            ? "This decides which number we can check you against."
+            : undefined}
         />
       </div>
 
@@ -2372,6 +2428,19 @@ export function Step5Credentials({
             // gate to protect, so it says the same thing in the hint instead.
             error={!reviewMode && c.npi.length > 0 && !/^\d{10}$/.test(c.npi)
               ? "NPI must be 10 digits." : undefined}
+            // RED MEANS "MISSING AND IT MATTERS", NEVER "WRONG". The marker sits
+            // on the LABEL and the note sits under the hint; the border stays
+            // neutral, because a pink border already means a malformed value and
+            // teaching a physician that both look the same teaches them to
+            // ignore both. Nothing here is readable by `valid`, so it cannot
+            // gate: an international physician has no NPI, and the repo is
+            // deliberate that this is a review flag rather than a wall.
+            requirement={reviewMode && ident.key === "npi" && !c.npi.trim()
+              ? "needed" : undefined}
+            needed={reviewMode && ident.key === "npi" && !c.npi.trim()
+              ? "Without this we verify you by hand, which takes days instead of "
+                + "the same day. You can submit now and add it later."
+              : undefined}
           />
         ) : (
           <TextField
@@ -2389,10 +2458,19 @@ export function Step5Credentials({
                 : "As printed on your registration certificate.",
               registryFormatWarning,
             ].filter(Boolean).join(" ")}
+            requirement={reviewMode && ident.key === "registrationNumber"
+              && !c.registrationNumber.trim() ? "needed" : undefined}
+            needed={reviewMode && ident.key === "registrationNumber"
+              && !c.registrationNumber.trim()
+              ? `Without your ${registry.registry_name || "registry"} number we `
+                + "verify you from your certificate by hand, which takes longer. "
+                + "You can submit now and add it later."
+              : undefined}
           />
         )}
         <SelectField
-          label={lbl("degree", isUS ? "Degree" : "Primary medical qualification")}
+          label={lbl(isUS ? "degree" : "qualification",
+                     isUS ? "Degree" : "Primary medical qualification")}
           placeholder="Select qualification"
           value={isUS ? c.degree : c.qualification}
           onChange={(v) => set(isUS ? { degree: v } : { qualification: v, degree: v })}
@@ -2442,6 +2520,7 @@ export function Step5Credentials({
         placeholder="Nephrology"
         value={c.primarySpecialty}
         onChange={(v) => set({ primarySpecialty: v })}
+        requirement={reviewMode && !c.primarySpecialty.trim() ? "required" : undefined}
       />
 
       {/* ── Contact & corroboration (PRD-B Seam 4) ──────────────────────────
@@ -2478,9 +2557,9 @@ export function Step5Credentials({
         onChange={(v) => set({ currentlyActive: v })}
       />
 
-      </>)}
+      </Group>)}
 
-      {show(2) && (<>
+      {show(2) && (<Group n={1}>
       {/* Board certifications */}
       <SectionHeading
         title={<>Board certifications {autofilled.has("boardCertifications") && <FromCvChip />}</>}
@@ -2550,7 +2629,9 @@ export function Step5Credentials({
       />
 
       {/* Fellowship */}
-      <SectionHeading title="Fellowship" sub="Institution + specialty + year." />
+      <SectionHeading
+        title={<>Fellowship {autofilled.has("fellowship") && <FromCvChip />}</>}
+        sub="Institution + specialty + year." />
       {c.fellowship.map((f, i) => (
         <RepeatableCard
           key={i}
@@ -2598,7 +2679,7 @@ export function Step5Credentials({
 
       {/* Residency */}
       <SectionHeading
-        title="Residency"
+        title={<>Residency {autofilled.has("residency") && <FromCvChip />}</>}
         sub="Institution + year. Still in training? Put the year you expect to finish."
       />
       {c.residency.map((r, i) => (
@@ -2649,14 +2730,14 @@ export function Step5Credentials({
       />
       <div style={TWO_COL}>
         <TextField
-          label="State licence number"
+          label={lbl("licenseNumber", "State licence number")}
           placeholder="MD-99881"
           value={c.licenseNumber}
           onChange={(v) => set({ licenseNumber: v })}
           hint="Cross-checked against your NPPES record."
         />
         <TextField
-          label="Licence state"
+          label={lbl("licenseState", "Licence state")}
           placeholder="MA"
           value={c.licenseState}
           onChange={(v) => set({ licenseState: v.toUpperCase().slice(0, 2) })}
@@ -2689,6 +2770,21 @@ export function Step5Credentials({
         onChange={(v) => set({ practiceStatus: v as Credentials["practiceStatus"] })}
         options={PRACTICE_STATUS_OPTIONS}
       />
+
+      {/* THE CV FILLS THIS IN AND NOTHING RENDERED IT. So a value we inferred
+          from somebody's CV was being submitted on their behalf, they could not
+          see it and could not correct it, and any "came from your CV" count
+          computed off the autofill list was quietly one higher than the number
+          of things on screen. It is a banded reading, never a magnitude: see
+          the never-collect note above and tiering.py. */}
+      <TextField
+        label={lbl("yearsInActivePractice", "Years in active practice")}
+        optional
+        placeholder="12"
+        value={c.yearsInActivePractice}
+        onChange={(v) => set({ yearsInActivePractice: v.replace(/\D/g, "").slice(0, 2) })}
+        hint="Read as a band (under 5, 5 to 10, over 10), never as a number of years."
+      />
       {c.practiceStatus === "on_leave" ? (
         <TextField
           label="Clinical half-days per month before your leave"
@@ -2708,9 +2804,9 @@ export function Step5Credentials({
           hint="Averaged over the last 12 months. Part-time practice counts, this is not a threshold you either clear or fail."
         />
       )}
-      </>)}
+      </Group>)}
 
-      {show(3) && (<>
+      {show(3) && (<Group n={2}>
       <div style={RARE_INTRO}>
         <div style={RARE_EYEBROW}>Every answer here raises what we can pay you</div>
         <p style={RARE_BODY}>
@@ -2735,7 +2831,7 @@ export function Step5Credentials({
       />
 
       <TextField
-        label="Health system or practice"
+        label={lbl("healthSystem", "Health system or practice")}
         optional
         placeholder="Northridge Nephrology Associates"
         value={c.healthSystem}
@@ -2743,11 +2839,18 @@ export function Step5Credentials({
         hint="Institution-linked work is some of the best paid we route."
       />
 
-      <CvUploadField
-        filename={c.cvFilename}
-        documentRequired={!isUS && registry.method === "document"}
-        onUploaded={(filename) => set({ cvFilename: filename })}
-      />
+      {/* A SECOND upload box, two screens after the one that asked for a CV,
+          is a large part of why this page reads as a form that has forgotten
+          what you already gave it. Shown only when there is genuinely nothing
+          on file, or when the registry needs a document rather than a number
+          and this is the way to send it. */}
+      {(!c.cvFilename || (!isUS && registry.method === "document")) && (
+        <CvUploadField
+          filename={c.cvFilename}
+          documentRequired={!isUS && registry.method === "document"}
+          onUploaded={(filename) => set({ cvFilename: filename })}
+        />
+      )}
 
       <YesNoToggle
         label="Participating in continuing certification (MOC/CC)?"
@@ -2806,7 +2909,7 @@ export function Step5Credentials({
         suggestions={LANGUAGE_SUGGESTIONS}
       />
 
-      </>)}
+      </Group>)}
 
       <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
@@ -3620,7 +3723,7 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
      that exchange fails, or there is no token because /finish could not mint
      one, land them on the portal anyway: they now have a password, so the
      ordinary sign-in form is the door. */
-  const openPracticeCase = async () => {
+  const openAccount = async () => {
     if (data.asclepiusToken) {
       try {
         await redirectToAsclepiusPortal(data.asclepiusToken);
@@ -3688,27 +3791,31 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
         &mdash; Tej Patel &amp; Aryaa Bhatia
       </p>
 
-      {/* The one thing there IS to do. It is a real action now, so it gets the
-          real button: the practice case is the work the wait is for, and the
-          copy says it counts, because it does and because "optional-looking"
-          is how a reviewer ends up with nothing to read. */}
+      {/* THE PRACTICE CASE IS NO LONGER WHAT WE READ, so this screen may not say
+          it is. The examination that follows it is, and the portal says so
+          ninety seconds later: a physician who reads both hears the funnel
+          contradict itself about the one thing it is asking them to do.
+
+          This screen is now the receipt, and the portal owns the welcome, the
+          founders' note and the choice between waiting and starting. Two
+          screens both opening with "thank you, 24 to 48 hours, we read every
+          one personally" read as a bug, not as warmth. */}
       <div style={{
         borderTop: "1px solid var(--hairline)", paddingTop: 22, marginBottom: 4,
       }}>
         <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--ink-soft)",
                     textAlign: "center", margin: "0 0 18px" }}>
-          One thing while you wait: your{" "}
-          <strong style={{ color: "var(--ink)" }}>practice case</strong> is open in your
-          account. It takes about four minutes, it is real clinical reasoning rather than a
-          form, and it is the part of your application we read most closely.
+          Your account is open now. There is a short onboarding inside it that
+          ends in one examination case in your own specialty, and that case is
+          what we read when we decide. Doing it now is what moves this along.
         </p>
-        <PrimaryButton fullWidth onClick={openPracticeCase} loadingLabel="Opening…"
+        <PrimaryButton fullWidth onClick={openAccount} loadingLabel="Opening…"
                        successLabel="Opening ✓">
-          Start my practice case
+          Open my account
         </PrimaryButton>
         <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-faint)",
                     textAlign: "center", margin: "14px 0 0" }}>
-          No time limit, and no grade is published. We&rsquo;ve emailed{" "}
+          It takes about fifteen minutes and you can stop part way. We&rsquo;ve emailed{" "}
           <strong style={{ color: "var(--ink-soft)" }}>{data.email}</strong> a link back in
           if you want to finish it later.{" "}
           {/* A NEW TAB, deliberately. This link is what a physician clicked

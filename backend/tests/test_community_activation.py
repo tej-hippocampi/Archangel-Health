@@ -462,7 +462,12 @@ def test_the_persona_endpoint_posts_as_the_bot_not_as_the_admin():
                     json={"channel_slug": "events", "body": "Journal club moved to Thursday."})
     assert r.status_code == 200, r.text
     assert r.json()["message"]["author"]["is_bot"] is True
-    assert r.json()["message"]["author"]["display_name"] == "Archangel"
+    # The persona's NAME is configuration (COMMUNITY_PERSONA_NAME), so pinning
+    # the literal here tested the deployment rather than the property. What
+    # this test is about is that the post is authored by the bot and not by
+    # the admin who pressed the button.
+    from community import persona as _persona
+    assert r.json()["message"]["author"]["display_name"] == _persona.display_name()
 
     msgs = client.get(f"{BASE}/channels/events/messages",
                       headers=headers_for(doc)).json()["messages"]

@@ -98,6 +98,7 @@ FEATURES: Dict[str, Tuple[float, float]] = {
                                               # writing, guideline panel, core faculty or PD
     "calibration_z":          ( 1.1, 4.00),
     "practice_first_pass":    ( 0.4, 4.00),   # capped binary, first attempt only (see below)
+    "exam_own_specialty_verdict": ( 0.5, 4.00),  # capped binary, own-specialty only (see below)
 }
 
 # ``practice_first_pass`` is 1.0 only when the applicant passed the practice case on their
@@ -112,6 +113,26 @@ FEATURES: Dict[str, Tuple[float, float]] = {
 # first pass is mild evidence of a good reviewer, and we are ready to be corrected quickly if
 # the admin decisions disagree. It cannot open a hard gate, and it is not a substitute for
 # board certification or domain match, both of which carry far more weight.
+
+# ``exam_own_specialty_verdict`` is 1.0 only when the applicant rejected the candidate the
+# examination case was AUTHORED to be wrong, AND the case was in their own specialty. Both
+# halves are load-bearing.
+#
+# The verdict half is the strongest single observation the examination yields: the flawed
+# candidate is declared by the case author, not inferred, so this is a fact about the
+# physician's read and not a model's opinion of it. It is the one thing on that screen that
+# could not have been read off a CV.
+#
+# The own-specialty half is why this is worth a tenth feature at all. A nephrology case
+# answered by a hepatologist measures how somebody copes outside their field, which is a
+# different thing, and a feature that quietly means two things is worse than one that admits
+# it does not know. So a fallback case encodes 0.0, and so does an attempt filed before
+# ``is_own_specialty`` was recorded: unknown is not a claim.
+#
+# Prior 0.5, precision 4.00 — a shade above ``practice_first_pass`` because the examination is
+# a real case with no skip button, and just as ready to be corrected. It is NOT in
+# ``hard_gates``, so it cannot open one; TR eligibility still hard-requires the A1-A7 clauses,
+# board certification and domain match, exactly as before.
 
 # Outside the eight-feature budget, so it does not consume events-per-variable. Late-binding:
 # it is structurally zero until a physician has enough completed work to estimate accuracy
@@ -645,6 +666,7 @@ def feature_vector(
     case_domain: Optional[str] = None,
     calibration_z: Optional[float] = None,
     practice_first_pass: Optional[bool] = None,
+    exam_own_specialty_verdict: Optional[bool] = None,
     measured_quality_z: Optional[float] = None,
     n_tasks: int = 0,
 ) -> Dict[str, float]:
@@ -713,6 +735,11 @@ def feature_vector(
         # a third state would give the model something to fit that we cannot
         # actually observe.
         "practice_first_pass": 1.0 if practice_first_pass else 0.0,
+        # Same shape and the same reasoning: a fallback case, an unrecorded
+        # own-specialty flag and a wrong verdict all encode 0.0, because none
+        # of them is positive evidence and inventing a third state would give
+        # the model something to fit that we cannot observe.
+        "exam_own_specialty_verdict": 1.0 if exam_own_specialty_verdict else 0.0,
     }
 
     # §5.4 — the hand-off. Measured quality is structurally unavailable below 20 tasks and
@@ -844,6 +871,11 @@ def propose(
     n_tasks: int = 0,
     leie_status: Optional[str] = None,
     duplicate_npi: bool = False,
+    #: Whether they read their OWN specialty's examination case correctly.
+    #: Passed in rather than read off `user`, because it needs the filed exam
+    #: row and the case's own answer key, and this module stays pure: it is
+    #: given numbers, it never goes looking for them. None encodes 0.0.
+    exam_own_specialty_verdict: Optional[bool] = None,
     weights: Optional[Dict[str, Dict[str, float]]] = None,
     explore: bool = False,
     rng: Optional[random.Random] = None,
@@ -877,6 +909,7 @@ def propose(
     vec = feature_vector(
         user, case_domain=case_domain, calibration_z=cal_z,
         practice_first_pass=caps.practice_first_pass(user),
+        exam_own_specialty_verdict=exam_own_specialty_verdict,
         measured_quality_z=measured_quality_z, n_tasks=n_tasks,
     )
     w = weights or default_weights()
@@ -960,6 +993,7 @@ _FEATURE_WORDS = {
     "structured_review_exp": "has structured review experience (CEC/DSMB, peer review, boards)",
     "calibration_z": "calibration exam performance",
     "practice_first_pass": "passed the practice case first time",
+    "exam_own_specialty_verdict": "read the examination case in their own specialty correctly",
     MEASURED_QUALITY_FEATURE: "measured agreement on completed work",
 }
 

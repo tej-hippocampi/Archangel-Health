@@ -65,6 +65,23 @@ def available(name: str) -> bool:
     if name == "firecrawl":
         return bool(firecrawl_key())
     if name == "anthropic":
+        # The key gates a VENDOR. Under the offline harness there is no vendor
+        # to gate, and refusing here is why the morning routine could not be run
+        # without a key at all: `_ask` short-circuits on this before the LLM
+        # client is ever consulted, so the fake transport was never reached.
+        #
+        # BOTH conditions. The test suite sets ASCLEPIUS_LLM_PROVIDER=fake for
+        # every run, so keying on that alone would switch the harness on
+        # underneath the tests that verify a missing key is reported as a
+        # missing key. COMMUNITY_FAKE_SEARCH is the explicit ask.
+        #
+        # Safe by construction rather than by discipline: model_config's
+        # assert_fake_llm_not_in_production refuses to BOOT a fake in prod.
+        if (
+            (os.getenv("COMMUNITY_FAKE_SEARCH") or "").strip() in ("1", "true", "yes", "on")
+            and (os.getenv("ASCLEPIUS_LLM_PROVIDER") or "").strip().lower() == "fake"
+        ):
+            return True
         return bool((os.getenv("ANTHROPIC_API_KEY") or "").strip())
     return False
 

@@ -73,8 +73,12 @@
     manual: 'Skim the manual',
   };
 
-  /** Where the founders' 20-minute intro lives. Same link as email §4.4 §4. */
-  var CALENDLY = 'https://calendly.com/tejpatel-berkeley/intro-with-tej-patel';
+  /** Where the founders' 20-minute intro lives. Same link as email §4.4 §4,
+   *  and as the applicant dashboard's: one audience, one conversation, one
+   *  calendar. It used to be a different founder's from the email's, so a
+   *  physician invited in one place and booking in another met a different
+   *  person than the one who wrote to them. */
+  var CALENDLY = 'https://calendly.com/aryaabhatia-berkeley/new-meeting';
 
   var DEMO_URL = '/api/asclepius/assets/onboarding-demo';   // absolute: it is a <video src>, not an api() call
 
@@ -364,7 +368,7 @@
       h('p', { class: 'asc-fr-letter-body' }, LETTER[2]),
       h('p', { class: 'asc-fr-letter-body' }, LETTER[3]),
       h('div', { class: 'asc-fr-letter-sign' },
-        h('strong', {}, 'Tej Patel & Aryaa Bhatia'),
+        h('strong', {}, 'Tej and Aryaa'),
         h('span', { class: 'asc-fr-letter-role' }, 'Co-founders')));
     // One button. Deliberately no skip on this stop: it is four paragraphs and
     // a button, it is the only thing on screen, and skipping past the reason
