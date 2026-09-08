@@ -1059,6 +1059,32 @@ async def me(user: Dict[str, Any] = Depends(require_member)):
 
 
 # ─── Channels ─────────────────────────────────────────────────────────────────
+def _digest_schedule() -> Dict[str, Any]:
+    """When the digest last posted and when it is next due.
+
+    Sent with the channel list so an EMPTY #medical-ai-news can explain itself.
+    It could not: the room rendered the same "welcome, here is what this is
+    for" hero whether the digest had never run, had run and found nothing, or
+    had posted this morning into a database a redeploy then deleted — and for
+    months it was the third one. Silence that explains itself is the difference
+    between a quiet room and a broken one.
+
+    Never raises. A schedule the client cannot read costs an explanatory line;
+    a channel list that 500s costs the whole community.
+    """
+    try:
+        from community import digest as cdigest  # noqa: PLC0415
+
+        return {
+            "enabled": cdigest.news_enabled(),
+            "last_at": _cstore().last_successful_run_at("news"),
+            "next_at": cdigest.next_run_at("news"),
+        }
+    except Exception:  # noqa: BLE001
+        log.warning("[community] digest schedule unavailable", exc_info=True)
+        return {"enabled": None, "last_at": None, "next_at": None}
+
+
 @router.get("/channels")
 async def channels(user: Dict[str, Any] = Depends(require_member)):
     cstore = _cstore()
@@ -1066,6 +1092,7 @@ async def channels(user: Dict[str, Any] = Depends(require_member)):
     visible = visible_channels(members, staff_viewer=is_staff_user(user))
     unread = cstore.unread_counts(user["id"], channels=visible)
     return {
+        "digest": _digest_schedule(),
         "channels": [
             {
                 "slug": ch["slug"],

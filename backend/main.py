@@ -7277,16 +7277,42 @@ async def internal_run_community_newsletter(
 
 
 @app.post("/internal/community/purge", include_in_schema=False)
-async def internal_purge_community(authorization: Optional[str] = Header(None)):
+async def internal_purge_community(
+    request: Request, authorization: Optional[str] = Header(None)
+):
     """One-shot cleanup: hard-delete bot-authored posts (news digests,
     welcomes) and posts by authors with no account in the users plane
     (demo-seeded doctors), so a deployed community starts empty. Channels and
-    human posts survive."""
+    human posts survive.
+
+    MANUAL ONLY. Never call this from a scheduler: it is a hard delete with no
+    tombstone and no undo, and a periodic caller would quietly become a
+    retention policy nobody wrote down — in a product whose footer promises
+    members their messages are kept indefinitely.
+
+    Audited, because until now the single most destructive route in the
+    community left no trace of having run. The community database itself is
+    what it deletes from, so "read the room and see" is not an answer, and
+    after the fact there was no way to tell a purge from the data loss a
+    redeploy used to cause. The actor is the internal tool rather than a person
+    — this route authenticates with a shared secret and there is no identity
+    behind it — so the caller's address is recorded as the closest thing to
+    one, and the counts record what it actually took.
+    """
     _check_internal_auth(authorization)
+    from audit import audit_log as _audit  # noqa: PLC0415
+    from ratelimit import client_ip as _client_ip  # noqa: PLC0415
     from asclepius.store import get_store as _asc_store  # noqa: PLC0415
     from community.store import get_community_store as _cstore  # noqa: PLC0415
     valid_ids = [u["id"] for u in _asc_store().list_users()]
     counts = _cstore().purge_generated_content(valid_user_ids=valid_ids)
+    _audit.record(
+        actor_type="system", actor_id="internal_tool",
+        action="community.purge_generated", outcome="ok",
+        resource_type="community", resource="generated_content",
+        detail={"source_ip": _client_ip(request), "realm": _realm.current(), **counts},
+    )
+    _auth_logger.warning("[community] generated-content purge ran (%s)", counts)
     return {"ok": True, **counts, "ran_at": _utcnow_iso()}
 
 

@@ -842,6 +842,78 @@
 }
 .cm-msg-digest .cm-msg-body ul { margin: 0.35em 0; padding-left: 1.1em; }
 .cm-msg-digest .cm-msg-body li { margin: 0.3em 0; }
+
+/* ── The digest card (Community News PRD §2.3) ─────────────────────────────
+   A digest is not a message somebody wrote, so it is not a bubble. The two
+   rules above still style digests that PREDATE the structured payload: those
+   have no card and render through .cm-msg-body exactly as they always did.
+
+   The type does the work here, not the container. One hairline, one wash, and
+   three weights: mono caps for the title and the section, 500 for the
+   headline, regular muted for the line that says why a physician should care. */
+.cm-dg {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  padding: 14px 16px 10px;
+  background: color-mix(in srgb, var(--green-wash) 24%, transparent);
+}
+.cm-dg-eyebrow { display: block; margin-bottom: 4px; color: var(--ink-soft); }
+.cm-dg-section {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 0.62rem;
+  color: var(--ink-faint);
+}
+.cm-dg-item { padding: 0 0 10px; }
+.cm-dg-item + .cm-dg-section { border-top: 1px solid var(--hairline); padding-top: 12px; }
+.cm-dg-head {
+  display: block;
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: var(--ink);
+  text-decoration: none;
+}
+a.cm-dg-head:hover { color: var(--green-deep); text-decoration: underline; }
+.cm-dg-why {
+  margin-top: 3px;
+  font-size: 0.87rem;
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+}
+/* Right-aligned on its own line rather than trailing the last line of the
+   why-it-matters: floating it into a paragraph of unknown length collides at
+   the widths this actually renders at, and a source that sometimes overlaps
+   the sentence above it is worse than one that always sits under it. */
+.cm-dg-src {
+  display: block;
+  margin-top: 4px;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-decoration: none;
+}
+a.cm-dg-src:hover { color: var(--green-deep); }
+/* The uppercase tracking on the labels swallows a plain margin, so the
+   arrow gets a real gap rather than one that reads as a typo. */
+.cm-dg-arrow { margin-left: 6px; letter-spacing: 0; }
+.cm-dg-discuss {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 9px 0 2px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--ink-soft);
+}
+.cm-dg-discuss:hover { color: var(--green-deep); }
 /* Welcomes get a soft accent spine — a human moment, lightly marked. */
 .cm-msg-welcome .cm-msg-body {
   border-left: 2px solid var(--green);

@@ -80,10 +80,17 @@ _DATE_PATTERNS = (
     re.compile(r"\b\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b"),
 )
 
+#: Emoji, and deliberately NOT arrows.
+#:
+#: U+2190-21FF (arrows) belongs on no ban list here: "Discuss in thread →" and
+#: "Open the community →" are the product's own copy, the source link on a
+#: digest card ends in "↗", and a rule that called those emoji would fail the
+#: designed post it was written to protect. The ban is on decoration a model
+#: reaches for — 🎉, ✨, ❗ — not on the typographic vocabulary the product
+#: already uses.
 _EMOJI = re.compile(
     "["
     "\U0001F000-\U0001FAFF"   # pictographs, emoticons, transport, symbols
-    "\U00002190-\U000021FF"   # arrows
     "\U00002300-\U000023FF"   # misc technical
     "\U00002460-\U000024FF"   # enclosed alphanumerics
     "\U000025A0-\U000027BF"   # geometric shapes, dingbats
@@ -174,6 +181,37 @@ def clean_text(raw: Any) -> str:
     # A comma the dash rule created at the very start or end of the string is
     # punctuation with nothing on one side of it.
     return text.strip(" ,")
+
+
+#: The §2.2 character bans, as a detector rather than a scrubber. ``clean_text``
+#: is the repair; this is the question "does this string still break the rules",
+#: which is what a gate at the write path needs to ask.
+_BANNED_PATTERNS = (
+    ("dash", re.compile(r"[—–]")),
+    ("asterisk", re.compile(r"\*")),
+    ("hashtag", re.compile(r"#")),
+    ("exclamation", re.compile(r"!")),
+    ("emoji", _EMOJI),
+)
+
+
+def banned_patterns(text: str) -> List[str]:
+    """The names of every §2.2 rule ``text`` breaks, or an empty list.
+
+    Characters and hype only. The word caps, the item count and the section
+    vocabulary are properties of the STRUCTURE and are checked by
+    ``validate_payload``; they cannot be re-derived from a rendered string
+    without guessing where one item ends and the next begins.
+
+    Callers must mask URLs first. A fragment identifier is a ``#`` and a path
+    segment can hold a ``!``, and neither is a hashtag or an exclamation mark
+    in any sense a reader would recognise.
+    """
+    found = [name for name, pattern in _BANNED_PATTERNS if pattern.search(text or "")]
+    hype = _has_hype(text or "")
+    if hype:
+        found.append("hype")
+    return found
 
 
 def _word_count(text: str) -> int:

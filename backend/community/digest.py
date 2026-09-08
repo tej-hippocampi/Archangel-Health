@@ -36,7 +36,7 @@ import asyncio
 import logging
 import os
 import realm as _realm
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from community import digest_contract, feeds, links
@@ -619,6 +619,32 @@ def _due(kind: str, now: datetime, last_ok_started: Optional[str]) -> bool:
     except ValueError:
         return True
     return last < fire_at
+
+
+def next_run_at(kind: str = "news", *, now: Optional[datetime] = None) -> Optional[str]:
+    """When the next scheduled digest of ``kind`` is due, ISO-8601 UTC.
+
+    Read off the SAME rules ``_due`` applies, not a second schedule written
+    beside it: an empty room that promised a digest at a time the scheduler
+    disagreed with would be a worse lie than the empty room.
+
+    ``None`` when the routine is switched off, because "the next one is at
+    13:00" is false in that case and the empty state should say nothing rather
+    than something wrong.
+    """
+    if not news_enabled():
+        return None
+    now = now or datetime.utcnow()
+    hour = _news_hour_utc()
+    fire = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    if now >= fire:
+        fire = fire + timedelta(days=1)
+    if kind == "papers":
+        # Forward to the next occurrence of the papers weekday, counting today
+        # only when its fire time has not passed.
+        ahead = (_papers_dow() - fire.weekday()) % 7
+        fire = fire + timedelta(days=ahead)
+    return fire.isoformat() + "Z"
 
 
 async def run_scheduled_digest(

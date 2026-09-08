@@ -294,9 +294,15 @@ def test_unread_and_search_scoped_to_visible_channels():
 def test_system_post_renders_bot_author_and_kind():
     astore, _, _ = setup_world()
     doc = make_vault_physician(astore)
+    # A plain-text digest body, which is what the digest writes now: the write
+    # path refuses the old markdown-lite shape for digest kinds, so a body with
+    # asterisks and an em dash in it would test the style gate rather than the
+    # bot-author rendering this test is about.
     posted = run(post_system_message(
         channel_slug="medical-ai-news",
-        body="**Digest** — [a story](https://example.com/x)", kind="digest_news"))
+        body="Medical AI digest\n\nResearch\nA story about a model\n"
+             "It changes what a clinic does. (Fake Wire) https://example.com/x",
+        kind="digest_news"))
     assert posted is not None
     assert posted["kind"] == "digest_news"
     assert posted["author"]["is_bot"] is True
@@ -329,12 +335,15 @@ def test_system_post_real_digest_format_passes_phi_gate():
     astore, cstore, _ = setup_world()
     make_vault_physician(astore)
     body = (
-        "**Papers of the Week**\n"
-        "**Research**\n"
-        "- [LLMs read nephrology notes](https://pubmed.ncbi.nlm.nih.gov/39234567/) — "
-        "models scored below specialists\n"
-        "- [Preprint on triage agents](https://www.medrxiv.org/content/10.64898/2026.07.04.26357301) — "
-        "prospective single-center study"
+        "Papers of the week\n"
+        "\n"
+        "Research\n"
+        "LLMs read nephrology notes\n"
+        "Models scored below specialists on the same notes. "
+        "(PubMed) https://pubmed.ncbi.nlm.nih.gov/39234567/\n"
+        "Preprint on triage agents\n"
+        "A prospective single-center study of agent triage. "
+        "(medRxiv) https://www.medrxiv.org/content/10.64898/2026.07.04.26357301"
     )
     posted = run(post_system_message(channel_slug="medical-ai-news", body=body,
                                      kind="digest_papers"))
