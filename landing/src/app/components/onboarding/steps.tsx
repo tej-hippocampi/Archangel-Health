@@ -3770,15 +3770,20 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
      one, land them on the portal anyway: they now have a password, so the
      ordinary sign-in form is the door. */
   const openAccount = async () => {
+    // "#examination" so the button lands on what it named. The applicant screen
+    // is one screen and the exam card is always on it, so this is a focus hint
+    // rather than routing: nothing breaks if the fragment is dropped by a proxy
+    // or arrives at an older portal build that does not read it.
     if (data.asclepiusToken) {
       try {
-        await redirectToAsclepiusPortal(data.asclepiusToken);
+        await redirectToAsclepiusPortal(data.asclepiusToken, "examination");
         return true;
       } catch {
         /* fall through to the plain portal URL + its emailed sign-in link */
       }
     }
-    window.location.href = data.workspaceUrl || asclepiusPortalUrl();
+    const base = data.workspaceUrl || asclepiusPortalUrl();
+    window.location.href = base.indexOf("#") === -1 ? base + "#examination" : base;
     return true;
   };
   return (
@@ -3813,70 +3818,50 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
         </div>
       </div>
 
+      {/* WHAT THIS SCREEN IS FOR, and it is one thing (PRD A §1.3): say the
+          application landed, and send them to the examination.
+
+          It used to carry four paragraphs of philosophy about why the review is
+          done by a person, a founders' signature, and then, below a rule, a
+          SECOND thank-you that repeated the 24 to 48 hours the first one had
+          already given. Two blocks on one screen both opening by thanking them
+          and promising a personal read come across as a bug rather than as
+          warmth, and none of it answered the question the physician actually
+          has, which is what happens next. It also invited them to sign in and
+          browse, and offered an outbound link, on the one screen where there is
+          exactly one thing worth doing.
+
+          The CTA label carries the instruction. The paragraph carries the why,
+          once. */}
       <p style={{ fontSize: 15.5, lineHeight: 1.65, color: "var(--ink-soft)",
-                  textAlign: "center", margin: "0 0 18px" }}>
-        Your application is with us now, and one of us will personally review it{" "}
-        <strong style={{ color: "var(--ink)" }}>within 24&ndash;48 hours</strong>. We keep
-        review human on purpose: the whole premise of Archangel is that medicine needs
-        qualified people at every decision point, and that starts with how we welcome
-        physicians.
+                  textAlign: "center", margin: "0 0 20px" }}>
+        Your application is with us. One of us will review it personally within{" "}
+        <strong style={{ color: "var(--ink)" }}>24&ndash;48 hours</strong> and email{" "}
+        <strong style={{ color: "var(--ink)" }}>{data.email}</strong> either way.
       </p>
-      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-soft)",
-                  textAlign: "center", margin: "0 0 8px" }}>
-        We&rsquo;re only confirming that you are who you say you are. Your account is
-        open now: sign in with the password you just chose, look around, and do your
-        practice case whenever it suits you.
-      </p>
-      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-soft)",
-                  textAlign: "center", margin: "0 0 8px" }}>
-        We&rsquo;ll email <strong style={{ color: "var(--ink)" }}>{data.email}</strong>{" "}
-        either way.
-      </p>
-      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-faint)",
-                  textAlign: "center", margin: "0 0 26px" }}>
-        &mdash; Tej Patel &amp; Aryaa Bhatia
+      <p style={{ fontSize: 15.5, lineHeight: 1.65, color: "var(--ink-soft)",
+                  textAlign: "center", margin: "0 0 22px" }}>
+        <strong style={{ color: "var(--ink)" }}>
+          One step left: open your account and take the examination.
+        </strong>{" "}
+        It&rsquo;s one real case in your specialty, about 15 minutes, and it&rsquo;s
+        what we read when we decide.
       </p>
 
-      {/* THE PRACTICE CASE IS NO LONGER WHAT WE READ, so this screen may not say
-          it is. The examination that follows it is, and the portal says so
-          ninety seconds later: a physician who reads both hears the funnel
-          contradict itself about the one thing it is asking them to do.
+      <PrimaryButton fullWidth onClick={openAccount} loadingLabel="Opening&hellip;"
+                     successLabel="Opening &#10003;">
+        Open my account and take the examination &rarr;
+      </PrimaryButton>
 
-          This screen is now the receipt, and the portal owns the welcome, the
-          founders' note and the choice between waiting and starting. Two
-          screens both opening with "thank you, 24 to 48 hours, we read every
-          one personally" read as a bug, not as warmth. */}
-      <div style={{
-        borderTop: "1px solid var(--hairline)", paddingTop: 22, marginBottom: 4,
-      }}>
-        <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--ink-soft)",
-                    textAlign: "center", margin: "0 0 18px" }}>
-          Your account is open now. There is a short onboarding inside it that
-          ends in one examination case in your own specialty, and that case is
-          what we read when we decide. Doing it now is what moves this along.
-        </p>
-        <PrimaryButton fullWidth onClick={openAccount} loadingLabel="Opening…"
-                       successLabel="Opening ✓">
-          Open my account
-        </PrimaryButton>
-        <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-faint)",
-                    textAlign: "center", margin: "14px 0 0" }}>
-          It takes about fifteen minutes and you can stop part way. We&rsquo;ve emailed{" "}
-          <strong style={{ color: "var(--ink-soft)" }}>{data.email}</strong> a link back in
-          if you want to finish it later.{" "}
-          {/* A NEW TAB, deliberately. This link is what a physician clicked
-              from the end of a successful signup, and because the landing app
-              has no router it was a full page navigation: Back remounted the
-              wizard, which resumed from the server, and put them on the verify
-              step. Two other layers now hold that shut, and this one removes
-              the trip entirely. */}
-          <a href="/mission" target="_blank" rel="noopener noreferrer"
-             style={{ color: "var(--ah-green-deep)" }}>
-            Or read our mission
-          </a>
-          .
-        </p>
-      </div>
+      {/* The outbound "Or read our mission" link is gone with the rest. The
+          landing app has no router, so it was a full page navigation: Back
+          remounted the wizard, which resumed from the server and put the
+          physician on the verify step. Removing the link removes the trip. */}
+      <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-faint)",
+                  textAlign: "center", margin: "14px 0 0" }}>
+        You can stop part way. Your answers save, and we&rsquo;ve emailed you a link
+        back in.
+      </p>
 
       {onSignIn && <AlreadyHaveAnAccount onSignIn={onSignIn} />}
     </OnboardingCard>

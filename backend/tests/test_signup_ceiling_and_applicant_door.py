@@ -215,6 +215,10 @@ def test_the_success_screen_spends_the_session_instead_of_dropping_it():
         "the submitted screen ignores the session /finish minted for the applicant"
     assert "redirectToAsclepiusPortal" in screen, \
         "a token cannot cross origins in storage; it has to be traded for a handoff code"
-    assert "practice case" in screen.lower()
+    # It used to name the practice case here. PRD A §1.3 changed what this
+    # screen points at, because the practice case is not what we read: the
+    # examination is, and the CTA now says so in its own label.
+    assert "practice case" not in screen.lower()
+    assert "take the examination" in screen.lower()
     # The wait still has to be explained, not replaced by a task list.
     assert "24&ndash;48 hours" in screen

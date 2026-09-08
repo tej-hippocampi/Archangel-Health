@@ -1861,7 +1861,7 @@
     // satisfies all three of its clauses: role is evaluator, they are not an
     // advisor, and an empty tutorial_json parses to gate_state 'locked'. They
     // were thrown straight into Calibration Case 1, and the screen written for
-    // exactly this person (renderCredentialingDashboard) was never painted on a
+    // exactly this person (renderApplicantHome) was never painted on a
     // first login. The guard belongs here rather than as a fourth clause below,
     // because the gate launch still has to fire for the accounts it was written
     // for and burying a second reason inside it hides both.
@@ -2481,8 +2481,8 @@
     // would replace the examination in the workspace and take the case they are
     // sitting away from them. So the exam says something true and stays put.
     if (examActive()) {
-      toast('Something went wrong opening that. Your answers are saved — '
-            + 'try again, or email tejpatel@berkeley.edu.', 'error');
+      toast('Something went wrong opening that. Your answers are saved. '
+            + 'Try again, or email tejpatel@berkeley.edu.', 'error');
       return;
     }
     toast('Finish the practice case to open real cases.', 'info');
@@ -2867,119 +2867,35 @@
   // The landing surface after login: shows the cases this reviewer can pick right
   // now, a "start next case" CTA, or a reassuring empty state. It routes into the
   // EXISTING case flow (renderEvalView / the task workspace) without changing it.
-  /** Where an applicant is in the credentialing path.
+  /** Where an applicant is. Three answers, and all three are the examination.
+   *
+   *  This used to be a six-stage hidden state machine — welcome, choice, info,
+   *  resources, practice, exam — and each of the first three rendered a
+   *  full-screen interstitial that was read once and then never again. An
+   *  applicant's second visit therefore landed on a DIFFERENT screen from their
+   *  first, decided by state they could not see, and the thing they were
+   *  actually here to do sat behind all of it.
+   *
+   *  So the stages are gone and the screen is one screen (PRD A §1.1). The only
+   *  state that changes anything is the examination.
+   *
+   *  MIGRATION BY IGNORING. `welcome_seen_at`, `onboarding_choice`,
+   *  `info_seen_at` and `resources_seen_at` are still written by the server and
+   *  still returned here; nothing reads them any more. An applicant carrying a
+   *  full set of legacy marks and one carrying none land on the same screen,
+   *  which is the entire migration — no backfill, no schema change, no blob
+   *  rewritten. The fields stay as history (PRD A §1.5).
    *
    *  Read off the session's tutorial blob, which the server projects with the
-   *  score and the pass flag stripped out: this decides which BUTTON to show,
-   *  and it must never be able to tell a physician how they did. That is the
-   *  admin's call and nobody else's.
+   *  score and the pass flag stripped out: this must never be able to tell a
+   *  physician how they did. That is the admin's call and nobody else's.
    */
   function credentialingStage() {
     const t = (state.user && state.user.tutorial) || {};
     const exam = t.exam || {};
     if (exam.state === 'submitted') return 'exam_submitted';
     if (exam.state === 'in_progress') return 'exam_in_progress';
-    if (t.resources_seen_at) return 'exam_ready';
-    if (t.status === 'in_progress') return 'practice_in_progress';
-    // ORDER IS THE MIGRATION. Everything above this line is a mark somebody
-    // already carries, so an applicant part way through today answers exactly
-    // as they answered yesterday and never sees a screen that did not exist
-    // when they started. Only a genuinely empty blob reaches the new stages.
-    if (!t.welcome_seen_at) return 'welcome';
-    if (!t.onboarding_choice) return 'choice';
-    // Chose to hear from us at the decision. Not a dead end: the dashboard's
-    // `waiting` stage still offers the way in, because the commonest reason to
-    // pick this is not knowing yet that the rest of it is fifteen minutes.
-    if (t.onboarding_choice === 'email_me') return 'waiting';
-    if (!t.info_seen_at) return 'info';
-    return 'resources';
-  }
-
-  /** The one action on the credentialing dashboard.
-   *
-   *  For now it opens the practice case, which is the piece that exists. The
-   *  resources screen and the examination land on this same seam, so the
-   *  dashboard does not have to change again when they do.
-   */
-  /** The one action on the credentialing dashboard, routed by stage. */
-  function startCredentialing() {
-    const stage = credentialingStage();
-    if (stage === 'exam_ready' || stage === 'exam_in_progress') {
-      startExam();
-      return;
-    }
-    // Never `replay`. Replay clears the saved draft, and this is the button a
-    // physician presses to CONTINUE a practice case they left part way
-    // through, which is exactly the work that must survive.
-    if (stage === 'practice_in_progress') { startTutorial({ replay: false }); return; }
-    // They chose to wait and have changed their mind. `info_seen` has not been
-    // stamped, so this drops them into the explainer and the ordinary path
-    // continues from there. The stored choice is left alone: it is a record of
-    // what they picked, not a setting, and the nudge that would otherwise chase
-    // them reads the examination state rather than this.
-    if (stage === 'waiting') { renderOnboardingInfo(); return; }
-    renderCredentialingResources();
-  }
-
-  /** Before the examination: the two things that help, and what it is for.
-   *
-   *  A physician used to be dropped into a case that decides about them with
-   *  no warning that it did. Both resources are OPTIONAL and say so; the
-   *  examination is not, and says that too. Being straight about which is
-   *  which is the whole screen.
-   */
-  function renderCredentialingResources() {
-    const resource = (title, body, label, onClick) =>
-      h('div', { class: 'asc-card asc-card-pad asc-res-card' },
-        h('h3', {}, title),
-        h('p', { class: 'asc-dim' }, body),
-        // Ghost, not bare. `.asc-btn` on its own is a transparent border with
-        // no background, so these two read as unstyled text sitting in a card.
-        h('button', { class: 'asc-btn asc-btn-ghost', onClick: onClick }, label));
-
-    const demoAvailable = !!(window.FirstRunWalkthrough
-      && window.FirstRunWalkthrough.demoAvailable
-      && window.FirstRunWalkthrough.demoAvailable());
-
-    setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad' },
-        h('div', { class: 'asc-chrome' }, 'STEP ONE: LEARNING HOW TO LABEL'),
-        h('h2', {}, 'The next case is the one we read.'),
-        h('p', {},
-          'It is how we judge whether your reads are credible for this platform, '
-          + 'and it feeds what we can pay you. Two things exist to help you '
-          + 'before you sit it. Both are optional. The examination is not.'),
-        h('div', { class: 'asc-res-grid' },
-          demoAvailable
-            ? resource('Watch the demo', 'Three minutes, the whole product start to finish.',
-                'Play the demo',
-                () => {
-                  if (window.FirstRunWalkthrough && window.FirstRunWalkthrough.playDemo) {
-                    window.FirstRunWalkthrough.playDemo(firstRunCtx());
-                  }
-                })
-            : null,
-          resource('Do the practice case',
-            'One guided case, about four minutes. Nothing in it is recorded or scored.',
-            'Open the practice case', () => startTutorial({ replay: false }))),
-        h('button', { class: 'asc-btn asc-btn-primary asc-btn-lg', onClick: startExam },
-          'Take my examination \u2192'),
-        h('p', { class: 'asc-dim asc-small' },
-          'Skipping either one costs you nothing here. They exist because '
-          + 'physicians who use them label better.'),
-        // The way back. A physician who reaches the examination and finds they
-        // wanted the explainer after all should not have to sign out to see it
-        // again, and pauseExam() returns them to this screen from inside the
-        // case for the same reason.
-        h('button', { class: 'asc-btn asc-btn-link', onClick: renderOnboardingInfo },
-          'Back to what this is'))));
-
-    // Stamped on ARRIVAL, not on leaving: they have been shown the help, and
-    // whether they took it is their business. Best-effort, because a failed
-    // stamp costs one extra visit to this screen and nothing else.
-    api('/me/tutorial', { method: 'PATCH', body: { action: 'resources_seen' } })
-      .then((u) => { if (u) state.user = u; })
-      .catch(() => { /* they will simply see this screen again */ });
+    return 'exam_not_started';
   }
 
   /** The examination: the real workspace, one case, in their own specialty. */
@@ -3029,7 +2945,11 @@
     saveDraft();
     state.exam = null;
     state.task = null;
-    renderCredentialingResources();
+    // Back to the applicant's one screen, which now offers the guide and the
+    // demo directly. It used to return them to a pre-examination resources
+    // screen that no longer exists — and that screen was itself a stage, which
+    // is what PRD A §1 removed.
+    renderApplicantHome();
   }
 
   async function submitExamEvaluation() {
@@ -3072,13 +2992,34 @@
           'Back to my dashboard'))));
   }
 
+  /* ─── The founders' introduction ────────────────────────────────────────────
+     NO CALLER IN THIS FILE, AND THAT IS THE CHANGE. Both call sites were
+     pre-approval screens — the welcome interstitial and the credentialing
+     dashboard — and PRD A §1.2 removed the strip from both: "meet the founders"
+     and "book 20 minutes with us" are said to a physician we have ACCEPTED, not
+     to somebody still waiting to hear whether we will. The applicant screen
+     carries one line of contact instead.
+
+     Kept rather than deleted, per PRD A §1.4.2: this is the strip the
+     post-approval welcome (Onboarding v2 §6 stop 1) renders, and rebuilding it
+     there from memory would be how the founders end up introduced twice, two
+     different ways. `FOUNDER_CALENDLY` is additionally load-bearing —
+     test_landing_config binds the backend constant to this literal so the
+     approval email, first_run.js and this file cannot drift apart.
+
+     OPEN QUESTION for whoever restores the strip post-approval: this points at
+     Aryaa's calendar. PRD A §1.4.2 asks which should be canonical when it
+     returns (Tej's is calendly.com/tejpatel-berkeley/intro-with-tej-patel). Left
+     exactly as it was, because changing it here would silently re-point the
+     approval email too. */
+
   /** Where the founders' 20-minute intro lives. One link for every physician
    *  surface: first_run.js and the approval email point at the same one, and
    *  test_landing_config binds the backend constant to it so they cannot drift
    *  apart again. */
   var FOUNDER_CALENDLY = 'https://calendly.com/aryaabhatia-berkeley/new-meeting';
 
-  /** The founders, on a screen an applicant will see several times.
+  /** The founders, on the post-approval welcome.
    *
    *  The wide photo is optional by construction: `founders-wide.jpg` is not in
    *  git (it is a photo of real people, and /email-assets is public), so this
@@ -3112,177 +3053,195 @@
       }, 'Book 20 minutes with us'));
   }
 
-  /** Screen one for a new applicant: who we are, before anything is asked. */
-  function renderProvisionalWelcome() {
-    setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
-        h('div', { class: 'asc-chrome' }, 'WELCOME TO ARCHANGEL'),
-        h('h2', {}, 'Your application is with us.'),
-        h('p', {},
-          'One of us reads every application personally, and you will hear from '
-          + 'us either way. Usually one to two business days.'),
-        h('p', {},
-          'We are two founders building the thing we could not find: medical AI '
-          + 'that has been checked by the people who would have to live with it '
-          + 'being wrong. That is what your reads are for.'),
-        founderStripEl(),
-        h('button', {
-          class: 'asc-btn asc-btn-primary',
-          onClick: () => stampCredentialing('welcome_seen'),
-        }, 'Continue'))));
-  }
-
-  /** The two doors. Neither one is a trap: `email_me` still has a way back. */
-  function renderOnboardingChoice() {
-    const door = (title, body, label, onClick, primary) =>
-      h('div', { class: 'asc-card asc-card-pad asc-res-card' },
-        h('h3', {}, title),
-        h('p', { class: 'asc-dim' }, body),
-        h('button', {
-          class: 'asc-btn ' + (primary ? 'asc-btn-primary' : 'asc-btn-ghost'),
-          onClick: onClick,
-        }, label));
-
-    setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
-        h('div', { class: 'asc-chrome' }, 'WHILE WE CHECK YOUR CREDENTIALS'),
-        h('h2', {}, 'There is one thing you can do that speeds this up.'),
-        h('p', {},
-          'Our onboarding is short: what the work is, then one examination case '
-          + 'in your own specialty. The examination is what we read when we make '
-          + 'the decision, so sitting it now is the difference between us '
-          + 'deciding this week and us waiting on you.'),
-        h('div', { class: 'asc-res-grid' },
-          door('Start onboarding now',
-            'About fifteen minutes. You can stop at any point and pick it up where you left it.',
-            'Start onboarding',
-            () => stampCredentialing('onboarding_choice', 'start_now'), true),
-          door('Email me when I am verified',
-            'We will write to you either way. Everything here stays open to look around in the meantime.',
-            'Just email me',
-            () => stampCredentialing('onboarding_choice', 'email_me'))))));
-  }
-
-  /** The explainer. What this is, what it pays, and why we verify at all. */
-  function renderOnboardingInfo() {
-    const row = (title, body) =>
-      h('div', { class: 'asc-info-row' },
-        h('h3', {}, title),
-        h('p', { class: 'asc-dim' }, body));
-
-    setRoot(h('div', { class: 'asc-wrap' },
-      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
-        h('div', { class: 'asc-chrome' }, 'WHAT YOU ARE JOINING'),
-        h('h2', {}, 'Archangel in five paragraphs.'),
-        h('div', { class: 'asc-info-rows' },
-          row('What the work is',
-            'You read a real clinical case, write your own answer to it before '
-            + 'you are shown what a model said, and then grade the model against '
-            + 'your own reasoning. The order is enforced by the server, not by '
-            + 'the honour system, which is what makes the result worth anything.'),
-          row('Why we verify you',
-            'What we sell is that a practising physician checked it. An account '
-            + 'we have not checked cannot make that true, so nothing real opens '
-            + 'until a person has read your credentials.'),
-          row('What it pays',
-            'Seventy five dollars a labelled case and a hundred a review session. '
-            + 'Earnings shows what has accrued from the moment you submit, and '
-            + 'separately what is still waiting on review.'),
-          row('The community',
-            'Channels for your specialty, your country and your city, plus a '
-            + 'morning brief of events, medical AI news and new research. Everyone '
-            + 'in it is a credential-verified clinician, which is the whole reason '
-            + 'it is worth reading, and it opens when you are approved.'),
-          row('Referrals',
-            'Every contributor gets a link. Fifty dollars to you when someone you '
-            + 'bring is verified and has a case accepted, and twenty five to them.')),
-        h('button', {
-          class: 'asc-btn asc-btn-primary',
-          onClick: () => stampCredentialing('info_seen', null, renderCredentialingResources),
-        }, 'Next: learning how to label'))));
-  }
-
-  /** Write one applicant-journey mark, then repaint from the new stage.
+  /** THE APPLICANT'S ONE SCREEN. Two boxes, one job (PRD A §1.2).
    *
-   *  Optimistic on purpose: the stamp grants nothing, so a failed write costs
-   *  one repeated screen and never a wrong permission. Blocking the button on a
-   *  round trip would be the more expensive failure.
+   *  What this replaces: a six-stage machine whose first three stages were
+   *  full-screen interstitials, and a dashboard whose single button changed its
+   *  own label by stage — Start / Continue practice case / Take my examination /
+   *  Resume my examination. An applicant's second visit landed somewhere
+   *  different from their first for reasons they could not see, the copy on
+   *  every screen explained the philosophy rather than the next step, and the
+   *  thing they were here to do was behind three screens and a practice case.
+   *
+   *  Everything it needed already existed. The problem was choreography, not
+   *  capability.
+   *
+   *  THE RULE: pre-approval the portal says one thing — the last step of your
+   *  application is the examination. Card 1 is how to label, and every row in it
+   *  is quiet and optional. Card 2 carries the only primary button on the page.
+   *  Nothing else on the screen changes with state.
+   *
+   *  No founders' strip, no Calendly, no mission paragraph. Those belong to the
+   *  post-approval welcome, where "meet the founders" is an invitation rather
+   *  than a thing said to somebody we have not accepted yet. One line of contact
+   *  replaces them.
    */
-  function stampCredentialing(action, choice, next) {
-    const body = { action: action };
-    if (choice) body.choice = choice;
-    return api('/me/tutorial', { method: 'PATCH', body: body })
-      .then((u) => { if (u) state.user = u; })
-      .catch(() => { /* they will see this screen once more */ })
-      .then(() => {
-        renderSidePanel();
-        // Default is "repaint from whatever stage we are now in", which is
-        // what a stamp usually means. `next` is for a screen that continues
-        // somewhere specific: landing on the hub between two steps of a linear
-        // path reads as having lost your place.
-        if (next) next(); else renderCredentialingDashboard();
-      });
-  }
-
-  /** What an applicant sees where the case queue will be.
-   *
-   *  Before this they got the approved physician's dashboard with most of it
-   *  crossed out: a specialty header for cases they cannot draw, a review card,
-   *  queue errors from a /tasks/next call that is a guaranteed 403 for them,
-   *  and a "Meet the community" button that opened a tab and 403'd there too.
-   *
-   *  Three things now, and nothing else. Where their application stands, what
-   *  is being asked of them, and the one button that does it.
-   */
-  function renderCredentialingDashboard() {
+  function renderApplicantHome() {
     const stage = credentialingStage();
-    // The first three stages are screens of their own rather than a different
-    // button on this one. They are read once each and then never again, and
-    // folding them in here would make the home screen mean five things.
-    if (stage === 'welcome') { renderProvisionalWelcome(); return; }
-    if (stage === 'choice') { renderOnboardingChoice(); return; }
-    if (stage === 'info') { renderOnboardingInfo(); return; }
+    const submitted = stage === 'exam_submitted';
+    const resuming = stage === 'exam_in_progress';
+    const specialty = ((state.user && state.user.specialty) || '').trim();
 
-    const cta = {
-      waiting: ['Start onboarding now', 'It is about fifteen minutes, and it is what we read when we decide.'],
-      resources: ['Start', 'Two short things before your examination.'],
-      practice_in_progress: ['Continue practice case', 'You left one part way through. It is where you left it.'],
-      exam_ready: ['Take my examination', 'The practice case is done. This is the one we read.'],
-      exam_in_progress: ['Resume my examination', 'Your answers are saved.'],
-      exam_submitted: ['Your examination is with us', 'Nothing more to do. We will email you either way.'],
-    }[stage] || ['Start', ''];
+    // Card 1's rows: an icon, a title, one line, an arrow. Never a button —
+    // a second button-shaped thing on this page competes with the one that
+    // matters, and none of these are what we are asking them to do.
+    const row = (glyph, title, body, onClick) => {
+      const el = h('button', {
+        class: 'asc-applicant-row', type: 'button', onClick: onClick,
+      },
+        h('span', { class: 'asc-applicant-row-icon', 'aria-hidden': 'true' }, glyph),
+        h('span', { class: 'asc-applicant-row-text' },
+          h('span', { class: 'asc-applicant-row-title' }, title),
+          h('span', { class: 'asc-applicant-row-body' }, body)),
+        h('span', { class: 'asc-applicant-row-go', 'aria-hidden': 'true' }, '→'));
+      return el;
+    };
+
+    // Left out rather than offered dead: probeDemo has not necessarily run, and
+    // a row that opens nothing is worse than one less row.
+    const demoAvailable = !!(window.FirstRunWalkthrough
+      && window.FirstRunWalkthrough.demoAvailable
+      && window.FirstRunWalkthrough.demoAvailable());
+
+    const howToLabel = h('div', { class: 'asc-card asc-applicant-card' },
+      h('div', { class: 'asc-chrome' }, '1 · HOW TO LABEL A CASE'),
+      h('div', { class: 'asc-applicant-rows' },
+        demoAvailable
+          ? row('▶', 'Watch a labeled case',
+              'A physician walks through one real case start to finish. 3 min.',
+              () => {
+                if (window.FirstRunWalkthrough && window.FirstRunWalkthrough.playDemo) {
+                  window.FirstRunWalkthrough.playDemo(firstRunCtx());
+                }
+              })
+          : null,
+        row('≡', 'Read the labeling guide',
+            'What we look for, what a strong answer contains, common mistakes.',
+            openGuideOverlay)),
+      // The practice case stays, as a link and never as a stage. Some
+      // applicants want it; nobody is required to take it, and pre-approval it
+      // gates nothing (the server exempts the examination from the practice
+      // gate for exactly this reason).
+      h('button', {
+        class: 'asc-btn asc-btn-link asc-applicant-practice', type: 'button',
+        onClick: () => startTutorial({ replay: false }),
+      }, 'Optional: try a practice case first →'));
+
+    const examBody = submitted
+      ? h('p', { class: 'asc-applicant-done' },
+          h('span', { class: 'asc-applicant-tick', 'aria-hidden': 'true' }, '✓'),
+          'Your examination is with us. Nothing more to do: we’ll email '
+          + 'you either way.')
+      : h('p', {},
+          'One real ' + (specialty ? specialty + ' ' : '')
+          + 'case. About 15 minutes. You can stop and come back; your answers '
+          + 'are saved.');
+
+    const takeExam = h('div', { class: 'asc-card asc-applicant-card' },
+      h('div', { class: 'asc-chrome' }, '2 · TAKE THE EXAMINATION'),
+      examBody,
+      // THE ONLY PRIMARY ON THE PAGE, and absent entirely once it is filed —
+      // a disabled button still reads as an action somebody failed to take.
+      submitted ? null : h('button', {
+        class: 'asc-btn asc-btn-primary asc-btn-lg', type: 'button',
+        id: 'ascExamStart', onClick: startExam,
+      }, (resuming ? 'Resume' : 'Start') + ' the examination →'),
+      resuming ? h('p', { class: 'asc-dim asc-small' }, 'Your answers are saved.') : null);
+
+    // THE DEEP LINK. The landing app's "Open my account and take the
+    // examination" CTA sends them to /asclepius#examination, so the button it
+    // named is what has focus when they arrive rather than the top of the page.
+    // A hint, never routing: the card is on this screen either way, so a
+    // stripped fragment costs nothing. Cleared after use so a later re-render
+    // (closing the guide, pausing the exam) does not steal focus again.
+    if ((location.hash || '') === '#examination' && !submitted) {
+      requestAnimationFrame(() => {
+        const btn = document.getElementById('ascExamStart');
+        if (btn) btn.focus();
+        try {
+          history.replaceState(null, '', location.pathname + location.search);
+        } catch (_) { /* a browser that refuses this simply keeps the fragment */ }
+      });
+    }
 
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
         h('div', { class: 'asc-chrome' }, 'YOUR APPLICATION'),
-        h('h2', {}, 'We are checking your credentials.'),
+        h('h2', {}, 'We are checking your credentials, and there is one '
+          + 'thing left for you to do.'),
         h('p', { class: 'asc-dim' },
-          'Usually one to two business days. You do not need to do anything for '
-          + 'that part, and we will email you the moment it is decided.'),
-        // Say what they HAVE, not only what they are waiting for. The old screen
-        // answered "what is being asked of me" and never answered "what can I
-        // do here now", so the rail's open tabs read as decoration.
-        h('p', {},
-          'Your account is open in the meantime. Community, Referral and '
-          + 'Earnings are all here to look through, view only, so you can see '
-          + 'what the work pays and who is in the rooms before you commit to '
-          + 'any of it.'),
-        stage === 'exam_submitted'
-          ? h('p', {},
-              'Your examination is filed. That was the part we read, and there '
-              + 'is nothing else for you to do.')
-          : h('p', {},
-              'The one thing that moves this along is the examination: a real '
-              + 'case in your own specialty, in the interface you would work '
-              + 'in. A practice case and a short demo sit in front of it and '
-              + 'both are optional.'),
+          'Credential review takes one to two business days and needs nothing '
+          + 'from you; we email you the moment it is decided. The last step of '
+          + 'your application is the examination below: one real case in your '
+          + 'specialty, in the interface you would work in. We read it when we '
+          + 'decide.')),
+      h('div', { class: 'asc-applicant-grid' }, howToLabel, takeExam),
+      h('p', { class: 'asc-applicant-help' },
+        'Any questions: ',
+        h('a', { href: 'mailto:tejpatel@berkeley.edu' }, 'tejpatel@berkeley.edu'))));
+  }
+
+  /** The labeling guide, over the applicant's screen, back where they were.
+   *
+   *  An OVERLAY rather than a navigation, because the guide is a thing you
+   *  consult on the way to the examination and not a place you go: sending them
+   *  to the manual as a page would leave them to find their own way back to the
+   *  one screen we want them on.
+   *
+   *  Built from the same manual data and the same `guideSection` element builder
+   *  the full Guide uses, so there is one source for this content. What it does
+   *  not carry is the scroll-spy table of contents — that watches the document
+   *  scroller, which is not what is scrolling here.
+   */
+  function openGuideOverlay() {
+    if (document.getElementById('ascApplicantGuide')) return;
+    const manuals = window.ASC_MANUALS || {};
+    const manual = manuals.labeler || window.ASC_MANUAL;
+    const opener = document.activeElement;
+
+    const body = h('div', { class: 'asc-applicant-guide-body' });
+    if (manual && Array.isArray(manual.sections)) {
+      body.appendChild(h('header', { class: 'asc-guide-intro' },
+        h('div', { class: 'chrome chrome-strong' }, 'INSTRUCTION MANUAL'),
+        h('h1', { class: 'asc-guide-h1' }, manual.title),
+        manual.subtitle ? h('p', { class: 'asc-guide-sub' }, manual.subtitle) : null));
+      manual.sections
+        .filter((sec) => !sec.showWhen
+          || sec.showWhen === (state.user && state.user.verification_status))
+        .forEach((sec) => body.appendChild(guideSection(sec)));
+    } else {
+      body.appendChild(h('div', { class: 'asc-inline-error' },
+        'The instruction manual failed to load.'));
+    }
+
+    let escHandler = null;
+    const close = () => {
+      const el = document.getElementById('ascApplicantGuide');
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+      if (escHandler) document.removeEventListener('keydown', escHandler);
+      // Back to the control they opened it from, not to the top of the page:
+      // a keyboard user who loses their place here has to tab the whole screen
+      // again to find it.
+      if (opener && typeof opener.focus === 'function') opener.focus();
+    };
+
+    const overlay = h('div', {
+      class: 'asc-applicant-guide-overlay', id: 'ascApplicantGuide',
+      role: 'dialog', 'aria-modal': 'true', 'aria-label': 'The labeling guide',
+    },
+      h('div', { class: 'asc-applicant-guide-frame' },
         h('button', {
-          class: 'asc-btn asc-btn-primary',
-          disabled: stage === 'exam_submitted' ? 'disabled' : null,
-          onClick: () => { if (stage !== 'exam_submitted') startCredentialing(); },
-        }, cta[0]),
-        cta[1] ? h('p', { class: 'asc-dim asc-small' }, cta[1]) : null,
-        founderStripEl({ photo: false }))));
+          class: 'asc-applicant-guide-close', type: 'button',
+          'aria-label': 'Close the guide', onClick: close,
+        }, '✕'),
+        body));
+
+    // Clicking the dim closes, the frame does not — the same behaviour as
+    // every other overlay in this portal.
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    escHandler = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', escHandler);
+    document.body.appendChild(overlay);
   }
 
   async function renderDashboardView() {
@@ -3295,7 +3254,7 @@
     // that is supposed to be telling them their application is fine.
     if (sessionIsProvisional() && !isAdvisor()) {
       renderSidePanel();
-      renderCredentialingDashboard();
+      renderApplicantHome();
       return;
     }
     // Default the flow so opening a case needs no picker: V3 + the doctor's own

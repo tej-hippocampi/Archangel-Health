@@ -1,19 +1,28 @@
 """What a physician meets between submitting an application and the examination.
 
-Before this the answer was: nothing, then a case. Signing in dropped them into
-Calibration Case 1, and the landing screen they had just left told them the
+Before any of this the answer was: nothing, then a case. Signing in dropped them
+into Calibration Case 1, and the landing screen they had just left told them the
 practice case was "the part of your application we read most closely" while the
-portal, ninety seconds later, told them it was the examination. A funnel that
-contradicts itself about the one thing it is asking for is worse than a silent
-one.
+portal, ninety seconds later, told them it was the examination.
 
-The journey is welcome, then a choice, then the explainer, then the learning
-materials, then the examination. Its state is three marks in ``tutorial_json``,
-and the property that matters most is not what they do but WHERE THEY SIT in
-``credentialingStage``: every new stage is tested below the existing ones, so an
-applicant part way through today answers exactly as they answered yesterday and
-never meets a screen that did not exist when they started. That ordering is the
-whole migration, which is why it is asserted rather than assumed.
+The first fix for that was a journey: welcome, then a choice, then an explainer,
+then the learning materials, then the examination. It removed the contradiction
+and introduced a worse problem, which is what PRD A §1 is about. The first three
+stages were full-screen interstitials read once and never again, so an
+applicant's second visit landed on a different screen from their first for
+reasons they could not see, and the dashboard's single button changed its own
+label four ways depending on hidden state.
+
+So the journey is gone and the portal is ONE screen with two boxes: how to label
+a case, and take the examination (PRD A §1.2). What is asserted here now:
+
+  * the three server marks still exist, are still written once, and still grant
+    nothing — they are history, and PRD A §1.5 keeps them deliberately;
+  * NOTHING READS THEM. That is the whole migration: an applicant carrying a
+    full set of legacy marks and one carrying none land on the same screen, with
+    no backfill and no blob rewritten;
+  * the founders' strip and the Calendly invitation are NOT on a pre-approval
+    screen. They belong to a physician we have accepted.
 """
 
 from __future__ import annotations
@@ -47,9 +56,39 @@ def _applicant(store):
     return user
 
 
+def _strip_js_comments(source: str) -> str:
+    """This codebase explains its rules in prose beside the code, and a grep
+    that reads the prose as code fails on its own documentation."""
+    out, i, n = [], 0, len(source)
+    while i < n:
+        if source.startswith("/*", i):
+            end = source.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+        elif source.startswith("//", i):
+            end = source.find("\n", i)
+            i = n if end == -1 else end
+        else:
+            out.append(source[i])
+            i += 1
+    return "".join(out)
+
+
+_CODE = _strip_js_comments(_JS)
+
+
 def _stage_fn() -> str:
-    start = _JS.index("function credentialingStage()")
-    return _JS[start:_JS.index("\n  /**", start)]
+    start = _CODE.index("function credentialingStage()")
+    return _CODE[start:_CODE.index("\n  function ", start + 10)]
+
+
+def _applicant_home() -> str:
+    """The body of renderApplicantHome, comments stripped.
+
+    Bounded at the next declaration rather than by a character count: a fixed
+    window runs past the end of the function into its neighbour, and then half
+    the assertions here would be satisfied by copy on a different screen."""
+    start = _CODE.index("function renderApplicantHome()")
+    return _CODE[start:_CODE.index("\n  function ", start + 10)]
 
 
 # ── The marks ───────────────────────────────────────────────────────────────
@@ -123,41 +162,60 @@ def test_an_account_that_predates_the_journey_reads_as_not_done():
 
 # ── Where the stages sit ────────────────────────────────────────────────────
 
-def test_the_new_stages_are_all_tested_after_the_old_ones():
-    """THE MIGRATION. An applicant mid-application carries resources_seen_at or
-    an exam state; if either new check ran first they would be thrown back to a
-    welcome screen they never saw and had already passed."""
+def test_the_stage_helper_reads_only_the_examination():
+    """THE MIGRATION, and it is a deletion rather than a backfill.
+
+    Every legacy mark is still written and still returned; none is consulted.
+    So an applicant who stopped half way through the old journey and one who
+    signed up this morning get the same screen, and no stored blob had to be
+    touched to make that true."""
     fn = _stage_fn()
-    last_old = max(fn.index("exam.state === 'submitted'"),
-                   fn.index("t.resources_seen_at"),
-                   fn.index("t.status === 'in_progress'"))
-    for new in ("t.welcome_seen_at", "t.onboarding_choice", "t.info_seen_at"):
-        assert fn.index(new) > last_old, f"{new} is consulted before an existing mark"
+    for gone in ("welcome_seen_at", "onboarding_choice", "info_seen_at",
+                 "resources_seen_at", "t.status"):
+        assert gone not in fn, f"credentialingStage still routes on {gone}"
+    for kept in ("exam.state === 'submitted'", "exam.state === 'in_progress'",
+                 "exam_not_started"):
+        assert kept in fn, f"the examination state {kept} is missing"
 
 
-def test_choosing_to_wait_is_not_a_dead_end():
-    """The commonest reason to pick it is not yet knowing the rest is fifteen
-    minutes, so the screen that follows still has to offer the way in."""
-    assert "waiting" in _stage_fn()
-    dash = _JS[_JS.index("function renderCredentialingDashboard"):][:2200]
-    assert "waiting: ['Start onboarding now'" in dash
-    start = _JS[_JS.index("function startCredentialing"):][:900]
-    assert "stage === 'waiting'" in start
+def test_the_interstitials_are_gone():
+    """Three full-screen screens, each read once and then never again, in front
+    of the one thing an applicant is here to do."""
+    for gone in ("renderProvisionalWelcome", "renderOnboardingChoice",
+                 "renderOnboardingInfo", "renderCredentialingResources",
+                 "renderCredentialingDashboard", "startCredentialing",
+                 "stampCredentialing"):
+        assert gone not in _CODE, f"{gone} is still in the portal"
+
+
+def test_the_legacy_marks_are_still_written_and_still_grant_nothing(client):
+    """Kept as history, per PRD A §1.5. Removing the endpoints would break an
+    applicant mid-flight on an older cached page for no gain, and the marks are
+    a record of what somebody was shown."""
+    store = fresh_store()
+    h = headers_for(_applicant(store))
+    res = client.patch("/api/asclepius/me/tutorial",
+                       json={"action": "welcome_seen"}, headers=h)
+    assert res.status_code == 200
+    assert res.json()["tutorial"]["welcome_seen_at"]
+    assert res.json()["access_level"] == "provisional"
 
 
 def test_the_examination_is_reachable_without_the_optional_material():
-    """Both resources say they are optional, and the button that skips them has
-    to actually exist or the sentence is a lie."""
-    res = _JS[_JS.index("function renderCredentialingResources"):][:2600]
-    assert "Both are optional" in res
-    assert "startExam" in res
+    """Both items in card 1 are optional and the examination is not, so the
+    button that skips them has to actually exist or the sentence is a lie."""
+    home = _applicant_home()
+    assert "startExam" in home
+    assert "the examination" in home
 
 
-def test_a_physician_can_get_back_to_the_explainer_from_the_materials():
-    """They may reach the examination and find they wanted the explainer after
-    all. Signing out is not a navigation model."""
-    res = _JS[_JS.index("function renderCredentialingResources"):][:2600]
-    assert "renderOnboardingInfo" in res
+def test_the_practice_case_is_a_link_and_never_a_stage():
+    """It stays because some applicants want it. It is not a gate, it is not a
+    stage, and pre-approval it blocks nothing — the server exempts the
+    examination from the practice gate for exactly this reason."""
+    home = _applicant_home()
+    assert "asc-btn-link" in home, "the practice case is offered as a button"
+    assert "startTutorial({ replay: false })" in home
 
 
 # ── The funnel stops contradicting itself ───────────────────────────────────
@@ -169,13 +227,24 @@ def test_the_landing_screen_no_longer_calls_the_practice_case_what_we_read():
     assert "Start my practice case" not in submitted
 
 
-def test_the_founders_appear_where_an_applicant_actually_waits():
-    """The provisional dashboard is seen on every sign-in for one to two days
-    and was entirely institutional voice."""
+def test_the_founders_do_not_introduce_themselves_before_we_have_accepted_anyone():
+    """INVERTED BY PRD A §1.2, deliberately. The strip and "Book 20 minutes with
+    us" used to render on two pre-approval screens. Both are said to a physician
+    we have ACCEPTED; saying them to somebody still waiting to hear whether we
+    will is a different sentence. One line of contact replaces them."""
+    home = _applicant_home()
+    assert "founderStripEl" not in home
+    assert "FOUNDER_CALENDLY" not in home
+    assert "calendly" not in home.lower()
+    assert "mailto:tejpatel@berkeley.edu" in home
+
+
+def test_the_founder_strip_is_kept_for_the_post_approval_welcome():
+    """Kept rather than deleted, per PRD A §1.4.2: this is the strip the
+    post-approval welcome renders, and FOUNDER_CALENDLY is additionally bound to
+    a backend constant by test_landing_config."""
     assert "function founderStripEl" in _JS
-    dash = _JS[_JS.index("function renderCredentialingDashboard"):]
-    dash = dash[:dash.index("\n  async function renderDashboardView")]
-    assert "founderStripEl" in dash
+    assert "FOUNDER_CALENDLY" in _JS
 
 
 def test_the_founder_strip_survives_a_missing_photo():
@@ -190,8 +259,22 @@ def test_every_class_the_journey_emits_has_a_rule():
     """The view-only chip shipped with no rule and rendered as raw text in the
     middle of the rail. These screens are new surface with the same exposure."""
     for cls in ("asc-founders", "asc-founders-photo", "asc-founders-mission",
-                "asc-founders-sign", "asc-info-rows", "asc-info-row"):
+                "asc-founders-sign", "asc-applicant-grid", "asc-applicant-card",
+                "asc-applicant-rows", "asc-applicant-row", "asc-applicant-row-icon",
+                "asc-applicant-row-text", "asc-applicant-row-title",
+                "asc-applicant-row-body", "asc-applicant-row-go",
+                "asc-applicant-practice", "asc-applicant-done",
+                "asc-applicant-tick", "asc-applicant-help",
+                "asc-applicant-guide-overlay", "asc-applicant-guide-frame",
+                "asc-applicant-guide-body", "asc-applicant-guide-close"):
         assert f".{cls}" in _CSS, f"{cls} has no rule"
+
+
+def test_no_rule_survives_the_screen_that_emitted_it():
+    """The other half of the same guard. A rule for a class nothing renders is
+    a rule nobody can check, and these four belonged to the deleted screens."""
+    for gone in ("asc-res-grid", "asc-res-card", "asc-info-rows", "asc-info-row"):
+        assert f".{gone}" not in _CSS, f"{gone} outlived its screen"
 
 
 # ── The founders, where a physician actually meets them ─────────────────────
