@@ -644,6 +644,10 @@
     chevrons: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M9.6 5.6L5.2 10l4.4 4.4M15.2 5.6L10.8 10l4.4 4.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     // Arrows pulling back into a box = leave the expanded state.
     collapse: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11.4 8.6h4M11.4 8.6v-4M11.4 8.6L16 4M8.6 11.4h-4M8.6 11.4v4M8.6 11.4L4 16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    // A shackle over a closed body = this tab is readable but not yours yet.
+    // Deliberately NOT a dot: the compact rails shrink every badge to a corner
+    // mark, and a bare dot there is indistinguishable from an unread count.
+    lock: '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6.6 8.6V6.8a3.4 3.4 0 016.8 0v1.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="4.8" y="8.6" width="10.4" height="7.2" rx="1.6" stroke="currentColor" stroke-width="1.5"/></svg>',
   };
 
   // A layer that owns the screen owns the keyboard with it. Without this, `f`
@@ -1131,17 +1135,19 @@
   //: the exact opposite of true.
   const VIEW_ONLY_DESTS = ['community', 'referral', 'earnings'];
 
+  // A GLYPH, NOT A WORD, AND NOT .asc-rail-badge. The words "View only" used
+  // to ride the community UNREAD-COUNT chip: sized for "99+", flex:none, lime
+  // against its own orange dot. It took ~78px of the ~140px the expanded rail
+  // has for label plus badge, and "COMMUNITY" needs ~76, so the widest label
+  // ran underneath it. The sentence was always in title/aria-label, so the
+  // visible text never carried the meaning and dropping it costs nothing.
   function viewOnlyBadgeEl() {
-    // The full sentence goes in title/aria-label; the visible chip is two words
-    // because the icon-collapsed rail hides .asc-rail-label and a long chip
-    // would be clipped rather than read.
     return h('span', {
-      class: 'asc-rail-badge asc-rail-badge-viewonly',
+      class: 'asc-rail-viewonly',
       title: 'View only until your application is approved',
       'aria-label': 'View only until your application is approved',
-    },
-      h('span', { class: 'dot dot-orange', 'aria-hidden': 'true' }),
-      h('span', { class: 'asc-rail-badge-n' }, 'View only'));
+      html: CHROME_ICONS.lock,
+    });
   }
 
   function communityBadgeEl() {

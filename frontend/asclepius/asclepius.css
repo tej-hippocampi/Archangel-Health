@@ -2538,7 +2538,44 @@ body.asc-sheet-open { overflow: hidden; }
   color: currentColor;
 }
 .asc-rail-ico svg { width: 20px; height: 20px; display: block; }
-.asc-rail-label { flex: 1 1 auto; min-width: 0; }
+/* min-width:0 alone is a no-op: it lets the box shrink but nothing clips the
+   text, so a label wider than its box paints straight over whatever sits to
+   its right. That is how "COMMUNITY" ended up under the view-only chip. */
+.asc-rail-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* View-only marker: a bare padlock, no chip. It must never inherit
+   .asc-rail-badge (the unread-count pill), which is sized for a two-digit
+   count and cannot shrink. */
+.asc-rail-viewonly {
+  flex: none;
+  margin-left: auto;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--orange);
+  opacity: 0.75;
+}
+.asc-rail-viewonly svg { width: 12px; height: 12px; display: block; }
+
+/* Four call sites write `asc-chrome` where the shared eyebrow class is plain
+   `chrome` (_base.css:61), so those four eyebrows rendered as unstyled body
+   text. Aliased rather than renamed: the alias fixes every one at once and
+   cannot miss a fifth that a source rename would. */
+.asc-chrome {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
 
 /* Community unread badge: lime dot + mono count; hidden at 0 (JS sets hidden). */
 .asc-rail-badge {
@@ -2690,6 +2727,13 @@ body.asc-has-rail .asc-main {
     margin: 0; padding: 0; gap: 0; background: none; border: none;
   }
   body.asc-rail-compact .asc-rail-badge-n { display: none; }
+  /* The padlock keeps its shape at the icon corner: unlike a dot, it still
+     reads as "locked" rather than as an unread mark. */
+  body.asc-rail-compact .asc-rail-viewonly {
+    position: absolute; top: 4px; right: 4px;
+    margin: 0; width: 12px; height: 12px; opacity: 1;
+  }
+  body.asc-rail-compact .asc-rail-viewonly svg { width: 11px; height: 11px; }
 }
 @media (max-width: 700px) { .asc-rail-collapse { display: none; } }
 
@@ -2764,6 +2808,11 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   /* Collapse the badge to a corner dot (no count) over the icon. */
   .asc-rail-badge { position: absolute; top: 4px; right: 4px; margin: 0; padding: 0; gap: 0; background: none; border: none; }
   .asc-rail-badge-n { display: none; }
+  .asc-rail-viewonly {
+    position: absolute; top: 4px; right: 4px;
+    margin: 0; width: 12px; height: 12px; opacity: 1;
+  }
+  .asc-rail-viewonly svg { width: 11px; height: 11px; }
 }
 
 /* ─── Rail: mobile bottom tab bar (≤700px) ─────────────────────────────── */
@@ -2813,6 +2862,14 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
   .asc-rail-footlinks { display: none; }
   .asc-rail-user { padding: 0 10px; }
   .asc-rail-badge { position: absolute; top: 6px; right: calc(50% - 20px); margin: 0; padding: 0 5px; }
+  /* The old text chip was never hidden here, so the words "View only" floated
+     loose over three of five tabs on a phone. The padlock sits where the
+     unread mark sits and stays inside the tab. */
+  .asc-rail-viewonly {
+    position: absolute; top: 6px; right: calc(50% - 22px);
+    margin: 0; width: 12px; height: 12px; opacity: 1;
+  }
+  .asc-rail-viewonly svg { width: 11px; height: 11px; }
   body.asc-has-rail .asc-main { padding-left: 16px; padding-bottom: 84px; }
   /* Lift toasts clear of the bottom tab bar so they never sit under it. */
   body.asc-has-rail .asc-toast-region { bottom: 76px; }
