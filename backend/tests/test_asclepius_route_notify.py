@@ -241,7 +241,10 @@ def test_a_system_dm_renders_as_archangel_not_as_a_ghost():
 
     summary = _dm_summary({"id": "dm-1", "user_a": SYSTEM_USER_ID, "user_b": "u-doc"},
                           "u-doc", {})
-    assert summary["peer"]["display_name"] == "Archangel"
+    # Configuration (COMMUNITY_PERSONA_NAME). The property is that the DM
+    # has a named sender at all rather than rendering as a ghost.
+    from community import persona as _persona
+    assert summary["peer"]["display_name"] == _persona.display_name()
     assert summary["peer"].get("is_bot") is True
 
 
@@ -402,4 +405,5 @@ def test_a_system_written_dm_is_pushed_to_the_doctor_not_only_stored():
         "conversation their rail does not list is still invisible")
     pushed = [e for e in sock.events if e["type"] == "message.created"][0]
     assert "New cases routed to you" in pushed["message"]["body"]
-    assert pushed["message"]["author"]["display_name"] == "Archangel"
+    from community import persona as _persona
+    assert pushed["message"]["author"]["display_name"] == _persona.display_name()

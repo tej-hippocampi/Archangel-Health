@@ -3951,25 +3951,15 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-ref-extras[open] > .asc-ref-extras-summary::before { content: "\2212"; }
 .asc-ref-extras-summary:hover { color: var(--asc-text); }
 
-.asc-ref-consent {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
+/* What we do with the introduction, stated where the consent checkbox used to
+   sit. Not a control: it is read, not answered, so it carries no pointer and no
+   hover state. */
+.asc-ref-attest {
   margin-top: var(--sp-4);
   font-size: 12.5px;
   line-height: 1.55;
   color: var(--asc-muted);
-  cursor: pointer;
 }
-.asc-ref-check {
-  flex: none;
-  width: 15px;
-  height: 15px;
-  margin-top: 1px;
-  accent-color: var(--green);
-  cursor: pointer;
-}
-.asc-ref-consent:hover { color: var(--asc-text); }
 
 /* The copyable message. Shown before it is copied, because the physician is
    about to send it to a colleague in their own name and gets to read it

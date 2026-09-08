@@ -304,12 +304,15 @@ later(function () {
   const names = trs.map(function (r) { return textOf(r); });
   // Structural, not textual: the waiting cell also renders an amber badge, so
   // "does this row carry a look chip" has to be asked of a specific cell rather
-  // than of the row's text. Name, specialty, waiting, practice case, proposed,
-  // LOOK, chevron: the practice-case column landed between waiting and
-  // proposed, which is why this is index 5 and not 4.
+  // than of the row's text.
+  //
+  // Counted from the END, not the start. This was tds[5], and it broke the day
+  // an Examination column landed in front of it, exactly as the practice-case
+  // column had shifted it once before. LOOK is always the cell before the
+  // chevron, whatever gets added to the left of it.
   const looks = trs.map(function (r) {
     const tds = (r.childNodes || []).filter(function (c) { return c.tagName === 'TD'; });
-    const cell = tds.length >= 6 ? tds[5] : null;
+    const cell = tds.length >= 2 ? tds[tds.length - 2] : null;
     return { row: textOf(r), look: cell ? textOf(cell) : null };
   });
   console.log(JSON.stringify({ text: textOf(body), rows: names, looks: looks }));
