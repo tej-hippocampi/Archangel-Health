@@ -111,10 +111,27 @@ def test_v4_serves_only_real_and_v123_never_real():
 
 
 def test_v4_requires_real_data_approval():
-    _mk_real_task()
-    h_no = A.headers_for(_ev(approved=False))
+    real = _mk_real_task()
+    u = _ev(approved=False)
+    h_no = A.headers_for(u)
     t = client.get("/api/asclepius/tasks/next?portal_version=v4", headers=h_no).json()["task"]
-    assert t is None  # unapproved → empty queue, never a real case
+    # unapproved → empty queue, never a real case.
+    #
+    # The failure message re-reads the row rather than trusting the dict this
+    # test built, because the gate reads `real_data_approved` off the row at
+    # request time and the interesting question when this breaks is what the
+    # SERVER saw. `sync_real_data_approval` runs on every app startup and grants
+    # to anyone who is approved + can LABEL, so a neighbour that boots the app
+    # against this store is the shape to look for first.
+    fresh = _store().get_user_by_id(u["id"]) or {}
+    assert t is None, (
+        "the V4 wall served a real case to an unapproved evaluator. "
+        f"real_data_approved={fresh.get('real_data_approved')!r} "
+        f"approval_source={fresh.get('real_data_approval_source')!r} "
+        f"verification_status={fresh.get('verification_status')!r} "
+        f"tier={fresh.get('tier')!r} active={fresh.get('active')!r} "
+        f"served_task={t.get('task_id')!r} is_the_real_task="
+        f"{t.get('task_id') == real.get('task_id')!r}")
 
 
 def test_v4_queue_never_autofills_synthetic(monkeypatch):
