@@ -63,17 +63,22 @@ export const redirectToAsclepiusPortal = () => {
 fs.writeFileSync(path.join(out, "entry.tsx"), `
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Step5Credentials, emptyCredentials } from './steps';
+import { Step5Credentials, emptyCredentials, withRowIds } from './steps';
 
 export function mount(el, options = {}) {
   const controller = {};
   function Host() {
     const [data, setData] = useState({
-      credentials: {
+      // withRowIds mirrors the real hydration path: OnboardingWizard applies it
+      // to credentials arriving from the server, because a fixture (or a saved
+      // blob) that spreads over the defaults replaces the row arrays and drops
+      // the ids with them. Without it these tests would exercise a row shape
+      // the product never actually renders.
+      credentials: withRowIds({
         ...emptyCredentials('Mike Blum'),
         primarySpecialty: 'Nephrology',
         ...options.credentials,
-      },
+      }),
       cvParsed: { ok: true },
       cvAutofilled: options.chips || [],
       ...options.data,

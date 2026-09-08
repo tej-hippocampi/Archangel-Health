@@ -72,12 +72,29 @@ type Ctx = {
 /* The repeatable groups (board certifications, fellowship, residency) always
    hold at least one row, and that row starts EMPTY. Counting length alone
    reported an untouched form as complete, which is the one thing a
-   completeness summary may never do. A row counts when something in it does. */
-const rowHasContent = (row: unknown): boolean =>
-  !!row && typeof row === "object"
-    ? Object.values(row as Record<string, unknown>).some(
-        (v) => typeof v === "string" ? v.trim().length > 0 : !!v)
-    : !!row;
+   completeness summary may never do. A row counts when something in it does.
+
+   CONTENT IS TEXT SOMEBODY TYPED, never a flag (PRD B P1-C). This used to count
+   any truthy value, so a board row's `active` default of `true` was "content" —
+   an entirely blank certification counted as a filled one, and the summary told
+   a physician they had answered a question nobody had asked them. Now that
+   `active` is tri-state the same rule matters for the opposite reason: an
+   explicit `false` is a real answer, but it is an answer ABOUT a certification
+   and cannot be the only thing in the row that exists.
+
+   So: a row has content when one of its ANSWER fields is non-blank. Booleans
+   and nulls are not consulted, and neither is `rowId` — that is bookkeeping the
+   app puts there, present on every row from the moment it exists, so counting
+   it would make every blank row "filled" and this whole rule vacuous. */
+const ROW_BOOKKEEPING_KEYS = new Set(["rowId"]);
+
+const rowHasContent = (row: unknown): boolean => {
+  if (!row) return false;
+  if (typeof row !== "object") return true;
+  return Object.entries(row as Record<string, unknown>).some(
+    ([key, v]) => !ROW_BOOKKEEPING_KEYS.has(key)
+      && typeof v === "string" && v.trim().length > 0);
+};
 
 const has = (v: unknown): boolean =>
   Array.isArray(v)
@@ -218,14 +235,25 @@ export function checklistRows(
       + " fields came from your CV. They are our reading, not yours, until you check them." });
   }
 
+  /* THE COUNT DESCRIBES THE LIST, and says which list it is (PRD B P1-C, PRD C
+     §6-D). This read "1 still missing" on a page with several unanswered
+     questions on it, because it counts the needed and recommended fields and
+     not the optional ones. As an inventory of every missing answer it was
+     wrong; as a count of the fields worth chasing it was right but unlabelled,
+     and an unlabelled number is read as the inventory.
+
+     So the scope is now in the sentence, and the closing clause says what the
+     rest of the page is, so nothing here implies that a physician who submits
+     with optional boxes empty has left something undone. */
   const gaps = sections
     .flatMap((s) => s.fields)
     .filter((x) => x.status === "emptyNeeded" || x.status === "emptyRecommended")
     .map((x) => x.label);
   if (gaps.length) {
     rows.push({ tone: "gap", text: gaps.length
-      + " still missing: " + gaps.join(", ")
-      + ". None of it blocks you, all of it speeds up your review." });
+      + (gaps.length === 1 ? " detail would" : " details would")
+      + " speed up your review: " + gaps.join(", ")
+      + ". None of it blocks you, and everything else on this page is optional." });
   }
   return rows;
 }

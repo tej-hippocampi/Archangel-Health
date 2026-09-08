@@ -15,6 +15,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type CSSProperties,
@@ -341,10 +342,24 @@ export function FieldLabel({
   children,
   optional,
   requirement,
+  /** The id of the control this labels. Given one, this renders a real
+   *  <label htmlFor>, which is what makes the visible text the control's
+   *  ACCESSIBLE NAME (PRD B P1-B).
+   *
+   *  It rendered a <div> before, so every field in this form was an unlabelled
+   *  box to a screen reader: the words were on screen and had no relationship
+   *  to the input beside them. Optional rather than required because a few
+   *  callers label a GROUP of controls rather than one, and those pass `id`
+   *  below and point at it with aria-labelledby instead. */
+  htmlFor,
+  /** Set when this labels a group, so the group can name itself from it. */
+  id,
 }: {
   children: ReactNode;
   optional?: boolean;
   requirement?: Requirement;
+  htmlFor?: string;
+  id?: string;
 }) {
   const marker =
     requirement === "required"
@@ -354,8 +369,11 @@ export function FieldLabel({
         : requirement === "recommended"
           ? { word: "Recommended", pink: false }
           : null;
+  const Tag = (htmlFor ? "label" : "div") as "label" | "div";
   return (
-    <div
+    <Tag
+      htmlFor={htmlFor}
+      id={id}
       style={{
         display: "block",
         ...CHROME,
@@ -407,7 +425,7 @@ export function FieldLabel({
           Optional
         </span>
       )}
-    </div>
+    </Tag>
   );
 }
 
@@ -453,10 +471,26 @@ export function TextField({
   ...rest
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
+  /* One stable id per rendered field, for the life of that field. `useId` and
+     not a counter or a slug off the label: two "Institution" fields on one page
+     would collide, and a value-derived id changes as somebody types, which
+     would break the association mid-word. A caller passing its own `id` keeps
+     it. */
+  const autoId = useId();
+  const id = (rest.id as string | undefined) || autoId;
+  // Only when it will actually be RENDERED. The hint is suppressed while an
+  // error is showing, and an aria-describedby naming an element that does not
+  // exist resolves to nothing — silently, which is the worst way for an
+  // accessibility relationship to fail.
+  const hintId = hint && !error ? id + "-hint" : undefined;
+  const errorId = error ? id + "-error" : undefined;
+  /* The error comes first when both exist: a reader that announced the hint
+     before the error would bury the thing that needs fixing. */
+  const describedBy = [errorId, hintId].filter(Boolean).join(" ") || undefined;
   return (
     <div style={{ marginBottom: 20 }}>
       {label && (
-        <FieldLabel optional={optional} requirement={requirement}>
+        <FieldLabel optional={optional} requirement={requirement} htmlFor={id}>
           {label}
         </FieldLabel>
       )}
@@ -485,6 +519,9 @@ export function TextField({
           onChange={(e) => onChange?.(e.target.value)}
           placeholder={placeholder}
           autoFocus={autoFocus}
+          id={id}
+          aria-describedby={describedBy}
+          aria-invalid={error ? true : undefined}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={{
@@ -503,11 +540,13 @@ export function TextField({
         {suffix}
       </div>
       {hint && !error && (
-        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
+        <div id={hintId}
+             style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
       )}
       {needed && !error && <NeededNote>{needed}</NeededNote>}
       {error && (
         <div
+          id={errorId}
           style={{
             display: "flex",
             alignItems: "baseline",
@@ -579,10 +618,11 @@ export function SelectField({
   needed?: ReactNode;
 }) {
   const [focused, setFocused] = useState(false);
+  const id = useId();
   return (
     <div style={{ marginBottom: 20 }}>
       {label && (
-        <FieldLabel optional={optional} requirement={requirement}>
+        <FieldLabel optional={optional} requirement={requirement} htmlFor={id}>
           {label}
         </FieldLabel>
       )}
@@ -598,6 +638,7 @@ export function SelectField({
         }}
       >
         <select
+          id={id}
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
           onFocus={() => setFocused(true)}
@@ -678,9 +719,11 @@ export function TextArea({
   rows?: number;
 }) {
   const [focused, setFocused] = useState(false);
+  const id = useId();
+  const hintId = hint ? id + "-hint" : undefined;
   return (
     <div style={{ marginBottom: 20 }}>
-      {label && <FieldLabel optional={optional}>{label}</FieldLabel>}
+      {label && <FieldLabel optional={optional} htmlFor={id}>{label}</FieldLabel>}
       <div
         style={{
           background: "var(--card-in)",
@@ -692,6 +735,8 @@ export function TextArea({
         }}
       >
         <textarea
+          id={id}
+          aria-describedby={hintId}
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
           placeholder={placeholder}
@@ -714,7 +759,8 @@ export function TextArea({
         />
       </div>
       {hint && (
-        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
+        <div id={hintId}
+             style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
       )}
     </div>
   );
@@ -744,6 +790,8 @@ export function ChipMultiSelect({
 }) {
   const [draft, setDraft] = useState("");
   const [focused, setFocused] = useState(false);
+  const id = useId();
+  const hintId = hint ? id + "-hint" : undefined;
 
   const add = (raw: string) => {
     const v = raw.trim();
@@ -763,7 +811,7 @@ export function ChipMultiSelect({
 
   return (
     <div style={{ marginBottom: 20 }}>
-      {label && <FieldLabel optional={optional}>{label}</FieldLabel>}
+      {label && <FieldLabel optional={optional} htmlFor={id}>{label}</FieldLabel>}
       <div
         style={{
           display: "flex",
@@ -820,6 +868,8 @@ export function ChipMultiSelect({
           </span>
         ))}
         <input
+          id={id}
+          aria-describedby={hintId}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onFocus={() => setFocused(true)}
@@ -873,7 +923,8 @@ export function ChipMultiSelect({
         </div>
       )}
       {hint && (
-        <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
+        <div id={hintId}
+             style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
       )}
     </div>
   );
@@ -892,10 +943,17 @@ export function YesNoToggle({
   value: boolean | null;
   onChange: (next: boolean) => void;
 }) {
+  /* Two buttons are not a labelled control on their own: without the group,
+     a screen reader announces "Yes, not pressed" and "No, not pressed" with
+     nothing saying what the question was (PRD B P1-B). The label is the
+     group's accessible name rather than a <label htmlFor>, because there is no
+     single control here to point one at. */
+  const id = useId();
+  const labelId = label ? id + "-label" : undefined;
   return (
     <div style={{ marginBottom: 20 }}>
-      {label && <FieldLabel>{label}</FieldLabel>}
-      <div style={{ display: "flex", gap: 10 }}>
+      {label && <FieldLabel id={labelId}>{label}</FieldLabel>}
+      <div role="group" aria-labelledby={labelId} style={{ display: "flex", gap: 10 }}>
         {[
           { v: true, label: "Yes" },
           { v: false, label: "No" },

@@ -80,9 +80,73 @@ export type AsclepiusMember = {
   status: "Invited" | "Active";
 };
 
-export type BoardCert = { board: string; specialty: string; subspecialty: string; active: boolean };
-export type Fellowship = { institution: string; specialty: string; year: string };
-export type TrainingRow = { institution: string; year: string };
+/** A repeated row's identity, minted ONCE when the row is introduced.
+ *
+ *  Rows were keyed by array index, so removing the middle of three rows handed
+ *  row 3's text to row 2's DOM node: React reconciles `key={1}` to `key={1}`,
+ *  sees different props, and updates the surviving node in place rather than
+ *  dropping the removed one. Values stayed correct because the array is the
+ *  source of truth, but focus, caret, unfinished chip drafts and any local
+ *  state below it did not (PRD B P1-A).
+ *
+ *  It is also the merge key the CV extraction path needs: PRD C §6-D asks for
+ *  repeated rows to be merged "by stable identity, never array position", and
+ *  P1-A says explicitly not to ship two competing row-id mechanisms. This is
+ *  the one.
+ *
+ *  Minted here rather than during render, because an id generated in render is
+ *  a new id every render, which is the bug with extra steps. It rides along in
+ *  `credentials_json` as an ordinary extra key: the server stores the blob and
+ *  reads named fields out of it, so this is additive and needs no migration.
+ */
+let rowSeq = 0;
+export function newRowId(prefix = "row"): string {
+  rowSeq += 1;
+  return prefix + "-" + Date.now().toString(36) + "-" + rowSeq.toString(36);
+}
+
+/** Give every row an id, for credentials arriving from the server or from a
+ *  draft written before ids existed. Existing ids are never reassigned — a
+ *  reassignment would remount the row it was supposed to keep still. */
+export function withRowIds(c: Credentials): Credentials {
+  const stamp = <T extends { rowId?: string }>(rows: T[] | undefined, prefix: string): T[] =>
+    (rows || []).map((r) => (r && r.rowId ? r : { ...r, rowId: newRowId(prefix) }));
+  return {
+    ...c,
+    boardCertifications: stamp(c.boardCertifications, "bc"),
+    fellowship: stamp(c.fellowship, "fel"),
+    residency: stamp(c.residency, "res"),
+  };
+}
+
+export type BoardCert = {
+  /** See `newRowId`. Present on every row this app creates; `withRowIds`
+   *  backfills rows that predate it. */
+  rowId?: string;
+  board: string;
+  specialty: string;
+  subspecialty: string;
+  /** Currently valid? TRI-STATE, and the null is the whole point.
+   *
+   *  "Is this certification currently valid" is a compliance answer about
+   *  today. A CV written last year cannot give it, and neither can a default.
+   *  `null` means nobody has answered — which is not the same fact as `false`,
+   *  and rendering it as a selected "No" put a negative attestation in a
+   *  physician's mouth on a field they sign for.
+   *
+   *  It reached `false` from two directions: the CV import wrote `false`
+   *  explicitly, and a manually added row defaulted to `true`. One asserted a
+   *  negative nobody gave, the other asserted a positive nobody gave. Both now
+   *  start `null` and only the physician moves them (PRD C §6 C/E). */
+  active: boolean | null;
+};
+export type Fellowship = {
+  rowId?: string;
+  institution: string;
+  specialty: string;
+  year: string;
+};
+export type TrainingRow = { rowId?: string; institution: string; year: string };
 
 export type Credentials = {
   fullLegalName: string;
@@ -152,6 +216,17 @@ export type Credentials = {
      licence cross-check. None is stored as a magnitude the model can scale on. */
   licenseNumber: string;
   licenseState: string;
+  /** Every licence the CV named that is NOT the primary one above.
+   *
+   *  A physician holding CA and MA saw only CA on the form and could not review
+   *  the second fact at all; the array was extracted server-side and then
+   *  dropped on the floor. Kept here so nothing the document supported is
+   *  thrown away (PRD C §6 invariant 6) and so the admin dossier can see it,
+   *  until the repeatable-licence UI lands in Phase 4.
+   *
+   *  Each entry is an ATOMIC tuple. A jurisdiction and a number that were never
+   *  issued together is a wrong credential, not a partial one. */
+  additionalLicenses?: { state: string; number: string; current?: string }[];
   residencyCompleted: boolean | null;
   /* Consumed as `post_residency_ge_3yr`, a CAPPED BINARY, and discarded. The
      Choudhry review found an INVERSE relationship between years in practice and
@@ -245,9 +320,12 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     qualification: "",
     licenseDocFilename: "",
     degree: "",
-    boardCertifications: [{ board: "", specialty: "", subspecialty: "", active: true }],
-    fellowship: [{ institution: "", specialty: "", year: "" }],
-    residency: [{ institution: "", year: "" }],
+    // `active: null` — unanswered. See BoardCert.active.
+    boardCertifications: [
+      { rowId: newRowId("bc"), board: "", specialty: "", subspecialty: "", active: null },
+    ],
+    fellowship: [{ rowId: newRowId("fel"), institution: "", specialty: "", year: "" }],
+    residency: [{ rowId: newRowId("res"), institution: "", year: "" }],
     primarySpecialty: "",
     specialtyNiche: "",
     subspecialties: [],
@@ -419,7 +497,11 @@ export type CvParsed = {
   degrees?: string[] | null;
   institutions?: string[] | null;
   training?: { kind: string; institution: string; start_year: string | null;
-               end_year: string | null }[] | null;
+               end_year: string | null;
+               /* The subject, when the document says it in as many words.
+                  Absent on parses written before it existed, and "" when the
+                  CV did not name one — never inferred. */
+               specialty?: string | null }[] | null;
   /* The flat labels the admin dossier and the tier scorer read. */
   board_certifications?: string[] | null;
   /* The same certifications, structured. The flat list could only ever fill a
@@ -1495,10 +1577,15 @@ function RepeatableCard({
   children,
   onRemove,
   removable,
+  /** What this button removes, said in full. Every one of these announced
+   *  itself as "Remove", so a physician tabbing a three-row group heard the
+   *  same word three times with nothing to tell them apart (PRD B P1-A). */
+  removeLabel = "Remove",
 }: {
   children: ReactNode;
   onRemove?: () => void;
   removable?: boolean;
+  removeLabel?: string;
 }) {
   return (
     <div
@@ -1516,7 +1603,8 @@ function RepeatableCard({
         <button
           type="button"
           onClick={onRemove}
-          aria-label="Remove"
+          aria-label={removeLabel}
+          title={removeLabel}
           style={{
             position: "absolute",
             top: 10,
@@ -2612,7 +2700,8 @@ export function Step5Credentials({
       />
       {c.boardCertifications.map((bc, i) => (
         <RepeatableCard
-          key={i}
+          key={bc.rowId || "bc-" + i}
+          removeLabel={"Remove board certification " + (i + 1)}
           removable={c.boardCertifications.length > 1}
           onRemove={() =>
             set({ boardCertifications: c.boardCertifications.filter((_, j) => j !== i) })
@@ -2667,7 +2756,10 @@ export function Step5Credentials({
           set({
             boardCertifications: [
               ...c.boardCertifications,
-              { board: "", specialty: "", subspecialty: "", active: true },
+              // Unanswered, like every other new row. A row that arrives
+              // already saying "yes, currently valid" is an attestation the
+              // physician made by pressing Add.
+              { rowId: newRowId("bc"), board: "", specialty: "", subspecialty: "", active: null },
             ],
           })
         }
@@ -2679,7 +2771,8 @@ export function Step5Credentials({
         sub="Institution + specialty + year." />
       {c.fellowship.map((f, i) => (
         <RepeatableCard
-          key={i}
+          key={f.rowId || "fel-" + i}
+          removeLabel={"Remove fellowship " + (i + 1)}
           removable={c.fellowship.length > 1}
           onRemove={() => set({ fellowship: c.fellowship.filter((_, j) => j !== i) })}
         >
@@ -2719,7 +2812,8 @@ export function Step5Credentials({
       ))}
       <AddRowButton
         label="Add fellowship"
-        onClick={() => set({ fellowship: [...c.fellowship, { institution: "", specialty: "", year: "" }] })}
+        onClick={() => set({ fellowship: [...c.fellowship,
+          { rowId: newRowId("fel"), institution: "", specialty: "", year: "" }] })}
       />
 
       {/* Residency */}
@@ -2729,7 +2823,8 @@ export function Step5Credentials({
       />
       {c.residency.map((r, i) => (
         <RepeatableCard
-          key={i}
+          key={r.rowId || "res-" + i}
+          removeLabel={"Remove residency " + (i + 1)}
           removable={c.residency.length > 1}
           onRemove={() => set({ residency: c.residency.filter((_, j) => j !== i) })}
         >
@@ -2759,7 +2854,8 @@ export function Step5Credentials({
       ))}
       <AddRowButton
         label="Add residency"
-        onClick={() => set({ residency: [...c.residency, { institution: "", year: "" }] })}
+        onClick={() => set({ residency: [...c.residency,
+          { rowId: newRowId("res"), institution: "", year: "" }] })}
       />
 
       {/* Medical school is DELIBERATELY NOT COLLECTED — see the `medicalSchool`
@@ -2795,9 +2891,13 @@ export function Step5Credentials({
         onChange={(v) => set({ residencyCompleted: v })}
       />
       <TextField
-        label={c.residencyCompleted === false
+        // Chipped like every other autofilled value: the suggestion is our
+        // reading of their CV until they confirm it, and a year that appeared
+        // in this box with nothing marking it would be indistinguishable from
+        // one they typed (PRD C §6-D, leaf-level provenance).
+        label={lbl("residencyCompletionYear", c.residencyCompleted === false
           ? "Year you expect to finish"
-          : "Year you finished residency"}
+          : "Year you finished residency")}
         placeholder={c.residencyCompleted === false ? "2028" : "2010"}
         value={c.residencyCompletionYear}
         onChange={(v) => set({ residencyCompletionYear: v.replace(/\D/g, "").slice(0, 4) })}

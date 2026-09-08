@@ -480,6 +480,43 @@ class TeamStore:
                     UNIQUE(health_system_id, email)
                 );
 
+                /* CV extraction attempts (PRD C §6-A). ADDITIVE: a new table,
+                   no column dropped, nothing rewritten. The person's row keeps
+                   the credential blob it always had; this records WHICH upload
+                   produced what is in it.
+
+                   The defect it closes was reproduced against the unchanged
+                   worker: upload A finishing after upload B wrote A's asset and
+                   A's parse over B's, while keeping B's filename — a physician
+                   who replaced their CV got a review page built from the
+                   document they had just replaced, labelled with the name of
+                   the one they meant. The whole-object read-modify-write in
+                   `_record_cv_on_person` had no way to know it was stale,
+                   because there was nothing to be stale ABOUT.
+
+                   A sha is not enough on its own, as §6-A says: the same file
+                   uploaded twice is two attempts and only the second is
+                   current. */
+                CREATE TABLE IF NOT EXISTS asclepius_cv_attempts (
+                    attempt_id TEXT PRIMARY KEY,
+                    health_system_id TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    asset_sha TEXT NOT NULL,
+                    mime TEXT,
+                    filename TEXT,
+                    parser_version TEXT,
+                    /* queued -> reading -> extracting -> ready | partial |
+                       failed, or superseded when a later upload takes over. */
+                    state TEXT NOT NULL DEFAULT 'queued',
+                    result_json TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    finished_at TEXT
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_cv_attempts_person
+                    ON asclepius_cv_attempts (health_system_id, email, created_at DESC);
+
                 CREATE TABLE IF NOT EXISTS otp_challenges (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     health_system_id TEXT NOT NULL,
@@ -1901,6 +1938,158 @@ class TeamStore:
                 """,
                 (json.dumps(credentials or {}), _utcnow_iso(), hs_id, email.lower().strip()),
             )
+
+    # ── CV extraction attempts (PRD C §6-A) ─────────────────────────────────
+
+    def start_cv_attempt(self, hs_id: str, email: str, *, asset_sha: str,
+                         mime: str = "", filename: Optional[str] = None,
+                         parser_version: str = "") -> str:
+        """Open an attempt and make it THE current one, atomically.
+
+        Beginning B supersedes A in the same transaction that creates B, so
+        there is never an instant with two current attempts and never one with
+        none. A is retained rather than deleted — it is history, and PRD C
+        invariant 3 forbids removing it — but only B may write results from
+        here on (`cv_attempt_is_current`).
+        """
+        attempt_id = "cva-" + uuid.uuid4().hex[:20]
+        now = _utcnow_iso()
+        email = email.lower().strip()
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE asclepius_cv_attempts SET state = 'superseded', updated_at = ?
+                WHERE health_system_id = ? AND email = ? AND state != 'superseded'
+                """,
+                (now, hs_id, email),
+            )
+            conn.execute(
+                """
+                INSERT INTO asclepius_cv_attempts
+                    (attempt_id, health_system_id, email, asset_sha, mime, filename,
+                     parser_version, state, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)
+                """,
+                (attempt_id, hs_id, email, asset_sha, mime or "", filename,
+                 parser_version or "", now, now),
+            )
+        return attempt_id
+
+    def get_cv_attempt(self, attempt_id: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM asclepius_cv_attempts WHERE attempt_id = ?",
+                (attempt_id,),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["result"] = json.loads(rec.pop("result_json", "null") or "null")
+        return rec
+
+    def current_cv_attempt(self, hs_id: str, email: str) -> Optional[Dict[str, Any]]:
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM asclepius_cv_attempts
+                WHERE health_system_id = ? AND email = ? AND state != 'superseded'
+                ORDER BY created_at DESC, rowid DESC LIMIT 1
+                """,
+                (hs_id, email.lower().strip()),
+            ).fetchone()
+        if not row:
+            return None
+        rec = dict(row)
+        rec["result"] = json.loads(rec.pop("result_json", "null") or "null")
+        return rec
+
+    def cv_attempt_is_current(self, attempt_id: str) -> bool:
+        """False once a later upload has superseded this one. Every write the
+        worker makes is guarded on this, so A's late success cannot land under
+        B's identity."""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT state FROM asclepius_cv_attempts WHERE attempt_id = ?",
+                (attempt_id,),
+            ).fetchone()
+        return bool(row) and row["state"] != "superseded"
+
+    def advance_cv_attempt(self, attempt_id: str, state: str, *,
+                           result: Optional[Dict[str, Any]] = None,
+                           terminal: bool = False) -> bool:
+        """Move an attempt on, and on a TERMINAL move write the state and the
+        result in the SAME statement.
+
+        That atomicity is the point (PRD C §6-A): a poll landing between "stage
+        = done" and "result written" used to see a finished extraction with the
+        previous attempt's payload under it, or none at all. There is no such
+        window now — `finished` and the thing it finished with are one write.
+
+        Returns False, and writes nothing, when this attempt has been
+        superseded.
+        """
+        now = _utcnow_iso()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT state FROM asclepius_cv_attempts WHERE attempt_id = ?",
+                (attempt_id,),
+            ).fetchone()
+            if not row or row["state"] == "superseded":
+                return False
+            conn.execute(
+                """
+                UPDATE asclepius_cv_attempts
+                SET state = ?, updated_at = ?,
+                    result_json = COALESCE(?, result_json),
+                    finished_at = COALESCE(?, finished_at)
+                WHERE attempt_id = ? AND state != 'superseded'
+                """,
+                (state, now,
+                 json.dumps(result) if result is not None else None,
+                 now if terminal else None,
+                 attempt_id),
+            )
+        return True
+
+    def merge_asclepius_credentials(self, hs_id: str, email: str,
+                                    patch: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge NAMED KEYS into the stored credentials, in one transaction.
+
+        The worker used to read the whole credential object, edit a few CV keys
+        and write the whole thing back. Between that read and that write sits
+        every edit the physician made on the review page, and the write took all
+        of them with it (PRD C §6-A: "whole-object worker saves are forbidden").
+
+        Read and write happen inside ONE connection here, and only the keys in
+        `patch` are touched, so a concurrent unrelated credential edit survives.
+        Returns the merged blob.
+        """
+        email = email.lower().strip()
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT credentials_json FROM asclepius_people
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (hs_id, email),
+            ).fetchone()
+            if not row:
+                return {}
+            try:
+                creds = json.loads(row["credentials_json"] or "{}") or {}
+            except (TypeError, ValueError):
+                creds = {}
+            if not isinstance(creds, dict):
+                creds = {}
+            creds.update(patch or {})
+            conn.execute(
+                """
+                UPDATE asclepius_people SET credentials_json = ?, updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (json.dumps(creds), _utcnow_iso(), hs_id, email),
+            )
+        return creds
 
     def save_asclepius_attestations(
         self, hs_id: str, email: str, attestations: Dict[str, Any]

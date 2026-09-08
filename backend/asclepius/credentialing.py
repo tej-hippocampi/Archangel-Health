@@ -636,6 +636,16 @@ CV_ACCEPTED_LABEL = "PDF, Word (.docx), RTF, plain text, or a photo or scan (PNG
 
 CV_MAX_BYTES = 10 * 1024 * 1024  # a 10 MB cap comfortably fits any real CV
 
+#: Which extraction produced a stored result (PRD C §6-A).
+#:
+#: Recorded on every attempt so a suggestion can be traced to the code that made
+#: it. Without it, a result in the database is undatable: "the parser used to
+#: get this wrong" is unanswerable when there is no record of which parser ran,
+#: and a re-extraction cannot tell whether it would be an improvement or a
+#: no-op. Bump it whenever the extracted SHAPE or the field semantics change —
+#: not for a refactor that produces identical output.
+PARSER_VERSION = "cv-parse-1"
+
 
 class CvUploadError(ValueError):
     """Bad CV upload (mime/size). Caller maps this to a 4xx, not a 500."""
@@ -984,6 +994,14 @@ _NAME_STOPWORDS = (
 )
 
 #: Training lines: "Residency, Internal Medicine — Johns Hopkins, 2014–2017".
+#: The role nouns a training line is built around. Removed before a specialty is
+#: looked for, so "Fellow, Nephrology" offers "Nephrology" rather than the whole
+#: phrase — and so "Internal Medicine Residency" cannot have "Resident" mistaken
+#: for part of the subject.
+_ROLE_WORDS_RE = re.compile(
+    r"\b(fellowship|fellow|residency|resident|internship|intern|"
+    r"chief|clinical|research|program|training)\b", re.IGNORECASE)
+
 _TRAINING_KIND = (
     ("fellowship", re.compile(r"\bfellowship\b|\bfellow\b", re.IGNORECASE)),
     ("residency",  re.compile(r"\bresidency\b|\bresident\b", re.IGNORECASE)),
@@ -1462,7 +1480,8 @@ def _extract_training(lines: List[str]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     seen = set()
 
-    def add(kind: str, institution: str, start: Optional[str], end: Optional[str]) -> None:
+    def add(kind: str, institution: str, start: Optional[str], end: Optional[str],
+            specialty: str = "") -> None:
         inst = _clean_institution(institution)
         key = (kind, inst.lower(), start or "")
         if not inst or key in seen:
@@ -1471,6 +1490,9 @@ def _extract_training(lines: List[str]) -> List[Dict[str, Any]]:
         out.append({
             "kind": kind, "institution": inst,
             "start_year": start, "end_year": end,
+            # "" when the document does not say. An absent subject is a blank
+            # box for the physician, never a guess from their current specialty.
+            "specialty": specialty or "",
         })
 
     for i, line in enumerate(lines):
@@ -1482,7 +1504,8 @@ def _extract_training(lines: List[str]) -> List[Dict[str, Any]]:
         if kind and _INSTITUTION_RE.search(line):
             years = _YEAR_RANGE.search(line)
             add(kind, line, years.group(1) if years else None,
-                years.group(2) if years else None)
+                years.group(2) if years else None,
+                specialty=_training_specialty(line))
             continue
 
         # Split across two: this line is the header, the kind is on the next.
@@ -1500,11 +1523,57 @@ def _extract_training(lines: List[str]) -> List[Dict[str, Any]]:
         if not next_kind:
             continue
         end = header.group("end")
+        # The kind line is where the subject is written in the two-line shape
+        # ("Fellow, Nephrology"); the header line carries the institution and
+        # the dates. Both are offered, kind line first.
         add(next_kind, header.group("institution"), header.group("start"),
-            None if end.lower() in ("present", "current") else end)
+            None if end.lower() in ("present", "current") else end,
+            specialty=_training_specialty(nxt, line))
         if len(out) >= 8:
             break
     return out[:8]
+
+
+def _training_specialty(*lines: str) -> str:
+    """The subject a training entry is IN, when the document says so.
+
+    "Fellow, Nephrology" and "Nephrology Fellowship, Cleveland Clinic" both name
+    it plainly, and neither used to reach the form: the review page showed the
+    institution and the year with the specialty box empty, wearing the grey
+    placeholder "Nephrology", which reads as a populated field. A physician whose
+    CV said it in as many words retyped it (PRD C §6-C).
+
+    DETERMINISTIC AND VOCABULARY-BOUND, deliberately. Rather than guessing at the
+    words around the role, each comma/dash-separated fragment is offered to
+    ``specialties.match_specialty`` and only a fragment that resolves to a
+    specialty we recognise is returned. A fragment that does not resolve produces
+    nothing, which leaves the box empty — the correct outcome under §5's rule
+    that an empty field beats an unsupported value.
+
+    The ORIGINAL wording is returned, not the canonical key: "nephrology" typed
+    into a form asking a physician to vouch for their own credentials reads as
+    carelessness, exactly as it does for the primary specialty.
+
+    It is never inferred from the physician's current specialty. A cardiologist
+    who trained in internal medicine is common, and filling their fellowship with
+    "Cardiology" because that is what they do now would be inventing a credential.
+    """
+    from asclepius import specialties as _specialties  # noqa: PLC0415  (cycle)
+
+    for line in lines:
+        if not line or len(line) > 200:
+            continue
+        # Drop the role words and anything that looks like dates, then consider
+        # what is left one fragment at a time.
+        stripped = _ROLE_WORDS_RE.sub(" ", line)
+        stripped = _YEAR_RANGE.sub(" ", stripped)
+        for fragment in re.split(r"[,;|\u2013\u2014\-\n]+", stripped):
+            fragment = fragment.strip(" .:\t")
+            if not fragment or len(fragment) > 60:
+                continue
+            if _specialties.match_specialty(fragment):
+                return fragment
+    return ""
 
 
 def _extract_employer(lines: List[str]) -> str:

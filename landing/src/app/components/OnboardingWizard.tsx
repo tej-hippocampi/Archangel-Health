@@ -33,7 +33,7 @@
  * the button Idle so server errors don't fake-flash success.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { API_BASE, apiHeaders } from "@/lib/auth-api";
 import * as authApi from "@/lib/auth-api";
@@ -59,6 +59,8 @@ import {
   StepAsclepiusSignIn,
   emptyAttestations,
   emptyCredentials,
+  newRowId,
+  withRowIds,
   type AsclepiusMember,
   type AsclepiusRole,
   type Credentials,
@@ -333,6 +335,13 @@ function initialData(): OnboardingData {
  *  parse happened to contain. A chip on a field the parse could not fill would
  *  be attributing the physician's own typing to their CV.
  */
+/** The value `cvAttemptRef` holds once this wizard has gone away.
+ *
+ *  A distinct sentinel rather than `null` or `""`, because an empty attempt id
+ *  is a real state — an older server that does not send one — and "no attempt"
+ *  must not be confused with "stop". */
+const CV_POLL_CANCELLED = "__cancelled__";
+
 function applyCvParse(
   parsed: CvParsed | null,
   current: Credentials,
@@ -383,10 +392,14 @@ function applyCvParse(
    *  missing. The parser now emits {board, specialty} and refuses to emit
    *  anything it cannot recognise as both.
    *
-   *  `active` is still never asserted. "Currently valid" is a compliance
-   *  answer about today, and a document written last year cannot give it;
-   *  putting `true` there would be words in a physician's mouth on a field
-   *  they sign for. It stays false so the box is unticked and theirs to tick.
+   *  `active` is never asserted, and it is now UNANSWERED rather than false.
+   *  "Currently valid" is a compliance answer about today, and a document
+   *  written last year cannot give it. Writing `true` would put words in a
+   *  physician's mouth on a field they sign for — but so did writing `false`,
+   *  which is what shipped: the toggle renders `false` as a SELECTED "No", so
+   *  every physician who uploaded a CV was shown a negative attestation they
+   *  never made, on every certification they hold. `null` renders as neither
+   *  button pressed, which is the truth (PRD C §6 C/E).
    */
   const structured = (parsed.board_certifications_structured || []).filter(
     (c) => c && (c.board || c.specialty));
@@ -396,10 +409,13 @@ function applyCvParse(
   if (certsUntouched) {
     if (structured.length) {
       patch.boardCertifications = structured.slice(0, 4).map((c) => ({
+        // A stable id per imported row, so a later re-upload can merge BY ROW
+        // rather than by array position (PRD C §6-D).
+        rowId: newRowId("bc"),
         board: c.board || "",
         specialty: c.specialty || "",
         subspecialty: c.subspecialty || "",
-        active: false,
+        active: null,
       }));
       filled.push("boardCertifications");
     } else {
@@ -408,7 +424,8 @@ function applyCvParse(
       const flat = (parsed.board_certifications || []).filter(Boolean);
       if (flat.length) {
         patch.boardCertifications = flat.slice(0, 4).map((name) => ({
-          board: name, specialty: "", subspecialty: "", active: false,
+          rowId: newRowId("bc"),
+          board: name, specialty: "", subspecialty: "", active: null,
         }));
         filled.push("boardCertifications");
       }
@@ -426,10 +443,18 @@ function applyCvParse(
     (f) => !f.institution.trim() && !f.specialty.trim() && !f.year.trim());
   if (fellowships.length && fellowshipUntouched) {
     patch.fellowship = fellowships.slice(0, 3).map((t) => ({
+      rowId: newRowId("fel"),
       institution: t.institution || "",
-      // The parse knows WHERE and WHEN. It does not reliably know the
-      // fellowship's subject, so that box is left for the physician.
-      specialty: "",
+      // THE DOCUMENT'S OWN WORD, or nothing (PRD C §6-C). "Fellow, Nephrology"
+      // names the subject plainly and it used to be dropped: the review page
+      // showed institution and year with the specialty box empty, wearing the
+      // grey placeholder "Nephrology" — which reads as a filled field, so a
+      // physician whose CV said it retyped it or, worse, believed it was there.
+      //
+      // Still never inferred from their current specialty. The server fills
+      // this only from a fragment that resolves against the specialty registry,
+      // so an unrecognised word leaves the box genuinely empty.
+      specialty: (t.specialty || "").trim(),
       year: t.end_year || "",
     }));
     filled.push("fellowship");
@@ -438,20 +463,64 @@ function applyCvParse(
     (r) => !r.institution.trim() && !r.year.trim());
   if (residencies.length && residencyUntouched) {
     patch.residency = residencies.slice(0, 3).map((t) => ({
+      rowId: newRowId("res"),
       institution: t.institution || "",
       year: t.end_year || "",
     }));
     filled.push("residency");
+
+    /* THE COMPLETION YEAR IS A SEPARATE FIELD, and it stayed empty while the
+     * row beside it showed the year (PRD C §6-C). The physician saw 2014 on
+     * their residency and an empty "year you finished" box below it wearing the
+     * placeholder 2010, and had to copy one into the other.
+     *
+     * ONLY when it is unambiguous. One residency, with an end year, that has
+     * actually passed. Several residencies need the physician to say which one
+     * is the relevant one; a future end year is an expectation and not a
+     * completion; and a fellowship year is never substituted for a residency
+     * year.
+     *
+     * The attestation itself — "Have you finished residency?" — is deliberately
+     * NOT answered here. A date is evidence; the answer is theirs. */
+    const completed = residencies.filter((t) => {
+      const y = parseInt(t.end_year || "", 10);
+      return Number.isFinite(y) && y <= new Date().getFullYear();
+    });
+    if (completed.length === 1) fill("residencyCompletionYear", completed[0].end_year);
   }
 
   /* The licence. Anchored on a labelled line server-side, so what arrives here
    *  is a state and a number that were written down together.
    */
+  /* A LICENCE IS ONE VALUE, not two fields that happen to sit together.
+   *
+   * `fill` skips a field the physician has already filled, and calling it twice
+   * meant the two halves could come from different places: a doctor who had
+   * typed NY and no number got NY paired with the CA number off their CV. A
+   * jurisdiction and a number that were never issued together is not a partial
+   * answer, it is a wrong credential (PRD C §5 invariant 3, §6-C).
+   *
+   * So: both, or neither. */
   const licences = (parsed.licenses || []).filter((l) => l && l.state && l.number);
-  const current_licence = licences.find((l) => l.current) || licences[0];
-  if (current_licence) {
-    fill("licenseNumber", current_licence.number);
-    fill("licenseState", current_licence.state);
+  const primary = licences.find((l) => l.current) || licences[0];
+  const licenceUntouched =
+    !(current.licenseNumber || "").trim() && !(current.licenseState || "").trim();
+  if (primary && licenceUntouched) {
+    patch.licenseNumber = primary.number;
+    patch.licenseState = primary.state;
+    filled.push("licenseNumber", "licenseState");
+  }
+  /* EVERY OTHER LICENCE IS KEPT, not silently dropped (PRD C §6 invariant 6).
+   * The form shows one, so a physician holding CA and MA saw only CA and could
+   * not review the second fact at all. The repeatable licence UI is Phase 4
+   * work; until it exists these are carried on the credential record so the
+   * admin dossier and a later migration can both see them, and so that nothing
+   * the document supported is thrown away in the meantime. */
+  const others = licences.filter((l) => l !== primary);
+  if (others.length) {
+    (patch as Record<string, unknown>).additionalLicenses = others.map((l) => ({
+      state: l.state, number: l.number, current: l.current,
+    }));
   }
   return { patch, filled };
 }
@@ -478,6 +547,13 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
   const [cvStage, setCvStage] = useState<CvStage | null>(null);
   const [cvFilename, setCvFilename] = useState("");
   const [cvUploading, setCvUploading] = useState(false);
+  /* WHICH UPLOAD IS CURRENT, for the poll to check itself against (PRD C
+     §6-A). A ref and not state on purpose: the polling loop is a closure that
+     outlives the render it started in, so a state value would be the one
+     captured when the loop began — which is precisely the stale reading this
+     exists to prevent. */
+  const cvAttemptRef = useRef<string | null>(null);
+  useEffect(() => () => { cvAttemptRef.current = CV_POLL_CANCELLED; }, []);
   const [stepError, setStepError] = useState("");
   const [bootError, setBootError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -557,7 +633,11 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       ascMembers,
       credentials: (() => {
         const base = savedCreds
-          ? { ...emptyCredentials(fullLegal), ...d.director_credentials }
+          // withRowIds on the way IN: credentials saved before stable row ids
+          // existed arrive without them, and minting them here — once, on
+          // hydration — is what keeps the rest of the app from having to cope
+          // with their absence. Existing ids are never reassigned.
+          ? withRowIds({ ...emptyCredentials(fullLegal), ...d.director_credentials })
           : emptyCredentials(fullLegal);
         // Screen 1's state answer prefills the Review screen's licence block,
         // so the same fact is not asked for twice. Never over a value the
@@ -664,7 +744,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       roleLabel: (d.role_label ?? "").trim(),
       product: "asclepius",
       credentials: savedCreds
-        ? { ...emptyCredentials(fullLegal), ...d.credentials }
+        ? withRowIds({ ...emptyCredentials(fullLegal), ...d.credentials })
         : emptyCredentials(fullLegal),
       attestations:
         d.attestations && Object.keys(d.attestations).length > 0
@@ -984,12 +1064,30 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
    *  like progress, and the cap exists so a background worker that died can
    *  never strand someone on an animation — after it, we go to Review with
    *  whatever we have, which is the same place a failure goes. */
-  const pollCvParse = useCallback(async () => {
+  const pollCvParse = useCallback(async (attemptId?: string) => {
     const DEADLINE_MS = 90_000;
     const INTERVAL_MS = 900;
     const started = Date.now();
+    /* THE POLL KNOWS WHICH UPLOAD IT IS WATCHING (PRD C §6-A).
+     *
+     * It did not, and could not: it read a stage and a payload off a shared
+     * credential blob with nothing in either saying which document produced
+     * them. Replace a CV while the first parse is still running and the loop
+     * still in flight for document A would apply A's result to the review page
+     * the physician opened for B — or, worse, see B's `finished` and apply it
+     * as though A's poll had succeeded.
+     *
+     * `obsolete` is checked at every await boundary, so the loop stops on a
+     * re-upload and on unmount rather than continuing to write into a component
+     * that has gone. A poll with no attempt id (an older server that does not
+     * send one) behaves exactly as it did before. */
+    const obsolete = () =>
+      (attemptId !== undefined && cvAttemptRef.current !== attemptId)
+      || cvAttemptRef.current === CV_POLL_CANCELLED;
+
     for (;;) {
       await new Promise((r) => setTimeout(r, INTERVAL_MS));
+      if (obsolete()) return;
       let body: Record<string, any> = {};
       try {
         const r = await api(`/api/onboarding/asclepius/cv/status?token=${encodeURIComponent(token)}`);
@@ -998,9 +1096,16 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
       } catch {
         // A dropped poll is not a failed parse. Keep trying until the deadline;
         // the physician's CV is being read on the server either way.
+        if (obsolete()) return;
         if (Date.now() - started > DEADLINE_MS) { applyParseAndReview(null); return; }
         continue;
       }
+      if (obsolete()) return;
+      // The server's own answer about whose result this is. Belt and braces
+      // with the ref above: this catches a response that was already in flight
+      // when the new upload started.
+      const served = body.attempt_id as string | undefined;
+      if (attemptId !== undefined && served !== undefined && served !== attemptId) return;
       const stage = (body.stage as CvStage | null) ?? "reading";
       setCvStage(stage);
       if (body.finished) { applyParseAndReview((body.parsed as CvParsed) ?? null); return; }
@@ -1031,6 +1136,12 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
           setCvUploading(false);
           return false;
         }
+        // Claim the attempt BEFORE anything else reads the ref: from here on
+        // any poll still running for a previous upload sees a ref it does not
+        // match and stops on its next tick.
+        const body = (await readResponseJson(r)) as Record<string, any>;
+        const attemptId = (body?.attempt_id as string | undefined) ?? "";
+        cvAttemptRef.current = attemptId;
         setCvStage("reading");
         setCvUploading(false);
         // The Review screen renders the same CV field the three-screen flow
@@ -1040,7 +1151,7 @@ export default function OnboardingWizard({ token, mode = "director" }: Props) {
         setDataState((d) => ({
           ...d, credentials: { ...d.credentials, cvFilename: file.name },
         }));
-        void pollCvParse();
+        void pollCvParse(attemptId);
         return true;
       } catch {
         setStepError("We couldn't attach that file. You can enter your details by hand instead.");

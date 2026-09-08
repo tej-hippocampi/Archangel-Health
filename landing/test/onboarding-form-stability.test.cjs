@@ -140,7 +140,7 @@ test("one character does not replace the phone input node", async () => {
   const el = phone();
   await focus(el);
   await type(el, "2");
-  assert.equal(el, phone(), "the input node was replaced by a single keystroke");
+  assert.ok(el === phone(), "the input node was replaced by a single keystroke");
 });
 
 test("one character does not cost the phone input its focus", async () => {
@@ -148,7 +148,7 @@ test("one character does not cost the phone input its focus", async () => {
   const el = phone();
   await focus(el);
   await type(el, "2");
-  assert.equal(document.activeElement, phone());
+  assert.ok(document.activeElement === phone(), "focus left the phone field");
 });
 
 test("ten digits can be typed without clicking the field again", async () => {
@@ -170,8 +170,8 @@ test("the same defect is absent from the phased (non-review) form", async () => 
   const el = phone();
   await focus(el);
   await type(el, "2");
-  assert.equal(el, phone());
-  assert.equal(document.activeElement, phone());
+  assert.ok(el === phone(), "the input node was replaced");
+  assert.ok(document.activeElement === phone(), "focus left the field");
 });
 
 test("a full pasted phone string survives with focus intact", async () => {
@@ -180,7 +180,7 @@ test("a full pasted phone string survives with focus intact", async () => {
   await focus(el);
   await type(el, "+1 (202) 555-0147");
   assert.equal(phone().value, "+1 (202) 555-0147");
-  assert.equal(document.activeElement, el);
+  assert.ok(document.activeElement === el, "focus left the field");
 });
 
 test("a Unicode legal name is stored and keeps its field", async () => {
@@ -189,7 +189,7 @@ test("a Unicode legal name is stored and keeps its field", async () => {
   await focus(el);
   await type(el, "José Muñoz");
   assert.equal(ctrl.data.credentials.fullLegalName, "José Muñoz");
-  assert.equal(document.activeElement, el);
+  assert.ok(document.activeElement === el, "focus left the name field");
 });
 
 test("a residency year can be typed a digit at a time", async () => {
@@ -197,8 +197,8 @@ test("a residency year can be typed a digit at a time", async () => {
   const el = byPlaceholder(YEAR_PLACEHOLDER);
   await focus(el);
   await type(el, "2");
-  assert.equal(el, byPlaceholder(YEAR_PLACEHOLDER));
-  assert.equal(document.activeElement, el);
+  assert.ok(el === byPlaceholder(YEAR_PLACEHOLDER), "the year input was replaced");
+  assert.ok(document.activeElement === el, "focus left the year field");
 });
 
 test("a textarea keeps its node and its focus while being typed into", async () => {
@@ -207,8 +207,8 @@ test("a textarea keeps its node and its focus while being typed into", async () 
   const area = document.querySelector("textarea");
   await focus(area);
   await type(area, "Dialysis");
-  assert.equal(area, document.querySelector("textarea"));
-  assert.equal(document.activeElement, area);
+  assert.ok(area === document.querySelector("textarea"), "the textarea was replaced");
+  assert.ok(document.activeElement === area, "focus left the textarea");
 });
 
 test("a country select is not replaced by its own change event", async () => {
@@ -216,7 +216,7 @@ test("a country select is not replaced by its own change event", async () => {
   const select = document.querySelector("select");
   await focus(select);
   await act(async () => select.dispatchEvent(new Event("change", { bubbles: true })));
-  assert.equal(select, document.querySelector("select"));
+  assert.ok(select === document.querySelector("select"), "the select was replaced");
 });
 
 // ── 2. A toggle does not tear down the section around it ────────────────────
@@ -226,7 +226,8 @@ test("pressing residency Yes does not replace the button under the pointer", asy
   const yes = toggle("Have you finished residency?", "Yes");
   await focus(yes);
   await click(yes);
-  assert.equal(yes, toggle("Have you finished residency?", "Yes"));
+  assert.ok(yes === toggle("Have you finished residency?", "Yes"),
+            "the button under the pointer was replaced");
 });
 
 test("pressing residency Yes leaves focus on the control that was pressed", async () => {
@@ -234,14 +235,16 @@ test("pressing residency Yes leaves focus on the control that was pressed", asyn
   const yes = toggle("Have you finished residency?", "Yes");
   await focus(yes);
   await click(yes);
-  assert.equal(document.activeElement, toggle("Have you finished residency?", "Yes"));
+  assert.ok(document.activeElement === toggle("Have you finished residency?", "Yes"),
+            "focus left the control that was pressed");
 });
 
 test("pressing residency Yes does not remount the training section", async () => {
   await setup();
   const training = document.getElementById("onb-sec-training");
   await click(toggle("Have you finished residency?", "Yes"));
-  assert.equal(training, document.getElementById("onb-sec-training"));
+  assert.ok(training === document.getElementById("onb-sec-training"),
+            "the training section was remounted");
 });
 
 test("pressing residency Yes actually records the answer", async () => {
@@ -315,7 +318,7 @@ test("editing a CV-populated board field keeps focus", async () => {
   const board = byPlaceholder(BOARD_PLACEHOLDER);
   await focus(board);
   await type(board, "ABIMX");
-  assert.equal(document.activeElement, board);
+  assert.ok(document.activeElement === board, "focus left the board field");
 });
 
 test("editing a CV-populated board field clears its From-your-CV marker", async () => {
@@ -350,17 +353,37 @@ test("removing a middle row keeps the surviving rows' values", async () => {
                    ["A", "C"]);
 });
 
-/* The three checks the hoist does NOT fix. They are recorded here, in the file
-   that owns them, rather than dropped — a known defect with no test is a defect
-   nobody is counting. They carry no body on purpose: a `todo` with a failing
-   body is a red build that everyone learns to ignore. Phase 3 replaces each of
-   these with the real assertion. */
-test.todo(
-  "removing a middle row keeps the surviving rows' DOM identity — Phase 3 (PRD B P1-A). " +
-  "Rows are keyed by array index, so removing an earlier row shifts every later " +
-  "row's identity. Stable per-row ids are deferred deliberately: P1-A says to " +
-  "coordinate them with PRD C's provenance/row-merge schema rather than ship two " +
-  "conflicting row-id mechanisms.");
+/* The three checks the hoist did not fix, now fixed in Phase 3. They were
+   recorded here as `todo` placeholders in Phase 1 rather than dropped — a known
+   defect with no test is a defect nobody is counting — and each is now the real
+   assertion. */
+
+test("removing a middle row keeps the surviving rows' DOM identity", async () => {
+  /* Rows were keyed by array index, so React reconciled `key={1}` to `key={1}`,
+     saw different props, and updated the surviving node in place instead of
+     dropping the removed one. Values stayed correct because the array is the
+     source of truth; focus, caret and any local state below did not.
+
+     The stable id is also PRD C §6-D's row-merge key: P1-A says explicitly not
+     to ship two competing row-id mechanisms, which is why this waited for the
+     CV provenance work rather than shipping in Phase 1. */
+  await setup(THREE_BOARDS);
+  const third = allByPlaceholder(BOARD_PLACEHOLDER)[2];
+  await click(removeButtons()[1]);
+  assert.ok(third === allByPlaceholder(BOARD_PLACEHOLDER)[1],
+            "the last row was rebuilt rather than kept");
+});
+
+test("each Remove button says what it removes", async () => {
+  /* Every one of them announced itself as "Remove", so a physician tabbing a
+     three-row group heard the same word three times with nothing to tell them
+     apart. */
+  await setup(THREE_BOARDS);
+  assert.deepEqual(
+    removeButtons().map((b) => b.getAttribute("aria-label")),
+    ["Remove board certification 1", "Remove board certification 2",
+     "Remove board certification 3"]);
+});
 
 // ── 7. Form hygiene ─────────────────────────────────────────────────────────
 
@@ -373,12 +396,84 @@ test("every non-submit control declares its button type", async () => {
   assert.deepEqual(untyped.map((b) => b.textContent.trim()), []);
 });
 
-test.todo(
-  "the mobile field exposes a programmatic accessible name — Phase 3 (PRD B P1-B). " +
-  "The visible label is not associated with the control, so a screen reader " +
-  "announces an unlabelled text field.");
+test("the mobile field exposes a programmatic accessible name", async () => {
+  /* FieldLabel rendered a <div>: the words were on screen with no relationship
+     to the input beside them, so every field in this form was an unlabelled box
+     to a screen reader. Asserted as the computed accessible name rather than as
+     `input.labels.length > 0`, which a <label> containing no text also
+     satisfies. */
+  await setup();
+  assert.match(accessibleName(phone()), /mobile/i);
+});
 
-test.todo(
-  "a blank board row does not count as filled — Phase 3 (PRD B P1-C). " +
-  "rowHasContent treats the default `active: true` as content, so an empty " +
-  "repeated row is counted as an answered one.");
+test("every text control on the page has an accessible name", async () => {
+  await setup();
+  const unnamed = [...document.querySelectorAll("input, textarea, select")]
+    .filter((el) => el.type !== "hidden" && !accessibleName(el))
+    .map((el) => el.placeholder || el.type || el.tagName);
+  assert.deepEqual(unnamed, []);
+});
+
+test("a hint is announced with the control it belongs to", async () => {
+  await setup();
+  const described = [...document.querySelectorAll("input[aria-describedby]")];
+  assert.ok(described.length > 0, "no control points at its hint");
+  for (const el of described) {
+    for (const id of el.getAttribute("aria-describedby").split(/\s+/)) {
+      assert.ok(document.getElementById(id),
+                `aria-describedby points at a missing element: ${id}`);
+    }
+  }
+});
+
+test("a Yes/No pair is announced as one named question", async () => {
+  /* Two buttons are not a labelled control: without the group a reader
+     announces "Yes, not pressed" and "No, not pressed" with nothing saying what
+     the question was. */
+  await setup();
+  const yes = toggle("Have you finished residency?", "Yes");
+  const group = yes.closest('[role="group"]');
+  assert.ok(group, "the toggle pair is not a group");
+  assert.match(accessibleName(group), /finished residency/i);
+});
+
+test("a blank board row does not count as filled", async () => {
+  /* `rowHasContent` counted any truthy value, so the row's `active` default of
+     `true` was "content": an entirely blank certification counted as a filled
+     one and the summary told a physician they had answered a question nobody
+     had asked them. Content is text somebody typed. */
+  await setup({ credentials: { boardCertifications: [
+    { board: "", specialty: "", subspecialty: "", active: null }] } });
+  assert.match(header("onb-sec-training").textContent, /0 of 2/);
+});
+
+test("an explicit No is an answer about a row, not the whole row", async () => {
+  /* The mirror of the above now that the field is tri-state: `false` is a real
+     answer, but it is an answer ABOUT a certification and cannot be the only
+     thing in the row that exists. */
+  await setup({ credentials: { boardCertifications: [
+    { board: "", specialty: "", subspecialty: "", active: false }] } });
+  assert.match(header("onb-sec-training").textContent, /0 of 2/);
+});
+
+test("an unanswered board validity selects neither Yes nor No", async () => {
+  /* THE BUG THIS PHASE EXISTS FOR. The backend's null became false in the
+     frontend and YesNoToggle renders false as a selected "No", so every
+     physician who uploaded a CV was shown a negative attestation they never
+     made, on every certification they hold. */
+  await setup({ credentials: { boardCertifications: [
+    { board: "ABIM", specialty: "Nephrology", subspecialty: "", active: null }] } });
+  const yes = toggle("Currently active / valid?", "Yes");
+  const no = toggle("Currently active / valid?", "No");
+  assert.equal(yes.getAttribute("aria-pressed"), "false");
+  assert.equal(no.getAttribute("aria-pressed"), "false");
+});
+
+test("the physician's own Yes is recorded as an answer", async () => {
+  await setup({ credentials: { boardCertifications: [
+    { board: "ABIM", specialty: "Nephrology", subspecialty: "", active: null }] } });
+  await click(toggle("Currently active / valid?", "Yes"));
+  assert.equal(ctrl.data.credentials.boardCertifications[0].active, true);
+  assert.equal(toggle("Currently active / valid?", "Yes").getAttribute("aria-pressed"),
+               "true");
+});
