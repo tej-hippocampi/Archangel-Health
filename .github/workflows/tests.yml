@@ -232,3 +232,54 @@ jobs:
           — Chromium was not available to playwright"
             exit 1
           fi
+
+  onboarding-form:
+    # THE PHYSICIAN ONBOARDING FORM, rendered.
+    #
+    # The backend suite cannot see this defect and neither can a source
+    # assertion. `Group` was a component defined inside Step5Credentials, so
+    # every keystroke minted a new component type and React remounted the whole
+    # subtree: the focused input was replaced mid-word and a physician typing a
+    # phone number was ejected after one character. The source reads perfectly.
+    # It is only visible by rendering the real components and asking what
+    # happened to document.activeElement.
+    #
+    # So this job exists to make that class of regression a red build. It runs
+    # the actual production components in JSDOM — no patched copy, no
+    # stand-in form.
+    #
+    # What it deliberately does NOT claim: JSDOM has no layout engine, so pixel
+    # scroll, mobile virtual keyboards, IME composition and screen-reader output
+    # are not covered here and remain human tests in the sandbox realm
+    # (PRD B §6, "Real-browser acceptance").
+    name: Onboarding form (JSDOM)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install the component-test dependencies
+        # Installed into landing/test/node_modules rather than the app's own
+        # dependency tree: these four are for the test harness only and must not
+        # become build inputs of the shipped bundle. esbuild here strips types;
+        # react/react-dom stay external so the harness and the components share
+        # one React instance.
+        run: |
+          mkdir -p test
+          npm install --prefix test --no-audit --no-fund --no-save \
+            react@18.3.1 react-dom@18.3.1 jsdom@26.1.0 esbuild@0.25.0
+      - name: Run the onboarding component tests
+        # A file that fails to load is a passing job otherwise: node --test
+        # reports "0 tests" and exits zero. So the count is asserted too.
+        run: |
+          set -o pipefail
+          npm test | tee /tmp/onboarding.log
+          if ! grep -qE "^# pass [1-9][0-9]*$" /tmp/onboarding.log; then
+            echo "::error::the onboarding component tests ran nothing"
+            exit 1
+          fi

@@ -32,7 +32,8 @@ import {
   OnboardingSection,
   ReviewChecklist,
 } from "./primitives";
-import { reviewSections, checklistRows, identifierField } from "./completeness";
+import { reviewSections, checklistRows, identifierField,
+         type SectionSummary } from "./completeness";
 
 /* Shared shape — same across all steps so the wizard owns one state object. */
 
@@ -2137,6 +2138,68 @@ export function StepCv({
   );
 }
 
+/* ─────────────────────────────────────────────────────────────
+   ReviewGroup — one phase of the credentials form, as a titled box in review
+   mode and as the bare fragment it has always been everywhere else.
+
+   MODULE SCOPE, and that is the whole point of the file it lives in.
+
+   This used to be `const Group = (...)` declared INSIDE Step5Credentials. A
+   component defined in a render body is a NEW COMPONENT TYPE on every render,
+   and React reconciles by type: a new type at the same position is not an
+   update, it is an unmount and a remount of the entire subtree. Every keystroke
+   in this form updates parent credentials state, which re-runs Step5Credentials,
+   which minted a fresh `Group` — so every keystroke tore down and rebuilt every
+   field under it.
+
+   What that cost, measured in JSDOM against the real components (the probe in
+   docs/prd/onboarding-master/evidence/onboarding-ux-evidence, 8 of 29 checks
+   passing before this change and 26 after): the focused input was replaced
+   mid-word, so typing a phone number left the single character "2" behind and
+   the physician had to click the field again for each digit. A manually
+   collapsed section reopened when an unrelated field was edited, because
+   OnboardingSection's open state is local and a remount resets it to
+   defaultOpen. A half-typed language chip vanished. Pressing Yes on "Have you
+   finished residency?" replaced the button under the pointer.
+
+   The fix is structural, and deliberately not a workaround: refocusing the
+   input after each update, remembering a selector and re-clicking it, or
+   freezing rerenders with stale memo dependencies would all leave the DOM
+   identity broken underneath and break caret position, text selection, IME
+   composition and screen-reader focus along with it.
+
+   Ordinary props may be recreated freely; component TYPES may not. So `sections`
+   and the open-state decision arrive as props, and this function is defined
+   exactly once for the life of the module.
+   ───────────────────────────────────────────────────────────── */
+function ReviewGroup({
+  reviewMode,
+  section,
+  defaultOpen,
+  children,
+}: {
+  reviewMode: boolean;
+  section: SectionSummary;
+  defaultOpen: boolean;
+  children: ReactNode;
+}) {
+  if (!reviewMode) return <>{children}</>;
+  return (
+    <OnboardingSection
+      id={"onb-sec-" + section.id}
+      title={section.title}
+      why={section.why}
+      filled={section.filled}
+      total={section.total}
+      attention={section.hasNeeded}
+      defaultOpen={defaultOpen}
+    >
+      {children}
+    </OnboardingSection>
+  );
+}
+
+
 export function Step5Credentials({
   data,
   setData,
@@ -2255,26 +2318,6 @@ export function Step5Credentials({
      that gate Submit. */
   const openBy = (i: number, sec: { hasNeeded: boolean; hasUnconfirmedCv: boolean }) =>
     i === 0 || sec.hasNeeded || sec.hasUnconfirmedCv;
-  /* In reviewMode a phase block becomes a titled box; everywhere else it stays
-     exactly the bare fragment it has always been. */
-  const Group = ({ n, children }: { n: 0 | 1 | 2; children: ReactNode }) => {
-    if (!reviewMode) return <>{children}</>;
-    const sec = sections[n];
-    return (
-      <OnboardingSection
-        id={"onb-sec-" + sec.id}
-        title={sec.title}
-        why={sec.why}
-        filled={sec.filled}
-        total={sec.total}
-        attention={sec.hasNeeded}
-        defaultOpen={openBy(n, sec)}
-      >
-        {children}
-      </OnboardingSection>
-    );
-  };
-
   const identityValid =
     c.fullLegalName.trim().length > 0 &&
     (isUS
@@ -2364,7 +2407,8 @@ export function Step5Credentials({
 
       {reviewMode && <ReviewChecklist rows={checklistRows(sections, c, !!data.cvParsed?.ok)} />}
 
-      {show(1) && (<Group n={0}>
+      {show(1) && (<ReviewGroup reviewMode={reviewMode} section={sections[0]}
+                   defaultOpen={openBy(0, sections[0])}>
       <TextField
         label={lbl("fullLegalName", "Full legal name")}
         placeholder="Dr. Tej Patel"
@@ -2557,9 +2601,10 @@ export function Step5Credentials({
         onChange={(v) => set({ currentlyActive: v })}
       />
 
-      </Group>)}
+      </ReviewGroup>)}
 
-      {show(2) && (<Group n={1}>
+      {show(2) && (<ReviewGroup reviewMode={reviewMode} section={sections[1]}
+                   defaultOpen={openBy(1, sections[1])}>
       {/* Board certifications */}
       <SectionHeading
         title={<>Board certifications {autofilled.has("boardCertifications") && <FromCvChip />}</>}
@@ -2804,9 +2849,10 @@ export function Step5Credentials({
           hint="Averaged over the last 12 months. Part-time practice counts, this is not a threshold you either clear or fail."
         />
       )}
-      </Group>)}
+      </ReviewGroup>)}
 
-      {show(3) && (<Group n={2}>
+      {show(3) && (<ReviewGroup reviewMode={reviewMode} section={sections[2]}
+                   defaultOpen={openBy(2, sections[2])}>
       <div style={RARE_INTRO}>
         <div style={RARE_EYEBROW}>Every answer here raises what we can pay you</div>
         <p style={RARE_BODY}>
@@ -2909,7 +2955,7 @@ export function Step5Credentials({
         suggestions={LANGUAGE_SUGGESTIONS}
       />
 
-      </Group>)}
+      </ReviewGroup>)}
 
       <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
