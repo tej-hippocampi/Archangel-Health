@@ -406,16 +406,26 @@ def test_the_physician_column_carries_no_pre_written_blurb():
 def test_the_share_message_invites_a_colleague_into_the_community():
     """What rides in the WhatsApp bubble. It used to describe the labeling and
     reasoning work, which is a task spec being read by somebody who has not yet
-    decided they are interested, on a lock screen. It is an invitation into the
-    physician community now, and short enough that an SMS with the URL appended
-    does not clip it."""
+    decided they are interested, on a lock screen.
+
+    It is a physician's own sentence now, in their own register, and the COPY
+    BUTTON puts it on the clipboard too: a bare URL pasted into a message is a
+    colleague receiving a link with no idea what it is, from somebody who then
+    has to write this sentence themselves anyway."""
     code = _code(_REFERRAL_JS)
     import re
     match = re.search(r"var SHARE_MESSAGE\s*=\s*(.*?);", code, re.S)
     assert match, "SHARE_MESSAGE disappeared"
-    message = "".join(re.findall(r"'([^']*)'", match.group(1)))
-    assert "Archangel Health physician community" in message, message
-    assert len(message) < 110, message
+    # Both quote styles: the sentence carries an apostrophe, so the literal
+    # holding it is double-quoted. An extractor that reads only one style is a
+    # test that fails on a punctuation choice.
+    message = "".join(
+        m.group(1) if m.group(1) is not None else m.group(2)
+        for m in re.finditer(r"'([^']*)'|\"([^\"]*)\"", match.group(1)))
+    assert "Archangel Health platform" in message, message
+    assert "Use my link to join" in message, message
+    # Still SMS-shaped: this rides in a text message with the URL appended.
+    assert len(message) < 160, message
     # The old framing must not survive anywhere in the module's copy.
     assert "grade the reasoning step by step" not in code
 
@@ -494,10 +504,6 @@ def test_the_health_system_form_posts_a_named_contact():
     routes = {"/api/asclepius/referrals": _FUNNEL,
               "/api/asclepius/referrals/health-system": {"ok": True, "message": "Recorded."}}
     out = _run_node(_script(routes, _RENDER + _FILL_HS + """
-  var checks = tagsOf(body, 'INPUT').filter(function (i) {
-    return (i.attributes.type || '') === 'checkbox'; });
-  checks[0].checked = true;
-  checks[0].dispatch('change');
   var buttons = tagsOf(body, 'BUTTON').filter(function (b) {
     return textOf(b).indexOf('Send the introduction') !== -1; });
   buttons[0].dispatch('click');
@@ -513,28 +519,38 @@ def test_the_health_system_form_posts_a_named_contact():
     assert body["contact_name"] == "James Okoye"
     assert body["contact_email"] == "j.okoye@meridianhealth.org"
     assert body["hs_name"] == "Meridian Health"
+    # Sent unconditionally now, and asserted precisely because the server
+    # still refuses a request without it: this is what stops somebody quietly
+    # dropping the field when the checkbox went.
     assert body["consent"] is True
     # And it refetches, so the new row appears with the status the SERVER gave
     # it rather than one the page invented.
     assert len([c for c in out["calls"] if c["method"] != "POST"]) >= 2
 
 
-def test_an_introduction_without_consent_never_leaves_the_browser():
-    """We send this in the physician's name with their address on the reply-to.
-    Unticked, the claim the email makes is one nobody actually made."""
-    routes = {"/api/asclepius/referrals": _FUNNEL,
-              "/api/asclepius/referrals/health-system": {"ok": True}}
-    out = _run_node(_script(routes, _RENDER + _FILL_HS + """
-  var buttons = tagsOf(body, 'BUTTON').filter(function (b) {
-    return textOf(b).indexOf('Send the introduction') !== -1; });
-  buttons[0].dispatch('click');
-  done(function () {
-    console.log(JSON.stringify({calls: apiCalls, errs: find(body, 'asc-ref-error').map(textOf)}));
-  });
-});
-"""))
-    assert not [c for c in out["calls"] if c["method"] == "POST"]
-    assert any("OK hearing from us" in e for e in out["errs"]), out["errs"]
+def test_the_introduction_states_what_we_do_with_it_before_it_is_sent():
+    """We send this in the physician's name with their address on the reply-to,
+    so the claim it makes to the recipient is that somebody they know asked us
+    to write. That claim still has to be made to them.
+
+    It is a sentence beside the button rather than a checkbox because the
+    checkbox was friction with NO EVIDENCE behind it: `consent` was never
+    persisted, so a challenged claim had nothing to produce. The server gate is
+    unchanged and the timestamp is recorded now."""
+    out = _render_and("""
+  var cols = find(body, 'asc-ref-col');
+  var sys = cols[cols.length - 1];
+  console.log(JSON.stringify({
+    attest: find(sys, 'asc-ref-attest').map(textOf),
+    checkboxes: tagsOf(sys, 'INPUT').filter(function (i) {
+      return (i.attributes.type || '') === 'checkbox'; }).length,
+  }));
+""")
+    assert out["checkboxes"] == 0, "the consent checkbox is back"
+    assert out["attest"], "nothing tells the physician what we do with this"
+    said = " ".join(out["attest"]).lower()
+    assert "write in your name" in said, out["attest"]
+    assert "someone you actually know" in said, out["attest"]
 
 
 def test_the_health_system_funnel_renders_sentences_and_no_amount():
@@ -654,8 +670,7 @@ def test_the_health_system_column_offers_the_account_directly():
     hrefs = [l["href"] for l in out["links"]]
     assert _FUNNEL["partner_url"] in hrefs, out["links"]
     labels = " ".join(l["text"] for l in out["links"]).lower()
-    assert "create the health system account" in labels
-    assert "interest form" not in labels
+    assert "i work at a health system, connect it" in labels
     assert out["title"] == ["Refer a health system"], out["title"]
     # The lead is the founder's framing: you, or anyone you know, inside a
     # health system whose resources would help the community here.
@@ -779,9 +794,13 @@ def test_the_health_system_form_shows_only_the_fields_the_endpoint_requires():
 """)
     assert out["disclosures"] == 1, "the optional fields are back in the column"
     assert out["openByDefault"] is False, "the disclosure must start folded away"
-    assert len(out["top"]) == 4, out["top"]
+    assert len(out["top"]) == 3, out["top"]
     joined = " ".join(out["top"]).lower()
-    for required in ("their name", "their email", "health system", "how you know"):
+    for required in ("their name", "their email", "health system"):
         assert required in joined, (required, out["top"])
+    # `relationship` moved into the disclosure. It is NOT NULL on the row, so a
+    # blank one submits the sentinel "Not given" rather than requiring a
+    # copy-and-swap rebuild of a table holding live institutional leads.
     stowed = " ".join(out["stowed"]).lower()
+    assert "how you know" in stowed, out["stowed"]
     assert "role" in stowed and "anything we should know" in stowed, out["stowed"]

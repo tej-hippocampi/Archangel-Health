@@ -2043,7 +2043,13 @@ class AsclepiusStore:
                     reward_state    TEXT,            -- NULL until an admin decides
                     reward_earning_id TEXT,
                     client_ip       TEXT,
-                    fraud_flag      TEXT
+                    fraud_flag      TEXT,
+                    -- WHEN the physician attested that they know this contact.
+                    -- The claim was always made (the endpoint refuses a request
+                    -- without it) and was never RECORDED: not on this row, not
+                    -- in the audit event. If it were ever challenged there was
+                    -- nothing to produce. NULL means the row predates this.
+                    consent_at      TEXT
                 )
                 """
             )
@@ -2058,6 +2064,14 @@ class AsclepiusStore:
             # rows whose token was cleared after resolution do not collide.
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_hs_referrals_token "
                          "ON hs_referrals(landing_token) WHERE landing_token IS NOT NULL")
+
+            # Added after the table shipped, and it has to sit AFTER the
+            # CREATE above rather than up in the users migration block:
+            # PRAGMA table_info on a table that does not exist yet raises,
+            # which takes the whole boot with it on a fresh database.
+            # No backfill. NULL means the row predates the column.
+            if "consent_at" not in cols("hs_referrals"):
+                conn.execute("ALTER TABLE hs_referrals ADD COLUMN consent_at TEXT")
 
             # Admin-entry only, by construction: there is no accrual path from a
             # health system's uploads to money, no schedule, and no Stripe. The
@@ -13244,8 +13258,8 @@ class AsclepiusStore:
                                           contact_name, contact_email, contact_role,
                                           hs_name, relationship, note, status,
                                           invited_at, enrich_state, landing_token,
-                                          client_ip)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                          client_ip, consent_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (rid, referrer_id, referral_code,
                  (contact_name or "").strip(),
@@ -13254,7 +13268,10 @@ class AsclepiusStore:
                  (hs_name or "").strip(),
                  (relationship or "").strip(),
                  note, None, _utcnow_iso(), "pending", token,
-                 (client_ip or "").strip() or None),
+                 (client_ip or "").strip() or None,
+                 # Written unconditionally: the router refuses the request
+                 # without consent, so reaching this line IS the attestation.
+                 _utcnow_iso()),
             )
         return self.get_hs_referral(rid)  # type: ignore[return-value]
 

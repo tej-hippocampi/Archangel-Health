@@ -39,7 +39,6 @@
     contact_name: '', contact_email: '', contact_role: '',
     hs_name: '', relationship: '', note: '',
   };
-  var hsConsent = false;
 
   // Whether this account may actually send a health-system introduction:
   // true, false, or null while we do not know yet.
@@ -108,7 +107,6 @@
     noteDraft = ''; noteBusy = false; noteMessage = null; noteError = null;
     hsDraft = { contact_name: '', contact_email: '', contact_role: '',
                 hs_name: '', relationship: '', note: '' };
-    hsConsent = false;
     hsUnlocked = null;
     copiedKey = null;
     ctx.clear(body);
@@ -122,7 +120,7 @@
     refDraft = ''; noteDraft = '';
     hsDraft = { contact_name: '', contact_email: '', contact_role: '',
                 hs_name: '', relationship: '', note: '' };
-    hsConsent = false; hsUnlocked = null; copiedKey = null;
+    hsUnlocked = null; copiedKey = null;
     if (copiedTimer) { clearTimeout(copiedTimer); copiedTimer = null; }
   }
 
@@ -280,8 +278,14 @@
         h('code', { class: 'asc-mono asc-ref-linktext' }, url),
         h('button', {
           class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-copy', type: 'button',
-          onClick: function () { copyText('phys-link', url); },
-        }, copiedKey === 'phys-link' ? 'Copied' : 'Copy link')));
+          // The MESSAGE, not the bare URL. Same sentence the share targets
+          // carry, so what lands on the clipboard and what lands in WhatsApp
+          // are the same thing. No preview box: the founders' verdict on the
+          // auto-generated blurb was that it read as the product writing a
+          // physician's message to their own colleague for them, and changing
+          // what the button copies gives them the ask without reopening it.
+          onClick: function () { copyText('phys-link', SHARE_MESSAGE + '\n' + url); },
+        }, copiedKey === 'phys-link' ? 'Copied' : 'Copy invite')));
       col.appendChild(shareRow(h, url));
       // No pre-written blurb under the link. The share targets beside it
       // already carry a sentence, and a second auto-generated paragraph sitting
@@ -342,8 +346,14 @@
      is a task spec being read by somebody who has not yet decided they are
      interested. Short enough to survive an SMS with the URL appended, which is
      the medium that clips. */
+  /* What the Copy button puts on the clipboard, and what every share target
+     carries. A bare URL pasted into a message is a physician's colleague
+     receiving a link with no idea what it is, from someone who then has to
+     write the sentence themselves anyway. Kept inside SMS length, which is why
+     it is one sentence and not three. */
   var SHARE_MESSAGE =
-    'Join me in the Archangel Health physician community. Thought of you:';
+    "Hey, I'm using the Archangel Health platform for physician evaluation "
+    + 'work. Use my link to join:';
 
   /* The one copyable message left, and it is the health-system one, because it
      is the only ask a physician forwards rather than sends: they paste it to
@@ -655,10 +665,15 @@
     /* Classes written out literally rather than built from a variable: a
        runtime-assembled class name is invisible to grep and to the stylesheet
        scanner, which is the rule shareRow already follows above. */
+    /* Names the READER'S situation, not our form and not an account the
+       destination does not create. The old label said "Create the health
+       system account" and pointed at the interest form, which creates no
+       account: a physician who clicked it expecting a signup found a
+       questionnaire. */
     row.appendChild(h('a', {
       class: 'asc-btn asc-btn-sm asc-btn-go asc-ref-direct-link',
       href: data.partner_url, target: '_blank', rel: 'noopener noreferrer',
-    }, 'Create the health system account'));
+    }, 'I work at a health system, connect it'));
     block.appendChild(row);
     return block;
   }
@@ -720,8 +735,6 @@
     col.appendChild(hsField(h, 'contact_email', 'Their email',
       'j.okoye@meridianhealth.org', { type: 'email' }));
     col.appendChild(hsField(h, 'hs_name', 'Health system', 'Meridian Health'));
-    col.appendChild(hsField(h, 'relationship', 'How you know them',
-      'We were at college together'));
 
     var note = h('textarea', {
       class: 'asc-ref-input asc-ref-note', rows: '3',
@@ -737,24 +750,28 @@
     var extras = h('details', extrasOpen ? { class: 'asc-ref-extras', open: '' }
       : { class: 'asc-ref-extras' },
       h('summary', { class: 'asc-ref-extras-summary' }, 'Add more context'),
+      hsField(h, 'relationship', 'How you know them',
+        'We were at college together'),
       hsField(h, 'contact_role', 'Their role', 'Chief Operating Officer'),
       h('label', { class: 'asc-ref-field' },
         h('span', { class: 'asc-ref-fieldlabel' }, 'Anything we should know'),
         note));
     col.appendChild(extras);
 
-    /* The consent checkbox is not chrome. We send this email in the
-       physician's name, with their address on the reply-to, so the claim it
-       makes to the recipient is that somebody they know asked us to write.
-       This is the cheapest possible place for the physician to assert that is
-       true before we say it on their behalf. */
-    var check = h('input', { type: 'checkbox', class: 'asc-ref-check', disabled: noteBusy });
-    check.checked = hsConsent;
-    check.addEventListener('change', function () { hsConsent = check.checked; });
-    col.appendChild(h('label', { class: 'asc-ref-consent' }, check,
-      h('span', {},
-        'I know this person and they’re OK hearing from us. We’ll write in '
-        + 'your name, and their reply comes to you.')));
+    /* WHAT WE DO WITH IT, STATED, WHERE THE CHECKBOX USED TO BE.
+       We send this email in the physician's name with their address on the
+       reply-to, so the claim it makes to the recipient is that somebody they
+       know asked us to write. That claim still has to be made.
+
+       It is a sentence rather than a checkbox because the checkbox was
+       friction with NO EVIDENCE behind it: `consent` was never persisted, not
+       on the hs_referrals row, not in the audit event, so if the claim were
+       ever challenged there was nothing to produce. The server gate stays
+       exactly where it is as defence in depth, and the timestamp is recorded
+       now, which makes this strictly stronger than the box it replaces. */
+    col.appendChild(h('div', { class: 'asc-ref-attest' },
+      'We write in your name, and their reply comes to you. Only send this to '
+      + 'someone you actually know.'));
 
     var button = h('button', {
       class: 'asc-btn asc-btn-sm asc-btn-go', type: 'button', disabled: noteBusy,
@@ -811,17 +828,24 @@
       contact_email: String(hsDraft.contact_email || '').trim(),
       contact_role: String(hsDraft.contact_role || '').trim(),
       hs_name: String(hsDraft.hs_name || '').trim(),
-      relationship: String(hsDraft.relationship || '').trim(),
+      // NOT NULL on the row, and it moved behind the disclosure, so a blank
+      // one submits a sentinel. Making the column nullable would mean a
+      // copy-and-swap rebuild of a table holding live institutional leads, for
+      // a cosmetic form change, and the founder alert already renders
+      // "Not given" for a missing referrer name.
+      relationship: String(hsDraft.relationship || '').trim() || 'Not given',
       note: String(hsDraft.note || '').trim(),
-      consent: !!hsConsent,
+      // Sent unconditionally, and the server still refuses a request without
+      // it. The attestation above the button is where the physician is told
+      // what it means; a field defaulted to the value the gate requires would
+      // make the gate a no-op, which is why the SERVER default stays False.
+      consent: true,
     };
 
     // Checked here as well as on the server, because the round trip is the
     // slow part and "you missed a field" does not need one.
-    if (!body.contact_name || !body.contact_email || !body.hs_name
-        || !body.relationship) {
-      noteError = 'Their name, their email, the health system, and how you know '
-        + 'them are all needed.';
+    if (!body.contact_name || !body.contact_email || !body.hs_name) {
+      noteError = 'Their name, their email and the health system are all needed.';
       noteMessage = null;
       rerender();
       return;
@@ -841,7 +865,6 @@
         noteBusy = false;
         hsDraft = { contact_name: '', contact_email: '', contact_role: '',
                     hs_name: '', relationship: '', note: '' };
-        hsConsent = false;
         noteMessage = (res && res.message)
           || 'Introduction recorded. We’ll reach out and you’ll see it below.';
         rerender();

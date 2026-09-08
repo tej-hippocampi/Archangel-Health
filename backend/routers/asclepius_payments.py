@@ -597,7 +597,11 @@ async def create_hs_referral(
     store.log_event(
         entity_type="user", entity_id=referrer["id"], event_type="hs_referral_created",
         actor=referrer.get("email"),
-        payload={"hs_referral_id": row["hs_referral_id"], "hs_name": row["hs_name"]})
+        # consent_at joins the record because the claim this email makes to
+        # its recipient is that somebody they know asked us to write, and that
+        # claim previously left no trace anywhere.
+        payload={"hs_referral_id": row["hs_referral_id"], "hs_name": row["hs_name"],
+                 "consent_at": row.get("consent_at")})
 
     background.add_task(_deliver_hs_referral, row["hs_referral_id"], referrer["id"])
 
