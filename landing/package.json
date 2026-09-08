@@ -6,7 +6,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "test": "node --test --test-force-exit \"test/*.test.cjs\""
+    "test": "node --test --test-force-exit \"test/*.test.cjs\" \"tests/*.test.cjs\""
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
