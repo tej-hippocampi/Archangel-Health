@@ -35,6 +35,8 @@
     preview: false,     // true when the fixture is on screen, not the community
     previewBanner: '',  // the server's sentence; not dismissible, never invented here
     channels: [],       // [{slug,name,description,post_policy,unread,mentions}]
+    digest: null,       // {enabled, last_at, next_at} — the news schedule
+
     dms: [],            // conversations: DMs carry {peer}, case rooms carry {title, participants}
     active: 'general',  // channel slug OR a dm id ("dm-…") — keys never collide
     msgs: {},           // container key (slug or dm id) -> {list, hasMore, loaded}
@@ -238,6 +240,23 @@
       if (d.toDateString() === today.toDateString()) return 'Today';
       if (d.toDateString() === yest.toDateString()) return 'Yesterday';
       return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    } catch (e) { return ''; }
+  }
+
+  /* A scheduled time in the reader's own timezone. The digest fires on a UTC
+     hour, and telling a physician in Mumbai that the next digest is at "13:00
+     UTC" is telling them to do arithmetic to find out whether to wait. */
+  function fmtWhen(iso) {
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const today = new Date();
+      const tomorrow = new Date(Date.now() + 864e5);
+      if (d.toDateString() === today.toDateString()) return 'today at ' + time;
+      if (d.toDateString() === tomorrow.toDateString()) return 'tomorrow at ' + time;
+      return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+        + ' at ' + time;
     } catch (e) { return ''; }
   }
 
@@ -459,6 +478,9 @@
   async function loadChannels() {
     const d = await api('/channels');
     state.channels = d.channels || [];
+    // When the digest last ran and when it runs next, so an empty
+    // #medical-ai-news can say which of those it is waiting on.
+    state.digest = d.digest || null;
   }
   async function loadDms() {
     const d = await api('/dms');
@@ -1037,17 +1059,62 @@
    */
   const HOME_CHANNELS = ['introductions', 'task-announcements', 'questions-help'];
 
+  /* Why #medical-ai-news is empty, said out loud.
+   *
+   * This room is filled by a routine, not by people, so an empty one means the
+   * routine has not run YET, has run and found nothing, or is switched off —
+   * three different situations that the branded hero rendered identically. It
+   * also rendered identically to a fourth that was the real one for months:
+   * the digest posted, and the deploy that followed deleted the database it
+   * posted into. A reader had no way to tell "quiet" from "broken", so they
+   * assumed quiet, and nobody went looking.
+   *
+   * Returns null for every other channel and whenever the schedule could not
+   * be read, so the hero keeps its normal copy rather than guessing. */
+  function digestEmptyCopy(slug) {
+    if (slug !== 'medical-ai-news') return null;
+    const d = state.digest;
+    // `enabled === null` is the server saying it could not read the schedule
+    // (community/router.py _digest_schedule returns a dict either way, never
+    // null). Without this the room explained itself from nothing: "No digest
+    // yet today, digests only post when there is something worth a physician's
+    // time" is a confident sentence assembled out of three unknowns.
+    if (!d || d.enabled == null) return null;
+    if (d.enabled === false) {
+      return ['The digest is paused',
+        'Automatic posts to this room are switched off, so it stays quiet '
+        + 'until someone from the Archangel team posts here.'];
+    }
+    const next = d.next_at ? fmtWhen(d.next_at) : '';
+    const ranToday = d.last_at
+      && String(d.last_at).slice(0, 10) === new Date().toISOString().slice(0, 10);
+    // "Ran today and this room is still empty" is a real, ordinary outcome —
+    // a day where nothing cleared the relevance bar posts nothing by design —
+    // and saying so is the difference between a quiet room and a broken one.
+    const lead = ranToday
+      ? 'Today\'s run finished and found nothing worth posting'
+      : 'No digest yet today';
+    return [lead, next
+      ? 'The next run is ' + next + '. Digests only post when there is '
+        + 'something worth a physician\'s time, so a quiet day stays quiet.'
+      : 'Digests only post when there is something worth a physician\'s time, '
+        + 'so a quiet day stays quiet.'];
+  }
+
   function homePanel(slug) {
     const ch = state.channels.find((c) => c.slug === slug) || {};
     const isGeneral = slug === 'general';
+    const digestCopy = digestEmptyCopy(slug);
     const copy = EMPTY_COPY[slug];
 
-    const title = isGeneral ? 'Archangel Health Community' : ('#' + (ch.name || slug));
-    const body = isGeneral
-      ? 'Every physician here is credential-verified. Discuss cases, shape how '
-        + 'tasks get built, and tell us when something is wrong.'
-      : (ch.description || (copy && copy[1])
-         || 'Open discussion between contributor physicians.');
+    const title = digestCopy ? digestCopy[0]
+      : (isGeneral ? 'Archangel Health Community' : ('#' + (ch.name || slug)));
+    const body = digestCopy ? digestCopy[1]
+      : (isGeneral
+         ? 'Every physician here is credential-verified. Discuss cases, shape how '
+           + 'tasks get built, and tell us when something is wrong.'
+         : (ch.description || (copy && copy[1])
+            || 'Open discussion between contributor physicians.'));
 
     const chips = h('div', { class: 'cm-home-chips' },
       HOME_CHANNELS
@@ -1226,6 +1293,93 @@
     return wrap.childNodes.length ? wrap : null;
   }
 
+  /* ── The digest card (Community News PRD §2.3) ───────────────────────────
+   *
+   * A digest is not a message somebody wrote, and rendering it as a bubble of
+   * markdown was the visible half of a deeper problem: the model was asked for
+   * prose and the product parsed it back into structure it never reliably had.
+   * Now the post IS structure (`m.payload`, written by the compose contract)
+   * and this draws it.
+   *
+   * Old digests keep their old rendering. They have no payload, `digestOf`
+   * returns null, and `renderBody` handles them exactly as before — which is
+   * the entire migration: no backfill, no dual-write, and a room that scrolls
+   * from markdown posts into cards without a gap.
+   *
+   * Everything here is a TEXT NODE via h(). The headlines and one-liners were
+   * written by a model over somebody else's web page, and the server's
+   * escaping is not a reason for the client to stop doing its own. */
+
+  /* Section order is the contract's, not the payload's: community/
+     digest_contract.py SECTIONS is the source of truth and this mirrors it.
+     A digest whose sections reshuffle daily reads as a different product each
+     morning and costs the reader the ability to skip to what they care about. */
+  const DIGEST_SECTIONS = ['Research', 'Regulation', 'Deployment', 'Evals', 'Opinion'];
+
+  function digestOf(m) {
+    if (!m || (m.kind !== 'digest_news' && m.kind !== 'digest_papers')) return null;
+    const p = m.payload;
+    if (!p || typeof p !== 'object' || !Array.isArray(p.items)) return null;
+    // Defensive, not paranoid: the server validated this payload before storing
+    // it, but a row written by an older build or repaired by hand must degrade
+    // to the markdown body rather than render a card with holes in it.
+    const items = p.items.filter((it) => it && it.headline);
+    return items.length ? { title: p.title || 'Medical AI digest', items } : null;
+  }
+
+  function digestItemEl(it) {
+    const url = String(it.url || '');
+    const safe = /^https?:\/\//i.test(url);
+    const head = safe
+      ? h('a', { class: 'cm-dg-head', href: url, target: '_blank',
+                 rel: 'noopener noreferrer' }, it.headline)
+      : h('div', { class: 'cm-dg-head' }, it.headline);
+    const row = h('div', { class: 'cm-dg-item' }, head);
+    if (it.why_it_matters) {
+      row.appendChild(h('div', { class: 'cm-dg-why' }, it.why_it_matters));
+    }
+    if (it.source) {
+      // The source is a quiet link, and it is the same link as the headline:
+      // two destinations in one item is a choice the reader should not have to
+      // make. Without a usable url it stays plain text rather than a dead link.
+      row.appendChild(safe
+        ? h('a', { class: 'cm-dg-src', href: url, target: '_blank',
+                   rel: 'noopener noreferrer' }, it.source,
+            h('span', { class: 'cm-dg-arrow', 'aria-hidden': 'true' }, '↗'))
+        : h('span', { class: 'cm-dg-src' }, it.source));
+    }
+    return row;
+  }
+
+  function digestCardEl(m, dg) {
+    const card = h('div', { class: 'cm-dg' },
+      h('div', { class: 'cm-dg-eyebrow chrome' }, dg.title));
+    for (const section of DIGEST_SECTIONS) {
+      const items = dg.items.filter((it) => it.section === section);
+      if (!items.length) continue;   // empty sections do not render
+      card.appendChild(h('div', { class: 'cm-dg-section chrome' }, section));
+      for (const it of items) card.appendChild(digestItemEl(it));
+    }
+    // An item whose section the client does not recognise still has to appear:
+    // dropping it would silently shorten a digest the server published in full,
+    // and a reader has no way to know something is missing.
+    const known = new Set(DIGEST_SECTIONS);
+    const rest = dg.items.filter((it) => !known.has(it.section));
+    if (rest.length) {
+      card.appendChild(h('div', { class: 'cm-dg-section chrome' }, 'More'));
+      for (const it of rest) card.appendChild(digestItemEl(it));
+    }
+    card.appendChild(h('button', {
+      class: 'cm-dg-discuss', type: 'button',
+      onClick: () => openThread(m.id),
+    }, m.reply_count > 0
+      ? 'Discuss in thread · ' + m.reply_count
+        + (m.reply_count === 1 ? ' reply' : ' replies')
+      : 'Discuss in thread',
+      h('span', { class: 'cm-dg-arrow', 'aria-hidden': 'true' }, '→')));
+    return card;
+  }
+
   function messageEl(m, opts) {
     opts = opts || {};
     // DMs have no threads, so the reply affordances hide there like in the
@@ -1242,16 +1396,26 @@
     const mine = state.me && a.user_id === state.me.user_id;
     const canDelete = mine || state.isAdmin;
 
-    const bodyEl = h('div', { class: 'cm-msg-body', html: renderBody(m.body, m.mentions) });
+    // A structured digest renders as a card; everything else, including every
+    // digest written before the payload column existed, renders as a body.
+    const dg = digestOf(m);
+    const bodyEl = dg
+      ? digestCardEl(m, dg)
+      : h('div', { class: 'cm-msg-body', html: renderBody(m.body, m.mentions) });
 
     // A view-only reader keeps the thread affordance, because opening a thread
     // is reading. Reacting and pinning change what everyone else sees, and the
     // server refuses both, so the buttons go rather than fail.
     const canPin = !inThread && !isDmKey(state.active) && state.canPost;
+    // A digest carries ONE action, on the card. The reaction and reply buttons
+    // go: a row of chrome beside a designed card is clutter, and the card's own
+    // "Discuss in thread" is the same affordance said once and legibly. Pin and
+    // delete stay, because they are moderation and a digest is as moderable as
+    // anything else in the room.
     const actions = h('div', { class: 'cm-msg-actions', role: 'toolbar', 'aria-label': 'Message actions' },
-      state.canPost ? h('button', { class: 'cm-act', 'data-emoji-btn': '1', title: 'Add reaction', 'aria-label': 'Add reaction',
+      state.canPost && !dg ? h('button', { class: 'cm-act', 'data-emoji-btn': '1', title: 'Add reaction', 'aria-label': 'Add reaction',
         onClick: (e) => { e.stopPropagation(); toggleEmojiPop(m); } }, '😀') : null,
-      !inThread ? h('button', { class: 'cm-act', title: 'Reply in thread', 'aria-label': 'Reply in thread',
+      !inThread && !dg ? h('button', { class: 'cm-act', title: 'Reply in thread', 'aria-label': 'Reply in thread',
         onClick: () => openThread(m.id) }, '💬') : null,
       canPin ? h('button', { class: 'cm-act' + (m.pinned ? ' on' : ''),
         title: m.pinned ? 'Unpin' : 'Pin to channel', 'aria-label': m.pinned ? 'Unpin' : 'Pin',
@@ -1287,8 +1451,10 @@
       cardsEl(m.cards),
       m.poll ? pollCardEl(m) : null,
       attachmentsEl(m),
-      reactionsEl(m),
-      !inThread && m.reply_count > 0 ? threadTeaser(m) : null);
+      dg ? null : reactionsEl(m),
+      // The card carries its own thread affordance with the same count, so the
+      // teaser underneath would be the second copy of one link.
+      !inThread && !dg && m.reply_count > 0 ? threadTeaser(m) : null);
     return h('div', { class: 'cm-msg' + kindClass, 'data-mid': m.id, tabindex: '-1' },
       avatarEl(a), col, actions);
   }

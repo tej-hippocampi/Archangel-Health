@@ -25,6 +25,7 @@ and left a queue that looked perfectly healthy.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import realm as _realm
@@ -192,6 +193,63 @@ def _snippet(body: str) -> str:
     return text
 
 
+#: Bot posts that carry a structured payload and get their own designed email
+#: rather than a line in the activity digest.
+DIGEST_KINDS = ("digest_news", "digest_papers")
+
+
+def digest_payload_of(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The structured digest behind a message, or None for anything else.
+
+    None covers three cases that must all behave identically: not a digest, a
+    digest written before ``payload_json`` existed, and a payload row that will
+    not parse. All three fall back to the activity line, which is what every
+    digest got before this and is still true, just plainer.
+    """
+    if (message or {}).get("kind") not in DIGEST_KINDS:
+        return None
+    raw = (message or {}).get("payload_json")
+    if isinstance(raw, dict):
+        payload = raw
+    elif isinstance(raw, str) and raw:
+        try:
+            payload = json.loads(raw)
+        except ValueError:
+            return None
+    else:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    items = payload.get("items")
+    # The shape, not just the truthiness. ``grouped_items`` calls ``.get`` on
+    # every entry, so a payload whose items are strings raises AttributeError
+    # INSIDE the flush loop, which has no per-member guard: the exception
+    # unwinds to the per-realm handler and aborts that realm's whole flush
+    # before any later member's mail is built. Deterministic, so it would repeat
+    # every tick and the queue would stall for everyone behind that row rather
+    # than drain. The serializer and the JS card both check this already; this
+    # is the third renderer agreeing with them.
+    if not isinstance(items, list) or not items:
+        return None
+    if not all(isinstance(i, dict) for i in items):
+        return None
+    return payload
+
+
+def _wants_digest(payload: Dict[str, Any], prefs: Dict[str, Any]) -> bool:
+    """Does this member's news cadence match this digest?
+
+    The rule the standalone digest mailer has always used, moved here rather
+    than reimplemented: news is the daily habit, papers ride the weekly
+    preference, and ``off`` takes both. Kept because it is the switch the
+    preferences page actually shows for news — ``post_emails`` is the generic
+    "the bot posted something" toggle and was never what a physician meant when
+    they chose a digest cadence.
+    """
+    want = "weekly" if payload.get("kind") == "papers" else "daily"
+    return (prefs.get("news_frequency") or "daily") == want
+
+
 def _slugs_by_channel_id(cstore: CommunityStore) -> Dict[str, str]:
     """One channel read per flush, not one per queued row.
 
@@ -271,11 +329,40 @@ async def flush_pending(
             return True if raw is None else bool(int(raw))
 
         rows: List[tuple] = []
-        handled_ids: List[int] = []
+        activity_ids: List[int] = []
+        # A digest post leaves the activity list and becomes its own email: the
+        # structure is the post, and flattening it to a 140-character snippet of
+        # the body is what put "**Medical AI Digest** **Clinical Practice** -
+        # [Opinion:" in physicians' inboxes verbatim (PRD §2.1).
+        digest_sends: List[tuple] = []
+        # Handled, but can never produce mail: the message was deleted or is
+        # gone. Marked sent regardless of any send below, or the queue re-reads
+        # them on every later flush forever.
+        orphan_ids: List[int] = []
         dropped_ids: List[int] = []
         kinds: set = set()
         for n in items:
             kind = n["kind"]
+            msg = cstore.get_message(n["message_id"])
+            if not msg or msg.get("deleted"):
+                orphan_ids.append(n["id"])
+                continue
+            payload = digest_payload_of(msg)
+            if payload is not None:
+                # A DIGEST ANSWERS TO THE NEWS CADENCE, and to that alone.
+                # It is queued as a ``post``, so riding the post toggle as well
+                # would make "daily news" mean "daily news, if you also left bot
+                # posts on" — a silent AND across two switches, only one of
+                # which the preferences page presents as being about news. The
+                # cadence is the switch a physician actually chose.
+                #
+                # A cadence they did not ask for is an opt-out, not a failure:
+                # mark it handled so it stops being re-read every flush.
+                if not _wants_digest(payload, prefs):
+                    dropped_ids.append(n["id"])
+                    continue
+                digest_sends.append((payload, n["id"]))
+                continue
             # Opted out of THIS stream. Mark handled rather than leaving the
             # rows pending, or the queue grows forever and every later flush
             # re-reads them. The in-app notification is unaffected; only the
@@ -283,10 +370,7 @@ async def flush_pending(
             if not wants(_KIND_STREAM.get(kind, "activity")):
                 dropped_ids.append(n["id"])
                 continue
-            handled_ids.append(n["id"])
-            msg = cstore.get_message(n["message_id"])
-            if not msg or msg.get("deleted"):
-                continue
+            activity_ids.append(n["id"])
             actor = resolve_member(msg["author_user_id"]) if resolve_member else None
             actor_name = (actor or {}).get("display_name") or _actor_fallback(
                 msg["author_user_id"])
@@ -297,14 +381,65 @@ async def flush_pending(
                          _snippet(msg.get("body") or "")))
         if dropped_ids:
             cstore.mark_notifications_sent(dropped_ids)
+        if orphan_ids:
+            cstore.mark_notifications_sent(orphan_ids)
+
+        from community import links  # noqa: PLC0415 — one URL definition
+
+        async def _deliver(subject: str, body: str, ids: List[int]) -> bool:
+            """Send one email and settle its rows. True when it went out.
+
+            A failed send leaves the rows PENDING and counts an attempt, so the
+            next flush retries. Marking them sent regardless was the old
+            behaviour, and it meant one transient vendor error silently ate a
+            member's mail with nothing anywhere recording it.
+            """
+            if await send_html_email(member["email"], subject, body):
+                cstore.mark_notifications_sent(ids)
+                return True
+            gave_up = cstore.record_notification_failure(ids)
+            if gave_up:
+                log.error(
+                    "community email GAVE UP after %d attempts for one recipient "
+                    "(%d notification(s) will never be mailed)",
+                    cstore.MAX_NOTIFICATION_ATTEMPTS, len(gave_up))
+            else:
+                log.warning(
+                    "community email failed for one recipient; %d notification(s) "
+                    "stay queued for the next flush", len(ids))
+            return False
+
+        for payload, nid in digest_sends:
+            from onboarding_emails import (  # noqa: PLC0415
+                build_community_digest_post_email, digest_email_subject,
+            )
+
+            if await _deliver(
+                digest_email_subject(payload),
+                build_community_digest_post_email(
+                    payload=payload,
+                    community_url=links.community_url(),
+                    # No ``kind``: "news" is a cadence, not a toggle stream, so
+                    # narrowing to it would resolve to the broad unsubscribe
+                    # anyway while claiming in the URL to do something smaller.
+                    # This is the same link the digest has always carried.
+                    unsubscribe_url=links.unsubscribe_url(
+                        prefs.get("unsubscribe_token") or ""),
+                    first_name=((member.get("display_name") or "").split()
+                                or ["there"])[0],
+                ),
+                [nid],
+            ):
+                sent_count += 1
+
+        # ``rows`` and ``activity_ids`` are appended together, so an empty row
+        # list means there is no activity email to send and nothing left to
+        # settle: the digests above have settled themselves, and the dropped and
+        # orphaned rows were marked before them.
         if not rows:
-            if handled_ids:
-                cstore.mark_notifications_sent(handled_ids)
             continue
 
         from onboarding_emails import build_community_digest_email  # noqa: PLC0415
-
-        from community import links  # noqa: PLC0415 — one URL definition
 
         body = build_community_digest_email(
             activity_items=rows,
@@ -314,25 +449,10 @@ async def flush_pending(
                 kind=_unsubscribe_kind(kinds),
             ),
         )
-        ok = await send_html_email(
-            member["email"],
-            "New activity in your Archangel Health community",
-            body,
-        )
-        if ok:
+        if await _deliver(
+            "New activity in your Archangel Health community", body, activity_ids
+        ):
             sent_count += 1
-            cstore.mark_notifications_sent(handled_ids)
-            continue
-        gave_up = cstore.record_notification_failure(handled_ids)
-        if gave_up:
-            log.error(
-                "community digest email GAVE UP after %d attempts for one recipient "
-                "(%d notification(s) will never be mailed)",
-                cstore.MAX_NOTIFICATION_ATTEMPTS, len(gave_up))
-        else:
-            log.warning(
-                "community digest email failed for one recipient; %d notification(s) "
-                "stay queued for the next flush", len(handled_ids))
     return sent_count
 
 

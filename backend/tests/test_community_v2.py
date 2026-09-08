@@ -294,9 +294,15 @@ def test_unread_and_search_scoped_to_visible_channels():
 def test_system_post_renders_bot_author_and_kind():
     astore, _, _ = setup_world()
     doc = make_vault_physician(astore)
+    # A plain-text digest body, which is what the digest writes now: the write
+    # path refuses the old markdown-lite shape for digest kinds, so a body with
+    # asterisks and an em dash in it would test the style gate rather than the
+    # bot-author rendering this test is about.
     posted = run(post_system_message(
         channel_slug="medical-ai-news",
-        body="**Digest** — [a story](https://example.com/x)", kind="digest_news"))
+        body="Medical AI digest\n\nResearch\nA story about a model\n"
+             "It changes what a clinic does. (Fake Wire) https://example.com/x",
+        kind="digest_news"))
     assert posted is not None
     assert posted["kind"] == "digest_news"
     assert posted["author"]["is_bot"] is True
@@ -329,12 +335,15 @@ def test_system_post_real_digest_format_passes_phi_gate():
     astore, cstore, _ = setup_world()
     make_vault_physician(astore)
     body = (
-        "**Papers of the Week**\n"
-        "**Research**\n"
-        "- [LLMs read nephrology notes](https://pubmed.ncbi.nlm.nih.gov/39234567/) — "
-        "models scored below specialists\n"
-        "- [Preprint on triage agents](https://www.medrxiv.org/content/10.64898/2026.07.04.26357301) — "
-        "prospective single-center study"
+        "Papers of the week\n"
+        "\n"
+        "Research\n"
+        "LLMs read nephrology notes\n"
+        "Models scored below specialists on the same notes. "
+        "(PubMed) https://pubmed.ncbi.nlm.nih.gov/39234567/\n"
+        "Preprint on triage agents\n"
+        "A prospective single-center study of agent triage. "
+        "(medRxiv) https://www.medrxiv.org/content/10.64898/2026.07.04.26357301"
     )
     posted = run(post_system_message(channel_slug="medical-ai-news", body=body,
                                      kind="digest_papers"))
@@ -463,8 +472,19 @@ def test_keyword_filter():
     assert len(cdigest._keyword_filter(items, require=False)) == 2
 
 
+#: Sections cycled through by the compose mock, so a multi-item digest exercises
+#: the grouping rather than piling everything into one section.
+_MOCK_SECTIONS = ("Research", "Regulation", "Deployment")
+
+
 def _mock_llm(monkeypatch, keep_ids=None):
-    """Route the two curation passes through canned responses."""
+    """Route the two curation passes through canned responses.
+
+    The compose pass returns the §2.2 STRUCTURE, not markdown: the product
+    renders the card, the email and the plain-text body from one object, and a
+    mock that still returned a prose blob would be testing a contract the
+    pipeline no longer has.
+    """
     import ai.llm_client as llm
 
     async def fake_call_llm(*, role, system, messages, **kw):
@@ -472,10 +492,13 @@ def _mock_llm(monkeypatch, keep_ids=None):
         import json as _json
         payload = _json.loads(messages[0]["content"])
         if "digest_kind" in payload:  # compose pass
-            lines = ["**Medical AI Digest**", "**Stories**"]
-            lines += [f"- [{it['title']}]({it['url']}) — {it['one_liner']}"
-                      for it in payload["items"]]
-            return "\n".join(lines), {}
+            return _json.dumps({"items": [
+                {"headline": it["title"][:60],
+                 "why_it_matters": it["one_liner"] or "It changes what a clinic does.",
+                 "source": "Fake Wire",
+                 "url": it["url"],
+                 "section": _MOCK_SECTIONS[i % len(_MOCK_SECTIONS)]}
+                for i, it in enumerate(payload["items"])]}), {}
         ids = [it["id"] for it in payload["items"]]
         chosen = keep_ids if keep_ids is not None else ids
         return _json.dumps({"items": [
@@ -537,7 +560,10 @@ def test_papers_run_survives_one_source_raising(monkeypatch):
         raise RuntimeError("pubmed down")
 
     async def ok_arxiv(days=7):
-        return _fake_items(2, source="arxiv")
+        # Three, not two: the digest contract's floor is three items, so a
+        # smaller batch would record a quiet day and this test would pass
+        # without ever reaching the post it is about.
+        return _fake_items(3, source="arxiv")
 
     async def empty(days=7):
         return []
@@ -545,7 +571,7 @@ def test_papers_run_survives_one_source_raising(monkeypatch):
     monkeypatch.setattr(cfeeds, "fetch_arxiv", ok_arxiv)
     monkeypatch.setattr(cfeeds, "fetch_medrxiv", empty)
     result = run(cdigest.run_digest("papers"))
-    assert result["ok"] is True and result["posted"] == 2
+    assert result["ok"] is True and result["posted"] == 3
 
 
 def test_llm_parse_failure_fails_run_and_counts(monkeypatch):

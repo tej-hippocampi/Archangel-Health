@@ -562,6 +562,30 @@ def _decode_cards(raw: Any) -> List[Dict[str, Any]]:
     return []
 
 
+def _decode_payload(raw: Any) -> Optional[Dict[str, Any]]:
+    """The structured payload behind a designed bot post, or None.
+
+    None for every message written before the column existed, which is the
+    whole compatibility story: the client draws a card when this is present and
+    falls back to rendering the body as markdown when it is not, so old digests
+    keep looking exactly as they always did.
+
+    A row that will not parse is treated as absent rather than raised on. The
+    body is a faithful plain-text rendering of the same content, so the reader
+    still gets the post; taking the channel down over one malformed row would
+    trade a degraded message for no messages at all.
+    """
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            out = json.loads(raw)
+        except ValueError:
+            return None
+        return out if isinstance(out, dict) else None
+    return None
+
+
 def _specialty_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
     """Verified NON-STAFF members per lowercased specialty."""
     out: Dict[str, int] = {}
@@ -931,6 +955,11 @@ def _serialize_messages(
             # same reason its body goes: the point of a delete is that the
             # content stops being served.
             "cards": [] if deleted else _decode_cards(m.get("cards_json")),
+            # The structured post behind a digest card. Withheld on a delete for
+            # the same reason the body is: the point of a delete is that the
+            # content stops being served, and leaving the payload would render
+            # the whole post under a "Message removed" line.
+            "payload": None if deleted else _decode_payload(m.get("payload_json")),
             "deleted": deleted,
             "created_at": m["created_at"],
             "edited_at": m.get("edited_at"),
@@ -1030,6 +1059,32 @@ async def me(user: Dict[str, Any] = Depends(require_member)):
 
 
 # ─── Channels ─────────────────────────────────────────────────────────────────
+def _digest_schedule() -> Dict[str, Any]:
+    """When the digest last posted and when it is next due.
+
+    Sent with the channel list so an EMPTY #medical-ai-news can explain itself.
+    It could not: the room rendered the same "welcome, here is what this is
+    for" hero whether the digest had never run, had run and found nothing, or
+    had posted this morning into a database a redeploy then deleted — and for
+    months it was the third one. Silence that explains itself is the difference
+    between a quiet room and a broken one.
+
+    Never raises. A schedule the client cannot read costs an explanatory line;
+    a channel list that 500s costs the whole community.
+    """
+    try:
+        from community import digest as cdigest  # noqa: PLC0415
+
+        return {
+            "enabled": cdigest.news_enabled(),
+            "last_at": _cstore().last_successful_run_at("news"),
+            "next_at": cdigest.next_run_at("news"),
+        }
+    except Exception:  # noqa: BLE001
+        log.warning("[community] digest schedule unavailable", exc_info=True)
+        return {"enabled": None, "last_at": None, "next_at": None}
+
+
 @router.get("/channels")
 async def channels(user: Dict[str, Any] = Depends(require_member)):
     cstore = _cstore()
@@ -1037,6 +1092,7 @@ async def channels(user: Dict[str, Any] = Depends(require_member)):
     visible = visible_channels(members, staff_viewer=is_staff_user(user))
     unread = cstore.unread_counts(user["id"], channels=visible)
     return {
+        "digest": _digest_schedule(),
         "channels": [
             {
                 "slug": ch["slug"],

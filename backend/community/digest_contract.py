@@ -1,0 +1,381 @@
+"""The digest's shape contract (Community News PRD §2.2).
+
+The compose pass used to return "markdown-lite" prose and the product rendered
+it twice, badly. The web renders a subset of markdown, the email renders none,
+and the notification snippet is a whitespace-collapsed copy of the raw body, so
+a post the model wrote as ``**Medical AI Digest** **Clinical Practice** -
+[Opinion: ...`` arrived in physicians' inboxes exactly like that. Nothing about
+the post was designed, and nothing constrained the model's prose habits.
+
+So the compose pass returns STRUCTURE and the product renders it: a title and
+3 to 5 items, each with a headline, a why-it-matters, a source, a url and a
+section from a fixed vocabulary. Web draws a card, email draws a list, and the
+body becomes a plain-text fallback for search and for clients that predate the
+card.
+
+**Strip or fail, and which is which.** A rule is enforced by STRIPPING when the
+repair is unambiguous and loses nothing — a stray ``**``, an em dash between two
+clauses, a trailing period on a headline. A rule is enforced by FAILING when
+repairing it would mean inventing or discarding meaning: too few items, a
+headline over the word cap, a hype adjective load-bearing in its sentence, a
+section the vocabulary does not have. A failed run posts NOTHING, which is what
+today's parse failure already does — an empty or malformed digest is worse than
+no digest, and the ledger records the reason.
+
+Nothing here reaches a model, a store or the network. It is a pure function over
+one dict, so every rule below has a test that is a call and an assertion.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any, Dict, List, Optional, Tuple
+
+#: The fixed section vocabulary, IN RENDER ORDER. The order is part of the
+#: contract, not a display detail: a digest whose sections reshuffle daily reads
+#: as a different product each morning, and the reader loses the ability to skip
+#: to the part they care about.
+SECTIONS: Tuple[str, ...] = ("Research", "Regulation", "Deployment", "Evals", "Opinion")
+
+#: Lowercased, for tolerant matching of what the model returns.
+_SECTION_BY_LOWER = {s.lower(): s for s in SECTIONS}
+
+MIN_ITEMS = 3
+MAX_ITEMS = 5
+HEADLINE_MAX_WORDS = 12
+WHY_MAX_WORDS = 25
+
+DEFAULT_TITLE = "Medical AI digest"
+
+#: Titles per digest kind. Small, closed, and here rather than in the prompt:
+#: the title is product copy, and a model that renames the digest every morning
+#: is a model deciding branding.
+TITLE_BY_KIND = {
+    "news": "Medical AI digest",
+    "papers": "Papers of the week",
+}
+
+#: Hype the post-processor refuses rather than repairs. Cutting the adjective
+#: leaves a sentence that no longer says what the model meant it to say, and
+#: rewriting it here would be this module inventing editorial content.
+_HYPE = (
+    "game-changer", "game changer", "gamechanger", "game-changing",
+    "revolutionary", "revolutionise", "revolutionize", "exciting",
+    "groundbreaking", "ground-breaking", "breakthrough", "unprecedented",
+)
+
+#: Month names, for the calendar-date rule. A full date in a digest line
+#: false-trips the clinical PHI gate (``exact_date``), which silently drops the
+#: whole post — so it is caught HERE, where the ledger can say why.
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july",
+           "august", "september", "october", "november", "december",
+           "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept",
+           "oct", "nov", "dec")
+_DATE_PATTERNS = (
+    # "March 14", "14 March", "Mar 3, 2026"
+    re.compile(r"\b(?:%s)\.?\s+\d{1,2}\b" % "|".join(_MONTHS), re.I),
+    re.compile(r"\b\d{1,2}\s+(?:%s)\b" % "|".join(_MONTHS), re.I),
+    # 2026-03-14, 03/14/2026, 14.03.2026
+    re.compile(r"\b\d{4}-\d{1,2}-\d{1,2}\b"),
+    re.compile(r"\b\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b"),
+)
+
+#: Emoji, and deliberately NOT arrows.
+#:
+#: U+2190-21FF (arrows) belongs on no ban list here: "Discuss in thread →" and
+#: "Open the community →" are the product's own copy, the source link on a
+#: digest card ends in "↗", and a rule that called those emoji would fail the
+#: designed post it was written to protect. The ban is on decoration a model
+#: reaches for — 🎉, ✨, ❗ — not on the typographic vocabulary the product
+#: already uses.
+_EMOJI = re.compile(
+    "["
+    "\U0001F000-\U0001FAFF"   # pictographs, emoticons, transport, symbols
+    "\U00002300-\U000023FF"   # misc technical
+    "\U00002460-\U000024FF"   # enclosed alphanumerics
+    "\U000025A0-\U000027BF"   # geometric shapes, dingbats
+    "\U00002B00-\U00002BFF"   # misc symbols and arrows
+    "\U0000FE00-\U0000FE0F"   # variation selectors
+    "\U0001F1E6-\U0001F1FF"   # regional indicators
+    "]+",
+    flags=re.UNICODE,
+)
+
+#: A digit range joined by an en dash means "to", not a clause break. Handled
+#: before the general dash rule, or "2020-2024" becomes "2020, 2024" and says
+#: something the source did not.
+_DASH_BETWEEN_DIGITS = re.compile(r"(?<=\d)\s*[–—]\s*(?=\d)")
+_DASH_CLAUSE = re.compile(r"\s*[–—]\s*")
+_MULTI_SPACE = re.compile(r"\s+")
+#: A candidate sentence break: a terminator, whitespace, then a capital.
+#: Lowercase after a period is a decimal or an abbreviation, never a new
+#: sentence, so the capital does most of the filtering.
+_SENTENCE_BREAK = re.compile(r"[.?!]\s+[A-Z]")
+
+#: Words whose trailing period is part of the word. Without these, "U.S. FDA
+#: clears it" and "Dr. Smith reports" both read as two sentences and a
+#: perfectly good digest fails the contract for a rule it did not break.
+_ABBREVIATIONS = frozenset((
+    "dr", "mr", "mrs", "ms", "prof", "st", "vs", "etc", "inc", "ltd", "co",
+    "no", "fig", "al", "approx", "est", "jr", "sr",
+))
+
+
+def _has_second_sentence(text: str) -> bool:
+    """True when ``text`` really is more than one sentence.
+
+    An abbreviation ends in a period and so does a sentence, and a rule that
+    cannot tell them apart rejects "U.S. regulators cleared it" — correct
+    English, one sentence, and exactly the register this field is written in.
+
+    "Approved in the U.S. Adoption is slow." is genuinely undecidable without
+    parsing, and this reads it as one sentence. That is the direction to be
+    wrong in: a false failure costs the whole day's digest, and a false pass
+    costs a slightly run-on line that the 25-word cap still bounds.
+    """
+    for match in _SENTENCE_BREAK.finditer(text):
+        head = text[: match.start()]
+        # A single letter before the period is an initialism (U.S., F.D.A.).
+        letters = re.findall(r"[A-Za-z]+", head)
+        last = (letters[-1] if letters else "").lower()
+        if len(last) == 1 or last in _ABBREVIATIONS:
+            continue
+        return True
+    return False
+
+
+class DigestContractError(ValueError):
+    """The compose pass returned something the product will not publish.
+
+    Raised, not repaired, and never swallowed: the caller records the run as
+    failed and posts nothing, which is the same outcome a JSON parse failure has
+    always had. A digest that half-renders is worse than a missing one, because
+    nobody goes looking for the missing one in the database.
+    """
+
+
+# ─── Cleaning (the "strip" half) ─────────────────────────────────────────────
+
+def clean_text(raw: Any) -> str:
+    """Normalise one human-visible string to the house rules.
+
+    Everything removed here is either markup the renderers do not use (``**``,
+    ``*``, ``#``, backticks) or a character the house style bans (dashes, emoji,
+    exclamation marks). None of it changes what a sentence says, which is the
+    test for belonging in this function rather than in the validator.
+    """
+    text = str(raw or "")
+    text = _EMOJI.sub("", text)
+    # Markup first: a "**word**" would otherwise leave stranded asterisks after
+    # the character rules run.
+    text = text.replace("**", "").replace("`", "")
+    text = text.replace("*", "").replace("#", "")   # bullets, bold, hashtags
+    text = _DASH_BETWEEN_DIGITS.sub(" to ", text)
+    text = _DASH_CLAUSE.sub(", ", text)
+    # An exclamation is a period wearing a hat. Collapse the doubled stop the
+    # substitution can create ("Big news!." → "Big news.").
+    text = text.replace("!", ".")
+    text = re.sub(r"\.{2,}", ".", text)
+    text = re.sub(r",\s*,", ",", text)
+    text = _MULTI_SPACE.sub(" ", text).strip()
+    # A comma the dash rule created at the very start or end of the string is
+    # punctuation with nothing on one side of it.
+    return text.strip(" ,")
+
+
+#: The §2.2 character bans, as a detector rather than a scrubber. ``clean_text``
+#: is the repair; this is the question "does this string still break the rules",
+#: which is what a gate at the write path needs to ask.
+_BANNED_PATTERNS = (
+    ("dash", re.compile(r"[—–]")),
+    ("asterisk", re.compile(r"\*")),
+    ("hashtag", re.compile(r"#")),
+    ("exclamation", re.compile(r"!")),
+    ("emoji", _EMOJI),
+)
+
+
+def banned_patterns(text: str) -> List[str]:
+    """The names of every §2.2 rule ``text`` breaks, or an empty list.
+
+    Characters and hype only. The word caps, the item count and the section
+    vocabulary are properties of the STRUCTURE and are checked by
+    ``validate_payload``; they cannot be re-derived from a rendered string
+    without guessing where one item ends and the next begins.
+
+    Callers must mask URLs first. A fragment identifier is a ``#`` and a path
+    segment can hold a ``!``, and neither is a hashtag or an exclamation mark
+    in any sense a reader would recognise.
+    """
+    found = [name for name, pattern in _BANNED_PATTERNS if pattern.search(text or "")]
+    hype = _has_hype(text or "")
+    if hype:
+        found.append("hype")
+    return found
+
+
+def _word_count(text: str) -> int:
+    return len([w for w in text.split() if w.strip()])
+
+
+def _has_hype(text: str) -> Optional[str]:
+    low = text.lower()
+    return next((w for w in _HYPE if w in low), None)
+
+
+def _has_calendar_date(text: str) -> bool:
+    return any(p.search(text) for p in _DATE_PATTERNS)
+
+
+def _looks_like_a_host(source: str) -> bool:
+    """True when the "publisher" is really a URL host.
+
+    ``statnews.com`` is not how a person says STAT, and letting it through means
+    the card's one piece of provenance is the thing the link already carries.
+    """
+    s = source.strip()
+    if " " in s:
+        return False
+    return bool(re.match(r"^(?:https?://)?(?:www\.)?[\w-]+\.[a-z]{2,}", s, re.I))
+
+
+# ─── Validation (the "fail" half) ────────────────────────────────────────────
+
+def _validate_item(idx: int, raw: Any) -> Dict[str, str]:
+    where = f"item {idx + 1}"
+    if not isinstance(raw, dict):
+        raise DigestContractError(f"{where} is not an object")
+
+    section_raw = clean_text(raw.get("section"))
+    section = _SECTION_BY_LOWER.get(section_raw.lower())
+    if section is None:
+        raise DigestContractError(
+            f"{where} has section {section_raw!r}, which is not one of "
+            + " / ".join(SECTIONS))
+
+    headline = clean_text(raw.get("headline")).rstrip(".").strip()
+    if not headline:
+        raise DigestContractError(f"{where} has no headline")
+    if _word_count(headline) > HEADLINE_MAX_WORDS:
+        raise DigestContractError(
+            f"{where} headline is {_word_count(headline)} words, "
+            f"the cap is {HEADLINE_MAX_WORDS}")
+    if headline.isupper():
+        raise DigestContractError(f"{where} headline is in capitals")
+    hype = _has_hype(headline)
+    if hype:
+        raise DigestContractError(f"{where} headline uses hype ({hype!r})")
+    if _has_calendar_date(headline):
+        raise DigestContractError(
+            f"{where} headline carries a calendar date; the platform timestamps "
+            "the post and a full date false-trips the PHI filter")
+
+    why = clean_text(raw.get("why_it_matters"))
+    if not why:
+        raise DigestContractError(f"{where} has no why_it_matters")
+    if _word_count(why) > WHY_MAX_WORDS:
+        raise DigestContractError(
+            f"{where} why_it_matters is {_word_count(why)} words, "
+            f"the cap is {WHY_MAX_WORDS}")
+    if _has_second_sentence(why):
+        raise DigestContractError(f"{where} why_it_matters is more than one sentence")
+    hype = _has_hype(why)
+    if hype:
+        raise DigestContractError(f"{where} why_it_matters uses hype ({hype!r})")
+    if _has_calendar_date(why):
+        raise DigestContractError(f"{where} why_it_matters carries a calendar date")
+    if not why.endswith("."):
+        why += "."
+
+    url = str(raw.get("url") or "").strip()
+    if not re.match(r"^https?://\S+$", url, re.I):
+        raise DigestContractError(f"{where} has no usable http(s) url")
+
+    source = clean_text(raw.get("source"))
+    if not source:
+        raise DigestContractError(f"{where} has no source")
+    if _looks_like_a_host(source):
+        raise DigestContractError(
+            f"{where} source {source!r} is a URL host, not a publisher name")
+
+    return {"headline": headline, "why_it_matters": why, "source": source,
+            "url": url, "section": section}
+
+
+def validate_payload(raw: Any, *, kind: str) -> Dict[str, Any]:
+    """The §2.2 object, cleaned and checked, or ``DigestContractError``.
+
+    ``kind`` is the digest kind (``news`` / ``papers``) and decides the title:
+    the model is not asked for one, because the title is the product's name for
+    this post and it must read the same every morning.
+
+    Items keep the model's ORDER within a section and the sections render in
+    ``SECTIONS`` order; sorting items by anything else here would silently
+    override the selection pass's relevance ranking.
+    """
+    if not isinstance(raw, dict):
+        raise DigestContractError("compose pass did not return a JSON object")
+    items_raw = raw.get("items")
+    if not isinstance(items_raw, list):
+        raise DigestContractError("compose pass returned no items list")
+    if len(items_raw) < MIN_ITEMS:
+        raise DigestContractError(
+            f"{len(items_raw)} item(s), the floor is {MIN_ITEMS}; "
+            "a thin digest is not worth a post")
+    if len(items_raw) > MAX_ITEMS:
+        raise DigestContractError(
+            f"{len(items_raw)} items, the cap is {MAX_ITEMS}")
+
+    items: List[Dict[str, str]] = []
+    seen_urls = set()
+    for idx, row in enumerate(items_raw):
+        item = _validate_item(idx, row)
+        # The same story twice is the one duplicate the select pass can miss
+        # (two feeds, one press release), and it reads as padding.
+        if item["url"] in seen_urls:
+            raise DigestContractError(f"item {idx + 1} repeats an earlier url")
+        seen_urls.add(item["url"])
+        items.append(item)
+
+    return {
+        "version": 1,
+        "kind": kind,
+        "title": TITLE_BY_KIND.get(kind, DEFAULT_TITLE),
+        "items": items,
+    }
+
+
+def grouped_items(payload: Dict[str, Any]) -> List[Tuple[str, List[Dict[str, str]]]]:
+    """``[(section, items)]`` in ``SECTIONS`` order, empty sections omitted.
+
+    One definition, because the web card and the email must group identically —
+    two orderings of the same post is the kind of difference nobody notices
+    until a physician forwards the email back asking which one is right.
+    """
+    out = []
+    for section in SECTIONS:
+        rows = [i for i in payload.get("items") or [] if i.get("section") == section]
+        if rows:
+            out.append((section, rows))
+    return out
+
+
+def plain_text_body(payload: Dict[str, Any]) -> str:
+    """The message body: a plain-text rendering of the structure.
+
+    Not the post. The post is the card (web) and the item list (email), both
+    built from ``payload``. This exists so the row is searchable, so a client
+    that predates the card still shows something true, and so the PHI gate has
+    the human-visible text in one string to scan.
+
+    Deliberately markdown-free: the whole reason the structure exists is that a
+    body carrying ``**`` and ``[title](url)`` leaked into an inbox verbatim.
+    """
+    lines: List[str] = [payload.get("title") or DEFAULT_TITLE]
+    for section, rows in grouped_items(payload):
+        lines.append("")
+        lines.append(section)
+        for item in rows:
+            lines.append(item["headline"])
+            lines.append(f"{item['why_it_matters']} ({item['source']}) {item['url']}")
+    return "\n".join(lines).strip()

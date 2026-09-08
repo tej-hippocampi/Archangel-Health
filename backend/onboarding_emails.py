@@ -2026,6 +2026,93 @@ def build_asclepius_admin_signup_alert(
     return _shell(subject=f"[Archangel Health] {decision}: {physician_name}", body_html=body)
 
 
+def digest_email_subject(payload: Dict[str, Any]) -> str:
+    """``Medical AI digest · 4 items``.
+
+    The count is in the subject because it is the one thing a physician can act
+    on from the notification shade: four items is a minute, and a subject that
+    said only "Medical AI digest" every single day taught people to swipe it
+    away without opening it.
+    """
+    from community import digest_contract  # noqa: PLC0415 - avoids an import cycle
+
+    title = str((payload or {}).get("title") or digest_contract.DEFAULT_TITLE)
+    n = len((payload or {}).get("items") or [])
+    return f"{title} · {n} item" + ("" if n == 1 else "s")
+
+
+def build_community_digest_post_email(
+    *,
+    payload: Dict[str, Any],
+    community_url: str,
+    unsubscribe_url: str,
+    first_name: str = "",
+) -> str:
+    """The digest, rendered from its STRUCTURE (Community News PRD §2.4).
+
+    The old builder parsed a markdown-lite body the model had written, and the
+    parse was necessarily lossy: ``**Medical AI Digest**`` is not a heading to
+    an escaper, and ``[Opinion: ...](url)`` is not a link, so both arrived in
+    physicians' inboxes as literal punctuation. Nothing was wrong with the
+    parser. The input was prose, and prose is not a layout.
+
+    Now the same object the web card renders is rendered here: sections in the
+    contract's fixed order, each item a headline that links out and one line of
+    why-it-matters underneath. There is no markdown anywhere in the path, so
+    there is nothing left to leak.
+
+    Every interpolated string is escaped here. They were written by a model over
+    somebody else's web page, which makes them exactly the untrusted input the
+    escaping convention in ``_h1`` exists for.
+    """
+    from community import digest_contract  # noqa: PLC0415 - avoids an import cycle
+
+    title = str((payload or {}).get("title") or digest_contract.DEFAULT_TITLE)
+    parts: list[str] = [_eyebrow(title)]
+    if first_name.strip():
+        parts.append(_p(f"Morning {_strong(first_name.strip())}."))
+
+    for section, items in digest_contract.grouped_items(payload or {}):
+        parts.append(
+            f'<div style="font-family:{_MONO};font-size:11px;font-weight:500;'
+            f'letter-spacing:0.09em;text-transform:uppercase;color:{_INK_FAINT};'
+            'margin:22px 0 8px;">'
+            f"{html.escape(section)}</div>"
+        )
+        rows = []
+        for i, item in enumerate(items):
+            border = "" if i == 0 else f"border-top:1px solid {_HAIRLINE};"
+            url = html.escape(str(item.get("url") or ""), quote=True)
+            headline = html.escape(str(item.get("headline") or ""))
+            why = html.escape(str(item.get("why_it_matters") or ""))
+            source = html.escape(str(item.get("source") or ""))
+            rows.append(
+                f'<tr><td style="padding:13px 0;{border}font-family:{_SANS};">'
+                f'<a href="{url}" style="font-size:15px;font-weight:600;'
+                f'line-height:1.45;color:{_INK};text-decoration:none;">{headline}</a>'
+                f'<div style="margin-top:5px;font-size:14px;line-height:1.55;'
+                f'color:{_INK_SOFT};">{why}</div>'
+                f'<div style="margin-top:5px;font-family:{_MONO};font-size:11px;'
+                f'letter-spacing:0.06em;text-transform:uppercase;'
+                f'color:{_INK_FAINT};">{source}</div>'
+                "</td></tr>"
+            )
+        parts.append(
+            '<table role="presentation" width="100%" cellspacing="0" '
+            'cellpadding="0" border="0" style="margin:0 0 6px;">'
+            + "".join(rows) + "</table>"
+        )
+
+    parts.append(_cta(community_url, "Open the community →"))
+    parts.append(_p(
+        "You get this because you are an Archangel Health contributor. "
+        f'<a href="{html.escape(unsubscribe_url, quote=True)}" '
+        f'style="color:{_GREEN_DEEP};">Change how often, or stop these</a>.',
+        muted=True,
+    ))
+    return _shell(subject=digest_email_subject(payload), body_html="".join(parts))
+
+
 def build_community_news_digest_email(
     *,
     first_name: str,
@@ -2034,7 +2121,14 @@ def build_community_news_digest_email(
     community_url: str,
     unsubscribe_url: str,
 ) -> str:
-    """The daily medical-AI digest.
+    """The daily medical-AI digest, rendered from a markdown-lite body.
+
+    NO LONGER ON THE DIGEST PATH. The compose pass returns structure now, and
+    both the web card and the email are built from it by
+    ``build_community_digest_post_email``. Kept because the parse below is the
+    only thing that can render a digest written BEFORE that change — the bodies
+    are still in the database and still markdown — and because deleting a
+    tested renderer to save a function is how a migration loses its fallback.
 
     Carries a one-click unsubscribe in the body, not only in a header. A
     physician who cannot find how to stop a daily email marks it as spam

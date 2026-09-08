@@ -591,6 +591,19 @@ class CommunityStore:
             # digest email can render a list from the same row.
             if "cards_json" not in msg_cols:
                 conn.execute("ALTER TABLE community_messages ADD COLUMN cards_json TEXT")
+            # The structured payload behind a designed bot post (Community News
+            # PRD §2.5): the digest's title and its 3-5 items, exactly as the
+            # contract validated them. Additive and NULLable, so every message
+            # that predates it keeps rendering from its body through the
+            # markdown path and nothing needs backfilling.
+            #
+            # Distinct from cards_json, which is a flat list of link previews
+            # UNDER a body. This is the post itself, and the body is derived
+            # from it. Storing the structure rather than the rendering is what
+            # lets the web draw a card, the email draw a list, and both stay in
+            # agreement about what the post says.
+            if "payload_json" not in msg_cols:
+                conn.execute("ALTER TABLE community_messages ADD COLUMN payload_json TEXT")
             # Activity mail (mentions, DMs, broadcasts, announcements) is a
             # separate switch from the news cadence: a physician who wants less
             # news still wants to know they were @mentioned. Defaults to on,
@@ -833,6 +846,7 @@ class CommunityStore:
         attachments: Optional[List[Dict[str, Any]]] = None,
         kind: Optional[str] = None,
         cards: Optional[List[Dict[str, Any]]] = None,
+        payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         now = _utcnow_iso()
         with self._conn() as conn:
@@ -840,8 +854,9 @@ class CommunityStore:
                 """
                 INSERT INTO community_messages
                     (channel_id, author_user_id, parent_message_id, body,
-                     mentions_json, attachments_json, kind, cards_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     mentions_json, attachments_json, kind, cards_json,
+                     payload_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     channel_id,
@@ -852,6 +867,7 @@ class CommunityStore:
                     "[]",
                     kind,
                     json.dumps(cards) if cards else None,
+                    json.dumps(payload) if payload else None,
                     now,
                 ),
             )

@@ -379,6 +379,43 @@ def _f_community_items(ctx: _Ctx) -> str:
     return _j({"items": [], "selected": [], "scores": []})
 
 
+def _f_community_digest_post(ctx: _Ctx) -> str:
+    """The §2.2 structure the compose pass now returns.
+
+    Used to be ``_f_prose``, which returned the sentence "Fake model reply...".
+    That was harmless while the compose pass returned prose and is not now: the
+    contract validator would reject it, every offline run would record a
+    contract violation, and the one thing this fixture exists to make
+    observable — a digest that actually renders as a card — would be the one
+    thing it could never produce.
+
+    Three items, which is the floor, so the fixture also documents the floor.
+    Every rule in ``community.digest_contract`` holds for this payload; the
+    contract test asserts exactly that, so a rule added there without a fixture
+    update fails loudly here rather than silently offline.
+    """
+    return _j({"items": [
+        {"headline": "Fake transport returns a digest instead of a real model",
+         "why_it_matters": "Sandbox runs exercise the card and the email without "
+                           "reaching a vendor.",
+         "source": "Archangel Sandbox",
+         "url": "https://fake.invalid/digest/transport",
+         "section": "Evals"},
+        {"headline": "Structured posts replace the markdown blob in the digest",
+         "why_it_matters": "The web card and the email now render from one "
+                           "description of the post.",
+         "source": "Archangel Sandbox",
+         "url": "https://fake.invalid/digest/structure",
+         "section": "Deployment"},
+        {"headline": "Contract rules are enforced after the model answers",
+         "why_it_matters": "A prompt is a request, so a validator decides what "
+                           "physicians actually see.",
+         "source": "Archangel Sandbox",
+         "url": "https://fake.invalid/digest/contract",
+         "section": "Research"},
+    ]})
+
+
 def _f_community_morning(ctx: _Ctx) -> str:
     """A JSON ARRAY in the shape the morning composers read.
 
@@ -452,7 +489,7 @@ _FIXTURES: dict[str, Callable[[_Ctx], str]] = {
     # site then looked up a key that no longer existed. Nothing user-visible was
     # wrong; the fixture simply stopped resolving, and test_no_fixture_key_is_dead
     # is what caught it.
-    "community news digest: compose post": _f_prose,
+    "community news digest: compose post": _f_community_digest_post,
     "community news digest: select/score items": _f_community_items,
     "gold_deid": _f_gold_deid,
     "gold_draft": _f_prose,

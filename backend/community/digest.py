@@ -36,10 +36,10 @@ import asyncio
 import logging
 import os
 import realm as _realm
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from community import feeds, links
+from community import digest_contract, feeds, links
 from community.store import get_community_store
 from community.system_posts import post_system_message
 
@@ -102,25 +102,56 @@ _SELECT_SYSTEM = (
     "Every input id must appear exactly once. Do not add fields or prose."
 )
 
+# The compose pass returns STRUCTURE, and the product renders it (PRD §2.2).
+# It used to return "markdown-lite" prose, which the web rendered as a subset of
+# markdown, the email rendered as literal asterisks and brackets, and the
+# notification snippet rendered as a whitespace-collapsed copy of the raw
+# string. Three renderings of one blob, none of them designed.
+#
+# Shaping kept items is also a SMALLER job than writing a post: the selection
+# pass has already decided what is in and written the factual one-liner, so this
+# pass rewrites two short fields per item and picks a section. Every rule below
+# is also enforced by ``digest_contract`` after the call, because a prompt is a
+# request and a validator is a guarantee.
 _COMPOSE_SYSTEM = (
-    "You write the digest post for #medical-ai-news in a physicians' community. "
-    "Input: a JSON list of kept items (title, url, one_liner, source). Output: the post "
-    "body ONLY, markdown-lite (no HTML): start with one bold header line naming the "
-    "digest (e.g. **Medical AI Digest** or **Papers of the Week**), NO calendar date "
-    "in the header or anywhere else (the platform timestamps the post; full dates "
-    "false-trip the clinical PHI filter), rephrase any full date in a one_liner to "
-    "month-year or 'this week'. Then group items under 2-4 bold section lines (e.g. "
-    "**Research**, **Industry & deployment**, **Regulation**), each item exactly one "
-    "bullet: \"- [title](url): one_liner\". If two items cover the same story, keep "
-    "one bullet and fold the second link in as \"(also: [source](url))\". No intro "
-    "paragraph, no sign-off, no invented facts, no items beyond the input."
+    "You shape a news digest for a private community of verified physicians. "
+    "Input: a JSON list of kept items (title, url, one_liner, source). Output: "
+    "ONLY a JSON object {\"items\": [{\"headline\", \"why_it_matters\", "
+    "\"source\", \"url\", \"section\"}]}. No prose, no markdown, no code fence.\n"
+    "Rules, all enforced by a validator that DISCARDS the whole run on a "
+    "violation:\n"
+    "- Return 3 to 5 items. Never more. Choose the strongest; drop the rest.\n"
+    "- headline: at most 12 words, plain declarative, sentence case, no trailing "
+    "period. Say what happened, not why it is interesting.\n"
+    "- why_it_matters: at most 25 words, ONE sentence, written for a practising "
+    "physician: what changes for patient care or for AI evaluation.\n"
+    "- Banned everywhere: em dash and en dash (use a comma or a period), "
+    "hashtags, asterisks, emoji, exclamation marks, and the words game-changer, "
+    "revolutionary, exciting, groundbreaking, breakthrough, unprecedented.\n"
+    "- No calendar dates anywhere (the platform timestamps the post, and a full "
+    "date false-trips the clinical PHI filter). Say 'this week' or a month and "
+    "year instead.\n"
+    "- section: exactly one of Research, Regulation, Deployment, Evals, Opinion. "
+    "Never invent a section.\n"
+    "- source: the publisher's name as a person would say it (STAT, Nature "
+    "Medicine, JAMA), never a URL host like statnews.com.\n"
+    "- url: copy the input url exactly. Never invent a fact or an item that is "
+    "not in the input, and never repeat a url."
 )
 
 
-async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str], Dict[int, Dict[str, Any]]]:
-    """Two LLM passes. Returns ``(post_body | None, {item_id: {summary, relevance}})``.
-    ``None`` body = nothing worth posting (a valid quiet day). A parse failure
-    RAISES — the caller records the run as failed and posts nothing."""
+async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict[str, Any]], Dict[int, Dict[str, Any]]]:
+    """Two LLM passes. Returns ``(payload | None, {item_id: {summary, relevance}})``.
+
+    ``payload`` is the validated §2.2 structure (``digest_contract``), not a post
+    body: the product renders the card, the email and the plain-text body from
+    it, so there is one description of the digest and three views of it.
+
+    ``None`` = nothing worth posting (a valid quiet day). A parse failure or a
+    contract violation RAISES — the caller records the run as failed and posts
+    nothing, which is what a malformed digest has always done. Half a digest is
+    worse than none, because nobody goes looking for the one that is missing.
+    """
     from ai.llm_client import call_llm, first_text  # noqa: PLC0415
     from asclepius.model_sampling import extract_json  # noqa: PLC0415
 
@@ -158,12 +189,25 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
         summaries[iid] = {
             "summary": (r.get("one_liner") or "").strip()[:300] or None,
             "relevance": float(r.get("relevance") or 0.0),
+            # What the SELECT pass decided, kept separately from what actually
+            # reached the channel. The two differ on any day the compose pass
+            # trims to the cap or the run stops below the floor, and conflating
+            # them is what retired stories that were never even offered.
+            "selected": bool(r.get("keep")),
         }
         if r.get("keep"):
             kept.append({**by_id[iid], **summaries[iid]})
     kept.sort(key=lambda x: -(x.get("relevance") or 0.0))
     kept = kept[: max_items()]
     if not kept:
+        return None, summaries
+
+    # Below the floor there is no digest to shape, so the compose call is not
+    # made at all: a two-item day is a quiet day, and spending a model call to
+    # be told so is the kind of cost that only shows up on the bill.
+    if len(kept) < digest_contract.MIN_ITEMS:
+        log.info("[digest] %s: %d item(s) kept, floor is %d; treating as a quiet day",
+                 kind, len(kept), digest_contract.MIN_ITEMS)
         return None, summaries
 
     compose_input = [
@@ -181,13 +225,32 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
         temperature=0.2,
         max_tokens=max_tokens(),
     )
-    body = (first_text(resp2) or "").strip()
-    if not body:
+    raw = first_text(resp2) or ""
+    if not raw.strip():
         raise ValueError("digest compose pass returned empty text")
-    # mark kept for the caller
+    composed = extract_json(raw)
+    if composed is None:
+        raise ValueError("digest compose pass returned unparseable JSON")
+    # Raises DigestContractError on a violation, which the caller records as a
+    # failed run. Deliberately NOT repaired into something publishable: the
+    # rules exist because an unconstrained model wrote the post, and a
+    # post-processor that quietly rewrites a 30-word headline is the same
+    # problem with an extra step.
+    payload = digest_contract.validate_payload(composed, kind=kind)
+
+    # Which fetched items actually reached the post. Matched on the NORMALISED
+    # url — the same identity ``upsert_content_items`` dedups on — because an
+    # exact string compare is a join on the model's typing. A trailing slash, a
+    # dropped tracking parameter or a percent-encoded character is the same
+    # story to every other part of this pipeline, and to an exact compare it is
+    # a different one: the digest posts, nothing matches, and the run records
+    # "posted 0" beside a message that is sitting in the channel, with the
+    # provenance link from story to message lost for good.
+    posted_urls = {feeds.normalize_url(i["url"]) for i in payload["items"]}
     for k in kept:
-        summaries[k["id"]]["kept"] = True
-    return body, summaries
+        if feeds.normalize_url(k.get("url") or "") in posted_urls:
+            summaries[k["id"]]["posted"] = True
+    return payload, summaries
 
 
 async def _fetch(kind: str) -> List[Dict[str, Any]]:
@@ -209,71 +272,32 @@ async def _fetch(kind: str) -> List[Dict[str, Any]]:
     return _keyword_filter(items, require=True)
 
 
-def _headline_from(body: str) -> str:
-    """First non-empty, non-bullet line, trimmed. The model is asked for a lead
-    line; this is the fallback that keeps a subject from being empty."""
-    for raw in (body or "").split("\n"):
-        line = raw.strip().lstrip("#").strip()
-        if line and not line.startswith(("-", "*")):
-            return line[:120]
-    return "What moved in medical AI"
-
-
-async def _email_digest(kind: str, body: str) -> int:
-    """Mail the digest to members whose preference matches this run.
-
-    News is the daily habit; papers ride the weekly preference. Members who have
-    never been asked get the default the moment their prefs row is created,
-    which happens here on first read.
-    """
-    from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
-    from onboarding_emails import build_community_news_digest_email  # noqa: PLC0415
-    from community.router import member_map  # noqa: PLC0415
-
-    if not is_email_transport_configured():
-        return 0
-
-    # When the morning routine is on it owns the daily email, and this digest
-    # is one of the things it carries. Two automated emails on the same morning
-    # from the same product is one too many, and the one people would unsubscribe
-    # from is whichever arrived second. The in-app post still happens.
-    from community import morning as _cmorning  # noqa: PLC0415
-
-    if _cmorning.enabled():
-        log.info("[digest] morning routine owns the daily email; skipping the digest send")
-        return 0
-    cstore = get_community_store()
-    weekly = kind == "papers"
-    headline = _headline_from(body)
-
-    sent = 0
-    for uid, member in (member_map(include_email=True) or {}).items():
-        email = (member or {}).get("email")
-        if not email:
-            continue
-        prefs = cstore.email_prefs(uid)
-        want = "weekly" if weekly else "daily"
-        if prefs.get("news_frequency") != want:
-            continue
-        unsub = links.unsubscribe_url(prefs.get("unsubscribe_token") or "")
-        try:
-            ok = await send_html_email(
-                email,
-                headline,
-                build_community_news_digest_email(
-                    first_name=((member.get("display_name") or "").split() or ["there"])[0],
-                    headline=headline,
-                    body_markdown=body,
-                    community_url=links.community_url(),
-                    unsubscribe_url=unsub,
-                ),
-            )
-            if ok:
-                sent += 1
-        except Exception:
-            log.warning("[digest] email failed for one recipient", exc_info=True)
-    log.info("[digest] %s emailed to %d member(s)", kind, sent)
-    return sent
+# ─── Who mails the digest ────────────────────────────────────────────────────
+# ONE SENDER, and it is the notification queue.
+#
+# There used to be two. ``post_system_message(announce=True)`` queues a ``post``
+# notification for every member and ``notify.flush_pending`` mails it, and
+# ``_email_digest`` ALSO walked the member map and sent the same thing directly.
+# The two were kept apart by ``_email_digest`` switching itself off whenever the
+# morning routine was enabled — which is the default — so in production only the
+# queue ever sent, and the second sender was dead code that would wake up the
+# moment somebody set COMMUNITY_MORNING_ENABLED=0 and mail every physician the
+# same digest twice.
+#
+# That guard was aimed at the right problem and hit the wrong target. The
+# morning routine has no mailer of its own; it posts with ``announce=True`` and
+# rides the same queue. So "the morning owns the daily email" was never a reason
+# for a second sender to exist, only a reason for it to be quiet, and a sender
+# whose correctness depends on staying switched off is a duplicate waiting for a
+# configuration change.
+#
+# The queue does everything this did and does it better: it batches per member
+# per flush, it retries a failed send instead of dropping it, it counts attempts
+# and gives up loudly, and ``notify._wants_digest`` applies the same news-cadence
+# rule this applied (news daily, papers weekly, off takes both). The one thing it
+# does differently is timing — the mail goes out on the next flush rather than
+# inside the run — and for a daily digest that is not a property worth a second
+# code path to preserve.
 
 
 # ─── Why a run posted nothing ────────────────────────────────────────────────
@@ -284,17 +308,71 @@ REASON_POSTED = "posted"
 REASON_NOTHING_FETCHED = "no_source_items"
 REASON_NOTHING_FRESH = "nothing_new"
 REASON_NOTHING_KEPT = "nothing_worth_posting"
+#: The selector found something, but fewer stories than a digest is worth
+#: posting. Distinct from ``nothing_worth_posting`` because the fix is
+#: different: one says the news was thin, the other says the sources were.
+REASON_BELOW_FLOOR = "below_item_floor"
 REASON_NO_MODEL_KEY = "no_model_key"
 REASON_ERROR = "run_failed"
 REASON_BLOCKED = "post_blocked"
+#: The compose pass answered, and what it answered will not be published.
+#: Distinct from ``run_failed`` because the fix is different in kind: the
+#: pipeline is healthy, the model is reachable, and the post was refused on its
+#: contents. Without it, a week of contract violations reads on the admin card
+#: exactly like a week of network errors.
+REASON_CONTRACT = "contract_violation"
 
 
-def _failure_reason() -> str:
+def _failure_reason(exc: Optional[BaseException] = None) -> str:
     """The reason behind a raised run. A missing key is the one worth naming:
     every LLM call fails identically without it, and the fix is one variable."""
+    if isinstance(exc, digest_contract.DigestContractError):
+        return REASON_CONTRACT
     if not (os.getenv("ANTHROPIC_API_KEY") or "").strip():
         return REASON_NO_MODEL_KEY
     return REASON_ERROR
+
+
+def _settle_items(cstore: Any, fresh: List[Dict[str, Any]],
+                  summaries: Dict[int, Dict[str, Any]],
+                  *, message_id: Optional[int] = None) -> List[int]:
+    """Record what happened to every item this run looked at. Returns the ids
+    that reached the channel.
+
+    Three outcomes, and the middle one is the whole point:
+
+    * ``posted``  — it is in the message. Carries ``posted_message_id``, which
+      is the only link from a story back to the post that carried it.
+    * ``new``     — the selector wanted it and the digest had no room, or the
+      run stopped below the floor. STILL A CANDIDATE. Marking these ``skipped``
+      is a pool-starvation bug: a feed that yields two strong stories a day
+      never reaches the three-item floor, and burning both means tomorrow starts
+      from nothing and the digest never posts again while reporting a healthy
+      "nothing worth posting" every single day. ``new_content_items`` already
+      bounds the retry window to three days, so nothing accumulates forever.
+    * ``skipped`` — the selector judged it not worth posting. That is a decision
+      about the story, so it retires.
+    """
+    posted_ids = [iid for iid, s in summaries.items() if s.get("posted")]
+    posted_set = set(posted_ids)
+    held, retired = [], []
+    for it in fresh:
+        iid = it["id"]
+        if iid in posted_set:
+            continue
+        (held if (summaries.get(iid) or {}).get("selected") else retired).append(iid)
+    if posted_ids:
+        cstore.mark_content_items(posted_ids, status="posted",
+                                  posted_message_id=message_id, summaries=summaries)
+    # status="new" is a no-op on the row's candidacy and still writes the
+    # summary and relevance the select pass produced, so a held item arrives at
+    # tomorrow's run already scored.
+    cstore.mark_content_items(held, status="new", summaries=summaries)
+    cstore.mark_content_items(retired, status="skipped", summaries=summaries)
+    if held:
+        log.info("[digest] %d item(s) held for the next run (selected, not posted)",
+                 len(held))
+    return posted_ids
 
 
 async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[str, Any]:
@@ -338,51 +416,76 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
             return {"ok": True, "kind": kind, "fetched": fetched, "fresh": 0,
                     "posted": 0, "emailed": 0, "reason": reason}
 
-        body, summaries = await _curate(kind, fresh)
-        if body is None:
-            # Fresh items, none worth keeping — a valid quiet day.
-            cstore.mark_content_items(
-                [it["id"] for it in fresh], status="skipped", summaries=summaries)
+        payload, summaries = await _curate(kind, fresh)
+        if payload is None:
+            # No post today. Which is NOT the same as "none of these stories was
+            # any good": the run also lands here when the selector kept one or
+            # two and the digest floor is three. Those are held, not burned.
+            _settle_items(cstore, fresh, summaries)
+            held = sum(1 for it in fresh
+                       if (summaries.get(it["id"]) or {}).get("selected"))
+            reason = REASON_BELOW_FLOOR if held else REASON_NOTHING_KEPT
             cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
-                                     items_posted=0, reason=REASON_NOTHING_KEPT)
-            log.info("[digest] %s run: %d fresh, none kept, no post", kind, len(fresh))
+                                     items_posted=0, reason=reason)
+            log.info("[digest] %s run: %d fresh, %d selected, no post (%s)",
+                     kind, len(fresh), held, reason)
             return {"ok": True, "kind": kind, "fetched": fetched,
                     "fresh": len(fresh), "posted": 0, "emailed": 0,
-                    "reason": REASON_NOTHING_KEPT}
+                    "reason": reason}
 
         posted = await post_system_message(
-            channel_slug=DIGEST_CHANNEL, body=body,
+            channel_slug=DIGEST_CHANNEL,
+            # The body is a plain-text rendering of the payload, not the post.
+            # It exists so the row is searchable, so a client that predates the
+            # card still shows something true, and so the PHI gate has every
+            # human-visible character in one string to scan.
+            body=digest_contract.plain_text_body(payload),
             kind=("digest_papers" if kind == "papers" else "digest_news"),
+            payload=payload,
             # The digest is a bot post in a room nobody is watching at 13:00
             # UTC; without this it produced no notification row at all.
             announce=True,
         )
         if posted is None:
-            raise RuntimeError("system post was skipped (channel or PHI gate)")
+            # The write path refused it: the PHI gate found something, or the
+            # body broke the digest style rules. Both are a BLOCKED POST, which
+            # is why REASON_BLOCKED exists; letting it raise made it read as
+            # "the run raised" on the admin card, i.e. indistinguishable from a
+            # network error, which is exactly the confusion REASON_CONTRACT was
+            # added to end one commit earlier.
+            _settle_items(cstore, fresh, summaries)
+            cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
+                                     items_posted=0, error="post_blocked",
+                                     reason=REASON_BLOCKED)
+            log.error("[digest] %s run: the post was refused by the write path "
+                      "(PHI gate or style rules); nothing posted", kind)
+            return {"ok": False, "kind": kind, "fetched": fetched,
+                    "fresh": len(fresh), "posted": 0, "emailed": 0,
+                    "reason": REASON_BLOCKED}
 
-        # Email fan-out, AFTER the in-app post succeeded. Ordering matters: the
-        # channel post is the durable record, and mailing a digest that failed
-        # to post would point people at a discussion that does not exist.
-        emailed = 0
-        try:
-            emailed = await _email_digest(kind, body)
-        except Exception:
-            log.exception("[digest] email fan-out failed (the post stands)")
-
-        kept_ids = [iid for iid, s in summaries.items() if s.get("kept")]
-        other_ids = [it["id"] for it in fresh if it["id"] not in set(kept_ids)]
-        cstore.mark_content_items(kept_ids, status="posted",
-                                  posted_message_id=posted["id"], summaries=summaries)
-        cstore.mark_content_items(other_ids, status="skipped", summaries=summaries)
+        # The email fan-out already happened, inside ``post_system_message``:
+        # ``announce=True`` queued a notification for every member, and the
+        # notify flush turns that into the designed digest email. Ordering is
+        # still right for the reason it always was — the channel post is the
+        # durable record, and mail that pointed at a discussion which failed to
+        # post would be a link to nothing — but it is now guaranteed by
+        # construction rather than by a second call placed after this one.
+        #
+        # ``emailed`` is what the queue accepted, not what a transport
+        # confirmed. A count of delivered mail is not knowable here any more,
+        # and reporting the recipients as if it were is how a run summary
+        # starts lying about a broken transport.
+        kept_ids = _settle_items(cstore, fresh, summaries, message_id=posted["id"])
         cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
                                  items_posted=len(kept_ids), reason=REASON_POSTED)
         log.info("[digest] %s run: posted %d of %d fresh (message %s)",
                  kind, len(kept_ids), len(fresh), posted["id"])
         return {"ok": True, "kind": kind, "fetched": fetched, "fresh": len(fresh),
-                "posted": len(kept_ids), "emailed": emailed, "message_id": posted["id"]}
+                "posted": len(kept_ids), "emailed": None, "message_id": posted["id"],
+                "email_queued": True}
     except Exception as exc:
         cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
-                                 error=str(exc)[:500], reason=_failure_reason())
+                                 error=str(exc)[:500], reason=_failure_reason(exc))
         log.warning("[digest] %s run failed: %s", kind, exc, exc_info=True)
         fails = cstore.consecutive_digest_failures(kind)
         if fails >= 3:
@@ -503,7 +606,7 @@ async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
         return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "quiet", "posted": 0}
     except Exception as exc:
         cstore.finish_digest_run(run_id, ok=False, error=str(exc)[:500],
-                                 reason=_failure_reason())
+                                 reason=_failure_reason(exc))
         log.warning("[spotlight] run failed: %s", exc, exc_info=True)
         return {"ok": False, "kind": SPOTLIGHT_KIND, "error": str(exc)[:500]}
 
@@ -553,6 +656,45 @@ def _due(kind: str, now: datetime, last_ok_started: Optional[str]) -> bool:
     except ValueError:
         return True
     return last < fire_at
+
+
+def next_run_at(kind: str = "news", *, now: Optional[datetime] = None) -> Optional[str]:
+    """When the next scheduled digest of ``kind`` is due, ISO-8601 UTC.
+
+    ASKS ``_due``, rather than reimplementing the calendar beside it. An earlier
+    version computed "today's fire time, or tomorrow's if that has passed",
+    which is a different question and gives a different answer for most of the
+    day: at 14:30 UTC with yesterday's run the newest successful one, ``_due``
+    says the digest is outstanding RIGHT NOW while the arithmetic says tomorrow.
+    The empty ``#medical-ai-news`` then told a physician the next run was
+    tomorrow afternoon during exactly the window the message exists to explain,
+    and went on saying it all day after a failed run, because ``_due`` stays
+    true until a run succeeds.
+
+    ``None`` when the routine is switched off: "the next one is at 13:00" is
+    false then, and an empty room should say nothing rather than something
+    wrong.
+    """
+    if not news_enabled():
+        return None
+    now = now or datetime.utcnow()
+    try:
+        last_ok = get_community_store().last_successful_run_at(kind)
+    except Exception:  # noqa: BLE001 - a schedule line is not worth an exception
+        last_ok = None
+    # Outstanding right now: the honest answer is this window, not the next one.
+    if _due(kind, now, last_ok):
+        fire = now.replace(hour=_news_hour_utc(), minute=0, second=0, microsecond=0)
+        return fire.isoformat() + "Z"
+
+    fire = now.replace(hour=_news_hour_utc(), minute=0, second=0, microsecond=0)
+    if now >= fire:
+        fire = fire + timedelta(days=1)
+    if kind == "papers":
+        # Forward to the next occurrence of the papers weekday, counting the
+        # candidate day itself when its fire time has not passed.
+        fire = fire + timedelta(days=(_papers_dow() - fire.weekday()) % 7)
+    return fire.isoformat() + "Z"
 
 
 async def run_scheduled_digest(

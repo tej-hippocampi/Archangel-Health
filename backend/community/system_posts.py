@@ -60,6 +60,26 @@ def _mask_urls(text: str) -> str:
     return _URL_RE.sub("masked://link", text or "")
 
 
+#: Payload keys that end up in front of a reader. Listed rather than derived by
+#: walking the object: a scan that swept every string would also feed URLs to
+#: the PHI gate, whose MRN and account-number rules fire on the long digit runs
+#: in a DOI or a PMID, and the URL-masking above exists precisely because that
+#: is not a finding.
+_PAYLOAD_VISIBLE_KEYS = ("title", "headline", "why_it_matters", "source", "section")
+
+
+def _payload_text(payload: Optional[Dict[str, Any]]) -> str:
+    """Every human-visible string in a structured post, one per line."""
+    if not isinstance(payload, dict):
+        return ""
+    parts = [str(payload.get("title") or "")]
+    for item in payload.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        parts.extend(str(item.get(k) or "") for k in _PAYLOAD_VISIBLE_KEYS)
+    return "\n".join(p for p in parts if p.strip())
+
+
 def _resolve_channel(channel_slug: str) -> Optional[Dict[str, Any]]:
     """The active channel behind a slug, or None with a loud log.
 
@@ -139,6 +159,53 @@ def _phi_clear(channel: Dict[str, Any], kind: str, text: str,
     )
     log.error("[system-post] PHI gate blocked a %s post to #%s, skipped (fail-closed)",
               kind, channel["slug"])
+    return False
+
+
+#: Kinds whose text is produced under the digest contract and must therefore
+#: already satisfy it. The house-style check below applies to THESE ONLY, and
+#: the scoping is the point: the morning brief and the welcome are markdown-lite
+#: by design, so a rule that stripped their asterisks would break their
+#: rendering, and one that refused them over an em dash would silence a whole
+#: morning over punctuation. For a digest the same violation means the body and
+#: the validated payload disagree, which is a bug worth refusing.
+_HOUSE_STYLE_KINDS = ("digest_news", "digest_papers")
+
+
+def _house_style_clear(channel: Dict[str, Any], kind: str, text: str) -> bool:
+    """The §2.2 banned patterns, checked at the WRITE PATH.
+
+    ``digest_contract`` already enforces these on the way out of the compose
+    pass, so in the normal case this never fires. It is here because the
+    contract guards ONE caller and this guards the door: a second digest
+    producer, a repaired payload, a hand-built body from a script — anything
+    that reaches the store without going through the validator — meets the same
+    rules. A guarantee that lives in one pipeline is a convention; a guarantee
+    that lives at the write path is a guarantee.
+
+    Blocks rather than repairs, for the same reason the PHI gate does: the body
+    and the structured payload are two views of one post, and silently
+    rewriting one of them here would publish a card and a body that disagree.
+    """
+    from community import digest_contract  # noqa: PLC0415 - avoids an import cycle
+
+    if kind not in _HOUSE_STYLE_KINDS:
+        return True
+    # URL-masked, exactly like the PHI scan and for a neighbouring reason: a
+    # fragment identifier is a "#" and a path segment can hold a "!", and
+    # neither is a hashtag or an exclamation mark in any sense a reader would
+    # recognise. Every human-visible character is still checked verbatim.
+    found = digest_contract.banned_patterns(_mask_urls(text))
+    if not found:
+        return True
+    audit_log.record(
+        actor_type="system", actor_id=SYSTEM_USER_ID,
+        action="community.house_style_block", outcome="blocked",
+        resource_type="community", resource=channel["slug"],
+        detail={"surface": "system_post", "kind": kind, "patterns": found},
+    )
+    log.error("[system-post] a %s post to #%s breaks the digest style rules (%s); "
+              "skipped", kind, channel["slug"], ", ".join(found))
     return False
 
 
@@ -223,6 +290,7 @@ async def post_system_message(
     notify: bool = False,
     announce: bool = False,
     cards: Optional[List[Dict[str, Any]]] = None,
+    payload: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Post as the system author into an ACTIVE channel. Returns the
     serialized message, or ``None`` when skipped (unknown/inactive channel,
@@ -236,6 +304,13 @@ async def post_system_message(
     one-line summary and an optional discussion prompt. Their human-visible
     text is scanned exactly like the body -- an external page's title is
     untrusted text and this is where it enters the product.
+
+    ``payload`` is the STRUCTURED post behind a designed bot message (the
+    digest's title and items, PRD §2.5). The client renders a card from it and
+    the email renders a list from it, and ``body`` is a plain-text rendering of
+    the same content. Its human-visible strings are scanned exactly like the
+    body, and for the same reason: the headlines and one-liners in it were
+    written by a model over somebody else's web page.
 
     ``announce`` opts one call into the email fan-out in
     ``notify.queue_for_message``. It began as the #task-announcements rule
@@ -276,8 +351,20 @@ async def post_system_message(
             " ".join(str(c.get(k) or "") for k in ("title", "description", "meta", "prompt"))
             for c in cards
         )
-    if not _phi_clear(channel, kind,
-                      text + ("\n" + card_text if card_text else ""), exempt=exempt):
+    # Same rule for the structured payload. It is NOT covered by scanning the
+    # body: the body is derived from the payload, and a derivation is exactly
+    # the kind of step that quietly stops covering everything the moment
+    # somebody adds a field the renderer shows and the plain-text view omits.
+    # Scanning the payload's own strings keeps the gate honest through that
+    # change rather than one refactor after it.
+    payload_text = _payload_text(payload)
+    visible = "\n".join(t for t in (text, card_text, payload_text) if t)
+    if not _phi_clear(channel, kind, visible, exempt=exempt):
+        return None
+    # Beside the PHI gate, not inside it: one is about patient safety and the
+    # other is about house style, and collapsing them would make a punctuation
+    # slip read as a PHI finding in the block ledger.
+    if not _house_style_clear(channel, kind, visible):
         return None
 
     # Late import — the router imports SYSTEM_MEMBER from this module.
@@ -297,6 +384,7 @@ async def post_system_message(
         attachments=[],
         kind=kind,
         cards=cards or None,
+        payload=payload or None,
     )
     audit_log.record(
         actor_type="system", actor_id=SYSTEM_USER_ID,
