@@ -1,0 +1,46 @@
+name: Bulk media integration
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: integration-only
+          POSTGRES_DB: media_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENV: test
+      MEDIA_TEST_POSTGRES_URL: postgresql://postgres:integration-only@localhost:5432/media_test
+      ASCLEPIUS_DB_PATH: /tmp/media-clinical.db
+      TEAM_DB_PATH: /tmp/media-team.db
+      COMMUNITY_DB_PATH: /tmp/media-community.db
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt pytest pytest-asyncio
+      - run: python -m pytest tests/test_bulk_media.py -q
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --prefix /tmp/media-browser playwright@1.58.2
+      - run: /tmp/media-browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: NODE_PATH=/tmp/media-browser/node_modules node frontend/tests/media-upload.cjs

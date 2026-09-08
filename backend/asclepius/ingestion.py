@@ -545,8 +545,8 @@ def purge_expired_raw(store: Any) -> int:
             rp = u.get("raw_path")
             if rp:
                 retained.add(os.path.basename(rp))
-    except Exception:  # pragma: no cover - defensive; never block a purge on this
-        retained = set()
+    except Exception:  # Fail closed: unavailable retention metadata is not consent.
+        return 0
     deleted = 0
     for p in quarantine_root().glob("*.zip.enc"):
         try:

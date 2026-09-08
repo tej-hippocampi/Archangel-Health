@@ -41,6 +41,7 @@ FORBIDDEN = ("purpose", "brokering", "broker", "task_creation")
 # router and the promotion gate must say these words, that is their job.
 PROVIDER_PY = [
     BACKEND / "routers" / "asclepius_provider.py",
+    BACKEND / "routers" / "asclepius_media_ingest.py",
     BACKEND / "asclepius" / "uploads.py",
 ]
 PROVIDER_WEB = sorted((ROOT / "frontend" / "provider").glob("*"))
@@ -159,7 +160,7 @@ def test_no_provider_response_model_can_carry_it():
             f"provider route {path} encodes the purpose in its URL")
         endpoint = getattr(route, "endpoint", None)
         src_file = getattr(getattr(endpoint, "__code__", None), "co_filename", "")
-        assert "asclepius_provider" in src_file or "static" in src_file.lower(), (
+        assert Path(src_file) in PROVIDER_PY or "static" in src_file.lower(), (
             f"provider route {path} is served from {src_file}, outside the file the "
             "static isolation check covers")
 

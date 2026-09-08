@@ -215,7 +215,7 @@ def asset_storage_durable() -> Tuple[bool, str]:
     )
     root = asset_store()
     if root.startswith("s3://"):
-        return True, "s3 backend configured"
+        return False, "Legacy asset storage has no S3 adapter; use a persistent volume."
     # The platform's own word first, when it gives one. Everything below this is
     # inference from a list of well-known temp directories, and inference cannot
     # tell a real volume mounted at /data from a container-local directory of the

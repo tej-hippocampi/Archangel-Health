@@ -1266,8 +1266,12 @@ async def hs_upload_declare(
     _hs_upload_preconditions(store, portal_user)
     answers_request = _resolve_upload_request(store, body.request_id)
 
+    existing = store.find_open_upload_session(
+        owner_kind=_UPLOAD_OWNER_KIND, owner_id=hs_id,
+        actor=portal_user["username"], declared_sha256=body.sha256.strip().lower(),
+        declared_size=body.size)
     remaining = _hs_quota_remaining(store, hs_id)
-    if remaining <= 0 or body.size > remaining:
+    if not existing and (remaining <= 0 or body.size > remaining):
         raise HTTPException(
             status_code=429,
             detail="You have reached the upload limit for today. Please continue "

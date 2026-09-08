@@ -442,6 +442,9 @@
   function renderUpload() {
     renderHeader();
     mountTemplate("tplUpload");
+    if (window.ArchangelMedia && currentUser && currentUser.username) {
+      window.ArchangelMedia.mount(root, apiJson, currentUser.username).catch(() => {});
+    }
 
     const drop = document.getElementById("prvDrop");
     const fileInput = document.getElementById("prvFileInput");

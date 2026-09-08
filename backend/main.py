@@ -103,6 +103,8 @@ from routers.asclepius import router as asclepius_router
 from community.router import router as community_router
 from community.router import page_router as community_page_router
 from routers.asclepius_provider import router as asclepius_provider_router
+from routers.asclepius_media_ingest import router as asclepius_media_ingest_router
+from routers.asclepius_media_admin import router as asclepius_media_admin_router
 from routers.asclepius_admin import router as asclepius_admin_router
 from routers.asclepius_buyer import router as asclepius_buyer_router
 from routers.asclepius_verify import router as asclepius_verify_router
@@ -7366,6 +7368,8 @@ app.include_router(telehealth_router)
 app.include_router(asclepius_media_router)
 app.include_router(asclepius_router)
 app.include_router(asclepius_provider_router)
+app.include_router(asclepius_media_ingest_router)
+app.include_router(asclepius_media_admin_router)
 app.include_router(asclepius_admin_router)
 app.include_router(asclepius_buyer_router)
 # Sandbox PRD §2–§4: seed / accounts / outbox / reset / snapshot copy. Every
