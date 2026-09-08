@@ -367,3 +367,56 @@ def _png_bytes() -> bytes:
     buf = _io.BytesIO()
     Image.new("RGB", (8, 8), (10, 20, 30)).save(buf, format="PNG")
     return buf.getvalue()
+
+
+# ── F2b: the gate covers FIVE stores, not three ──────────────────────────────
+def test_the_gate_block_covers_the_community_and_tenant_databases():
+    """The community and the tenant funnel were WARN-only, and the community
+    was being deleted on every redeploy in production while a CRITICAL log line
+    nobody read said so. The stated reason for warning — that failing closed
+    would take down a running deployment — is the argument for it.
+
+    Asserted the same way the three-store version above is: the gate is a
+    startup block, not a callable, so the test reads its source for the shape
+    that matters."""
+    src = (Path(__file__).resolve().parent.parent / "main.py").read_text(encoding="utf-8")
+    block = src[src.index("─── storage durability"):src.index("─── end storage durability")]
+    # All five stores are inside the block that raises, not in a warn-only
+    # stanza after it.
+    for var in ("ASCLEPIUS_DB_PATH", "ASCLEPIUS_INGEST_DIR", "ASCLEPIUS_ASSET_STORE",
+                "TEAM_DB_PATH", "COMMUNITY_DB_PATH"):
+        assert var in block, var
+    raise_at = block.index("raise RuntimeError")
+    assert block.index("COMMUNITY_DB_PATH") < raise_at
+    assert block.index("TEAM_DB_PATH") < raise_at
+    # The escape hatch survives: refusing to boot with no way back up is a
+    # stopped service at 2am, which reads the same as a crash.
+    assert "STORAGE_GATE_ALLOW_EPHEMERAL" in block
+
+
+def test_healthz_reports_every_store_with_its_resolved_path(monkeypatch):
+    """"Which store is on the wrong disk, and what path did it pick" was
+    answerable only from boot logs that had already scrolled."""
+    previous = getattr(A.app.state, "storage_durability", None)
+    A.app.state.storage_durability = {
+        "checked": True, "ok": False, "gate_overridden": False,
+        "failures": [{"store": "community database", "variable": "COMMUNITY_DB_PATH",
+                      "why": "beside the code"}],
+        "stores": [
+            {"store": "database", "variable": "ASCLEPIUS_DB_PATH",
+             "path": "/data/asclepius.db", "durable": True},
+            {"store": "community database", "variable": "COMMUNITY_DB_PATH",
+             "path": "/app/backend/community.db", "durable": False},
+        ],
+    }
+    try:
+        body = client.get("/healthz").json()
+        rows = {s["variable"]: s for s in body["storage_stores"]}
+        assert rows["ASCLEPIUS_DB_PATH"]["durable"] is True
+        assert rows["COMMUNITY_DB_PATH"]["durable"] is False
+        assert rows["COMMUNITY_DB_PATH"]["path"] == "/app/backend/community.db"
+    finally:
+        if previous is None:
+            delattr(A.app.state, "storage_durability")
+        else:
+            A.app.state.storage_durability = previous

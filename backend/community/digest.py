@@ -234,9 +234,12 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
     payload = digest_contract.validate_payload(composed, kind=kind)
 
     # Only the items that SURVIVED the contract count as posted. The compose
-    # pass is allowed to drop weak items down to the floor, and marking a
-    # dropped story "posted" would strand it: it is neither in the digest nor
-    # available to tomorrow's run.
+    # pass is allowed to drop weak items down to the cap, and a story it dropped
+    # is recorded as skipped rather than posted: both statuses retire the item,
+    # so the difference is not whether tomorrow re-picks it but whether the
+    # ledger claims a story reached the channel when it never did. The run's
+    # ``posted`` count is read off the same set, so it is the number of items a
+    # physician can actually see.
     posted_urls = {i["url"] for i in payload["items"]}
     for k in kept:
         if k.get("url") in posted_urls:

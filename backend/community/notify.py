@@ -330,25 +330,32 @@ async def flush_pending(
         kinds: set = set()
         for n in items:
             kind = n["kind"]
-            # Opted out of THIS stream. Mark handled rather than leaving the
-            # rows pending, or the queue grows forever and every later flush
-            # re-reads them. The in-app notification is unaffected; only the
-            # email stops.
-            if not wants(_KIND_STREAM.get(kind, "activity")):
-                dropped_ids.append(n["id"])
-                continue
             msg = cstore.get_message(n["message_id"])
             if not msg or msg.get("deleted"):
                 orphan_ids.append(n["id"])
                 continue
             payload = digest_payload_of(msg)
             if payload is not None:
-                # A cadence the member did not ask for is an opt-out, not a
-                # failure: mark it handled so it stops being re-read.
+                # A DIGEST ANSWERS TO THE NEWS CADENCE, and to that alone.
+                # It is queued as a ``post``, so riding the post toggle as well
+                # would make "daily news" mean "daily news, if you also left bot
+                # posts on" — a silent AND across two switches, only one of
+                # which the preferences page presents as being about news. The
+                # cadence is the switch a physician actually chose.
+                #
+                # A cadence they did not ask for is an opt-out, not a failure:
+                # mark it handled so it stops being re-read every flush.
                 if not _wants_digest(payload, prefs):
                     dropped_ids.append(n["id"])
                     continue
                 digest_sends.append((payload, n["id"]))
+                continue
+            # Opted out of THIS stream. Mark handled rather than leaving the
+            # rows pending, or the queue grows forever and every later flush
+            # re-reads them. The in-app notification is unaffected; only the
+            # email stops.
+            if not wants(_KIND_STREAM.get(kind, "activity")):
+                dropped_ids.append(n["id"])
                 continue
             activity_ids.append(n["id"])
             actor = resolve_member(msg["author_user_id"]) if resolve_member else None

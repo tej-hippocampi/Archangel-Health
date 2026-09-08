@@ -381,3 +381,157 @@ def test_the_papers_run_lands_on_its_weekday(monkeypatch):
     # 2026-09-08 is a Tuesday, so the next Monday is the 14th.
     nxt = cdigest.next_run_at("papers", now=datetime(2026, 9, 8, 9, 0))
     assert nxt == "2026-09-14T13:00:00Z"
+
+
+# ═══ End to end: the payload reaches the client ══════════════════════════════
+
+def test_a_digest_run_stores_its_payload_and_the_api_serves_it(monkeypatch, tmp_path):
+    """The card cannot render what the API does not send.
+
+    Drives the real pipeline with a canned model, then reads the message back
+    the way the browser does. Asserts BOTH halves of the compatibility promise:
+    a structured post carries `payload`, and a legacy markdown post carries
+    None so the client falls through to renderBody.
+    """
+    import asyncio
+
+    import ai.llm_client as llm
+    from community import feeds as cfeeds
+    from community import router as crouter
+
+    # Rebind the REALM'S store rather than instantiating one and patching the
+    # accessor: digest.py and system_posts.py bind get_community_store at
+    # import time, so a patched module attribute would leave the pipeline
+    # writing to the suite's shared database while this test read an empty one.
+    #
+    # Restored afterwards. CI shards by a bin-packer, so which file runs next
+    # in this process is decided by the packing rather than by anything visible
+    # here, and a test that leaves the realm pointed at a torn-down tmp_path is
+    # a failure that appears only when an unrelated file is added.
+    previous = community_store.get_community_store()
+    monkeypatch.setattr(community_store, "_stores",
+                        dict(community_store._stores), raising=False)
+    store = community_store.reset_community_store_for_tests(
+        db_path=str(tmp_path / "community.db"))
+    assert previous is not None
+    monkeypatch.setattr(crouter, "member_map", lambda **kw: {})
+    store.ensure_default_channels()
+
+    async def fake_call_llm(*, role, system, messages, **kw):
+        sent = json.loads(messages[0]["content"])
+        if "digest_kind" in sent:
+            return json.dumps({"items": [
+                {"headline": it["title"][:60],
+                 "why_it_matters": "It changes what a clinic does.",
+                 "source": "Fake Wire", "url": it["url"],
+                 "section": "Research"}
+                for it in sent["items"]]}), {}
+        return json.dumps({"items": [
+            {"id": it["id"], "keep": True, "relevance": 0.9,
+             "one_liner": "what happened"} for it in sent["items"]]}), {}
+
+    async def fake_rss():
+        return [cfeeds._item("rss:test", url=f"https://example.com/s{i}",
+                             title=f"AI model cleared for clinical use {i}",
+                             abstract="An artificial intelligence system.")
+                for i in range(3)]
+
+    monkeypatch.setattr(llm, "call_llm", fake_call_llm)
+    monkeypatch.setattr(llm, "first_text", lambda resp: resp)
+    monkeypatch.setattr(cfeeds, "fetch_rss", fake_rss)
+    monkeypatch.setattr(cdigest, "_email_digest",
+                        lambda *a, **k: asyncio.sleep(0, result=0))
+
+    result = asyncio.new_event_loop().run_until_complete(cdigest.run_digest("news"))
+    assert result["ok"] is True and result["posted"] == 3
+
+    channel = store.get_channel_by_slug("medical-ai-news")
+    msgs, _ = store.list_messages(channel["id"])
+    assert len(msgs) == 1
+    stored = json.loads(msgs[0]["payload_json"])
+    assert len(stored["items"]) == 3
+    assert stored["title"] == "Medical AI digest"
+    # The body is a plain-text rendering of the same object, not a second
+    # description of the post that could drift from it.
+    assert stored["items"][0]["headline"] in msgs[0]["body"]
+
+    served = crouter._serialize_messages(msgs, {}, "medical-ai-news")[0]
+    assert served["payload"]["items"][0]["section"] == "Research"
+
+    # A post written before the column existed: the client gets None and falls
+    # back to rendering the body, which is the entire migration.
+    legacy = store.insert_message(channel_id=channel["id"], author_user_id="u-system",
+                                  body="Old digest body", kind="digest_news")
+    old_served = crouter._serialize_messages([store.get_message(legacy["id"])],
+                                             {}, "medical-ai-news")[0]
+    assert old_served["payload"] is None
+
+
+def test_a_deleted_digest_serves_neither_body_nor_payload():
+    """The point of a delete is that the content stops being served, and a
+    payload left behind would render the whole post under 'Message removed'."""
+    from community import router as crouter
+
+    row = {"id": 1, "author_user_id": "u-system", "kind": "digest_news",
+           "body": "Medical AI digest", "created_at": "2026-09-08T13:00:00Z",
+           "deleted_at": "2026-09-08T14:00:00Z", "deleted": True,
+           "payload_json": json.dumps(_payload()), "cards_json": None,
+           "parent_message_id": None, "mentions": [], "attachments": []}
+
+    class _Stub:
+        def reply_counts(self, ids): return {}
+        def reactions_for(self, ids): return {}
+        def pinned_message_ids(self, ids): return set()
+
+    import unittest.mock as mock
+    with mock.patch.object(crouter, "_cstore", lambda: _Stub()):
+        served = crouter._serialize_messages([row], {}, "medical-ai-news")[0]
+    assert served["payload"] is None and served["body"] == ""
+
+
+def test_a_digest_answers_to_the_news_cadence_and_not_to_the_post_toggle(
+        monkeypatch, tmp_path):
+    """"Daily news" must not silently mean "daily news, if you also left bot
+    posts on". The cadence is the switch the preferences page shows for news;
+    requiring a second one nobody was shown is how a member concludes the
+    setting is broken and presses the spam button instead.
+    """
+    import asyncio
+
+    store = _store_at(tmp_path / "community.db")
+    store.ensure_default_channels()
+    channel = store.get_channel_by_slug("medical-ai-news")
+    payload = contract.validate_payload(_payload(), kind="news")
+    msg = store.insert_message(
+        channel_id=channel["id"], author_user_id="u-system",
+        body=contract.plain_text_body(payload), kind="digest_news", payload=payload)
+    store.enqueue_notification(user_id="u-1", kind="post", message_id=msg["id"])
+
+    # Bot posts off, news daily: the digest still goes.
+    store.set_email_stream("u-1", "post", False)
+    store.set_news_frequency("u-1", "daily")
+
+    sent = []
+
+    async def fake_send(to, subject, body):
+        sent.append(subject)
+        return True
+
+    monkeypatch.setattr("email_utils.send_html_email", fake_send)
+    asyncio.new_event_loop().run_until_complete(cnotify.flush_pending(
+        store, resolve_member=lambda uid: {"email": "d@example.test",
+                                           "display_name": "Dr Test"}))
+    assert sent == ["Medical AI digest · 3 items"]
+
+    # News off: nothing goes, and the row is settled rather than retried forever.
+    msg2 = store.insert_message(
+        channel_id=channel["id"], author_user_id="u-system",
+        body=contract.plain_text_body(payload), kind="digest_news", payload=payload)
+    store.enqueue_notification(user_id="u-1", kind="post", message_id=msg2["id"])
+    store.set_news_frequency("u-1", "off")
+    sent.clear()
+    asyncio.new_event_loop().run_until_complete(cnotify.flush_pending(
+        store, resolve_member=lambda uid: {"email": "d@example.test",
+                                           "display_name": "Dr Test"}))
+    assert sent == []
+    assert store.unsent_notifications() == []
