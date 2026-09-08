@@ -192,3 +192,48 @@ def test_every_class_the_journey_emits_has_a_rule():
     for cls in ("asc-founders", "asc-founders-photo", "asc-founders-mission",
                 "asc-founders-sign", "asc-info-rows", "asc-info-row"):
         assert f".{cls}" in _CSS, f"{cls} has no rule"
+
+
+# ── The founders, where a physician actually meets them ─────────────────────
+
+def test_one_calendar_for_every_physician_facing_invitation():
+    """This pointed at two different founders' calendars: a doctor invited to
+    book from the approval email and the same doctor booking from the portal
+    landed on different people. One audience having one conversation gets one
+    link. The health-system pair stays separate on purpose, because which
+    founder takes that call is a routing decision and not a tidiness one."""
+    import onboarding_emails as oe
+
+    first_run = (_FRONTEND / "first_run.js").read_text(encoding="utf-8")
+    assert "aryaabhatia-berkeley" in oe.FOUNDER_INTRO_CALENDLY
+    assert "aryaabhatia-berkeley" in first_run
+    assert "tejpatel-berkeley" not in first_run
+    assert "aryaabhatia-berkeley" in _JS, "the applicant dashboard books elsewhere"
+
+
+def test_the_founder_signature_is_spelled_one_way():
+    """Six sites said "&", three said "and", one said "Tej Patel & Aryaa
+    Bhatia". A signature that changes between two emails on the same morning
+    reads as two different senders."""
+    import onboarding_emails as oe
+    import inspect
+
+    src = inspect.getsource(oe)
+    for wrong in ("Tej &amp; Aryaa", "Tej & Aryaa", "Tej Patel &amp; Aryaa Bhatia"):
+        assert wrong not in src, wrong
+    assert "Tej and Aryaa" in src
+
+
+def test_no_founder_image_is_committed():
+    """Every consumer degrades deliberately when the file is missing (initials,
+    or names alone, or no <img> at all), and each of those reads better than a
+    grey rectangle where a face should be. So a blank placeholder would be
+    worse than nothing, and a real one is a photo of real people on a public
+    unauthenticated path, in permanent history."""
+    assets = pathlib.Path(__file__).resolve().parents[1] / "assets"
+    images = [p.name for p in assets.iterdir()
+              if p.suffix.lower() in {".png", ".jpg", ".jpeg"}]
+    assert not images, f"committed founder imagery: {images}"
+    readme = (assets / "README.md").read_text(encoding="utf-8")
+    for named in ("founders.jpg", "community-persona.png", "founders-wide.jpg"):
+        assert named in readme, f"{named} is referenced by code but undocumented"

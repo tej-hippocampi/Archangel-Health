@@ -423,9 +423,24 @@ def _last_name(full_or_last: str) -> str:
 
 
 #: Onboarding v2 §4.4 §4: the founders meet every physician one on one. One
-#: constant, because it appears in the welcome email and the walkthrough and the
-#: two must never drift.
-FOUNDER_INTRO_CALENDLY = "https://calendly.com/tejpatel-berkeley/intro-with-tej-patel"
+#: constant, because it appears in the welcome email, the walkthrough and the
+#: applicant's own dashboard, and the three must never drift.
+#:
+#: ONE PHYSICIAN LINK. This pointed at a second calendar for a while, so a
+#: doctor invited to "book twenty minutes with us" from an email and the same
+#: doctor booking from the portal landed on different founders' calendars. They
+#: are one audience having one conversation, so they get one link.
+#:
+#: The health-system pair below is deliberately NOT collapsed into this: those
+#: are a different audience, and which founder takes that call is a routing
+#: decision rather than a tidiness one.
+#:
+#: Env-overridable for the same reason PARTNER_BOOKING_CALENDLY is: a founder
+#: moving their calendar should be a deploy variable, not a release.
+FOUNDER_INTRO_CALENDLY = (
+    os.getenv("FOUNDER_INTRO_URL")
+    or "https://calendly.com/aryaabhatia-berkeley/new-meeting"
+).strip()
 
 #: Where a health system books the call that /partner used to book on its own
 #: success screen. A DIFFERENT calendar from the one above, on a different
@@ -1082,7 +1097,7 @@ def build_application_start_email(
         + _p(f"Your progress saves automatically, so you can stop anywhere and come "
              f"back to exactly where you were. This link is yours for {expires_days} days.",
              muted=True, small=True)
-        + _founder_signoff("Tej & Aryaa, founders")
+        + _founder_signoff("Tej and Aryaa, founders")
     )
     return _shell(subject="Pick up your Archangel Health application any time",
                   body_html=body)
@@ -1102,7 +1117,7 @@ def build_application_nudge_email(*, first_name: str, onboarding_url: str) -> st
              "you left them.")
         + _cta(onboarding_url, "Finish my application")
         + _p("We read every application personally. We&rsquo;d love to see yours.")
-        + _founder_signoff("Tej & Aryaa, founders")
+        + _founder_signoff("Tej and Aryaa, founders")
     )
     return _shell(subject="Your application is waiting: 2 minutes to finish",
                   body_html=body)
@@ -1126,7 +1141,7 @@ def build_application_expiring_email(
         + _cta(onboarding_url, "Finish my application")
         + _p("If it lapses, just start again from the website and write to us, "
              "we&rsquo;ll pick it back up with you.", muted=True, small=True)
-        + _founder_signoff("Tej & Aryaa, founders")
+        + _founder_signoff("Tej and Aryaa, founders")
     )
     return _shell(subject="Your Archangel Health link expires tomorrow",
                   body_html=body)
@@ -1334,7 +1349,7 @@ def build_application_submitted_email(*, full_name: str, portal_url: str = "") -
              "and that starts with how we welcome physicians. You&rsquo;ll hear from us "
              "either way.")
         + waiting
-        + _founder_signoff("Tej Patel & Aryaa Bhatia")
+        + _founder_signoff("Tej and Aryaa")
     )
     return _shell(subject="We&rsquo;ve got your application", body_html=body)
 
@@ -1409,7 +1424,7 @@ def build_application_welcome_email(
              "most. Book 20 minutes with us: about the mission, the platform, your "
              "specialty, or anything else. We&rsquo;d genuinely love to learn from you.")
         + _cta(calendly_url, "Book 20 minutes")
-        + _founder_signoff("Tej & Aryaa, co-founders")
+        + _founder_signoff("Tej and Aryaa, co-founders")
     )
     return _shell(subject=subject, body_html=body)
 
@@ -1558,7 +1573,7 @@ def build_asclepius_rejected_email(*, full_name: str, sign_in_url: str = "") -> 
             "already hold.",
             muted=True, small=True,
         )
-        + _founder_signoff("Tej & Aryaa, founders")
+        + _founder_signoff("Tej and Aryaa, founders")
     )
     # Not "You were rejected". That is the line they read on a phone in a
     # corridor, and the subject is not where the decision has to land.
@@ -2369,7 +2384,7 @@ def _bookmark_line(portal_url: str) -> str:
     )
 
 
-_SIGNED_OFF = _p("Tej &amp; Aryaa<br>Archangel Health", muted=True, small=True)
+_SIGNED_OFF = _p("Tej and Aryaa<br>Archangel Health", muted=True, small=True)
 
 
 def build_hs_access_email(*, organization: str, full_name: str, claim_url: str,

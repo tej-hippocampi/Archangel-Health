@@ -155,7 +155,9 @@ def test_a_fresh_physician_lands_in_the_welcome_letter():
     # The mission lines, verbatim from the PRD.
     assert "Doctors earn from their judgment." in out["text"]
     assert "A 70% benchmark score is irrelevant when a patient is downstream." in out["text"]
-    assert "Tej Patel & Aryaa Bhatia" in out["text"]
+    # House spelling, normalised across every founder signature: six sites
+    # said "&", three said "and", and one said neither.
+    assert "Tej and Aryaa" in out["text"]
     assert out["serif"] == 1, "the welcome letter is the design system's serif moment"
     assert len(out["buttons"]) == 1 and "Let’s get you started" in out["buttons"][0]
     # No skip on the letter: four paragraphs and a button, and skipping the
@@ -432,7 +434,10 @@ def test_the_manual_stop_offers_the_founders_intro_and_finishes_the_checklist():
         }));
       });
     """)
-    assert any("calendly.com/tejpatel-berkeley" in (l or "") for l in out["links"])
+    # ONE physician calendar. This and the welcome email pointed at two
+    # different founders, so a doctor invited in one place and booking in
+    # the other met somebody else.
+    assert any("calendly.com/aryaabhatia-berkeley" in (l or "") for l in out["links"])
     assert out["calls"][-1]["body"] == {"action": "defer", "stop": "manual"}
     # Welcome package v2: putting the last stop off does NOT reach "You're all
     # set". That card carries the dismiss — the one control that stops the
