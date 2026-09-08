@@ -191,7 +191,7 @@
     if (others.length) {
       kids.push(h('ul', { class: 'asc-dur-list' }, others.map(
         (s) => h('li', {}, h('span', { class: 'asc-dur-var' }, s.variable),
-                  ' — ' + (s.store || '') + (s.path ? ' at ' + s.path : '')))));
+                  ': ' + (s.store || '') + (s.path ? ' at ' + s.path : '')))));
     }
     if (dur.gate_overridden) {
       // The one state that is nobody's mistake and still needs saying: an
