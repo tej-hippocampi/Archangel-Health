@@ -1930,9 +1930,42 @@ async def submit_exam(
     current = store.get_tutorial_state(user["id"])
     exam = current.get("exam") if isinstance(current.get("exam"), dict) else {}
     attempt = int(exam.get("attempt") or 0) or 1
-    task_id = str(body.get("task_id") or "").strip()
-    if not task_id:
+    claimed = str(body.get("task_id") or "").strip()
+    if not claimed:
         raise HTTPException(status_code=400, detail="Which case is this?")
+
+    # THE TASK IS RESOLVED SERVER-SIDE, and the body only gets to agree with it.
+    #
+    # This used to stamp `body["task_id"]` straight into `tutorial.exam`, which
+    # is the ONLY input to `exam_case.is_users_exam_task` and therefore to the
+    # whole provisional carve-out. So a single POST — no draw needed, on a fresh
+    # account — rewrote the stamp to any task id the caller could name, and the
+    # next `GET /tasks/{id}` returned it. Each submit rewrote it again, so it
+    # walked the queue. The draw's own comment two hundred lines up says this
+    # value is "written server-side, never accepted from a client"; this path
+    # was quietly doing the opposite.
+    #
+    # `exam.task_id` is what `/exam/task` recorded when it served the case. For
+    # an applicant mid-examination from before that stamp existed, the same
+    # deterministic rotation that served them is re-derived — the identical
+    # fallback `is_users_exam_task` uses, and equally not client-influenced.
+    served = str(exam.get("task_id") or "").strip()
+    if not served:
+        drawn = exam_case.exam_task_for(store, user, attempt)
+        served = str((drawn or {}).get("task_id") or "").strip()
+    if not served:
+        raise HTTPException(
+            status_code=503,
+            detail="No examination case is available yet. We will email you.")
+    if claimed != served:
+        # 403 rather than 400: this is not a malformed request, it is a request
+        # about somebody else's case.
+        log.warning("[exam] submit named a task that was not served user=%s",
+                    user.get("id"))
+        raise HTTPException(
+            status_code=403,
+            detail="That is not the case your examination was served.")
+    task_id = served
 
     picked = exam_case.exam_specialty(user)
     now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -5304,7 +5337,8 @@ async def assist_prelabel(
 # ─── Auto-suggested citations (Seamless PRD WS3) ──────────────────────────────
 @router.post("/assist/cite")
 async def assist_cite(
-    body: CiteRequest, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: CiteRequest,
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL)),
 ):
     """Auto-suggest the 1–3 most relevant library citations for a rationale or
     reasoning step so grounding a record is a one-click *confirm* (WS3 — the
@@ -5314,7 +5348,18 @@ async def assist_cite(
     is a starting point. Retrieval is deterministic (always works); an optional
     LLM rerank refines ordering. Degrades to ``skipped=True`` when the specialty
     has no citation library (the doctor types a citation as before). No
-    anti-peeking gate: citing happens post-reveal on the doctor's OWN text."""
+    anti-peeking gate: citing happens post-reveal on the doctor's OWN text.
+
+    TUTORIAL rather than full access, for the same reason and on the same
+    evidence as ``/citations/search`` (PRD A §2.1). This one was MISSED when
+    that change was made: §2.0 listed the endpoints the examination workspace
+    calls and this was not on the list, so an applicant sitting the examination
+    got a 403 on every automatic citation suggestion. The client swallows the
+    error, so nothing visibly broke — the one-click citation chips were simply
+    dead for the only population the examination exists for, which is what §2.3
+    means by "cite a guideline ... zero 403s". Same reasoning as the search box:
+    the library is published guidance, keyed by specialty, and nothing
+    patient-specific is reachable through it."""
     text = (body.text or "").strip()
     if not text:
         return {"skipped": False, "suggestions": [], "source": "empty_text"}
@@ -5362,6 +5407,32 @@ async def citations_search(
 
 
 # ─── Voice dictation (Speed Optimization §4) ──────────────────────────────────
+#: A dictation clip is seconds of speech. Generous for one, and small enough
+#: that a widened audience cannot turn the mic button into a bill.
+TRANSCRIBE_MAX_BYTES = 12 * 1024 * 1024
+
+
+async def _read_capped_audio(file: UploadFile, max_bytes: int) -> bytes:
+    """Read an upload with a RUNNING cap.
+
+    ``await file.read()`` buffers the entire body before any size check, so an
+    arbitrarily large upload is resident in memory before it can be rejected.
+    Same shape as ``_read_capped`` on the CV path, and the same reason.
+    """
+    chunks, total = [], 0
+    while True:
+        chunk = await file.read(256 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"That clip is too long; the limit is {max_bytes} bytes.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @router.post("/transcribe")
 async def transcribe_audio(
     file: UploadFile = File(...),
@@ -5377,7 +5448,14 @@ async def transcribe_audio(
     over the user's own microphone, not access to any of our data, and an
     applicant taking the examination is offered the same mic button everyone
     else is."""
-    data = await file.read()
+    # BOUNDED, because the audience widened. This is an unbounded read in front
+    # of a metered third-party provider, and it used to sit behind
+    # ``require_full_access`` — an approved physician. It is now reachable by
+    # any pending signup, so the cap and the running read (rather than
+    # ``await file.read()``, which buffers the whole body before any check) are
+    # part of the widening rather than an optional extra. A dictation clip is
+    # seconds of speech; 12 MB is generous for one.
+    data = await _read_capped_audio(file, TRANSCRIBE_MAX_BYTES)
     res = await asc_stt.transcribe(data, mime=file.content_type or "audio/webm")
     if res.get("skipped"):
         raise HTTPException(

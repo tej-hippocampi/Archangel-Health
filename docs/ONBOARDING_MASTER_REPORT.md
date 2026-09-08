@@ -104,7 +104,7 @@ keystroke updates parent credentials, re-runs `Step5Credentials`, mints a fresh
 `Group`, and throws away every field under it.
 
 `ReviewGroup` is now at module scope
-(`landing/src/app/components/onboarding/steps.tsx:2263`) taking its section and
+(`landing/src/app/components/onboarding/steps.tsx:2268`) taking its section and
 open-state decision as ordinary props.
 
 Not fixed by refocusing after each update, remembering a selector and re-clicking,
@@ -391,6 +391,92 @@ all six commits adds **no** `DELETE FROM`, `DROP TABLE`, `DROP COLUMN` or
 
 ---
 
+## The audit round
+
+AGENTS.md: "Builder writes, auditor checks with fresh context, builder fixes,
+auditor confirms, then PR." The auditor read the four PRDs and the whole diff
+against `a25d32a` without my account of it, and reproduced its findings by
+execution rather than by reading. It found one critical defect I had introduced,
+three high-severity ones, and a set of smaller things. All are fixed.
+
+### Critical — the carve-out was forgeable, and it was mine
+
+**`POST /exam/submit` took `task_id` from the request body and stamped it into
+`tutorial.exam`, which is the only input to the carve-out's identity check.**
+
+One POST — no draw, on a fresh account — rewrote the stamp to any task id the
+caller could name, and the next `GET /tasks/{id}` returned it. `reveal` then
+wrote an `independent_commits` row under an unverified account, and each submit
+rewrote the stamp again, so it walked the synthetic queue. The V4 wall held
+throughout; everything behind it did not.
+
+The draw's own comment says this value is "written server-side, never accepted
+from a client". The submit path was quietly doing the opposite, and my Phase 0
+tests submitted only the honest id, so the one client-controlled input in the
+whole carve-out was untested.
+
+`/exam/submit` now resolves the task server-side — from the stamp, or the same
+deterministic rotation `is_users_exam_task` re-derives for a legacy blob — and
+403s a body that names anything else. Four tests cover it, including the
+no-draw forge, the walking variant, that a forged submit files no examination
+record, and a positive control that an honest submit still works.
+
+### High — the CV lifecycle races the PRD named were still open
+
+| Defect | Fix |
+|---|---|
+| `merge_asclepius_credentials` was **not atomic**. `connect_team_db` leaves `isolation_level = ''`, so sqlite3 issues an implicit `BEGIN` before DML only, never before a `SELECT` — read-then-write in one connection is still two transactions, and in WAL mode a commit landing between them is lost | `BEGIN IMMEDIATE`, in this method and in `advance_cv_attempt` and `start_cv_attempt` |
+| The staleness guard was **check-then-act across two transactions** | `require_attempt` folds the currency check into the merge's own transaction |
+| `/asclepius/cv/status` labelled the payload with the **newest** attempt rather than the one that wrote it — and the client's guard is `served !== attemptId`, so it would have *accepted* A's extraction as B's | the response reports `cvAttemptId`, stamped by the same merge that wrote the parse |
+| A failed attempt **inherited the previous attempt's `ok: true` result** under its own identity — verbatim what §6-A forbids, and no race was needed | the failure patch sets `cvParsed: None` explicitly |
+| `_preserve_server_cv_fields` still read in one transaction and let its caller write in another, so a worker write landing between them was lost | `save_asclepius_credentials_preserving`, one transaction; §6-A's rule applies to whichever end of the race is second |
+
+Seven tests, including a real interposed writer that fails without
+`BEGIN IMMEDIATE`, and one proving a refused write releases the lock rather than
+stranding it.
+
+### Medium
+
+- **`/assist/cite` still 403'd for the applicant.** PRD A §2.0 listed the
+  endpoints the exam workspace calls and this was not on the list, so the
+  implementation followed the list rather than the code. The client swallows the
+  error, so nothing visibly broke — the one-click citation chips were simply dead
+  for the only population the examination exists for, which is what §2.3 means by
+  "cite a guideline … zero 403s". Now `require_surface(TUTORIAL)`, with the
+  client's `tutorialActive()` guard taught to let the examination through.
+- **`/transcribe` had no size bound.** It moved to a wider audience in front of a
+  metered provider with an unbounded `await file.read()`. Now a running cap at
+  12 MB, the same shape the CV path uses.
+- **The licence fix over-corrected.** Requiring both halves empty meant a resumed
+  session — where `licenseState` is prefilled from signup — never got the CV's
+  licence *number* either. §6-C blocks the *conflicting* pair, not the agreeing
+  one; now compared by state.
+
+### Lower
+
+The guide overlay declared `aria-modal` without trapping Tab or moving focus in
+— a promise to assistive technology that has to be true of the focus order, as
+this codebase's own dialog says. Fixed, and its scrim now uses the portal's
+documented "canvas, never black" law instead of a raw black. The legacy exam
+recompute no longer seeds gold cases from inside an authorization predicate.
+`advance_cv_attempt` returns what the `UPDATE` actually did. The structure lint
+now discovers files in `onboarding/` instead of listing them, catches a
+signature wrapped over several lines, and its self-test runs the real detector
+against a fixture that includes a shape that must *not* match. The
+`additionalLicenses` claim is corrected: it is retained for Phase 4 and a future
+migration, and nothing reads it yet.
+
+### What the auditor confirmed
+
+It re-ran the base comparison independently, by test id rather than by count:
+the failure sets on this branch and on `cdf99f8` are **identical** — no
+regressions, nothing accidentally fixed. It also verified `_full_task_gate` drops
+no gate, `_BY_ACCESS` is unchanged, the V4 wall holds by execution, the tiering
+split revokes nothing (`tr_eligibility` feeds an admin *proposal*, not live
+routing), `ENCODER_USER_COLUMNS` still means something, `useId` has no hook-order
+or SSR hazard, `withRowIds` never reassigns, and that all six rewritten Phase 2
+tests were justified by the spec moving — three of them strengthened.
+
 ## The seven invariants
 
 | # | Invariant | Held by |
@@ -404,6 +490,22 @@ all six commits adds **no** `DELETE FROM`, `DROP TABLE`, `DROP COLUMN` or
 | 7 | One primary per screen; tokens only; no inline components; CSS outside foreign `@media` | Asserted by test, including a lint-rule test for inline components and a brace-depth check for the CSS |
 
 ---
+
+## Do not touch / non-goals
+
+- `_BY_ACCESS`, `require_full_access` semantics for everyone else, the
+  `/tutorial/reveal` no-persistence rule, the V4 real-data wall, and the
+  verification queue's read of the examination (PRD A §2.4).
+- `GET /exam/task` / `POST /exam/submit`'s purpose and stage stamps, the tutorial
+  internals, the post-approval first-run walkthrough, and the demo-video
+  ticket/Range endpoint (PRD A §1.6). The submit path's task-id VALIDATION was
+  added because it was a security defect, not a change of purpose.
+- Tier weights, seniority or prestige features, retroactive revocation and
+  auto-approval (PRD C §6-E). The tri-state work corrects the input semantics of
+  existing computations and changes no weight.
+- Any database deletion. The CV attempt table is additive and superseded
+  attempts are retained (§2 invariant 3).
+- Phase 4 (PRD C §6 B, D, F). Not started, by instruction.
 
 ## What remains unverified
 

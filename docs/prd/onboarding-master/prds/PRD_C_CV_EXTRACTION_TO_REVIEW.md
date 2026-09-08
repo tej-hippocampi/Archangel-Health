@@ -67,15 +67,15 @@ Named failures to fix:
 Each anchor below refers to the inspected local tree. Re-run the citation audit against the implementation checkout before editing.
 
 - `applyCvParse` — landing/src/app/components/OnboardingWizard.tsx:345. Scalar empty-only fill, array-wide untouched guards, unknown-to-false board mapping, first-license selection, and omitted fellowship subject/completion-year mapping.
-- `emptyCredentials` — landing/src/app/components/onboarding/steps.tsx:304. Manual board defaults and country defaults.
+- `emptyCredentials` — landing/src/app/components/onboarding/steps.tsx:309. Manual board defaults and country defaults.
 - `BoardCert` — landing/src/app/components/onboarding/steps.tsx:122. Board active is currently boolean only.
 - `YesNoToggle` — landing/src/app/components/onboarding/primitives.tsx:937. It already supports null; false visibly selects No.
-- `loadDirectorSession` — landing/src/app/components/OnboardingWizard.tsx:564. Saved CV metadata counts as saved credentials; parse and fields hydrate separately, chips clear, and uploaded sessions route to review without reapplying a completed parse or resuming an in-progress poll.
-- `pollCvParse` — landing/src/app/components/OnboardingWizard.tsx:1067. Polling is initiated by upload, has no upload-attempt identity, and stops at terminal stage with whatever parsed payload arrives.
-- `asclepius_cv_upload` — backend/routers/onboarding.py:1631. Upload records metadata and schedules a background task.
-- `asclepius_cv_status` — backend/routers/onboarding.py:1708. Returns stage and parsed state from the mutable credential blob.
-- `_record_cv_on_person` — backend/routers/onboarding.py:1777. Read/modify/write of the whole credential object, without attempt identity or atomic field merge.
-- `_parse_cv_into_person` — backend/routers/onboarding.py:1809. Every stage and final parse can write after a newer upload. A terminal callback can precede the final result write; a failure can leave an old parsed payload.
+- `loadDirectorSession` — landing/src/app/components/OnboardingWizard.tsx:574. Saved CV metadata counts as saved credentials; parse and fields hydrate separately, chips clear, and uploaded sessions route to review without reapplying a completed parse or resuming an in-progress poll.
+- `pollCvParse` — landing/src/app/components/OnboardingWizard.tsx:1077. Polling is initiated by upload, has no upload-attempt identity, and stops at terminal stage with whatever parsed payload arrives.
+- `asclepius_cv_upload` — backend/routers/onboarding.py:1630. Upload records metadata and schedules a background task.
+- `asclepius_cv_status` — backend/routers/onboarding.py:1707. Returns stage and parsed state from the mutable credential blob.
+- `_record_cv_on_person` — backend/routers/onboarding.py:1784. Read/modify/write of the whole credential object, without attempt identity or atomic field merge.
+- `_parse_cv_into_person` — backend/routers/onboarding.py:1827. Every stage and final parse can write after a newer upload. A terminal callback can precede the final result write; a failure can leave an old parsed payload.
 - `save_asclepius_credentials` — backend/team_store.py:1930. Replaces the complete credential JSON; a SHA-only check does not prevent a worker from losing a simultaneous user edit.
 - `_pdf_text` — backend/asclepius/credentialing.py:868. OCR is selected using total document text length, not page-level completeness.
 - `_ocr_pdf_pages` — backend/asclepius/credentialing.py:890. First-five-page OCR cap without an explicit partial-document result contract.

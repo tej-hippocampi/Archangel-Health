@@ -3214,11 +3214,11 @@
         'The instruction manual failed to load.'));
     }
 
-    let escHandler = null;
+    let keyHandler = null;
     const close = () => {
       const el = document.getElementById('ascApplicantGuide');
       if (el && el.parentNode) el.parentNode.removeChild(el);
-      if (escHandler) document.removeEventListener('keydown', escHandler);
+      if (keyHandler) document.removeEventListener('keydown', keyHandler, true);
       // Back to the control they opened it from, not to the top of the page:
       // a keyboard user who loses their place here has to tab the whole screen
       // again to find it.
@@ -3239,9 +3239,28 @@
     // Clicking the dim closes, the frame does not — the same behaviour as
     // every other overlay in this portal.
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    escHandler = (e) => { if (e.key === 'Escape') close(); };
-    document.addEventListener('keydown', escHandler);
+
+    // `aria-modal` is a promise to assistive tech that has to be true of the
+    // focus order too, which is the rule the portal's own sheet dialog states
+    // and keeps. Declaring it and then leaving Tab to walk the page underneath
+    // is worse than not declaring it: a screen-reader user is told the rest of
+    // the page is inert and then finds themselves in it.
+    keyHandler = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      if (e.key !== 'Tab') return;
+      const focusable = Array.from(overlay.querySelectorAll(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', keyHandler, true);
     document.body.appendChild(overlay);
+    // Focus ENTERS the dialog, not only returns from it. The close button is
+    // the one control that is always present.
+    const closeBtn = overlay.querySelector('.asc-applicant-guide-close');
+    if (closeBtn) closeBtn.focus();
   }
 
   async function renderDashboardView() {
@@ -8578,7 +8597,10 @@
       // task-scoped and assist call already checks (see /assist/prelabel).
       // Typing into a tour is not worth billing a retrieval for, and it is the
       // only spend a visitor with no real-work surface could have triggered.
-      if (tutorialActive()) { clear(wrap); return; }
+      // The EXAMINATION is not a tour: it is the case an applicant is judged
+      // on, citing is part of what is read, and the server now admits them
+      // (PRD A §2.1). Only the practice case is fenced off from the spend.
+      if (tutorialActive() && !examActive()) { clear(wrap); return; }
       // Don't re-suggest once the doctor has already confirmed/typed a citation.
       if (isValidAnchor(anchor)) { clear(wrap); return; }
       const text = (getText() || '').trim();

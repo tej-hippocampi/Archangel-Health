@@ -503,8 +503,18 @@ function applyCvParse(
    * So: both, or neither. */
   const licences = (parsed.licenses || []).filter((l) => l && l.state && l.number);
   const primary = licences.find((l) => l.current) || licences[0];
+  /* The pair is writable when nothing conflicts with it — not only when both
+     halves are blank. `loadDirectorSession` prefills `licenseState` from the
+     signup answer, so requiring both empty meant a resumed session never got
+     the CV's licence NUMBER either, which is a fill that used to work and
+     should. §6-C blocks the CONFLICTING pair ("existing user state with a
+     conflicting CV license creates a choice"), not the agreeing one. */
+  const sameState = (a: string, b: string) =>
+    a.trim().toUpperCase() === b.trim().toUpperCase();
   const licenceUntouched =
-    !(current.licenseNumber || "").trim() && !(current.licenseState || "").trim();
+    !(current.licenseNumber || "").trim()
+    && (!(current.licenseState || "").trim()
+        || (!!primary && sameState(current.licenseState, primary.state)));
   if (primary && licenceUntouched) {
     patch.licenseNumber = primary.number;
     patch.licenseState = primary.state;

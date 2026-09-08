@@ -100,7 +100,8 @@ def _match_specialty(applied: str) -> Optional[str]:
         return None
 
 
-def exam_task_for(store: Any, user: Dict[str, Any], attempt: int) -> Optional[Dict[str, Any]]:
+def exam_task_for(store: Any, user: Dict[str, Any], attempt: int,
+                  *, seed: bool = True) -> Optional[Dict[str, Any]]:
     """The gold task this attempt draws, or None when none can be loaded.
 
     Selected BY ID rather than through ``_query_next``, deliberately. The queue
@@ -124,10 +125,17 @@ def exam_task_for(store: Any, user: Dict[str, Any], attempt: int) -> Optional[Di
     # Idempotent and LLM-free: already-present cases are skipped. Cheap enough
     # to call on the draw, which is what keeps a fresh deployment from having
     # an examination that 404s until somebody remembers to seed it.
-    try:
-        load_gold_cases(store, specialty=specialty)
-    except Exception:
-        log.exception("[exam] could not ensure gold cases for %s", specialty)
+    #
+    # ``seed=False`` for the callers that are only ASKING which case this is —
+    # `is_users_exam_task` runs on every task fetch from a legacy-blob account,
+    # including the ones that end in 403, and an authorization predicate has no
+    # business writing rows. A deployment with no gold cases yet answers "not
+    # your task", which is the safe direction; the draw seeds them.
+    if seed:
+        try:
+            load_gold_cases(store, specialty=specialty)
+        except Exception:
+            log.exception("[exam] could not ensure gold cases for %s", specialty)
 
     idx = max(0, int(attempt or 1) - 1) % len(entries)
     task_id = "gold-" + entries[idx]["case_id"]
@@ -187,7 +195,9 @@ def is_users_exam_task(store: Any, user: Dict[str, Any], task_id: str) -> bool:
     # Legacy blob, drawn before the stamp existed. Recompute rather than trust.
     attempt = int(exam.get("attempt") or 0) or 1
     try:
-        task = exam_task_for(store, user, attempt)
+        # seed=False: this is an authorization question, and answering it must
+        # not write rows. See exam_task_for.
+        task = exam_task_for(store, user, attempt, seed=False)
     except Exception:
         log.exception("[exam] could not re-derive exam task for %s", user.get("id"))
         return False

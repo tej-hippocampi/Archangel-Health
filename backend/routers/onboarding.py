@@ -1486,9 +1486,8 @@ async def asclepius_credentials(body: AsclepiusCredentialsBody, request: Request
     director_email = _ensure_director_person(ts, row)
     if not director_email:
         raise HTTPException(status_code=400, detail="Start your application first.")
-    ts.save_asclepius_credentials(
-        row["id"], director_email,
-        _preserve_server_cv_fields(ts, row["id"], director_email, body.credentials))
+    ts.save_asclepius_credentials_preserving(
+        row["id"], director_email, body.credentials, _SERVER_CV_KEYS)
     # The physician's specialty lives on the health_systems row too — the tier
     # scorer and the task router both read it from there — and v2 has no
     # institution screen to put it there. Mirror it from the one field the Review
@@ -1732,7 +1731,15 @@ async def asclepius_cv_status(token: str, request: Request):
     # not read these two fields see exactly the response they saw before, which
     # is the compatibility adapter §6-A asks for: the legacy stage vocabulary
     # (reading / matching / preparing / done / failed) is unchanged.
-    attempt = ts.current_cv_attempt(hs_id, person_email) or {}
+    # THE ATTEMPT THAT WROTE THIS PAYLOAD, not the newest one. `cvAttemptId` is
+    # stamped by the same merge that wrote `cvParsed` and `cvParseStage`, so it
+    # is the only value that describes what is actually being returned.
+    # Preferring `current_cv_attempt()` labelled attempt A's finished extraction
+    # with attempt B's id the moment B started — and the client's guard is
+    # `served !== attemptId`, so it would have ACCEPTED A's result as B's. The
+    # fallback only applies to a blob written before attempts existed.
+    attempt = (ts.get_cv_attempt(creds.get("cvAttemptId") or "")
+               or ts.current_cv_attempt(hs_id, person_email) or {})
     return {
         "uploaded": True,
         "filename": creds.get("cvFilename"),
@@ -1743,7 +1750,7 @@ async def asclepius_cv_status(token: str, request: Request):
         "finished": stage in ("done", "failed"),
         "ok": bool((parsed or {}).get("ok")),
         "parsed": parsed if stage in ("done", "failed") else None,
-        "attempt_id": attempt.get("attempt_id") or creds.get("cvAttemptId"),
+        "attempt_id": creds.get("cvAttemptId") or attempt.get("attempt_id"),
         "parser_version": attempt.get("parser_version") or "",
     }
 
@@ -1790,9 +1797,6 @@ def _record_cv_on_person(ts: Any, hs_id: str, email: str, *, sha: str, mime: str
 
     Returns False when the write was refused as stale.
     """
-    if attempt_id and not ts.cv_attempt_is_current(attempt_id):
-        log.info("[credentialing] dropped a stale CV write for attempt %s", attempt_id)
-        return False
     patch: Dict[str, Any] = {"cvAssetSha": sha, "cvMime": mime}
     if attempt_id is not None:
         patch["cvAttemptId"] = attempt_id
@@ -1802,7 +1806,21 @@ def _record_cv_on_person(ts: Any, hs_id: str, email: str, *, sha: str, mime: str
         patch["cvParseStage"] = stage
     if parsed is not None:
         patch["cvParsed"] = parsed
-    ts.merge_asclepius_credentials(hs_id, email, patch)
+    elif stage == "failed":
+        # A FAILED ATTEMPT CARRIES NO RESULT, and must not inherit one. Omitting
+        # the key left the PREVIOUS attempt's payload in place, and the status
+        # endpoint hands back `parsed` on any terminal stage — so a re-upload
+        # that threw returned the old document's `ok: true` extraction under the
+        # new attempt's identity. That is verbatim what PRD C §6-A forbids.
+        patch["cvParsed"] = None
+    # The staleness check happens INSIDE the merge's transaction. Asking
+    # `cv_attempt_is_current` first and merging afterwards is check-then-act: a
+    # supersede committing between the two let a superseded attempt write anyway.
+    merged = ts.merge_asclepius_credentials(hs_id, email, patch,
+                                            require_attempt=attempt_id)
+    if merged is None:
+        log.info("[credentialing] dropped a stale CV write for attempt %s", attempt_id)
+        return False
     return True
 
 
@@ -1874,6 +1892,13 @@ _SERVER_CV_KEYS = ("cvAssetSha", "cvMime", "cvParsed", "cvParseStage", "cvFilena
 def _preserve_server_cv_fields(ts: Any, hs_id: str, email: str,
                                incoming: Dict[str, Any]) -> Dict[str, Any]:
     """Strip client-supplied CV fields and restore the server-recorded ones.
+
+    SUPERSEDED by ``TeamStore.save_asclepius_credentials_preserving``, which
+    does the same thing in ONE transaction. This read the stored blob in one
+    transaction and its caller wrote in another, so a worker stage or parse
+    landing between them was lost. Kept because the rule it encodes is worth
+    reading, and because it is still the clearest statement of WHY these keys
+    are server-owned.
 
     B-5.7: ``credentials`` is ``Dict[str, Any]``, so a signup could otherwise
     name any sha in the shared asset store and have it parsed and served back
@@ -2247,9 +2272,8 @@ async def member_session(token: str, request: Request):
 @router.post("/member/credentials")
 async def member_credentials(body: MemberCredentialsBody, request: Request):
     ts, person, hs = _load_asclepius_member(request, body.token)
-    ts.save_asclepius_credentials(
-        hs["id"], person["email"],
-        _preserve_server_cv_fields(ts, hs["id"], person["email"], body.credentials))
+    ts.save_asclepius_credentials_preserving(
+        hs["id"], person["email"], body.credentials, _SERVER_CV_KEYS)
     return {"ok": True}
 
 

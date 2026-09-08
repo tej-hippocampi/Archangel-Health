@@ -1956,6 +1956,9 @@ class TeamStore:
         now = _utcnow_iso()
         email = email.lower().strip()
         with self._conn() as conn:
+            # Supersede-then-insert is one step or it is a window with two
+            # current attempts in it.
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 """
                 UPDATE asclepius_cv_attempts SET state = 'superseded', updated_at = ?
@@ -2030,13 +2033,16 @@ class TeamStore:
         """
         now = _utcnow_iso()
         with self._conn() as conn:
+            # Same reason as merge_asclepius_credentials: the implicit BEGIN
+            # would not cover this SELECT.
+            conn.execute("BEGIN IMMEDIATE")
             row = conn.execute(
                 "SELECT state FROM asclepius_cv_attempts WHERE attempt_id = ?",
                 (attempt_id,),
             ).fetchone()
             if not row or row["state"] == "superseded":
                 return False
-            conn.execute(
+            cur = conn.execute(
                 """
                 UPDATE asclepius_cv_attempts
                 SET state = ?, updated_at = ?,
@@ -2049,23 +2055,50 @@ class TeamStore:
                  now if terminal else None,
                  attempt_id),
             )
-        return True
+            # What the UPDATE actually did, not what the earlier SELECT hoped it
+            # would do. Returning True unconditionally made the docstring's
+            # promise ("Returns False, and writes nothing, when this attempt has
+            # been superseded") false for a supersede landing between the two
+            # statements.
+            return cur.rowcount > 0
 
     def merge_asclepius_credentials(self, hs_id: str, email: str,
-                                    patch: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge NAMED KEYS into the stored credentials, in one transaction.
+                                    patch: Dict[str, Any], *,
+                                    require_attempt: Optional[str] = None
+                                    ) -> Optional[Dict[str, Any]]:
+        """Merge NAMED KEYS into the stored credentials, atomically.
 
         The worker used to read the whole credential object, edit a few CV keys
         and write the whole thing back. Between that read and that write sits
         every edit the physician made on the review page, and the write took all
         of them with it (PRD C §6-A: "whole-object worker saves are forbidden").
 
-        Read and write happen inside ONE connection here, and only the keys in
-        `patch` are touched, so a concurrent unrelated credential edit survives.
-        Returns the merged blob.
+        ``BEGIN IMMEDIATE`` is what makes this a fix rather than a smaller
+        window. ``connect_team_db`` leaves ``isolation_level = ''``, which is
+        Python's legacy mode: sqlite3 issues an implicit ``BEGIN`` before DML
+        only, never before a ``SELECT``. So a plain read-then-write inside one
+        connection is still TWO transactions, and in WAL mode a commit landing
+        between them is silently lost — exactly the bug this method exists to
+        close, reproduced with an interposed writer. Taking the write lock up
+        front makes read and write one atomic step.
+
+        ``require_attempt`` folds the CV staleness check into the SAME
+        transaction. Checking currency in one connection and merging in another
+        is check-then-act: a supersede committing in that window let a
+        superseded attempt's parse land anyway. Returns ``None`` when the merge
+        was refused as stale, and the merged blob otherwise. A missing person
+        returns ``{}``.
         """
         email = email.lower().strip()
         with self._conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if require_attempt is not None:
+                att = conn.execute(
+                    "SELECT state FROM asclepius_cv_attempts WHERE attempt_id = ?",
+                    (require_attempt,),
+                ).fetchone()
+                if not att or att["state"] == "superseded":
+                    return None
             row = conn.execute(
                 """
                 SELECT credentials_json FROM asclepius_people
@@ -2082,6 +2115,50 @@ class TeamStore:
             if not isinstance(creds, dict):
                 creds = {}
             creds.update(patch or {})
+            conn.execute(
+                """
+                UPDATE asclepius_people SET credentials_json = ?, updated_at = ?
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (json.dumps(creds), _utcnow_iso(), hs_id, email),
+            )
+        return creds
+
+    def save_asclepius_credentials_preserving(
+        self, hs_id: str, email: str, incoming: Dict[str, Any],
+        server_keys: "tuple[str, ...]",
+    ) -> Dict[str, Any]:
+        """Replace the credential blob with the client's, keeping the SERVER's
+        CV fields — read and write in one transaction.
+
+        The client save path legitimately replaces the whole blob: the form owns
+        every field in it. What it must not do is read the server-owned CV keys
+        in one transaction and write them back in another, because a worker
+        stage or parse landing in that window is lost — the same defect
+        ``merge_asclepius_credentials`` closes on the worker side, and PRD C
+        §6-A's "whole-object saves are forbidden" applies to whichever end of the
+        race happens to be second.
+        """
+        email = email.lower().strip()
+        with self._conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """
+                SELECT credentials_json FROM asclepius_people
+                WHERE health_system_id = ? AND email = ?
+                """,
+                (hs_id, email),
+            ).fetchone()
+            try:
+                stored = json.loads(row["credentials_json"] or "{}") if row else {}
+            except (TypeError, ValueError):
+                stored = {}
+            if not isinstance(stored, dict):
+                stored = {}
+            creds = {k: v for k, v in (incoming or {}).items() if k not in server_keys}
+            for key in server_keys:
+                if stored.get(key) is not None:
+                    creds[key] = stored[key]
             conn.execute(
                 """
                 UPDATE asclepius_people SET credentials_json = ?, updated_at = ?

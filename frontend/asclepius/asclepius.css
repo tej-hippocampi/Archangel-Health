@@ -6050,8 +6050,15 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-applicant-guide-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.55);
+  /* Above the header (100) and both rails (90/120), below the toast region
+     (1000) so a submit error is never hidden behind it — the same reasoning
+     .asc-sheet states for the same reason. */
+  z-index: 150;
+  /* The portal's own dialog scrim, not a black one. `_tokens.css` calls this
+     out as a law: "scrim: canvas, never black". */
+  background: rgba(26, 27, 26, .28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;

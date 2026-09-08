@@ -206,6 +206,81 @@ def test_the_applicant_keeps_their_task_after_submitting(client):
                       headers=headers_for(user)).status_code == 200
 
 
+# ── The submit path cannot be used to claim a task ───────────────────────────
+
+def test_submitting_someone_elses_task_id_grants_nothing(client):
+    """THE HOLE THIS CLOSES, and it was mine.
+
+    ``/exam/submit`` took ``task_id`` from the request body and stamped it into
+    ``tutorial.exam``, which is the ONLY input to the carve-out's identity
+    check. So one POST — with no draw, on a fresh account — rewrote the stamp to
+    any task the caller could name, and the next ``GET /tasks/{id}`` returned
+    it. The draw's own comment said the stamp is "written server-side, never
+    accepted from a client"; the submit path did exactly that.
+
+    A whole queue of synthetic cases was readable this way, and reveal wrote an
+    ``independent_commits`` row under an unverified account. Each submit
+    rewrote the stamp, so it walked.
+    """
+    store = fresh_store()
+    user = _applicant(store)
+    target = _synthetic_task(store)
+
+    res = client.post("/api/asclepius/exam/submit", headers=headers_for(user),
+                      json={"task_id": target, "time_spent_sec": 60})
+    assert res.status_code in (400, 403), res.text
+
+    # And nothing was opened by trying.
+    assert client.get(f"/api/asclepius/tasks/{target}",
+                      headers=headers_for(user)).status_code == 403
+    assert _reveal(client, user, target).status_code == 403
+    assert exam_case.is_users_exam_task(store, user, target) is False
+
+
+def test_submitting_a_foreign_task_id_after_drawing_does_not_move_the_stamp(client):
+    """The walking variant: draw honestly, then submit a different id. The stamp
+    must still name the case they were actually served."""
+    store = fresh_store()
+    user = _applicant(store)
+    mine = _draw_exam(client, user)
+    target = _synthetic_task(store)
+
+    res = client.post("/api/asclepius/exam/submit", headers=headers_for(user),
+                      json={"task_id": target, "time_spent_sec": 60})
+    assert res.status_code in (400, 403), res.text
+
+    exam = store.get_tutorial_state(user["id"])["exam"]
+    assert exam["task_id"] == mine, "a client-named task id reached the stamp"
+    assert client.get(f"/api/asclepius/tasks/{target}",
+                      headers=headers_for(user)).status_code == 403
+
+
+def test_a_forged_submit_files_no_examination(client):
+    """It must not reach the record either. A `credentialing_exams` row naming
+    an arbitrary task is read by the admin dossier, which loads that task and
+    grades against its held-out answer key."""
+    store = fresh_store()
+    user = _applicant(store)
+    target = _real_v4_task(store)
+    client.post("/api/asclepius/exam/submit", headers=headers_for(user),
+                json={"task_id": target, "time_spent_sec": 60})
+    filed = store.list_credentialing_exams(user_id=user["id"]) \
+        if hasattr(store, "list_credentialing_exams") else []
+    assert not [e for e in filed if e.get("task_id") == target], \
+        "a forged submit filed an examination against a task nobody served"
+
+
+def test_an_honest_submit_still_works(client):
+    """The positive control: the check must not close the door it guards."""
+    store = fresh_store()
+    user = _applicant(store)
+    task_id = _draw_exam(client, user)
+    res = client.post("/api/asclepius/exam/submit", headers=headers_for(user),
+                      json={"task_id": task_id, "time_spent_sec": 900})
+    assert res.status_code == 200, res.text
+    assert store.get_tutorial_state(user["id"])["exam"]["task_id"] == task_id
+
+
 # ── Every other task stays shut ──────────────────────────────────────────────
 
 def test_another_applicants_examination_is_closed(client):
@@ -334,6 +409,35 @@ def test_an_applicant_can_reach_dictation(client):
     res = client.post("/api/asclepius/transcribe", headers=headers_for(user),
                       files={"file": ("clip.webm", b"not-audio", "audio/webm")})
     assert res.status_code != 403, res.text
+
+
+def test_an_applicant_gets_automatic_citation_suggestions(client):
+    """``/assist/cite`` is the one-click chip beside the citation box, and it
+    was MISSED when the library and the microphone were opened: PRD A §2.0
+    listed the endpoints the exam workspace calls and this was not on the list.
+    The client swallows the error, so nothing visibly broke — the chips were
+    simply dead for the only population the examination exists for, which is
+    what §2.3 means by "cite a guideline ... zero 403s"."""
+    store = fresh_store()
+    user = _applicant(store)
+    res = client.post("/api/asclepius/assist/cite", headers=headers_for(user),
+                      json={"text": "start dialysis when uraemic symptoms appear",
+                            "specialty": "nephrology"})
+    assert res.status_code == 200, res.text
+
+
+def test_dictation_is_bounded(client):
+    """The audience for this widened from approved physicians to any pending
+    signup, in front of a metered provider. An unbounded ``await file.read()``
+    behind a wider door is a bill, not a feature."""
+    from routers.asclepius import TRANSCRIBE_MAX_BYTES
+
+    store = fresh_store()
+    user = _applicant(store)
+    oversize = b"\0" * (TRANSCRIBE_MAX_BYTES + 1024)
+    res = client.post("/api/asclepius/transcribe", headers=headers_for(user),
+                      files={"file": ("clip.webm", oversize, "audio/webm")})
+    assert res.status_code == 413, res.status_code
 
 
 def test_a_refused_account_reaches_neither(client):

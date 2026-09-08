@@ -204,6 +204,156 @@ def test_merging_onto_a_person_who_does_not_exist_is_harmless(store):
                                              {"x": 1}) == {}
 
 
+# ── The writes are actually atomic, not merely single-connection ────────────
+
+def test_a_concurrent_edit_survives_a_worker_merge(store, person):
+    """THE LOST UPDATE, with a real interposed writer rather than a comment.
+
+    ``connect_team_db`` leaves ``isolation_level = ''``, which is Python's
+    legacy mode: sqlite3 issues an implicit BEGIN before DML only, never before
+    a SELECT. So a read-then-write inside one connection is still TWO
+    transactions, and in WAL mode a commit landing between them is silently
+    lost. ``BEGIN IMMEDIATE`` is what closes it; without it this test fails and
+    the physician's mobile number disappears."""
+    import threading, time
+    from team_store import TeamStore
+
+    hs_id, email = person
+    store.save_asclepius_credentials(hs_id, email, {"mobile": ""})
+    path = store.db_path
+
+    def physician():
+        time.sleep(0.02)
+        TeamStore(path).merge_asclepius_credentials(
+            hs_id, email, {"mobile": "+1 202 555 0147"})
+
+    th = threading.Thread(target=physician)
+    th.start()
+    store.merge_asclepius_credentials(hs_id, email, {"cvParseStage": "done"})
+    th.join()
+
+    creds = (store.get_asclepius_person(hs_id, email) or {}).get("credentials") or {}
+    assert creds.get("mobile") == "+1 202 555 0147", "the worker erased an edit"
+    assert creds.get("cvParseStage") == "done"
+
+
+def test_the_staleness_check_happens_inside_the_merge(store, person):
+    """Check-then-act across two transactions is not a check. A superseded
+    attempt asks and merges in ONE transaction, so a supersede cannot land in
+    between."""
+    hs_id, email = person
+    a = store.start_cv_attempt(hs_id, email, asset_sha="sha-a")
+    store.start_cv_attempt(hs_id, email, asset_sha="sha-b")
+    assert store.merge_asclepius_credentials(
+        hs_id, email, {"cvParseStage": "done"}, require_attempt=a) is None
+    creds = (store.get_asclepius_person(hs_id, email) or {}).get("credentials") or {}
+    assert "cvParseStage" not in creds
+
+
+def test_a_refused_write_releases_the_lock(store, person):
+    """The early return exits the `with` block holding an open IMMEDIATE
+    transaction. The context manager commits on normal exit so the write lock
+    goes — but that is an ordering claim, and ordering claims get tests."""
+    import time
+    from team_store import TeamStore
+
+    hs_id, email = person
+    a = store.start_cv_attempt(hs_id, email, asset_sha="sha-a")
+    store.start_cv_attempt(hs_id, email, asset_sha="sha-b")
+
+    assert store.merge_asclepius_credentials(hs_id, email, {"x": 1},
+                                             require_attempt=a) is None
+    assert store.advance_cv_attempt(a, "ready", terminal=True) is False
+
+    other = TeamStore(store.db_path)
+    started = time.time()
+    other.merge_asclepius_credentials(hs_id, email, {"after": True})
+    assert time.time() - started < 5, "a refused write left the database locked"
+    creds = (store.get_asclepius_person(hs_id, email) or {}).get("credentials") or {}
+    assert creds.get("after") is True
+
+
+def test_repeated_writes_do_not_nest_a_transaction(store, person):
+    """`BEGIN IMMEDIATE` raises `cannot start a transaction within a transaction`
+    if one is already open on the connection. It is the first statement in each
+    block and `connect_team_db` issues only PRAGMAs — asserted rather than
+    assumed, because it would fail only under load."""
+    hs_id, email = person
+    for i in range(5):
+        store.merge_asclepius_credentials(hs_id, email, {"n": i})
+    a = store.start_cv_attempt(hs_id, email, asset_sha="sha")
+    for stage in ("reading", "extracting", "ready"):
+        store.advance_cv_attempt(a, stage)
+    assert store.get_cv_attempt(a)["state"] == "ready"
+
+
+def test_the_client_save_path_is_atomic_too(store, person):
+    """PRD C §6-A's "whole-object saves are forbidden" applies to whichever end
+    of the race is second. The form legitimately replaces the whole blob; what
+    it must not do is read the server-owned CV keys in one transaction and write
+    them back in another."""
+    hs_id, email = person
+    from routers.onboarding import _SERVER_CV_KEYS
+
+    store.merge_asclepius_credentials(hs_id, email, {
+        "cvAssetSha": "sha-a", "cvParseStage": "done", "cvFilename": "cv.pdf"})
+    out = store.save_asclepius_credentials_preserving(
+        hs_id, email,
+        {"fullLegalName": "Dr Example", "cvAssetSha": "FORGED"},
+        _SERVER_CV_KEYS)
+    assert out["fullLegalName"] == "Dr Example"
+    assert out["cvAssetSha"] == "sha-a", "a client-set sha reached the record"
+    assert out["cvParseStage"] == "done", "a server CV field was dropped"
+
+
+# ── A failed attempt speaks only for itself ─────────────────────────────────
+
+def test_a_failed_attempt_does_not_inherit_the_previous_result(store, person):
+    """PRD C §6-A, verbatim: "A failed B must not return A's ok=true result
+    under B's identity." Omitting `cvParsed` from the failure patch left A's
+    payload in place, and the status endpoint hands back `parsed` on any
+    terminal stage — so a re-upload that threw served the old document's
+    extraction under the new attempt's id. No race needed."""
+    from routers.onboarding import _record_cv_on_person
+
+    hs_id, email = person
+    a = store.start_cv_attempt(hs_id, email, asset_sha="sha-a", filename="a.pdf")
+    _record_cv_on_person(store, hs_id, email, sha="sha-a", mime="application/pdf",
+                         parsed={"ok": True, "full_name": "Alice From CV A"},
+                         stage="done", filename="a.pdf", attempt_id=a)
+
+    b = store.start_cv_attempt(hs_id, email, asset_sha="sha-b", filename="b.pdf")
+    _record_cv_on_person(store, hs_id, email, sha="sha-b", mime="application/pdf",
+                         stage="failed", filename="b.pdf", attempt_id=b)
+
+    creds = (store.get_asclepius_person(hs_id, email) or {}).get("credentials") or {}
+    assert creds["cvParseStage"] == "failed"
+    assert creds["cvAttemptId"] == b
+    assert creds["cvParsed"] is None, \
+        "the failed attempt served the previous document's extraction"
+
+
+def test_the_status_payload_is_labelled_with_the_attempt_that_wrote_it(store, person):
+    """`current_cv_attempt()` is by definition the NEWEST attempt, so preferring
+    it labelled A's finished extraction with B's id the moment B started. The
+    client's guard is `served !== attemptId`, so it would have ACCEPTED A's
+    result as B's — turning every residual race into a silently wrong review
+    page rather than a discarded write."""
+    from routers.onboarding import _record_cv_on_person
+
+    hs_id, email = person
+    a = store.start_cv_attempt(hs_id, email, asset_sha="sha-a", filename="a.pdf")
+    _record_cv_on_person(store, hs_id, email, sha="sha-a", mime="application/pdf",
+                         parsed={"ok": True}, stage="done", filename="a.pdf",
+                         attempt_id=a)
+    b = store.start_cv_attempt(hs_id, email, asset_sha="sha-b", filename="b.pdf")
+
+    creds = (store.get_asclepius_person(hs_id, email) or {}).get("credentials") or {}
+    # What the status endpoint reports as the payload's identity.
+    assert creds.get("cvAttemptId") == a, "the parse is A's and must say so"
+    assert (store.current_cv_attempt(hs_id, email) or {})["attempt_id"] == b
+
+
 # ── The client stops polling for a document it replaced ─────────────────────
 
 def test_the_poll_carries_the_attempt_it_is_watching():

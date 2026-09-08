@@ -221,8 +221,13 @@ export type Credentials = {
    *  A physician holding CA and MA saw only CA on the form and could not review
    *  the second fact at all; the array was extracted server-side and then
    *  dropped on the floor. Kept here so nothing the document supported is
-   *  thrown away (PRD C §6 invariant 6) and so the admin dossier can see it,
-   *  until the repeatable-licence UI lands in Phase 4.
+   *  thrown away (PRD C §6 invariant 6).
+   *
+   *  NOTHING READS IT YET, and that is worth saying plainly rather than
+   *  implying otherwise: it is not in the profile detail keys, the admin
+   *  dossier's source map, or any review control. It is retained so the
+   *  repeatable-licence UI in Phase 4 has the data to show, and so a future
+   *  migration has something to migrate — preserved, not surfaced.
    *
    *  Each entry is an ATOMIC tuple. A jurisdiction and a number that were never
    *  issued together is a wrong credential, not a partial one. */
