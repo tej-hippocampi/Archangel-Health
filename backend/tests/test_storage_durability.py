@@ -144,12 +144,12 @@ def test_a_declared_mount_is_matched_on_path_segments_not_string_prefix(monkeypa
     assert asc_constants.path_under_declared_volume("/datastore") is False
 
 
-def test_an_s3_backend_ignores_the_declared_mount(monkeypatch):
-    """s3 durability has nothing to do with any local volume."""
+def test_unimplemented_legacy_s3_backend_fails_closed(monkeypatch):
+    """A configuration string cannot make the unimplemented adapter durable."""
     _clear_store_env(monkeypatch)
     monkeypatch.setenv("ASCLEPIUS_ASSET_STORE", "s3://bucket/assets")
     monkeypatch.setenv(asc_constants.VOLUME_MOUNT_ENV, "/srv/volume")
-    assert asc_assets.asset_storage_durable()[0] is True
+    assert asc_assets.asset_storage_durable()[0] is False
 
 
 # ── F3: the database check ───────────────────────────────────────────────────

@@ -262,3 +262,36 @@ def test_every_country_offers_a_way_through():
             # A human has to be able to act on it: either a place to look it
             # up, or an instruction saying what to do instead.
             assert cfg.lookup_url or cfg.note, cfg.country
+
+
+def test_country_picker_covers_iso_catalogue_and_kosovo():
+    import json
+    from pathlib import Path
+
+    countries = registry_config.supported_countries()
+    by_code = {c['country']: c for c in countries}
+    assert len(countries) == len(by_code) == 250
+    assert set(by_code) == set(registry_config.COUNTRY_NAMES)
+    # Previously unreachable countries spanning the major regions, plus
+    # territories and Kosovo, must have usable names and review instructions.
+    for code in ('BR', 'MX', 'ZA', 'JP', 'CN', 'KR', 'SG', 'LK', 'AR', 'XK', 'PS', 'TW', 'PR'):
+        assert by_code[code]['country_name'] != code
+        assert by_code[code]['id_label']
+        assert by_code[code]['method'] == 'document'
+    for code, configured in registry_config.REGISTRY_CONFIGS.items():
+        assert by_code[code]['method'] == configured.method
+        assert by_code[code]['id_label'] == configured.id_label
+        assert len(by_code[code]['extra_fields']) == len(configured.extra_fields)
+    repo = Path(__file__).resolve().parents[2]
+    bundled = json.loads((repo / 'landing/src/lib/countries.json').read_text())
+    assert bundled == registry_config.COUNTRY_NAMES
+
+
+def test_unconfigured_country_uses_named_document_review():
+    cfg = registry_config.for_country(' br ')
+    assert cfg.country == 'BR'
+    assert cfg.country_name == 'Brazil'
+    assert cfg.method == registry_config.METHOD_DOCUMENT
+    assert not cfg.authoritative
+    result = verify_credential('BR', '123456', 'Synthetic Applicant', extras={})
+    assert result['result'] == RegistryResult.DOCUMENT_ONLY.value

@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { API_BASE, apiHeaders, asclepiusPortalUrl, redirectToAsclepiusPortal } from "@/lib/auth-api";
+import countryNames from "@/lib/countries.json";
 import { npiWarning } from "@/lib/npi";
 
 import {
@@ -1759,9 +1760,9 @@ const DEGREE_OPTIONS = [
    kilobytes, and a round trip every time somebody scrolls the country list
    would make the form feel broken on a hotel wifi.
 
-   The fallback below is not a copy of that table — it is the US, the path the
-   large majority of signups take, so a doctor whose config request fails still
-   has a working form instead of an empty picker. */
+   The bundled country catalogue keeps every country selectable while loading,
+   offline, or talking to an older backend. Registry details enrich it when
+   available; their absence must never limit who can apply. */
 export type RegistryFieldSpec = {
   key: string;
   label: string;
@@ -1789,12 +1790,17 @@ type CredentialConfig = {
 };
 
 const CREDENTIAL_CONFIG_FALLBACK: CredentialConfig = {
-  countries: [{
+  countries: Object.entries(countryNames).map(([country, country_name]): RegistryCountry => country === "US" ? {
     country: "US", country_name: "United States",
     registry_name: "NPPES (CMS National Provider Identifier)",
     id_label: "NPI number", id_regex: "^[12]\\d{9}$", id_hint: "10 digits",
     method: "api", extra_fields: [],
-  }],
+  } : {
+    country, country_name, registry_name: "National medical regulator",
+    id_label: "Medical registration number", id_regex: null,
+    id_hint: "as printed on your registration certificate",
+    method: "document", extra_fields: [],
+  }).sort((a, b) => a.country_name.localeCompare(b.country_name)),
   default: { id_label: "Medical registration number", id_hint: "", method: "document" },
   qualifications: ["MD", "DO", "MBBS", "MBChB", "MBBCh", "BMBS", "Staatsexamen", "Other"],
 };
@@ -1807,10 +1813,14 @@ function useCredentialConfig(): CredentialConfig {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (live && data && Array.isArray(data.countries) && data.countries.length) {
-          setCfg(data);
+          const merged = new Map(CREDENTIAL_CONFIG_FALLBACK.countries.map((c) => [c.country, c]));
+          for (const c of data.countries) merged.set(c.country, c);
+          setCfg({ ...data, countries: [...merged.values()].sort(
+            (a, b) => a.country_name.localeCompare(b.country_name),
+          ) });
         }
       })
-      .catch(() => { /* the fallback is a working US form, not an error state */ });
+      .catch(() => { /* Keep every country selectable using document review. */ });
     return () => { live = false; };
   }, []);
   return cfg;
@@ -2645,9 +2655,9 @@ export function Step5Credentials({
         <div style={RARE_INTRO}>
           <p style={{ ...RARE_BODY, margin: 0 }}>
             <strong style={RARE_STRONG}>We verify {registry.country_name || "your country"} by document.</strong>{" "}
-            {registry.registry_name} has no register we can check automatically, so
-            upload your registration certificate or licence card on the next screen
-            and a person here reads it. It does not slow your account down.
+            We will review your registration certificate or licence card by hand.
+            You can submit your application now; we may ask for supporting documents
+            during verification.
           </p>
         </div>
       )}
