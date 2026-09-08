@@ -1,0 +1,21 @@
+{
+  "method": "Executed unchanged selected functions from parsed source in isolation with environment defaults; not an HTTP or load test.",
+  "limits": {
+    "max_bundle_bytes": 8589934592,
+    "chunk_size_bytes": 16777216,
+    "max_parts": 4096,
+    "session_ttl_hours": 24,
+    "disk_amplification_factor": 4.0,
+    "max_zip_bytes": 104857600,
+    "max_entry_bytes": 67108864,
+    "raw_retention_days": 30,
+    "_hs_upload_quota_bytes": 5368709120,
+    "_hs_quota_window_hours": 24
+  },
+  "video_classification": {
+    "surgery.mp4": "unsupported",
+    "surgery.mov": "unsupported",
+    "surgery.mkv": "unsupported",
+    "surgery.avi": "unsupported"
+  }
+}

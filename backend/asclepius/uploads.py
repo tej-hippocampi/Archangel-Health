@@ -234,10 +234,6 @@ def declare(
             "This upload is larger than we can accept in one bundle. Please split "
             "it into smaller batches and send them one at a time.", status=413)
 
-    ok, why = disk_headroom_for(size)
-    if not ok:
-        raise UploadSessionError("insufficient_storage", why, status=507)
-
     existing = store.find_open_upload_session(
         owner_kind=owner_kind, owner_id=owner_id, actor=actor,
         declared_sha256=sha, declared_size=size)
@@ -247,6 +243,10 @@ def declare(
         if existing.get("status") is None:
             _session_dir(existing).mkdir(parents=True, exist_ok=True, mode=0o700)
         return existing, False
+
+    ok, why = disk_headroom_for(size)
+    if not ok:
+        raise UploadSessionError("insufficient_storage", why, status=507)
 
     chunk, parts = plan_for(size)
     session = store.create_upload_session(
