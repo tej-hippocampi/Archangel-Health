@@ -520,6 +520,42 @@ def require_surface(surface: str):
     return _dep
 
 
+def owns_this_exam_task(user: Dict[str, Any], task_id: str) -> bool:
+    """Is this a PROVISIONAL applicant acting on their own examination task?
+
+    The whole of the Onboarding Master PRD A §2 carve-out, stated once as a
+    predicate so every endpoint that honours it honours the same rule.
+
+    Before this existed the examination was unfinishable by the only people it
+    is for. It enters through a provisional-safe door (``require_surface(
+    TUTORIAL)`` on ``/exam/task``) and is then sat in the ordinary workspace,
+    whose every call — open the task, reveal the AI answers, pre-label — is
+    gated on ``require_practice_case`` -> ``require_label`` -> full access. So
+    the case loaded and nothing in it worked.
+
+    Three properties matter more than the convenience:
+
+    * It is TASK-SCOPED, not surface-scoped. ``capabilities._BY_ACCESS`` is not
+      touched, so this cannot become "provisional users may label". The one row
+      it opens is the row ``/exam/task`` already handed this account.
+    * It is IDENTITY-CHECKED against server-written state (``exam_case.
+      is_users_exam_task``), never against anything the client says. Another
+      applicant's examination is as closed as a real case is.
+    * It is ADDITIVE. A non-provisional user never reaches this predicate, so
+      ``require_full_access`` semantics are unchanged for everybody else, and
+      the V4 real-data wall (``_require_real_data_access``) still stands behind
+      it — an examination is a synthetic gold case and would not clear that wall
+      if it were ever pointed at real data.
+    """
+    if _caps.access_level(user) != _caps.PROVISIONAL or user.get("role") == "admin":
+        return False
+    if not _caps.can_surface(user, _caps.TUTORIAL):
+        return False
+    from asclepius import exam_case  # noqa: PLC0415  (import cycle: exam_case -> store)
+
+    return exam_case.is_users_exam_task(get_store(), user, task_id)
+
+
 #: Back-compat alias. Every existing ``Depends(asc_auth.get_current_user)`` keeps
 #: meaning "fully verified", so this change cannot quietly widen an endpoint that
 #: was not reviewed as part of it.

@@ -2473,6 +2473,18 @@
    *  A gate is not an outage and must never be rendered as one, and it must
    *  never cost them work: every caller of this keeps its draft. */
   function goToPracticeCase() {
+    // THE EXAMINATION IS NOT A REAL CASE and is exempt from this gate on the
+    // server (require_task_access, PRD A §2.1). If one of these ever reaches an
+    // applicant mid-examination it is our bug, not their missing practice case,
+    // and the two worst things to do about it are both here: tell them to go do
+    // a practice case they were told was optional, and then START it — which
+    // would replace the examination in the workspace and take the case they are
+    // sitting away from them. So the exam says something true and stays put.
+    if (examActive()) {
+      toast('Something went wrong opening that. Your answers are saved — '
+            + 'try again, or email tejpatel@berkeley.edu.', 'error');
+      return;
+    }
     toast('Finish the practice case to open real cases.', 'info');
     startTutorial({});
   }
