@@ -3,6 +3,25 @@
 A running PRD. §1 is the applicant (pre-approval) experience. Further sections are
 appended as Tej adds comments. Verified against `Archangel-Health-main (36)`.
 
+> **AS IMPLEMENTED.** §1 and §2 both shipped (Onboarding Master Phases 0 and 2);
+> see `docs/ONBOARDING_MASTER_REPORT.md`.
+>
+> The `asclepius.js` line anchors in §1.0 and §1.4 describe the tree BEFORE that
+> work and are deliberately left as they were: they are the diagnosis, and every
+> function they name — `renderProvisionalWelcome`, `renderOnboardingChoice`,
+> `renderOnboardingInfo`, `renderCredentialingResources`,
+> `renderCredentialingDashboard`, `startCredentialing`, `stampCredentialing` — was
+> deleted by it, so there is no current line to repoint them at. What replaced
+> them is `renderApplicantHome()` and `openGuideOverlay()` in the same file, and
+> `credentialingStage()` now answers three examination states and reads none of
+> the legacy marks. Citations to code that still exists are current.
+>
+> One open question from §1.4.2 is unanswered and was deliberately not decided
+> here: `FOUNDER_CALENDLY` still points at Aryaa's calendar. The strip has no
+> pre-approval caller any more, so nothing renders it today, but the constant is
+> bound to a backend constant by `test_landing_config` and changing it would
+> re-point the approval email too.
+
 ---
 
 ## §1 The applicant experience: one screen, two boxes, one job
@@ -10,7 +29,7 @@ appended as Tej adds comments. Verified against `Archangel-Health-main (36)`.
 ### 1.0 What is causing the confusion (traced)
 
 The pre-approval portal is a **six-stage hidden state machine**
-(`asclepius.js:2865 credentialingStage()`): `welcome → choice → info → resources →
+(`asclepius.js:2865→2893 credentialingStage()`): `welcome → choice → info → resources →
 practice_in_progress → exam_ready → exam_in_progress → exam_submitted`. The first
 three stages each render a **full-screen interstitial** that is "read once and then
 never again" (`renderProvisionalWelcome` :3104, `renderOnboardingChoice` :3124 —
@@ -32,7 +51,7 @@ Everything the applicant needs exists: the exam (`GET /exam/task` `asclepius.py:
 `manual-content.js`), the practice case (`startTutorial`). The problem is
 choreography, not capability.
 
-### 1.1 The rule
+### 1.1 The rule — the design invariant for this screen
 
 **Pre-approval, the portal has exactly one screen and it says one thing: the last step
 of your application is the examination.** No interstitials. No stage-dependent button
@@ -187,12 +206,12 @@ Cause, exactly:
    `tutorialActive()` → `POST /tutorial/reveal`. **For the examination
    (`examActive()`, `:3005`) it falls through to `POST /tasks/{task_id}/reveal`**
    (`:4039`), whose dependency is `require_practice_case` → `require_label` →
-   full access. `auth.py:471-487 require_full_access` refuses every PROVISIONAL user
+   full access. `backend/asclepius/auth.py:471-487 require_full_access` refuses every PROVISIONAL user
    with the message in the screenshot (`AUTH_GATE_HEADER: pending`).
 3. The same wall stands in front of three more things the exam workspace calls:
    `POST /citations/search` (`:5286`, "Search the library" in the screenshot) and
    `POST /transcribe` (`:5306`, mic dictation) depend on `get_current_user`, which
-   is an alias of `require_full_access` (`auth.py:526`); `POST /assist/prelabel`
+   is an alias of `require_full_access` (`backend/asclepius/auth.py:562`); `POST /assist/prelabel`
    (`:5201`) and `GET /tasks/{task_id}` (`:4017`) depend on `require_practice_case`.
    Draft autosave is `localStorage` only (`:3872`) — unaffected.
 

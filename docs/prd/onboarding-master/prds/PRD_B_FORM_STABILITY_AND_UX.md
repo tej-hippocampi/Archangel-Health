@@ -54,17 +54,17 @@ Evidence limitations: JSDOM does not perform layout, native tab-order traversal,
 
 ## 3. Root cause and verified code anchors
 
-- `Step5Credentials` — landing/src/app/components/onboarding/steps.tsx:2140. Each field update updates parent credentials and rerenders this function.
-- `Group` — landing/src/app/components/onboarding/steps.tsx:2260. Defined inside Step5Credentials, then rendered as a component around all three groups. Each render creates a different component type; React replaces the old subtree.
-- `OnboardingSection` — landing/src/app/components/onboarding/primitives.tsx:1575. Open state initializes from defaultOpen. Replacing the parent wrapper remounts the section and resets that local state.
-- `TextField` — landing/src/app/components/onboarding/primitives.tsx:439. Controlled input value updates and local focus state are inside the replaced subtree.
-- `TextArea` — landing/src/app/components/onboarding/primitives.tsx:663. Same subtree issue.
-- `ChipMultiSelect` — landing/src/app/components/onboarding/primitives.tsx:728. Draft text is local state and is lost on replacement.
-- `RepeatableCard` — landing/src/app/components/onboarding/steps.tsx:1493. Used by board/training arrays; inspect the index keys at each call site.
-- `FieldLabel` — landing/src/app/components/onboarding/primitives.tsx:340. Visible text needs an actual association with each control or group.
-- `rowHasContent` — landing/src/app/components/onboarding/completeness.ts:76. Boolean true currently makes an otherwise empty repeated row count as content.
-- `reviewSections` — landing/src/app/components/onboarding/completeness.ts:115. Summary groups/weights and opening guidance.
-- `checklistRows` — landing/src/app/components/onboarding/completeness.ts:198. Missing/suggested summary copy.
+- `Step5Credentials` — landing/src/app/components/onboarding/steps.tsx:2291. Each field update updates parent credentials and rerenders this function.
+- `Group` — WAS at landing/src/app/components/onboarding/steps.tsx:2260→2263, defined inside Step5Credentials and rendered as a component around all three groups. Each render created a different component type, so React replaced the old subtree. **Resolved by P0-A**: it is now `ReviewGroup` at module scope, landing/src/app/components/onboarding/steps.tsx:2263, taking its section and open-state decision as ordinary props. The rule is enforced against reintroduction by landing/test/onboarding-structure.test.cjs.
+- `OnboardingSection` — landing/src/app/components/onboarding/primitives.tsx:1633. Open state initializes from defaultOpen. Replacing the parent wrapper remounts the section and resets that local state.
+- `TextField` — landing/src/app/components/onboarding/primitives.tsx:457. Controlled input value updates and local focus state are inside the replaced subtree.
+- `TextArea` — landing/src/app/components/onboarding/primitives.tsx:704. Same subtree issue.
+- `ChipMultiSelect` — landing/src/app/components/onboarding/primitives.tsx:774. Draft text is local state and is lost on replacement.
+- `RepeatableCard` — landing/src/app/components/onboarding/steps.tsx:1576. Used by board/training arrays; inspect the index keys at each call site.
+- `FieldLabel` — landing/src/app/components/onboarding/primitives.tsx:341. Visible text needs an actual association with each control or group.
+- `rowHasContent` — landing/src/app/components/onboarding/completeness.ts:91. Boolean true currently makes an otherwise empty repeated row count as content.
+- `reviewSections` — landing/src/app/components/onboarding/completeness.ts:132. Summary groups/weights and opening guidance.
+- `checklistRows` — landing/src/app/components/onboarding/completeness.ts:215. Missing/suggested summary copy.
 
 React's official explanation describes the same nested-component reset mechanism: [Preserving and resetting state](https://react.dev/learn/preserving-and-resetting-state). The local controlled experiment, rather than that general guidance alone, establishes its relevance here.
 

@@ -66,35 +66,35 @@ Named failures to fix:
 
 Each anchor below refers to the inspected local tree. Re-run the citation audit against the implementation checkout before editing.
 
-- `applyCvParse` — landing/src/app/components/OnboardingWizard.tsx:336. Scalar empty-only fill, array-wide untouched guards, unknown-to-false board mapping, first-license selection, and omitted fellowship subject/completion-year mapping.
-- `emptyCredentials` — landing/src/app/components/onboarding/steps.tsx:228. Manual board defaults and country defaults.
-- `BoardCert` — landing/src/app/components/onboarding/steps.tsx:82. Board active is currently boolean only.
-- `YesNoToggle` — landing/src/app/components/onboarding/primitives.tsx:886. It already supports null; false visibly selects No.
-- `loadDirectorSession` — landing/src/app/components/OnboardingWizard.tsx:488. Saved CV metadata counts as saved credentials; parse and fields hydrate separately, chips clear, and uploaded sessions route to review without reapplying a completed parse or resuming an in-progress poll.
-- `pollCvParse` — landing/src/app/components/OnboardingWizard.tsx:987. Polling is initiated by upload, has no upload-attempt identity, and stops at terminal stage with whatever parsed payload arrives.
+- `applyCvParse` — landing/src/app/components/OnboardingWizard.tsx:345. Scalar empty-only fill, array-wide untouched guards, unknown-to-false board mapping, first-license selection, and omitted fellowship subject/completion-year mapping.
+- `emptyCredentials` — landing/src/app/components/onboarding/steps.tsx:304. Manual board defaults and country defaults.
+- `BoardCert` — landing/src/app/components/onboarding/steps.tsx:122. Board active is currently boolean only.
+- `YesNoToggle` — landing/src/app/components/onboarding/primitives.tsx:937. It already supports null; false visibly selects No.
+- `loadDirectorSession` — landing/src/app/components/OnboardingWizard.tsx:564. Saved CV metadata counts as saved credentials; parse and fields hydrate separately, chips clear, and uploaded sessions route to review without reapplying a completed parse or resuming an in-progress poll.
+- `pollCvParse` — landing/src/app/components/OnboardingWizard.tsx:1067. Polling is initiated by upload, has no upload-attempt identity, and stops at terminal stage with whatever parsed payload arrives.
 - `asclepius_cv_upload` — backend/routers/onboarding.py:1631. Upload records metadata and schedules a background task.
-- `asclepius_cv_status` — backend/routers/onboarding.py:1692. Returns stage and parsed state from the mutable credential blob.
-- `_record_cv_on_person` — backend/routers/onboarding.py:1754. Read/modify/write of the whole credential object, without attempt identity or atomic field merge.
-- `_parse_cv_into_person` — backend/routers/onboarding.py:1772. Every stage and final parse can write after a newer upload. A terminal callback can precede the final result write; a failure can leave an old parsed payload.
-- `save_asclepius_credentials` — backend/team_store.py:1893. Replaces the complete credential JSON; a SHA-only check does not prevent a worker from losing a simultaneous user edit.
-- `_pdf_text` — backend/asclepius/credentialing.py:858. OCR is selected using total document text length, not page-level completeness.
-- `_ocr_pdf_pages` — backend/asclepius/credentialing.py:880. First-five-page OCR cap without an explicit partial-document result contract.
-- `_extract_name` — backend/asclepius/credentialing.py:994. First-eight-line and ASCII-oriented name assumptions.
-- `_extract_degrees` — backend/asclepius/credentialing.py:1013. Whole-document degree scanning without applicant/section association.
-- `_extract_board_certifications` — backend/asclepius/credentialing.py:1233. Recognition/association needs negation, pending/expiry, and multiline issuer handling.
-- `_extract_licenses` — backend/asclepius/credentialing.py:1356. Same-line formatting restrictions and positive-token matching without negation.
-- `_extract_training` — backend/asclepius/credentialing.py:1443. No explicit subject in result; single-line institution includes the full input line.
-- `_extract_employer` — backend/asclepius/credentialing.py:1510. Date header is insufficient evidence of employment.
-- `_parse_cv_text` — backend/asclepius/credentialing.py:1533. Limited schema; elapsed training years are used as active practice; section/person relationships are lost.
-- `parse_cv` — backend/asclepius/credentialing.py:1651. A long readable document may report ok even with no useful credentials; terminal notification occurs before the caller persists the result.
+- `asclepius_cv_status` — backend/routers/onboarding.py:1708. Returns stage and parsed state from the mutable credential blob.
+- `_record_cv_on_person` — backend/routers/onboarding.py:1777. Read/modify/write of the whole credential object, without attempt identity or atomic field merge.
+- `_parse_cv_into_person` — backend/routers/onboarding.py:1809. Every stage and final parse can write after a newer upload. A terminal callback can precede the final result write; a failure can leave an old parsed payload.
+- `save_asclepius_credentials` — backend/team_store.py:1930. Replaces the complete credential JSON; a SHA-only check does not prevent a worker from losing a simultaneous user edit.
+- `_pdf_text` — backend/asclepius/credentialing.py:868. OCR is selected using total document text length, not page-level completeness.
+- `_ocr_pdf_pages` — backend/asclepius/credentialing.py:890. First-five-page OCR cap without an explicit partial-document result contract.
+- `_extract_name` — backend/asclepius/credentialing.py:1012. First-eight-line and ASCII-oriented name assumptions.
+- `_extract_degrees` — backend/asclepius/credentialing.py:1031. Whole-document degree scanning without applicant/section association.
+- `_extract_board_certifications` — backend/asclepius/credentialing.py:1251. Recognition/association needs negation, pending/expiry, and multiline issuer handling.
+- `_extract_licenses` — backend/asclepius/credentialing.py:1374. Same-line formatting restrictions and positive-token matching without negation.
+- `_extract_training` — backend/asclepius/credentialing.py:1461. No explicit subject in result; single-line institution includes the full input line.
+- `_extract_employer` — backend/asclepius/credentialing.py:1579. Date header is insufficient evidence of employment.
+- `_parse_cv_text` — backend/asclepius/credentialing.py:1602. Limited schema; elapsed training years are used as active practice; section/person relationships are lost.
+- `parse_cv` — backend/asclepius/credentialing.py:1720. A long readable document may report ok even with no useful credentials; terminal notification occurs before the caller persists the result.
 
 Downstream consumers are part of the tri-state fix, not optional cleanup:
 
-- `feature_vector` — backend/asclepius/tiering.py:663. Inspect active-null handling and the legacy board-text fallback.
+- `feature_vector` — backend/asclepius/tiering.py:667. Inspect active-null handling and the legacy board-text fallback.
 - `domain_match` — backend/asclepius/tiering.py:496. Subspecialty evidence also depends on active-state semantics.
 - `_provision_asclepius_user` — backend/routers/onboarding.py:1153. Inspect legacy board-text projection from credentials.
-- `propose_tier` — backend/asclepius/credentialing.py:1769. Inspect legacy scoring from board text/CV lists.
-- `test_a_certification_never_arrives_pre_ticked_as_active` — backend/tests/test_cv_parse_quality.py:275. The current source-string test expressly expects false and therefore protects the observed bug. Replace with behavior tests for unanswered/Yes/No.
+- `propose_tier` — backend/asclepius/credentialing.py:1838. Inspect legacy scoring from board text/CV lists.
+- `test_a_certification_never_arrives_pre_ticked_as_active` — WAS at backend/tests/test_cv_parse_quality.py:275, and its source-string assertion expressly expected false, so it protected the observed bug. **Replaced** by `test_a_certification_arrives_unanswered_rather_than_answered_for_them` at backend/tests/test_cv_parse_quality.py:275, with the behaviour tests for unanswered/Yes/No in backend/tests/test_board_validity_tri_state.py and landing/test/onboarding-form-stability.test.cjs.
 
 ## 5. Design invariants
 

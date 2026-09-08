@@ -12,11 +12,11 @@ discarded.
 
 | PRD | Verdict | Notes |
 |---|---|---|
-| **B — Form stability & UX** | **Correct, P0, small.** Root cause is real and reproduced by a controlled JSDOM experiment (8/29 → 26/29 checks by one change): `Group` is a component **defined inside** `Step5Credentials` (`steps.tsx:2260`), so every keystroke re-creates a new component type and React remounts the whole subtree — focus lost after one character, accordion state reset, chip drafts wiped. Three residuals (missing programmatic label on mobile field; blank board row counts as filled because `active=true` default is "content"; `key={i}` on repeated rows at `steps.tsx:2570, 2637`) are also verified. | All 11 anchors resolve in zip (36). Nothing to change. |
-| **C — CV extraction → review** | **Correct diagnoses, but large.** The null→false board-validity bug is real (`applyCvParse` `OnboardingWizard.tsx:336` writes `active: false` at two sites; the test at `test_cv_parse_quality.py:275` *protects* the bug); fellowship specialty and second license are dropped; whole-object credential saves (`team_store.py:1893`) and un-identified polls (`pollCvParse` :987) let an older extraction overwrite a newer upload. §6 asks for a lot: attempt records, versioned candidate envelopes, structured extraction rewrite, tri-state through tiering. | All 12 anchors spot-checked resolve. **Stage it** (below) — ship the correctness fixes before the extraction rewrite. |
+| **B — Form stability & UX** | **Correct, P0, small.** Root cause is real and reproduced by a controlled JSDOM experiment (8/29 → 26/29 checks by one change): `Group` was a component **defined inside** `Step5Credentials`, so every keystroke re-created a new component type and React remounted the whole subtree — focus lost after one character, accordion state reset, chip drafts wiped. Three residuals (missing programmatic label on the mobile field; blank board row counted as filled because the `active=true` default read as "content"; array-index keys on repeated rows) are also verified. | All 11 anchors resolved in zip (36). **One correction found on implementation:** the index-key sites are THREE, not two — board, fellowship and residency (`landing/src/app/components/onboarding/steps.tsx:2570→2703`, `:2637→2774`, `:2687→2826`); PRD B P1-A names all three groups, so only this summary was short. Shipped in Phase 1 (the hoist: `landing/src/app/components/onboarding/steps.tsx:2260→2263`) and Phase 3 (the residuals). `ReviewGroup` now lives at module scope in `landing/src/app/components/onboarding/steps.tsx:2263`. |
+| **C — CV extraction → review** | **Correct diagnoses, but large.** The null→false board-validity bug is real: `applyCvParse` at `landing/src/app/components/OnboardingWizard.tsx:345` wrote `active: false` at two sites. The test that protected it is replaced by `test_a_certification_arrives_unanswered_rather_than_answered_for_them` at `backend/tests/test_cv_parse_quality.py:275`. Fellowship specialty and the second licence are dropped. Whole-object credential saves let an older extraction overwrite a newer upload: `save_asclepius_credentials` at `backend/team_store.py:1930`, with un-identified polls in `pollCvParse` at `landing/src/app/components/OnboardingWizard.tsx:1067`. §6 asks for a lot: attempt records, versioned candidate envelopes, structured extraction rewrite, tri-state through tiering. | All 12 anchors spot-checked resolve. **Stage it** (below) — ship the correctness fixes before the extraction rewrite. |
 | **A — Applicant screen + exam blocker** (mine) | The pre-approval portal is a six-stage hidden state machine with three interstitials; and the examination's Reveal / library search / dictation 403 for every provisional applicant because the exam enters through the `TUTORIAL` door then uses full-access workspace endpoints. | See `prds/PRD_A_…` §1–§2. |
 
-Conflicts between the three: **none** — A touches `asclepius.js` (portal) + the success screen in `steps.tsx:3760-3830`; B touches `Step5Credentials`/primitives/completeness; C touches the wizard's CV path and backend credentialing. The only shared file is `steps.tsx`, in non-overlapping regions. B's invariant "no new mandatory fields" and A's "only name/email/specialty required" agree.
+Conflicts between the three: **none** — A touches `asclepius.js` (portal) + the success screen in `steps.tsx:3860-3988`; B touches `Step5Credentials`/primitives/completeness; C touches the wizard's CV path and backend credentialing. The only shared file is `steps.tsx`, in non-overlapping regions. B's invariant "no new mandatory fields" and A's "only name/email/specialty required" agree.
 
 ---
 
@@ -34,7 +34,7 @@ Each phase: its own commit series citing the PRD section; the phase's tests gree
 
 ---
 
-## 2 · Invariants across all phases
+## 2 · Design invariants across all phases
 
 1. **No new mandatory fields.** Only name, email, specialty are required to submit (Onboarding v2). Unknown stays unanswered (`null`), never `false`, never "No".
 2. **Never overwrite a user edit** — including a deliberate clear. An older extraction attempt cannot write over a newer one.
@@ -45,6 +45,39 @@ Each phase: its own commit series citing the PRD section; the phase's tests gree
 7. **Design bar:** one primary per screen; tokens only; no inline component definitions inside render functions anywhere in `onboarding/` (add a lint rule); CSS outside foreign `@media` blocks.
 
 ---
+
+## 2.5 · Tests
+
+Each phase converts the relevant diagnostic in `evidence/` into a maintained test
+and runs its own list plus the full suite. What shipped, per phase:
+
+| Phase | Tests |
+|---|---|
+| 0 | `backend/tests/test_exam_task_access.py` — 24, the carve-out's edges |
+| 1 | `landing/test/onboarding-form-stability.test.cjs` (promoted from `evidence/onboarding-ux-evidence/run_form_probe.cjs`) and `landing/test/onboarding-structure.test.cjs` (invariant 7 as a rule), run by the `onboarding-form` CI job |
+| 2 | `backend/tests/test_applicant_home_screen.py` — 23; six existing tests that encoded the deleted design were rewritten |
+| 3 | `backend/tests/test_board_validity_tri_state.py` — 15; `backend/tests/test_cv_attempt_lifecycle.py` — 20; the three Phase 1 `todo` placeholders became real assertions |
+
+Real-browser scroll, mobile virtual keyboards, IME composition and screen-reader
+output are NOT covered by any of these. JSDOM has no layout engine, so they stay
+human checks in the sandbox realm (PRD B §6) and are listed as unverified in
+`docs/ONBOARDING_MASTER_REPORT.md`.
+
+## 2.6 · Do not touch / non-goals
+
+- `_BY_ACCESS`, `require_full_access` semantics for everyone else, the
+  `/tutorial/reveal` no-persistence rule, the V4 real-data wall, and the
+  verification queue's read of the examination (PRD A §2.4).
+- `GET /exam/task` / `POST /exam/submit` and their stage stamps, the tutorial
+  internals, the post-approval first-run walkthrough, and the demo-video
+  ticket/Range endpoint (PRD A §1.6).
+- Tier weights, seniority or prestige features, retroactive revocation, and
+  auto-approval. The tri-state work corrects the INPUT semantics of existing
+  computations and changes no weight (PRD C §6-E).
+- Any database deletion. The CV attempt table is additive and superseded
+  attempts are retained (§2 invariant 3).
+- Phase 4 (PRD C §6 B, D, F — structured extraction with evidence spans,
+  provenance chips, PDF/OCR bounds). Not started, by instruction.
 
 ## 3 · The prompt for Claude Code
 
