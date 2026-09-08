@@ -272,11 +272,24 @@ def test_the_form_prefills_the_display_specialty_not_the_registry_key():
     assert 'fill("primarySpecialty", parsed.specialty_display' in _APPLY
 
 
-def test_a_certification_never_arrives_pre_ticked_as_active():
+def test_a_certification_arrives_unanswered_rather_than_answered_for_them():
     """The compliance field a physician signs for. A document written last year
-    cannot answer a question about today."""
+    cannot answer a question about today.
+
+    THIS TEST USED TO PROTECT THE BUG. It asserted `"active: false" in _APPLY`,
+    which is exactly what shipped and exactly what was wrong: `YesNoToggle`
+    renders `false` as a SELECTED "No", so every physician who uploaded a CV was
+    shown a negative attestation, already made on their behalf, on every
+    certification they hold. The test was right that `true` would be putting
+    words in their mouth and did not notice that `false` is the same act with
+    the opposite sign.
+
+    Unknown is `null`, which renders as neither button pressed (PRD C §6-C/E).
+    Asserted as behaviour rather than as a source string wherever it can be —
+    see test_board_validity_is_tri_state.py for the consumers."""
     assert "active: true" not in _APPLY
-    assert "active: false" in _APPLY
+    assert "active: false" not in _APPLY, "false is an answer nobody gave"
+    assert "active: null" in _APPLY
 
 
 def test_the_autofill_still_never_overwrites_the_physician():

@@ -100,7 +100,8 @@ def _match_specialty(applied: str) -> Optional[str]:
         return None
 
 
-def exam_task_for(store: Any, user: Dict[str, Any], attempt: int) -> Optional[Dict[str, Any]]:
+def exam_task_for(store: Any, user: Dict[str, Any], attempt: int,
+                  *, seed: bool = True) -> Optional[Dict[str, Any]]:
     """The gold task this attempt draws, or None when none can be loaded.
 
     Selected BY ID rather than through ``_query_next``, deliberately. The queue
@@ -124,10 +125,17 @@ def exam_task_for(store: Any, user: Dict[str, Any], attempt: int) -> Optional[Di
     # Idempotent and LLM-free: already-present cases are skipped. Cheap enough
     # to call on the draw, which is what keeps a fresh deployment from having
     # an examination that 404s until somebody remembers to seed it.
-    try:
-        load_gold_cases(store, specialty=specialty)
-    except Exception:
-        log.exception("[exam] could not ensure gold cases for %s", specialty)
+    #
+    # ``seed=False`` for the callers that are only ASKING which case this is —
+    # `is_users_exam_task` runs on every task fetch from a legacy-blob account,
+    # including the ones that end in 403, and an authorization predicate has no
+    # business writing rows. A deployment with no gold cases yet answers "not
+    # your task", which is the safe direction; the draw seeds them.
+    if seed:
+        try:
+            load_gold_cases(store, specialty=specialty)
+        except Exception:
+            log.exception("[exam] could not ensure gold cases for %s", specialty)
 
     idx = max(0, int(attempt or 1) - 1) % len(entries)
     task_id = "gold-" + entries[idx]["case_id"]
@@ -140,3 +148,57 @@ def exam_task_for(store: Any, user: Dict[str, Any], attempt: int) -> Optional[Di
             if task:
                 break
     return task
+
+
+def is_users_exam_task(store: Any, user: Dict[str, Any], task_id: str) -> bool:
+    """True when ``task_id`` is the case this user's OWN examination is sitting on.
+
+    The identity check behind the one provisional carve-out (Onboarding Master
+    PRD A §2.1). An applicant is not granted "task access"; they are granted
+    access to *this* row, the one ``/exam/task`` already served them, and the
+    answer comes from their own ``tutorial_json`` rather than from anything the
+    client sends.
+
+    Deliberately conservative in three ways:
+
+    * An examination that was never drawn opens nothing. ``state`` must be
+      ``in_progress`` or ``submitted`` — a bare ``{"attempt": 1}`` blob is not a
+      claim on a task.
+    * The stamp is the primary answer. ``/exam/task`` records ``task_id`` on the
+      draw, so the common path is a string comparison against a value only the
+      server has ever written.
+    * The fallback is a RECOMPUTE, not a guess. Applicants who were already
+      mid-examination when this shipped have a stamp with no ``task_id`` in it,
+      so for those we re-derive the case the same deterministic rotation would
+      serve for their attempt and compare against that. It is the same function
+      that served them, so it cannot admit a case they were not given, and it
+      is additive: no stored blob is rewritten to make this work.
+    """
+    task_id = (task_id or "").strip()
+    if not task_id:
+        return False
+    try:
+        blob = store.get_tutorial_state(user["id"]) or {}
+    except Exception:
+        log.exception("[exam] could not read tutorial state for %s", user.get("id"))
+        return False
+    exam = blob.get("exam") if isinstance(blob.get("exam"), dict) else None
+    if not exam:
+        return False
+    if exam.get("state") not in ("in_progress", "submitted"):
+        return False
+
+    stamped = str(exam.get("task_id") or "").strip()
+    if stamped:
+        return stamped == task_id
+
+    # Legacy blob, drawn before the stamp existed. Recompute rather than trust.
+    attempt = int(exam.get("attempt") or 0) or 1
+    try:
+        # seed=False: this is an authorization question, and answering it must
+        # not write rows. See exam_task_for.
+        task = exam_task_for(store, user, attempt, seed=False)
+    except Exception:
+        log.exception("[exam] could not re-derive exam task for %s", user.get("id"))
+        return False
+    return bool(task) and str(task.get("task_id") or "") == task_id

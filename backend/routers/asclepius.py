@@ -1893,7 +1893,12 @@ async def get_exam_task(user: Dict[str, Any] = Depends(asc_auth.require_surface(
     # comes back to "Resume my examination" rather than to a screen that has
     # forgotten they started.
     if exam.get("state") != "submitted":
-        current["exam"] = {**exam, "state": "in_progress", "attempt": attempt}
+        # ``task_id`` is stamped here because it is the ONLY record of which case
+        # this applicant was given, and ``require_task_access`` (PRD A §2.1) reads
+        # it to decide whether a provisional account may open, reveal or prelabel
+        # a task. Written server-side on the draw, never accepted from a client.
+        current["exam"] = {**exam, "state": "in_progress", "attempt": attempt,
+                           "task_id": task.get("task_id")}
         store.set_tutorial_state(user["id"], current)
 
     return {
@@ -1925,9 +1930,42 @@ async def submit_exam(
     current = store.get_tutorial_state(user["id"])
     exam = current.get("exam") if isinstance(current.get("exam"), dict) else {}
     attempt = int(exam.get("attempt") or 0) or 1
-    task_id = str(body.get("task_id") or "").strip()
-    if not task_id:
+    claimed = str(body.get("task_id") or "").strip()
+    if not claimed:
         raise HTTPException(status_code=400, detail="Which case is this?")
+
+    # THE TASK IS RESOLVED SERVER-SIDE, and the body only gets to agree with it.
+    #
+    # This used to stamp `body["task_id"]` straight into `tutorial.exam`, which
+    # is the ONLY input to `exam_case.is_users_exam_task` and therefore to the
+    # whole provisional carve-out. So a single POST — no draw needed, on a fresh
+    # account — rewrote the stamp to any task id the caller could name, and the
+    # next `GET /tasks/{id}` returned it. Each submit rewrote it again, so it
+    # walked the queue. The draw's own comment two hundred lines up says this
+    # value is "written server-side, never accepted from a client"; this path
+    # was quietly doing the opposite.
+    #
+    # `exam.task_id` is what `/exam/task` recorded when it served the case. For
+    # an applicant mid-examination from before that stamp existed, the same
+    # deterministic rotation that served them is re-derived — the identical
+    # fallback `is_users_exam_task` uses, and equally not client-influenced.
+    served = str(exam.get("task_id") or "").strip()
+    if not served:
+        drawn = exam_case.exam_task_for(store, user, attempt)
+        served = str((drawn or {}).get("task_id") or "").strip()
+    if not served:
+        raise HTTPException(
+            status_code=503,
+            detail="No examination case is available yet. We will email you.")
+    if claimed != served:
+        # 403 rather than 400: this is not a malformed request, it is a request
+        # about somebody else's case.
+        log.warning("[exam] submit named a task that was not served user=%s",
+                    user.get("id"))
+        raise HTTPException(
+            status_code=403,
+            detail="That is not the case your examination was served.")
+    task_id = served
 
     picked = exam_case.exam_specialty(user)
     now = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -1943,8 +1981,13 @@ async def submit_exam(
         is_own_specialty=bool(picked["is_own"]),
         applied_specialty=picked.get("applied_with") or "",
     )
+    # ``task_id`` is CARRIED THROUGH rather than dropped. Rebuilding this blob
+    # from scratch used to lose it, which would have closed the applicant's own
+    # case to them the instant they filed it — the workspace re-reads the task
+    # after a submit, and require_task_access answers out of this stamp.
     current["exam"] = {"state": "submitted", "attempt": attempt,
-                       "submitted_at": now, "exam_id": exam_id}
+                       "submitted_at": now, "exam_id": exam_id,
+                       "task_id": task_id}
     store.set_tutorial_state(user["id"], current)
     # A receipt, with no verdict in it by construction. A retake writes a new
     # row and so sends a second one, which is correct: it IS a second
@@ -3244,6 +3287,38 @@ def require_practice_case(
     )
 
 
+def _full_task_gate(user: Dict[str, Any]) -> Dict[str, Any]:
+    """The existing ``Depends(require_practice_case)`` chain, called directly.
+
+    Reproduced link for link rather than approximated: ``require_practice_case``
+    depends on ``require_label``, which depends on ``require_surface(REAL_WORK)``.
+    Calling the three bodies in that order is what ``Depends`` would have done,
+    so a non-exam caller meets the identical gates, in the identical order, with
+    the identical 403s and headers. That equivalence is the point — the carve-out
+    below is only allowed to be a carve-out if the path around it is unchanged.
+    """
+    asc_auth.require_surface(asc_caps.REAL_WORK)(user)
+    require_label(user)
+    return require_practice_case(user)
+
+
+def require_task_access(
+    task_id: str, user: Dict[str, Any] = Depends(asc_auth.get_current_account),
+) -> Dict[str, Any]:
+    """Full access to this task, OR a provisional applicant on their own exam.
+
+    Onboarding Master PRD A §2.1. Applied at the seam rather than per endpoint so
+    the carve-out has one definition and one test surface.
+
+    The examination is exempt from the PRACTICE gate as well, and deliberately:
+    pre-approval the practice case is optional (PRD A §1), so requiring it before
+    the examination would rebuild the blocker one gate lower down.
+    """
+    if asc_auth.owns_this_exam_task(user, task_id):
+        return user
+    return _full_task_gate(user)
+
+
 #: The header a client can read without parsing the body, mirroring
 #: PRACTICE_GATE_HEADER. Same reason: a fetch wrapper decides whether to route
 #: to a screen before anything unwraps the JSON.
@@ -4016,7 +4091,7 @@ def _attach_relay_handoff(store: Any, task: Dict[str, Any], out: Dict[str, Any])
 
 @router.get("/tasks/{task_id}")
 async def get_task(task_id: str,
-                   user: Dict[str, Any] = Depends(require_practice_case)):
+                   user: Dict[str, Any] = Depends(require_task_access)):
     store = _store()
     task = store.get_task(task_id)
     if not task:
@@ -4039,7 +4114,7 @@ async def get_task(task_id: str,
 @router.post("/tasks/{task_id}/reveal")
 async def reveal_task_answers(
     task_id: str, body: IndependentAnswer,
-    user: Dict[str, Any] = Depends(require_practice_case),
+    user: Dict[str, Any] = Depends(require_task_access),
 ):
     """Commit the evaluator's blind independent answer and reveal the candidate
     answers in one step (Eval Flow Upgrade §1, v2 anti-peeking). This is the ONLY
@@ -5200,7 +5275,8 @@ async def rubric_suggest(
 # ─── Model-assisted pre-labeling (Speed Optimization §2) ─────────────────────
 @router.post("/assist/prelabel")
 async def assist_prelabel(
-    body: PrelabelRequest, user: Dict[str, Any] = Depends(require_practice_case)
+    body: PrelabelRequest,
+    user: Dict[str, Any] = Depends(asc_auth.get_current_account),
 ):
     """Suggest the weaker answer + error tags + a draft rationale for a task the
     evaluator is grading — VERIFY, don't author. Guardrails:
@@ -5215,7 +5291,14 @@ async def assist_prelabel(
         uncertain call.
       * Degrades to ``skipped=True`` with no LLM key — manual labeling always
         works.
+
+    The access gate is resolved IN THE BODY rather than through ``Depends``,
+    because the task id arrives in the payload and a path-parameter dependency
+    cannot see it. Same rule as ``require_task_access``, same two branches — an
+    applicant on their own examination, or the full chain for everybody else.
     """
+    if not asc_auth.owns_this_exam_task(user, body.task_id):
+        _full_task_gate(user)
     store = _store()
     # Unconditional (even with withholding off): the suggestion names the weaker
     # answer + error spans, so it must never exist before the blind commit.
@@ -5254,7 +5337,8 @@ async def assist_prelabel(
 # ─── Auto-suggested citations (Seamless PRD WS3) ──────────────────────────────
 @router.post("/assist/cite")
 async def assist_cite(
-    body: CiteRequest, user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: CiteRequest,
+    user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL)),
 ):
     """Auto-suggest the 1–3 most relevant library citations for a rationale or
     reasoning step so grounding a record is a one-click *confirm* (WS3 — the
@@ -5264,7 +5348,18 @@ async def assist_cite(
     is a starting point. Retrieval is deterministic (always works); an optional
     LLM rerank refines ordering. Degrades to ``skipped=True`` when the specialty
     has no citation library (the doctor types a citation as before). No
-    anti-peeking gate: citing happens post-reveal on the doctor's OWN text."""
+    anti-peeking gate: citing happens post-reveal on the doctor's OWN text.
+
+    TUTORIAL rather than full access, for the same reason and on the same
+    evidence as ``/citations/search`` (PRD A §2.1). This one was MISSED when
+    that change was made: §2.0 listed the endpoints the examination workspace
+    calls and this was not on the list, so an applicant sitting the examination
+    got a 403 on every automatic citation suggestion. The client swallows the
+    error, so nothing visibly broke — the one-click citation chips were simply
+    dead for the only population the examination exists for, which is what §2.3
+    means by "cite a guideline ... zero 403s". Same reasoning as the search box:
+    the library is published guidance, keyed by specialty, and nothing
+    patient-specific is reachable through it."""
     text = (body.text or "").strip()
     if not text:
         return {"skipped": False, "suggestions": [], "source": "empty_text"}
@@ -5285,14 +5380,23 @@ async def assist_cite(
 
 @router.post("/citations/search")
 async def citations_search(
-    body: CiteRequest, _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    body: CiteRequest,
+    _user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL)),
 ):
     """The explicit "Search the library" box (BUG-3c escape hatch): the doctor
     typed a query on purpose, so this is more permissive than the auto-suggest —
     any token overlap matches, ranked by relevance. A blank query returns the
     library head so the box is never a dead end. ``skipped`` when the specialty
     has no library. Never gated on the independent commit (the doctor is grounding
-    their OWN text, post-reveal), like ``/assist/cite``."""
+    their OWN text, post-reveal), like ``/assist/cite``.
+
+    TUTORIAL rather than full access (PRD A §2.1): an applicant sitting the
+    credentialing examination has to be able to cite, and "Search the library"
+    is the box they do it in. Nothing patient-specific is reachable through it —
+    the library is published guidance, keyed by specialty — so it is a
+    surface-level permission rather than a task-scoped carve-out. It admits
+    advisors too, who already hold TUTORIAL and already click through the whole
+    practice case; the same reasoning covers both."""
     specialty = (body.specialty or "nephrology")
     if asc_citations.load_library(specialty) is None:
         return {"skipped": True, "suggestions": [], "reason": "no_citation_library"}
@@ -5303,16 +5407,55 @@ async def citations_search(
 
 
 # ─── Voice dictation (Speed Optimization §4) ──────────────────────────────────
+#: A dictation clip is seconds of speech. Generous for one, and small enough
+#: that a widened audience cannot turn the mic button into a bill.
+TRANSCRIBE_MAX_BYTES = 12 * 1024 * 1024
+
+
+async def _read_capped_audio(file: UploadFile, max_bytes: int) -> bytes:
+    """Read an upload with a RUNNING cap.
+
+    ``await file.read()`` buffers the entire body before any size check, so an
+    arbitrarily large upload is resident in memory before it can be rejected.
+    Same shape as ``_read_capped`` on the CV path, and the same reason.
+    """
+    chunks, total = [], 0
+    while True:
+        chunk = await file.read(256 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"That clip is too long; the limit is {max_bytes} bytes.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @router.post("/transcribe")
 async def transcribe_audio(
-    file: UploadFile = File(...), _user: Dict[str, Any] = Depends(asc_auth.get_current_user)
+    file: UploadFile = File(...),
+    _user: Dict[str, Any] = Depends(asc_auth.require_surface(asc_caps.TUTORIAL)),
 ):
     """Transcribe a short dictation clip from the in-app mic. Provider-abstracted
     (``ASCLEPIUS_STT_PROVIDER``: ``standard`` = Deepgram/Whisper, ``wispr`` stub).
     Audio is EPHEMERAL — held in memory for this request only, never persisted
     (synthetic prompts, no PHI; TLS in transit). 503 when no provider is
-    configured so the mic button can degrade to typing."""
-    data = await file.read()
+    configured so the mic button can degrade to typing.
+
+    TUTORIAL rather than full access (PRD A §2.1): dictation is a UI convenience
+    over the user's own microphone, not access to any of our data, and an
+    applicant taking the examination is offered the same mic button everyone
+    else is."""
+    # BOUNDED, because the audience widened. This is an unbounded read in front
+    # of a metered third-party provider, and it used to sit behind
+    # ``require_full_access`` — an approved physician. It is now reachable by
+    # any pending signup, so the cap and the running read (rather than
+    # ``await file.read()``, which buffers the whole body before any check) are
+    # part of the widening rather than an optional extra. A dictation clip is
+    # seconds of speech; 12 MB is generous for one.
+    data = await _read_capped_audio(file, TRANSCRIBE_MAX_BYTES)
     res = await asc_stt.transcribe(data, mime=file.content_type or "audio/webm")
     if res.get("skipped"):
         raise HTTPException(

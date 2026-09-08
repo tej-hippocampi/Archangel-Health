@@ -1,0 +1,20 @@
+{
+  "scope": "Public unauthenticated bundle downloaded; live application token not used. Local test modules copied before execution.",
+  "bundle_url": "https://archangelhealth.ai/assets/index-CydTCP5X.js",
+  "bundle_sha256": "1374625adb66b53ffcc6fbb83504ff6d8450c4e733997fe7c9644a9869b6cc38",
+  "local_test_modules": {
+    "steps.tsx": "37fbdcadb91f2ff3fb380786bce87aa61c7a127f44063edc9306411228c5ea1c",
+    "primitives.tsx": "9cf40f174c2e23f9f6d9f939a036df9d2b3e5b653c06099cc79e6bfc8b3d0978",
+    "completeness.ts": "7d3d043589c2e38600386090c21cf1c2b055be5ae84e81e09faf39082c118f59",
+    "npi.ts": "23c219a649695fb87f57fb2c1cd09e9d4fcfb6420dea9e1812a41c454609c605"
+  },
+  "runtime": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "jsdom": "26.1.0",
+    "esbuild": "0.25.0",
+    "node": "24.19.0"
+  },
+  "no_browser_testing_after_user_withdrew_access": true,
+  "pixel_scroll_measured": false
+}

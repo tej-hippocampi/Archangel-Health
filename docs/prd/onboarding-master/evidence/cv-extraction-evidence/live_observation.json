@@ -1,0 +1,106 @@
+{
+  "source": "Read-only Chrome observation of review page and backend GET /api/onboarding/asclepius/cv/status for the same upload; JSON was visually inspected, not downloaded.",
+  "filename": "Mock_Physician_CV_Mike_Blum.pdf",
+  "stage": "done",
+  "finished": true,
+  "ok": true,
+  "parsed_at": "2026-09-08T02:44:46",
+  "text_chars": 1522,
+  "parsed_business_fields": {
+    "institutions": [
+      "Cedar Example Medical Center, Los Angeles CA    2016 - Present",
+      "North Example University School of Medicine    2007 - 2011",
+      "West Example University School of Public Health    2010 - 2011",
+      "Harbor Example University Hospital, Boston MA    2011 - 2014",
+      "Cedar Example Medical Center, Los Angeles CA    2014 - 2016"
+    ],
+    "board_certifications": [
+      "ABIM Nephrology",
+      "ABIM Internal Medicine"
+    ],
+    "years_in_practice": 10,
+    "publications_count": 2,
+    "full_name": "Mike Blum",
+    "degrees": [
+      "MD",
+      "MPH"
+    ],
+    "training": [
+      {
+        "kind": "residency",
+        "institution": "Harbor Example University Hospital",
+        "start_year": "2011",
+        "end_year": "2014"
+      },
+      {
+        "kind": "fellowship",
+        "institution": "Cedar Example Medical Center",
+        "start_year": "2014",
+        "end_year": "2016"
+      }
+    ],
+    "specialty": "nephrology",
+    "specialty_display": "Nephrology",
+    "board_certifications_structured": [
+      {
+        "board": "ABIM",
+        "specialty": "Nephrology",
+        "subspecialty": "",
+        "active": null
+      },
+      {
+        "board": "ABIM",
+        "specialty": "Internal Medicine",
+        "subspecialty": "",
+        "active": null
+      }
+    ],
+    "licenses": [
+      {
+        "state": "CA",
+        "number": "TEST-900001",
+        "current": "yes"
+      },
+      {
+        "state": "MA",
+        "number": "TEST-900002",
+        "current": "yes"
+      }
+    ],
+    "employer": "Cedar Example Medical Center",
+    "npi": "9999999995",
+    "linkedin_url": "https://www.linkedin.com/in/archangel-fictional-mike-blum-test"
+  },
+  "ui": {
+    "summary": "10 fields came from your CV; 1 still missing: Your mobile number",
+    "name": "Mike Blum (no CV chip; existing identity provenance not independently established)",
+    "degree": "MD",
+    "specialty": "Nephrology",
+    "npi": "9999999995",
+    "certification_validity": [
+      false,
+      false
+    ],
+    "fellowship_institution": "Cedar Example Medical Center",
+    "fellowship_year": "2016",
+    "fellowship_specialty": "empty; Nephrology is placeholder",
+    "residency_institution": "Harbor Example University Hospital",
+    "residency_year": "2014",
+    "residencyCompletionYear": "empty; 2010 is placeholder",
+    "licenseNumber": "TEST-900001",
+    "licenseState": "CA",
+    "yearsInActivePractice": "10",
+    "healthSystem": "Cedar Example Medical Center",
+    "linkedinUrl": "https://www.linkedin.com/in/archangel-fictional-mike-blum-test",
+    "mobile": "empty; +1 (555) 010-7788 is placeholder",
+    "practiceCountry": "United States (no CV chip; default in local code)",
+    "boardSubspecialty": "empty; Nephrology is placeholder"
+  },
+  "not_performed": [
+    "No application submission",
+    "No field changes",
+    "No extra live CV uploads",
+    "No live restart/race test",
+    "No registry verification"
+  ]
+}

@@ -1,0 +1,186 @@
+{
+  "variant": "stable",
+  "scope": "Actual form rendered in JSDOM with React 18.3.1. No browser control, no network, no measured pixel scroll. Stable variant hoists only Group in a disposable copy.",
+  "checks": [
+    {
+      "name": "phone_node_survives_one_character",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "phone_focus_survives_one_character",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "ten_digits_without_reclick",
+      "actual": "2025550147",
+      "expected": "2025550147",
+      "passed": true
+    },
+    {
+      "name": "nonreview_phone_identity",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "nonreview_phone_focus",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "residency_yes_node_survives",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "residency_yes_focus_survives",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "training_section_survives_yes",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "residency_yes_value_updates",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "identity_manual_collapse",
+      "actual": "false",
+      "expected": "false",
+      "passed": true
+    },
+    {
+      "name": "unrelated_edit_preserves_manual_collapse",
+      "actual": "false",
+      "expected": "false",
+      "passed": true
+    },
+    {
+      "name": "textarea_node_survives",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "textarea_focus_survives",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "cv_edit_keeps_focus",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "cv_edit_clears_chip",
+      "actual": false,
+      "expected": false,
+      "passed": true
+    },
+    {
+      "name": "residency_year_node_survives",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "residency_year_focus_survives",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "country_select_node_survives",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "non_submit_controls_have_button_type",
+      "actual": 0,
+      "expected": 0,
+      "passed": true
+    },
+    {
+      "name": "mobile_accessible_label_associated",
+      "actual": false,
+      "expected": true,
+      "passed": false
+    },
+    {
+      "name": "empty_board_not_counted_as_filled",
+      "actual": false,
+      "expected": true,
+      "passed": false
+    },
+    {
+      "name": "unfinished_chip_draft_survives_other_edit",
+      "actual": "Spa",
+      "expected": "Spa",
+      "passed": true
+    },
+    {
+      "name": "unicode_name_value_survives",
+      "actual": "José Muñoz",
+      "expected": "José Muñoz",
+      "passed": true
+    },
+    {
+      "name": "unicode_name_focus_survives",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "phone_paste_value",
+      "actual": "+1 (202) 555-0147",
+      "expected": "+1 (202) 555-0147",
+      "passed": true
+    },
+    {
+      "name": "phone_paste_focus",
+      "actual": true,
+      "expected": true,
+      "passed": true
+    },
+    {
+      "name": "remove_middle_row_keeps_last_row_identity",
+      "actual": false,
+      "expected": true,
+      "passed": false
+    },
+    {
+      "name": "remove_middle_row_keeps_last_row_value",
+      "actual": [
+        "A",
+        "C"
+      ],
+      "expected": [
+        "A",
+        "C"
+      ],
+      "passed": true
+    },
+    {
+      "name": "accordion_toggle_preserves_chip_draft",
+      "actual": "Español",
+      "expected": "Español",
+      "passed": true
+    }
+  ]
+}

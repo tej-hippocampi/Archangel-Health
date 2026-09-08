@@ -296,14 +296,21 @@ def _strip_js_comments(source: str) -> str:
 _CODE = _strip_js_comments(_JS)
 
 
-def test_the_resources_screen_says_which_parts_are_optional():
+def test_the_applicant_screen_says_which_parts_are_optional():
     """A physician used to be dropped into a case that decides about them with
-    no warning that it did. Being straight about which parts are optional and
-    which is not is the whole screen."""
-    screen = _CODE[_CODE.index("function renderCredentialingResources"):][:3000]
-    assert "the one we read" in screen
-    assert "Both are optional. The examination is not." in screen
+    no warning that it did.
+
+    The pre-examination resources screen that first answered this is gone with
+    the rest of the staged journey (PRD A §1.1). Its job moved onto the
+    applicant's one screen, where the same distinction is drawn structurally
+    rather than in a sentence: card 1's items are quiet rows and the practice
+    case is a link, and the only primary button on the page is the
+    examination's."""
+    start = _CODE.index("function renderApplicantHome()")
+    screen = _CODE[start:_CODE.index("\n  function ", start + 10)]
     assert "playDemo" in screen and "startTutorial" in screen
+    assert "Optional: try a practice case first" in screen
+    assert screen.count("asc-btn-primary") == 1
 
 
 def test_the_examination_is_a_separate_flag_from_the_practice_case():
@@ -334,7 +341,7 @@ def test_the_examination_can_be_paused_without_losing_the_answers():
     options: guess, or abandon the tab."""
     fn = _CODE[_CODE.index("function pauseExam"):][:400]
     assert "saveDraft()" in fn
-    assert "renderCredentialingResources()" in fn
+    assert "renderApplicantHome()" in fn
     assert "clearDraft" not in fn, "pausing must not throw the answers away"
 
 

@@ -5947,34 +5947,153 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 }
 
 
-/* The credentialing path: the pre-examination resources screen, the one strip
-   of chrome the examination adds, and the applicant's dashboard. Kept minimal
-   on purpose: the examination has to LOOK like the work, because that is the
-   whole reason to judge somebody on it. */
-.asc-res-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--sp-3, 14px);
-  margin: 18px 0;
-}
-.asc-res-card h3 { margin: 0 0 6px; font-weight: 500; }
+/* The credentialing path: the one strip of chrome the examination adds, and
+   the applicant's screen. Kept minimal on purpose: the examination has to LOOK
+   like the work, because that is the whole reason to judge somebody on it. */
 .asc-exam-banner { margin-bottom: var(--sp-3, 14px); }
 .asc-exam-banner .chrome { margin-bottom: 6px; }
 .asc-credentialing h2 { margin: 8px 0 10px; font-weight: 400; }
-.asc-credentialing .asc-btn-primary { margin-top: 18px; }
 .asc-small { font-size: 0.85rem; }
 
-/* The applicant journey: welcome, the two doors, the explainer.
-   All three reuse .asc-credentialing for the card, so only the pieces that do
-   not exist elsewhere are defined here. */
-.asc-info-rows {
+/* ── THE APPLICANT'S ONE SCREEN (PRD A §1.2) ─────────────────────────────────
+   Two cards: how to label, and take the examination. Side by side from 900px
+   and stacked below it — the breakpoint is where two 320px columns plus the
+   gap stop fitting a phone held in one hand, not a device name.
+
+   These rules live at the TOP LEVEL of this stylesheet and not inside any
+   @media block. That is deliberate and it is a lesson this codebase has already
+   paid for once: a rule nested inside somebody else's breakpoint applies only
+   at that width, and the screen then looks correct on the reviewer's monitor
+   and unstyled on a laptop. The one @media below opens with its own selector
+   and closes before the next rule.
+
+   The four rules that styled the pre-examination resources page and the three
+   interstitials went with those screens. Nothing renders those class names any
+   more, and a rule for a class nothing emits is a rule nobody can check, so
+   test_applicant_journey asserts their absence as well as these rules'
+   presence. */
+.asc-applicant-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-3, 14px);
+  margin-top: var(--sp-3, 14px);
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .asc-applicant-grid { grid-template-columns: 1fr 1fr; }
+}
+.asc-applicant-card {
+  padding: var(--sp-4, 18px);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
-  margin: 18px 0 4px;
+  gap: var(--sp-2, 10px);
 }
-.asc-info-row h3 { margin: 0 0 4px; font-weight: 500; font-size: var(--t-h3); }
-.asc-info-row p { margin: 0; }
+.asc-applicant-card p { margin: 0; }
+
+/* A row, not a button. It is clickable and focusable because it opens
+   something, but it must not read as an action competing with the one primary
+   on the page — so no fill, no border, and the arrow rather than a label. */
+.asc-applicant-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 2px;
+}
+.asc-applicant-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3, 14px);
+  width: 100%;
+  padding: var(--sp-3, 14px) var(--sp-2, 10px);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-md);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background 140ms cubic-bezier(.4, 0, .2, 1);
+}
+.asc-applicant-row:hover { background: var(--surface-2, var(--hairline)); }
+.asc-applicant-row:focus-visible { outline: 2px solid var(--ah-green-deep); outline-offset: 2px; }
+.asc-applicant-row-icon {
+  flex-shrink: 0;
+  width: 22px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+.asc-applicant-row-text { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.asc-applicant-row-title { color: var(--ink); }
+.asc-applicant-row-body {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.asc-applicant-row-go { flex-shrink: 0; color: var(--ink-faint); }
+.asc-applicant-practice { align-self: flex-start; margin-top: auto; padding-left: var(--sp-2, 10px); }
+
+.asc-applicant-done { display: flex; align-items: flex-start; gap: 10px; }
+.asc-applicant-tick { color: var(--green); flex-shrink: 0; }
+
+.asc-applicant-help {
+  margin: var(--sp-4, 18px) 0 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 0.875rem;
+}
+.asc-applicant-help a { color: var(--ah-green-deep); }
+
+/* The labeling guide, over the screen rather than instead of it. Mirrors
+   .asc-fr-demo-overlay, which is the portal's existing overlay behaviour: a
+   dim that closes on click, a frame that does not. */
+.asc-applicant-guide-overlay {
+  position: fixed;
+  inset: 0;
+  /* Above the header (100) and both rails (90/120), below the toast region
+     (1000) so a submit error is never hidden behind it — the same reasoning
+     .asc-sheet states for the same reason. */
+  z-index: 150;
+  /* The portal's own dialog scrim, not a black one. `_tokens.css` calls this
+     out as a law: "scrim: canvas, never black". */
+  background: rgba(26, 27, 26, .28);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4, 18px);
+}
+.asc-applicant-guide-frame {
+  position: relative;
+  background: var(--card);
+  border-radius: var(--r-lg, 16px);
+  width: min(760px, 100%);
+  max-height: 88vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.asc-applicant-guide-body {
+  overflow-y: auto;
+  padding: var(--sp-5, 22px);
+  -webkit-overflow-scrolling: touch;
+}
+.asc-applicant-guide-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 1;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font: inherit;
+  line-height: 1;
+}
 
 /* The founders. Sits under the copy it signs, hairlined off rather than boxed:
    a card inside a card reads as an advertisement, which is the opposite of the

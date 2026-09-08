@@ -33,7 +33,8 @@ import {
   OnboardingSection,
   ReviewChecklist,
 } from "./primitives";
-import { reviewSections, checklistRows, identifierField } from "./completeness";
+import { reviewSections, checklistRows, identifierField,
+         type SectionSummary } from "./completeness";
 
 /* Shared shape — same across all steps so the wizard owns one state object. */
 
@@ -80,9 +81,73 @@ export type AsclepiusMember = {
   status: "Invited" | "Active";
 };
 
-export type BoardCert = { board: string; specialty: string; subspecialty: string; active: boolean };
-export type Fellowship = { institution: string; specialty: string; year: string };
-export type TrainingRow = { institution: string; year: string };
+/** A repeated row's identity, minted ONCE when the row is introduced.
+ *
+ *  Rows were keyed by array index, so removing the middle of three rows handed
+ *  row 3's text to row 2's DOM node: React reconciles `key={1}` to `key={1}`,
+ *  sees different props, and updates the surviving node in place rather than
+ *  dropping the removed one. Values stayed correct because the array is the
+ *  source of truth, but focus, caret, unfinished chip drafts and any local
+ *  state below it did not (PRD B P1-A).
+ *
+ *  It is also the merge key the CV extraction path needs: PRD C §6-D asks for
+ *  repeated rows to be merged "by stable identity, never array position", and
+ *  P1-A says explicitly not to ship two competing row-id mechanisms. This is
+ *  the one.
+ *
+ *  Minted here rather than during render, because an id generated in render is
+ *  a new id every render, which is the bug with extra steps. It rides along in
+ *  `credentials_json` as an ordinary extra key: the server stores the blob and
+ *  reads named fields out of it, so this is additive and needs no migration.
+ */
+let rowSeq = 0;
+export function newRowId(prefix = "row"): string {
+  rowSeq += 1;
+  return prefix + "-" + Date.now().toString(36) + "-" + rowSeq.toString(36);
+}
+
+/** Give every row an id, for credentials arriving from the server or from a
+ *  draft written before ids existed. Existing ids are never reassigned — a
+ *  reassignment would remount the row it was supposed to keep still. */
+export function withRowIds(c: Credentials): Credentials {
+  const stamp = <T extends { rowId?: string }>(rows: T[] | undefined, prefix: string): T[] =>
+    (rows || []).map((r) => (r && r.rowId ? r : { ...r, rowId: newRowId(prefix) }));
+  return {
+    ...c,
+    boardCertifications: stamp(c.boardCertifications, "bc"),
+    fellowship: stamp(c.fellowship, "fel"),
+    residency: stamp(c.residency, "res"),
+  };
+}
+
+export type BoardCert = {
+  /** See `newRowId`. Present on every row this app creates; `withRowIds`
+   *  backfills rows that predate it. */
+  rowId?: string;
+  board: string;
+  specialty: string;
+  subspecialty: string;
+  /** Currently valid? TRI-STATE, and the null is the whole point.
+   *
+   *  "Is this certification currently valid" is a compliance answer about
+   *  today. A CV written last year cannot give it, and neither can a default.
+   *  `null` means nobody has answered — which is not the same fact as `false`,
+   *  and rendering it as a selected "No" put a negative attestation in a
+   *  physician's mouth on a field they sign for.
+   *
+   *  It reached `false` from two directions: the CV import wrote `false`
+   *  explicitly, and a manually added row defaulted to `true`. One asserted a
+   *  negative nobody gave, the other asserted a positive nobody gave. Both now
+   *  start `null` and only the physician moves them (PRD C §6 C/E). */
+  active: boolean | null;
+};
+export type Fellowship = {
+  rowId?: string;
+  institution: string;
+  specialty: string;
+  year: string;
+};
+export type TrainingRow = { rowId?: string; institution: string; year: string };
 
 export type Credentials = {
   fullLegalName: string;
@@ -152,6 +217,22 @@ export type Credentials = {
      licence cross-check. None is stored as a magnitude the model can scale on. */
   licenseNumber: string;
   licenseState: string;
+  /** Every licence the CV named that is NOT the primary one above.
+   *
+   *  A physician holding CA and MA saw only CA on the form and could not review
+   *  the second fact at all; the array was extracted server-side and then
+   *  dropped on the floor. Kept here so nothing the document supported is
+   *  thrown away (PRD C §6 invariant 6).
+   *
+   *  NOTHING READS IT YET, and that is worth saying plainly rather than
+   *  implying otherwise: it is not in the profile detail keys, the admin
+   *  dossier's source map, or any review control. It is retained so the
+   *  repeatable-licence UI in Phase 4 has the data to show, and so a future
+   *  migration has something to migrate — preserved, not surfaced.
+   *
+   *  Each entry is an ATOMIC tuple. A jurisdiction and a number that were never
+   *  issued together is a wrong credential, not a partial one. */
+  additionalLicenses?: { state: string; number: string; current?: string }[];
   residencyCompleted: boolean | null;
   /* Consumed as `post_residency_ge_3yr`, a CAPPED BINARY, and discarded. The
      Choudhry review found an INVERSE relationship between years in practice and
@@ -245,9 +326,12 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     qualification: "",
     licenseDocFilename: "",
     degree: "",
-    boardCertifications: [{ board: "", specialty: "", subspecialty: "", active: true }],
-    fellowship: [{ institution: "", specialty: "", year: "" }],
-    residency: [{ institution: "", year: "" }],
+    // `active: null` — unanswered. See BoardCert.active.
+    boardCertifications: [
+      { rowId: newRowId("bc"), board: "", specialty: "", subspecialty: "", active: null },
+    ],
+    fellowship: [{ rowId: newRowId("fel"), institution: "", specialty: "", year: "" }],
+    residency: [{ rowId: newRowId("res"), institution: "", year: "" }],
     primarySpecialty: "",
     specialtyNiche: "",
     subspecialties: [],
@@ -419,7 +503,11 @@ export type CvParsed = {
   degrees?: string[] | null;
   institutions?: string[] | null;
   training?: { kind: string; institution: string; start_year: string | null;
-               end_year: string | null }[] | null;
+               end_year: string | null;
+               /* The subject, when the document says it in as many words.
+                  Absent on parses written before it existed, and "" when the
+                  CV did not name one — never inferred. */
+               specialty?: string | null }[] | null;
   /* The flat labels the admin dossier and the tier scorer read. */
   board_certifications?: string[] | null;
   /* The same certifications, structured. The flat list could only ever fill a
@@ -1495,10 +1583,15 @@ function RepeatableCard({
   children,
   onRemove,
   removable,
+  /** What this button removes, said in full. Every one of these announced
+   *  itself as "Remove", so a physician tabbing a three-row group heard the
+   *  same word three times with nothing to tell them apart (PRD B P1-A). */
+  removeLabel = "Remove",
 }: {
   children: ReactNode;
   onRemove?: () => void;
   removable?: boolean;
+  removeLabel?: string;
 }) {
   return (
     <div
@@ -1516,7 +1609,8 @@ function RepeatableCard({
         <button
           type="button"
           onClick={onRemove}
-          aria-label="Remove"
+          aria-label={removeLabel}
+          title={removeLabel}
           style={{
             position: "absolute",
             top: 10,
@@ -2147,6 +2241,68 @@ export function StepCv({
   );
 }
 
+/* ─────────────────────────────────────────────────────────────
+   ReviewGroup — one phase of the credentials form, as a titled box in review
+   mode and as the bare fragment it has always been everywhere else.
+
+   MODULE SCOPE, and that is the whole point of the file it lives in.
+
+   This used to be `const Group = (...)` declared INSIDE Step5Credentials. A
+   component defined in a render body is a NEW COMPONENT TYPE on every render,
+   and React reconciles by type: a new type at the same position is not an
+   update, it is an unmount and a remount of the entire subtree. Every keystroke
+   in this form updates parent credentials state, which re-runs Step5Credentials,
+   which minted a fresh `Group` — so every keystroke tore down and rebuilt every
+   field under it.
+
+   What that cost, measured in JSDOM against the real components (the probe in
+   docs/prd/onboarding-master/evidence/onboarding-ux-evidence, 8 of 29 checks
+   passing before this change and 26 after): the focused input was replaced
+   mid-word, so typing a phone number left the single character "2" behind and
+   the physician had to click the field again for each digit. A manually
+   collapsed section reopened when an unrelated field was edited, because
+   OnboardingSection's open state is local and a remount resets it to
+   defaultOpen. A half-typed language chip vanished. Pressing Yes on "Have you
+   finished residency?" replaced the button under the pointer.
+
+   The fix is structural, and deliberately not a workaround: refocusing the
+   input after each update, remembering a selector and re-clicking it, or
+   freezing rerenders with stale memo dependencies would all leave the DOM
+   identity broken underneath and break caret position, text selection, IME
+   composition and screen-reader focus along with it.
+
+   Ordinary props may be recreated freely; component TYPES may not. So `sections`
+   and the open-state decision arrive as props, and this function is defined
+   exactly once for the life of the module.
+   ───────────────────────────────────────────────────────────── */
+function ReviewGroup({
+  reviewMode,
+  section,
+  defaultOpen,
+  children,
+}: {
+  reviewMode: boolean;
+  section: SectionSummary;
+  defaultOpen: boolean;
+  children: ReactNode;
+}) {
+  if (!reviewMode) return <>{children}</>;
+  return (
+    <OnboardingSection
+      id={"onb-sec-" + section.id}
+      title={section.title}
+      why={section.why}
+      filled={section.filled}
+      total={section.total}
+      attention={section.hasNeeded}
+      defaultOpen={defaultOpen}
+    >
+      {children}
+    </OnboardingSection>
+  );
+}
+
+
 export function Step5Credentials({
   data,
   setData,
@@ -2265,26 +2421,6 @@ export function Step5Credentials({
      that gate Submit. */
   const openBy = (i: number, sec: { hasNeeded: boolean; hasUnconfirmedCv: boolean }) =>
     i === 0 || sec.hasNeeded || sec.hasUnconfirmedCv;
-  /* In reviewMode a phase block becomes a titled box; everywhere else it stays
-     exactly the bare fragment it has always been. */
-  const Group = ({ n, children }: { n: 0 | 1 | 2; children: ReactNode }) => {
-    if (!reviewMode) return <>{children}</>;
-    const sec = sections[n];
-    return (
-      <OnboardingSection
-        id={"onb-sec-" + sec.id}
-        title={sec.title}
-        why={sec.why}
-        filled={sec.filled}
-        total={sec.total}
-        attention={sec.hasNeeded}
-        defaultOpen={openBy(n, sec)}
-      >
-        {children}
-      </OnboardingSection>
-    );
-  };
-
   const identityValid =
     c.fullLegalName.trim().length > 0 &&
     (isUS
@@ -2374,7 +2510,8 @@ export function Step5Credentials({
 
       {reviewMode && <ReviewChecklist rows={checklistRows(sections, c, !!data.cvParsed?.ok)} />}
 
-      {show(1) && (<Group n={0}>
+      {show(1) && (<ReviewGroup reviewMode={reviewMode} section={sections[0]}
+                   defaultOpen={openBy(0, sections[0])}>
       <TextField
         label={lbl("fullLegalName", "Full legal name")}
         placeholder="Dr. Tej Patel"
@@ -2567,9 +2704,10 @@ export function Step5Credentials({
         onChange={(v) => set({ currentlyActive: v })}
       />
 
-      </Group>)}
+      </ReviewGroup>)}
 
-      {show(2) && (<Group n={1}>
+      {show(2) && (<ReviewGroup reviewMode={reviewMode} section={sections[1]}
+                   defaultOpen={openBy(1, sections[1])}>
       {/* Board certifications */}
       <SectionHeading
         title={<>Board certifications {autofilled.has("boardCertifications") && <FromCvChip />}</>}
@@ -2577,7 +2715,8 @@ export function Step5Credentials({
       />
       {c.boardCertifications.map((bc, i) => (
         <RepeatableCard
-          key={i}
+          key={bc.rowId || "bc-" + i}
+          removeLabel={"Remove board certification " + (i + 1)}
           removable={c.boardCertifications.length > 1}
           onRemove={() =>
             set({ boardCertifications: c.boardCertifications.filter((_, j) => j !== i) })
@@ -2632,7 +2771,10 @@ export function Step5Credentials({
           set({
             boardCertifications: [
               ...c.boardCertifications,
-              { board: "", specialty: "", subspecialty: "", active: true },
+              // Unanswered, like every other new row. A row that arrives
+              // already saying "yes, currently valid" is an attestation the
+              // physician made by pressing Add.
+              { rowId: newRowId("bc"), board: "", specialty: "", subspecialty: "", active: null },
             ],
           })
         }
@@ -2644,7 +2786,8 @@ export function Step5Credentials({
         sub="Institution + specialty + year." />
       {c.fellowship.map((f, i) => (
         <RepeatableCard
-          key={i}
+          key={f.rowId || "fel-" + i}
+          removeLabel={"Remove fellowship " + (i + 1)}
           removable={c.fellowship.length > 1}
           onRemove={() => set({ fellowship: c.fellowship.filter((_, j) => j !== i) })}
         >
@@ -2684,7 +2827,8 @@ export function Step5Credentials({
       ))}
       <AddRowButton
         label="Add fellowship"
-        onClick={() => set({ fellowship: [...c.fellowship, { institution: "", specialty: "", year: "" }] })}
+        onClick={() => set({ fellowship: [...c.fellowship,
+          { rowId: newRowId("fel"), institution: "", specialty: "", year: "" }] })}
       />
 
       {/* Residency */}
@@ -2694,7 +2838,8 @@ export function Step5Credentials({
       />
       {c.residency.map((r, i) => (
         <RepeatableCard
-          key={i}
+          key={r.rowId || "res-" + i}
+          removeLabel={"Remove residency " + (i + 1)}
           removable={c.residency.length > 1}
           onRemove={() => set({ residency: c.residency.filter((_, j) => j !== i) })}
         >
@@ -2724,7 +2869,8 @@ export function Step5Credentials({
       ))}
       <AddRowButton
         label="Add residency"
-        onClick={() => set({ residency: [...c.residency, { institution: "", year: "" }] })}
+        onClick={() => set({ residency: [...c.residency,
+          { rowId: newRowId("res"), institution: "", year: "" }] })}
       />
 
       {/* Medical school is DELIBERATELY NOT COLLECTED — see the `medicalSchool`
@@ -2760,9 +2906,13 @@ export function Step5Credentials({
         onChange={(v) => set({ residencyCompleted: v })}
       />
       <TextField
-        label={c.residencyCompleted === false
+        // Chipped like every other autofilled value: the suggestion is our
+        // reading of their CV until they confirm it, and a year that appeared
+        // in this box with nothing marking it would be indistinguishable from
+        // one they typed (PRD C §6-D, leaf-level provenance).
+        label={lbl("residencyCompletionYear", c.residencyCompleted === false
           ? "Year you expect to finish"
-          : "Year you finished residency"}
+          : "Year you finished residency")}
         placeholder={c.residencyCompleted === false ? "2028" : "2010"}
         value={c.residencyCompletionYear}
         onChange={(v) => set({ residencyCompletionYear: v.replace(/\D/g, "").slice(0, 4) })}
@@ -2814,9 +2964,10 @@ export function Step5Credentials({
           hint="Averaged over the last 12 months. Part-time practice counts, this is not a threshold you either clear or fail."
         />
       )}
-      </Group>)}
+      </ReviewGroup>)}
 
-      {show(3) && (<Group n={2}>
+      {show(3) && (<ReviewGroup reviewMode={reviewMode} section={sections[2]}
+                   defaultOpen={openBy(2, sections[2])}>
       <div style={RARE_INTRO}>
         <div style={RARE_EYEBROW}>Every answer here raises what we can pay you</div>
         <p style={RARE_BODY}>
@@ -2919,7 +3070,7 @@ export function Step5Credentials({
         suggestions={LANGUAGE_SUGGESTIONS}
       />
 
-      </Group>)}
+      </ReviewGroup>)}
 
       <div style={{ height: 1, background: "var(--hairline)", margin: "8px 0 22px" }} />
       <PrimaryButton fullWidth disabled={!valid} onClick={onNext} loadingLabel="Saving…" successLabel="Saved ✓">
@@ -3734,15 +3885,20 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
      one, land them on the portal anyway: they now have a password, so the
      ordinary sign-in form is the door. */
   const openAccount = async () => {
+    // "#examination" so the button lands on what it named. The applicant screen
+    // is one screen and the exam card is always on it, so this is a focus hint
+    // rather than routing: nothing breaks if the fragment is dropped by a proxy
+    // or arrives at an older portal build that does not read it.
     if (data.asclepiusToken) {
       try {
-        await redirectToAsclepiusPortal(data.asclepiusToken);
+        await redirectToAsclepiusPortal(data.asclepiusToken, "examination");
         return true;
       } catch {
         /* fall through to the plain portal URL + its emailed sign-in link */
       }
     }
-    window.location.href = data.workspaceUrl || asclepiusPortalUrl();
+    const base = data.workspaceUrl || asclepiusPortalUrl();
+    window.location.href = base.indexOf("#") === -1 ? base + "#examination" : base;
     return true;
   };
   return (
@@ -3777,70 +3933,50 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
         </div>
       </div>
 
+      {/* WHAT THIS SCREEN IS FOR, and it is one thing (PRD A §1.3): say the
+          application landed, and send them to the examination.
+
+          It used to carry four paragraphs of philosophy about why the review is
+          done by a person, a founders' signature, and then, below a rule, a
+          SECOND thank-you that repeated the 24 to 48 hours the first one had
+          already given. Two blocks on one screen both opening by thanking them
+          and promising a personal read come across as a bug rather than as
+          warmth, and none of it answered the question the physician actually
+          has, which is what happens next. It also invited them to sign in and
+          browse, and offered an outbound link, on the one screen where there is
+          exactly one thing worth doing.
+
+          The CTA label carries the instruction. The paragraph carries the why,
+          once. */}
       <p style={{ fontSize: 15.5, lineHeight: 1.65, color: "var(--ink-soft)",
-                  textAlign: "center", margin: "0 0 18px" }}>
-        Your application is with us now, and one of us will personally review it{" "}
-        <strong style={{ color: "var(--ink)" }}>within 24&ndash;48 hours</strong>. We keep
-        review human on purpose: the whole premise of Archangel is that medicine needs
-        qualified people at every decision point, and that starts with how we welcome
-        physicians.
+                  textAlign: "center", margin: "0 0 20px" }}>
+        Your application is with us. One of us will review it personally within{" "}
+        <strong style={{ color: "var(--ink)" }}>24&ndash;48 hours</strong> and email{" "}
+        <strong style={{ color: "var(--ink)" }}>{data.email}</strong> either way.
       </p>
-      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-soft)",
-                  textAlign: "center", margin: "0 0 8px" }}>
-        We&rsquo;re only confirming that you are who you say you are. Your account is
-        open now: sign in with the password you just chose, look around, and do your
-        practice case whenever it suits you.
-      </p>
-      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-soft)",
-                  textAlign: "center", margin: "0 0 8px" }}>
-        We&rsquo;ll email <strong style={{ color: "var(--ink)" }}>{data.email}</strong>{" "}
-        either way.
-      </p>
-      <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-faint)",
-                  textAlign: "center", margin: "0 0 26px" }}>
-        &mdash; Tej Patel &amp; Aryaa Bhatia
+      <p style={{ fontSize: 15.5, lineHeight: 1.65, color: "var(--ink-soft)",
+                  textAlign: "center", margin: "0 0 22px" }}>
+        <strong style={{ color: "var(--ink)" }}>
+          One step left: open your account and take the examination.
+        </strong>{" "}
+        It&rsquo;s one real case in your specialty, about 15 minutes, and it&rsquo;s
+        what we read when we decide.
       </p>
 
-      {/* THE PRACTICE CASE IS NO LONGER WHAT WE READ, so this screen may not say
-          it is. The examination that follows it is, and the portal says so
-          ninety seconds later: a physician who reads both hears the funnel
-          contradict itself about the one thing it is asking them to do.
+      <PrimaryButton fullWidth onClick={openAccount} loadingLabel="Opening&hellip;"
+                     successLabel="Opening &#10003;">
+        Open my account and take the examination &rarr;
+      </PrimaryButton>
 
-          This screen is now the receipt, and the portal owns the welcome, the
-          founders' note and the choice between waiting and starting. Two
-          screens both opening with "thank you, 24 to 48 hours, we read every
-          one personally" read as a bug, not as warmth. */}
-      <div style={{
-        borderTop: "1px solid var(--hairline)", paddingTop: 22, marginBottom: 4,
-      }}>
-        <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--ink-soft)",
-                    textAlign: "center", margin: "0 0 18px" }}>
-          Your account is open now. There is a short onboarding inside it that
-          ends in one examination case in your own specialty, and that case is
-          what we read when we decide. Doing it now is what moves this along.
-        </p>
-        <PrimaryButton fullWidth onClick={openAccount} loadingLabel="Opening…"
-                       successLabel="Opening ✓">
-          Open my account
-        </PrimaryButton>
-        <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-faint)",
-                    textAlign: "center", margin: "14px 0 0" }}>
-          It takes about fifteen minutes and you can stop part way. We&rsquo;ve emailed{" "}
-          <strong style={{ color: "var(--ink-soft)" }}>{data.email}</strong> a link back in
-          if you want to finish it later.{" "}
-          {/* A NEW TAB, deliberately. This link is what a physician clicked
-              from the end of a successful signup, and because the landing app
-              has no router it was a full page navigation: Back remounted the
-              wizard, which resumed from the server, and put them on the verify
-              step. Two other layers now hold that shut, and this one removes
-              the trip entirely. */}
-          <a href="/mission" target="_blank" rel="noopener noreferrer"
-             style={{ color: "var(--ah-green-deep)" }}>
-            Or read our mission
-          </a>
-          .
-        </p>
-      </div>
+      {/* The outbound "Or read our mission" link is gone with the rest. The
+          landing app has no router, so it was a full page navigation: Back
+          remounted the wizard, which resumed from the server and put the
+          physician on the verify step. Removing the link removes the trip. */}
+      <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-faint)",
+                  textAlign: "center", margin: "14px 0 0" }}>
+        You can stop part way. Your answers save, and we&rsquo;ve emailed you a link
+        back in.
+      </p>
 
       {onSignIn && <AlreadyHaveAnAccount onSignIn={onSignIn} />}
     </OnboardingCard>

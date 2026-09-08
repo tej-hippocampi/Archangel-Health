@@ -436,11 +436,24 @@ def test_a_completed_link_renders_a_screen_rather_than_an_error():
     assert 'setStep("ascSignIn")' in _WIZARD
 
 
-def test_the_mission_link_opens_in_a_new_tab():
-    """Removes the navigation the whole dead end hung off."""
-    block = _STEPS[_STEPS.index('href="/mission"') - 80:][:300]
-    assert 'target="_blank"' in block
-    assert 'rel="noopener noreferrer"' in block
+def test_the_success_screen_has_no_outbound_link_to_navigate_away_through():
+    """The dead end this used to hold shut is now removed rather than mitigated.
+
+    The landing app has no router, so the success screen's "Or read our mission"
+    link was a full page navigation: Back remounted the wizard, which resumed
+    from the server and dropped the physician on the verify step. It was opened
+    in a new tab to stop that. PRD A §1.3 deletes the link instead — the screen
+    has exactly one thing worth doing and it is not reading the mission page —
+    so there is no trip left to defend against.
+
+    Asserted on the CODE rather than the source, since the comment that explains
+    the deletion necessarily names the thing deleted."""
+    code = _strip_js_comments(_STEPS)
+    start = code.index("export function StepApplicationSubmitted")
+    end = code.find("\nexport function ", start + 10)
+    screen = code[start:end if end != -1 else len(code)]
+    assert 'href="/mission"' not in screen
+    assert "<a " not in screen, "an outbound link is back on the success screen"
 
 
 def test_both_screens_offer_a_way_out_to_sign_in():

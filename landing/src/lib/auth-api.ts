@@ -363,7 +363,14 @@ export async function asclepiusLogin(email: string, password: string): Promise<A
  * token can't be traded through the landing/tenant handoff (different secret,
  * different decoder). Lands on /asclepius already signed in.
  */
-export async function redirectToAsclepiusPortal(token: string): Promise<void> {
+export async function redirectToAsclepiusPortal(
+  token: string,
+  /** Optional fragment to land on, without the "#". The applicant's success
+   *  screen passes "examination" so the CTA arrives at the thing it named
+   *  rather than at the top of the page (PRD A §1.4.3). Every other caller
+   *  passes nothing and the URL is byte-identical to what it was. */
+  fragment?: string,
+): Promise<void> {
   const res = await fetch(`${API_BASE}/api/asclepius/auth/portal-handoff`, {
     method: "POST",
     headers: apiHeaders({ Authorization: `Bearer ${token}` }),
@@ -373,7 +380,9 @@ export async function redirectToAsclepiusPortal(token: string): Promise<void> {
   }
   const handoff = (await res.json()) as PortalHandoffResponse;
   if (!handoff.handoff_code) throw new Error("Could not open your Archangel Health workspace.");
-  window.location.href = `${asclepiusPortalUrl()}?asc_handoff=${encodeURIComponent(handoff.handoff_code)}`;
+  const hash = fragment ? `#${encodeURIComponent(fragment)}` : "";
+  window.location.href =
+    `${asclepiusPortalUrl()}?asc_handoff=${encodeURIComponent(handoff.handoff_code)}${hash}`;
 }
 
 export async function login(email: string, password: string): Promise<LoginResult> {

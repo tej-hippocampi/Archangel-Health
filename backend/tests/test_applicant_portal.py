@@ -112,7 +112,7 @@ def test_an_applicant_never_reaches_the_queue_fetch():
     """It 403s for them, and the dashboard painted the error onto the one
     screen that is supposed to say their application is fine."""
     view = _CODE[_CODE.index("async function renderDashboardView"):][:1200]
-    early = view.index("renderCredentialingDashboard()")
+    early = view.index("renderApplicantHome()")
     fetch = view.index("/tasks/next") if "/tasks/next" in view else len(view)
     assert early < fetch
 
@@ -122,12 +122,16 @@ def test_the_welcome_package_waits_for_approval():
     assert "if (sessionIsProvisional()) return 'none';" in mode
 
 
-def test_the_credentialing_dashboard_states_what_is_being_asked():
-    dash = _CODE[_CODE.index("function renderCredentialingDashboard"):][:2500]
-    assert "We are checking your credentials." in dash
-    assert "practice case" in dash and "examination" in dash
-    # Exactly one action.
-    assert dash.count("asc-btn-primary") == 1
+def test_the_applicant_screen_states_what_is_being_asked():
+    """One screen, two boxes, one job (PRD A §1.2). It says where the
+    application stands and what the single remaining step is, and it carries
+    exactly ONE primary button — the examination's. Everything in card 1 is a
+    quiet row, because none of it is what we are asking them to do."""
+    start = _CODE.index("function renderApplicantHome()")
+    home = _CODE[start:_CODE.index("\n  function ", start + 10)]
+    assert "We are checking your credentials" in home
+    assert "examination" in home
+    assert home.count("asc-btn-primary") == 1, "there is more than one primary here"
 
 
 def test_the_stage_helper_can_never_reveal_a_grade():

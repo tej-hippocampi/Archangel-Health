@@ -648,7 +648,11 @@ def _practising_value(creds: Dict[str, Any]) -> float:
 # test_tiering_audit_c.py, which is the check that actually holds — the two frozensets below
 # are only as good as the test that compares them to the code.
 ENCODER_USER_COLUMNS: frozenset = frozenset({
-    "board_cert",         # -> board_certified_active (corroborates the credential record)
+    # `board_cert` was here, feeding board_certified_active as a corroborating
+    # OR. It is gone with that fallback (PRD C §6-E): the column is a text
+    # projection of the first board row's NAME and never consulted `active`, so
+    # as evidence of *current validity* it said nothing. The claim credit it
+    # carried lives on untouched in credentialing.propose_tier.
     "specialty",          # -> domain_match
     "credentials_json",   # -> the credential record itself, filtered by ENCODER_CREDENTIAL_KEYS
     "npi_payload_json",   # -> NPPES primary taxonomy, for domain_match
@@ -681,12 +685,37 @@ def feature_vector(
     creds = _creds(user)
     dm, dm_why = domain_match(user, case_domain)
 
-    # board_certified_active — any currently-active board certification.
+    # board_certified_active — a certification the physician has CONFIRMED is
+    # currently valid. `is True`, and nothing else.
+    #
+    # THIS USED TO FIRE ON UNANSWERED, AND ON NOTHING AT ALL. Two defects, one
+    # feature (PRD C §6-E):
+    #
+    #   * `is not False` meant an unanswered row scored the same as a confirmed
+    #     one. "Currently valid" is an attestation about today; a physician who
+    #     was never asked has not made it, and a feature named `..._active` that
+    #     fires on silence is not measuring what it is named after.
+    #   * the `or user.board_cert` fallback fired on ANY non-empty board text.
+    #     That text is projected from the first board row's name at signup
+    #     (routers/onboarding.py `_provision_asclepius_user`) and never consults
+    #     `active` at all — so typing a board name granted "active certification"
+    #     even to somebody who had explicitly answered No. §6-E names this exact
+    #     shape: a compatibility fallback must require recorded confirmation
+    #     provenance and "must not infer it from nonempty board text".
+    #
+    # WHAT DID NOT CHANGE, deliberately. The CLAIM signal is a different fact
+    # from confirmed current validity, and §6-E says to separate them rather
+    # than delete one: `credentialing.propose_tier` still awards its
+    # `board_certified` weight from the claimed board text and the CV's board
+    # list, exactly as before, so no physician's tier PROPOSAL loses the credit
+    # they had. `domain_match` below is likewise claim-based on purpose. This is
+    # a proposal an admin reads, not a permission: nothing already granted is
+    # revoked by it.
     board_active = any(
-        isinstance(bc, dict) and _truthy(bc.get("active")) is not False
+        isinstance(bc, dict) and _truthy(bc.get("active")) is True
         and str(bc.get("board") or "").strip()
         for bc in (creds.get("boardCertifications") or [])
-    ) or bool(str(user.get("board_cert") or "").strip())
+    )
 
     # subspecialty_certified — encoded as x · 1[domain_match > 0].
     #
@@ -695,6 +724,13 @@ def feature_vector(
     # holding *a* subspecialty, with no reference to whether it is the right one. Verified as
     # a real failure of the naive encoding, and the reason an off-domain subspecialist now
     # lands in the admin band — which is the correct behaviour, not a near-miss.
+    # CLAIM-BASED, and that is the correct axis here (PRD C §6-E's split). This
+    # asks what this physician is certified IN, not whether the certificate is
+    # in date: an unanswered validity question does not make a nephrology
+    # subspecialty stop being a nephrology subspecialty. An explicit No is still
+    # excluded, because a physician who says the certification is not current
+    # has told us something about it. Current validity is `board_certified_active`
+    # above, and that one now requires an explicit Yes.
     has_subspec = any(
         isinstance(bc, dict) and str(bc.get("subspecialty") or "").strip()
         and _truthy(bc.get("active")) is not False
