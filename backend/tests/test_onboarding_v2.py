@@ -431,7 +431,7 @@ async def test_no_mail_transport_stamps_nothing(client: TestClient, monkeypatch)
     # deployment with no mail configured burns nobody's one nudge.
     assert (await onboarding_nudge.sweep(ts)) == {
         "resume": 0, "nudge": 0, "expiry": 0,
-        "credentials": 0, "practice": 0, "profile": 0}
+        "credentials": 0, "practice": 0, "exam": 0, "profile": 0}
     row = ts.get_health_system_by_id(hs_id)
     assert row["resume_sent_at"] is None
     assert row["nudge_sent_at"] is None

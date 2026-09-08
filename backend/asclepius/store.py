@@ -138,6 +138,11 @@ def password_is_unset(user: Dict[str, Any]) -> bool:
 _APPLICANT_NUDGE_COLUMNS = {
     "credentials": "nudge_credentials_sent_at",
     "practice": "nudge_practice_sent_at",
+    # The examination is the piece we read, so it gets its OWN column
+    # rather than reusing the practice one. Sharing would make the column
+    # name a lie, and worse: anybody who had already been chased about the
+    # practice case would never be chased about the examination.
+    "exam": "nudge_exam_sent_at",
 }
 
 
@@ -1209,6 +1214,8 @@ class AsclepiusStore:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_credentials_sent_at TEXT")
             if "nudge_practice_sent_at" not in user_cols:
                 conn.execute("ALTER TABLE users ADD COLUMN nudge_practice_sent_at TEXT")
+            if "nudge_exam_sent_at" not in user_cols:
+                conn.execute("ALTER TABLE users ADD COLUMN nudge_exam_sent_at TEXT")
 
             # The shareable verified card. Opt-in and revocable, so the token is
             # stored hashed like every other token here: a read of the users

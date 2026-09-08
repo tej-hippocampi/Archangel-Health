@@ -192,6 +192,56 @@ def _store():
     return get_store()
 
 
+def _portal_url() -> str:
+    """Where an email sends a physician back to. Same shape as the nudges use."""
+    return (os.getenv("BASE_URL") or "").rstrip("/") + "/asclepius"
+
+
+def _fire_and_forget(coro_factory, what: str) -> None:
+    """Send an email without letting it decide whether the request succeeded.
+
+    Every receipt in this file is BEST EFFORT by contract. A physician's state
+    has already been written by the time one of these runs, and failing the
+    request because a mail server hiccuped would roll back nothing (the write is
+    committed) while showing them an error for something that worked. So the
+    failure is logged and swallowed, exactly like the alerts on the signup path.
+    """
+    import asyncio  # noqa: PLC0415
+
+    try:
+        asyncio.get_running_loop().create_task(coro_factory())
+    except Exception:
+        log.exception("[asclepius] could not queue the %s email", what)
+
+
+def _send_onboarding_started(user: Dict[str, Any]) -> None:
+    from email_utils import send_html_email  # noqa: PLC0415
+    from onboarding_emails import build_onboarding_started_email  # noqa: PLC0415
+
+    email = (user.get("email") or "").strip()
+    if not email:
+        return
+    html_body = build_onboarding_started_email(
+        first_name=(user.get("full_name") or "").strip(), portal_url=_portal_url())
+    _fire_and_forget(
+        lambda: send_html_email(email, "Picking up your onboarding", html_body),
+        "onboarding-started")
+
+
+def _send_exam_received(user: Dict[str, Any]) -> None:
+    from email_utils import send_html_email  # noqa: PLC0415
+    from onboarding_emails import build_exam_received_email  # noqa: PLC0415
+
+    email = (user.get("email") or "").strip()
+    if not email:
+        return
+    html_body = build_exam_received_email(
+        first_name=(user.get("full_name") or "").strip())
+    _fire_and_forget(
+        lambda: send_html_email(email, "We have your examination", html_body),
+        "examination-received")
+
+
 def _ab_fallback_health(store) -> Dict[str, Any]:
     """Two-frontier fallback health for /stats (PRD §A3 Rung 3): the rolling
     legacy-fallback rate, the ceiling, and a RED alert flag when the rate exceeds it
@@ -1408,6 +1458,13 @@ async def update_my_tutorial(
         if body.choice and not current.get("onboarding_choice"):
             current["onboarding_choice"] = body.choice
             current["onboarding_choice_at"] = now
+            # A RECEIPT, not a nudge: it fires on the action, at the moment of
+            # the action, and its idempotency is the first-write-wins guard
+            # above rather than a stamp column. Only for the door that commits
+            # to something; confirming by email that somebody chose to be
+            # emailed later is the joke it sounds like.
+            if body.choice == "start_now":
+                _send_onboarding_started(user)
     elif action == "resources_seen":
         # Stamped when the physician has been shown the two things that help
         # before the examination: the demo and the practice case. Idempotent,
@@ -1889,6 +1946,11 @@ async def submit_exam(
     current["exam"] = {"state": "submitted", "attempt": attempt,
                        "submitted_at": now, "exam_id": exam_id}
     store.set_tutorial_state(user["id"], current)
+    # A receipt, with no verdict in it by construction. A retake writes a new
+    # row and so sends a second one, which is correct: it IS a second
+    # submission, and silence after the one they were asked to redo would be
+    # the worst moment in the whole funnel to go quiet.
+    _send_exam_received(user)
     store.log_event(
         entity_type="user", entity_id=user["id"],
         event_type="credentialing_exam_submitted", actor=user["id"],
