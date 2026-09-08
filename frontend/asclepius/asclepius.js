@@ -2869,6 +2869,17 @@
     if (exam.state === 'in_progress') return 'exam_in_progress';
     if (t.resources_seen_at) return 'exam_ready';
     if (t.status === 'in_progress') return 'practice_in_progress';
+    // ORDER IS THE MIGRATION. Everything above this line is a mark somebody
+    // already carries, so an applicant part way through today answers exactly
+    // as they answered yesterday and never sees a screen that did not exist
+    // when they started. Only a genuinely empty blob reaches the new stages.
+    if (!t.welcome_seen_at) return 'welcome';
+    if (!t.onboarding_choice) return 'choice';
+    // Chose to hear from us at the decision. Not a dead end: the dashboard's
+    // `waiting` stage still offers the way in, because the commonest reason to
+    // pick this is not knowing yet that the rest of it is fifteen minutes.
+    if (t.onboarding_choice === 'email_me') return 'waiting';
+    if (!t.info_seen_at) return 'info';
     return 'resources';
   }
 
@@ -2889,6 +2900,12 @@
     // physician presses to CONTINUE a practice case they left part way
     // through, which is exactly the work that must survive.
     if (stage === 'practice_in_progress') { startTutorial({ replay: false }); return; }
+    // They chose to wait and have changed their mind. `info_seen` has not been
+    // stamped, so this drops them into the explainer and the ordinary path
+    // continues from there. The stored choice is left alone: it is a record of
+    // what they picked, not a setting, and the nudge that would otherwise chase
+    // them reads the examination state rather than this.
+    if (stage === 'waiting') { renderOnboardingInfo(); return; }
     renderCredentialingResources();
   }
 
@@ -2904,7 +2921,9 @@
       h('div', { class: 'asc-card asc-card-pad asc-res-card' },
         h('h3', {}, title),
         h('p', { class: 'asc-dim' }, body),
-        h('button', { class: 'asc-btn', onClick: onClick }, label));
+        // Ghost, not bare. `.asc-btn` on its own is a transparent border with
+        // no background, so these two read as unstyled text sitting in a card.
+        h('button', { class: 'asc-btn asc-btn-ghost', onClick: onClick }, label));
 
     const demoAvailable = !!(window.FirstRunWalkthrough
       && window.FirstRunWalkthrough.demoAvailable
@@ -2912,7 +2931,7 @@
 
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad' },
-        h('div', { class: 'chrome' }, 'BEFORE YOUR EXAMINATION'),
+        h('div', { class: 'asc-chrome' }, 'STEP ONE: LEARNING HOW TO LABEL'),
         h('h2', {}, 'The next case is the one we read.'),
         h('p', {},
           'It is how we judge whether your reads are credible for this platform, '
@@ -2935,7 +2954,13 @@
           'Take my examination \u2192'),
         h('p', { class: 'asc-dim asc-small' },
           'Skipping either one costs you nothing here. They exist because '
-          + 'physicians who use them label better.'))));
+          + 'physicians who use them label better.'),
+        // The way back. A physician who reaches the examination and finds they
+        // wanted the explainer after all should not have to sign out to see it
+        // again, and pauseExam() returns them to this screen from inside the
+        // case for the same reason.
+        h('button', { class: 'asc-btn asc-btn-link', onClick: renderOnboardingInfo },
+          'Back to what this is'))));
 
     // Stamped on ARRIVAL, not on leaving: they have been shown the help, and
     // whether they took it is their business. Best-effort, because a failed
@@ -3035,6 +3060,158 @@
           'Back to my dashboard'))));
   }
 
+  /** Where the founders' 20-minute intro lives. One link for every physician
+   *  surface: first_run.js and the approval email point at the same one, and
+   *  test_landing_config binds the backend constant to it so they cannot drift
+   *  apart again. */
+  var FOUNDER_CALENDLY = 'https://calendly.com/aryaabhatia-berkeley/new-meeting';
+
+  /** The founders, on a screen an applicant will see several times.
+   *
+   *  The wide photo is optional by construction: `founders-wide.jpg` is not in
+   *  git (it is a photo of real people, and /email-assets is public), so this
+   *  emits NO <img> when the file is absent rather than a broken one. The words
+   *  and the way to reach us are the part that has to work everywhere.
+   */
+  function founderStripEl(opts) {
+    opts = opts || {};
+    const photo = h('img', {
+      class: 'asc-founders-photo',
+      src: '/email-assets/founders-wide.jpg',
+      alt: 'Aryaa Bhatia, Thenuk and Tej Patel',
+      loading: 'lazy',
+    });
+    // A missing asset must leave no gap and no broken-image glyph.
+    photo.addEventListener('error', function () {
+      if (photo.parentNode) photo.parentNode.removeChild(photo);
+    });
+    return h('div', { class: 'asc-founders' },
+      opts.photo === false ? null : photo,
+      h('p', { class: 'asc-founders-mission' },
+        'We are making medical AI safe enough to be deployed in a clinical setting.'),
+      h('p', { class: 'asc-founders-sign' }, 'Tej and Aryaa, co-founders'),
+      h('a', {
+        // Ghost, not bare: `.asc-btn` alone is a transparent border and no
+        // background, so it renders as unstyled text.
+        class: 'asc-btn asc-btn-ghost asc-btn-sm',
+        href: FOUNDER_CALENDLY,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+      }, 'Book 20 minutes with us'));
+  }
+
+  /** Screen one for a new applicant: who we are, before anything is asked. */
+  function renderProvisionalWelcome() {
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
+        h('div', { class: 'asc-chrome' }, 'WELCOME TO ARCHANGEL'),
+        h('h2', {}, 'Your application is with us.'),
+        h('p', {},
+          'One of us reads every application personally, and you will hear from '
+          + 'us either way. Usually one to two business days.'),
+        h('p', {},
+          'We are two founders building the thing we could not find: medical AI '
+          + 'that has been checked by the people who would have to live with it '
+          + 'being wrong. That is what your reads are for.'),
+        founderStripEl(),
+        h('button', {
+          class: 'asc-btn asc-btn-primary',
+          onClick: () => stampCredentialing('welcome_seen'),
+        }, 'Continue'))));
+  }
+
+  /** The two doors. Neither one is a trap: `email_me` still has a way back. */
+  function renderOnboardingChoice() {
+    const door = (title, body, label, onClick, primary) =>
+      h('div', { class: 'asc-card asc-card-pad asc-res-card' },
+        h('h3', {}, title),
+        h('p', { class: 'asc-dim' }, body),
+        h('button', {
+          class: 'asc-btn ' + (primary ? 'asc-btn-primary' : 'asc-btn-ghost'),
+          onClick: onClick,
+        }, label));
+
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
+        h('div', { class: 'asc-chrome' }, 'WHILE WE CHECK YOUR CREDENTIALS'),
+        h('h2', {}, 'There is one thing you can do that speeds this up.'),
+        h('p', {},
+          'Our onboarding is short: what the work is, then one examination case '
+          + 'in your own specialty. The examination is what we read when we make '
+          + 'the decision, so sitting it now is the difference between us '
+          + 'deciding this week and us waiting on you.'),
+        h('div', { class: 'asc-res-grid' },
+          door('Start onboarding now',
+            'About fifteen minutes. You can stop at any point and pick it up where you left it.',
+            'Start onboarding',
+            () => stampCredentialing('onboarding_choice', 'start_now'), true),
+          door('Email me when I am verified',
+            'We will write to you either way. Everything here stays open to look around in the meantime.',
+            'Just email me',
+            () => stampCredentialing('onboarding_choice', 'email_me'))))));
+  }
+
+  /** The explainer. What this is, what it pays, and why we verify at all. */
+  function renderOnboardingInfo() {
+    const row = (title, body) =>
+      h('div', { class: 'asc-info-row' },
+        h('h3', {}, title),
+        h('p', { class: 'asc-dim' }, body));
+
+    setRoot(h('div', { class: 'asc-wrap' },
+      h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
+        h('div', { class: 'asc-chrome' }, 'WHAT YOU ARE JOINING'),
+        h('h2', {}, 'Archangel in five paragraphs.'),
+        h('div', { class: 'asc-info-rows' },
+          row('What the work is',
+            'You read a real clinical case, write your own answer to it before '
+            + 'you are shown what a model said, and then grade the model against '
+            + 'your own reasoning. The order is enforced by the server, not by '
+            + 'the honour system, which is what makes the result worth anything.'),
+          row('Why we verify you',
+            'What we sell is that a practising physician checked it. An account '
+            + 'we have not checked cannot make that true, so nothing real opens '
+            + 'until a person has read your credentials.'),
+          row('What it pays',
+            'Seventy five dollars a labelled case and a hundred a review session. '
+            + 'Earnings shows what has accrued from the moment you submit, and '
+            + 'separately what is still waiting on review.'),
+          row('The community',
+            'Channels for your specialty, your country and your city, plus a '
+            + 'morning brief of events, medical AI news and new research. Everyone '
+            + 'in it is a credential-verified clinician, which is the whole reason '
+            + 'it is worth reading, and it opens when you are approved.'),
+          row('Referrals',
+            'Every contributor gets a link. Fifty dollars to you when someone you '
+            + 'bring is verified and has a case accepted, and twenty five to them.')),
+        h('button', {
+          class: 'asc-btn asc-btn-primary',
+          onClick: () => stampCredentialing('info_seen', null, renderCredentialingResources),
+        }, 'Next: learning how to label'))));
+  }
+
+  /** Write one applicant-journey mark, then repaint from the new stage.
+   *
+   *  Optimistic on purpose: the stamp grants nothing, so a failed write costs
+   *  one repeated screen and never a wrong permission. Blocking the button on a
+   *  round trip would be the more expensive failure.
+   */
+  function stampCredentialing(action, choice, next) {
+    const body = { action: action };
+    if (choice) body.choice = choice;
+    return api('/me/tutorial', { method: 'PATCH', body: body })
+      .then((u) => { if (u) state.user = u; })
+      .catch(() => { /* they will see this screen once more */ })
+      .then(() => {
+        renderSidePanel();
+        // Default is "repaint from whatever stage we are now in", which is
+        // what a stamp usually means. `next` is for a screen that continues
+        // somewhere specific: landing on the hub between two steps of a linear
+        // path reads as having lost your place.
+        if (next) next(); else renderCredentialingDashboard();
+      });
+  }
+
   /** What an applicant sees where the case queue will be.
    *
    *  Before this they got the approved physician's dashboard with most of it
@@ -3047,7 +3224,15 @@
    */
   function renderCredentialingDashboard() {
     const stage = credentialingStage();
+    // The first three stages are screens of their own rather than a different
+    // button on this one. They are read once each and then never again, and
+    // folding them in here would make the home screen mean five things.
+    if (stage === 'welcome') { renderProvisionalWelcome(); return; }
+    if (stage === 'choice') { renderOnboardingChoice(); return; }
+    if (stage === 'info') { renderOnboardingInfo(); return; }
+
     const cta = {
+      waiting: ['Start onboarding now', 'It is about fifteen minutes, and it is what we read when we decide.'],
       resources: ['Start', 'Two short things before your examination.'],
       practice_in_progress: ['Continue practice case', 'You left one part way through. It is where you left it.'],
       exam_ready: ['Take my examination', 'The practice case is done. This is the one we read.'],
@@ -3057,24 +3242,35 @@
 
     setRoot(h('div', { class: 'asc-wrap' },
       h('div', { class: 'asc-card asc-card-pad asc-credentialing' },
-        h('div', { class: 'chrome' }, 'YOUR APPLICATION'),
+        h('div', { class: 'asc-chrome' }, 'YOUR APPLICATION'),
         h('h2', {}, 'We are checking your credentials.'),
         h('p', { class: 'asc-dim' },
           'Usually one to two business days. You do not need to do anything for '
-          + 'that part, and we will email you either way.'),
-        // Said plainly and in one place, because "what is actually being asked
-        // of me" was the question the old screen never answered.
+          + 'that part, and we will email you the moment it is decided.'),
+        // Say what they HAVE, not only what they are waiting for. The old screen
+        // answered "what is being asked of me" and never answered "what can I
+        // do here now", so the rail's open tabs read as decoration.
         h('p', {},
-          'Before we can verify you there are two pieces of case work here: a '
-          + 'practice case, and one examination case in the real interface. The '
-          + 'practice case is optional and it is there to help. The examination '
-          + 'is the one we read.'),
+          'Your account is open in the meantime. Community, Referral and '
+          + 'Earnings are all here to look through, view only, so you can see '
+          + 'what the work pays and who is in the rooms before you commit to '
+          + 'any of it.'),
+        stage === 'exam_submitted'
+          ? h('p', {},
+              'Your examination is filed. That was the part we read, and there '
+              + 'is nothing else for you to do.')
+          : h('p', {},
+              'The one thing that moves this along is the examination: a real '
+              + 'case in your own specialty, in the interface you would work '
+              + 'in. A practice case and a short demo sit in front of it and '
+              + 'both are optional.'),
         h('button', {
           class: 'asc-btn asc-btn-primary',
           disabled: stage === 'exam_submitted' ? 'disabled' : null,
           onClick: () => { if (stage !== 'exam_submitted') startCredentialing(); },
         }, cta[0]),
-        cta[1] ? h('p', { class: 'asc-dim asc-small' }, cta[1]) : null)));
+        cta[1] ? h('p', { class: 'asc-dim asc-small' }, cta[1]) : null,
+        founderStripEl({ photo: false }))));
   }
 
   async function renderDashboardView() {

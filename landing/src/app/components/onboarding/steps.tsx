@@ -3620,7 +3620,7 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
      that exchange fails, or there is no token because /finish could not mint
      one, land them on the portal anyway: they now have a password, so the
      ordinary sign-in form is the door. */
-  const openPracticeCase = async () => {
+  const openAccount = async () => {
     if (data.asclepiusToken) {
       try {
         await redirectToAsclepiusPortal(data.asclepiusToken);
@@ -3688,27 +3688,31 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
         &mdash; Tej Patel &amp; Aryaa Bhatia
       </p>
 
-      {/* The one thing there IS to do. It is a real action now, so it gets the
-          real button: the practice case is the work the wait is for, and the
-          copy says it counts, because it does and because "optional-looking"
-          is how a reviewer ends up with nothing to read. */}
+      {/* THE PRACTICE CASE IS NO LONGER WHAT WE READ, so this screen may not say
+          it is. The examination that follows it is, and the portal says so
+          ninety seconds later: a physician who reads both hears the funnel
+          contradict itself about the one thing it is asking them to do.
+
+          This screen is now the receipt, and the portal owns the welcome, the
+          founders' note and the choice between waiting and starting. Two
+          screens both opening with "thank you, 24 to 48 hours, we read every
+          one personally" read as a bug, not as warmth. */}
       <div style={{
         borderTop: "1px solid var(--hairline)", paddingTop: 22, marginBottom: 4,
       }}>
         <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--ink-soft)",
                     textAlign: "center", margin: "0 0 18px" }}>
-          One thing while you wait: your{" "}
-          <strong style={{ color: "var(--ink)" }}>practice case</strong> is open in your
-          account. It takes about four minutes, it is real clinical reasoning rather than a
-          form, and it is the part of your application we read most closely.
+          Your account is open now. There is a short onboarding inside it that
+          ends in one examination case in your own specialty, and that case is
+          what we read when we decide. Doing it now is what moves this along.
         </p>
-        <PrimaryButton fullWidth onClick={openPracticeCase} loadingLabel="Opening…"
+        <PrimaryButton fullWidth onClick={openAccount} loadingLabel="Opening…"
                        successLabel="Opening ✓">
-          Start my practice case
+          Open my account
         </PrimaryButton>
         <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-faint)",
                     textAlign: "center", margin: "14px 0 0" }}>
-          No time limit, and no grade is published. We&rsquo;ve emailed{" "}
+          It takes about fifteen minutes and you can stop part way. We&rsquo;ve emailed{" "}
           <strong style={{ color: "var(--ink-soft)" }}>{data.email}</strong> a link back in
           if you want to finish it later.{" "}
           {/* A NEW TAB, deliberately. This link is what a physician clicked

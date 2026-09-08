@@ -5926,3 +5926,45 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .asc-credentialing h2 { margin: 8px 0 10px; font-weight: 400; }
 .asc-credentialing .asc-btn-primary { margin-top: 18px; }
 .asc-small { font-size: 0.85rem; }
+
+/* The applicant journey: welcome, the two doors, the explainer.
+   All three reuse .asc-credentialing for the card, so only the pieces that do
+   not exist elsewhere are defined here. */
+.asc-info-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin: 18px 0 4px;
+}
+.asc-info-row h3 { margin: 0 0 4px; font-weight: 500; font-size: var(--t-h3); }
+.asc-info-row p { margin: 0; }
+
+/* The founders. Sits under the copy it signs, hairlined off rather than boxed:
+   a card inside a card reads as an advertisement, which is the opposite of the
+   point. */
+.asc-founders {
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--hairline);
+}
+.asc-founders-photo {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-3);
+}
+.asc-founders-mission {
+  margin: 0 0 4px;
+  font-size: var(--t-h3);
+  line-height: var(--lh-tight);
+}
+.asc-founders-sign {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}

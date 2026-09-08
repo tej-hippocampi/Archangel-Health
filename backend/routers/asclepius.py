@@ -1385,6 +1385,29 @@ async def update_my_tutorial(
                 "gate": current.get("gate"),
             }
         # already in_progress: keep position, refresh nothing
+    elif action in ("welcome_seen", "info_seen"):
+        # THE APPLICANT JOURNEY, and both are stamps in the shape of
+        # `resources_seen` directly below: idempotent, first write wins,
+        # granting nothing. They exist so a physician who has read the welcome
+        # or the explainer is not shown it again on every sign-in.
+        #
+        # Absent means not-done, so every account that predates these keys
+        # reads exactly as it did. That, plus the ordering in the client's
+        # credentialingStage(), IS the migration: somebody mid-application
+        # today lands where they landed yesterday, and only a genuinely empty
+        # blob sees the new screens.
+        key = "welcome_seen_at" if action == "welcome_seen" else "info_seen_at"
+        if not current.get(key):
+            current[key] = now
+    elif action == "onboarding_choice":
+        # Which door they took: hear from us at the decision, or start now.
+        # First write wins like the stamps, because this is a record of what
+        # they chose and not a setting: re-answering it would let the client
+        # bounce somebody between two screens. Changing their mind is the
+        # dashboard's job, and its `waiting` stage carries a way back in.
+        if body.choice and not current.get("onboarding_choice"):
+            current["onboarding_choice"] = body.choice
+            current["onboarding_choice_at"] = now
     elif action == "resources_seen":
         # Stamped when the physician has been shown the two things that help
         # before the examination: the demo and the practice case. Idempotent,
