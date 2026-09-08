@@ -373,6 +373,10 @@ by this work. The base's other four (`test_storage_durability`) pass here; that
 file is environment-sensitive and the difference is not attributable to this
 change.
 
+A third failure appeared in CI and was **not** a regression from this work; it
+is documented in full below under "The shard-2 failure", because the reason it
+appeared is a property of the suite that will bite the next change too.
+
 Two regressions were introduced and both are fixed:
 
 1. `test_no_em_dashes` — three em dashes in new copy, which is a repo style rule
@@ -381,6 +385,59 @@ Two regressions were introduced and both are fixed:
    to `team_store.py` drifted an **unrelated, pre-existing** PRD's citation
    (`PRD_SANDBOX_REALM.md`'s anchor for `_STORES`). Fixed in the PRD, per the
    rule, not in the code. This is the check working exactly as intended.
+
+### The shard-2 failure
+
+`test_asclepius_v4_wall.py::test_v4_requires_real_data_approval` went red on
+this branch and on no other. It is worth writing down at length because nothing
+about it was caused by the code this PR changes, and because the mechanism is a
+trap set for whoever adds the next test file.
+
+**What happened.** Adding four backend test files re-packs `ci_shard.py`, which
+assigns files to shards deterministically from the full list. That moved
+`test_asclepius_v4_wall.py` from shard 1 to shard 2 — a different set of
+neighbours, running in a different order.
+
+**Why that mattered.** The test asserted that
+`/tasks/next?portal_version=v4` returns literally no task to an evaluator who is
+not `real_data_approved`. But when V4 has nothing to give, `next_task`
+deliberately continues the physician onto V3 rather than showing "queue
+cleared", stamping `served_portal_version='v3'` and `continued_from='v4'`. That
+continuation calls `_autofill_queue`, which is throttled by
+`_autofill_last_attempt` — a module-level dict, keyed by specialty, with a
+30-second cooldown, that no fixture resets. So whether the continuation could
+produce anything at all depended on how long ago some *other* test had triggered
+nephrology autofill. In shard 1 a neighbour primed the cooldown; in shard 2
+nothing did.
+
+**Why the sandbox never saw it.** This sandbox sets `ASCLEPIUS_AUTOFILL=0`; CI
+sets nothing and the flag defaults on. The test therefore could not fail here
+under any ordering, which is why several rounds of ordering hypotheses came back
+green. Running `env -u ASCLEPIUS_AUTOFILL python3 -m pytest -q
+tests/test_asclepius_v4_wall.py` reproduces it in seven seconds — **and does so
+identically on an untouched `origin/main` worktree**, which is the evidence that
+this is a pre-existing test defect rather than anything this branch did.
+
+**What was actually true.** The wall held. The response carried
+`served_portal_version='v3'`, `continued_from='v4'`, and a *synthetic* task with
+no `case` blob at all. No real de-identified chart was served to an unapproved
+evaluator at any point. The assertion, not the product, was wrong: it asserted
+emptiness where the invariant is "never real data, and never a response still
+claiming v4".
+
+**The fix.** The test now asserts the invariant instead of the emptiness. It
+checks `/tasks/available?portal_version=v4` is empty — that endpoint carries the
+same approval gate and has no continuation branch, so it is where "unapproved →
+empty V4 queue" can be stated unambiguously — and then checks that the draw
+never returns a `real_deid` case, never returns *the* real case, and never
+stamps `v4`. This is strictly stronger than what it replaced and it is
+deterministic under `ASCLEPIUS_AUTOFILL` either way. It was mutation-checked:
+deleting the `real_data_approved` guard in `_query_next` makes it fail.
+
+**What was deliberately not done.** The test was not skipped, not marked
+xfail, not quarantined, and the shard assignment was not nudged to move the file
+back to shard 1. Any of those would have been green in a minute and would have
+left both the latent order-dependence and the misleading assertion in place.
 
 `docs/asclepius/` data inventory: the sandbox database is **empty**, so
 `data_inventory.py --diff` reporting "no ids lost" is vacuous and is not offered

@@ -111,27 +111,72 @@ def test_v4_serves_only_real_and_v123_never_real():
 
 
 def test_v4_requires_real_data_approval():
+    """An unapproved evaluator gets an empty V4 queue and is never served real data.
+
+    This used to assert that ``/tasks/next?portal_version=v4`` returned literally
+    no task. That is a stronger claim than the wall makes and than the product
+    intends: when V4 has nothing to give, ``next_task`` deliberately CONTINUES
+    the physician onto V3 rather than showing "queue cleared" (the "V4 to V3
+    continuation" block in ``routers/asclepius.py``), stamping
+    ``served_portal_version='v3'`` and ``continued_from='v4'`` so the response
+    says plainly that the flow changed. A synthetic V3 case is exactly what this
+    evaluator IS entitled to, so serving one is correct. What would be wrong is a
+    real chart, or a response still claiming v4 -- and those are what this test
+    now asserts.
+
+    The old assertion passed only by accident, and the accident was
+    ``_autofill_last_attempt``: a module-level dict keyed by specialty, with a
+    30-second cooldown, that no fixture resets. Whether the continuation could
+    produce anything at all therefore depended on how long ago some OTHER test
+    had triggered nephrology autofill -- so the verdict was decided by this
+    file's neighbours and by the wall clock, not by the wall. (It is also why the
+    old form passed in the sandbox, where ``ASCLEPIUS_AUTOFILL=0``, and failed in
+    CI, where autofill defaults on.) Asserting the invariant instead of the
+    emptiness makes it deterministic under either setting.
+    """
     real = _mk_real_task()
     u = _ev(approved=False)
     h_no = A.headers_for(u)
-    t = client.get("/api/asclepius/tasks/next?portal_version=v4", headers=h_no).json()["task"]
-    # unapproved → empty queue, never a real case.
-    #
-    # The failure message re-reads the row rather than trusting the dict this
-    # test built, because the gate reads `real_data_approved` off the row at
-    # request time and the interesting question when this breaks is what the
-    # SERVER saw. `sync_real_data_approval` runs on every app startup and grants
-    # to anyone who is approved + can LABEL, so a neighbour that boots the app
+
+    # ── The V4 queue proper ──────────────────────────────────────────────────
+    # ``/tasks/available`` carries the SAME approval gate and has no continuation
+    # branch, so it is where "unapproved -> empty V4 queue" can be stated without
+    # ambiguity. The failure message re-reads the row rather than trusting the
+    # dict this test built, because the gate reads ``real_data_approved`` off the
+    # row at request time and the interesting question when this breaks is what
+    # the SERVER saw. ``sync_real_data_approval`` runs on every app startup and
+    # grants to anyone approved who can LABEL, so a neighbour that boots the app
     # against this store is the shape to look for first.
+    avail = client.get("/api/asclepius/tasks/available?portal_version=v4",
+                       headers=h_no).json()
     fresh = _store().get_user_by_id(u["id"]) or {}
-    assert t is None, (
-        "the V4 wall served a real case to an unapproved evaluator. "
+    assert avail["count"] == 0 and avail["tasks"] == [], (
+        "the V4 queue listed cases for an unapproved evaluator. "
         f"real_data_approved={fresh.get('real_data_approved')!r} "
         f"approval_source={fresh.get('real_data_approval_source')!r} "
         f"verification_status={fresh.get('verification_status')!r} "
-        f"tier={fresh.get('tier')!r} active={fresh.get('active')!r} "
-        f"served_task={t.get('task_id')!r} is_the_real_task="
-        f"{t.get('task_id') == real.get('task_id')!r}")
+        f"tier={fresh.get('tier')!r} active={fresh.get('active')!r}")
+
+    # ── The draw ─────────────────────────────────────────────────────────────
+    # It may hand back a synthetic continuation, or nothing. It may never hand
+    # back real data, and it may never still call itself v4.
+    body = client.get("/api/asclepius/tasks/next?portal_version=v4",
+                      headers=h_no).json()
+    t = body["task"]
+    assert body["served_portal_version"] != "v4", (
+        "the draw still claimed v4 for an unapproved evaluator: "
+        f"served_portal_version={body['served_portal_version']!r} "
+        f"task={(t or {}).get('task_id')!r}")
+    if t is not None:
+        assert (t.get("case") or {}).get("case_source") != "real_deid", (
+            "the V4 wall served a real case to an unapproved evaluator: "
+            f"{t.get('task_id')!r}")
+        assert t.get("task_id") != real.get("task_id"), (
+            "the V4 wall served THE real case to an unapproved evaluator")
+        assert body["continued_from"] == "v4", (
+            "a task was served without telling the physician they had been moved "
+            "off the flow they picked: "
+            f"continued_from={body['continued_from']!r}")
 
 
 def test_v4_queue_never_autofills_synthetic(monkeypatch):
