@@ -5864,6 +5864,53 @@ body.asc-focus .asc-focus-chip { display: inline-flex; }
 .vq-practice-passed { color: var(--green); border-color: var(--green); }
 .vq-practice-locked { color: var(--asc-muted); }
 .vq-practice-grandfathered { color: var(--asc-muted); border-style: dashed; }
+
+/* The examination, on the decision screen. Facts with the answer key beside
+   them, so nothing in here is coloured to mean "good enough": green marks that
+   they reached a data point the key turns on, never that they passed. */
+.vq-exam-attempt {
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.vq-exam-attempt:last-of-type { border-bottom: 0; }
+.vq-exam-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.vq-exam-fact {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: var(--sp-2) 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+}
+.vq-exam-keys {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vq-exam-key {
+  font-size: var(--t-chrome);
+  font-family: var(--mono);
+  padding: 2px 8px;
+  border-radius: var(--r-chip);
+  border: 1px solid var(--hairline);
+}
+.vq-exam-key.hit { color: var(--green-deep); background: var(--green-wash); border-color: var(--green-line); }
+/* Not pink. A data point their prose did not reach for is a thing to read, not
+   an error, and phrase matching is too weak to call it one. */
+.vq-exam-key.miss { color: var(--ink-faint); }
+.vq-exam-key-answer, .vq-exam-answer { margin-top: var(--sp-3); font-size: var(--t-sm); }
+.vq-exam-key-answer summary, .vq-exam-answer summary { cursor: pointer; color: var(--ink-soft); }
+.vq-exam-key-answer p, .vq-exam-answer p { margin: var(--sp-2) 0 0; line-height: var(--lh-body); }
+
 .vq-practice-head {
   display: flex;
   align-items: center;

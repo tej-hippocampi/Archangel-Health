@@ -63,7 +63,41 @@ def exam_specialty(user: Dict[str, Any]) -> Dict[str, Any]:
     sets = available_specialties()
     if applied in sets:
         return {"specialty": applied, "is_own": True, "applied_with": applied}
+    # THE EXACT-MATCH TEST ABOVE IS NOT ENOUGH, and the gap was silent.
+    #
+    # Physicians do not type registry names. They type "interventional
+    # cardiology", "pediatric cardiology", "cardiologist", "nephrology
+    # transplant" - and every one of those fell straight past `in sets` to the
+    # nephrology fallback. A cardiologist was handed a nephrology case and told,
+    # correctly and uselessly, that we had no set for their specialty.
+    #
+    # specialties.match_specialty already solves exactly this: registry hit,
+    # then alias, then leading token, then the practitioner-noun stem, and it
+    # returns None rather than guessing, because a WRONG specialty is worse than
+    # a missing one. Its answer is only usable here if we also hold a case set
+    # for what it names, so hepatology (enabled for generation, no gold set)
+    # still falls back honestly rather than 404ing on a draw.
+    matched = _match_specialty(applied)
+    if matched and matched in sets:
+        return {"specialty": matched, "is_own": True, "applied_with": applied}
     return {"specialty": FALLBACK_SPECIALTY, "is_own": False, "applied_with": applied}
+
+
+def _match_specialty(applied: str) -> Optional[str]:
+    """``specialties.match_specialty``, and never an exception.
+
+    Imported lazily and wrapped because this sits on the path that draws an
+    applicant's examination: a registry that cannot be read should cost them
+    the specialty match, not the case.
+    """
+    if not applied:
+        return None
+    try:
+        from asclepius.specialties import match_specialty  # noqa: PLC0415
+
+        return match_specialty(applied)
+    except Exception:  # pragma: no cover - defensive
+        return None
 
 
 def exam_task_for(store: Any, user: Dict[str, Any], attempt: int) -> Optional[Dict[str, Any]]:

@@ -1878,6 +1878,13 @@ async def submit_exam(
         user_id=user["id"], task_id=task_id, specialty=picked["specialty"],
         attempt=attempt, payload=body,
         time_spent_sec=int(body.get("time_spent_sec") or 0),
+        # `specialty` above is what was SERVED. These two say whether it was
+        # also what they applied with, which is the difference between an
+        # examination that measures their reading and one that measures how
+        # they cope outside their field. Recorded at submit time because the
+        # user row can change afterwards and the answer must not.
+        is_own_specialty=bool(picked["is_own"]),
+        applied_specialty=picked.get("applied_with") or "",
     )
     current["exam"] = {"state": "submitted", "attempt": attempt,
                        "submitted_at": now, "exam_id": exam_id}

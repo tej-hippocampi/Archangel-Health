@@ -698,7 +698,17 @@ class AsclepiusStore:
                     attempt         INTEGER NOT NULL DEFAULT 1,
                     payload_json    TEXT NOT NULL DEFAULT '{}',
                     time_spent_sec  INTEGER NOT NULL DEFAULT 0,
-                    submitted_at    TEXT NOT NULL
+                    submitted_at    TEXT NOT NULL,
+                    -- Whether the case served was the applicant's OWN specialty,
+                    -- and what they had applied with. `specialty` above records
+                    -- only what was SERVED, so a nephrology case sat by a
+                    -- hepatologist is indistinguishable from one sat by a
+                    -- nephrologist once the row is written. Those two rows say
+                    -- different things about the person and must not be read as
+                    -- if they said the same thing. NULL means unknown, which is
+                    -- the honest value for every row filed before this existed.
+                    is_own_specialty  INTEGER,
+                    applied_specialty TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_cred_exam_user
                     ON credentialing_exams(user_id);
@@ -1145,6 +1155,16 @@ class AsclepiusStore:
             # annotations_json added after the table shipped — guard for existing DBs.
             if "annotations_json" not in cols("env_runs"):
                 conn.execute("ALTER TABLE env_runs ADD COLUMN annotations_json TEXT")
+
+            # Added after credentialing_exams shipped. No backfill: NULL means
+            # "we did not record whether this was their own specialty", which is
+            # exactly true of every row written before this, and is read as
+            # unknown rather than as False everywhere downstream.
+            exam_cols = cols("credentialing_exams")
+            if "is_own_specialty" not in exam_cols:
+                conn.execute("ALTER TABLE credentialing_exams ADD COLUMN is_own_specialty INTEGER")
+            if "applied_specialty" not in exam_cols:
+                conn.execute("ALTER TABLE credentialing_exams ADD COLUMN applied_specialty TEXT")
 
             task_cols = cols("tasks")
             if "grounding_mode" not in task_cols:
@@ -6086,6 +6106,7 @@ class AsclepiusStore:
     def record_credentialing_exam(
         self, *, user_id: str, task_id: str, specialty: str,
         attempt: int, payload: Dict[str, Any], time_spent_sec: int = 0,
+        is_own_specialty: Optional[bool] = None, applied_specialty: str = "",
     ) -> str:
         """File an applicant's examination. Returns the exam id.
 
@@ -6100,11 +6121,14 @@ class AsclepiusStore:
                 """
                 INSERT INTO credentialing_exams
                     (exam_id, user_id, task_id, specialty, attempt,
-                     payload_json, time_spent_sec, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     payload_json, time_spent_sec, submitted_at,
+                     is_own_specialty, applied_specialty)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (exam_id, user_id, task_id, specialty, int(attempt or 1),
-                 json.dumps(payload or {}), int(time_spent_sec or 0), _utcnow_iso()),
+                 json.dumps(payload or {}), int(time_spent_sec or 0), _utcnow_iso(),
+                 None if is_own_specialty is None else int(bool(is_own_specialty)),
+                 (applied_specialty or "").strip() or None),
             )
         return exam_id
 

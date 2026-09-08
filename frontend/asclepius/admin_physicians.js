@@ -655,6 +655,10 @@
       // decision screen: "who is actually worth opening" has to be answerable
       // while skimming, or the filter below is the only way to ask it.
       practice_case: q.practice_case || null,
+      // The examination, on the row. "Is this one worth opening" is mostly
+      // "have they filed the thing we read", and it was only answerable by
+      // opening every dossier in turn.
+      examination: q.examination || null,
       ready_for_review: q.ready_for_review === true,
       // One merged number. An admin triaging needs to know this row is not a
       // skim, not which KIND of not-a-skim it is; that is on the decision
@@ -1063,7 +1067,7 @@
         h('div', { class: 'asc-table-wrap' }, h('table', { class: 'asc-table' },
           h('thead', {}, h('tr', {},
             h('th', {}, 'Name'), h('th', {}, 'Specialty'), h('th', {}, 'Waiting'),
-            h('th', {}, 'Practice case'), h('th', {}, 'Proposed'),
+            h('th', {}, 'Examination'), h('th', {}, 'Practice case'), h('th', {}, 'Proposed'),
             h('th', {}, 'Look'), h('th', {}, ''))),
           h('tbody', {}, decidable.map((r) => pendingRow(ctx, r))))));
       const pager = queuePager(ctx, meta);
@@ -1163,6 +1167,26 @@
   /* The practice case as one cell. State only: the matched count is on the
      decision screen, where an admin is already reading rather than skimming,
      and a score in a queue invites deciding on the score. */
+  /** Has the thing we read been filed? Three words, no verdict.
+   *
+   *  Sits LEFT of the practice case because it outranks it: an applicant with
+   *  a filed examination and no practice case is ready to decide about, and one
+   *  with the reverse is not.
+   */
+  function examCell(h, ex) {
+    const state = (ex && ex.state) || 'not_started';
+    const attempts = (ex && ex.attempts) || 0;
+    if (state === 'submitted' || attempts) {
+      return h('td', {}, h('span', { class: 'vq-practice vq-practice-passed' },
+        attempts > 1 ? 'Filed (' + attempts + ')' : 'Filed'));
+    }
+    if (state === 'in_progress') {
+      return h('td', {}, h('span', { class: 'vq-practice vq-practice-grandfathered' },
+        'Started'));
+    }
+    return h('td', {}, h('span', { class: 'vq-practice vq-practice-locked' }, 'Not sat'));
+  }
+
   function practiceCell(h, pc) {
     if (!pc) return h('td', {}, '-');
     const state = pc.state || 'locked';
@@ -1225,6 +1249,7 @@
           : null),
       h('td', {}, r.specialty || '-'),
       waitingCell(h, r.created_at),
+      examCell(h, r.examination),
       practiceCell(h, r.practice_case),
       // The proposal, not the score. A number in a queue invites deciding on
       // the number; the tier word says which rows need real thought.
@@ -1358,6 +1383,16 @@
     });
     if (creds) slot.appendChild(creds);
 
+    // ── THE EXAMINATION ──
+    // ABOVE the practice case, because it is the one we read. The practice case
+    // is a guided tour with a "Skip this step" button on every screen; this is
+    // one case in the applicant's own specialty, in the real workspace, with
+    // the real validation. The backend has served this block since the
+    // examination shipped and no screen rendered it, so the artifact the whole
+    // decision rests on was invisible while the optional warm-up beside it had
+    // a card.
+    slot.appendChild(examinationCard(ctx, d.examination));
+
     // ── THE PRACTICE CASE ──
     // Open, and above the buttons, because it is the only piece of clinical
     // judgment we observe before deciding about somebody. Everything else on
@@ -1390,6 +1425,107 @@
      "Passed" and "passed on the first attempt" are separate lines because they
      are separate facts. The gate forces an eventual pass, so a pass on its own
      says only that somebody kept going. */
+  /** The examination, and the case's own answer key beside it.
+   *
+   *  NO VERDICT. Every line here is a fact: which candidate the case was
+   *  authored to make wrong and which one they rejected, which of the key's
+   *  data points their prose reached for. Whether that adds up to a physician
+   *  we want is the reading admin's call, and a score in this card would be the
+   *  product making it first. There is deliberately no total, no percentage and
+   *  no colour that means "good".
+   */
+  function examinationCard(ctx, ex) {
+    const { h } = ctx;
+    const card = sectionCard(ctx, 'Examination');
+    const pad = card.querySelector('.asc-card-pad');
+    const subs = (ex && ex.submissions) || [];
+    if (!ex || !subs.length) {
+      pad.appendChild(h('div', { class: 'asc-dim' },
+        (ex && ex.state === 'in_progress')
+          ? 'Started and not yet filed.'
+          : 'Not sat yet. This is the piece we read, so a decision made now is '
+            + 'being made on credentials alone.'));
+      return card;
+    }
+    // Newest first, and every attempt shown. Somebody asked to try again is
+    // being looked at precisely for what changed between the two.
+    subs.forEach((s, i) => {
+      const obs = s.observations || {};
+      const own = s.is_own_specialty;
+      const block = h('div', { class: 'vq-exam-attempt' });
+      block.appendChild(h('div', { class: 'vq-exam-head' },
+        h('span', { class: 'asc-chrome' },
+          'ATTEMPT ' + (s.attempt || (subs.length - i))),
+        h('span', { class: 'asc-dim' },
+          (s.submitted_at ? String(s.submitted_at).slice(0, 10) : '')
+          + (s.time_spent_sec ? ' · ' + Math.round(s.time_spent_sec / 60) + ' min' : ''))));
+
+      const rows = [
+        ['Case', s.task_id || null],
+        ['Specialty served', s.specialty || null],
+        // Three states, not two. `null` is "we did not record this", which is
+        // true of every attempt filed before the column existed, and saying
+        // "no" there would be inventing a fact about the physician.
+        ['Their own specialty', own == null
+          ? 'Not recorded'
+          : (own ? 'Yes' : 'No, they applied with ' + (s.applied_specialty || 'something else'))],
+      ];
+      block.appendChild(kvBlock(h, '', rows.filter((r) => r[1] != null)));
+
+      if (!obs.graded) {
+        block.appendChild(h('div', { class: 'asc-dim' },
+          'This case carries no answer key we can line their reading up '
+          + 'against, so read the answers below directly.'));
+      } else {
+        if (obs.rejected_the_flawed_candidate !== null
+            && obs.rejected_the_flawed_candidate !== undefined) {
+          block.appendChild(h('div', { class: 'vq-exam-fact' },
+            h('span', {
+              class: 'dot ' + (obs.rejected_the_flawed_candidate ? 'dot-green' : 'dot-orange'),
+              'aria-hidden': 'true',
+            }),
+            h('span', {}, obs.rejected_the_flawed_candidate
+              ? 'Rejected candidate ' + obs.intended_flawed_id
+                + ', which is the one this case was authored to make wrong.'
+              : 'Rejected candidate ' + (obs.rejected_id || 'neither')
+                + '. The case was authored to make ' + obs.intended_flawed_id + ' wrong.')));
+        }
+        if (obs.key_data_total) {
+          block.appendChild(h('div', { class: 'vq-exam-fact' },
+            h('span', { class: 'asc-dim' },
+              'Their reading reached for ' + obs.key_data_matched.length
+              + ' of the ' + obs.key_data_total
+              + ' data points the answer key turns on.')));
+          const list = h('ul', { class: 'vq-exam-keys' });
+          (obs.key_data_matched || []).forEach((k) => list.appendChild(
+            h('li', { class: 'vq-exam-key hit' }, k)));
+          (obs.key_data_missed || []).forEach((k) => list.appendChild(
+            h('li', { class: 'vq-exam-key miss' }, k)));
+          block.appendChild(list);
+        }
+        if (obs.answer) {
+          block.appendChild(h('details', { class: 'vq-exam-key-answer' },
+            h('summary', {}, 'The answer key'),
+            h('p', {}, obs.answer),
+            obs.rationale ? h('p', { class: 'asc-dim' }, obs.rationale) : null));
+        }
+      }
+
+      const wrote = (s.payload && s.payload.independent_answer
+        && s.payload.independent_answer.text) || '';
+      if (wrote) {
+        block.appendChild(h('details', { class: 'vq-exam-answer' },
+          h('summary', {}, 'What they wrote, before they saw either candidate'),
+          h('p', {}, wrote)));
+      }
+      pad.appendChild(block);
+    });
+
+    pad.appendChild(h('div', { class: 'asc-dim' },
+      'Facts, not a verdict. Nothing here is scored and nothing here decides.'));
+    return card;
+  }
+
   function practiceCaseCard(ctx, pc, ready) {
     const { h } = ctx;
     const card = sectionCard(ctx, 'Practice case');
