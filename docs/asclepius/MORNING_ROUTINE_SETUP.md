@@ -133,3 +133,63 @@ Either a source raised, or the PHI gate blocked the post. The gate skips system
 posts silently by design, which is right until the thing being skipped is the
 whole morning, so a blocked morning is recorded as a failure with
 `error="post_blocked"` rather than passing as a quiet day.
+
+## Seeing it work with no key at all
+
+The routine could not be run offline. Three things blocked it independently,
+each on its own sufficient to produce a silent morning that looked exactly like
+a quiet web, and all three are fixed:
+
+* `search_providers.available("anthropic")` returned False without a key, and
+  `_ask` short-circuits on it BEFORE the LLM client is consulted, so
+  `ASCLEPIUS_LLM_PROVIDER=fake` was never reached;
+* the fake transport intercepted any call carrying `tools` and answered from the
+  tool's own schema, but Anthropic's hosted web search is a SERVER-SIDE tool
+  with no `input_schema`, and the caller wants the model's text having searched;
+* both morning fixtures returned prose, so `_parse_items` produced `[]`.
+
+With those closed, one command posts a real brief into the local community:
+
+```bash
+cd backend && ASCLEPIUS_LLM_PROVIDER=fake COMMUNITY_FAKE_SEARCH=1 \
+  COMMUNITY_MORNING_ENABLED=1 \
+  python3 -c "import asyncio, main; from community import morning; \
+  print(asyncio.run(morning.run_morning(force=True, only='morning:events')))"
+```
+
+`{'ran': ['morning:events'], ...}` means it posted. `quiet` means it sourced
+nothing, and the run ledger records which reason.
+
+Swap `only=` for `morning:news`, `morning:opportunities` or
+`morning:discussion` to see the other three. The fixture varies its items per
+call, so running all four in one session does not have the cross-channel dedupe
+swallow every scope after the first.
+
+`COMMUNITY_FAKE_SEARCH` is a SECOND switch on purpose. The test suite sets
+`ASCLEPIUS_LLM_PROVIDER=fake` for every run, so keying the harness on the
+transport alone would switch it on underneath the tests that verify the
+citation gate and the missing-key reason.
+
+**The gate is never skipped, only its allowlist is substituted.** Its contract
+is that a URL the search never returned must never reach a physician; under the
+fake there is no search, no model and no physician, and the fixture URLs are on
+a reserved domain. `_keep_cited` still runs and still refuses anything that is not http(s), so a
+`javascript:` URL is refused in the harness exactly as in production. What
+changes is where the allowlist comes from: the fixture's own URLs, on a
+reserved domain. `ai/model_config.assert_fake_llm_not_in_production`
+refuses to boot a fake in production, so it cannot be reached there.
+
+Run the same scope twice and the second says `quiet`. That is not a broken
+harness, it is the cross-channel dedupe (`community_content_items`), and it is
+the same ledger production relies on to stop a conference being announced twice.
+The fixture is deterministic, so its URLs are already in the ledger. Point the
+three DB paths at a temporary directory for a clean run:
+
+```bash
+TMP=$(mktemp -d)
+cd backend && ASCLEPIUS_LLM_PROVIDER=fake COMMUNITY_FAKE_SEARCH=1 \
+  COMMUNITY_MORNING_ENABLED=1 COMMUNITY_DB_PATH=$TMP/c.db \
+  ASCLEPIUS_DB_PATH=$TMP/a.db TEAM_DB_PATH=$TMP/t.db \
+  python3 -c "import asyncio, main; from community import morning; \
+  print(asyncio.run(morning.run_morning(force=True)))"
+```

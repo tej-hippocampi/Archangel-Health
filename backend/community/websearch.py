@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, List, Optional, Set
 
 log = logging.getLogger("community.websearch")
@@ -316,6 +317,22 @@ async def _ask_grounded(
     return _keep_cited(_parse_items(_text_of(response)), allow)
 
 
+def _fake_search_enabled() -> bool:
+    """The offline demonstration harness, and ONLY when asked for explicitly.
+
+    Deliberately not keyed on ``ASCLEPIUS_LLM_PROVIDER=fake`` alone. The test
+    suite sets that for every run, so keying on it would have switched the
+    harness on underneath the tests that verify the citation gate, and those
+    tests are the reason the gate can be trusted.
+
+    Both conditions, so it cannot be turned on against a real transport either.
+    """
+    return (
+        (os.getenv("COMMUNITY_FAKE_SEARCH") or "").strip() in ("1", "true", "yes", "on")
+        and (os.getenv("ASCLEPIUS_LLM_PROVIDER") or "").strip().lower() == "fake"
+    )
+
+
 async def _ask(system: str, prompt: str) -> List[Dict[str, Any]]:
     """One search-backed call, with every uncited URL dropped."""
     from community import search_providers as _sp  # noqa: PLC0415
@@ -349,7 +366,22 @@ async def _ask(system: str, prompt: str) -> List[Dict[str, Any]]:
 
     # The model wrote a URL the search never returned is the failure mode this
     # whole module is arranged around; the gate is shared with the grounded path.
-    return _keep_cited(_parse_items(_text_of(response)), _cited_urls(response))
+    items = _parse_items(_text_of(response))
+    # THE ALLOWLIST, and under the offline harness only, where it comes from.
+    #
+    # The gate's contract is that a URL the SEARCH never returned must never
+    # reach a physician. Under the harness there is no search, no model and no
+    # physician, so the fixture's own URLs are the allowlist. Every fixture item
+    # was otherwise dropped and the routine reported a quiet day, which is what
+    # made the feature unobservable without buying a key.
+    #
+    # It substitutes the SOURCE of the allowlist and never skips the gate, so
+    # `_keep_cited` still runs and still refuses anything that is not http(s).
+    # A `javascript:` URL is refused in the harness exactly as in production.
+    cited = _cited_urls(response)
+    if _fake_search_enabled() and not cited:
+        cited = {_normalize(str(i.get("url") or "")) for i in items}
+    return _keep_cited(items, cited)
 
 
 # ─── The four things a morning is made of ────────────────────────────────────
@@ -381,12 +413,29 @@ async def search_events(
     # Events are the reason the paid rung exists: nobody publishes an RSS feed
     # of "nephrology conferences in Saudi Arabia in the next two months".
     results = await retrieve(
-        f"upcoming {focus} conference OR summit OR CME for physicians {where} 2026",
+        f"upcoming {focus} conference OR summit OR CME for physicians {where} "
+        f"{_search_years()}",
         limit=12,
     )
     if results:
         return await _ask_grounded(_EVENTS_SYSTEM, prompt, results)
     return await _ask(_EVENTS_SYSTEM, prompt)
+
+
+def _search_years() -> str:
+    """Which year(s) to bias the events query toward.
+
+    This was the literal "2026". A hardcoded year does not fail loudly: it
+    quietly stops matching, every scope records `nothing_found`, and the
+    community looks like a quiet web rather than a stale prompt.
+
+    The current year alone is still wrong for eight weeks of it. The events
+    window is the next sixty days, so a run in November or December has to ask
+    about January too, or the routine goes quiet exactly over the period when
+    people are planning next year's conferences.
+    """
+    now = datetime.now(timezone.utc)
+    return str(now.year) if now.month < 11 else f"{now.year} OR {now.year + 1}"
 
 
 _NEWS_SYSTEM = (
@@ -454,6 +503,48 @@ async def search_opportunities(
     if results:
         return await _ask_grounded(_OPPORTUNITY_SYSTEM, prompt, results)
     return await _ask(_OPPORTUNITY_SYSTEM, prompt)
+
+
+_RESEARCH_SYSTEM = (
+    "You find recent research a practising physician would want to know about. "
+    "Use web search. Peer-reviewed papers and preprints both count. Only report "
+    "work you have actually found on a page, with the URL from that page, and "
+    "never invent a title, a journal or an author. Answer with a JSON array "
+    'only, each item: {"title","url","when","summary"} where "when" is the '
+    'publication date as written on the page and "summary" is one sentence on '
+    "why a clinician should care, in plain language rather than an abstract."
+)
+
+
+async def search_new_research(
+    *, country_name: Optional[str] = None, specialty: Optional[str] = None,
+    limit: int = 2,
+) -> List[Dict[str, Any]]:
+    """Recent papers and preprints, which nothing else in the morning covers.
+
+    The routine sourced events, medical AI news and OPPORTUNITIES, and
+    opportunities are grants, fellowships and calls for reviewers. New research
+    was reaching physicians only through the separate weekly papers digest, on a
+    different cadence and into a different channel, so a daily reader saw no
+    papers for six days out of seven.
+
+    It rides the opportunities brief rather than becoming a fifth daily post:
+    ``_compose_brief`` documents the rule, which is that three bot posts a
+    morning in a room of forty people is a feed nobody reads.
+    """
+    scope = f"in {specialty}" if specialty else "in medical AI or clinical AI"
+    where = f", relevant to physicians in {country_name}" if country_name else ""
+    prompt = (
+        f"Find {limit} pieces of recent research {scope}{where}, published in "
+        "the last 30 days. Return the JSON array only."
+    )
+    results = await retrieve(
+        f"recent paper OR preprint {scope} clinical evaluation {_search_years()}",
+        limit=12, days=30, category="research",
+    )
+    if results:
+        return await _ask_grounded(_RESEARCH_SYSTEM, prompt, results)
+    return await _ask(_RESEARCH_SYSTEM, prompt)
 
 
 _DISCUSSION_SYSTEM = (

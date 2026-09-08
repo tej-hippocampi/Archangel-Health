@@ -1268,6 +1268,10 @@
     else if (m.kind === 'event') kindClass = ' cm-msg-event';
     else if (m.kind === 'poll') kindClass = ' cm-msg-poll';
     if (/(^|[\s(])@(channel|here)\b/i.test(m.body || '')) kindClass += ' cm-msg-broadcast';
+    // A pin was a 0.7rem emoji at 75% opacity in the header row, which is
+    // smaller than the timestamp beside it. Somebody pinned it because the room
+    // should not scroll past it, and nothing about the message said so.
+    if (m.pinned) kindClass += ' cm-msg-pinned';
 
     const col = h('div', { class: 'cm-msg-col' },
       h('div', { class: 'cm-msg-head' },
@@ -1276,7 +1280,7 @@
           a.display_name || 'Former member'),
         a.verified ? h('span', { class: 'cm-verified', title: 'Credential-verified' }) : null,
         specChipEl(a),
-        m.pinned ? h('span', { class: 'cm-pin-marker', title: 'Pinned' }, '📌') : null,
+        m.pinned ? h('span', { class: 'cm-pin-marker', title: 'Pinned' }, 'PINNED') : null,
         h('span', { class: 'cm-msg-time' }, fmtTime(m.created_at),
           m.edited_at ? h('span', { class: 'cm-msg-edited' }, '(edited)') : null)),
       state.editing === m.id ? editBoxEl(m) : bodyEl,

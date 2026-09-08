@@ -864,7 +864,24 @@
   color: var(--pink-deep); background: var(--pink-wash);
   padding: 1px 6px; border-radius: var(--r-chip); border: 1px solid var(--pink-line);
 }
-.cm-pin-marker { font-size: 0.7rem; opacity: 0.75; }
+/* PINNED. The marker was a 0.7rem emoji at 75% opacity, smaller than the
+   timestamp beside it, on a message somebody pinned precisely so the room would
+   not scroll past it. It borrows the treatment .cm-event-card.pinned already
+   uses below, which is the one thing in here that currently looks pinned. */
+.cm-pin-marker {
+  font-family: var(--mono);
+  font-size: var(--t-chrome);
+  letter-spacing: 0.08em;
+  color: var(--orange-deep);
+  background: var(--orange-wash);
+  border: 1px solid var(--orange-line);
+  border-radius: var(--r-chip);
+  padding: 1px 6px;
+}
+.cm-msg-pinned {
+  border-left: 2px solid var(--orange-line);
+  background: linear-gradient(90deg, var(--orange-wash), transparent 40%);
+}
 .cm-act.on { background: var(--orange-wash); border-radius: var(--r-chip); }
 
 /* ── Events banner + card ── */

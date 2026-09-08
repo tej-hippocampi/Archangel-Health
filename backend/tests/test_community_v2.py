@@ -300,7 +300,10 @@ def test_system_post_renders_bot_author_and_kind():
     assert posted is not None
     assert posted["kind"] == "digest_news"
     assert posted["author"]["is_bot"] is True
-    assert posted["author"]["display_name"] == "Archangel"
+    # The name is configuration (COMMUNITY_PERSONA_NAME); the property this
+    # test protects is that the author is the BOT and not a real member.
+    from community import persona as _persona
+    assert posted["author"]["display_name"] == _persona.display_name()
     r = client.get(f"{BASE}/channels/medical-ai-news/messages", headers=headers_for(doc))
     got = [m for m in r.json()["messages"] if m["id"] == posted["id"]]
     assert got and got[0]["author"]["is_bot"] is True
