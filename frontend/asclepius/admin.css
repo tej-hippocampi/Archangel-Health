@@ -568,9 +568,23 @@
    card owns the accent-edge treatment for "this is a job", and this is not a
    job, it is a statement that the data is being deleted. */
 .asc-dur { margin-bottom: 14px; }
-.asc-dur-bad { border-color: var(--pink-line); background: var(--pink-wash); }
-.asc-dur-warn { border-color: var(--orange-line); background: var(--orange-wash); }
+/* A 9%-alpha wash on a warm canvas is not a red banner, it is a slightly
+   different beige, and this is the one card on the tab that has to be read
+   before the numbers under it. The spine and the title colour carry the alarm;
+   the wash stays quiet so the copy is still comfortable to read. */
+.asc-dur-bad {
+  border-color: var(--pink-line);
+  border-left: 3px solid var(--pink);
+  background: var(--pink-wash);
+}
+.asc-dur-warn {
+  border-color: var(--orange-line);
+  border-left: 3px solid var(--orange);
+  background: var(--orange-wash);
+}
 .asc-dur-title { font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+.asc-dur-bad .asc-dur-title { color: var(--pink-deep); }
+.asc-dur-warn .asc-dur-title { color: var(--orange-deep); }
 .asc-dur-body { margin: 0; color: var(--asc-text); font-size: 13px; line-height: 1.55; }
 .asc-dur-path {
   font-family: var(--mono);
