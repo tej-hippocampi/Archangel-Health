@@ -5438,6 +5438,7 @@ _RUN_REASON_TEXT = {
     "nothing_new": "nothing new since the last run",
     "no_source_items": "no source returned anything",
     "nothing_worth_posting": "found items, none worth posting",
+    "below_item_floor": "found fewer stories than a digest is worth posting; they are held for the next run",
     "no_search_provider": "NO SEARCH PROVIDER configured",
     "no_model_key": "NO ANTHROPIC_API_KEY set",
     "provider_error": "the search provider failed",

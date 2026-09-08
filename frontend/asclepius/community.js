@@ -1074,7 +1074,12 @@
   function digestEmptyCopy(slug) {
     if (slug !== 'medical-ai-news') return null;
     const d = state.digest;
-    if (!d) return null;
+    // `enabled === null` is the server saying it could not read the schedule
+    // (community/router.py _digest_schedule returns a dict either way, never
+    // null). Without this the room explained itself from nothing: "No digest
+    // yet today, digests only post when there is something worth a physician's
+    // time" is a confident sentence assembled out of three unknowns.
+    if (!d || d.enabled == null) return null;
     if (d.enabled === false) {
       return ['The digest is paused',
         'Automatic posts to this room are switched off, so it stays quiet '

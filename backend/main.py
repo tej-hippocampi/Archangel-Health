@@ -6610,68 +6610,13 @@ async def startup_team_scheduler():
         from asclepius import ingestion as _asc_ingestion_dur
         from asclepius.constants import VOLUME_MOUNT_ENV as _VOLUME_MOUNT_ENV
         from asclepius.constants import declared_volume_mount as _declared_mount
-        from asclepius.constants import path_is_ephemeral as _path_is_ephemeral
+        from asclepius.constants import path_is_ephemeral as _path_is_ephemeral_rep
         from asclepius.constants import path_under_declared_volume as _under_volume
         from asclepius.store import _db_storage_durable as _asc_db_durable
 
         import realm as _realm_dur
 
         _backend_base = os.path.dirname(os.path.abspath(__file__))
-
-        def _sqlite_store_durable(var: str, resolve, loses: str):
-            """(ok, detail) for a SQLite store that has no checker of its own.
-
-            Resolved exactly the way the store resolves it — through ``realm``,
-            the one module that knows where a file lives — but WITHOUT
-            constructing a store: a durability check must not create the file it
-            is judging.
-
-            The question is about the RESOLVED DIRECTORY, never about whether
-            the variable is set. Those came apart the moment community.db learned
-            to derive its path from ASCLEPIUS_DB_PATH: an unset COMMUNITY_DB_PATH
-            that lands on the volume beside the Asclepius database is durable,
-            and reporting it as a failure would train an operator to ignore the
-            one line that matters. The container's own code directory is the
-            case that is NOT durable however it was arrived at, because a
-            redeploy replaces the image.
-            """
-            path = resolve()
-            db_dir = os.path.dirname(os.path.abspath(path)) or "/"
-            explicit = bool((os.getenv(var) or "").strip())
-            # A declared volume mount beats the prefix list, which cannot tell a
-            # real volume at /data from a container-local directory of that name.
-            if _under_volume(db_dir) is False:
-                return False, (
-                    f"{path} is NOT under the persistent volume this platform "
-                    f"mounted at {_declared_mount()} ({_VOLUME_MOUNT_ENV}); a "
-                    f"redeploy destroys {loses}. Set {var} to a path inside that "
-                    "mount.")
-            if _path_is_ephemeral(db_dir):
-                return False, (
-                    f"{path} is on EPHEMERAL storage; a redeploy destroys "
-                    f"{loses}. Point {var} at the persistent volume.")
-            if os.path.abspath(db_dir) == _backend_base:
-                lead = (f"{var} points at the application directory"
-                        if explicit else
-                        f"{var} is not set and no persistent data directory could "
-                        "be derived")
-                return False, (
-                    f"{lead}, so the database lives beside the code at {path} and "
-                    f"is REPLACED on every redeploy, losing {loses}. Set {var} to "
-                    "a path on your persistent volume.")
-            # A mount that ATTACHED WRONG (read-only volume, failed attach leaving
-            # a bare directory) looks healthy until the first write, so probe it.
-            try:
-                os.makedirs(db_dir, exist_ok=True)
-                probe = os.path.join(db_dir, f".durability-probe-{os.getpid()}")
-                with open(probe, "w") as fh:
-                    fh.write("ok")
-                os.remove(probe)
-            except OSError as exc:
-                return False, (
-                    f"{db_dir} is not writable ({exc}); the volume for {var} may "
-                    "have failed to attach.")
-            return True, path
 
         # All FIVE file-backed stores, checked at BOOT rather than on the first
         # request. The two SQLite stores at the end were WARN-only until the
@@ -6697,15 +6642,28 @@ async def startup_team_scheduler():
             # erases the signup funnel and the console goes back to an empty
             # roster beside an inbox full of notifications.
             ("tenant database", "TEAM_DB_PATH",
-             lambda: _sqlite_store_durable(
+             lambda: sqlite_store_durable(
                  "TEAM_DB_PATH", _realm_dur.live_team_db,
                  "every physician mid-onboarding (Admin > Physicians > Signups)"),
              _realm_dur.live_team_db),
             ("community database", "COMMUNITY_DB_PATH",
-             lambda: _sqlite_store_durable(
+             lambda: sqlite_store_durable(
                  "COMMUNITY_DB_PATH", _realm_dur.live_community_db,
                  "every channel, post, DM, event and digest ledger row"),
              _realm_dur.live_community_db),
+        )
+        # The export root is REPORTED but not gated, and the asymmetry is
+        # deliberate rather than an oversight. Its default is /tmp, so gating it
+        # would refuse to boot every deployment that has not set
+        # ASCLEPIUS_EXPORT_DIR — including ones where nothing has ever been
+        # exported — and a gate that fires on a store the deployment does not
+        # use yet is a gate people learn to override. What it holds is also the
+        # one thing here that is REBUILDABLE: a bundle is regenerated from the
+        # database, unlike a community post or an onboarding in flight. So it
+        # appears on /healthz with an honest durable flag and stays out of the
+        # boot decision.
+        _REPORT_ONLY = (
+            ("export bundles", "ASCLEPIUS_EXPORT_DIR", _realm_dur.live_export_root),
         )
         _dur_failures = []
         for _name, _var, _fn, _path_fn in _DURABILITY_CHECKS:
@@ -6719,11 +6677,27 @@ async def startup_team_scheduler():
                 _resolved = ""
             _storage_stores.append({
                 "store": _name, "variable": _var, "path": _resolved,
-                "durable": bool(_ok),
+                "durable": bool(_ok), "gated": True,
             })
             if not _ok:
                 _dur_failures.append((_name, _why))
                 _storage_failures.append({"store": _name, "variable": _var, "why": _why})
+        for _name, _var, _path_fn in _REPORT_ONLY:
+            try:
+                _resolved = str(_path_fn())
+                _dir_ok = not _path_is_ephemeral_rep(_resolved)
+            except Exception:
+                _resolved, _dir_ok = "", False
+            _storage_stores.append({
+                "store": _name, "variable": _var, "path": _resolved,
+                "durable": bool(_dir_ok), "gated": False,
+            })
+            if not _dir_ok and _resolved:
+                _auth_logger.warning(
+                    "[storage] export bundles at %s are on ephemeral storage; a "
+                    "redeploy discards them. They are rebuildable from the "
+                    "database, so this does not block boot. Set %s to keep them.",
+                    _resolved, _var)
         app.state.storage_durability["checked"] = True
         app.state.storage_durability["ok"] = not _dur_failures
         if _dur_failures:
@@ -7312,7 +7286,12 @@ async def internal_purge_community(
         actor_type="system", actor_id="internal_tool",
         action="community.purge_generated", outcome="ok",
         resource_type="community", resource="generated_content",
-        detail={"source_ip": _client_ip(request), "realm": _realm.current(), **counts},
+        # The dedicated parameter, not a key in ``detail``: source_ip is a
+        # column, and an incident review filters on the column. Buried in the
+        # detail blob, the one destructive route in the community would be
+        # invisible to the query someone actually runs.
+        source_ip=_client_ip(request),
+        detail={"realm": _realm.current(), **counts},
     )
     _auth_logger.warning("[community] generated-content purge ran (%s)", counts)
     return {"ok": True, **counts, "ran_at": _utcnow_iso()}
@@ -7597,6 +7576,71 @@ except Exception:
 _HEALTH_MOUNTS = (
     ("static", os.path.join(os.path.dirname(__file__), "../frontend"), "index.html"),
 )
+def sqlite_store_durable(var: str, resolve, loses: str):
+    """(ok, detail) for a SQLite store that has no durability checker of its own.
+
+    MODULE LEVEL, not a closure inside the startup handler, because this
+    function decides whether the deployment boots and a function that decides
+    that has to be callable by a test. As a closure the only thing the suite
+    could assert about it was that certain strings appeared in main.py's source
+    — a check that passes on a mention in a docstring.
+
+    Resolved exactly the way the store resolves it (through ``realm``, the one
+    module that knows where a file lives) but WITHOUT constructing a store: a
+    durability check must not create the file it is judging.
+
+    The question is about the RESOLVED DIRECTORY, never about whether the
+    variable is set. Those came apart the moment community.db learned to derive
+    its path from ASCLEPIUS_DB_PATH: an unset COMMUNITY_DB_PATH that lands on
+    the volume beside the Asclepius database is durable, and reporting it as a
+    failure would train an operator to ignore the one line that matters. The
+    container's own code directory is the case that is NOT durable however it
+    was arrived at, because a redeploy replaces the image.
+    """
+    from asclepius.constants import VOLUME_MOUNT_ENV as _vol_env
+    from asclepius.constants import declared_volume_mount as _declared
+    from asclepius.constants import path_is_ephemeral as _ephemeral
+    from asclepius.constants import path_under_declared_volume as _under
+
+    backend_base = os.path.dirname(os.path.abspath(__file__))
+    path = resolve()
+    db_dir = os.path.dirname(os.path.abspath(path)) or "/"
+    explicit = bool((os.getenv(var) or "").strip())
+    # A declared volume mount beats the prefix list, which cannot tell a real
+    # volume at /data from a container-local directory of that name.
+    if _under(db_dir) is False:
+        return False, (
+            f"{path} is NOT under the persistent volume this platform mounted "
+            f"at {_declared()} ({_vol_env}); a redeploy destroys {loses}. Set "
+            f"{var} to a path inside that mount.")
+    if _ephemeral(db_dir):
+        return False, (
+            f"{path} is on EPHEMERAL storage; a redeploy destroys {loses}. "
+            f"Point {var} at the persistent volume.")
+    if os.path.abspath(db_dir) == backend_base:
+        lead = (f"{var} points at the application directory" if explicit else
+                f"{var} is not set and no persistent data directory could be "
+                "derived from ASCLEPIUS_DB_PATH or ASCLEPIUS_DATA_DIR")
+        return False, (
+            f"{lead}, so the database lives beside the code at {path} and is "
+            f"REPLACED on every redeploy, losing {loses}. Set {var} to a path "
+            "on your persistent volume.")
+    # A mount that ATTACHED WRONG (read-only volume, failed attach leaving a
+    # bare directory) looks healthy until the first write, so probe it.
+    try:
+        os.makedirs(db_dir, exist_ok=True)
+        probe = os.path.join(db_dir, f".durability-probe-{os.getpid()}")
+        with open(probe, "w") as fh:
+            fh.write("ok")
+        os.remove(probe)
+    except OSError as exc:
+        return False, (
+            f"{db_dir} is not writable ({exc}); the volume for {var} may have "
+            "failed to attach.")
+    return True, path
+
+
+
 #: The two SQLite stores outside the Asclepius plane, with the resolver each
 #: store actually uses. Resolution goes through ``realm`` rather than being
 #: re-derived here: community.db can now land beside the Asclepius database when
@@ -7687,7 +7731,10 @@ def healthz(response: Response) -> Dict[str, Any]:
     checks["storage_durable"] = durability.get("ok")
     warnings = [f"{f['variable']}: {f['why']}" for f in durability.get("failures", ())]
     # Per-store detail, so "which store is on the wrong disk, and what path did
-    # it actually pick" is one GET rather than a search through boot logs.
+    # it actually pick" is one GET rather than a search through boot logs. Each
+    # row carries ``gated``: the five that can refuse a production boot say
+    # true, and the export root, which is reported honestly but never blocks
+    # startup, says false.
     stores = [dict(row) for row in (durability.get("stores") or ())]
 
     if failures:

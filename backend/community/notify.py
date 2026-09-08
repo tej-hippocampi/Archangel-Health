@@ -218,7 +218,20 @@ def digest_payload_of(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return None
     else:
         return None
-    if not isinstance(payload, dict) or not payload.get("items"):
+    if not isinstance(payload, dict):
+        return None
+    items = payload.get("items")
+    # The shape, not just the truthiness. ``grouped_items`` calls ``.get`` on
+    # every entry, so a payload whose items are strings raises AttributeError
+    # INSIDE the flush loop, which has no per-member guard: the exception
+    # unwinds to the per-realm handler and aborts that realm's whole flush
+    # before any later member's mail is built. Deterministic, so it would repeat
+    # every tick and the queue would stall for everyone behind that row rather
+    # than drain. The serializer and the JS card both check this already; this
+    # is the third renderer agreeing with them.
+    if not isinstance(items, list) or not items:
+        return None
+    if not all(isinstance(i, dict) for i in items):
         return None
     return payload
 

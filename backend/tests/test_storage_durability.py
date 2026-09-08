@@ -16,6 +16,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import main  # noqa: E402
+import realm  # noqa: E402
 import tests._asclepius as A  # noqa: E402
 from asclepius import assets as asc_assets  # noqa: E402
 from asclepius import constants as asc_constants  # noqa: E402
@@ -370,6 +372,83 @@ def _png_bytes() -> bytes:
 
 
 # ── F2b: the gate covers FIVE stores, not three ──────────────────────────────
+# The PRD's own acceptance criteria for the community store, run against the
+# REAL function rather than against main.py's source text. The grep test below
+# survives as a structural check, but it is not evidence: it passed while
+# nothing in the suite had ever executed this code path, and "COMMUNITY_DB_PATH"
+# appears in a docstring inside the block it searches.
+def _community_check():
+    return main.sqlite_store_durable(
+        "COMMUNITY_DB_PATH", realm.live_community_db, "the community")
+
+
+def test_community_db_beside_the_code_is_refused_and_names_its_variable(monkeypatch):
+    """The PRD's first case: nothing configured, so the database sits inside the
+    container image and a redeploy replaces it."""
+    _clear_store_env(monkeypatch)
+    monkeypatch.delenv("COMMUNITY_DB_PATH", raising=False)
+    ok, why = _community_check()
+    assert ok is False
+    assert "COMMUNITY_DB_PATH" in why
+    assert "REPLACED on every redeploy" in why
+
+
+def test_community_db_on_ephemeral_storage_is_refused(monkeypatch):
+    """The PRD's second case: a variable IS set, and set to somewhere disposable.
+    Setting it must not be what makes the warning go quiet."""
+    _clear_store_env(monkeypatch)
+    monkeypatch.setenv("COMMUNITY_DB_PATH", "/tmp/community_probe/community.db")
+    ok, why = _community_check()
+    assert ok is False and "EPHEMERAL" in why
+
+
+def test_community_db_lands_beside_a_durable_asclepius_db(monkeypatch, tmp_path_factory):
+    """The PRD's third case, and the whole point of the derivation: the variable
+    is NOT set, and the store is durable anyway because it followed the database
+    that was configured."""
+    _clear_store_env(monkeypatch)
+    monkeypatch.delenv("COMMUNITY_DB_PATH", raising=False)
+    durable = Path(__file__).resolve().parent.parent / ".durable-community-test"
+    durable.mkdir(exist_ok=True)
+    try:
+        monkeypatch.setenv("ASCLEPIUS_DB_PATH", str(durable / "asclepius.db"))
+        ok, why = _community_check()
+        assert ok is True, why
+        assert why == str(durable / "community.db")
+    finally:
+        for p in durable.iterdir():
+            p.unlink()
+        durable.rmdir()
+
+
+def test_a_store_whose_directory_cannot_be_written_is_refused(monkeypatch, tmp_path):
+    """A volume that attached READ-ONLY looks perfectly healthy until the first
+    write, so the check writes rather than trusting the path.
+
+    The failure is injected rather than staged with chmod: CI and this sandbox
+    run as root, and root writes to a 0500 directory quite happily, so a
+    permission-based version of this test passes for the wrong reason on every
+    machine that matters.
+    """
+    _clear_store_env(monkeypatch)
+    durable = Path(__file__).resolve().parent.parent / ".unwritable-probe-test"
+    durable.mkdir(exist_ok=True)
+
+    def refuse(*a, **kw):
+        raise OSError(30, "Read-only file system")
+
+    try:
+        monkeypatch.setenv("COMMUNITY_DB_PATH", str(durable / "community.db"))
+        monkeypatch.setattr(main.os, "makedirs", refuse)
+        ok, why = main.sqlite_store_durable(
+            "COMMUNITY_DB_PATH", lambda: str(durable / "community.db"),
+            "the community")
+        assert ok is False
+        assert "not writable" in why and "failed to attach" in why
+    finally:
+        durable.rmdir()
+
+
 def test_the_gate_block_covers_the_community_and_tenant_databases():
     """The community and the tenant funnel were WARN-only, and the community
     was being deleted on every redeploy in production while a CRITICAL log line

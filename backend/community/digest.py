@@ -189,6 +189,11 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
         summaries[iid] = {
             "summary": (r.get("one_liner") or "").strip()[:300] or None,
             "relevance": float(r.get("relevance") or 0.0),
+            # What the SELECT pass decided, kept separately from what actually
+            # reached the channel. The two differ on any day the compose pass
+            # trims to the cap or the run stops below the floor, and conflating
+            # them is what retired stories that were never even offered.
+            "selected": bool(r.get("keep")),
         }
         if r.get("keep"):
             kept.append({**by_id[iid], **summaries[iid]})
@@ -233,17 +238,18 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
     # problem with an extra step.
     payload = digest_contract.validate_payload(composed, kind=kind)
 
-    # Only the items that SURVIVED the contract count as posted. The compose
-    # pass is allowed to drop weak items down to the cap, and a story it dropped
-    # is recorded as skipped rather than posted: both statuses retire the item,
-    # so the difference is not whether tomorrow re-picks it but whether the
-    # ledger claims a story reached the channel when it never did. The run's
-    # ``posted`` count is read off the same set, so it is the number of items a
-    # physician can actually see.
-    posted_urls = {i["url"] for i in payload["items"]}
+    # Which fetched items actually reached the post. Matched on the NORMALISED
+    # url — the same identity ``upsert_content_items`` dedups on — because an
+    # exact string compare is a join on the model's typing. A trailing slash, a
+    # dropped tracking parameter or a percent-encoded character is the same
+    # story to every other part of this pipeline, and to an exact compare it is
+    # a different one: the digest posts, nothing matches, and the run records
+    # "posted 0" beside a message that is sitting in the channel, with the
+    # provenance link from story to message lost for good.
+    posted_urls = {feeds.normalize_url(i["url"]) for i in payload["items"]}
     for k in kept:
-        if k.get("url") in posted_urls:
-            summaries[k["id"]]["kept"] = True
+        if feeds.normalize_url(k.get("url") or "") in posted_urls:
+            summaries[k["id"]]["posted"] = True
     return payload, summaries
 
 
@@ -302,6 +308,10 @@ REASON_POSTED = "posted"
 REASON_NOTHING_FETCHED = "no_source_items"
 REASON_NOTHING_FRESH = "nothing_new"
 REASON_NOTHING_KEPT = "nothing_worth_posting"
+#: The selector found something, but fewer stories than a digest is worth
+#: posting. Distinct from ``nothing_worth_posting`` because the fix is
+#: different: one says the news was thin, the other says the sources were.
+REASON_BELOW_FLOOR = "below_item_floor"
 REASON_NO_MODEL_KEY = "no_model_key"
 REASON_ERROR = "run_failed"
 REASON_BLOCKED = "post_blocked"
@@ -321,6 +331,48 @@ def _failure_reason(exc: Optional[BaseException] = None) -> str:
     if not (os.getenv("ANTHROPIC_API_KEY") or "").strip():
         return REASON_NO_MODEL_KEY
     return REASON_ERROR
+
+
+def _settle_items(cstore: Any, fresh: List[Dict[str, Any]],
+                  summaries: Dict[int, Dict[str, Any]],
+                  *, message_id: Optional[int] = None) -> List[int]:
+    """Record what happened to every item this run looked at. Returns the ids
+    that reached the channel.
+
+    Three outcomes, and the middle one is the whole point:
+
+    * ``posted``  — it is in the message. Carries ``posted_message_id``, which
+      is the only link from a story back to the post that carried it.
+    * ``new``     — the selector wanted it and the digest had no room, or the
+      run stopped below the floor. STILL A CANDIDATE. Marking these ``skipped``
+      is a pool-starvation bug: a feed that yields two strong stories a day
+      never reaches the three-item floor, and burning both means tomorrow starts
+      from nothing and the digest never posts again while reporting a healthy
+      "nothing worth posting" every single day. ``new_content_items`` already
+      bounds the retry window to three days, so nothing accumulates forever.
+    * ``skipped`` — the selector judged it not worth posting. That is a decision
+      about the story, so it retires.
+    """
+    posted_ids = [iid for iid, s in summaries.items() if s.get("posted")]
+    posted_set = set(posted_ids)
+    held, retired = [], []
+    for it in fresh:
+        iid = it["id"]
+        if iid in posted_set:
+            continue
+        (held if (summaries.get(iid) or {}).get("selected") else retired).append(iid)
+    if posted_ids:
+        cstore.mark_content_items(posted_ids, status="posted",
+                                  posted_message_id=message_id, summaries=summaries)
+    # status="new" is a no-op on the row's candidacy and still writes the
+    # summary and relevance the select pass produced, so a held item arrives at
+    # tomorrow's run already scored.
+    cstore.mark_content_items(held, status="new", summaries=summaries)
+    cstore.mark_content_items(retired, status="skipped", summaries=summaries)
+    if held:
+        log.info("[digest] %d item(s) held for the next run (selected, not posted)",
+                 len(held))
+    return posted_ids
 
 
 async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[str, Any]:
@@ -366,15 +418,20 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
 
         payload, summaries = await _curate(kind, fresh)
         if payload is None:
-            # Fresh items, none worth keeping — a valid quiet day.
-            cstore.mark_content_items(
-                [it["id"] for it in fresh], status="skipped", summaries=summaries)
+            # No post today. Which is NOT the same as "none of these stories was
+            # any good": the run also lands here when the selector kept one or
+            # two and the digest floor is three. Those are held, not burned.
+            _settle_items(cstore, fresh, summaries)
+            held = sum(1 for it in fresh
+                       if (summaries.get(it["id"]) or {}).get("selected"))
+            reason = REASON_BELOW_FLOOR if held else REASON_NOTHING_KEPT
             cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
-                                     items_posted=0, reason=REASON_NOTHING_KEPT)
-            log.info("[digest] %s run: %d fresh, none kept, no post", kind, len(fresh))
+                                     items_posted=0, reason=reason)
+            log.info("[digest] %s run: %d fresh, %d selected, no post (%s)",
+                     kind, len(fresh), held, reason)
             return {"ok": True, "kind": kind, "fetched": fetched,
                     "fresh": len(fresh), "posted": 0, "emailed": 0,
-                    "reason": REASON_NOTHING_KEPT}
+                    "reason": reason}
 
         posted = await post_system_message(
             channel_slug=DIGEST_CHANNEL,
@@ -390,7 +447,21 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
             announce=True,
         )
         if posted is None:
-            raise RuntimeError("system post was skipped (channel or PHI gate)")
+            # The write path refused it: the PHI gate found something, or the
+            # body broke the digest style rules. Both are a BLOCKED POST, which
+            # is why REASON_BLOCKED exists; letting it raise made it read as
+            # "the run raised" on the admin card, i.e. indistinguishable from a
+            # network error, which is exactly the confusion REASON_CONTRACT was
+            # added to end one commit earlier.
+            _settle_items(cstore, fresh, summaries)
+            cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
+                                     items_posted=0, error="post_blocked",
+                                     reason=REASON_BLOCKED)
+            log.error("[digest] %s run: the post was refused by the write path "
+                      "(PHI gate or style rules); nothing posted", kind)
+            return {"ok": False, "kind": kind, "fetched": fetched,
+                    "fresh": len(fresh), "posted": 0, "emailed": 0,
+                    "reason": REASON_BLOCKED}
 
         # The email fan-out already happened, inside ``post_system_message``:
         # ``announce=True`` queued a notification for every member, and the
@@ -404,11 +475,7 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
         # confirmed. A count of delivered mail is not knowable here any more,
         # and reporting the recipients as if it were is how a run summary
         # starts lying about a broken transport.
-        kept_ids = [iid for iid, s in summaries.items() if s.get("kept")]
-        other_ids = [it["id"] for it in fresh if it["id"] not in set(kept_ids)]
-        cstore.mark_content_items(kept_ids, status="posted",
-                                  posted_message_id=posted["id"], summaries=summaries)
-        cstore.mark_content_items(other_ids, status="skipped", summaries=summaries)
+        kept_ids = _settle_items(cstore, fresh, summaries, message_id=posted["id"])
         cstore.finish_digest_run(run_id, ok=True, items_fetched=fetched,
                                  items_posted=len(kept_ids), reason=REASON_POSTED)
         log.info("[digest] %s run: posted %d of %d fresh (message %s)",
@@ -594,26 +661,39 @@ def _due(kind: str, now: datetime, last_ok_started: Optional[str]) -> bool:
 def next_run_at(kind: str = "news", *, now: Optional[datetime] = None) -> Optional[str]:
     """When the next scheduled digest of ``kind`` is due, ISO-8601 UTC.
 
-    Read off the SAME rules ``_due`` applies, not a second schedule written
-    beside it: an empty room that promised a digest at a time the scheduler
-    disagreed with would be a worse lie than the empty room.
+    ASKS ``_due``, rather than reimplementing the calendar beside it. An earlier
+    version computed "today's fire time, or tomorrow's if that has passed",
+    which is a different question and gives a different answer for most of the
+    day: at 14:30 UTC with yesterday's run the newest successful one, ``_due``
+    says the digest is outstanding RIGHT NOW while the arithmetic says tomorrow.
+    The empty ``#medical-ai-news`` then told a physician the next run was
+    tomorrow afternoon during exactly the window the message exists to explain,
+    and went on saying it all day after a failed run, because ``_due`` stays
+    true until a run succeeds.
 
-    ``None`` when the routine is switched off, because "the next one is at
-    13:00" is false in that case and the empty state should say nothing rather
-    than something wrong.
+    ``None`` when the routine is switched off: "the next one is at 13:00" is
+    false then, and an empty room should say nothing rather than something
+    wrong.
     """
     if not news_enabled():
         return None
     now = now or datetime.utcnow()
-    hour = _news_hour_utc()
-    fire = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    try:
+        last_ok = get_community_store().last_successful_run_at(kind)
+    except Exception:  # noqa: BLE001 - a schedule line is not worth an exception
+        last_ok = None
+    # Outstanding right now: the honest answer is this window, not the next one.
+    if _due(kind, now, last_ok):
+        fire = now.replace(hour=_news_hour_utc(), minute=0, second=0, microsecond=0)
+        return fire.isoformat() + "Z"
+
+    fire = now.replace(hour=_news_hour_utc(), minute=0, second=0, microsecond=0)
     if now >= fire:
         fire = fire + timedelta(days=1)
     if kind == "papers":
-        # Forward to the next occurrence of the papers weekday, counting today
-        # only when its fire time has not passed.
-        ahead = (_papers_dow() - fire.weekday()) % 7
-        fire = fire + timedelta(days=ahead)
+        # Forward to the next occurrence of the papers weekday, counting the
+        # candidate day itself when its fire time has not passed.
+        fire = fire + timedelta(days=(_papers_dow() - fire.weekday()) % 7)
     return fire.isoformat() + "Z"
 
 

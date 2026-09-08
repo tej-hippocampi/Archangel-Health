@@ -71,9 +71,20 @@ def test_an_explicit_variable_still_wins(monkeypatch, tmp_path):
     assert realm.live_community_db() == "/somewhere/else/community.db"
 
 
-def test_an_existing_local_database_is_not_stranded(monkeypatch, tmp_path):
-    """A developer who adds ASCLEPIUS_DB_PATH must not silently open an empty
-    community while their real one sits beside the code, unopened."""
+def test_a_stray_local_database_cannot_relocate_the_live_one(monkeypatch, tmp_path,
+                                                             caplog):
+    """A file inside the container image must never outrank the volume.
+
+    An earlier version let an existing ``backend/community.db`` win when the
+    derived file did not exist yet, to spare a developer from opening an empty
+    community. On a container with a stray file at that path — one import of
+    ``main`` during an image build makes one — that branch moved the LIVE
+    community off the volume and back onto disposable disk, silently, which is
+    the exact failure the derivation was added to prevent.
+
+    The developer's file is still not opened behind their back: it stays on
+    disk, and the resolver says so at WARNING.
+    """
     _clear_paths(monkeypatch)
     backend = tmp_path / "backend"
     backend.mkdir()
@@ -82,12 +93,23 @@ def test_an_existing_local_database_is_not_stranded(monkeypatch, tmp_path):
     volume.mkdir()
     monkeypatch.setattr(realm, "_backend_dir", lambda: str(backend))
     monkeypatch.setenv("ASCLEPIUS_DB_PATH", str(volume / "asclepius.db"))
-    assert realm.live_community_db() == str(backend / "community.db")
 
-    # ...and once the durable one exists it wins, so the path is stable rather
-    # than flipping back and forth with the state of the developer's disk.
-    (volume / "community.db").write_text("pretend this is sqlite too")
-    assert realm.live_community_db() == str(volume / "community.db")
+    with caplog.at_level("WARNING"):
+        resolved = realm.live_community_db()
+    assert resolved == str(volume / "community.db")
+    assert "will NOT be read" in caplog.text
+    assert str(backend / "community.db") in caplog.text
+
+
+def test_the_beside_the_code_path_is_still_the_answer_when_nothing_is_configured(
+        monkeypatch, tmp_path):
+    """No volume, no data dir: there is nowhere else to put it, and a local run
+    whose databases sit beside the code by design must keep working."""
+    _clear_paths(monkeypatch)
+    backend = tmp_path / "backend"
+    backend.mkdir()
+    monkeypatch.setattr(realm, "_backend_dir", lambda: str(backend))
+    assert realm.live_community_db() == str(backend / "community.db")
 
 
 def test_the_sandbox_realm_still_derives_from_whatever_live_resolves_to(
@@ -356,20 +378,51 @@ def test_the_payloads_own_strings_are_scanned_not_just_the_body():
     assert "https://example.org/a" not in text
 
 
-def test_the_next_run_time_is_read_off_the_same_rules_the_scheduler_uses(monkeypatch):
-    """An empty room that promised a digest at a time the scheduler disagreed
-    with would be a worse lie than the empty room."""
+def test_the_next_run_time_agrees_with_the_scheduler(monkeypatch, tmp_path):
+    """Asserted against ``_due`` itself, not against a hand-copied timetable.
+
+    The previous version of this test asserted the arithmetic ("past 13:00, so
+    tomorrow") and therefore pinned the bug it was meant to catch: while a run
+    was outstanding, ``_due`` said "now" and the empty room said "tomorrow
+    afternoon" — during exactly the window the message exists to explain, and
+    all day after a failed run.
+    """
     from datetime import datetime
 
     monkeypatch.delenv("COMMUNITY_NEWS_ENABLED", raising=False)
     monkeypatch.setenv("COMMUNITY_DIGEST_NEWS_HOUR_UTC", "13")
-    before = datetime(2026, 9, 8, 9, 0)
-    after = datetime(2026, 9, 8, 13, 30)
-    assert cdigest.next_run_at("news", now=before) == "2026-09-08T13:00:00Z"
-    assert cdigest.next_run_at("news", now=after) == "2026-09-09T13:00:00Z"
+    monkeypatch.setattr(community_store, "_stores",
+                        dict(community_store._stores), raising=False)
+    store = community_store.reset_community_store_for_tests(
+        db_path=str(tmp_path / "community.db"))
+
+    def agree(now):
+        last_ok = store.last_successful_run_at("news")
+        due = cdigest._due("news", now, last_ok)
+        nxt = cdigest.next_run_at("news", now=now)
+        # Due now means the answer is this window, not the next one.
+        if due:
+            assert nxt == now.replace(hour=13, minute=0, second=0,
+                                      microsecond=0).isoformat() + "Z", (now, nxt)
+        else:
+            assert nxt > now.isoformat() + "Z", (now, nxt)
+        return due, nxt
+
+    # Nothing has ever run: before the fire time it is later today, after it the
+    # run is outstanding and the answer is now.
+    assert agree(datetime(2026, 9, 8, 9, 0)) == (False, "2026-09-08T13:00:00Z")
+    assert agree(datetime(2026, 9, 8, 14, 30)) == (True, "2026-09-08T13:00:00Z")
+
+    # Today's run succeeded: nothing is outstanding, so the answer moves on.
+    run_id = store.claim_digest_run("news", window_key="2026-09-08")
+    store.finish_digest_run(run_id, ok=True, items_posted=3, reason="posted")
+    with store._conn() as conn:
+        conn.execute("UPDATE community_digest_runs SET started_at = ? WHERE id = ?",
+                     ("2026-09-08T13:00:00Z", run_id))
+    assert agree(datetime(2026, 9, 8, 14, 30)) == (False, "2026-09-09T13:00:00Z")
 
     monkeypatch.setenv("COMMUNITY_NEWS_ENABLED", "0")
-    assert cdigest.next_run_at("news", now=before) is None
+    assert cdigest.next_run_at("news", now=datetime(2026, 9, 8, 9, 0)) is None
 
 
 def test_the_papers_run_lands_on_its_weekday(monkeypatch):
@@ -607,3 +660,176 @@ def test_a_digest_run_mails_through_the_queue_and_nowhere_else(monkeypatch, tmp_
 
     pending = store.unsent_notifications()
     assert pending, "the run must queue the digest for the flush to mail"
+
+
+# ═══ Fixes from the fresh-context audit ══════════════════════════════════════
+
+def test_a_url_the_model_reformatted_still_matches_its_item(monkeypatch, tmp_path):
+    """Provenance must survive the model retyping a link.
+
+    The join from composed item back to fetched item was an exact string
+    compare, so a trailing slash — or a dropped tracking parameter, or a
+    percent-encoded character — meant nothing matched: the digest posted, the
+    run recorded "posted 0", every story was filed as skipped, and the link from
+    story to message was lost for good. Matched on the normalised url now, which
+    is the identity the dedup ledger already uses.
+    """
+    import asyncio
+
+    import ai.llm_client as llm
+    from community import feeds as cfeeds
+    from community import router as crouter
+
+    monkeypatch.setattr(community_store, "_stores",
+                        dict(community_store._stores), raising=False)
+    store = community_store.reset_community_store_for_tests(
+        db_path=str(tmp_path / "community.db"))
+    monkeypatch.setattr(crouter, "member_map", lambda **kw: {})
+    store.ensure_default_channels()
+
+    async def fake_call_llm(*, role, system, messages, **kw):
+        sent = json.loads(messages[0]["content"])
+        if "digest_kind" in sent:
+            return json.dumps({"items": [
+                {"headline": it["title"][:60],
+                 "why_it_matters": "It changes what a clinic does.",
+                 "source": "Fake Wire",
+                 # The model retypes the link with a trailing slash.
+                 "url": it["url"] + "/",
+                 "section": "Research"} for it in sent["items"]]}), {}
+        return json.dumps({"items": [
+            {"id": it["id"], "keep": True, "relevance": 0.9,
+             "one_liner": "what happened"} for it in sent["items"]]}), {}
+
+    async def fake_rss():
+        return [cfeeds._item("rss:test", url=f"https://example.com/n{i}",
+                             title=f"AI model cleared for clinical use {i}",
+                             abstract="An artificial intelligence system.")
+                for i in range(3)]
+
+    monkeypatch.setattr(llm, "call_llm", fake_call_llm)
+    monkeypatch.setattr(llm, "first_text", lambda resp: resp)
+    monkeypatch.setattr(cfeeds, "fetch_rss", fake_rss)
+
+    result = asyncio.new_event_loop().run_until_complete(cdigest.run_digest("news"))
+    assert result["posted"] == 3
+    with store._conn() as conn:
+        rows = conn.execute(
+            "SELECT status, posted_message_id FROM community_content_items").fetchall()
+    assert [r[0] for r in rows] == ["posted"] * 3
+    assert all(r[1] is not None for r in rows), "the story lost its message link"
+
+
+def test_a_thin_day_holds_its_stories_instead_of_burning_them(monkeypatch, tmp_path):
+    """Below the three-item floor, the stories stay candidates.
+
+    Retiring them was pool starvation with a healthy-looking ledger: a feed that
+    yields two strong stories a day never reaches the floor, so both were marked
+    skipped, tomorrow started from nothing, and the digest reported "found
+    items, none worth posting" every day forever.
+    """
+    import asyncio
+
+    import ai.llm_client as llm
+    from community import feeds as cfeeds
+    from community import router as crouter
+
+    monkeypatch.setattr(community_store, "_stores",
+                        dict(community_store._stores), raising=False)
+    store = community_store.reset_community_store_for_tests(
+        db_path=str(tmp_path / "community.db"))
+    monkeypatch.setattr(crouter, "member_map", lambda **kw: {})
+    store.ensure_default_channels()
+
+    async def fake_call_llm(*, role, system, messages, **kw):
+        sent = json.loads(messages[0]["content"])
+        assert "digest_kind" not in sent, "compose must not be called below the floor"
+        ids = [it["id"] for it in sent["items"]]
+        return json.dumps({"items": [
+            {"id": i, "keep": i in ids[:2], "relevance": 0.9,
+             "one_liner": "what happened"} for i in ids]}), {}
+
+    async def fake_rss():
+        return [cfeeds._item("rss:test", url=f"https://example.com/t{i}",
+                             title=f"AI model cleared for clinical use {i}",
+                             abstract="An artificial intelligence system.")
+                for i in range(4)]
+
+    monkeypatch.setattr(llm, "call_llm", fake_call_llm)
+    monkeypatch.setattr(llm, "first_text", lambda resp: resp)
+    monkeypatch.setattr(cfeeds, "fetch_rss", fake_rss)
+
+    result = asyncio.new_event_loop().run_until_complete(cdigest.run_digest("news"))
+    assert result["posted"] == 0
+    # Its own reason: "the news was thin" and "the sources returned nothing
+    # worth posting" call for different fixes.
+    assert result["reason"] == cdigest.REASON_BELOW_FLOOR
+    with store._conn() as conn:
+        statuses = sorted(r[0] for r in conn.execute(
+            "SELECT status FROM community_content_items").fetchall())
+    # The two the selector wanted are still candidates; the two it rejected are
+    # retired, because that was a decision about the story.
+    assert statuses == ["new", "new", "skipped", "skipped"], statuses
+
+
+def test_a_refused_post_is_recorded_as_blocked_not_as_a_crash(monkeypatch, tmp_path):
+    """A write-path refusal has its own reason. Letting it raise made a PHI
+    finding read like a network error on the admin card."""
+    import asyncio
+
+    import ai.llm_client as llm
+    from community import feeds as cfeeds
+    from community import router as crouter
+    from community import system_posts
+
+    monkeypatch.setattr(community_store, "_stores",
+                        dict(community_store._stores), raising=False)
+    store = community_store.reset_community_store_for_tests(
+        db_path=str(tmp_path / "community.db"))
+    monkeypatch.setattr(crouter, "member_map", lambda **kw: {})
+    store.ensure_default_channels()
+
+    async def fake_call_llm(*, role, system, messages, **kw):
+        sent = json.loads(messages[0]["content"])
+        if "digest_kind" in sent:
+            return json.dumps({"items": [
+                {"headline": it["title"][:60],
+                 "why_it_matters": "It changes what a clinic does.",
+                 "source": "Fake Wire", "url": it["url"], "section": "Research"}
+                for it in sent["items"]]}), {}
+        return json.dumps({"items": [
+            {"id": it["id"], "keep": True, "relevance": 0.9,
+             "one_liner": "what happened"} for it in sent["items"]]}), {}
+
+    async def fake_rss():
+        return [cfeeds._item("rss:test", url=f"https://example.com/b{i}",
+                             title=f"AI model cleared for clinical use {i}",
+                             abstract="An artificial intelligence system.")
+                for i in range(3)]
+
+    monkeypatch.setattr(llm, "call_llm", fake_call_llm)
+    monkeypatch.setattr(llm, "first_text", lambda resp: resp)
+    monkeypatch.setattr(cfeeds, "fetch_rss", fake_rss)
+    monkeypatch.setattr(system_posts, "_phi_clear", lambda *a, **k: False)
+
+    result = asyncio.new_event_loop().run_until_complete(cdigest.run_digest("news"))
+    assert result["ok"] is False
+    assert result["reason"] == cdigest.REASON_BLOCKED
+    with store._conn() as conn:
+        row = conn.execute(
+            "SELECT reason FROM community_digest_runs ORDER BY id DESC").fetchone()
+    assert row[0] == cdigest.REASON_BLOCKED
+
+
+@pytest.mark.parametrize("items", [
+    "not a list",
+    ["a string, not an item"],
+    [{"headline": "ok"}, "and a string"],
+    [],
+])
+def test_a_malformed_items_list_never_reaches_the_email_builder(items):
+    """The flush loop has no per-member guard, so an AttributeError raised while
+    building one member's digest aborts the whole realm's flush — deterministically,
+    every tick, stalling the queue for everyone behind that row."""
+    assert cnotify.digest_payload_of(
+        {"kind": "digest_news", "payload_json": json.dumps({"items": items})}) is None
