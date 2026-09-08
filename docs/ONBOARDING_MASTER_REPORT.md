@@ -353,19 +353,34 @@ New backend test files by CI shard: `test_applicant_home_screen` and
 
 ### Full backend suite
 
-The suite has **33 pre-existing failures on the untouched base commit
-`cdf99f8`**, measured by running it there in a clean worktree. They are in
-`test_telehealth_router` (9), `test_storage_durability` (4),
-`test_intervention_email` (4), `test_care_team_messaging` (4),
-`test_demo_and_patient_update` (3), `test_asclepius_mm_debug` (3),
-`test_triage_timeline` (2), `test_community_meeting_gaps` (2),
-`test_auth_hardening` (1) and `test_asclepius_router` (1) — largely the peri-op
-and telehealth areas `AGENTS.md` records as flag-gated for deletion. **None of
-them is mine, and none is fixed by this work.**
+Run on both trees, in a clean worktree for the base, so the comparison is real.
 
-This work introduced exactly **one** failure, caught and fixed before the phase
-was committed: `test_no_em_dashes` — three em dashes in new copy, which is a repo
-style rule the PRD's own prose does not follow.
+|  | base `cdf99f8` | this branch |
+|---|---|---|
+| passed | 6,293 | **6,381** |
+| failed | 33 | 29 |
+| skipped | 14 | 14 |
+
+**Every one of the 29 failures on this branch is present on the untouched base**
+— `git diff`-verified set comparison, not a count. They are in
+`test_telehealth_router` (9), `test_intervention_email` (4),
+`test_care_team_messaging` (4), `test_demo_and_patient_update` (3),
+`test_asclepius_mm_debug` (3), `test_triage_timeline` (2),
+`test_community_meeting_gaps` (2), `test_auth_hardening` (1) and
+`test_asclepius_router` (1) — largely the peri-op and telehealth areas
+`AGENTS.md` records as flag-gated for deletion. None is mine, and none is fixed
+by this work. The base's other four (`test_storage_durability`) pass here; that
+file is environment-sensitive and the difference is not attributable to this
+change.
+
+Two regressions were introduced and both are fixed:
+
+1. `test_no_em_dashes` — three em dashes in new copy, which is a repo style rule
+   the PRD's own prose does not follow. Caught and fixed inside Phase 2.
+2. `test_harness_scripts::test_both_shipped_prds_audit_clean` — adding ~150 lines
+   to `team_store.py` drifted an **unrelated, pre-existing** PRD's citation
+   (`PRD_SANDBOX_REALM.md`'s anchor for `_STORES`). Fixed in the PRD, per the
+   rule, not in the code. This is the check working exactly as intended.
 
 `docs/asclepius/` data inventory: the sandbox database is **empty**, so
 `data_inventory.py --diff` reporting "no ids lost" is vacuous and is not offered
