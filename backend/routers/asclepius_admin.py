@@ -5220,8 +5220,37 @@ COMMUNITY_SUMMARY_DAYS = 7
 _QUESTION_LOOKBACK = 30
 
 
+def _community_durability(request: Request) -> Dict[str, Any]:
+    """The storage-durability verdict the boot gate already reached.
+
+    READ, never recomputed. The gate runs once at startup and its answer is the
+    one an operator is being asked to act on; a second implementation here would
+    be a second set of rules to drift, and it would probe the volume on every
+    poll of an admin tab.
+
+    Shaped for the banner: ``ok`` is the whole-deployment answer and
+    ``community_durable`` is the one store this tab is about, because a
+    community admin looking at a red banner needs to know whether the thing they
+    are reading is the thing that is about to be erased.
+    """
+    dur = getattr(request.app.state, "storage_durability", None) or {}
+    stores = [dict(row) for row in (dur.get("stores") or ())]
+    community = next((s for s in stores
+                      if s.get("variable") == "COMMUNITY_DB_PATH"), None)
+    return {
+        "checked": bool(dur.get("checked")),
+        "ok": dur.get("ok"),
+        "gate_overridden": bool(dur.get("gate_overridden")),
+        "community_durable": (community or {}).get("durable"),
+        "community_path": (community or {}).get("path") or "",
+        "stores": stores,
+        "failures": [dict(f) for f in (dur.get("failures") or ())],
+    }
+
+
 @router.get("/community/summary", include_in_schema=False)
 async def community_activity_summary(
+    request: Request,
     _admin: Dict[str, Any] = Depends(asc_auth.require_admin),
 ):
     """What the community has been doing, computed server-side."""
@@ -5319,6 +5348,10 @@ async def community_activity_summary(
     return {
         "window_days": COMMUNITY_SUMMARY_DAYS,
         "generated_at": now.isoformat(),
+        # Every count below is read from a database that a redeploy may be
+        # about to delete, and there is no way to tell from the counts. The
+        # tab says so out loud instead.
+        "durability": _community_durability(request),
         "totals": {
             "posts": int(totals.get("posts") or 0),
             "replies": int(totals.get("replies") or 0),
@@ -5410,6 +5443,10 @@ _RUN_REASON_TEXT = {
     "provider_error": "the search provider failed",
     "search_budget_exhausted": "the daily search budget was spent",
     "post_blocked": "the post was blocked by the PHI gate",
+    # The pipeline is healthy and the model answered; what it wrote broke the
+    # digest's shape rules and was refused. A different fix from "the run
+    # raised", so a different sentence.
+    "contract_violation": "the composed digest broke its shape rules, so nothing was posted",
     "run_failed": "the run raised",
 }
 

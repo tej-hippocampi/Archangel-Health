@@ -57,6 +57,8 @@
       return;
     }
     const d = view.data || {};
+    const banner = durabilityBanner(ctx, d.durability);
+    if (banner) host.appendChild(banner);
     host.appendChild(headerCard(ctx, d));
     host.appendChild(unansweredCard(ctx, d));
     if (d.automation) host.appendChild(automationCard(ctx, d.automation));
@@ -132,6 +134,78 @@
           ? h('div', { class: 'asc-comm-runs' }, runs.map(runRow))
           : h('div', { class: 'asc-empty-line' },
               'No scope has ever run. Nothing has been posted by the routine.')));
+  }
+
+  /* Is the community about to be deleted?
+   *
+   * It has been. community.db resolved to a path inside the container image,
+   * that path is replaced on every redeploy, and so every post, DM, reaction,
+   * read marker, event and digest-ledger row was destroyed several times a day
+   * for the life of the deployment. Nothing on this tab could show it: the
+   * counts are read from the database that is being erased, so they came back
+   * small and correct, and ensure_default_channels() re-seeded the seven rooms
+   * at boot so the community rendered as new rather than as emptied.
+   *
+   * Hence a banner, above the numbers, that contradicts them. It reads the
+   * verdict the BOOT GATE already reached (GET /admin/community/summary passes
+   * it through) rather than asking a second question of the disk, so there is
+   * one set of durability rules in the product and this tab cannot disagree
+   * with /healthz or with the log line an operator is looking at.
+   *
+   * Red is reserved for "the data on THIS TAB is not being kept". Another store
+   * being non-durable is real and worth saying, but it is somebody else's tab,
+   * so it is amber and names the variable rather than shouting. */
+  function durabilityBanner(ctx, dur) {
+    const { h } = ctx;
+    if (!dur || !dur.checked) return null;
+    const communityBad = dur.community_durable === false;
+    const others = (dur.stores || []).filter(
+      (s) => s && s.durable === false && s.variable !== 'COMMUNITY_DB_PATH');
+    if (!communityBad && !others.length) return null;
+
+    const kids = [];
+    if (communityBad) {
+      const why = (dur.failures || []).find(
+        (f) => f && f.variable === 'COMMUNITY_DB_PATH');
+      kids.push(h('div', { class: 'asc-dur-title' },
+        'This community is not being kept'));
+      kids.push(h('p', { class: 'asc-dur-body' },
+        'Every number below is read from a database on storage that a redeploy '
+        + 'replaces. Posts, direct messages, reactions, read markers, events and '
+        + 'the digest ledger are all destroyed the next time this service is '
+        + 'deployed, and the rooms are re-created empty at boot, so the loss '
+        + 'looks like a quiet week. Set COMMUNITY_DB_PATH to a path on the '
+        + 'persistent volume, or point ASCLEPIUS_DB_PATH at the volume and this '
+        + 'database follows it there.'));
+      if (dur.community_path) {
+        kids.push(h('div', { class: 'asc-dur-path' }, dur.community_path));
+      }
+      if (why && why.why) kids.push(h('p', { class: 'asc-dur-detail' }, why.why));
+    } else {
+      kids.push(h('div', { class: 'asc-dur-title' },
+        'Another store on this deployment is not being kept'));
+      kids.push(h('p', { class: 'asc-dur-body' },
+        'The community database is durable. These are not, and a redeploy '
+        + 'destroys what they hold.'));
+    }
+    if (others.length) {
+      kids.push(h('ul', { class: 'asc-dur-list' }, others.map(
+        (s) => h('li', {}, h('span', { class: 'asc-dur-var' }, s.variable),
+                  ' — ' + (s.store || '') + (s.path ? ' at ' + s.path : '')))));
+    }
+    if (dur.gate_overridden) {
+      // The one state that is nobody's mistake and still needs saying: an
+      // operator chose this at 2am to get the service back up. The banner
+      // should read as a reminder to finish, not as an alarm they already know
+      // about.
+      kids.push(h('p', { class: 'asc-dur-detail' },
+        'STORAGE_GATE_ALLOW_EPHEMERAL is set, which is why this deployment '
+        + 'started instead of refusing to. That is an override, not a fix.'));
+    }
+    return h('div', {
+      class: 'asc-card asc-dur' + (communityBad ? ' asc-dur-bad' : ' asc-dur-warn'),
+      role: 'alert',
+    }, h('div', { class: 'asc-card-pad' }, kids));
   }
 
   /* The four numbers, and the way out to the composer.

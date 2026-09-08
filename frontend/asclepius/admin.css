@@ -562,6 +562,43 @@
 .asc-comm-tile-label { display: block; }
 .asc-comm-tile-sub { font-size: var(--t-sm); color: var(--ink-faint); margin-top: 2px; }
 
+/* The durability banner: the one thing on this tab that contradicts the tab.
+   It sits above the counts because it is the reason not to trust them, and it
+   carries a full wash rather than an edge accent — the unanswered-questions
+   card owns the accent-edge treatment for "this is a job", and this is not a
+   job, it is a statement that the data is being deleted. */
+.asc-dur { margin-bottom: 14px; }
+.asc-dur-bad { border-color: var(--pink-line); background: var(--pink-wash); }
+.asc-dur-warn { border-color: var(--orange-line); background: var(--orange-wash); }
+.asc-dur-title { font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+.asc-dur-body { margin: 0; color: var(--asc-text); font-size: 13px; line-height: 1.55; }
+.asc-dur-path {
+  font-family: var(--mono);
+  margin-top: 10px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  background: var(--card-in);
+  font-size: 12px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.asc-dur-detail {
+  margin: 8px 0 0;
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.asc-dur-var { font-family: var(--mono); color: var(--ink); }
+.asc-dur-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--asc-text);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
 /* The one card here that is a job rather than a statistic, so it is the one
    card that carries an accent edge. */
 .asc-comm-unanswered { border-color: var(--orange-line); }

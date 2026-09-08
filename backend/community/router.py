@@ -562,6 +562,30 @@ def _decode_cards(raw: Any) -> List[Dict[str, Any]]:
     return []
 
 
+def _decode_payload(raw: Any) -> Optional[Dict[str, Any]]:
+    """The structured payload behind a designed bot post, or None.
+
+    None for every message written before the column existed, which is the
+    whole compatibility story: the client draws a card when this is present and
+    falls back to rendering the body as markdown when it is not, so old digests
+    keep looking exactly as they always did.
+
+    A row that will not parse is treated as absent rather than raised on. The
+    body is a faithful plain-text rendering of the same content, so the reader
+    still gets the post; taking the channel down over one malformed row would
+    trade a degraded message for no messages at all.
+    """
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw:
+        try:
+            out = json.loads(raw)
+        except ValueError:
+            return None
+        return out if isinstance(out, dict) else None
+    return None
+
+
 def _specialty_counts(members: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
     """Verified NON-STAFF members per lowercased specialty."""
     out: Dict[str, int] = {}
@@ -931,6 +955,11 @@ def _serialize_messages(
             # same reason its body goes: the point of a delete is that the
             # content stops being served.
             "cards": [] if deleted else _decode_cards(m.get("cards_json")),
+            # The structured post behind a digest card. Withheld on a delete for
+            # the same reason the body is: the point of a delete is that the
+            # content stops being served, and leaving the payload would render
+            # the whole post under a "Message removed" line.
+            "payload": None if deleted else _decode_payload(m.get("payload_json")),
             "deleted": deleted,
             "created_at": m["created_at"],
             "edited_at": m.get("edited_at"),

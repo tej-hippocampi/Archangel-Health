@@ -39,7 +39,7 @@ import realm as _realm
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from community import feeds, links
+from community import digest_contract, feeds, links
 from community.store import get_community_store
 from community.system_posts import post_system_message
 
@@ -102,25 +102,56 @@ _SELECT_SYSTEM = (
     "Every input id must appear exactly once. Do not add fields or prose."
 )
 
+# The compose pass returns STRUCTURE, and the product renders it (PRD §2.2).
+# It used to return "markdown-lite" prose, which the web rendered as a subset of
+# markdown, the email rendered as literal asterisks and brackets, and the
+# notification snippet rendered as a whitespace-collapsed copy of the raw
+# string. Three renderings of one blob, none of them designed.
+#
+# Shaping kept items is also a SMALLER job than writing a post: the selection
+# pass has already decided what is in and written the factual one-liner, so this
+# pass rewrites two short fields per item and picks a section. Every rule below
+# is also enforced by ``digest_contract`` after the call, because a prompt is a
+# request and a validator is a guarantee.
 _COMPOSE_SYSTEM = (
-    "You write the digest post for #medical-ai-news in a physicians' community. "
-    "Input: a JSON list of kept items (title, url, one_liner, source). Output: the post "
-    "body ONLY, markdown-lite (no HTML): start with one bold header line naming the "
-    "digest (e.g. **Medical AI Digest** or **Papers of the Week**), NO calendar date "
-    "in the header or anywhere else (the platform timestamps the post; full dates "
-    "false-trip the clinical PHI filter), rephrase any full date in a one_liner to "
-    "month-year or 'this week'. Then group items under 2-4 bold section lines (e.g. "
-    "**Research**, **Industry & deployment**, **Regulation**), each item exactly one "
-    "bullet: \"- [title](url): one_liner\". If two items cover the same story, keep "
-    "one bullet and fold the second link in as \"(also: [source](url))\". No intro "
-    "paragraph, no sign-off, no invented facts, no items beyond the input."
+    "You shape a news digest for a private community of verified physicians. "
+    "Input: a JSON list of kept items (title, url, one_liner, source). Output: "
+    "ONLY a JSON object {\"items\": [{\"headline\", \"why_it_matters\", "
+    "\"source\", \"url\", \"section\"}]}. No prose, no markdown, no code fence.\n"
+    "Rules, all enforced by a validator that DISCARDS the whole run on a "
+    "violation:\n"
+    "- Return 3 to 5 items. Never more. Choose the strongest; drop the rest.\n"
+    "- headline: at most 12 words, plain declarative, sentence case, no trailing "
+    "period. Say what happened, not why it is interesting.\n"
+    "- why_it_matters: at most 25 words, ONE sentence, written for a practising "
+    "physician: what changes for patient care or for AI evaluation.\n"
+    "- Banned everywhere: em dash and en dash (use a comma or a period), "
+    "hashtags, asterisks, emoji, exclamation marks, and the words game-changer, "
+    "revolutionary, exciting, groundbreaking, breakthrough, unprecedented.\n"
+    "- No calendar dates anywhere (the platform timestamps the post, and a full "
+    "date false-trips the clinical PHI filter). Say 'this week' or a month and "
+    "year instead.\n"
+    "- section: exactly one of Research, Regulation, Deployment, Evals, Opinion. "
+    "Never invent a section.\n"
+    "- source: the publisher's name as a person would say it (STAT, Nature "
+    "Medicine, JAMA), never a URL host like statnews.com.\n"
+    "- url: copy the input url exactly. Never invent a fact or an item that is "
+    "not in the input, and never repeat a url."
 )
 
 
-async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str], Dict[int, Dict[str, Any]]]:
-    """Two LLM passes. Returns ``(post_body | None, {item_id: {summary, relevance}})``.
-    ``None`` body = nothing worth posting (a valid quiet day). A parse failure
-    RAISES — the caller records the run as failed and posts nothing."""
+async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict[str, Any]], Dict[int, Dict[str, Any]]]:
+    """Two LLM passes. Returns ``(payload | None, {item_id: {summary, relevance}})``.
+
+    ``payload`` is the validated §2.2 structure (``digest_contract``), not a post
+    body: the product renders the card, the email and the plain-text body from
+    it, so there is one description of the digest and three views of it.
+
+    ``None`` = nothing worth posting (a valid quiet day). A parse failure or a
+    contract violation RAISES — the caller records the run as failed and posts
+    nothing, which is what a malformed digest has always done. Half a digest is
+    worse than none, because nobody goes looking for the one that is missing.
+    """
     from ai.llm_client import call_llm, first_text  # noqa: PLC0415
     from asclepius.model_sampling import extract_json  # noqa: PLC0415
 
@@ -166,6 +197,14 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
     if not kept:
         return None, summaries
 
+    # Below the floor there is no digest to shape, so the compose call is not
+    # made at all: a two-item day is a quiet day, and spending a model call to
+    # be told so is the kind of cost that only shows up on the bill.
+    if len(kept) < digest_contract.MIN_ITEMS:
+        log.info("[digest] %s: %d item(s) kept, floor is %d; treating as a quiet day",
+                 kind, len(kept), digest_contract.MIN_ITEMS)
+        return None, summaries
+
     compose_input = [
         {"title": k["title"], "url": k["url"],
          "one_liner": k.get("summary") or "", "source": k["source"]}
@@ -181,13 +220,28 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[str]
         temperature=0.2,
         max_tokens=max_tokens(),
     )
-    body = (first_text(resp2) or "").strip()
-    if not body:
+    raw = first_text(resp2) or ""
+    if not raw.strip():
         raise ValueError("digest compose pass returned empty text")
-    # mark kept for the caller
+    composed = extract_json(raw)
+    if composed is None:
+        raise ValueError("digest compose pass returned unparseable JSON")
+    # Raises DigestContractError on a violation, which the caller records as a
+    # failed run. Deliberately NOT repaired into something publishable: the
+    # rules exist because an unconstrained model wrote the post, and a
+    # post-processor that quietly rewrites a 30-word headline is the same
+    # problem with an extra step.
+    payload = digest_contract.validate_payload(composed, kind=kind)
+
+    # Only the items that SURVIVED the contract count as posted. The compose
+    # pass is allowed to drop weak items down to the floor, and marking a
+    # dropped story "posted" would strand it: it is neither in the digest nor
+    # available to tomorrow's run.
+    posted_urls = {i["url"] for i in payload["items"]}
     for k in kept:
-        summaries[k["id"]]["kept"] = True
-    return body, summaries
+        if k.get("url") in posted_urls:
+            summaries[k["id"]]["kept"] = True
+    return payload, summaries
 
 
 async def _fetch(kind: str) -> List[Dict[str, Any]]:
@@ -209,25 +263,23 @@ async def _fetch(kind: str) -> List[Dict[str, Any]]:
     return _keyword_filter(items, require=True)
 
 
-def _headline_from(body: str) -> str:
-    """First non-empty, non-bullet line, trimmed. The model is asked for a lead
-    line; this is the fallback that keeps a subject from being empty."""
-    for raw in (body or "").split("\n"):
-        line = raw.strip().lstrip("#").strip()
-        if line and not line.startswith(("-", "*")):
-            return line[:120]
-    return "What moved in medical AI"
-
-
-async def _email_digest(kind: str, body: str) -> int:
+async def _email_digest(kind: str, payload: Dict[str, Any]) -> int:
     """Mail the digest to members whose preference matches this run.
 
     News is the daily habit; papers ride the weekly preference. Members who have
     never been asked get the default the moment their prefs row is created,
     which happens here on first read.
+
+    Renders the STRUCTURE (PRD §2.4), not a markdown body. The old builder
+    parsed the model's prose into an email, and the parse was lossy in the one
+    way that shows: ``**Medical AI Digest**`` and ``[Opinion: ...](url)``
+    reached inboxes as literal punctuation. Same object as the web card, same
+    section order, no markdown anywhere in the path.
     """
     from email_utils import is_email_transport_configured, send_html_email  # noqa: PLC0415
-    from onboarding_emails import build_community_news_digest_email  # noqa: PLC0415
+    from onboarding_emails import (  # noqa: PLC0415
+        build_community_digest_post_email, digest_email_subject,
+    )
     from community.router import member_map  # noqa: PLC0415
 
     if not is_email_transport_configured():
@@ -244,7 +296,7 @@ async def _email_digest(kind: str, body: str) -> int:
         return 0
     cstore = get_community_store()
     weekly = kind == "papers"
-    headline = _headline_from(body)
+    subject = digest_email_subject(payload)
 
     sent = 0
     for uid, member in (member_map(include_email=True) or {}).items():
@@ -259,13 +311,13 @@ async def _email_digest(kind: str, body: str) -> int:
         try:
             ok = await send_html_email(
                 email,
-                headline,
-                build_community_news_digest_email(
-                    first_name=((member.get("display_name") or "").split() or ["there"])[0],
-                    headline=headline,
-                    body_markdown=body,
+                subject,
+                build_community_digest_post_email(
+                    payload=payload,
                     community_url=links.community_url(),
                     unsubscribe_url=unsub,
+                    first_name=((member.get("display_name") or "").split()
+                                or ["there"])[0],
                 ),
             )
             if ok:
@@ -287,11 +339,19 @@ REASON_NOTHING_KEPT = "nothing_worth_posting"
 REASON_NO_MODEL_KEY = "no_model_key"
 REASON_ERROR = "run_failed"
 REASON_BLOCKED = "post_blocked"
+#: The compose pass answered, and what it answered will not be published.
+#: Distinct from ``run_failed`` because the fix is different in kind: the
+#: pipeline is healthy, the model is reachable, and the post was refused on its
+#: contents. Without it, a week of contract violations reads on the admin card
+#: exactly like a week of network errors.
+REASON_CONTRACT = "contract_violation"
 
 
-def _failure_reason() -> str:
+def _failure_reason(exc: Optional[BaseException] = None) -> str:
     """The reason behind a raised run. A missing key is the one worth naming:
     every LLM call fails identically without it, and the fix is one variable."""
+    if isinstance(exc, digest_contract.DigestContractError):
+        return REASON_CONTRACT
     if not (os.getenv("ANTHROPIC_API_KEY") or "").strip():
         return REASON_NO_MODEL_KEY
     return REASON_ERROR
@@ -338,8 +398,8 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
             return {"ok": True, "kind": kind, "fetched": fetched, "fresh": 0,
                     "posted": 0, "emailed": 0, "reason": reason}
 
-        body, summaries = await _curate(kind, fresh)
-        if body is None:
+        payload, summaries = await _curate(kind, fresh)
+        if payload is None:
             # Fresh items, none worth keeping — a valid quiet day.
             cstore.mark_content_items(
                 [it["id"] for it in fresh], status="skipped", summaries=summaries)
@@ -351,8 +411,14 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
                     "reason": REASON_NOTHING_KEPT}
 
         posted = await post_system_message(
-            channel_slug=DIGEST_CHANNEL, body=body,
+            channel_slug=DIGEST_CHANNEL,
+            # The body is a plain-text rendering of the payload, not the post.
+            # It exists so the row is searchable, so a client that predates the
+            # card still shows something true, and so the PHI gate has every
+            # human-visible character in one string to scan.
+            body=digest_contract.plain_text_body(payload),
             kind=("digest_papers" if kind == "papers" else "digest_news"),
+            payload=payload,
             # The digest is a bot post in a room nobody is watching at 13:00
             # UTC; without this it produced no notification row at all.
             announce=True,
@@ -365,7 +431,7 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
         # to post would point people at a discussion that does not exist.
         emailed = 0
         try:
-            emailed = await _email_digest(kind, body)
+            emailed = await _email_digest(kind, payload)
         except Exception:
             log.exception("[digest] email fan-out failed (the post stands)")
 
@@ -382,7 +448,7 @@ async def run_digest(kind: str, *, claim_window: Optional[str] = None) -> Dict[s
                 "posted": len(kept_ids), "emailed": emailed, "message_id": posted["id"]}
     except Exception as exc:
         cstore.finish_digest_run(run_id, ok=False, items_fetched=fetched,
-                                 error=str(exc)[:500], reason=_failure_reason())
+                                 error=str(exc)[:500], reason=_failure_reason(exc))
         log.warning("[digest] %s run failed: %s", kind, exc, exc_info=True)
         fails = cstore.consecutive_digest_failures(kind)
         if fails >= 3:
@@ -503,7 +569,7 @@ async def run_spotlight_digest(*, force: bool = False) -> Dict[str, Any]:
         return {"ok": True, "kind": SPOTLIGHT_KIND, "outcome": "quiet", "posted": 0}
     except Exception as exc:
         cstore.finish_digest_run(run_id, ok=False, error=str(exc)[:500],
-                                 reason=_failure_reason())
+                                 reason=_failure_reason(exc))
         log.warning("[spotlight] run failed: %s", exc, exc_info=True)
         return {"ok": False, "kind": SPOTLIGHT_KIND, "error": str(exc)[:500]}
 
