@@ -326,7 +326,34 @@ export function OnboardingCard({
    FieldLabel — chrome mini-label inside cards.
    ───────────────────────────────────────────────────────────── */
 
-export function FieldLabel({ children, optional }: { children: ReactNode; optional?: boolean }) {
+/* `requirement` says how much this field matters, in three steps:
+
+     required     blocks Submit. Exactly two fields in the whole application.
+     needed       does NOT block, and changes the outcome most. Reserved.
+     recommended  worth having, same visual weight as Optional.
+
+   RED IS SPENT ONCE. A pink marker on eight fields is a page of noise nobody
+   reads, so `needed` is deliberately scarce: an identifier is what lets us
+   check somebody automatically, and everything else is a review flag. */
+export type Requirement = "required" | "needed" | "recommended";
+
+export function FieldLabel({
+  children,
+  optional,
+  requirement,
+}: {
+  children: ReactNode;
+  optional?: boolean;
+  requirement?: Requirement;
+}) {
+  const marker =
+    requirement === "required"
+      ? { word: "Required", pink: true }
+      : requirement === "needed"
+        ? { word: "Needed", pink: true }
+        : requirement === "recommended"
+          ? { word: "Recommended", pink: false }
+          : null;
   return (
     <div
       style={{
@@ -337,7 +364,35 @@ export function FieldLabel({ children, optional }: { children: ReactNode; option
       }}
     >
       {children}
-      {optional && (
+      {marker && (
+        <span
+          style={{
+            color: marker.pink ? "var(--ah-pink-deep)" : "var(--ink-faint)",
+            fontFamily: "var(--sans)",
+            fontWeight: 400,
+            marginLeft: 6,
+            textTransform: "none",
+            letterSpacing: 0,
+          }}
+        >
+          {marker.pink && (
+            <span
+              style={{
+                display: "inline-block",
+                width: 5,
+                height: 5,
+                borderRadius: "50%",
+                background: "var(--pink)",
+                marginRight: 5,
+                verticalAlign: "middle",
+              }}
+              aria-hidden="true"
+            />
+          )}
+          {marker.word}
+        </span>
+      )}
+      {optional && !marker && (
         <span
           style={{
             color: "var(--ink-faint)",
@@ -372,6 +427,13 @@ type TextFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "
   prefix?: ReactNode;
   suffix?: ReactNode;
   error?: ReactNode;
+  requirement?: Requirement;
+  /* A note saying why an empty field matters, rendered BELOW the hint and
+     deliberately NOT touching the border. Pink on the border is reserved for a
+     value that is wrong; this is a value that is missing, and conflating the
+     two teaches a physician to ignore both. Kept as a sibling element so the
+     `hint=` expression at every call site stays byte-identical. */
+  needed?: ReactNode;
 };
 
 export function TextField({
@@ -386,12 +448,18 @@ export function TextField({
   prefix,
   suffix,
   error,
+  requirement,
+  needed,
   ...rest
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ marginBottom: 20 }}>
-      {label && <FieldLabel optional={optional}>{label}</FieldLabel>}
+      {label && (
+        <FieldLabel optional={optional} requirement={requirement}>
+          {label}
+        </FieldLabel>
+      )}
       <div
         style={{
           position: "relative",
@@ -437,6 +505,7 @@ export function TextField({
       {hint && !error && (
         <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 8, paddingLeft: 4 }}>{hint}</div>
       )}
+      {needed && !error && <NeededNote>{needed}</NeededNote>}
       {error && (
         <div
           style={{
@@ -460,6 +529,32 @@ export function TextField({
   );
 }
 
+/* The "missing and it matters" row. Same shape as the error row above, on
+   purpose: a physician has already learned that a pink dot means look here. It
+   differs in the one way that counts, which is that nothing about it gates the
+   Submit button. */
+export function NeededNote({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: 7,
+        fontSize: 12,
+        color: "var(--ah-pink-deep)",
+        marginTop: 8,
+        paddingLeft: 4,
+      }}
+    >
+      <span
+        style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--pink)", flexShrink: 0 }}
+        aria-hidden="true"
+      />
+      {children}
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────────────────────
    SelectField — same shell as TextField, with chevron.
    ───────────────────────────────────────────────────────────── */
@@ -470,17 +565,27 @@ export function SelectField({
   onChange,
   options,
   placeholder,
+  optional,
+  requirement,
+  needed,
 }: {
   label?: ReactNode;
   value: string;
   onChange?: (next: string) => void;
   options: { value: string; label: string; disabled?: boolean }[];
   placeholder?: string;
+  optional?: boolean;
+  requirement?: Requirement;
+  needed?: ReactNode;
 }) {
   const [focused, setFocused] = useState(false);
   return (
     <div style={{ marginBottom: 20 }}>
-      {label && <FieldLabel>{label}</FieldLabel>}
+      {label && (
+        <FieldLabel optional={optional} requirement={requirement}>
+          {label}
+        </FieldLabel>
+      )}
       <div
         style={{
           position: "relative",
@@ -546,6 +651,7 @@ export function SelectField({
           <polyline points="6 9 12 15 18 9" />
         </svg>
       </div>
+      {needed && <NeededNote>{needed}</NeededNote>}
     </div>
   );
 }
@@ -1443,3 +1549,169 @@ export const CodeInput = forwardRef<HTMLInputElement, CodeInputProps>(function C
     </div>
   );
 });
+
+/* ─────────────────────────────────────────────────────────────
+   OnboardingSection — a collapsible titled box on the review page.
+
+   The review page renders every credential field at once: roughly thirty
+   controls on one scroll with no grouping affordance, which is the complaint
+   this component answers. It is NOT a step. Re-splitting the review into pages
+   would reverse a decision the repo already paid for (three credential screens
+   were collapsed into this one because withholding Submit is how a two-minute
+   application becomes an abandoned one), and every added page is another place
+   to abandon. Collapsed boxes buy the perceptual win of steps at no
+   navigation cost.
+
+   TWO THINGS ARE LOAD-BEARING.
+
+   `why` stays visible while collapsed. It is what answers "why does this
+   matter", which a physician cannot ask a box they have not opened.
+
+   The body toggles with `display`, and is never unmounted. ChipMultiSelect
+   holds a half-typed entry in local state, so conditional rendering would
+   silently bin whatever somebody was in the middle of typing when they
+   collapsed a box.
+   ───────────────────────────────────────────────────────────── */
+export function OnboardingSection({
+  id,
+  title,
+  why,
+  filled,
+  total,
+  attention,
+  defaultOpen,
+  children,
+}: {
+  id: string;
+  title: string;
+  why?: ReactNode;
+  filled: number;
+  total: number;
+  attention?: boolean;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <div
+      style={{
+        border: "1px solid " + (attention ? "var(--ah-pink-line)" : "var(--hairline)"),
+        borderRadius: 14,
+        marginBottom: 14,
+        background: "var(--card)",
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          display: "block",
+          textAlign: "left",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          padding: "16px 18px",
+          font: "inherit",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {attention && (
+            <span
+              style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--pink)", flexShrink: 0 }}
+              aria-hidden="true"
+            />
+          )}
+          <span style={{ ...CHROME, color: "var(--ink)", flex: 1 }}>{title}</span>
+          {/* A section of purely optional fields has nothing to count, and
+              "0 of 0" reads as a failure state on a box where there is nothing
+              to fail at. Its `why` already says everything in it is optional. */}
+          {total > 0 && (
+            <span style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-faint)" }}>
+              {filled} of {total}
+            </span>
+          )}
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              color: "var(--ink-faint)",
+              transform: open ? "rotate(180deg)" : "none",
+              transition: "transform 160ms cubic-bezier(.4,0,.2,1)",
+            }}
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+        {why && (
+          <div style={{ fontSize: 13, lineHeight: 1.55, color: "var(--ink-soft)", marginTop: 6 }}>
+            {why}
+          </div>
+        )}
+      </button>
+      <div id={id} style={{ display: open ? "block" : "none", padding: "4px 18px 2px" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ReviewChecklist — what is done, what came from the CV, what is missing.
+
+   Deliberately NOT a second Stepper: numbered circles inside this card would
+   read as a competing progress bar against the page-level one, and this is not
+   progress through anything. It is three sentences about the state of one form.
+   ───────────────────────────────────────────────────────────── */
+export function ReviewChecklist({ rows }: { rows: { tone: "ok" | "cv" | "gap"; text: ReactNode }[] }) {
+  const colour = { ok: "var(--green)", cv: "var(--lime)", gap: "var(--pink)" };
+  return (
+    <div
+      style={{
+        border: "1px solid var(--hairline)",
+        borderRadius: 14,
+        background: "var(--card-in)",
+        padding: "14px 18px",
+        marginBottom: 18,
+      }}
+    >
+      {rows.map((r, i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 9,
+            fontSize: 13.5,
+            lineHeight: 1.55,
+            color: "var(--ink-soft)",
+            marginTop: i ? 8 : 0,
+          }}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: colour[r.tone],
+              flexShrink: 0,
+              transform: "translateY(-1px)",
+            }}
+            aria-hidden="true"
+          />
+          <span>{r.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
