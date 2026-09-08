@@ -1239,6 +1239,17 @@
   }
 
   function pollCommunityOnce() {
+    // An account without the community surface cannot be handed a session for
+    // rooms it may not read, and has no unread count in them either. Both
+    // requests 403 forever, every 60 seconds, for every applicant on the
+    // platform. The rail sends them to the preview instead, which needs
+    // neither. Checked here rather than inside each fetch so the poll loop
+    // itself winds down: see the both-unavailable branch below.
+    if (!sessionHasSurface('community_read')) {
+      state.community.unavailable = true;
+      state.community.unreadUnavailable = true;
+      return;
+    }
     if (!state.community.unreadUnavailable) refreshCommunityUnread();
     if (!state.community.unavailable) refreshCommunityHandoff();
     // Both endpoints confirmed absent (community backend unbuilt) → stop polling
@@ -1843,6 +1854,18 @@
     const frMode = firstRunMode();
     if (frMode === 'walkthrough') { startFirstRun(); return; }
     if (frMode === 'reentry') { openFirstRunReentry(); return; }
+    // AN APPLICANT LANDS ON THEIR APPLICATION, NOT INSIDE A CASE.
+    //
+    // firstRunMode() already answers 'none' for a provisional account, so
+    // control fell through to the gate check below, and a brand-new applicant
+    // satisfies all three of its clauses: role is evaluator, they are not an
+    // advisor, and an empty tutorial_json parses to gate_state 'locked'. They
+    // were thrown straight into Calibration Case 1, and the screen written for
+    // exactly this person (renderCredentialingDashboard) was never painted on a
+    // first login. The guard belongs here rather than as a fourth clause below,
+    // because the gate launch still has to fire for the accounts it was written
+    // for and burying a second reason inside it hides both.
+    if (sessionIsProvisional() && !isAdvisor()) { renderDashboardView(); return; }
     // An advisor lands on the dashboard, not inside the tutorial. Being dropped
     // straight into a case is right for a physician whose first job is to learn
     // the interface; someone here to look around should be shown the product

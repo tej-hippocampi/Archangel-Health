@@ -17,11 +17,23 @@
   const PHI_NOTICE = 'Colleague discussion only. Do not post patient-identifiable information.';
 
   // ─── State ─────────────────────────────────────────────────────────────────
+  // PREVIEW MODE: the real interface, rendered from a server fixture, for an
+  // applicant who cannot yet see the community. The gate in community/router.py
+  // is untouched and still refuses them; nothing here ever reaches it. See
+  // backend/asclepius/community_preview.py, which has no store access by
+  // construction, so this cannot show a real colleague or a real message.
+  const IS_PREVIEW = (function () {
+    try { return new URLSearchParams(location.search).get('preview') === '1'; }
+    catch (e) { return false; }
+  }());
+
   const state = {
     token: null,
     me: null,           // my member profile
     isAdmin: false,
     canPost: true,      // false for a view-only account (advisor); set from /me
+    preview: false,     // true when the fixture is on screen, not the community
+    previewBanner: '',  // the server's sentence; not dismissible, never invented here
     channels: [],       // [{slug,name,description,post_policy,unread,mentions}]
     dms: [],            // conversations: DMs carry {peer}, case rooms carry {title, participants}
     active: 'general',  // channel slug OR a dm id ("dm-…") — keys never collide
@@ -293,7 +305,11 @@
   async function boot() {
     try { state.token = localStorage.getItem(TOKEN_KEY) || null; } catch (e) { state.token = null; }
     await redeemHandoff();
+    // The signed-out check stays AHEAD of the preview branch. The preview
+    // endpoint wants an account, and a session-less preview would be a public
+    // page that looks like a room full of real physicians.
     if (!state.token) return renderSignedOut();
+    if (IS_PREVIEW && await bootPreview()) return;
     try {
       const me = await api('/me');
       state.me = me.member;
@@ -305,7 +321,15 @@
       state.retention = me.retention || '';
     } catch (e) {
       if (e.status === 401) return renderSignedOut();
-      if (e.status === 403) return renderGate();
+      // A 403 is the gate, and for an applicant the gate is a dead end: the
+      // rail sends them here and the page tells them to come back later. Offer
+      // the fixture first. The endpoint 404s anyone who CAN read the real
+      // rooms, so asking is self-describing and cannot leak a preview to a
+      // colleague who should be seeing the community itself.
+      if (e.status === 403) {
+        if (await bootPreview()) return;
+        return renderGate();
+      }
       return renderError(e.message);
     }
     await Promise.all([loadChannels(), loadMembers(), loadDms()]);
@@ -318,6 +342,89 @@
     // No force here: returning to the tab while scrolled up in history must
     // not mark unseen messages read (audit finding).
     window.addEventListener('focus', () => markReadIfAtBottom());
+  }
+
+  // The fixture writes `at` for a reader ("09:12", "Yesterday", "Monday",
+  // "Last week") because it is describing a shape, not a moment. The renderer
+  // wants an ISO string it can group into day separators. Convert HERE, at the
+  // seam, so messageEl and fmtDay never learn that a preview exists: the whole
+  // point of this feature is that it is the real interface.
+  function previewIso(at, index) {
+    const now = new Date();
+    const clock = /^(\d{1,2}):(\d{2})$/.exec(String(at || ''));
+    if (clock) {
+      const d = new Date(now);
+      d.setHours(Number(clock[1]), Number(clock[2]), 0, 0);
+      return d.toISOString();
+    }
+    const DAYS_BACK = { yesterday: 1, 'last week': 7 };
+    const key = String(at || '').trim().toLowerCase();
+    let back = DAYS_BACK[key];
+    if (back === undefined) {
+      const names = ['sunday', 'monday', 'tuesday', 'wednesday',
+        'thursday', 'friday', 'saturday'];
+      const wanted = names.indexOf(key);
+      // The most recent occurrence of that weekday, never today and never the
+      // future: a fixture dated tomorrow reads as a broken clock.
+      back = wanted === -1 ? (2 + index) : ((now.getDay() - wanted + 7) % 7) || 7;
+    }
+    const d = new Date(now.getTime() - back * 864e5);
+    d.setHours(10, 0, 0, 0);
+    return d.toISOString();
+  }
+
+  /** Paint the fixture. Returns false if it is not available, so the caller
+   *  can fall through to whatever it would have shown otherwise. */
+  async function bootPreview() {
+    let payload;
+    try {
+      payload = await api('/community/preview', { base: '/api/asclepius' });
+    } catch (e) {
+      return false;
+    }
+    if (!payload || !payload.preview) return false;
+
+    state.preview = true;
+    state.previewBanner = payload.banner || '';
+    state.canPost = false;      // every write affordance already keys off this
+    state.isAdmin = false;
+    state.me = null;
+    state.dms = [];
+    state.channels = (payload.channels || []).map((c) => Object.assign({}, c));
+    state.members = (payload.members || []).map((m) => Object.assign({}, m));
+    state.membersById = {};
+    state.online = new Set();
+    for (const m of state.members) state.membersById[m.user_id] = m;
+
+    state.msgs = {};
+    const byChannel = payload.messages || {};
+    for (const ch of state.channels) {
+      const rows = byChannel[ch.slug] || [];
+      state.msgs[ch.slug] = {
+        loaded: true,
+        hasMore: false,
+        list: rows.map((m, i) => ({
+          id: m.id,
+          body: m.body,
+          created_at: previewIso(m.at, i),
+          author: state.membersById[m.author] || { display_name: 'Archangel' },
+          mentions: [],
+          reactions: [],
+          reply_count: 0,
+          pinned: false,
+          deleted: false,
+        })),
+      };
+    }
+    if (!state.msgs[state.active]) {
+      state.active = (state.channels[0] || {}).slug || state.active;
+    }
+
+    // No openChannel (it fetches and marks read), no WebSocket, no loaders.
+    // There is no server state behind any of it.
+    renderApp();
+    renderMessages();
+    return true;
   }
 
   function renderSignedOut() {
@@ -404,6 +511,15 @@
       h('nav', { class: 'cm-rail', id: 'cmRail', 'aria-label': 'Channels and members' }),
       h('section', { class: 'cm-main' },
         h('header', { class: 'cm-head', id: 'cmHead' }),
+        // Above the stream and outside it, so it cannot be scrolled away. No
+        // close control: one sentence is what keeps a fixture from reading as
+        // a room full of real colleagues, and a banner you can dismiss is a
+        // banner that is gone by the second channel.
+        state.preview
+          ? h('div', { class: 'cm-preview-banner', role: 'note' },
+              h('span', { class: 'dot dot-orange', 'aria-hidden': 'true' }),
+              h('span', {}, state.previewBanner))
+          : null,
         h('div', { class: 'cm-scroll', id: 'cmScroll', role: 'log', 'aria-label': 'Messages' }),
         h('div', { class: 'cm-typing', id: 'cmTyping', 'aria-live': 'polite' }),
         h('div', { class: 'cm-composer-wrap', id: 'cmComposerWrap' })),
@@ -586,7 +702,11 @@
           ? h('span', { class: 'cm-chan-unread' }, d.unread > 99 ? '99+' : String(d.unread))
           : null));
     }
-    scrollBox.appendChild(dmSection);
+    // The preview has no conversations and no way to start one, so the section
+    // would be a label over a hint pointing at profiles that are fixtures. The
+    // member directory below it stays: seeing who is in the rooms is most of
+    // what an applicant came to look at.
+    if (!state.preview) scrollBox.appendChild(dmSection);
 
     // members
     const online = state.members.filter((m) => state.online.has(m.user_id)).length;
@@ -633,6 +753,15 @@
     // notification settings is its own control beside the name rather than a
     // wrapper around it: a button inside a button is invalid markup and the
     // browser breaks the inner one out of the outer, taking the row apart.
+    // In the preview there is no `me` to render and no preferences to set, so
+    // the foot would be an empty avatar over a settings button that 403s.
+    // What belongs there instead is the way back.
+    if (state.preview) {
+      rail.appendChild(h('div', { class: 'cm-rail-foot' },
+        h('a', { class: 'cm-btn cm-btn-ghost', href: realmPath('/asclepius') },
+          'Back to the portal')));
+      return;
+    }
     rail.appendChild(h('div', { class: 'cm-rail-foot' },
       h('div', { class: 'cm-rail-me' },
         avatarEl(me, 'small'),
@@ -778,6 +907,11 @@
       head.appendChild(h('span', { class: 'cm-head-name' }, '#' + ch.slug));
       head.appendChild(h('span', { class: 'cm-head-desc' }, ch.description || ''));
     }
+    // Search and the pin panel both query the server, which refuses this
+    // account, so in the preview they are controls that can only disappoint.
+    // A fixture has nothing to search anyway.
+    if (state.preview) return;
+
     const searchWrap = h('div', { class: 'cm-search' });
     const input = h('input', {
       type: 'search', placeholder: 'Search messages…', 'aria-label': 'Search messages',
@@ -818,6 +952,9 @@
     renderRail();
     renderHead();
     renderComposer();
+    // Every room is already in memory and there is no read state to mark, so
+    // switching channels in the preview is a repaint and nothing else.
+    if (state.preview) { renderMessages({ stickBottom: true }); return; }
     if (!state.msgs[key] || opts.force) {
       state.msgs[key] = { list: [], hasMore: false, loaded: false };
       try {
@@ -1882,8 +2019,13 @@
     if (!state.canPost) {
       wrap.appendChild(h('div', { class: 'cm-composer', style: 'padding: var(--sp-3)' },
         h('div', { class: 'cm-composer-hint' },
-          'You have view-only access. Every channel is open to read; posting is '
-          + 'for the physicians doing the work.')));
+          state.preview
+            // Not "you have view-only access": in the preview there is nothing
+            // here to have access to. Say what unlocks it instead.
+            ? 'This is a preview. The rooms, and the colleagues in them, open '
+              + 'when your application is approved.'
+            : 'You have view-only access. Every channel is open to read; posting is '
+              + 'for the physicians doing the work.')));
       wrap.appendChild(h('div', { class: 'cm-phi-notice' },
         h('span', { class: 'dot dot-pink', 'aria-hidden': 'true' }), PHI_NOTICE));
       return;
@@ -2272,7 +2414,10 @@
     // Fill the panel in with whatever we hold now, then fetch the rest and
     // redraw. Waiting on the request first would leave the rail click doing
     // nothing visible for a round trip.
-    if (!state.profilesById[userId]) {
+    // No dossier fetch in preview: there is no such member to fetch, and the
+    // endpoint refuses this account anyway. The summary the fixture supplied
+    // is the whole profile.
+    if (!state.preview && !state.profilesById[userId]) {
       loadMemberProfile(userId).then((full) => {
         if (full && state.sidePanel === 'member'
             && state.sideMember && state.sideMember.user_id === userId) {

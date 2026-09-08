@@ -170,3 +170,31 @@ def test_an_unknown_standing_does_not_lock_anybody_out():
     code = _strip_js_comments(_REFERRAL)
     assert "hsUnlocked = null" in code
     assert "hsUnlocked === false" in code and "hsUnlocked !== true" not in code
+
+
+def test_an_applicant_lands_on_their_application_and_not_inside_a_case():
+    """The screen written for a waiting physician was never painted on a first
+    login. firstRunMode() already answers 'none' for a provisional account, so
+    control fell through to the practice-case gate below it, and a brand-new
+    applicant satisfies all three of its clauses: role evaluator, not an
+    advisor, and an empty tutorial_json parses to gate_state 'locked'. They
+    were thrown straight into Calibration Case 1.
+
+    Asserted on ORDER, because that is the whole property: the provisional
+    branch has to come before the gate launch, and a check placed after it
+    would read as correct and change nothing.
+    """
+    start = _JS.index("const frMode = firstRunMode()")
+    block = _JS[start:start + 2600]
+    provisional = block.index("sessionIsProvisional()")
+    launch = block.index("startTutorial({})")
+    assert provisional < launch, (
+        "the practice case still launches before the applicant branch is consulted"
+    )
+
+
+def test_the_applicant_branch_returns_rather_than_falling_through():
+    """A branch that renders and then keeps going paints twice, and the second
+    paint is the case."""
+    start = _JS.index("if (sessionIsProvisional() && !isAdvisor())")
+    assert "return;" in _JS[start:start + 120]

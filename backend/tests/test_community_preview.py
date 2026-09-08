@@ -117,3 +117,90 @@ def test_the_fixture_names_are_obviously_illustrative():
         if name.startswith("Dr. "):
             first = name.split()[1]
             assert first.endswith("."), f"{name} reads as a real person's name"
+
+
+# ── The client half ─────────────────────────────────────────────────────────
+#
+# The backend above shipped complete, with these tests, and nothing ever
+# rendered it: community.js had no `preview` branch, so `/community?preview=1`
+# fell through to /me, took the 403 and painted the gate. The applicant's rail
+# sent them at a dead end that told them to come back when they were verified.
+# These assertions hold the client half shut the same way.
+
+import pathlib  # noqa: E402
+
+_FRONTEND = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "asclepius"
+_COMMUNITY_JS = (_FRONTEND / "community.js").read_text(encoding="utf-8")
+_COMMUNITY_CSS = (_FRONTEND / "community.css").read_text(encoding="utf-8")
+_PORTAL_JS = (_FRONTEND / "asclepius.js").read_text(encoding="utf-8")
+
+
+def _boot_fn() -> str:
+    start = _COMMUNITY_JS.index("async function boot()")
+    return _COMMUNITY_JS[start:_COMMUNITY_JS.index("\n  function renderSignedOut", start)]
+
+
+def test_the_client_reads_the_preview_flag_the_portal_sends():
+    """asclepius.js opens '/community?preview=1' for an account without the
+    surface. If the page ignores the parameter the whole feature is dark."""
+    assert "preview" in _COMMUNITY_JS and "'1'" in _COMMUNITY_JS
+    assert "async function bootPreview" in _COMMUNITY_JS
+
+
+def test_a_refused_reader_is_offered_the_fixture_before_the_gate():
+    """The gate is the dead end the founders walked into. A 403 now tries the
+    preview first; the endpoint 404s anyone who can read the real rooms, so
+    asking cannot hand a fixture to a colleague who should see the community."""
+    boot = _boot_fn()
+    gate = boot.index("renderGate()")
+    assert "bootPreview()" in boot[:gate], "the 403 branch reaches the gate without trying the preview"
+
+
+def test_a_session_less_visitor_never_reaches_the_preview():
+    """Without this the preview is a public page that looks like a room full of
+    real physicians, which is a credibility problem the first time it is
+    screenshotted."""
+    boot = _boot_fn()
+    assert boot.index("renderSignedOut()") < boot.index("bootPreview()")
+
+
+def test_the_preview_opens_no_socket_and_fetches_no_history():
+    """There is no server state behind any of it, and openChannel would also
+    mark messages read in rooms this account may not read."""
+    start = _COMMUNITY_JS.index("async function bootPreview")
+    body = _COMMUNITY_JS[start:_COMMUNITY_JS.index("\n  function renderSignedOut", start)]
+    for forbidden in ("connectWs(", "openChannel(", "loadChannels(", "loadMembers(", "loadDms("):
+        assert forbidden not in body, f"bootPreview reaches {forbidden}"
+
+
+def test_the_preview_is_read_only_through_the_existing_switch():
+    """canPost already hides the composer, reactions, pins, polls and
+    bookmarks. Reusing it is what keeps a second read-only code path from
+    existing and drifting."""
+    start = _COMMUNITY_JS.index("async function bootPreview")
+    body = _COMMUNITY_JS[start:_COMMUNITY_JS.index("\n  function renderSignedOut", start)]
+    assert "state.canPost = false" in body
+
+
+def test_the_banner_cannot_be_dismissed():
+    """One sentence is what keeps a fixture from reading as real colleagues, so
+    it sits outside the scroller and carries no close control."""
+    assert "cm-preview-banner" in _COMMUNITY_JS
+    assert "cm-preview-banner" in _COMMUNITY_CSS
+    start = _COMMUNITY_JS.index("cm-preview-banner")
+    block = _COMMUNITY_JS[start:start + 400]
+    for dismissal in ("✕", "Dismiss", "onClick"):
+        assert dismissal not in block, "the preview banner offers a way to close it"
+
+
+def test_the_banner_sentence_comes_from_the_server():
+    """Inventing the wording here means two sentences to keep true."""
+    assert "state.previewBanner" in _COMMUNITY_JS
+
+
+def test_the_portal_stops_asking_for_a_community_session_it_cannot_have():
+    """Both community polls 403 for an applicant, every 60 seconds, forever.
+    The rail sends them to the preview, which needs neither."""
+    start = _PORTAL_JS.index("function pollCommunityOnce")
+    body = _PORTAL_JS[start:start + 900]
+    assert "sessionHasSurface('community_read')" in body
