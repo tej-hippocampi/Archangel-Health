@@ -1,5 +1,5 @@
 {
-  "count": 667,
+  "count": 668,
   "routes": [
     "DELETE /api/asclepius/hs/media/files/{fid}",
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
