@@ -376,6 +376,29 @@ async def login(body: LoginRequest):
         pending = store.get_user_by_email((body.email or "").strip().lower())
         if pending and asc_store.password_is_unset(pending) \
                 and (pending.get("verification_status") or "pending") == "pending":
+            # TWO WAITING STATES, NOT ONE (Onboarding Master PRD §3.2 step 1).
+            #
+            # Both branches are a passwordless applicant whose decision has not
+            # landed, and until now both were told the same thing: sit tight,
+            # we will email you. For the applicant who has already sat the
+            # examination that is true and complete. For the one who has NOT,
+            # it is the bug: they are being asked to wait on us while we are
+            # waiting on them, and the screen they land on offers "Check again"
+            # — a button that re-runs this exact refusal forever.
+            #
+            # So read the examination and answer with the state they are
+            # actually in. The distinct header value is what lets the client
+            # show a door (set a password, land on the exam) instead of a
+            # waiting room. `exam_state` fails to "not_started", which errs
+            # toward offering the door.
+            from asclepius import exam_case  # noqa: PLC0415
+            if exam_case.exam_state(store, pending) != "submitted":
+                raise HTTPException(
+                    status_code=403,
+                    detail=("One step left: your examination. Set a password to "
+                            "get back into your account."),
+                    headers={asc_auth.AUTH_GATE_HEADER: "pending_examination"},
+                )
             raise HTTPException(
                 status_code=403,
                 detail=("Your application is in review, we'll email you within "

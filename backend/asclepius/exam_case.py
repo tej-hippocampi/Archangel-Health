@@ -202,3 +202,26 @@ def is_users_exam_task(store: Any, user: Dict[str, Any], task_id: str) -> bool:
         log.exception("[exam] could not re-derive exam task for %s", user.get("id"))
         return False
     return bool(task) and str(task.get("task_id") or "") == task_id
+
+
+def exam_state(store: Any, user: Dict[str, Any]) -> str:
+    """What stage of the examination this account is at: the one word the login
+    gate branches on (Onboarding Master PRD §3.2 step 1).
+
+    Returns ``"not_started"``, ``"in_progress"`` or ``"submitted"``. Anything
+    unreadable — no blob, a corrupt blob, a store that raises — answers
+    ``"not_started"``, which is the safe direction: the caller uses this to
+    decide whether to TELL an applicant they still owe us an examination, and
+    saying so to somebody who has already sat one is a smaller harm than
+    silently withholding the only door back into their account.
+    """
+    try:
+        blob = store.get_tutorial_state(user["id"]) or {}
+    except Exception:
+        log.exception("[exam] could not read tutorial state for %s", user.get("id"))
+        return "not_started"
+    exam = blob.get("exam") if isinstance(blob.get("exam"), dict) else None
+    if not exam:
+        return "not_started"
+    state = str(exam.get("state") or "").strip()
+    return state if state in ("in_progress", "submitted") else "not_started"

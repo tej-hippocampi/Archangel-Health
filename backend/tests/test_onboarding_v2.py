@@ -678,19 +678,35 @@ def test_first_login_forces_a_password_change_and_the_second_does_not(client: Te
     assert r.json()["user"]["must_change_password"] is False
 
 
-def test_pending_no_password_login_returns_the_pending_gate(client: TestClient):
-    """§8: pending/no-password login → authGate 'pending' copy.
-
-    Not "invalid email or password", which is false in both halves and sends a
-    physician to a reset flow that cannot help them.
-    """
-    store = fresh_store()
+def _passwordless_applicant(store, exam_state=None):
+    """A pending applicant with NO_PASSWORD_HASH, optionally mid-examination."""
     applicant = store.provision_user(
         email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
         password_hash=asc_store_mod.NO_PASSWORD_HASH,
         role="evaluator", full_name="Amara Okafor", credentials={}, attestations={},
     )
     store.set_verification_status(applicant["id"], "pending")
+    if exam_state:
+        # `status` is not decoration: get_tutorial_state discards a blob without
+        # one, so this is the shape /exam/task actually writes (it round-trips
+        # the existing blob rather than replacing it).
+        store.set_tutorial_state(applicant["id"], {
+            "status": "not_started", "version": None,
+            "exam": {"state": exam_state, "attempt": 1, "task_id": "gold-x"},
+        })
+    return applicant
+
+
+def test_pending_no_password_login_returns_the_pending_gate(client: TestClient):
+    """§8 + §3.2 step 1: pending/no-password login where the examination IS
+    submitted → authGate 'pending', copy unchanged.
+
+    Not "invalid email or password", which is false in both halves and sends a
+    physician to a reset flow that cannot help them. This applicant genuinely
+    has nothing left to do, so the waiting room is the honest screen.
+    """
+    store = fresh_store()
+    applicant = _passwordless_applicant(store, exam_state="submitted")
 
     c = TestClient(app)
     r = c.post("/api/asclepius/auth/login",
@@ -699,6 +715,60 @@ def test_pending_no_password_login_returns_the_pending_gate(client: TestClient):
     assert r.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending"
     assert "in review" in r.json()["detail"]
     assert "24–48 hours" in r.json()["detail"]
+
+
+def test_pending_no_password_login_with_the_exam_owed_names_the_examination(
+        client: TestClient):
+    """§3.2 step 1 / F1. The applicant we are waiting ON must not be told to
+    wait FOR us. A distinct gate value, and copy that names the examination and
+    the password, so the client can offer a door instead of "Check again"."""
+    store = fresh_store()
+    applicant = _passwordless_applicant(store)  # empty blob: exam never drawn
+
+    c = TestClient(app)
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": applicant["email"], "password": "anything-at-all"})
+    assert r.status_code == 403, r.text
+    assert r.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending_examination"
+    detail = r.json()["detail"]
+    assert "examination" in detail
+    assert "password" in detail.lower()
+    # It must NOT be the waiting-room sentence: that is the whole bug.
+    assert "24–48 hours" not in detail
+
+
+def test_an_examination_in_progress_still_owes_us_the_examination(
+        client: TestClient):
+    """Only `submitted` closes the door. A half-finished attempt is still owed,
+    and that applicant needs the way back in more than anybody."""
+    store = fresh_store()
+    applicant = _passwordless_applicant(store, exam_state="in_progress")
+
+    c = TestClient(app)
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": applicant["email"], "password": "anything-at-all"})
+    assert r.status_code == 403, r.text
+    assert r.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending_examination"
+
+
+def test_an_account_that_has_a_password_is_untouched_by_the_split(
+        client: TestClient):
+    """The split reads NOTHING for an account with a credential: still the
+    generic 401, still no enumeration oracle."""
+    store = fresh_store()
+    applicant = store.provision_user(
+        email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
+        password="Corr3ct-Horse-Battery!",
+        role="evaluator", full_name="Amara Okafor", credentials={}, attestations={},
+    )
+    store.set_verification_status(applicant["id"], "pending")
+
+    c = TestClient(app)
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": applicant["email"], "password": "wrong-password"})
+    assert r.status_code == 401, r.text
+    assert r.headers.get(asc_auth.AUTH_GATE_HEADER) is None
+    assert r.json()["detail"] == "Invalid email or password"
 
 
 def test_an_unknown_address_still_gets_the_generic_401(client: TestClient):
