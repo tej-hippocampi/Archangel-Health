@@ -2071,7 +2071,11 @@ async def set_digest_lead(
     msg = cstore.get_message(message_id)
     if not msg or msg.get("deleted"):
         raise HTTPException(status_code=404, detail="Message not found")
-    if msg.get("kind") not in ("digest_news", "digest_papers"):
+    kind = msg.get("kind")
+    if kind not in ("digest_news", "digest_papers"):
+        raise HTTPException(status_code=400, detail="Not a digest post")
+    container_kind, container = _container_of(msg)
+    if container_kind != "channel":
         raise HTTPException(status_code=400, detail="Not a digest post")
     # A STORE row carries ``payload_json``; only the serializer produces
     # ``payload``. Reading the serialized key off a raw row silently yields
@@ -2080,16 +2084,24 @@ async def set_digest_lead(
     # serializer uses, and a row that will not parse is absent rather than
     # fatal, exactly as it is everywhere else.
     payload = _decode_payload(msg.get("payload_json"))
-    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+    items = payload.get("items") if isinstance(payload, dict) else None
+    # Every item, not just the ones ``mark_lead`` reads. It assigns onto ALL of
+    # them to set ``lead``, so a single non-object in the list turns an admin
+    # click into a 500 rather than a 400 -- checking only the ones we look up by
+    # url leaves the crash exactly where it was.
+    if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
         raise HTTPException(
             status_code=400,
             detail="This digest predates the structured payload and has no lead to set")
+    if body.url is None and body.urgent is None:
+        # An empty body would otherwise rewrite the row, broadcast an update and
+        # write an audit line for a request that asked for nothing.
+        raise HTTPException(status_code=400, detail="Nothing to change")
 
     from community import digest_contract  # noqa: PLC0415 - avoids an import cycle
 
     if body.url is not None:
-        known = {str(i.get("url") or "") for i in payload["items"] if isinstance(i, dict)}
-        if body.url not in known:
+        if body.url not in {str(i.get("url") or "") for i in items}:
             # 404 rather than a silent no-op: an override that quietly did
             # nothing would read on the admin card exactly like one that worked.
             raise HTTPException(status_code=404, detail="No item in this digest has that url")
@@ -2105,7 +2117,28 @@ async def set_digest_lead(
             status_code=400,
             detail="Breaking is set by the compose pass, on one of four same-day events")
 
-    updated = cstore.set_message_payload(message_id, payload)
+    # The body is a plain-text rendering of the payload, and it is what the
+    # notification snippet, search and any pre-card client read. Leaving it
+    # behind would give one post two hierarchies: the new top story on the card
+    # and in the email, the old one in the inbox preview -- which is the exact
+    # split §1.3 exists to close.
+    new_body = digest_contract.plain_text_body(payload)
+
+    # Both write-path gates, on a write path. Nothing here can introduce new
+    # text -- the request carries a url and a boolean -- so in the normal case
+    # neither fires. They are here because ``_house_style_clear``'s own argument
+    # applies to this endpoint too: a guarantee that lives in one pipeline is a
+    # convention, and a guarantee that lives at the write path is a guarantee.
+    # A door into ``payload_json`` with neither gate on it is a door.
+    from community import system_posts  # noqa: PLC0415 - avoids an import cycle
+
+    visible = "\n".join([new_body, system_posts._payload_text(payload)])
+    if not system_posts._phi_clear(container, kind, visible):
+        raise HTTPException(status_code=422, detail="Blocked by the PHI gate")
+    if not system_posts._house_style_clear(container, kind, visible):
+        raise HTTPException(status_code=422, detail="Blocked by the house style rules")
+
+    updated = cstore.set_message_payload(message_id, payload, body=new_body)
     if not updated or updated.get("deleted"):
         raise HTTPException(status_code=404, detail="Message not found")
 

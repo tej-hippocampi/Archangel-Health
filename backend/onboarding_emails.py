@@ -53,6 +53,13 @@ _GREEN_DEEP = "#3c7a31"   # AA-contrast green for text on a light surface
 _ORANGE = "#ec9440"
 _PINK = "#e8447b"
 _LIME = "#d5e14e"
+#: The lime wash, flattened onto the card background. Written as a 6-digit hex
+#: rather than "#d5e14e33", because 8-digit hex is CSS Color 4 and Outlook's
+#: Word renderer drops the declaration outright -- and §1.1 of the digest design
+#: makes this wash THE label for why-it-matters, so losing it means that
+#: sentence arrives unlabelled in the client most likely to be reading it.
+#: 20% of --lime over #fbfcfa, the same ratio --lime-wash uses on the web.
+_LIME_WASH = "#f3f7d8"
 
 # No webfonts in email. See the module docstring.
 _SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -2118,7 +2125,7 @@ def build_community_digest_post_email(
             + (f'<div style="margin-top:8px;font-size:15px;line-height:1.55;'
                f'color:{_INK_SOFT};">{deck}</div>' if deck else "")
             + (f'<div style="margin-top:10px;padding:8px 11px;'
-               f'background:{_LIME}33;font-size:14px;line-height:1.5;'
+               f'background:{_LIME_WASH};font-size:14px;line-height:1.5;'
                f'color:{_INK};">{why}</div>' if why else "")
             + f'<div style="margin-top:10px;font-size:13px;">'
               f'<a href="{url}" style="color:{_GREEN_DEEP};font-weight:600;'

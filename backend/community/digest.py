@@ -126,8 +126,8 @@ _COMPOSE_SYSTEM = (
     "sentence case, no trailing period, a verb in every one. Say what happened, "
     "not why it is interesting.\n"
     "- deck: aim for 20 words and never exceed 25. ONE sentence, ONE fact, and "
-    "it must NOT repeat the headline. Write one for every item; only the lead "
-    "story keeps its deck.\n"
+    "it must NOT repeat the headline. Write one for EVERY item: the top story "
+    "is chosen after you answer, and only that one is shown.\n"
     "- why_it_matters: aim for 12 words and never exceed 14. ONE sentence, "
     "second person allowed, written the way you would say it to a physician "
     "friend: what changes for patient care or for AI evaluation. Then cut it in "
@@ -265,6 +265,16 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
             (i["url"] for i in payload["items"]
              if feeds.normalize_url(i["url"]) == wanted), None)
     digest_contract.mark_lead(payload, lead_url)
+    # §2.2 allows urgency only on the lead. It is not a reason to discard the
+    # run -- the badge is already unrenderable, since every surface reads the
+    # lead's flag and nothing else's, and refusing a morning's digest over a
+    # decoration on item four is the wrong trade. It IS a reason to be visible:
+    # a prompt that keeps mis-flagging is a prompt to fix, and the PRD says so
+    # ("if it fires more than twice in a week, the prompt is wrong").
+    stray = [i["url"] for i in payload["items"][1:] if i.get("urgent")]
+    if stray:
+        log.warning("[digest] %s: compose flagged %d non-lead item(s) urgent "
+                    "(%s); the badge is not rendered", kind, len(stray), ", ".join(stray))
 
     # Which fetched items actually reached the post. Matched on the NORMALISED
     # url — the same identity ``upsert_content_items`` dedups on — because an

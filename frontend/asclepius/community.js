@@ -67,8 +67,9 @@
     events: { upcoming: [], past: [], pastOpen: false, loadedFor: null },
     // The newest #medical-ai-news post that carries a payload, fetched once at
     // boot. Two surfaces read it and neither owns it: the pinned home card
-    // draws it collapsed, and the presence bar counts it.
+    // draws it collapsed, and the presence bar counts the unread ones.
     latestDigest: null,
+    newDigests: 0,
   };
 
   const QUICK_EMOJI = ['👍', '✅', '🙌', '❤️', '😂', '🤔', '👀', '🎉'];
@@ -356,10 +357,15 @@
       return renderError(e.message);
     }
     await Promise.all([loadChannels(), loadMembers(), loadDms()]);
-    // After the channels, because it needs the room to exist and to be visible
-    // to this reader, and awaited separately so a slow digest fetch cannot hold
-    // up the three loads the app cannot render without.
-    await loadLatestDigest();
+    // NOT awaited. It needs the channel list (it counts against that room's
+    // unread), so it cannot join the group above -- and awaiting it here would
+    // put a whole round trip in front of first paint for every reader,
+    // including the ones who will never scroll to a pinned card. It repaints
+    // the two surfaces that read it when it lands.
+    loadLatestDigest().then(() => {
+      renderGreeting();
+      if (state.active === 'general') renderMessages({});
+    });
     const hash = (location.hash || '').replace(/^#/, '');
     if (hash && (state.channels.some((c) => c.slug === hash)
         || state.dms.some((d) => d.id === hash))) state.active = hash;
@@ -525,20 +531,43 @@
       : '/channels/' + encodeURIComponent(key) + '/read';
   }
   /* The latest digest, for the landing card and the presence line (§1.3, §3.1).
-     No new endpoint: this is the channel's own message list, asked for five
-     rows instead of fifty. It never throws — a reader who cannot see
-     #medical-ai-news, or a room that has never posted, simply has no card, and
-     a landing page that 500s over a decoration is a worse outcome than a
-     landing page without one. */
+   *
+   * No new endpoint: this is the channel's own message list. The page size is
+   * 25 rather than a handful because #medical-ai-news is NOT a digest-only
+   * room -- the morning routine posts briefs into it too (community/morning.py)
+   * -- so a window of five could hold nothing but briefs and quietly leave the
+   * landing page with no card, which by design explains nothing.
+   *
+   * It never throws. A reader who cannot see the room, or a room that has never
+   * posted, simply has no card, and a landing page that 500s over a decoration
+   * is a worse outcome than a landing page without one. */
   async function loadLatestDigest() {
+    state.latestDigest = null;
+    state.newDigests = 0;
     try {
-      const d = await api('/channels/medical-ai-news/messages?limit=5');
-      const rows = (d.messages || []).filter((m) => !m.deleted && digestOf(m));
+      const d = await api('/channels/medical-ai-news/messages?limit=25');
+      const msgs = (d.messages || []).filter((m) => !m.deleted);
+      const digests = msgs.filter((m) => digestOf(m));
       // The list arrives oldest-first, like every other channel fetch, so the
       // newest digest is the last row that has a payload.
-      state.latestDigest = rows.length ? rows[rows.length - 1] : null;
+      state.latestDigest = digests.length ? digests[digests.length - 1] : null;
+
+      /* How many of them are NEW, counted rather than assumed.
+       *
+       * The channel's unread number counts every unread message in the room, of
+       * any kind, so labelling it "3 new digests" reads three morning briefs as
+       * three digests. Unread messages are the LAST `unread` rows in the room,
+       * so the digests among that tail are the digests this reader has not seen
+       * -- which is the number §3.1 actually asks for, from data the client
+       * already holds. */
+      const ch = state.channels.find((c) => c.slug === 'medical-ai-news');
+      const unread = Math.max(0, Math.min((ch && ch.unread) || 0, msgs.length));
+      state.newDigests = unread
+        ? msgs.slice(msgs.length - unread).filter((m) => digestOf(m)).length
+        : 0;
     } catch (e) {
       state.latestDigest = null;
+      state.newDigests = 0;
     }
   }
 
@@ -602,8 +631,10 @@
       h('span', { class: 'cm-presence-dot' + (online ? ' on' : ''), 'aria-hidden': 'true' }),
       h('span', { class: 'chrome' }, online + ' online'));
 
-    const ch = state.channels.find((c) => c.slug === 'medical-ai-news');
-    const fresh = Math.max(0, (ch && ch.unread) || 0);
+    // Counted in loadLatestDigest from the room's own rows, never taken from
+    // the channel's unread number: that counts every unread message in the
+    // room, and the morning brief posts there too.
+    const fresh = Math.max(0, state.newDigests || 0);
     if (fresh) {
       presence.appendChild(h('span', { class: 'chrome cm-presence-sep' }, '·'));
       presence.appendChild(h('button', {
@@ -1148,8 +1179,8 @@
     'questions-help': ['Ask. One of us answers today.', 'Ask'],
     'future-of-medical-ai': ['Where is this going? Contrarian welcome.', 'Start a thread'],
     'medical-ai-news': ['First digest at 6am PT.', null],
-    'task-announcements': ['We post here when there is work.', null],
-    'events': ['We post here when there is work.', null],
+    'task-announcements': ['We post here when there\u2019s work.', null],
+    'events': ['We post here when there\u2019s work.', null],
   };
 
   /* ── The branded home panel (Admin Launch PRD §5.2) ──────────────────────
@@ -1224,10 +1255,12 @@
     // The digest room explains ITSELF when the schedule is readable, because
     // "quiet" and "broken" look identical otherwise. Everywhere else the room's
     // one sentence is the title and there is nothing under it.
-    const line = digestCopy ? digestCopy[1] : null;
-    const title = digestCopy ? digestCopy[0]
-      : (copy[0] || ch.description
-         || 'Open discussion between contributor physicians.');
+    // A room with hand-written copy leads with its one sentence. A room without
+    // leads with its NAME and puts the server's description underneath: a
+    // channel description is a paragraph, and a paragraph set as a heading
+    // reads as a layout mistake rather than a welcome.
+    const line = digestCopy ? digestCopy[1] : (copy[0] ? null : (ch.description || null));
+    const title = digestCopy ? digestCopy[0] : (copy[0] || ('#' + (ch.name || slug)));
     const label = digestCopy ? null : copy[1];
 
     const panel = h('div', { class: 'cm-home' },
@@ -1246,7 +1279,13 @@
       panel.appendChild(h('button', {
         class: 'cm-home-cta', type: 'button',
         onClick: () => {
-          const ta = document.getElementById('cmComposerInput');
+          // Found through the channel composer's OWN wrapper rather than by an
+          // id on the textarea: `buildComposer` also builds the thread panel's
+          // box, so an id there means two elements share it whenever a thread
+          // is open. This also leaves the composer itself untouched, which §7
+          // asks for.
+          const wrap = document.getElementById('cmComposerWrap');
+          const ta = wrap && wrap.querySelector('textarea');
           if (ta) ta.focus();
         },
       }, label));
@@ -1277,13 +1316,18 @@
   function openDigestPost(m) {
     openChannel('medical-ai-news');
     if (!m || !m.id) return;
-    // After the fetch and the repaint the channel open schedules. A row that is
-    // not on screen yet cannot be scrolled to, and a missing row is a no-op
-    // rather than an error: the reader is in the right room either way.
-    setTimeout(() => {
+    // The row appears when the channel's fetch lands, and a single timeout is a
+    // bet on how long that takes: slower than the guess and the scroll silently
+    // never happens. Look for it a few times over about two seconds instead,
+    // then stop. A row that never arrives is a no-op rather than an error --
+    // the reader is in the right room either way.
+    let tries = 0;
+    const seek = () => {
       const row = document.querySelector('[data-mid="' + m.id + '"]');
-      if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
-    }, 250);
+      if (row && row.scrollIntoView) { row.scrollIntoView({ block: 'center' }); return; }
+      if (++tries < 10) setTimeout(seek, 200);
+    };
+    setTimeout(seek, 120);
   }
 
   function renderMessages(opts) {
@@ -1654,7 +1698,13 @@
      Wednesday is the same arithmetic `fmtWhen` already refuses to make them do. */
   function digestWeekday(iso) {
     try {
-      return new Date(iso).toLocaleDateString([], { weekday: 'long' });
+      const d = new Date(iso);
+      // An unparseable date does not throw here: `new Date('x')` is a valid
+      // Date object whose time is NaN, and toLocaleDateString returns the
+      // STRING "Invalid Date" for it. A try/catch never sees that, and the card
+      // renders "Invalid Date · 3 stories" in its header.
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString([], { weekday: 'long' });
     } catch (e) { return ''; }
   }
 
@@ -2547,10 +2597,6 @@
     const pendingHost = h('div', {});
     const hintEl = h('div', { class: 'cm-phi-hint', hidden: true, 'aria-live': 'polite' });
     const ta = h('textarea', {
-      // Addressable so an empty state's one button can put the cursor in it.
-      // The button is the invitation; landing in the box is the invitation
-      // being accepted, and a button that only scrolls is a button that lies.
-      id: 'cmComposerInput',
       placeholder: cfg.placeholder, 'aria-label': cfg.placeholder,
       rows: '1',
     });
@@ -2880,11 +2926,15 @@
    * contributor score never appears on either -- a physician is not shown their
    * own, so a colleague certainly is not. */
   function profileStats(m) {
+    // "Not shared" rather than a dash. A dash in a stat slot reads as a value
+    // the product failed to load; the words say the true thing, which is that
+    // this colleague has not filled that field in.
+    const unset = 'Not shared';
     const stats = [
-      ['Specialty', m.is_staff ? 'Archangel' : (m.specialty || '—')],
+      ['Specialty', m.is_staff ? 'Archangel' : (m.specialty || unset)],
       ['In practice', (m.years_in_practice != null && m.years_in_practice !== '')
-        ? m.years_in_practice + ' yrs' : '—'],
-      ['Country', countryLabel(m.country) || '—'],
+        ? m.years_in_practice + ' yrs' : unset],
+      ['Country', countryLabel(m.country) || unset],
     ];
     return h('div', { class: 'cm-profile-stats' }, stats.map(([k, v]) =>
       h('div', { class: 'cm-profile-stat' },

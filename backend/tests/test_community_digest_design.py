@@ -51,6 +51,9 @@ def _extract(name: str, kind: str = "function") -> str:
     """
     needle = f"function {name}(" if kind == "function" else f"const {name} = "
     start = _JS.index(needle)
+    # Keep the `async` prefix or the body's `await` will not parse.
+    if kind == "function" and _JS[start - 6:start] == "async ":
+        start -= 6
     depth, quote, i = 0, "", _JS.index("(" if kind == "function" else "=", start)
     while i < len(_JS):
         ch = _JS[i]
@@ -87,6 +90,7 @@ function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
 const opened = [];
 function openThread(id) { opened.push(['thread', id]); }
 function openChannel(slug) { opened.push(['channel', slug]); }
+let api = () => Promise.resolve({ messages: [] });
 // The shim gives every ELEMENT a querySelector but not the document. A browser
 // has both, and `openDigestPost` scrolls to a row through the document one.
 document.querySelector = (sel) => document.body.querySelector(sel);
@@ -373,11 +377,11 @@ def test_the_presence_counts_come_from_state_and_zero_online_is_a_hollow_dot():
                    digest: digest ? digest.textContent : null };
         };
         state.members = [{ user_id: 'a' }, { user_id: 'b' }, { user_id: 'c' }];
-        state.channels = [{ slug: 'medical-ai-news', unread: 1 }];
+        state.newDigests = 1;
         state.online = new Set(['a', 'b', 'c']);
         out.three = snap();
         state.online = new Set();
-        state.channels = [{ slug: 'medical-ai-news', unread: 0 }];
+        state.newDigests = 0;
         out.zero = snap();
         state.preview = true;
         out.preview = snap();
@@ -390,6 +394,58 @@ def test_the_presence_counts_come_from_state_and_zero_online_is_a_hollow_dot():
     assert "0 online" in res["zero"]["text"]
     assert res["zero"]["digest"] is None, "a zero count rendered as a sentence"
     assert res["preview"]["text"] == "", "the preview greeted a fixture by name"
+
+
+def test_the_new_digest_count_counts_digests_and_not_unread_messages():
+    """#medical-ai-news is not a digest-only room -- the morning routine posts
+    briefs into it (community/morning.py). Reading the channel's unread number
+    as a digest count renders three morning briefs as "3 new digests"."""
+    payload = json.dumps(_PAYLOAD)
+    res = _render(
+        """
+        const digest = (id) => ({ id, kind: 'digest_news', payload: %(p)s,
+                                  created_at: '2026-09-08T13:00:00Z' });
+        const brief = (id) => ({ id, kind: 'morning_brief', body: 'Morning',
+                                 created_at: '2026-09-08T13:00:00Z' });
+        const out = {};
+        const run = (label, messages, unread) => {
+          state.channels = [{ slug: 'medical-ai-news', unread }];
+          api = () => Promise.resolve({ messages });
+          return loadLatestDigest().then(() => {
+            out[label] = { count: state.newDigests,
+                           latest: state.latestDigest ? state.latestDigest.id : null };
+          });
+        };
+        // Oldest first, exactly as the channel endpoint serves it.
+        run('threeBriefsOneDigest', [digest(1), brief(2), brief(3), brief(4)], 3)
+          .then(() => run('twoNewDigests', [brief(1), digest(2), digest(3)], 2))
+          .then(() => run('allRead', [digest(1), digest(2)], 0))
+          // Five newer briefs used to push the digest out of the window
+          // entirely and leave the landing page with no card and no explanation.
+          .then(() => run('digestBehindSixBriefs',
+            [digest(1)].concat([2, 3, 4, 5, 6, 7].map(brief)), 1))
+          .then(() => run('noDigestAtAll', [brief(1)], 1))
+          .then(() => { api = () => Promise.reject(new Error('403')); })
+          .then(() => run('refused', [], 0))
+          .then(() => console.log(JSON.stringify(out)));
+        """ % {"p": payload},
+        _CARD_FUNCS + ("loadLatestDigest",), _CARD_CONSTS)
+    assert res["threeBriefsOneDigest"] == {"count": 0, "latest": 1}
+    assert res["twoNewDigests"] == {"count": 2, "latest": 3}
+    assert res["allRead"] == {"count": 0, "latest": 2}
+    assert res["digestBehindSixBriefs"]["latest"] == 1, "the pinned card vanished"
+    assert res["noDigestAtAll"] == {"count": 0, "latest": None}
+    assert res["refused"] == {"count": 0, "latest": None}
+
+
+def test_a_digest_with_an_unreadable_timestamp_does_not_say_invalid_date():
+    """`new Date('x').toLocaleDateString()` returns the STRING "Invalid Date"
+    rather than throwing, so a try/catch around it catches nothing that
+    happens and the card header renders it."""
+    msg = _msg(created_at="not-a-date")
+    meta = _classes(_card(msg), "cm-digest-meta")[0]["text"]
+    assert "Invalid" not in meta and "NaN" not in meta
+    assert meta == "3 stories"
 
 
 # ═══ §6 profile ══════════════════════════════════════════════════════════════
@@ -523,10 +579,38 @@ def test_the_phi_footer_is_not_warmed_up_with_the_rest():
 # ═══ §6 css ══════════════════════════════════════════════════════════════════
 
 def test_the_stylesheet_balances_and_declares_every_class_the_card_emits():
+    """Derived from the JS, not from a list written here.
+
+    The first version of this checked fifteen class names typed out by hand and
+    was green while `cm-tag-label` -- emitted by every single tag chip -- had no
+    rule anywhere in the stylesheet. A guard whose input is a list of the
+    classes somebody remembered is a guard against forgetting nothing.
+    """
     assert _CSS.count("{") == _CSS.count("}"), "community.css braces do not balance"
+
+    # Every `cm-*` class this file's new code puts on an element. Read out of
+    # the class strings themselves, so a class added tomorrow is checked too.
+    emitted = set()
+    for literal in re.findall(r"""class:\s*['"]([^'"]+)['"]""", _JS):
+        emitted |= {c for c in literal.split() if c.startswith("cm-")}
+    for literal in re.findall(r"""class:\s*['"]([^'"]+)['"]\s*\+""", _JS):
+        emitted |= {c for c in literal.split() if c.startswith("cm-")}
+
+    styled = set(re.findall(r"\.(cm-[\w-]+)", _CSS))
+    # Pre-existing, found BY this check and left alone: #events builds a
+    # `cm-events-past` wrapper the stylesheet has never had a rule for. It
+    # predates this PRD and §7 puts the events room out of scope, so it is named
+    # here rather than silently swept into the allowance -- and rather than
+    # fixed in a diff that is supposed to touch the digest and the greeting.
+    known_orphans = {"cm-events-past"}
+    orphans = sorted(emitted - styled - known_orphans)
+    assert not orphans, f"emitted by community.js and styled nowhere: {orphans}"
+
+    # And the redesign's own classes are all present, named, so a refactor that
+    # renamed one wholesale could not pass by emitting and styling nothing.
     for cls in ("cm-digest", "cm-digest-title", "cm-digest-lead", "cm-digest-item",
                 "cm-tag", "cm-tag-regulation", "cm-tag-research", "cm-tag-deployment",
-                "cm-tag-evals", "cm-tag-opinion", "cm-why", "cm-greet",
+                "cm-tag-evals", "cm-tag-opinion", "cm-tag-label", "cm-why", "cm-greet",
                 "cm-presence-dot", "cm-profile-stats", "cm-home-cta"):
         assert f".{cls}" in _CSS, f"{cls} is emitted by community.js and styled nowhere"
 

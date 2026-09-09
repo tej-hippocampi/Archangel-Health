@@ -102,16 +102,16 @@ exclamation marks, calendar dates. Rejection = no post that day.
 
 ### 1.3 Placement
 - Canonical: the `#medical-ai-news` message (`kind: digest_news`), rendered by
-  `digestCardEl` (`community.js:1664`) whenever `digestOf` (`community.js:1527`)
+  `digestCardEl` (`community.js:1714`) whenever `digestOf` (`community.js:1571`)
   finds a payload on the message.
-- The stream reaches it through `renderMessages` (`community.js:1289`), which
+- The stream reaches it through `renderMessages` (`community.js:1333`), which
   builds each row with `messageEl`.
-- The `cm-msg-digest` branch (`community.js:1738`) styles only the legacy body,
-  and `cardsEl` (`community.js:1421`) is not used for digests.
+- The `cm-msg-digest` branch (`community.js:1788`) styles only the legacy body,
+  and `cardsEl` (`community.js:1465`) is not used for digests.
 - **Pinned home card**: the community landing (the view before a channel is opened)
   shows the latest digest in the same card component, collapsed to title + lead +
   `Read all {n} →` which opens the channel post. One component, two contexts.
-- Email (`build_community_digest_post_email`, `onboarding_emails.py:2044`): same hierarchy — Top story with deck
+- Email (`build_community_digest_post_email`, `onboarding_emails.py:2051`): same hierarchy — Top story with deck
   and why-it-matters, then compact items — rendered from `payload_json`, never from
   the body string.
 
@@ -130,7 +130,7 @@ false). Existing: `headline`, `why_it_matters`, `section`, `source`, `url`,
   `mark_lead` (`community/digest_contract.py:404`), which the pipeline calls at
   `community/digest.py:267`. Ties → earliest published.
 - One definition of "which story leads" is read by the card, the pinned card and
-  the email: `lead_and_rest` (`community/digest_contract.py:449`).
+  the email: `lead_and_rest` (`community/digest_contract.py:453`).
 - `urgent: true` is allowed only when the select pass's `one_liner` contains a
   same-day event of one of four kinds — a regulatory decision/approval, a recall or
   safety notice, a major clinical trial readout, or a lab/model release with a
@@ -162,18 +162,18 @@ Good morning, Dr. Patel.        ● 3 online · 1 new digest
 
 ### 3.2 Member profile cards
 Click a name anywhere (member list, message author, presence bar) → a card
-(`cm-profile`, `community.js:2981`; upgraded in place): avatar with the specialty
+(`cm-profile`, `community.js:3031`; upgraded in place): avatar with the specialty
 tint, name and one credential line — "Nephrology · 15–19 yrs", built by
-`credentialLine` (`community.js:2850`) — then three stats from `profileStats`
-(`community.js:2882`), and one action: **Message**. Founders' cards add **Book 20 minutes**. No blurb, no
+`credentialLine` (`community.js:2896`) — then three stats from `profileStats`
+(`community.js:2928`), and one action: **Message**. Founders' cards add **Book 20 minutes**. No blurb, no
 earnings, no tier.
 
 The three stats are **Specialty · In practice · Country**, not cases · since ·
 last active — see §9.2.
 
 ### 3.3 Warmer empty states, founders' voice
-Every channel's empty state (`EMPTY_COPY`, `community.js:1145`; rendered through
-`cm-empty-title` at `community.js:1241` and `community.js:1335`): one sentence,
+Every channel's empty state (`EMPTY_COPY`, `community.js:1176`; rendered through
+`cm-empty-title` at `community.js:1274` and `community.js:1379`): one sentence,
 one button. Copy, verbatim:
 - `#general` — "The kitchen table. Say hello." · [Say hello]
 - `#introductions` — "Who are you, and what do you see most in clinic?" · [Introduce yourself]
@@ -298,7 +298,7 @@ The two rules cannot both be satisfied and §4 is the harder one, so:
 |---|---|---|---|
 | Regulation | amber | amber | `--orange-wash` |
 | Deployment | green | green | `--green-wash` |
-| Opinion | gray | gray | `--ink` at 6%, mixed in `community.css:1109` |
+| Opinion | gray | gray | `--ink` at 6%, mixed in `community.css:1117` |
 | Research | teal | **lime** | `--lime-wash` |
 | Evals | purple | **pink** | `--pink-wash` |
 
@@ -335,7 +335,7 @@ read, shortened to one sentence to stay inside the §0.5 budget.
 That console's feed carries an author, a channel and a body string — no message
 id and no payload — so the action would have needed a wider admin summary
 endpoint to reach what it acts on. It ships on the digest post's own menu
-(`digestAdminEl`, `community.js:1610`), admin-only, and absent from the pinned
+(`digestAdminEl`, `community.js:1654`), admin-only, and absent from the pinned
 card. `admin_community.js` is unchanged.
 
 ### 9.5 Word budgets ship with headroom
@@ -357,14 +357,48 @@ closed set the validator checks against — a claim with no kind, or a kind
 outside the four, fails the run. `mark_lead` then clears the badge off anything
 that is not the lead.
 
-### 9.7 Decks survive on every item
+### 9.7 Decks and badges survive on every item; only the lead's are drawn
 
 The first cut cleared `deck` off non-lead items at post time, which made §2.2's
 admin override destructive: promoting a story in the afternoon produced a 26px
-headline with nothing under it, because its deck had been deleted at 6am. Decks
-are content and stay on every item; only the lead's is **drawn**, which is the
-renderers' job and `lead_and_rest`'s definition. The badge still clears, because
-BREAKING is a claim about today's top slot rather than a property of a story.
+headline with nothing under it, because its deck had been deleted at 6am.
+
+The audit found the same bug one field over, and worse. `mark_lead` also cleared
+`urgent`, so one promotion permanently erased a BREAKING badge the compose pass
+had earned on one of the four same-day events — with no way back, because the
+endpoint refuses to *grant* urgency by design. An override whose cost is
+irreversible is an override nobody dares press.
+
+So neither field is positional. Both stay on every item and only the **lead's**
+are drawn — `digestItemEl` and the email's compact row never read either — so
+promoting a story back restores exactly what it arrived with. `Clear breaking`
+is still one-way, and it says so on the button.
+
+### 9.9 The body follows the lead
+
+`plain_text_body` grouped by `SECTIONS` order, so the top story appeared wherever
+its section happened to fall: a digest led by a Regulation story showed a
+Research story first in every notification snippet and every pre-card client.
+One post, two hierarchies — the split the structured payload exists to close.
+
+It is lead-first now, with the section as a label per item, matching the card and
+the email. The admin override rewrites it alongside `payload_json`
+(`set_message_payload(..., body=...)`), so a promotion moves the inbox preview
+too.
+
+### 9.10 The presence bar counts digests, not unread messages
+
+§3.1 asks for "1 new digest" from the latest `digest_news`. The first cut took
+the channel's unread number, which counts **every** unread message in
+`#medical-ai-news` — and the morning routine posts briefs into that same room
+(`community/morning.py`), so three briefs and no digest rendered "3 new
+digests".
+
+Unread messages are the last *n* rows in a room, so `loadLatestDigest` counts the
+digests among that tail. Same data the client already holds, and it is now the
+number the PRD actually asked for. The same fetch also widened from 5 rows to 25:
+five newer briefs used to push the digest out of the window entirely and leave
+the landing page with no card and, by design, no explanation.
 
 ### 9.8 Blast radius, actual
 

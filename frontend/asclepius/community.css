@@ -1102,6 +1102,11 @@ a.cm-digest-subhead:hover { color: var(--green-deep); }
   line-height: 1;
 }
 .cm-tag svg { flex: none; }
+/* The label is a span so the glyph and the word cannot be split by a line
+   break mid-chip. It inherits everything from .cm-tag and needs no colour of
+   its own -- but it needs a rule, or it is a class the card puts on an element
+   and the stylesheet has never heard of. */
+.cm-tag-label { white-space: nowrap; }
 .cm-tag-regulation { --cm-tag-wash: var(--orange-wash); --cm-tag-ink: var(--orange-deep); --cm-tag-line: var(--orange-line); }
 .cm-tag-research   { --cm-tag-wash: var(--lime-wash);   --cm-tag-ink: var(--lime-deep);   --cm-tag-line: var(--lime-line); }
 .cm-tag-deployment { --cm-tag-wash: var(--green-wash);  --cm-tag-ink: var(--green-deep);  --cm-tag-line: var(--green-line); }

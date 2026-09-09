@@ -67,11 +67,11 @@ def _mask_urls(text: str) -> str:
 #: is not a finding.
 #:
 #: A hand-maintained list is a list that can fall behind the card, so
-#: ``deck`` was added here in the same change that added it to the contract,
-#: and ``test_every_rendered_digest_field_is_scanned_for_phi`` fails the build
-#: if a future field renders without landing in this tuple. ``urgent`` and
-#: ``urgent_kind`` are deliberately absent: one is a boolean and the other is
-#: one of four fixed words this module chose, so neither carries model text.
+#: ``test_every_rendered_digest_field_is_scanned_for_phi`` derives the field set
+#: from what ``digest_contract`` actually emits and fails the build on any key
+#: that is neither in this tuple nor in its short, reasoned exclusion list.
+#: ``urgent``, ``urgent_kind`` and ``lead`` are excluded there: two booleans and
+#: one word from a closed set this module chose, none of them model text.
 _PAYLOAD_VISIBLE_KEYS = ("title", "headline", "deck", "why_it_matters",
                          "source", "section")
 

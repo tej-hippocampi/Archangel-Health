@@ -395,10 +395,11 @@ def _f_community_digest_post(ctx: _Ctx) -> str:
     update fails loudly here rather than silently offline.
 
     Every item carries a ``deck`` because the compose pass cannot know which
-    item will lead — ``digest_contract.mark_lead`` clears the decks it does not
-    need after the select pass's relevance picks the top story. ``urgent`` is
-    false on all three: BREAKING is a few mornings a month, and a fixture that
-    fired it every offline run would teach the badge to mean nothing.
+    item will lead — the select pass's relevance picks the top story afterwards
+    and ``digest_contract.mark_lead`` marks it, at which point only that item's
+    deck is drawn. ``urgent`` is false on all three: BREAKING is a few mornings
+    a month, and a fixture that fired it every offline run would teach the badge
+    to mean nothing.
     """
     return _j({"items": [
         {"headline": "Fake transport returns a digest, not a model",

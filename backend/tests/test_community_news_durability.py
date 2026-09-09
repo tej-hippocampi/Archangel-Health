@@ -357,15 +357,39 @@ def test_breaking_replaces_top_story_only_when_the_lead_is_urgent():
     assert "BREAKING" in out and "TOP STORY" not in out
 
 
-def test_urgency_on_a_story_that_does_not_lead_is_cleared_not_promoted():
-    """§2.2: urgent is allowed only ON the lead. An item the reader meets
-    fourth carrying BREAKING is a badge on something nobody is reading first."""
+def test_urgency_on_a_story_that_does_not_lead_is_never_drawn():
+    """§2.2: BREAKING belongs to the lead. An item the reader meets fourth
+    carrying it is a badge on something nobody is reading first.
+
+    Kept on the item rather than cleared, though, because clearing it made the
+    admin override destructive -- one promotion permanently erased a badge the
+    compose pass earned, through an endpoint that refuses to grant one. The
+    renderers read the lead's flag and nothing else's, which is what makes
+    keeping it safe."""
+    from onboarding_emails import build_community_digest_post_email
+
     raw = _with_item(1, urgent=True, urgent_kind="safety")
     payload = contract.mark_lead(
         contract.validate_payload(raw, kind="news"), "https://example.org/a")
     lead, rest = contract.lead_and_rest(payload)
     assert lead["url"] == "https://example.org/a" and lead["urgent"] is False
-    assert all(item["urgent"] is False for item in rest)
+    assert any(item["urgent"] for item in rest), "the flag was destroyed, not just unrendered"
+
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/community",
+        unsubscribe_url="https://example.test/u?t=tok")
+    assert "BREAKING" not in out and "TOP STORY" in out
+
+
+def test_marking_the_lead_twice_lands_in_the_same_place():
+    """The admin override calls this on a payload that has already been marked,
+    so a second pass that shuffled or re-flagged anything would make the same
+    click do different things on the first and second press."""
+    once = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/b")
+    twice = contract.mark_lead(json.loads(json.dumps(once)), "https://example.org/b")
+    assert once == twice
+    assert sum(1 for i in once["items"] if i.get("lead")) == 1
 
 
 def test_the_lead_falls_back_to_the_models_first_item_when_the_join_misses():
@@ -377,22 +401,47 @@ def test_the_lead_falls_back_to_the_models_first_item_when_the_join_misses():
     assert contract.lead_and_rest(payload)[0]["url"] == "https://example.org/a"
 
 
+#: Item fields the gate deliberately does NOT scan, and why. Anything the
+#: contract emits that is not here MUST be in ``_PAYLOAD_VISIBLE_KEYS``.
+_UNSCANNED = {
+    # Masked before every scan: a DOI or PMID is a long digit run and the PHI
+    # rules for MRNs and account numbers fire on it. Structural, not text.
+    "url",
+    # Not model-written text: a boolean, a word from this module's own closed
+    # set of four, and a flag the pipeline sets.
+    "urgent", "urgent_kind", "lead",
+}
+
+
 def test_every_rendered_digest_field_is_scanned_for_phi():
-    """§8.1. ``deck`` is model-written text over somebody else's web page, and
-    a field the card renders but the gate never reads is the one hole worth a
-    test of its own. Stated over the whole contract rather than over ``deck``
-    so the NEXT field added has to land in the tuple too."""
+    """§8.1. A field the card renders but the gate never reads is the one hole
+    worth a test of its own.
+
+    Derived from what the CONTRACT emits rather than from a list written here.
+    The first version of this test walked a hardcoded tuple of five field names
+    and called itself a guard against a sixth being added -- which it was not,
+    because a sixth field would simply not have been in the tuple it walked.
+    """
     from community import system_posts
 
     payload = contract.mark_lead(
         contract.validate_payload(_payload(), kind="news"), "https://example.org/a")
     scanned = system_posts._payload_text(payload)
-    lead, rest = contract.lead_and_rest(payload)
-    for field in ("headline", "deck", "why_it_matters", "source", "section"):
-        assert lead[field] in scanned, f"{field} never reaches the PHI gate"
-    for item in rest:
-        for field in ("headline", "why_it_matters", "source", "section"):
-            assert item[field] in scanned
+
+    emitted = set()
+    for item in payload["items"]:
+        emitted |= set(item)
+    unaccounted = emitted - _UNSCANNED - set(system_posts._PAYLOAD_VISIBLE_KEYS)
+    assert not unaccounted, (
+        f"the contract emits {sorted(unaccounted)}, which the PHI gate never "
+        "reads. Add each to system_posts._PAYLOAD_VISIBLE_KEYS, or to "
+        "_UNSCANNED here with the reason it carries no model-written text.")
+
+    # And the keys that ARE scanned actually reach the scanned string.
+    for item in payload["items"]:
+        for field in system_posts._PAYLOAD_VISIBLE_KEYS:
+            if item.get(field):
+                assert item[field] in scanned, f"{field} never reaches the PHI gate"
     assert payload["title"] in scanned
 
 

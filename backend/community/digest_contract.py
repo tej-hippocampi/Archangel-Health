@@ -315,11 +315,11 @@ def _validate_item(idx: int, raw: Any) -> Dict[str, Any]:
         raise DigestContractError(
             f"{where} source {source!r} is a URL host, not a publisher name")
 
-    # The deck. Every item is asked for one and only the lead keeps one
-    # (``mark_lead`` clears the rest), because the compose pass does not know
-    # which item will lead — the lead is chosen from the SELECT pass's relevance
-    # after this returns. Asking for one deck and guessing which item needs it
-    # would mean a second model call or a lead with nothing under its headline.
+    # The deck. Every item is asked for one and only the lead's is DRAWN,
+    # because the compose pass does not know which item will lead — the lead is
+    # chosen from the SELECT pass's relevance after this returns. Asking for one
+    # deck and guessing which item needs it would mean a second model call or a
+    # lead with nothing under its headline.
     deck = clean_text(raw.get("deck"))
     if deck:
         if _word_count(deck) > DECK_MAX_WORDS:
@@ -413,15 +413,21 @@ def mark_lead(payload: Dict[str, Any], lead_url: Optional[str] = None) -> Dict[s
       pass is allowed to drop items — the first item the model returned.
     * The lead moves to index 0 and carries ``lead: True``. Nothing else in the
       product has to re-derive it.
-    * ``urgent`` is cleared off everything that is not the lead. BREAKING on
-      item four is a badge on something nobody is reading first, and it is a
-      claim about TODAY'S top slot rather than a property of the story.
-    * ``deck`` is KEPT on every item. Only the lead's is rendered — that is the
-      renderers' job and ``lead_and_rest`` is how they agree on it — but the
-      decks themselves are content the compose pass wrote and the PHI gate
-      scanned. Clearing them made the admin override destructive: promoting a
-      story on Tuesday afternoon produced a 26px headline with nothing under
-      it, because the deck it needed had been deleted at 6am.
+    * ``deck`` and ``urgent`` are KEPT on every item, and only the LEAD'S are
+      rendered. That is the renderers' job, and ``lead_and_rest`` is how they
+      agree on which item that is.
+
+      Both used to be cleared here, and both clearings were the same bug. A
+      story promoted on Tuesday afternoon came up as a 26px headline with
+      nothing under it, because the deck it needed was deleted at 6am; and
+      promoting a different story destroyed a BREAKING badge the compose pass
+      had earned on one of the four same-day events, with no way back through
+      an endpoint that refuses to grant one. An override whose cost is
+      irreversible is an override nobody dares press.
+
+      So neither is positional data. A compact item carrying ``urgent: true``
+      draws no badge — ``digestItemEl`` and the email's compact row never read
+      the field — and gets its badge back if it is promoted again.
 
     Passing no ``lead_url`` is the honest fallback, not a shortcut: the select
     pass has already sorted by relevance, so the first item is the best guess
@@ -440,8 +446,6 @@ def mark_lead(payload: Dict[str, Any], lead_url: Optional[str] = None) -> Dict[s
     lead["lead"] = True
     for item in items:
         item["lead"] = False
-        item["urgent"] = False
-        item["urgent_kind"] = None
     payload["items"] = [lead] + items
     return payload
 
@@ -488,18 +492,29 @@ def plain_text_body(payload: Dict[str, Any]) -> str:
 
     Deliberately markdown-free: the whole reason the structure exists is that a
     body carrying ``**`` and ``[title](url)`` leaked into an inbox verbatim.
+
+    THE LEAD GOES FIRST, and the section is a label on each item rather than a
+    heading over a group. Not a formatting preference: this used to group by
+    ``SECTIONS`` order, which meant the top story appeared wherever its section
+    happened to fall, so a digest led by a Regulation story showed a Research
+    story first in every notification snippet. One post, two hierarchies -- the
+    card and the email promoting one story and the inbox preview promoting
+    another -- which is exactly the split the structured payload exists to
+    close.
     """
+    lead, rest = lead_and_rest(payload)
     lines: List[str] = [payload.get("title") or DEFAULT_TITLE]
-    for section, rows in grouped_items(payload):
+    for item in ([lead] if lead else []) + rest:
         lines.append("")
-        lines.append(section)
-        for item in rows:
-            lines.append(item["headline"])
-            # The deck belongs here for the same reason every other visible
-            # string does: this is the one string the PHI gate and the house
-            # style check read, and a field that renders on the card but is
-            # missing from the body is a field neither gate has ever seen.
-            if item.get("deck"):
-                lines.append(item["deck"])
-            lines.append(f"{item['why_it_matters']} ({item['source']}) {item['url']}")
+        if item.get("section"):
+            lines.append(item["section"])
+        lines.append(item["headline"])
+        # Only the LEAD'S deck, because only the lead's is drawn anywhere else,
+        # and a body that carried three decks would not be a view of the card.
+        # Every deck is still scanned by the gates: they read
+        # ``system_posts._payload_text``, which walks the payload's own strings
+        # precisely so that a derivation like this one cannot become the hole.
+        if item is lead and item.get("deck"):
+            lines.append(item["deck"])
+        lines.append(f"{item['why_it_matters']} ({item['source']}) {item['url']}")
     return "\n".join(lines).strip()

@@ -1470,13 +1470,18 @@ def _digest_payload():
 
 
 def _post_digest(cstore):
+    from community import digest_contract
     from community.system_posts import SYSTEM_USER_ID
 
     payload = _digest_payload()
     channel = cstore.get_channel_by_slug("medical-ai-news")
     return cstore.insert_message(
         channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
-        body="Medical AI Digest", kind="digest_news", payload=payload)
+        # The real plain-text rendering, exactly as the pipeline writes it. A
+        # placeholder body here would make the override's body rewrite
+        # untestable, which is how that gap survived the first round.
+        body=digest_contract.plain_text_body(payload),
+        kind="digest_news", payload=payload)
 
 
 def _stored_payload(cstore, message_id):
@@ -1506,11 +1511,71 @@ def test_an_admin_can_promote_a_different_story_without_a_re_run():
     # the deck it needed was deleted at 6am. Only the LEAD'S deck renders, and
     # that is the renderers' job.
     assert items[0]["deck"], "the promoted story lost the deck it was written with"
-    # The badge does not travel with the promotion. Urgency belonged to the
-    # story that earned it, not to the position.
-    assert all(i["urgent"] is False for i in items)
+    # The badge does not TRAVEL: the new lead did not earn one, so it has none.
+    assert items[0]["urgent"] is False
+    # But the demoted story keeps the flag it earned, unrendered, so promoting
+    # it back restores it. An override whose cost is irreversible is an
+    # override nobody dares press.
+    demoted = next(i for i in items if i["url"] == "https://example.org/a")
+    assert demoted["urgent"] is True and demoted["lead"] is False
     # And it is on disk, not just in the response.
     assert _stored_payload(cstore, msg["id"])["items"][0]["url"] == "https://example.org/c"
+
+
+def test_promoting_a_story_back_restores_the_badge_it_earned():
+    """A misclick must not permanently destroy a BREAKING badge the compose
+    pass earned on one of four same-day events. Only `Clear breaking` does
+    that, and it says so on the button."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+
+    assert _set_lead(admin, msg["id"], url="https://example.org/c").status_code == 200
+    back = _set_lead(admin, msg["id"], url="https://example.org/a")
+    assert back.status_code == 200, back.text
+    items = back.json()["payload"]["items"]
+    assert items[0]["url"] == "https://example.org/a"
+    assert items[0]["urgent"] is True and items[0]["urgent_kind"] == "regulatory"
+    assert sum(1 for i in items if i.get("lead")) == 1
+
+
+def test_a_promotion_rewrites_the_body_the_inbox_preview_reads():
+    """The body is the plain-text view of the same object. Left behind, one post
+    has the new top story on the card and the old one in the notification
+    snippet -- the split §1.3 exists to close."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    assert cstore.get_message(msg["id"])["body"].index("retinopathy") \
+        < cstore.get_message(msg["id"])["body"].index("kappa")
+
+    assert _set_lead(admin, msg["id"], url="https://example.org/b").status_code == 200
+    body = cstore.get_message(msg["id"])["body"]
+    assert body.index("kappa") < body.index("retinopathy"), body
+
+
+def test_an_override_that_asks_for_nothing_changes_nothing():
+    """An empty body would otherwise rewrite the row, broadcast an update and
+    write an audit line for a request that asked for nothing."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    r = client.post(f"{BASE}/admin/messages/{msg['id']}/digest-lead",
+                    json={}, headers=headers_for(admin))
+    assert r.status_code == 400
+
+
+def test_a_payload_with_a_junk_item_is_refused_rather_than_crashing():
+    """`mark_lead` assigns onto every item to set `lead`, so one non-object in
+    the list turns an admin click into a 500."""
+    from community.system_posts import SYSTEM_USER_ID
+
+    _astore, cstore, _doc, admin = setup_world()
+    channel = cstore.get_channel_by_slug("medical-ai-news")
+    broken = cstore.insert_message(
+        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
+        body="Medical AI Digest", kind="digest_news",
+        payload={"title": "Medical AI Digest",
+                 "items": [{"url": "https://example.org/a", "headline": "A"}, "junk"]})
+    r = _set_lead(admin, broken["id"], url="https://example.org/a")
+    assert r.status_code == 400, r.text
 
 
 def test_clearing_breaking_leaves_everything_else_alone():
