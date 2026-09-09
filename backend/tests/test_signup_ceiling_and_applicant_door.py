@@ -168,7 +168,12 @@ def test_the_submitted_email_carries_a_door_back_in(monkeypatch, client, sent):
     body = next(m["html"] for m in sent
                 if m["to"] == email and "application" in m["subject"].lower())
     assert "https://portal.example.test/asclepius" in body
-    assert "practice case" in body.lower()
+    # The door has to open on the thing we actually read. This asserted the
+    # practice case until §3.2 step 4: the mail named one case as decisive while
+    # every screen named the other, and the physician did neither properly.
+    assert "practice case" not in body.lower()
+    assert "examination" in body.lower()
+    assert "#examination" in body, "the link must focus the card, not the page"
     # The reassurance is the reason the mail exists; the link is not allowed to
     # push it out.
     assert "24&ndash;48 hours" in body or "24–48 hours" in body

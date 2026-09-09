@@ -162,15 +162,29 @@ function orderFor(mode: Mode, product: Product | "", kind: SignupKind = "physici
     // ── Onboarding v2 §2 ───────────────────────────────────────────────────
     // Six screens: identity → verify → CV → review → attestations → submitted.
     //
-    // NO PASSWORD STEP on this path, and that is the load-bearing change. The
-    // account row is created `pending` with no hash; credentials are minted and
-    // mailed when a human approves the application (§5). Asking a physician to
-    // invent a password for an account that may never open — and that they will
-    // not touch for a day or two even if it does — was a screen that cost
-    // completions and bought nothing.
+    // THE PASSWORD IS TAKEN ON SCREEN 1, not on a screen of its own. That is
+    // why there is no "password" entry in the list below and why its absence
+    // is not evidence there isn't one: `Step1NameEmail` renders the pair
+    // (`needsPassword` → `pwOk` gates Continue) and `/step1-identity` hashes it
+    // onto the invite row, which `/asclepius/finish` consumes after the OTP.
     //
-    // The member and advisor/referrer paths above are UNTOUCHED: they still
-    // choose a password, because their accounts open immediately.
+    // This comment used to claim the opposite: that the path took no password
+    // at all and that credentials were minted only on approval. True for the
+    // window v2 §2 shipped in, false afterwards — and it sat next to the
+    // sign-in page's accurate account of the same fact, so the next reader had
+    // two contradictory notes and no way to tell which one had won. The stale
+    // wording is paraphrased rather than quoted here on purpose: a grep is what
+    // catches it coming back, and a quotation would blind that grep.
+    //
+    // What approval still mints is a password for accounts that have NONE
+    // (`_needs_credentials` checks NO_PASSWORD_HASH); it never overwrites one
+    // a physician chose. Accounts created during the passwordless window are
+    // the only ones in that state, and their recovery path is
+    // `/auth/signin-link` plus the ordinary forgot-password mint — legacy
+    // recovery only, not part of any current signup.
+    //
+    // The member and advisor/referrer paths above are UNTOUCHED: they choose a
+    // password too, because their accounts open immediately.
     return ["identity", "verify", "cv", "review", "attestations", "submitted"];
   }
   return [...head, "org", "team", "signin", "success"];

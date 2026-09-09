@@ -3972,10 +3972,14 @@ export function StepApplicationSubmitted({ data, onSignIn }: {
           landing app has no router, so it was a full page navigation: Back
           remounted the wizard, which resumed from the server and put the
           physician on the verify step. Removing the link removes the trip. */}
+      {/* WHAT THIS LINE PROMISED DID NOT EXIST (§3.2 step 4). It said we had
+          emailed a link back in; no sign-in link is minted at finish, so the
+          only door is the password taken on screen 1. Naming that password is
+          both true and more useful — it is the thing they need to remember. */}
       <p style={{ fontSize: 13, lineHeight: 1.6, color: "var(--ink-faint)",
                   textAlign: "center", margin: "14px 0 0" }}>
-        You can stop part way. Your answers save, and we&rsquo;ve emailed you a link
-        back in.
+        You can stop part way. Your answers save, and you can sign in any time
+        with the password you chose.
       </p>
 
       {onSignIn && <AlreadyHaveAnAccount onSignIn={onSignIn} />}
