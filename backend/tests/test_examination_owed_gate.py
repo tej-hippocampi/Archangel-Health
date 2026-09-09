@@ -374,9 +374,14 @@ def test_the_sign_in_forms_forgot_button_has_the_same_guard():
     """It is the door the legacy-applicant hint on that screen points at, so a
     silent lie there strands exactly the people §3 exists for."""
     fn = _code(_extract_fn(_PORTAL_JS, "renderLogin"))
-    start = fn.index("Forgot your password?") if "Forgot your password?" in fn else 0
     assert "api('/auth/password/forgot'" in fn
-    assert "/auth/password/forgot', {\n            method: 'POST',\n            headers:" not in fn
+    # The SAME strong assertion the card's test uses. The previous version
+    # matched the old formatting byte for byte, so a reintroduced hand-rolled
+    # fetch with any other indentation walked straight past it — a negative
+    # assertion pinned to whitespace guards nothing.
+    assert "fetch(" not in fn, (
+        "a bare fetch here cannot tell success from a 429 — that is the bug"
+    )
 
 
 def test_the_sign_in_forms_forgot_notice_is_actually_visible():
@@ -388,6 +393,16 @@ def test_the_sign_in_forms_forgot_notice_is_actually_visible():
     handler = fn[max(0, i - 2000):i]
     assert "errBox.removeAttribute('hidden')" in handler, (
         "the forgot handler must unhide errBox or its message is never seen"
+    )
+    # REACHABILITY, not presence. The unhide has to precede the empty-address
+    # early return, or the one exit a confused applicant is most likely to hit
+    # is the one that shows nothing. Grepping for the call alone passed while
+    # that exit was silent.
+    unhide = handler.index("errBox.removeAttribute('hidden')")
+    early = handler.index("if (!addr)")
+    assert unhide < early, (
+        "the unhide must come before the empty-address return, or that exit "
+        "renders into a hidden div"
     )
 
 

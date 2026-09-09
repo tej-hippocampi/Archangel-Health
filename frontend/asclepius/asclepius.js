@@ -2238,7 +2238,15 @@
       class: 'asc-linkish',
       onClick: async () => {
         const addr = (emailInput && emailInput.value || '').trim();
-        if (!addr) { errBox.classList.add('asc-login-notice'); errBox.textContent = 'Enter your email above first.'; return; }
+        // UNHIDE FIRST, so every exit below is visible. errBox is created with
+        // `hidden: !errorMsg`, so on any renderLogin() with no message — the
+        // boot path, and both gate cards' "Sign in with a different account" —
+        // it starts hidden. Doing this at the end missed the early return, so
+        // an applicant who clicked with an empty address saw nothing at all and
+        // read the control as broken. One line, before any branch.
+        errBox.classList.add('asc-login-notice');
+        errBox.removeAttribute('hidden');
+        if (!addr) { errBox.textContent = 'Enter your email above first.'; return; }
         try {
           // Same reason as renderExaminationOwed's door: `fetch` does not reject
           // on an HTTP error, so the rate limiter's 429 used to render as "we've
@@ -2247,15 +2255,12 @@
           const data = await api('/auth/password/forgot', {
             method: 'POST', body: { email: addr }, noAuthHandler: true,
           });
-          errBox.classList.add('asc-login-notice');
           errBox.textContent = (data && data.message)
             || "If that email has an Archangel Health account, we've sent a reset link.";
         } catch (e) {
-          errBox.classList.add('asc-login-notice');
           errBox.textContent = (e && e.message)
             || 'Could not reach the server. Try again in a moment.';
         }
-        errBox.removeAttribute('hidden');
       },
     }, 'Forgot your password?');
 

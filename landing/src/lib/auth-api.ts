@@ -334,12 +334,6 @@ export type AsclepiusLoginResponse = {
   user: Record<string, unknown>;
 };
 
-/**
- * Sign in against Asclepius's own auth plane (own secret, own user table —
- * completely separate from the landing/tenant login above). Used by the
- * "Doctor" step so a physician who completed the Asclepius onboarding wizard
- * can come back to the landing page and sign into their real workspace.
- */
 /** An Asclepius sign-in failure that carries WHY, not just a sentence. */
 export interface AsclepiusLoginError extends Error {
   status?: number;
@@ -357,6 +351,12 @@ export function isAsclepiusGateError(err: unknown): err is AsclepiusLoginError {
   );
 }
 
+/**
+ * Sign in against Asclepius's own auth plane (own secret, own user table —
+ * completely separate from the landing/tenant login above). Used by the
+ * "Doctor" step so a physician who completed the Asclepius onboarding wizard
+ * can come back to the landing page and sign into their real workspace.
+ */
 export async function asclepiusLogin(email: string, password: string): Promise<AsclepiusLoginResponse> {
   let res: Response;
   try {

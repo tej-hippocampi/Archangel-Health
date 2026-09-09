@@ -411,8 +411,10 @@ def _queue_row(store: Any, user: Dict[str, Any],
         # finished the wizard during the window when it minted no credential,
         # so they cannot sign in to reach their own examination. The admin
         # control that mails them a password-setup link renders off THIS, not
-        # off a client-side guess about what an empty password field means.
-        "needs_password_setup": _needs_credentials(user),
+        # off a client-side guess about what an empty password field means —
+        # and off the SAME predicate the endpoint enforces, so the button is
+        # never offered on a row that would answer 400.
+        "needs_password_setup": _password_setup_refusal(user) is None,
         "has_cv": bool(user.get("cv_asset_sha")),
         "cv_ok": bool(cv_parsed.get("ok")),
         "npi": _npi_summary(user),
@@ -687,6 +689,32 @@ class ApproveBody(BaseModel):
 
 class RejectBody(BaseModel):
     note: Optional[str] = None
+
+
+def _password_setup_refusal(user: Dict[str, Any]) -> Optional[str]:
+    """Why this row may NOT be sent a password-setup link, or None if it may.
+
+    ONE predicate for the flag and the endpoint (Onboarding Master PRD §3.2
+    step 6). They were written separately and drifted immediately: the queue
+    rendered the button off ``_needs_credentials`` alone while the endpoint had
+    grown three more guards, so the console offered a control that answered 400.
+    A button whose enabled state disagrees with what pressing it does is how an
+    admin learns to distrust the console.
+
+    Returns the refusal SENTENCE so the endpoint can raise it verbatim and the
+    flag is simply "is this None".
+    """
+    if (user.get("role") or "") != "evaluator":
+        return "This control is for physician applicants only."
+    if (user.get("verification_status") or "pending") == "approved":
+        return ("This physician is already approved. Approval mints their "
+                "credentials; it does not need this.")
+    if not _needs_credentials(user):
+        return ("This physician already has a password. They can use "
+                "Forgot your password on the sign-in page.")
+    if not user.get("active"):
+        return "This account is not active."
+    return None
 
 
 def _needs_credentials(user: Dict[str, Any]) -> bool:
@@ -1116,27 +1144,11 @@ async def send_password_setup_link(
     # nothing enforces it. If some future path ever creates a passwordless
     # non-applicant, an admin misclick should not mail it a credential link.
     #
-    # So state the rule the PRD actually wrote: a NO_PASSWORD_HASH *applicant*.
-    if (user.get("role") or "") != "evaluator":
-        raise HTTPException(
-            status_code=400,
-            detail="This control is for physician applicants only.")
-    if (user.get("verification_status") or "pending") == "approved":
-        raise HTTPException(
-            status_code=400,
-            detail="This physician is already approved. Approval mints their "
-                   "credentials; it does not need this.")
-    if not _needs_credentials(user):
-        raise HTTPException(
-            status_code=400,
-            detail="This physician already has a password. They can use "
-                   "Forgot your password on the sign-in page.")
-    if not user.get("active"):
-        # The forgot endpoint skips an inactive account silently (it answers
-        # uniformly so as not to be an enumeration oracle). An ADMIN is not
-        # who that uniformity protects against, and telling them "sent" about a
-        # mail that was never queued is how the next dead end gets built.
-        raise HTTPException(status_code=400, detail="This account is not active.")
+    # Shared with the queue flag so the console cannot offer a button that this
+    # refuses. Every guard runs BEFORE the mint, so no refusal leaves a token.
+    refusal = _password_setup_refusal(user)
+    if refusal:
+        raise HTTPException(status_code=400, detail=refusal)
 
     raw = mint_password_reset(store, user, actor=admin["email"])
     if not raw:

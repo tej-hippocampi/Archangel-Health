@@ -115,33 +115,35 @@ def test_physician_order_is_cv_review_and_has_no_password_step():
     contract — it drives the stepper, Back, and every resume target.
     """
     src = _WIZARD_TSX.read_text(encoding="utf-8")
-    order_line = '["identity", "verify", "cv", "review", "attestations", "submitted"]'
-    assert order_line in src, "the physician+asclepius order is not the v2 order"
+
+    # PARSE THE ARRAY OUT OF THE SOURCE. Three versions of this test have now
+    # asserted nothing, each in a different way, so it is worth naming the
+    # pattern: the first grepped the branch's prose (which necessarily talks
+    # about passwords, since it explains where the password IS taken); the
+    # second stripped comments and was left with `if (product === "asclepius")
+    # {` plus whitespace; the third parsed a Python string literal defined in
+    # this file and compared it to itself. All three read as live cover.
+    #
+    # The only honest version reads the TSX. Find the asclepius branch, take the
+    # `return [...]` inside it, and parse THAT.
+    branch = src.index('if (product === "asclepius") {')
+    ret = src.index("return [", branch)
+    # `return [` must belong to this branch, not to something after it — the
+    # branch is short and closes right after, so anything further than a few
+    # hundred characters means the branch stopped returning an array literal.
+    assert ret - branch < 2000, "the asclepius branch no longer returns an array"
+    literal = src[ret + len("return "):src.index("]", ret) + 1]
+    steps = [s.strip().strip('"').strip("'") for s in
+             literal.strip("[]").split(",") if s.strip()]
+
     # The password screen must not be reachable on this path. It still exists
     # for member mode and the short signup, so the check is that the physician
     # array does not contain it, not that the step is gone.
-    # ASSERT ON THE ARRAY, which is the contract, rather than on the source
-    # slice above it. Two earlier versions of this test grepped that slice: the
-    # first read the prose (which necessarily discusses passwords, since it
-    # explains where the password IS taken), and the second stripped comments
-    # and was left with `if (product === "asclepius") {` plus whitespace — an
-    # assertion that could not fail for any possible content of the branch.
-    #
-    # The array literal is what drives the stepper, Back, and every resume
-    # target, so parsing it is both stricter and honest about what it covers.
-    steps = [s.strip().strip('"') for s in
-             order_line.strip("[]").split(",")]
     assert "password" not in steps, (
         f"the physician path must not carry a password STEP; got {steps}"
     )
     assert steps == ["identity", "verify", "cv", "review", "attestations",
-                     "submitted"]
-    # And the asclepius branch is what returns it — otherwise the array could
-    # be some other path's and this would prove nothing about the physician.
-    branch_start = src.index('if (product === "asclepius") {')
-    assert branch_start < src.index(order_line), (
-        "the v2 order must be the asclepius branch's return value"
-    )
+                     "submitted"], f"the v2 order changed: {steps}"
 
 
 def test_member_and_short_signup_orders_are_unchanged():

@@ -27,7 +27,8 @@ Onboarding Master Phases 0 and 2 — read it there rather than here.
 |---|---|
 | Screen 1 captures a **required** password for physicians | `landing/src/app/components/onboarding/steps.tsx:617` `needsPassword` gates Continue; `routers/onboarding.py:783` `hash_team_password` stores only the hash |
 | Wizard path identity → verify → cv → review → attestations → submitted | `OnboardingWizard.tsx:139-176` |
-| Applicant home: two boxes, video + guide rows, exam card, `mailto:tejpatel@berkeley.edu`, no interstitials | `asclepius.js:3206` `renderApplicantHome`. The three interstitial renderers are deleted, and `founderStripEl` (`asclepius.js:3156`) has no callers |
+| Applicant home: two boxes, video + guide rows, exam card, `mailto:tejpatel@berkeley.edu`, no interstitials | `asclepius.js:3211` `renderApplicantHome`; the three interstitial renderers are deleted |
+| The founders' strip is gone from the pre-approval path | `asclepius.js:3161` `founderStripEl` survives with no callers |
 | Stage machine is exam-only | `credentialingStage()` returns `exam_not_started / in_progress / submitted` |
 | `#examination` deep link opens the exam card | `asclepius.js:3152-3157` |
 | Demo video ticket allowed for provisional | `asclepius_media.py:167` uses `get_current_account` |
@@ -42,7 +43,7 @@ Accounts created during the window when the wizard had no password step (Tej's t
 account is one) carry `NO_PASSWORD_HASH`. `POST /auth/login` (`routers/asclepius.py:376-383`)
 answers them **403 "Your application is in review, we'll email you within 24–48
 hours"** whether or not the examination is done, and `renderAwaitingVerification`
-(`asclepius.js:2374`) offers only **Check again** (re-boots into the same 403) and
+(`asclepius.js:2382`) offers only **Check again** (re-boots into the same 403) and
 **Sign in with a different account**. The sign-in page's own comment (`:2263-2267`)
 says the intended repair is *"Forgot your password?"* — which mints a reset for any
 active user and clears `must_change_password` — but the 403 fires before the applicant
@@ -58,7 +59,7 @@ reads **"Open my practice case"** (`:1372`, and again at `:1192`) when the requi
 step is the examination.
 
 **F3 — Contradictory source comments will mislead the next agent.** `orderFor`
-(`OnboardingWizard.tsx:161-181`) says *"NO PASSWORD STEP on this path… credentials are
+(`OnboardingWizard.tsx:139`) says *"NO PASSWORD STEP on this path… credentials are
 minted and mailed when a human approves"*; the sign-in page (`asclepius.js:2263-2265`)
 says *"The wizard now takes a password on screen 1."* The second is true.
 
@@ -91,7 +92,7 @@ says *"The wizard now takes a password on screen 1."* The second is true.
    *"Sign in with the email and password you chose. If you forget it, use Forgot your
    password on the sign-in page."*; screen 1 footer becomes *"Your answers save. Sign
    in any time with the password you chose."* Delete the "link back in" sentence.
-5. **Correct the stale comments** in `orderFor` (`OnboardingWizard.tsx:161-181`) to
+5. **Correct the stale comments** in `orderFor` (`OnboardingWizard.tsx:139`) to
    state that the password is captured on screen 1 (`Step1NameEmail`) and that
    `/auth/signin-link` is a recovery path for legacy passwordless accounts only.
 6. **Admin resend.** On the verification-queue row for any `NO_PASSWORD_HASH`
@@ -137,7 +138,7 @@ plausible-looking change here would break quietly.
    disclosure against stranding the applicant permanently; it is a design
    decision, not an absence.
 2. **A password is never overwritten, only ever set.** `_needs_credentials`
-   (`asclepius_verify.py:692`) gates every credential mint on
+   (`asclepius_verify.py:720`) gates every credential mint on
    `NO_PASSWORD_HASH`, and the admin control in step 6 refuses any row that
    fails it. A "reset" for a legacy applicant SETS a first password; for
    everybody else it replaces one they asked to replace.
@@ -170,27 +171,31 @@ Five code commits covering the seven execution steps, plus this PRD and a
 follow-up commit closing the fresh-context audit, on
 `claude/charming-hypatia-r27gj9`.
 
-One landing site per row, so each citation carries its own symbol and
-`prd_audit.py` can actually verify it.
+SYMBOL AND CITATION IN THE SAME CELL. The previous version of this table put
+them in separate columns, which `prd_audit.py` does not pair — it reported every
+row `NO SYMBOL`, meaning *unverified*, and three `asclepius.js` anchors drifted
+underneath that green exit code. A citation the tool cannot check is a citation
+nobody is checking.
 
-| Step | Symbol | Where |
-|---|---|---|
-| 1 | `login` — the split branch | `routers/asclepius.py:358` |
-| 1 | `exam_state` — the new reader | `asclepius/exam_case.py:207` |
-| 2 | `renderExaminationOwed` — the card | `asclepius.js:2467` |
-| 2 | `renderGated` — routes to it | `asclepius.js:2544` |
-| 2 | `verificationGate` — accepts the header | `asclepius.js:1593` |
-| 2 | `renderLogin` — the path that actually mattered | `asclepius.js:2151` |
-| 3 | `enterApp` — no new code; the ordering in it is what makes step 3 true | `asclepius.js:1804` |
-| 4 | `build_application_submitted_email` | `onboarding_emails.py:1331` |
-| 4 | `build_practice_case_nudge_email` | `onboarding_emails.py:1192` |
-| 4 | `_exam_url` — the new link helper | `onboarding_emails.py:173` |
-| 4 | `StepApplicationSubmitted` — the screen | `landing/src/app/components/onboarding/steps.tsx:3875` |
-| 5 | `orderFor` — the corrected comment | `landing/src/app/components/OnboardingWizard.tsx:161` |
-| 6 | `send_password_setup_link` — the endpoint | `routers/asclepius_verify.py:1079` |
-| 6 | `mint_password_reset` — the shared mint it calls | `routers/asclepius.py:463` |
-| 6 | `sendPasswordSetupLink` — the console control | `onboarding.js:191` |
-| 7 | `step1_identity` — the wire guard | `routers/onboarding.py:729` |
+| Step | Where it landed |
+|---|---|
+| 1 | `routers/asclepius.py:358` `login` — the split branch |
+| 1 | `asclepius/exam_case.py:207` `exam_state` — the new reader |
+| 2 | `asclepius.js:2475` `renderExaminationOwed` — the card |
+| 2 | `asclepius.js:2571` `renderGated` — routes to it |
+| 2 | `asclepius.js:1593` `verificationGate` — accepts the header |
+| 2 | `asclepius.js:2151` `renderLogin` — the path that actually mattered |
+| 2 | `asclepius.js:2382` `renderAwaitingVerification` — unchanged, keeps Check again |
+| 3 | `asclepius.js:1804` `enterApp` — no new code; the ordering in it is what makes step 3 true |
+| 4 | `onboarding_emails.py:1331` `build_application_submitted_email` |
+| 4 | `onboarding_emails.py:1192` `build_practice_case_nudge_email` |
+| 4 | `onboarding_emails.py:173` `_exam_url` — the new link helper |
+| 4 | `landing/src/app/components/onboarding/steps.tsx:3875` `StepApplicationSubmitted` |
+| 5 | `landing/src/app/components/OnboardingWizard.tsx:139` `orderFor` — its comment corrected |
+| 6 | `routers/asclepius_verify.py:1107` `send_password_setup_link` — the endpoint |
+| 6 | `routers/asclepius.py:463` `mint_password_reset` — the shared mint it calls |
+| 6 | `onboarding.js:191` `sendPasswordSetupLink` — the console control |
+| 7 | `routers/onboarding.py:729` `step1_identity` — the wire guard |
 
 **Two things the build discovered that the PRD did not predict.**
 

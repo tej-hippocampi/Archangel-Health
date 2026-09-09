@@ -246,3 +246,67 @@ def test_it_refuses_an_inactive_account_rather_than_claiming_it_sent(client):
     r = client.post(_url(applicant["id"]), json={}, headers=headers_for(admin))
     assert r.status_code == 400, r.text
     assert "not active" in r.json()["detail"].lower()
+
+
+# ─── The flag and the button answer the same question ────────────────────────
+
+@pytest.mark.parametrize("mutate,expected", [
+    (lambda s, u: None, True),
+    (lambda s, u: s.set_verification_status(u["id"], "approved"), False),
+])
+def test_the_queue_flag_agrees_with_what_the_endpoint_will_do(
+        client, monkeypatch, mutate, expected):
+    """A button whose enabled state disagrees with what pressing it does is how
+    an admin learns to distrust the console.
+
+    The flag and the endpoint were written separately and drifted immediately —
+    the queue rendered off `_needs_credentials` alone while the endpoint grew
+    three more guards. Asserted as a round trip rather than as two reads of the
+    same constant: the flag says yes exactly when the POST succeeds.
+    """
+    from routers import asclepius as asc_router
+    monkeypatch.setattr(asc_router, "_mail_password_reset", lambda *a, **k: None)
+
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    applicant = _legacy_applicant(store)
+    mutate(store, applicant)
+
+    dossier = client.get(f"/api/asclepius/verify/queue/{applicant['id']}",
+                         headers=headers_for(admin)).json()
+    posted = client.post(_url(applicant["id"]), json={},
+                         headers=headers_for(admin)).status_code == 200
+
+    assert dossier["needs_password_setup"] is expected
+    assert posted is expected, (
+        "the console offered a control the endpoint refuses (or vice versa)"
+    )
+
+
+def test_a_refused_role_is_also_not_offered_the_button(client):
+    """The role guard has to reach the flag too, or the queue advertises it."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    odd = store.provision_user(
+        email=f"x_{uuid.uuid4().hex[:8]}@example.org",
+        password_hash=asc_store_mod.NO_PASSWORD_HASH,
+        role="buyer", full_name="Not An Applicant",
+        credentials={}, attestations={},
+    )
+    dossier = client.get(f"/api/asclepius/verify/queue/{odd['id']}",
+                         headers=headers_for(admin)).json()
+    assert dossier["needs_password_setup"] is False
+
+
+def test_no_refusal_path_mints_a_token(client):
+    """Symmetry the earlier inactive test was missing: every guard runs before
+    the mint, so a refusal must never leave a live reset behind."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    applicant = _legacy_applicant(store)
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (applicant["id"],))
+
+    r = client.post(_url(applicant["id"]), json={}, headers=headers_for(admin))
+    assert r.status_code == 400, r.text
+    assert store.count_live_password_resets(applicant["id"]) == 0
