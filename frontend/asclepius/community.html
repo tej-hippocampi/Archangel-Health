@@ -10,7 +10,14 @@
   <link rel="stylesheet" href="/static/asclepius/_base.css" />
   <link rel="stylesheet" href="/static/asclepius/community.css" />
 </head>
-<body class="cm-body">
+<!--
+  data-founder-calendly is the ONE value the community page needs from the
+  portal bundle (Digest Design PRD §8.3). asclepius.js owns FOUNDER_CALENDLY and
+  this page does not load asclepius.js, so the link arrives through the shell
+  rather than by importing a second bundle for one string or by hardcoding a
+  second copy that will be right until the first time it changes.
+-->
+<body class="cm-body" data-founder-calendly="https://calendly.com/aryaabhatia-berkeley/new-meeting">
   <main id="cmRoot" class="cm-root" aria-live="polite">
     <div class="cm-loading">
       <div class="loading-spinner" aria-hidden="true"></div>
