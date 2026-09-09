@@ -688,12 +688,13 @@ def recover_interrupted_uploads(store: Any) -> int:
                     pass
                 handled += 1
                 continue
-            removed = store.delete_unpromoted_ingest_cases(uid)
+            specialty_override = store.assigned_specialty_for_upload(uid)
+            removed = store.supersede_ingest_cases_for_upload(uid)
             store.log_event(entity_type="ingest_upload", entity_id=uid,
                             event_type="upload_recovery_requeued",
                             payload={"prior_status": upload.get("status"),
                                      "cleared_cases": removed})
-            process_upload(store, uid)
+            process_upload(store, uid, specialty_override=specialty_override)
             handled += 1
         except Exception as exc:  # pragma: no cover - defensive per-upload
             log.warning("ingest recovery: upload %s failed to reprocess: %s", uid, exc)
@@ -1797,7 +1798,10 @@ def opaque_patient_key(raw_key: str) -> str:
 
 
 # ─── The orchestration (PRD §3) ───────────────────────────────────────────────
-def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
+INGEST_PIPELINE_VERSION = 5
+
+
+def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[str] = None) -> Dict[str, Any]:
     """Run the full pipeline for a received upload. Never raises — every outcome
     (ingested / quarantined / rejected) lands on the upload + case rows with
     audit events. Returns a summary dict."""
@@ -1903,7 +1907,7 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     # is the ClinicalCase default and claims nothing; the admin treats it as
     # "not yet determined" and prompts an operator to set the real value before
     # promotion.
-    specialty = (manifest.get("specialty")
+    specialty = (specialty_override or manifest.get("specialty")
                  or (store.get_upload_link(upload["link_id"]) or {}).get("specialty")
                  or "general")
 
@@ -1992,7 +1996,8 @@ def process_upload(store: Any, upload_id: str) -> Dict[str, Any]:
     ingested, quarantined, needs_review = 0, 0, 0
     for pk, parts in per_patient.items():
         merged = _merge_fragments(parts)
-        report: Dict[str, Any] = {"patient_key": opaque_patient_key(pk)}
+        report: Dict[str, Any] = {"patient_key": opaque_patient_key(pk),
+                                  "pipeline_version": INGEST_PIPELINE_VERSION}
         if unify_report:
             report["patient_key_unification"] = unify_report
         adapter_warnings = list(merged.get("_adapter_warnings") or [])

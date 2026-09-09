@@ -3363,6 +3363,24 @@
     }
     const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : s);
 
+    function reingestControl(u) {
+      const c = u.content || {};
+      if (!c.reingest_available) return null;
+      const blocked = !!(u.case_counts || {}).promoted;
+      const button = h('button', { class: 'asc-btn-link', type: 'button', disabled: blocked,
+        title: blocked ? 'This upload already has tasks; retry is unavailable.' : null }, 'Re-ingest');
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          await api('/ingestion/uploads/' + encodeURIComponent(u.upload_id) + '/retry', { method: 'POST' });
+          load();
+        } catch (e) { button.disabled = false; toast(errText(e, 'Could not re-ingest.'), 'error'); }
+      });
+      return h('div', { class: 'asc-stage-counts' },
+        'Ingested with pipeline ' + (c.pipeline_versions || ['unknown']).join(', ')
+        + ' · current v' + c.current_pipeline_version + ' · ', button);
+    }
+
     function headerLines(u) {
       const bits = [
         u.partner_label || u.partner_id || 'Unknown sender',
@@ -3381,6 +3399,7 @@
         h('div', { class: 'asc-stage-head' }, bits.join(' · '), ' ', integrity,
           u.created_at ? h('span', { class: 'asc-dim' }, ' · ' + fmtDate(u.created_at)) : null),
         h('div', { class: 'asc-stage-desc' }, specialtyChip(u), ' · ', chartFacts(u)),
+        reingestControl(u),
         h('div', { class: 'asc-stage-counts' },
           u.description
             ? h('span', {}, '“' + u.description + '”')

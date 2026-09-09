@@ -6672,10 +6672,17 @@ def _upload_content_view(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
     The specialty inference is taken from the first ingested case's recorded
     summary — a bundle is one patient after unification, so "first" is "the"
     chart in every case this screen was built for."""
+    cases = [c for c in cases if c.get("status") != "superseded"]
     out: Dict[str, Any] = {"charts": len(cases), "notes": 0, "lab_panels": 0,
                            "studies": 0, "encounters": 0, "decision_points": 0,
                            "specialty_inferred": None, "specialty_confidence": None,
                            "specialty_clears_floor": None, "specialty_floor": None}
+    versions = sorted({str((c.get("report") or {}).get("pipeline_version") or "unknown") for c in cases})
+    out["pipeline_versions"] = versions
+    out["current_pipeline_version"] = asc_ingestion.INGEST_PIPELINE_VERSION
+    out["reingest_available"] = bool(cases) and any(
+        (c.get("report") or {}).get("pipeline_version") != asc_ingestion.INGEST_PIPELINE_VERSION
+        or not (c.get("report") or {}).get("content_summary") for c in cases)
     for c in cases:
         summary = ((c.get("report") or {}).get("content_summary")) or {}
         body = c.get("case") or {}
@@ -6786,7 +6793,8 @@ async def list_ingestion_uploads(
             u["size_bytes"] = 0
         # How many ingested cases are ready to promote from THIS upload file —
         # drives the upload-scoped promote UI.
-        cases = store.list_ingest_cases(upload_id=u["upload_id"])
+        cases = [c for c in store.list_ingest_cases(upload_id=u["upload_id"])
+                 if c.get("status") != "superseded"]
         u["ingested_case_count"] = sum(1 for c in cases if c.get("status") == "ingested")
         u["case_count"] = len(cases)
         # Whether promotion is even POSSIBLE for this upload, on the same row that
@@ -7083,11 +7091,16 @@ async def retry_ingestion_upload(
         raise HTTPException(status_code=404, detail="Upload not found")
     if not upload.get("raw_path") or not os.path.exists(upload["raw_path"]):
         raise HTTPException(status_code=410, detail="Raw upload already purged (retention window)")
-    store.update_ingest_upload(upload_id, status="received", reason=None)
+    specialty_override = store.assigned_specialty_for_upload(upload_id)
+    try:
+        superseded = store.begin_ingest_retry(upload_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     store.log_event(entity_type="ingest_upload", entity_id=upload_id,
                     event_type="upload_retry", actor=admin["id"])
-    background.add_task(asc_ingestion.process_upload, store, upload_id)
-    return {"upload_id": upload_id, "status": "received"}
+    background.add_task(asc_ingestion.process_upload, store, upload_id,
+                        specialty_override=specialty_override)
+    return {"upload_id": upload_id, "status": "received", "superseded": superseded}
 
 
 @router.get("/ingestion/quarantine")
