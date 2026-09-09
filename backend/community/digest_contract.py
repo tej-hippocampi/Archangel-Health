@@ -40,20 +40,47 @@ SECTIONS: Tuple[str, ...] = ("Research", "Regulation", "Deployment", "Evals", "O
 #: Lowercased, for tolerant matching of what the model returns.
 _SECTION_BY_LOWER = {s.lower(): s for s in SECTIONS}
 
+#: Bumped from 1 when the compose pass started clearing urgency off non-lead
+#: items (Digest Design PRD §9.6). It is the ONE fact that separates a payload
+#: whose stray badges have been dealt with from one written before that rule
+#: existed, and the admin override needs to tell them apart: in a v2 payload an
+#: `urgent` flag on a non-lead item is a badge that was earned and then demoted
+#: by a promotion, and must survive so promoting it back restores it; in a v1
+#: payload it may be a flag nothing ever earned.
+PAYLOAD_VERSION = 2
+
 MIN_ITEMS = 3
 MAX_ITEMS = 5
-HEADLINE_MAX_WORDS = 12
-WHY_MAX_WORDS = 25
 
-DEFAULT_TITLE = "Medical AI digest"
+#: The word budgets (Digest Design PRD §0.5). Tighter than the numbers this
+#: module shipped with (12 and 25), and tightened deliberately: a headline that
+#: runs to twelve words and a why-it-matters that runs to twenty-five say the
+#: same thing twice, which is exactly what the redesign is removing. The cap is
+#: the LINE, not the target — the compose prompt asks for two words under each
+#: one, because a hard cap with no headroom is a daily outage waiting for the
+#: morning a model lands one word over.
+HEADLINE_MAX_WORDS = 10
+WHY_MAX_WORDS = 14
+#: The lead's one-sentence deck. Every item is written one and only the lead's
+#: is DRAWN -- see ``mark_lead`` for why they are all kept.
+DECK_MAX_WORDS = 25
+
+DEFAULT_TITLE = "Medical AI Digest"
 
 #: Titles per digest kind. Small, closed, and here rather than in the prompt:
 #: the title is product copy, and a model that renames the digest every morning
 #: is a model deciding branding.
 TITLE_BY_KIND = {
-    "news": "Medical AI digest",
+    "news": "Medical AI Digest",
     "papers": "Papers of the week",
 }
+
+#: The four kinds of same-day event that may carry a BREAKING badge (§2.2).
+#: Closed, and checked rather than inferred: "is this urgent" is a judgement the
+#: model makes, and "did the model name one of the four kinds we agreed on" is a
+#: fact this module can verify. Without the second, ``urgent: true`` is a
+#: free-form claim and the badge fires on whatever the model found exciting.
+URGENT_KINDS: Tuple[str, ...] = ("regulatory", "safety", "trial", "release")
 
 #: Hype the post-processor refuses rather than repairs. Cutting the adjective
 #: leaves a sentence that no longer says what the model meant it to say, and
@@ -241,7 +268,7 @@ def _looks_like_a_host(source: str) -> bool:
 
 # ─── Validation (the "fail" half) ────────────────────────────────────────────
 
-def _validate_item(idx: int, raw: Any) -> Dict[str, str]:
+def _validate_item(idx: int, raw: Any) -> Dict[str, Any]:
     where = f"item {idx + 1}"
     if not isinstance(raw, dict):
         raise DigestContractError(f"{where} is not an object")
@@ -298,8 +325,47 @@ def _validate_item(idx: int, raw: Any) -> Dict[str, str]:
         raise DigestContractError(
             f"{where} source {source!r} is a URL host, not a publisher name")
 
+    # The deck. Every item is asked for one and only the lead's is DRAWN,
+    # because the compose pass does not know which item will lead — the lead is
+    # chosen from the SELECT pass's relevance after this returns. Asking for one
+    # deck and guessing which item needs it would mean a second model call or a
+    # lead with nothing under its headline.
+    deck = clean_text(raw.get("deck"))
+    if deck:
+        if _word_count(deck) > DECK_MAX_WORDS:
+            raise DigestContractError(
+                f"{where} deck is {_word_count(deck)} words, "
+                f"the cap is {DECK_MAX_WORDS}")
+        if _has_second_sentence(deck):
+            raise DigestContractError(f"{where} deck is more than one sentence")
+        hype = _has_hype(deck)
+        if hype:
+            raise DigestContractError(f"{where} deck uses hype ({hype!r})")
+        if _has_calendar_date(deck):
+            raise DigestContractError(f"{where} deck carries a calendar date")
+        if not deck.endswith("."):
+            deck += "."
+
+    # BREAKING, and what earns it. ``urgent`` alone is the model asserting
+    # importance; ``urgent_kind`` is the model naming which of the four agreed
+    # events happened, and that is the part this module can check. A claim with
+    # no kind, or a kind outside the four, fails the run rather than posting a
+    # badge nobody agreed to.
+    urgent = bool(raw.get("urgent"))
+    urgent_kind = clean_text(raw.get("urgent_kind")).lower() or None
+    if urgent:
+        if urgent_kind not in URGENT_KINDS:
+            raise DigestContractError(
+                f"{where} claims urgent with kind {urgent_kind!r}, which is not "
+                "one of " + " / ".join(URGENT_KINDS))
+    elif urgent_kind is not None:
+        # A kind on a non-urgent item is the model hedging. Dropped rather than
+        # failed: it is invisible either way, and nothing downstream reads it.
+        urgent_kind = None
+
     return {"headline": headline, "why_it_matters": why, "source": source,
-            "url": url, "section": section}
+            "url": url, "section": section, "deck": deck,
+            "urgent": urgent, "urgent_kind": urgent_kind}
 
 
 def validate_payload(raw: Any, *, kind: str) -> Dict[str, Any]:
@@ -326,7 +392,7 @@ def validate_payload(raw: Any, *, kind: str) -> Dict[str, Any]:
         raise DigestContractError(
             f"{len(items_raw)} items, the cap is {MAX_ITEMS}")
 
-    items: List[Dict[str, str]] = []
+    items: List[Dict[str, Any]] = []
     seen_urls = set()
     for idx, row in enumerate(items_raw):
         item = _validate_item(idx, row)
@@ -338,26 +404,137 @@ def validate_payload(raw: Any, *, kind: str) -> Dict[str, Any]:
         items.append(item)
 
     return {
-        "version": 1,
+        "version": PAYLOAD_VERSION,
         "kind": kind,
         "title": TITLE_BY_KIND.get(kind, DEFAULT_TITLE),
         "items": items,
     }
 
 
-def grouped_items(payload: Dict[str, Any]) -> List[Tuple[str, List[Dict[str, str]]]]:
-    """``[(section, items)]`` in ``SECTIONS`` order, empty sections omitted.
+def mark_lead(payload: Dict[str, Any], lead_url: Optional[str] = None) -> Dict[str, Any]:
+    """Choose the TOP STORY and make every other item a compact one (§2.2).
 
-    One definition, because the web card and the email must group identically —
-    two orderings of the same post is the kind of difference nobody notices
-    until a physician forwards the email back asking which one is right.
+    Mutates and returns ``payload``. Three rules, all here rather than in the
+    renderers, because a card that promotes one item and an email that promotes
+    another is one digest read two ways:
+
+    * The lead is the item at ``lead_url`` (the highest-``relevance`` story the
+      select pass kept) and, when that url is not in the payload — the compose
+      pass is allowed to drop items — the first item the model returned.
+    * The lead moves to index 0 and carries ``lead: True``. Nothing else in the
+      product has to re-derive it.
+    * ``deck`` and ``urgent`` are KEPT on every item, and only the LEAD'S are
+      rendered. That is the renderers' job, and ``lead_and_rest`` is how they
+      agree on which item that is.
+
+      Both used to be cleared here, and both clearings were the same bug. A
+      story promoted on Tuesday afternoon came up as a 26px headline with
+      nothing under it, because the deck it needed was deleted at 6am; and
+      promoting a different story destroyed a BREAKING badge the compose pass
+      had earned on one of the four same-day events, with no way back through
+      an endpoint that refuses to grant one. An override whose cost is
+      irreversible is an override nobody dares press.
+
+      So neither is positional data. A compact item carrying ``urgent: true``
+      draws no badge — ``digestItemEl`` and the email's compact row never read
+      the field — and gets its badge back if it is promoted again.
+
+    Passing no ``lead_url`` is the honest fallback, not a shortcut: the select
+    pass has already sorted by relevance, so the first item is the best guess
+    available when the join fails.
     """
-    out = []
-    for section in SECTIONS:
-        rows = [i for i in payload.get("items") or [] if i.get("section") == section]
-        if rows:
-            out.append((section, rows))
-    return out
+    items: List[Dict[str, Any]] = list(payload.get("items") or [])
+    if not items:
+        return payload
+    idx = 0
+    if lead_url:
+        for i, item in enumerate(items):
+            if item.get("url") == lead_url:
+                idx = i
+                break
+    lead = items.pop(idx)
+    lead["lead"] = True
+    for item in items:
+        item["lead"] = False
+    payload["items"] = [lead] + items
+    return payload
+
+
+def clear_stray_urgency(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Strip ``urgent`` from every item that is not the lead. Returns what it
+    cleared, so the caller can say so.
+
+    §2.2 allows BREAKING only on the lead. This is the one implementation of
+    that rule, used twice: by the compose pass on the run's own output, and by
+    the admin override to normalise a payload written before the rule existed.
+    It lived inline in ``digest.py`` as a slice of ``items[1:]``, which is the
+    same rule written as an assumption about ordering -- and a slice is a thing
+    that can be edited to ``[2:]`` without any test noticing.
+
+    Deliberately NOT called from ``mark_lead``: the override calls that on every
+    promotion, and clearing there would destroy a badge the compose pass earned
+    each time somebody promoted a different story (§9.7).
+
+    Both the items it walks AND the lead it spares come from the payload's own
+    list, never from ``lead_and_rest``. That view drops headline-less entries,
+    so on a payload whose marked lead has no headline it answers with the first
+    item that does -- and sparing THAT item is how an unearned badge survives a
+    normalisation and gets published by the next promotion. The rule here is
+    about which item the compose pass chose, which is a fact on the payload;
+    what any surface would draw is a different question.
+    """
+    lead = marked_lead(payload)
+    cleared: List[Dict[str, Any]] = []
+    for item in payload.get("items") or []:
+        if not isinstance(item, dict) or item is lead:
+            continue
+        if item.get("urgent"):
+            item["urgent"] = False
+            item["urgent_kind"] = None
+            cleared.append(item)
+    return cleared
+
+
+def marked_lead(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The item ``mark_lead`` chose, over the payload's UNFILTERED list.
+
+    Distinct from ``lead_and_rest``, and the distinction matters. That function
+    answers "what does a reader see first", so it skips items no surface would
+    draw. This one answers "which story did the compose pass promote", which is
+    a property of the record and is still true of an item whose headline is
+    missing or was cleared by hand.
+
+    Falls back to the first item, which is what ``mark_lead`` itself falls back
+    to, so the two cannot disagree about an unmarked payload.
+    """
+    items = [i for i in (payload.get("items") or []) if isinstance(i, dict)]
+    if not items:
+        return None
+    return next((i for i in items if i.get("lead")), items[0])
+
+
+def lead_and_rest(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
+    """``(lead, compact_items)`` — the shape the card, the pinned card and the
+    email all draw.
+
+    One definition, and the only one: three surfaces that each decide for
+    themselves which story leads will disagree on the day it matters, and the
+    reader will be the one who notices.
+    """
+    # A headline-less item is dropped HERE, once, rather than by each surface
+    # deciding for itself. The web card already skipped them (`digestOf`
+    # filters on `headline`) while the email drew an empty link and the
+    # plain-text body omitted them entirely -- so one post said two different
+    # things about how many stories it had. The PHI gate is unaffected: it
+    # walks the payload's own items, not this view.
+    items = [i for i in (payload.get("items") or [])
+             if isinstance(i, dict) and (i.get("headline") or "").strip()]
+    if not items:
+        return None, []
+    for i, item in enumerate(items):
+        if item.get("lead"):
+            return item, items[:i] + items[i + 1:]
+    return items[0], items[1:]
 
 
 def plain_text_body(payload: Dict[str, Any]) -> str:
@@ -370,12 +547,45 @@ def plain_text_body(payload: Dict[str, Any]) -> str:
 
     Deliberately markdown-free: the whole reason the structure exists is that a
     body carrying ``**`` and ``[title](url)`` leaked into an inbox verbatim.
+
+    THE LEAD GOES FIRST, and the section is a label on each item rather than a
+    heading over a group. Not a formatting preference: this used to group by
+    ``SECTIONS`` order, which meant the top story appeared wherever its section
+    happened to fall, so a digest led by a Regulation story showed a Research
+    story first in every notification snippet. One post, two hierarchies -- the
+    card and the email promoting one story and the inbox preview promoting
+    another -- which is exactly the split the structured payload exists to
+    close.
     """
+    lead, rest = lead_and_rest(payload)
     lines: List[str] = [payload.get("title") or DEFAULT_TITLE]
-    for section, rows in grouped_items(payload):
+    for item in ([lead] if lead else []) + rest:
+        # ``.get`` throughout, not subscripting. This used to render only
+        # payloads ``validate_payload`` had just built, where every key is
+        # guaranteed; it now also renders payloads read back off disk for the
+        # admin override, where a row written by an older build or repaired by
+        # hand is missing one and a KeyError is a 500 on an admin's click.
+        # A field that is not there renders as nothing, which is what the card
+        # and the email already do with it.
+        headline = item.get("headline") or ""
+        if not headline:
+            continue
         lines.append("")
-        lines.append(section)
-        for item in rows:
-            lines.append(item["headline"])
-            lines.append(f"{item['why_it_matters']} ({item['source']}) {item['url']}")
+        if item.get("section"):
+            lines.append(item["section"])
+        lines.append(headline)
+        # Only the LEAD'S deck, because only the lead's is drawn anywhere else,
+        # and a body that carried three decks would not be a view of the card.
+        # Every deck is still scanned by the gates: they read
+        # ``system_posts._payload_text``, which walks the payload's own strings
+        # precisely so that a derivation like this one cannot become the hole.
+        if item is lead and item.get("deck"):
+            lines.append(item["deck"])
+        tail = " ".join(p for p in (
+            item.get("why_it_matters") or "",
+            f"({item['source']})" if item.get("source") else "",
+            item.get("url") or "",
+        ) if p)
+        if tail:
+            lines.append(tail)
     return "\n".join(lines).strip()

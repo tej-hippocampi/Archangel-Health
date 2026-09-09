@@ -65,7 +65,15 @@ def _mask_urls(text: str) -> str:
 #: the PHI gate, whose MRN and account-number rules fire on the long digit runs
 #: in a DOI or a PMID, and the URL-masking above exists precisely because that
 #: is not a finding.
-_PAYLOAD_VISIBLE_KEYS = ("title", "headline", "why_it_matters", "source", "section")
+#:
+#: A hand-maintained list is a list that can fall behind the card, so
+#: ``test_every_rendered_digest_field_is_scanned_for_phi`` derives the field set
+#: from what ``digest_contract`` actually emits and fails the build on any key
+#: that is neither in this tuple nor in its short, reasoned exclusion list.
+#: ``urgent``, ``urgent_kind`` and ``lead`` are excluded there: two booleans and
+#: one word from a closed set this module chose, none of them model text.
+_PAYLOAD_VISIBLE_KEYS = ("title", "headline", "deck", "why_it_matters",
+                         "source", "section")
 
 
 def _payload_text(payload: Optional[Dict[str, Any]]) -> str:

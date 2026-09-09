@@ -204,6 +204,52 @@
   border-bottom: 1px solid var(--hairline);
   background: var(--card);
 }
+/* ── Greeting and presence (§3.1) ───────────────────────────────────────────
+   One line above every view, outside the scroller so it cannot be scrolled
+   away. Empty on the preview, where it renders nothing and collapses to a
+   hairline — hence no fixed height. */
+.cm-greet-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding: 0 var(--sp-5);
+  background: var(--card);
+}
+.cm-greet-bar:not(:empty) {
+  padding-top: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--hairline);
+}
+.cm-greet { font-size: var(--t-sm); color: var(--ink); }
+.cm-presence-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+}
+/* Hollow when nobody is here. The dot going empty is the whole message; a
+   sentence about an empty room is a sentence nobody needs to read. */
+.cm-presence-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--ink-faint);
+  background: transparent;
+  flex: none;
+}
+.cm-presence-dot.on { background: var(--green); border-color: var(--green); }
+.cm-presence-sep { color: var(--ink-faint); }
+.cm-presence-digest {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--green-deep);
+  cursor: pointer;
+}
+.cm-presence-digest:hover { text-decoration: underline; }
+
 .cm-head-name { font-size: var(--t-h3); font-weight: 500; white-space: nowrap; }
 .cm-head-desc {
   flex: 1;
@@ -521,30 +567,24 @@
   margin: 0 auto;
   line-height: 1.6;
 }
-.cm-home-chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--sp-2);
-  margin-top: var(--sp-2);
-}
-/* Real navigation, not decoration: each chip opens that channel. */
-.cm-home-chip {
+/* One button, and it puts the cursor in the composer. The row of channel chips
+   that used to sit here duplicated the rail three feet to its left, and an
+   empty room needs a reason to type rather than somewhere else to go. */
+.cm-home-cta {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid var(--hairline-strong);
+  margin-top: var(--sp-4);
+  padding: 8px 18px;
+  border: 1px solid var(--ink);
   border-radius: var(--r-chip);
-  background: var(--card);
-  color: var(--ink);
-  font-family: var(--mono);
-  font-size: 0.75rem;
+  background: var(--ink);
+  color: var(--card);
+  font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
 }
-.cm-home-chip:hover { border-color: var(--green); background: var(--green-wash); }
-.cm-home-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-.cm-home-chip-arrow { color: var(--ink-faint); }
+.cm-home-cta:hover { background: var(--ink-hover); border-color: var(--ink-hover); }
+.cm-home-cta:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 
 /* empty state (§5: written, never blank) */
 .cm-empty {
@@ -761,20 +801,37 @@
 .cm-profile-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .cm-profile-avatar { width: 52px; height: 52px; font-size: 1rem; }
 .cm-profile-name { font-size: var(--t-h3); font-weight: 500; display: flex; align-items: center; gap: 0.5em; }
-.cm-profile-blurb {
-  background: var(--card-in);
-  border: 1px solid var(--hairline);
-  border-radius: var(--r-sm);
-  padding: var(--sp-3);
+/* "Nephrology · 15-19 yrs". One line, under the name, and it replaces both the
+   blurb (which said the same thing at paragraph length) and the field list
+   (which said it again as a definition list). */
+.cm-profile-cred {
   font-size: var(--t-sm);
   color: var(--ink-soft);
-  line-height: var(--lh-body);
+  margin-top: 2px;
+}
+.cm-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
   margin-bottom: var(--sp-4);
 }
-.cm-profile-rows { display: flex; flex-direction: column; gap: var(--sp-2); }
-.cm-profile-row { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--t-sm); }
-.cm-profile-row dt { color: var(--ink-faint); }
-.cm-profile-row dd { color: var(--ink); text-align: right; }
+.cm-profile-stat { min-width: 0; }
+.cm-profile-stat-v {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.cm-profile-stat-k {
+  margin-top: 2px;
+  font-size: 0.6rem;
+  color: var(--ink-faint);
+}
+.cm-profile-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cm-profile-action { width: 100%; justify-content: center; }
 
 /* hover profile card */
 .cm-hovercard {
@@ -843,68 +900,173 @@
 .cm-msg-digest .cm-msg-body ul { margin: 0.35em 0; padding-left: 1.1em; }
 .cm-msg-digest .cm-msg-body li { margin: 0.3em 0; }
 
-/* ── The digest card (Community News PRD §2.3) ─────────────────────────────
+/* ── The digest card (Digest Design PRD §1) ────────────────────────────────
    A digest is not a message somebody wrote, so it is not a bubble. The two
    rules above still style digests that PREDATE the structured payload: those
    have no card and render through .cm-msg-body exactly as they always did.
 
-   The type does the work here, not the container. One hairline, one wash, and
-   three weights: mono caps for the title and the section, 500 for the
-   headline, regular muted for the line that says why a physician should care. */
-.cm-dg {
+   One story leads and the rest are compact. The hierarchy is carried by size,
+   a tinted rule and one wash — not by boxes, and not by a section heading over
+   every group. Nothing animates on render.
+
+   THE TAG TINTS. The PRD asks for amber, teal, green, purple and gray. The
+   design system has orange, green, pink and lime washes and no others, and §4
+   is explicit that a missing tint is derived from an existing token rather than
+   added as a new brand colour. Amber, green and gray land exactly; teal and
+   purple do not exist in the palette and cannot be mixed from it without a blue
+   token, so Research takes lime and Evals takes pink. Five distinct chips, zero
+   new hues, and _tokens.css is read and never edited. */
+.cm-digest {
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
-  padding: 14px 16px 10px;
-  background: color-mix(in srgb, var(--green-wash) 24%, transparent);
+  padding: 16px 18px 8px;
+  background: var(--card);
 }
-.cm-dg-eyebrow { display: block; margin-bottom: 4px; color: var(--ink-soft); }
-.cm-dg-section {
-  display: block;
-  margin: 14px 0 6px;
-  font-size: 0.62rem;
-  color: var(--ink-faint);
+.cm-digest-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding-bottom: 14px;
 }
-.cm-dg-item { padding: 0 0 10px; }
-.cm-dg-item + .cm-dg-section { border-top: 1px solid var(--hairline); padding-top: 12px; }
-.cm-dg-head {
-  display: block;
-  font-weight: 500;
-  font-size: 0.95rem;
-  line-height: 1.35;
+/* The serif, declared HERE. The welcome letter uses the same stack in
+   asclepius.css and this page does not load that file; importing it for one
+   font stack, or reusing the portal's letter-title class across bundles, is how
+   two pages start sharing rules neither of them owns. Serif on this title and the
+   welcome letter, nowhere else. */
+.cm-digest-title {
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
   color: var(--ink);
-  text-decoration: none;
 }
-a.cm-dg-head:hover { color: var(--green-deep); text-decoration: underline; }
-.cm-dg-why {
-  margin-top: 3px;
-  font-size: 0.87rem;
-  line-height: var(--lh-body);
-  color: var(--ink-soft);
-}
-/* Right-aligned on its own line rather than trailing the last line of the
-   why-it-matters: floating it into a paragraph of unknown length collides at
-   the widths this actually renders at, and a source that sometimes overlaps
-   the sentence above it is worse than one that always sits under it. */
-.cm-dg-src {
-  display: block;
-  margin-top: 4px;
-  text-align: right;
+.cm-digest-meta {
   font-family: var(--mono);
   font-size: 0.68rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-faint);
+  margin-left: auto;
+}
+
+/* The lead. A 3px rule in the tag's tint, and the tint is the only thing the
+   .cm-tag-* class on this element sets here — the chip inside it paints its
+   own background from the same variable. */
+.cm-digest-lead {
+  border-left: 3px solid var(--cm-tag-line, var(--hairline));
+  padding: 2px 0 10px 14px;
+}
+.cm-digest-leadhead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.cm-digest-badge {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--ink-faint);
+}
+.cm-digest-headline {
+  display: block;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: -0.012em;
+  color: var(--ink);
   text-decoration: none;
 }
-a.cm-dg-src:hover { color: var(--green-deep); }
+a.cm-digest-headline:hover { color: var(--green-deep); }
+.cm-digest-deck {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+}
+/* The lime wash IS the label. A "WHY IT MATTERS" eyebrow over this is a line
+   that can be deleted without the card losing anything, so it is deleted. */
+.cm-why {
+  margin-top: 10px;
+  padding: 8px 11px;
+  background: var(--lime-wash);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+/* Compact items: a hairline between them, no boxes, no deck. */
+.cm-digest-item {
+  padding: 14px 0 12px;
+  border-top: 1px solid var(--hairline);
+}
+.cm-digest-lead + .cm-digest-item { margin-top: 4px; }
+.cm-digest-subhead {
+  display: block;
+  margin-top: 6px;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ink);
+  text-decoration: none;
+}
+a.cm-digest-subhead:hover { color: var(--green-deep); }
+.cm-digest-line {
+  margin-top: 4px;
+  font-size: 0.87rem;
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+}
+
+/* One action per item, and the publisher beside it rather than inside it. */
+.cm-digest-src {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 9px;
+}
+.cm-digest-link {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--green-deep);
+  text-decoration: none;
+}
+.cm-digest-link:hover { text-decoration: underline; }
+.cm-digest-pub {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
 /* The uppercase tracking on the labels swallows a plain margin, so the
    arrow gets a real gap rather than one that reads as a typo. */
-.cm-dg-arrow { margin-left: 6px; letter-spacing: 0; }
-.cm-dg-discuss {
+.cm-digest-arrow { margin-left: 6px; letter-spacing: 0; }
+/* Admin only, and it looks it: a mono under-line on the item it acts on, not
+   a button that competes with `Full article ->`. */
+.cm-digest-admin { display: flex; gap: var(--sp-3); margin-top: 7px; }
+.cm-digest-admin-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.cm-digest-admin-btn:hover { color: var(--ink); text-decoration: underline; }
+
+.cm-digest-foot {
   display: block;
   width: 100%;
-  margin-top: 4px;
-  padding: 9px 0 2px;
+  margin-top: 2px;
+  padding: 10px 0 4px;
   border-top: 1px solid var(--hairline);
   font-family: var(--mono);
   font-size: 0.7rem;
@@ -913,7 +1075,47 @@ a.cm-dg-src:hover { color: var(--green-deep); }
   text-align: left;
   color: var(--ink-soft);
 }
-.cm-dg-discuss:hover { color: var(--green-deep); }
+.cm-digest-foot:hover { color: var(--green-deep); }
+
+/* The pinned home card: the same component, collapsed, above the landing
+   room's stream. It is a card on the page rather than a message in it, so it
+   carries the page's own margin and nothing of the message row's. */
+.cm-digest-pin { padding: var(--sp-4) var(--sp-4) 0; }
+.cm-digest-pinned { box-shadow: var(--shadow-card); }
+
+/* ── Tag chips ──────────────────────────────────────────────────────────────
+   Icon, label, tint. The icons are five inline SVG paths in community.js
+   (Tabler outline shapes) and this page loads no icon font for them. */
+.cm-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--cm-tag-wash, var(--green-wash));
+  color: var(--cm-tag-ink, var(--ink-soft));
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.cm-tag svg { flex: none; }
+/* The label is a span so the glyph and the word cannot be split by a line
+   break mid-chip. It inherits everything from .cm-tag and needs no colour of
+   its own -- but it needs a rule, or it is a class the card puts on an element
+   and the stylesheet has never heard of. */
+.cm-tag-label { white-space: nowrap; }
+.cm-tag-regulation { --cm-tag-wash: var(--orange-wash); --cm-tag-ink: var(--orange-deep); --cm-tag-line: var(--orange-line); }
+.cm-tag-research   { --cm-tag-wash: var(--lime-wash);   --cm-tag-ink: var(--lime-deep);   --cm-tag-line: var(--lime-line); }
+.cm-tag-deployment { --cm-tag-wash: var(--green-wash);  --cm-tag-ink: var(--green-deep);  --cm-tag-line: var(--green-line); }
+.cm-tag-evals      { --cm-tag-wash: var(--pink-wash);   --cm-tag-ink: var(--pink-deep);   --cm-tag-line: var(--pink-line); }
+/* Opinion is the one tag with no accent behind it, and that is the design:
+   an opinion is not a category of news. Its wash is --ink at 6%, mixed here
+   from the token rather than written as a fourth grey in this file. */
+.cm-tag-opinion    { --cm-tag-wash: color-mix(in srgb, var(--ink) 6%, transparent); --cm-tag-ink: var(--ink-soft); --cm-tag-line: var(--hairline-strong); }
+
 /* Welcomes get a soft accent spine — a human moment, lightly marked. */
 .cm-msg-welcome .cm-msg-body {
   border-left: 2px solid var(--green);

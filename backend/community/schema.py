@@ -23,6 +23,19 @@ class MessageEdit(BaseModel):
     mention_user_ids: Optional[List[str]] = Field(default=None, max_length=MAX_MENTIONS)
 
 
+class DigestLeadIn(BaseModel):
+    """The digest's admin override (Digest Design PRD §2.2).
+
+    Two decisions and no content: which story leads, and whether it carries a
+    BREAKING badge. Every string on the card was written by the compose pass
+    under the contract and validated on the way in, so an override that could
+    also rewrite text would be a way to put unvalidated prose on a bot post.
+    """
+
+    url: Optional[str] = Field(default=None, max_length=2048)
+    urgent: Optional[bool] = Field(default=None)
+
+
 class ReactionIn(BaseModel):
     emoji: str = Field(min_length=1, max_length=16)
 

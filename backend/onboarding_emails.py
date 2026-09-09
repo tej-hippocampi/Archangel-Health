@@ -53,6 +53,13 @@ _GREEN_DEEP = "#3c7a31"   # AA-contrast green for text on a light surface
 _ORANGE = "#ec9440"
 _PINK = "#e8447b"
 _LIME = "#d5e14e"
+#: The lime wash, flattened onto the card background. Written as a 6-digit hex
+#: rather than "#d5e14e33", because 8-digit hex is CSS Color 4 and Outlook's
+#: Word renderer drops the declaration outright -- and §1.1 of the digest design
+#: makes this wash THE label for why-it-matters, so losing it means that
+#: sentence arrives unlabelled in the client most likely to be reading it.
+#: 20% of --lime over #fbfcfa, the same ratio --lime-wash uses on the web.
+_LIME_WASH = "#f3f7d8"
 
 # No webfonts in email. See the module docstring.
 _SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
@@ -2062,17 +2069,23 @@ def build_asclepius_admin_signup_alert(
 
 
 def digest_email_subject(payload: Dict[str, Any]) -> str:
-    """``Medical AI digest · 4 items``.
+    """``Medical AI Digest · 4 items``.
 
     The count is in the subject because it is the one thing a physician can act
     on from the notification shade: four items is a minute, and a subject that
-    said only "Medical AI digest" every single day taught people to swipe it
+    said only "Medical AI Digest" every single day taught people to swipe it
     away without opening it.
     """
     from community import digest_contract  # noqa: PLC0415 - avoids an import cycle
 
     title = str((payload or {}).get("title") or digest_contract.DEFAULT_TITLE)
-    n = len((payload or {}).get("items") or [])
+    # Counted the way the body counts, not off the raw list. A headline-less
+    # item is drawn by nothing, so subjecting a mail "4 items" over a mail
+    # showing three is the same "one post says two things about how many
+    # stories it has" split -- in the one surface read before the post is even
+    # opened.
+    lead, rest = digest_contract.lead_and_rest(payload or {})
+    n = (1 if lead else 0) + len(rest)
     return f"{title} · {n} item" + ("" if n == 1 else "s")
 
 
@@ -2091,10 +2104,22 @@ def build_community_digest_post_email(
     physicians' inboxes as literal punctuation. Nothing was wrong with the
     parser. The input was prose, and prose is not a layout.
 
-    Now the same object the web card renders is rendered here: sections in the
-    contract's fixed order, each item a headline that links out and one line of
-    why-it-matters underneath. There is no markdown anywhere in the path, so
-    there is nothing left to leak.
+    Now the same object the web card renders is rendered here, in the same
+    hierarchy (Digest Design PRD §1.3): the TOP STORY first with its deck and
+    its why-it-matters, then the compact items, each a headline, one line and a
+    link out. There is no markdown anywhere in the path, so there is nothing
+    left to leak.
+
+    The lead comes from ``digest_contract.lead_and_rest``, which is also what
+    the web card and the pinned home card read. Deciding the lead here as well
+    would be a second opinion about which story matters most, and the reader who
+    opens the email and then the room is exactly the person who would find the
+    two disagreeing.
+
+    Sections no longer head the list. They are the tag beside each headline now,
+    which is the same information in a line the reader was already going to
+    read, and the redesign's governing rule is that an element earns its place
+    by being removed and missed.
 
     Every interpolated string is escaped here. They were written by a model over
     somebody else's web page, which makes them exactly the untrusted input the
@@ -2107,34 +2132,77 @@ def build_community_digest_post_email(
     if first_name.strip():
         parts.append(_p(f"Morning {_strong(first_name.strip())}."))
 
-    for section, items in digest_contract.grouped_items(payload or {}):
-        parts.append(
+    def _tag(item: Dict[str, Any]) -> str:
+        section = html.escape(str(item.get("section") or ""))
+        if not section:
+            return ""
+        return (
             f'<div style="font-family:{_MONO};font-size:11px;font-weight:500;'
             f'letter-spacing:0.09em;text-transform:uppercase;color:{_INK_FAINT};'
-            'margin:22px 0 8px;">'
-            f"{html.escape(section)}</div>"
+            'margin:0 0 6px;">'
+            f"{section.upper()}</div>"
         )
-        rows = []
-        for i, item in enumerate(items):
-            border = "" if i == 0 else f"border-top:1px solid {_HAIRLINE};"
-            url = html.escape(str(item.get("url") or ""), quote=True)
-            headline = html.escape(str(item.get("headline") or ""))
-            why = html.escape(str(item.get("why_it_matters") or ""))
-            source = html.escape(str(item.get("source") or ""))
-            rows.append(
-                f'<tr><td style="padding:13px 0;{border}font-family:{_SANS};">'
-                f'<a href="{url}" style="font-size:15px;font-weight:600;'
-                f'line-height:1.45;color:{_INK};text-decoration:none;">{headline}</a>'
-                f'<div style="margin-top:5px;font-size:14px;line-height:1.55;'
-                f'color:{_INK_SOFT};">{why}</div>'
-                f'<div style="margin-top:5px;font-family:{_MONO};font-size:11px;'
-                f'letter-spacing:0.06em;text-transform:uppercase;'
-                f'color:{_INK_FAINT};">{source}</div>'
-                "</td></tr>"
-            )
+
+    lead, rest = digest_contract.lead_and_rest(payload or {})
+
+    if lead:
+        url = html.escape(str(lead.get("url") or ""), quote=True)
+        badge = "BREAKING" if lead.get("urgent") else "TOP STORY"
+        deck = html.escape(str(lead.get("deck") or ""))
+        why = html.escape(str(lead.get("why_it_matters") or ""))
+        lead_tag = html.escape(str(lead.get("section") or "")).upper()
+        lead_head = html.escape(str(lead.get("headline") or ""))
+        lead_src = html.escape(str(lead.get("source") or ""))
+        parts.append(
+            f'<table role="presentation" width="100%" cellspacing="0" '
+            f'cellpadding="0" border="0" style="margin:18px 0 6px;"><tr>'
+            f'<td style="padding:0 0 0 14px;border-left:3px solid {_ORANGE};'
+            f'font-family:{_SANS};">'
+            f'<div style="font-family:{_MONO};font-size:11px;font-weight:600;'
+            f'letter-spacing:0.09em;color:{_INK_FAINT};margin:0 0 8px;">'
+            f'{badge} &nbsp;·&nbsp; {lead_tag}</div>'
+            f'<a href="{url}" style="font-size:21px;font-weight:600;'
+            f'line-height:1.3;color:{_INK};text-decoration:none;">{lead_head}</a>'
+            + (f'<div style="margin-top:8px;font-size:15px;line-height:1.55;'
+               f'color:{_INK_SOFT};">{deck}</div>' if deck else "")
+            + (f'<div style="margin-top:10px;padding:8px 11px;'
+               f'background:{_LIME_WASH};font-size:14px;line-height:1.5;'
+               f'color:{_INK};">{why}</div>' if why else "")
+            + f'<div style="margin-top:10px;font-size:13px;">'
+              f'<a href="{url}" style="color:{_GREEN_DEEP};font-weight:600;'
+              f'text-decoration:none;">Full article →</a>'
+              f'<span style="font-family:{_MONO};font-size:11px;'
+              f'letter-spacing:0.06em;text-transform:uppercase;'
+              f'color:{_INK_FAINT};margin-left:10px;">{lead_src}</span></div>'
+            "</td></tr></table>"
+        )
+
+    rows = []
+    for item in rest:
+        url = html.escape(str(item.get("url") or ""), quote=True)
+        rows.append(
+            f'<tr><td style="padding:15px 0;border-top:1px solid {_HAIRLINE};'
+            f'font-family:{_SANS};">'
+            + _tag(item)
+            + f'<a href="{url}" style="font-size:15px;font-weight:600;'
+              f'line-height:1.45;color:{_INK};text-decoration:none;">'
+              f'{html.escape(str(item.get("headline") or ""))}</a>'
+            f'<div style="margin-top:5px;font-size:14px;line-height:1.55;'
+            f'color:{_INK_SOFT};">'
+            f'{html.escape(str(item.get("why_it_matters") or ""))}</div>'
+            f'<div style="margin-top:6px;font-size:13px;">'
+            f'<a href="{url}" style="color:{_GREEN_DEEP};font-weight:600;'
+            f'text-decoration:none;">Full article →</a>'
+            f'<span style="font-family:{_MONO};font-size:11px;'
+            f'letter-spacing:0.06em;text-transform:uppercase;'
+            f'color:{_INK_FAINT};margin-left:10px;">'
+            f'{html.escape(str(item.get("source") or ""))}</span></div>'
+            "</td></tr>"
+        )
+    if rows:
         parts.append(
             '<table role="presentation" width="100%" cellspacing="0" '
-            'cellpadding="0" border="0" style="margin:0 0 6px;">'
+            'cellpadding="0" border="0" style="margin:14px 0 6px;">'
             + "".join(rows) + "</table>"
         )
 

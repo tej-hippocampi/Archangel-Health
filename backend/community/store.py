@@ -961,6 +961,43 @@ class CommunityStore:
                 )
         return self.get_message(message_id)
 
+    def set_message_payload(
+        self, message_id: int, payload: Dict[str, Any], *, body: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Rewrite a message's STRUCTURED payload, and the body derived from it.
+
+        The digest's admin override (Digest Design PRD §2.2) is the only caller:
+        promoting a different story or clearing a BREAKING badge is a change to
+        which item leads. No schema change -- ``payload_json`` has held this
+        object since the structured contract landed, and this writes the same
+        column the insert path already writes.
+
+        Deliberately NOT a widening of ``edit_message``: an edit is a member
+        rewriting their own words and stamps ``edited_at``, and an admin
+        reordering a bot's card is neither. Same reason the two have separate
+        audit actions.
+
+        ``body`` re-renders the plain-text view of the same object. It is
+        optional and it should almost always be passed: the body is what the
+        notification snippet, search and any pre-card client read, so a payload
+        rewritten without it leaves one post with two hierarchies -- the new top
+        story on the card, the old one in the inbox preview.
+        """
+        with self._conn() as conn:
+            if body is None:
+                conn.execute(
+                    "UPDATE community_messages SET payload_json = ? "
+                    "WHERE id = ? AND deleted_at IS NULL",
+                    (json.dumps(payload), message_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE community_messages SET payload_json = ?, body = ? "
+                    "WHERE id = ? AND deleted_at IS NULL",
+                    (json.dumps(payload), body, message_id),
+                )
+        return self.get_message(message_id)
+
     def soft_delete_message(self, message_id: int, *, deleted_by: str) -> Optional[Dict[str, Any]]:
         """Soft delete (PRD §7.5): the row stays (audit chain intact), the body
         is cleared so deleted content cannot be re-read through any endpoint."""

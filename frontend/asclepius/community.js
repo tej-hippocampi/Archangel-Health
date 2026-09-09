@@ -65,6 +65,12 @@
     pins: {},           // channel slug -> [pinned message objects]
     bookmarks: {},      // channel slug -> [{id,title,url,added_by}]
     events: { upcoming: [], past: [], pastOpen: false, loadedFor: null },
+    // #medical-ai-news's recent top-level rows, oldest-first, fetched once at
+    // boot and appended to by the socket. Two surfaces read it and neither owns
+    // it: the pinned home card draws the newest digest collapsed, and the
+    // presence bar counts the unread ones.
+    digestRoom: [],
+    latestDigest: null,
   };
 
   const QUICK_EMOJI = ['👍', '✅', '🙌', '❤️', '😂', '🤔', '👀', '🎉'];
@@ -352,11 +358,27 @@
       return renderError(e.message);
     }
     await Promise.all([loadChannels(), loadMembers(), loadDms()]);
+    // STARTED here, awaited below. It needs the channel list (it counts
+    // against that room's unread), so it cannot join the group above, and
+    // awaiting it here would put a whole round trip in front of first paint for
+    // every reader -- including the ones who will never scroll to a pinned
+    // card. Starting it now lets it run under the first render.
+    //
+    // The repaint is attached AFTER renderApp, not here. Both surfaces it
+    // touches are looked up by id and both no-op when the element is missing,
+    // so a fetch that landed before the first paint would have repainted
+    // nothing and then never fired again -- the pinned card silently absent on
+    // exactly the fast connections it loads quickest on.
+    const digestLoaded = loadLatestDigest();
     const hash = (location.hash || '').replace(/^#/, '');
     if (hash && (state.channels.some((c) => c.slug === hash)
         || state.dms.some((d) => d.id === hash))) state.active = hash;
     renderApp();
     await openChannel(state.active, { force: true });
+    digestLoaded.then(() => {
+      renderGreeting();
+      if (state.active === 'general') renderMessages({});
+    });
     connectWs();
     // No force here: returning to the tab while scrolled up in history must
     // not mark unseen messages read (audit finding).
@@ -516,6 +538,63 @@
       ? '/dms/' + encodeURIComponent(key) + '/read'
       : '/channels/' + encodeURIComponent(key) + '/read';
   }
+  /* The latest digest, for the landing card and the presence line (§1.3, §3.1).
+   *
+   * No new endpoint: this is the channel's own message list. The page size is
+   * 25 rather than a handful because #medical-ai-news is NOT a digest-only
+   * room -- the morning routine posts briefs into it too (community/morning.py)
+   * -- so a window of five could hold nothing but briefs and quietly leave the
+   * landing page with no card, which by design explains nothing.
+   *
+   * It never throws. A reader who cannot see the room, or a room that has never
+   * posted, simply has no card, and a landing page that 500s over a decoration
+   * is a worse outcome than a landing page without one. */
+  async function loadLatestDigest() {
+    state.digestRoom = [];
+    state.latestDigest = null;
+    try {
+      const d = await api('/channels/medical-ai-news/messages?limit=25');
+      state.digestRoom = (d.messages || []).filter((m) => !m.deleted);
+      const digests = state.digestRoom.filter((m) => digestOf(m));
+      // The list arrives oldest-first, like every other channel fetch, so the
+      // newest digest is the last row that has a payload.
+      state.latestDigest = digests.length ? digests[digests.length - 1] : null;
+    } catch (e) {
+      // Both are already cleared above; this exists so a refused fetch is a
+      // no-op rather than a rejected promise reaching boot.
+      return;
+    }
+  }
+
+  /* How many digests this reader has not seen — computed at RENDER time.
+   *
+   * Two wrong answers were available here. The channel's raw unread number
+   * counts every unread message in the room, of any kind, and the morning
+   * routine posts briefs into that same room, so "3 new digests" could be three
+   * briefs. Caching a corrected count at boot fixes that and introduces a worse
+   * bug: the number then freezes for the session, still saying "1 new digest"
+   * after the reader has read it and never appearing for a digest that arrives
+   * while the tab is open.
+   *
+   * So it is derived, every time the bar paints, from two things that are both
+   * kept live: the channel's unread count (`bumpUnread` raises it, the read
+   * sync lowers it) and the room's rows (the boot fetch, plus whatever the
+   * socket has appended since).
+   *
+   * Unread messages are the LAST `unread` rows — except that the server does
+   * not count the reader's OWN posts as unread while this list includes them,
+   * so they come out first. Without that, an admin posting in the room shifts
+   * the window and undercounts. */
+  function newDigestCount() {
+    const ch = state.channels.find((c) => c.slug === 'medical-ai-news');
+    const mine = (state.me || {}).user_id;
+    const others = state.digestRoom.filter(
+      (m) => !(mine && m.author && m.author.user_id === mine));
+    const unread = Math.max(0, Math.min((ch && ch.unread) || 0, others.length));
+    if (!unread) return 0;
+    return others.slice(others.length - unread).filter((m) => digestOf(m)).length;
+  }
+
   async function loadMembers() {
     const d = await api('/members');
     state.members = d.members || [];
@@ -527,12 +606,78 @@
     }
   }
 
+  /* ── Greeting and presence (Digest Design PRD §3.1) ──────────────────────
+   *
+   * One line, and everything about it is already on the client: the clock is
+   * the browser's, the name is the profile's, the head count is the presence
+   * set the socket already maintains, and the digest count is the unread the
+   * channel list already carries. No endpoint, no avatar row, no second unread
+   * badge — the rail has one and two of them disagree the moment one is stale.
+   *
+   * "Good morning, Dr. Patel." is nine words at its longest and the budget is
+   * nine, which is the whole point: the room should feel like colleagues are in
+   * it, and colleagues do not introduce themselves twice. */
+  function greetingWord(now) {
+    const hour = (now || new Date()).getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  /* The surname, the way a colleague would say it. `display_name` is whatever
+     the physician set, so "Dr." is added only when it is not already there and
+     the fallback is the whole name rather than a guess at which word is the
+     family one. */
+  function greetingName(me) {
+    const raw = String((me && me.display_name) || '').trim();
+    if (!raw) return null;
+    if (/^(dr\.?|prof\.?)\s/i.test(raw)) return raw;
+    const parts = raw.split(/\s+/);
+    return 'Dr. ' + parts[parts.length - 1];
+  }
+
+  function renderGreeting() {
+    const bar = document.getElementById('cmGreet');
+    if (!bar) return;
+    clear(bar);
+    // The preview is a fixture, and greeting an applicant by a name we made up
+    // for them is the one thing that would give the fixture away.
+    if (state.preview) return;
+    const name = greetingName(state.me);
+    bar.appendChild(h('div', { class: 'cm-greet' },
+      greetingWord() + (name ? ', ' + name : '') + '.'));
+
+    const online = state.members.filter((m) => state.online.has(m.user_id)).length;
+    // Hollow dot and a bare number when nobody is here. No sentence: "nobody is
+    // online right now" is a sentence about absence, and the room does not need
+    // one written for it.
+    const presence = h('div', { class: 'cm-presence-bar' },
+      h('span', { class: 'cm-presence-dot' + (online ? ' on' : ''), 'aria-hidden': 'true' }),
+      h('span', { class: 'chrome' }, online + ' online'));
+
+    // Derived here, not cached: the bar repaints on every rail render and every
+    // presence event, and a number frozen at boot goes stale the moment the
+    // reader opens the room or a digest lands over the socket.
+    const fresh = newDigestCount();
+    if (fresh) {
+      presence.appendChild(h('span', { class: 'chrome cm-presence-sep' }, '·'));
+      presence.appendChild(h('button', {
+        class: 'cm-presence-digest chrome', type: 'button',
+        onClick: () => openChannel('medical-ai-news'),
+      }, fresh + (fresh === 1 ? ' new digest' : ' new digests')));
+    }
+    bar.appendChild(presence);
+  }
+
   // ─── App layout ────────────────────────────────────────────────────────────
   function renderApp() {
     const app = h('div', { class: 'cm-app' },
       h('nav', { class: 'cm-rail', id: 'cmRail', 'aria-label': 'Channels and members' }),
       h('section', { class: 'cm-main' },
         h('header', { class: 'cm-head', id: 'cmHead' }),
+        // Above the header's siblings and outside the scroller, so it is the
+        // first line in every view and cannot be scrolled away.
+        h('div', { class: 'cm-greet-bar', id: 'cmGreet' }),
         // Above the stream and outside it, so it cannot be scrolled away. No
         // close control: one sentence is what keeps a fixture from reading as
         // a room full of real colleagues, and a banner you can dismiss is a
@@ -548,6 +693,7 @@
       h('aside', { class: 'cm-side', id: 'cmSide', 'aria-label': 'Details panel' }));
     setRoot(app);
     renderRail();
+    renderGreeting();
     renderHead();
     renderComposer();
     const scroll = document.getElementById('cmScroll');
@@ -770,6 +916,10 @@
     }
     scrollBox.appendChild(mSection);
     rail.appendChild(scrollBox);
+    // The bar's two numbers are the rail's two numbers -- the same presence set
+    // and the same unread count -- so they repaint together and cannot drift
+    // into saying different things about the same room.
+    renderGreeting();
 
     // The avatar is already a button (it opens the profile), so the way into
     // notification settings is its own control beside the name rather than a
@@ -1036,10 +1186,25 @@
     markReadIfAtBottom();
   }
 
+  /* One sentence and one button, per room (Digest Design PRD §3.3).
+   *
+   * The old copy explained the room in three clauses and then described the
+   * verification model, which is a paragraph a physician reads once and never
+   * again. What an empty room needs is a reason to type — so the sentence is
+   * the reason and the button is the way in, and the rooms nobody may post in
+   * get no button rather than a disabled one.
+   *
+   * Verbatim from the PRD. These are the founders' words, not a paraphrase of
+   * them, and the whole difference between "homey" and "friendly product copy"
+   * is whether somebody actually says it this way. */
   const EMPTY_COPY = {
-    'general': ['Welcome to #general', 'Open discussion between contributor physicians. Say hello: everyone here is credential-verified.'],
-    'task-announcements': ['No announcements yet', 'New task batches, specialty calls, and deadlines from the Archangel team land here. Replies open in threads.'],
-    'questions-help': ['No questions yet', 'Ask anything about a case, a rubric, or a payout.'],
+    'general': ['The kitchen table. Say hello.', 'Say hello'],
+    'introductions': ['Who are you, and what do you see most in clinic?', 'Introduce yourself'],
+    'questions-help': ['Ask. One of us answers today.', 'Ask'],
+    'future-of-medical-ai': ['Where is this going? Contrarian welcome.', 'Start a thread'],
+    'medical-ai-news': ['First digest at 6am PT.', null],
+    'task-announcements': ['We post here when there\u2019s work.', null],
+    'events': ['We post here when there\u2019s work.', null],
   };
 
   /* ── The branded home panel (Admin Launch PRD §5.2) ──────────────────────
@@ -1057,7 +1222,10 @@
    * (`cm-phi-notice`, §7.5) and renders on every channel whether or not it has
    * messages — standing, never dismissible. Nothing here restyles it.
    */
-  const HOME_CHANNELS = ['introductions', 'task-announcements', 'questions-help'];
+  /* The rooms nobody may post in. Their empty state gets no button rather than
+     a disabled one: an invitation you cannot accept is worse than no
+     invitation, and the server would refuse the post anyway. */
+  const READ_ONLY_ROOMS = ['medical-ai-news', 'task-announcements', 'events'];
 
   /* Why #medical-ai-news is empty, said out loud.
    *
@@ -1094,40 +1262,32 @@
     const lead = ranToday
       ? 'Today\'s run finished and found nothing worth posting'
       : 'No digest yet today';
-    return [lead, next
-      ? 'The next run is ' + next + '. Digests only post when there is '
-        + 'something worth a physician\'s time, so a quiet day stays quiet.'
-      : 'Digests only post when there is something worth a physician\'s time, '
-        + 'so a quiet day stays quiet.'];
+    // One sentence, like every other empty state now (§3.3). The PRD's copy
+    // for this room is "First digest at 6am PT", and it is deliberately NOT
+    // used whenever the schedule is readable: a fixed sentence says the same
+    // thing on the morning the pipeline is switched off, and telling a quiet
+    // room from a broken one is the reason this function exists.
+    return [lead, next ? 'The next run is ' + next + '.'
+                       : 'Quiet days stay quiet here.'];
   }
 
   function homePanel(slug) {
     const ch = state.channels.find((c) => c.slug === slug) || {};
-    const isGeneral = slug === 'general';
     const digestCopy = digestEmptyCopy(slug);
-    const copy = EMPTY_COPY[slug];
+    const copy = EMPTY_COPY[slug] || [];
 
-    const title = digestCopy ? digestCopy[0]
-      : (isGeneral ? 'Archangel Health Community' : ('#' + (ch.name || slug)));
-    const body = digestCopy ? digestCopy[1]
-      : (isGeneral
-         ? 'Every physician here is credential-verified. Discuss cases, shape how '
-           + 'tasks get built, and tell us when something is wrong.'
-         : (ch.description || (copy && copy[1])
-            || 'Open discussion between contributor physicians.'));
+    // The digest room explains ITSELF when the schedule is readable, because
+    // "quiet" and "broken" look identical otherwise. Everywhere else the room's
+    // one sentence is the title and there is nothing under it.
+    // A room with hand-written copy leads with its one sentence. A room without
+    // leads with its NAME and puts the server's description underneath: a
+    // channel description is a paragraph, and a paragraph set as a heading
+    // reads as a layout mistake rather than a welcome.
+    const line = digestCopy ? digestCopy[1] : (copy[0] ? null : (ch.description || null));
+    const title = digestCopy ? digestCopy[0] : (copy[0] || ('#' + (ch.name || slug)));
+    const label = digestCopy ? null : copy[1];
 
-    const chips = h('div', { class: 'cm-home-chips' },
-      HOME_CHANNELS
-        .filter((s) => s !== slug && state.channels.some((c) => c.slug === s))
-        .map((s) => {
-          const btn = h('button', {
-            class: 'cm-home-chip', type: 'button',
-            onClick: () => openChannel(s),
-          }, '#' + s, h('span', { class: 'cm-home-chip-arrow', 'aria-hidden': 'true' }, '→'));
-          return btn;
-        }));
-
-    return h('div', { class: 'cm-home' },
+    const panel = h('div', { class: 'cm-home' },
       h('img', {
         class: 'cm-home-mark', src: '/static/asclepius/ah-mark.png',
         width: '96', height: '96',
@@ -1135,9 +1295,63 @@
         // /email-assets and is for email only. There is no assets/ dir here.
         alt: 'Archangel Health',
       }),
-      h('div', { class: 'cm-home-title' }, title),
-      h('p', { class: 'cm-home-body' }, body),
-      chips);
+      h('div', { class: 'cm-home-title cm-empty-title' }, title));
+    if (line) panel.appendChild(h('p', { class: 'cm-home-body' }, line));
+    // No button in a room this reader cannot write in, and none in the preview,
+    // where the composer it would focus does not exist.
+    if (label && state.canPost && READ_ONLY_ROOMS.indexOf(slug) === -1) {
+      panel.appendChild(h('button', {
+        class: 'cm-home-cta', type: 'button',
+        onClick: () => {
+          // Found through the channel composer's OWN wrapper rather than by an
+          // id on the textarea: `buildComposer` also builds the thread panel's
+          // box, so an id there means two elements share it whenever a thread
+          // is open. This also leaves the composer itself untouched, which §7
+          // asks for.
+          const wrap = document.getElementById('cmComposerWrap');
+          const ta = wrap && wrap.querySelector('textarea');
+          if (ta) ta.focus();
+        },
+      }, label));
+    }
+    return panel;
+  }
+
+  /* ── The pinned home card (§1.3) ─────────────────────────────────────────
+   *
+   * The landing room shows the morning's digest collapsed: the title, the top
+   * story, and `Read all {n} →` into the channel post. Same component as the
+   * card in #medical-ai-news, in its collapsed mode — one component, two
+   * contexts, because two components is two places for the design to drift.
+   *
+   * Returns null everywhere except the landing room, and whenever no digest has
+   * been fetched. A landing page is not the place to explain an absence. */
+  function pinnedDigestEl() {
+    if (state.active !== 'general' || state.preview) return null;
+    const m = state.latestDigest;
+    const dg = m && digestOf(m);
+    if (!dg) return null;
+    return h('div', { class: 'cm-digest-pin' }, digestCardEl(m, dg, { collapsed: true }));
+  }
+
+  /* `Read all →`: the channel post itself, not a copy of it. The card the
+     reader taps and the card they land on are the same post, so the pinned one
+     never has to be kept in sync with anything. */
+  function openDigestPost(m) {
+    openChannel('medical-ai-news');
+    if (!m || !m.id) return;
+    // The row appears when the channel's fetch lands, and a single timeout is a
+    // bet on how long that takes: slower than the guess and the scroll silently
+    // never happens. Look for it a few times over about two seconds instead,
+    // then stop. A row that never arrives is a no-op rather than an error --
+    // the reader is in the right room either way.
+    let tries = 0;
+    const seek = () => {
+      const row = document.querySelector('[data-mid="' + m.id + '"]');
+      if (row && row.scrollIntoView) { row.scrollIntoView({ block: 'center' }); return; }
+      if (++tries < 10) setTimeout(seek, 200);
+    };
+    setTimeout(seek, 120);
   }
 
   function renderMessages(opts) {
@@ -1148,6 +1362,11 @@
     const atBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 60;
     clear(scroll);
     const inDm = isDmKey(state.active);
+    // The landing room leads with the morning's digest, collapsed, whether or
+    // not anybody has posted in it yet -- so it sits above BOTH the stream and
+    // the empty panel rather than inside either.
+    const pinned = pinnedDigestEl();
+    if (pinned) scroll.appendChild(pinned);
     // #events: the pinned event card(s) sit above the message stream. Its own
     // banner carries the empty state, so skip the generic "nothing here" copy.
     if (state.active === 'events') {
@@ -1175,7 +1394,8 @@
             + (peer.display_name || 'this colleague') + '. Colleague discussion only: no PHI.'];
         }
       } else {
-        // A real channel: the branded panel, not two lines of grey.
+        // A real channel: the branded panel, not two lines of grey. The pinned
+        // digest is already above it.
         scroll.appendChild(homePanel(state.active));
         return;
       }
@@ -1293,28 +1513,84 @@
     return wrap.childNodes.length ? wrap : null;
   }
 
-  /* ── The digest card (Community News PRD §2.3) ───────────────────────────
+  /* ── The digest card (Digest Design PRD §1) ──────────────────────────────
    *
-   * A digest is not a message somebody wrote, and rendering it as a bubble of
-   * markdown was the visible half of a deeper problem: the model was asked for
-   * prose and the product parsed it back into structure it never reliably had.
-   * Now the post IS structure (`m.payload`, written by the compose contract)
-   * and this draws it.
+   * A digest is not a message somebody wrote, and it is not a list either. It
+   * used to render as one: a mono eyebrow, a section label, a headline, a grey
+   * sentence, a source that said "STAT ↗". Nothing was promoted, nothing was
+   * tinted, and the headline and the description said the same thing twice.
+   *
+   * Now one story leads. It gets a rule in its tag's tint, a badge, a bigger
+   * headline, one sentence of deck and its why-it-matters on a lime wash with
+   * no label — the wash IS the label. Everything else is a compact row: tag,
+   * headline, one line, one link.
    *
    * Old digests keep their old rendering. They have no payload, `digestOf`
    * returns null, and `renderBody` handles them exactly as before — which is
    * the entire migration: no backfill, no dual-write, and a room that scrolls
    * from markdown posts into cards without a gap.
    *
-   * Everything here is a TEXT NODE via h(). The headlines and one-liners were
-   * written by a model over somebody else's web page, and the server's
+   * Everything here is a TEXT NODE via h(). The headlines, decks and one-liners
+   * were written by a model over somebody else's web page, and the server's
    * escaping is not a reason for the client to stop doing its own. */
 
-  /* Section order is the contract's, not the payload's: community/
-     digest_contract.py SECTIONS is the source of truth and this mirrors it.
-     A digest whose sections reshuffle daily reads as a different product each
-     morning and costs the reader the ability to skip to what they care about. */
-  const DIGEST_SECTIONS = ['Research', 'Regulation', 'Deployment', 'Evals', 'Opinion'];
+  /* An SVG element is NOT an HTML element, and `h()` builds HTML.
+     `document.createElement('svg')` returns an HTMLUnknownElement that lays out
+     as an inline box and paints nothing, which is the failure mode where the
+     markup is right in devtools and the icon is simply absent. Five glyphs are
+     also the entire reason this page loads no icon font and must not start
+     loading one, so they are inline paths and this is what draws them. */
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function svgIcon(paths) {
+    const el = document.createElementNS(SVG_NS, 'svg');
+    el.setAttribute('viewBox', '0 0 24 24');
+    el.setAttribute('width', '14');
+    el.setAttribute('height', '14');
+    el.setAttribute('fill', 'none');
+    el.setAttribute('stroke', 'currentColor');
+    el.setAttribute('stroke-width', '1.8');
+    el.setAttribute('stroke-linecap', 'round');
+    el.setAttribute('stroke-linejoin', 'round');
+    el.setAttribute('aria-hidden', 'true');
+    el.setAttribute('focusable', 'false');
+    for (const d of paths) {
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', d);
+      el.appendChild(p);
+    }
+    return el;
+  }
+
+  /* The tag vocabulary: five sections, five Tabler outline shapes, five washes.
+     Keyed on the contract's own section names (community/digest_contract.py
+     SECTIONS), so a section the backend adds without a tag here is visible as a
+     plain chip rather than silently dropped. */
+  const DIGEST_TAGS = {
+    Regulation: { key: 'regulation', icon: [
+      'M7 20h10', 'M6 6l6 -1l6 1', 'M12 3v17',
+      'M9 12l-3 -6l-3 6a3 3 0 0 0 6 0', 'M21 12l-3 -6l-3 6a3 3 0 0 0 6 0'] },
+    Research: { key: 'research', icon: [
+      'M9 3h6', 'M10 9h4', 'M10 3v6l-4.5 8a2 2 0 0 0 1.7 3h9.6a2 2 0 0 0 1.7 -3l-4.5 -8v-6'] },
+    Deployment: { key: 'deployment', icon: [
+      'M3 21h18', 'M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16',
+      'M9 21v-4a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v4', 'M10 9h4', 'M12 7v4'] },
+    Evals: { key: 'evals', icon: [
+      'M4 12h16a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1z',
+      'M6 12v3', 'M9 12v2', 'M12 12v3', 'M15 12v2', 'M18 12v3', 'M3 4v3', 'M3 5h18', 'M21 4v3'] },
+    Opinion: { key: 'opinion', icon: [
+      'M10 11h-4a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v6c0 2.667 -1.333 4.333 -4 5',
+      'M19 11h-4a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v6c0 2.667 -1.333 4.333 -4 5'] },
+  };
+
+  function tagChipEl(section) {
+    const tag = DIGEST_TAGS[section];
+    const chip = h('span', {
+      class: 'cm-tag' + (tag ? ' cm-tag-' + tag.key : ''),
+    });
+    if (tag) chip.appendChild(svgIcon(tag.icon));
+    chip.appendChild(h('span', { class: 'cm-tag-label' }, String(section || '')));
+    return chip;
+  }
 
   function digestOf(m) {
     if (!m || (m.kind !== 'digest_news' && m.kind !== 'digest_papers')) return null;
@@ -1324,59 +1600,165 @@
     // it, but a row written by an older build or repaired by hand must degrade
     // to the markdown body rather than render a card with holes in it.
     const items = p.items.filter((it) => it && it.headline);
-    return items.length ? { title: p.title || 'Medical AI digest', items } : null;
+    return items.length ? { title: p.title || 'Medical AI Digest', items } : null;
   }
 
-  function digestItemEl(it) {
+  /* Which story leads, said once. The server marks it (`lead: true`) and this
+     mirrors community/digest_contract.py `lead_and_rest` for the payloads
+     written before it did — the fallback is the first item, which is the same
+     answer the backend falls back to, so the card and the email cannot promote
+     different stories. */
+  function digestLead(items) {
+    const idx = Math.max(0, items.findIndex((it) => it.lead));
+    return { lead: items[idx], rest: items.filter((_, i) => i !== idx) };
+  }
+
+  /* `Full article →` and the publisher beside it in mono. One primary action
+     per item and never a bare host string: "statnews.com" is not how a person
+     says STAT, and the link already carries the host. */
+  function digestSourceEl(it) {
     const url = String(it.url || '');
     const safe = /^https?:\/\//i.test(url);
-    const head = safe
-      ? h('a', { class: 'cm-dg-head', href: url, target: '_blank',
-                 rel: 'noopener noreferrer' }, it.headline)
-      : h('div', { class: 'cm-dg-head' }, it.headline);
-    const row = h('div', { class: 'cm-dg-item' }, head);
+    const row = h('div', { class: 'cm-digest-src' });
+    if (safe) {
+      row.appendChild(h('a', {
+        class: 'cm-digest-link', href: url, target: '_blank', rel: 'noopener noreferrer',
+      }, 'Full article', h('span', { class: 'cm-digest-arrow', 'aria-hidden': 'true' }, '→')));
+    }
+    if (it.source) row.appendChild(h('span', { class: 'cm-digest-pub' }, it.source));
+    return row.childNodes.length ? row : null;
+  }
+
+  function digestHeadlineEl(it, cls) {
+    const url = String(it.url || '');
+    const safe = /^https?:\/\//i.test(url);
+    return safe
+      ? h('a', { class: cls, href: url, target: '_blank', rel: 'noopener noreferrer' }, it.headline)
+      : h('div', { class: cls }, it.headline);
+  }
+
+  function digestLeadEl(it, m) {
+    const tag = DIGEST_TAGS[it.section];
+    const wrap = h('div', {
+      class: 'cm-digest-lead' + (tag ? ' cm-tag-' + tag.key : ''),
+    },
+      h('div', { class: 'cm-digest-leadhead' },
+        h('span', { class: 'cm-digest-badge' }, it.urgent ? 'BREAKING' : 'TOP STORY'),
+        tagChipEl(it.section)),
+      digestHeadlineEl(it, 'cm-digest-headline'));
+    if (it.deck) wrap.appendChild(h('p', { class: 'cm-digest-deck' }, it.deck));
+    // No label above it. The wash is the label -- a "WHY IT MATTERS" eyebrow is
+    // a line that can be deleted without the card losing anything.
+    if (it.why_it_matters) wrap.appendChild(h('div', { class: 'cm-why' }, it.why_it_matters));
+    const src = digestSourceEl(it);
+    if (src) wrap.appendChild(src);
+    const admin = m ? digestAdminEl(m, it, true) : null;
+    if (admin) wrap.appendChild(admin);
+    return wrap;
+  }
+
+  /* The admin override (§2.2), on the post itself.
+   *
+   * It lives here rather than on the admin console's community card because
+   * that card's feed carries an author, a channel and a body string -- no
+   * message id and no payload -- so the action would have needed a wider
+   * summary endpoint to reach the thing it acts on. The digest post IS the
+   * admin menu for the digest post.
+   *
+   * Two verbs and no text field. `Set as top story` moves the rule and the
+   * badge; `Clear breaking` takes the badge off. Neither can change a word on
+   * the card, because every word came through the compose contract and the
+   * house-style gate, and an override that accepted prose would be a way to
+   * put unvalidated text on a post signed by the platform. Setting BREAKING is
+   * not offered at all: it is earned by one of four same-day events the
+   * compose pass can see and an admin cannot.
+   *
+   * Invisible to everyone else. A physician reading the morning's news has no
+   * business seeing the levers behind it. */
+  function digestAdminEl(m, it, isLead) {
+    if (!state.isAdmin || state.preview) return null;
+    const row = h('div', { class: 'cm-digest-admin' });
+    const send = (patch, label) => {
+      api('/admin/messages/' + m.id + '/digest-lead', { method: 'POST', body: patch })
+        .then((updated) => {
+          // The server answers with the re-rendered message and the socket
+          // broadcasts the same thing to everyone else in the room. Patching
+          // the row in hand keeps the admin who pressed it from waiting on
+          // their own broadcast to see what they did.
+          Object.assign(m, updated || {});
+          renderMessages({});
+          toast(label, 'success');
+        })
+        .catch((e) => toast(e.message, 'error'));
+    };
+    if (!isLead) {
+      row.appendChild(h('button', { class: 'cm-digest-admin-btn', type: 'button',
+        onClick: () => send({ url: it.url }, 'Top story set') }, 'Set as top story'));
+    }
+    if (isLead && it.urgent) {
+      row.appendChild(h('button', { class: 'cm-digest-admin-btn', type: 'button',
+        onClick: () => send({ urgent: false }, 'Breaking cleared') }, 'Clear breaking'));
+    }
+    return row.childNodes.length ? row : null;
+  }
+
+  function digestItemEl(it, m) {
+    const row = h('div', { class: 'cm-digest-item' }, tagChipEl(it.section),
+      digestHeadlineEl(it, 'cm-digest-subhead'));
+    // Compact items carry no deck by contract; guarded anyway, because a row
+    // repaired by hand must not put a second paragraph in a one-line card.
     if (it.why_it_matters) {
-      row.appendChild(h('div', { class: 'cm-dg-why' }, it.why_it_matters));
+      row.appendChild(h('div', { class: 'cm-digest-line' }, it.why_it_matters));
     }
-    if (it.source) {
-      // The source is a quiet link, and it is the same link as the headline:
-      // two destinations in one item is a choice the reader should not have to
-      // make. Without a usable url it stays plain text rather than a dead link.
-      row.appendChild(safe
-        ? h('a', { class: 'cm-dg-src', href: url, target: '_blank',
-                   rel: 'noopener noreferrer' }, it.source,
-            h('span', { class: 'cm-dg-arrow', 'aria-hidden': 'true' }, '↗'))
-        : h('span', { class: 'cm-dg-src' }, it.source));
-    }
+    const src = digestSourceEl(it);
+    if (src) row.appendChild(src);
+    const admin = m ? digestAdminEl(m, it, false) : null;
+    if (admin) row.appendChild(admin);
     return row;
   }
 
-  function digestCardEl(m, dg) {
-    const card = h('div', { class: 'cm-dg' },
-      h('div', { class: 'cm-dg-eyebrow chrome' }, dg.title));
-    for (const section of DIGEST_SECTIONS) {
-      const items = dg.items.filter((it) => it.section === section);
-      if (!items.length) continue;   // empty sections do not render
-      card.appendChild(h('div', { class: 'cm-dg-section chrome' }, section));
-      for (const it of items) card.appendChild(digestItemEl(it));
-    }
-    // An item whose section the client does not recognise still has to appear:
-    // dropping it would silently shorten a digest the server published in full,
-    // and a reader has no way to know something is missing.
-    const known = new Set(DIGEST_SECTIONS);
-    const rest = dg.items.filter((it) => !known.has(it.section));
-    if (rest.length) {
-      card.appendChild(h('div', { class: 'cm-dg-section chrome' }, 'More'));
-      for (const it of rest) card.appendChild(digestItemEl(it));
-    }
+  /* The reader's own weekday, not the server's. A digest fires on a UTC hour
+     and telling a physician in Mumbai it is Tuesday when their phone says
+     Wednesday is the same arithmetic `fmtWhen` already refuses to make them do. */
+  function digestWeekday(iso) {
+    try {
+      const d = new Date(iso);
+      // An unparseable date does not throw here: `new Date('x')` is a valid
+      // Date object whose time is NaN, and toLocaleDateString returns the
+      // STRING "Invalid Date" for it. A try/catch never sees that, and the card
+      // renders "Invalid Date · 3 stories" in its header.
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString([], { weekday: 'long' });
+    } catch (e) { return ''; }
+  }
+
+  /* One component, two contexts (§1.3). `collapsed` is the pinned home card:
+     the same title and the same lead, then `Read all {n} →` into the channel
+     post. A second component would be a second place for the design to drift. */
+  function digestCardEl(m, dg, opts) {
+    opts = opts || {};
+    const collapsed = !!opts.collapsed;
+    const { lead, rest } = digestLead(dg.items);
+    const weekday = digestWeekday(m.created_at);
+    const n = dg.items.length;
+
+    const card = h('div', { class: 'cm-digest' + (collapsed ? ' cm-digest-pinned' : '') },
+      h('div', { class: 'cm-digest-head' },
+        h('div', { class: 'cm-digest-title' }, dg.title),
+        h('div', { class: 'cm-digest-meta' },
+          (weekday ? weekday + ' · ' : '') + n + (n === 1 ? ' story' : ' stories'))));
+
+    // The pinned card carries no admin controls: it is the same post seen from
+    // the landing room, and two places to press the same button is two places
+    // to press it twice.
+    card.appendChild(digestLeadEl(lead, collapsed ? null : m));
+    if (!collapsed) for (const it of rest) card.appendChild(digestItemEl(it, m));
+
     card.appendChild(h('button', {
-      class: 'cm-dg-discuss', type: 'button',
-      onClick: () => openThread(m.id),
-    }, m.reply_count > 0
-      ? 'Discuss in thread · ' + m.reply_count
-        + (m.reply_count === 1 ? ' reply' : ' replies')
-      : 'Discuss in thread',
-      h('span', { class: 'cm-dg-arrow', 'aria-hidden': 'true' }, '→')));
+      class: 'cm-digest-foot', type: 'button',
+      onClick: () => (collapsed ? openDigestPost(m) : openThread(m.id)),
+    }, collapsed ? 'Read all ' + n : 'Discuss',
+      h('span', { class: 'cm-digest-arrow', 'aria-hidden': 'true' }, '→')));
     return card;
   }
 
@@ -2147,6 +2529,12 @@
     } catch (e) { toast(e.message, 'error'); }
   }
   function applyDelete(mid, parentId) {
+    // The digest room's own rows are a second list, so a delete has to reach
+    // them too. The server stops counting a deleted message as unread
+    // (`store.py unread_counts` is `deleted_at IS NULL`), so leaving it here
+    // counts a digest nobody can read any more -- and the pinned card would go
+    // on drawing it until a reload.
+    forgetDigestRow(mid);
     for (const slug in state.msgs) {
       const st = state.msgs[slug];
       // A deleted REPLY decrements its root's thread teaser (audit finding —
@@ -2531,6 +2919,21 @@
     } catch (e) { return raw; }
   }
 
+  /* The credential line: "Nephrology · 15-19 yrs" (§3.2).
+     One line under the name, assembled from the two Tier A facts every member
+     row already carries. Staff say who they are instead, because "Archangel ·
+     12 yrs" reads as a specialty they do not have. */
+  function credentialLine(m) {
+    if (m.is_bot) return 'Archangel Health';
+    const bits = [];
+    if (m.is_staff) bits.push('Archangel Health');
+    else if (m.specialty) bits.push(m.specialty);
+    if (m.years_in_practice != null && m.years_in_practice !== '') {
+      bits.push(m.years_in_practice + ' yrs');
+    }
+    return bits.join(' · ') || null;
+  }
+
   /* THE SAME FACTS AS THE VERIFIED CARD, and no others.
    *
    * backend/asclepius/card.py::CARD_FIELDS is the one place that decides what a
@@ -2539,19 +2942,44 @@
    * required not to drift; this panel was a fourth surface rendering a
    * different, longer set (institution, board certification, fellowship
    * training), so a colleague opening a name in the community saw something
-   * other than what the same person shares as their card.
+   * other than what the same person shares as their card. The redesign turned
+   * that list into three stats and changed nothing about WHICH three.
    *
-   * The avatar, the name and the checkmark are drawn by the panel head below;
-   * these are the remaining three. Nothing gets added here without being added
-   * to CARD_FIELDS first, and the contributor score never appears on either —
-   * a physician is not shown their own, so a colleague certainly is not. */
-  function profileRows(m) {
-    const rows = [];
-    const add = (k, v) => { if (v != null && v !== '') rows.push(h('div', { class: 'cm-profile-row' }, h('dt', {}, k), h('dd', {}, String(v)))); };
-    add('Specialty', m.specialty);
-    add('Years in practice', m.years_in_practice);
-    add('Country', countryLabel(m.country));
-    return rows;
+   * The PRD asks for cases, joined and last-active instead. None of the three
+   * exists in the community's member payload (community/router.py member_map is
+   * Tier A plus the users table, and case counts live on the asclepius plane
+   * behind a different gate), and widening the API to decorate a card is how a
+   * profile panel becomes a fourth source of truth again. So: the card's three.
+   *
+   * The avatar, the name and the checkmark are drawn by the panel head. Nothing
+   * gets added here without being added to CARD_FIELDS first, and the
+   * contributor score never appears on either -- a physician is not shown their
+   * own, so a colleague certainly is not. */
+  function profileStats(m) {
+    // "Not shared" rather than a dash. A dash in a stat slot reads as a value
+    // the product failed to load; the words say the true thing, which is that
+    // this colleague has not filled that field in.
+    const unset = 'Not shared';
+    const stats = [
+      ['Specialty', m.is_staff ? 'Archangel' : (m.specialty || unset)],
+      ['In practice', (m.years_in_practice != null && m.years_in_practice !== '')
+        ? m.years_in_practice + ' yrs' : unset],
+      ['Country', countryLabel(m.country) || unset],
+    ];
+    return h('div', { class: 'cm-profile-stats' }, stats.map(([k, v]) =>
+      h('div', { class: 'cm-profile-stat' },
+        h('div', { class: 'cm-profile-stat-v' }, String(v)),
+        h('div', { class: 'cm-profile-stat-k chrome' }, k))));
+  }
+
+  /* Where the founders' 20 minutes lives, handed over by the shell.
+     Read once, defensively: a page served without the attribute renders a
+     profile with one action instead of throwing inside the panel. */
+  function founderCalendly() {
+    try {
+      const url = document.body.getAttribute('data-founder-calendly') || '';
+      return /^https:\/\//i.test(url) ? url : null;
+    } catch (e) { return null; }
   }
 
   /* The best view of a colleague we currently hold.
@@ -2605,22 +3033,41 @@
       h('span', { class: 'cm-side-title' }, 'Profile'),
       h('button', { class: 'cm-iconbtn', 'aria-label': 'Close panel', onClick: closeSide }, '✕')));
     const body = h('div', { class: 'cm-side-body' });
+    /* Three stats and ONE action (§3.2). The blurb and the field list are gone:
+       the blurb repeated the credential line in longer words, and the list said
+       the same three facts the stats say. What is left is a card a colleague
+       reads in a glance and one thing they can do about it.
+
+       Founders add a second: twenty minutes, on the same link every physician
+       gets on the portal. Two actions on one card is a rule broken on purpose,
+       for the two people it is worth breaking for. */
+    const calendly = founderCalendly();
+    const cred = credentialLine(m);
+    const canMessage = state.canPost && state.me && m.user_id !== state.me.user_id;
+    const actions = h('div', { class: 'cm-profile-actions' });
+    if (canMessage) {
+      actions.appendChild(h('button', {
+        class: 'cm-btn cm-btn-primary cm-profile-action',
+        onClick: () => startDmWith(m.user_id),
+      }, 'Message'));
+    }
+    if (m.is_staff && !m.is_bot && calendly) {
+      actions.appendChild(h('a', {
+        class: 'cm-btn cm-btn-ghost cm-profile-action',
+        href: calendly, target: '_blank', rel: 'noopener noreferrer',
+      }, 'Book 20 minutes'));
+    }
+
     body.appendChild(h('div', { class: 'cm-profile' },
       h('div', { class: 'cm-profile-head' },
         avatarEl(m, 'big'),
         h('div', {},
           h('div', { class: 'cm-profile-name' }, m.display_name,
             m.verified ? h('span', { class: 'cm-verified', title: 'Credential-verified' }) : null),
+          cred ? h('div', { class: 'cm-profile-cred' }, cred) : null,
           h('div', { class: 'chrome' }, state.online.has(m.user_id) ? 'online' : 'offline'))),
-      state.canPost && state.me && m.user_id !== state.me.user_id
-        ? h('button', {
-            class: 'cm-btn cm-btn-primary',
-            style: 'width:100%;justify-content:center;margin-bottom:var(--sp-4)',
-            onClick: () => startDmWith(m.user_id),
-          }, 'Send a message')
-        : null,
-      m.blurb ? h('div', { class: 'cm-profile-blurb' }, m.blurb) : null,
-      h('dl', { class: 'cm-profile-rows' }, profileRows(m))));
+      profileStats(m),
+      actions.childNodes.length ? actions : null));
     side.appendChild(body);
     openSide();
   }
@@ -2865,6 +3312,8 @@
       case 'presence': {
         state.online = new Set(ev.online || []);
         for (const m of state.members) m.online = state.online.has(m.user_id);
+        // The bar counts the same set the rail does, so it repaints with it.
+        renderGreeting();
         renderRail();
         break;
       }
@@ -2875,17 +3324,7 @@
        * because the client stops polling while the socket is healthy and the
        * server never pushed anything when it wrote them. */
       case 'dm.created': applyDmSummary(ev.dm); break;
-      case 'message.updated': {
-        const msg = ev.message;
-        const st = state.msgs[msg.channel];
-        if (st) st.list = st.list.map((m) => (m.id === msg.id ? msg : m));
-        if (state.thread) {
-          if (state.thread.root.id === msg.id) state.thread.root = msg;
-          state.thread.replies = state.thread.replies.map((r) => (r.id === msg.id ? msg : r));
-        }
-        renderMessages({}); renderThreadPanel();
-        break;
-      }
+      case 'message.updated': applyUpdate(ev.message); break;
       case 'message.deleted': applyDelete(ev.id, ev.parent_message_id); break;
       case 'reaction': applyReactions(ev.message_id, ev.reactions); break;
       // ── v2.1 social events ──
@@ -3044,8 +3483,89 @@
       st.list.sort((a, b) => a.id - b.id);
       if (msg.channel === state.active) renderMessages({});
     }
+    trackDigestRoom(msg);
     bumpUnread(msg);
     if (msg.channel === state.active) markReadIfAtBottom();
+  }
+
+  /* Keep the digest room's rows current. Without this the boot fetch is the
+     whole world: a digest posted while the tab is open never reaches the pinned
+     card and is never counted, and the count would go up by one on a message
+     the tail does not contain. Top-level only, matching what the channel
+     endpoint returns and what `unread` counts. */
+  function trackDigestRoom(msg) {
+    if (!msg || msg.channel !== 'medical-ai-news' || msg.parent_message_id) return;
+    if (state.digestRoom.some((m) => m.id === msg.id)) return;
+    state.digestRoom.push(msg);
+    // Bounded, like the fetch that seeds it. This list only ever answers "what
+    // is at the end of the room".
+    if (state.digestRoom.length > 50) state.digestRoom.shift();
+    // One place decides what the rows imply, so an append, an edit and a
+    // delete cannot leave `latestDigest` pointing at three different things.
+    refreshDigestRoom();
+  }
+
+  /* Re-derive what the digest room's rows imply, after any change to them. */
+  function refreshDigestRoom() {
+    const digests = state.digestRoom.filter((m) => digestOf(m));
+    state.latestDigest = digests.length ? digests[digests.length - 1] : null;
+    renderGreeting();
+    if (state.active === 'general') renderMessages({});
+  }
+
+  /* A row is gone. The server stops counting a deleted message as unread
+     (`store.py unread_counts` is `deleted_at IS NULL`), so leaving it here
+     counts a digest nobody can read any more, and the pinned card would go on
+     drawing it until a reload. */
+  function forgetDigestRow(mid) {
+    const at = state.digestRoom.findIndex((m) => m.id === mid);
+    if (at === -1) return;
+    /* Drop the channel's unread with it when the row was one of the unread
+       ones. `newDigestCount` reads the LAST `unread` rows, so removing a row
+       without lowering the count slides that window one place earlier and an
+       already-read digest starts being counted as new. The server agrees:
+       `unread_counts` is `deleted_at IS NULL`, so it stops counting a deleted
+       message too -- this is the client keeping up, not inventing a rule. */
+    const ch = state.channels.find((c) => c.slug === 'medical-ai-news');
+    const mine = (state.me || {}).user_id;
+    const others = state.digestRoom.filter(
+      (m) => !(mine && m.author && m.author.user_id === mine));
+    const unread = Math.max(0, Math.min((ch && ch.unread) || 0, others.length));
+    const wasUnread = others.slice(others.length - unread).some((m) => m.id === mid);
+    state.digestRoom.splice(at, 1);
+    if (ch && wasUnread) ch.unread = Math.max(0, (ch.unread || 0) - 1);
+    refreshDigestRoom();
+  }
+
+  /* A row we already hold has changed -- an edit, or the admin override
+     rewriting which story leads. Position is preserved, because this list is
+     ordered oldest-first and its last entry is what "the newest digest" means. */
+  function replaceDigestRow(msg) {
+    if (!msg || !msg.id) return;
+    const at = state.digestRoom.findIndex((m) => m.id === msg.id);
+    if (at === -1) return;
+    state.digestRoom[at] = msg;
+    refreshDigestRoom();
+  }
+
+  /* An edited or re-led message, applied everywhere it is held.
+     A named function rather than a case body so the wiring itself can be
+     tested: an audit deleted the digest-room line from inside the switch and
+     every test stayed green, because nothing could reach the case. */
+  function applyUpdate(msg) {
+    if (!msg || !msg.id) return;
+    const st = state.msgs[msg.channel];
+    if (st) st.list = st.list.map((m) => (m.id === msg.id ? msg : m));
+    // The admin override arrives as an update, so the pinned card has to pick
+    // up the new lead rather than go on drawing the old one. Replaced IN
+    // PLACE, not removed and re-appended: an edit to an older message would
+    // otherwise jump to the end of the list and be read as the newest digest.
+    replaceDigestRow(msg);
+    if (state.thread) {
+      if (state.thread.root.id === msg.id) state.thread.root = msg;
+      state.thread.replies = state.thread.replies.map((r) => (r.id === msg.id ? msg : r));
+    }
+    renderMessages({}); renderThreadPanel();
   }
 
   function bumpUnread(msg) {

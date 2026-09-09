@@ -1440,3 +1440,309 @@ def test_app_lifespan_boots_and_stops_community():
         # the app is actually serving while the loop runs
         assert booted.get("/community").status_code == 200
     assert n._loop_task is None  # stop_digest_loop ran on shutdown
+
+
+# ═══ The digest's admin override (Digest Design PRD §2.2) ════════════════════
+#
+# Promoting a different story is a change to which item leads, and the model
+# already answered. So it rewrites `payload_json` and re-renders: no re-run, and
+# no way to change a single word on the card.
+
+def _digest_payload():
+    from community import digest_contract
+
+    return digest_contract.mark_lead(digest_contract.validate_payload({"items": [
+        {"headline": "FDA clears autonomous AI for retinopathy",
+         "deck": "The clearance covers screening with no physician in the loop.",
+         "why_it_matters": "First reimbursed autonomous diagnostic.",
+         "source": "STAT", "url": "https://example.org/a", "section": "Regulation",
+         "urgent": True, "urgent_kind": "regulatory"},
+        {"headline": "Frontier models score under 0.3 kappa",
+         "deck": "Three models graded the same trials and agreed about as often as chance.",
+         "why_it_matters": "More reasoning did not help.",
+         "source": "Synthesis Bench", "url": "https://example.org/b", "section": "Research"},
+        {"headline": "Health system rolls back its ambient scribe",
+         "deck": "An audit found notes clinicians had signed but had not read.",
+         "why_it_matters": "Deployment risk sits in the audit trail.",
+         "source": "Modern Healthcare", "url": "https://example.org/c",
+         "section": "Deployment"},
+    ]}, kind="news"), "https://example.org/a")
+
+
+def _post_digest(cstore):
+    from community import digest_contract
+    from community.system_posts import SYSTEM_USER_ID
+
+    payload = _digest_payload()
+    channel = cstore.get_channel_by_slug("medical-ai-news")
+    return cstore.insert_message(
+        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
+        # The real plain-text rendering, exactly as the pipeline writes it. A
+        # placeholder body here would make the override's body rewrite
+        # untestable, which is how that gap survived the first round.
+        body=digest_contract.plain_text_body(payload),
+        kind="digest_news", payload=payload)
+
+
+def _stored_payload(cstore, message_id):
+    """What is actually on disk. A store row carries ``payload_json``; only the
+    serializer produces ``payload``, and reading the serialized key off a raw
+    row yields None for every digest ever written."""
+    row = cstore.get_message(message_id)
+    return json.loads(row["payload_json"]) if row and row.get("payload_json") else None
+
+
+def _set_lead(user, message_id, **body):
+    return client.post(f"{BASE}/admin/messages/{message_id}/digest-lead",
+                       json=body, headers=headers_for(user))
+
+
+def test_an_admin_can_promote_a_different_story_without_a_re_run():
+    _astore, cstore, doc, admin = setup_world()
+    msg = _post_digest(cstore)
+
+    r = _set_lead(admin, msg["id"], url="https://example.org/c")
+    assert r.status_code == 200, r.text
+    items = r.json()["payload"]["items"]
+    assert items[0]["url"] == "https://example.org/c" and items[0]["lead"] is True
+    # The promoted item still HAS its deck. Clearing the other decks at post
+    # time made this override destructive: a story promoted on Tuesday
+    # afternoon would render as a 26px headline with nothing under it, because
+    # the deck it needed was deleted at 6am. Only the LEAD'S deck renders, and
+    # that is the renderers' job.
+    assert items[0]["deck"], "the promoted story lost the deck it was written with"
+    # The badge does not TRAVEL: the new lead did not earn one, so it has none.
+    assert items[0]["urgent"] is False
+    # But the demoted story keeps the flag it earned, unrendered, so promoting
+    # it back restores it. An override whose cost is irreversible is an
+    # override nobody dares press.
+    demoted = next(i for i in items if i["url"] == "https://example.org/a")
+    assert demoted["urgent"] is True and demoted["lead"] is False
+    # And it is on disk, not just in the response.
+    assert _stored_payload(cstore, msg["id"])["items"][0]["url"] == "https://example.org/c"
+
+
+def test_promoting_a_story_back_restores_the_badge_it_earned():
+    """A misclick must not permanently destroy a BREAKING badge the compose
+    pass earned on one of four same-day events. Only `Clear breaking` does
+    that, and it says so on the button."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+
+    assert _set_lead(admin, msg["id"], url="https://example.org/c").status_code == 200
+    back = _set_lead(admin, msg["id"], url="https://example.org/a")
+    assert back.status_code == 200, back.text
+    items = back.json()["payload"]["items"]
+    assert items[0]["url"] == "https://example.org/a"
+    assert items[0]["urgent"] is True and items[0]["urgent_kind"] == "regulatory"
+    assert sum(1 for i in items if i.get("lead")) == 1
+
+
+def test_a_promotion_rewrites_the_body_the_inbox_preview_reads():
+    """The body is the plain-text view of the same object. Left behind, one post
+    has the new top story on the card and the old one in the notification
+    snippet -- the split §1.3 exists to close."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    assert cstore.get_message(msg["id"])["body"].index("retinopathy") \
+        < cstore.get_message(msg["id"])["body"].index("kappa")
+
+    assert _set_lead(admin, msg["id"], url="https://example.org/b").status_code == 200
+    body = cstore.get_message(msg["id"])["body"]
+    assert body.index("kappa") < body.index("retinopathy"), body
+
+
+def test_an_override_that_asks_for_nothing_changes_nothing():
+    """An empty body would otherwise rewrite the row, broadcast an update and
+    write an audit line for a request that asked for nothing."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    before = cstore.get_message(msg["id"])
+    audits_before = len(audit_events("community.digest_lead"))
+
+    r = client.post(f"{BASE}/admin/messages/{msg['id']}/digest-lead",
+                    json={}, headers=headers_for(admin))
+    assert r.status_code == 400
+    # The name says "changes nothing", so check the row and the ledger, not
+    # just the status code the endpoint happened to return.
+    after = cstore.get_message(msg["id"])
+    assert after["payload_json"] == before["payload_json"]
+    assert after["body"] == before["body"]
+    assert len(audit_events("community.digest_lead")) == audits_before
+
+
+def test_an_override_blocked_by_a_gate_leaves_the_row_alone_and_names_the_admin():
+    """The only genuinely new failure path in this endpoint, and the one the
+    gates exist for. The gates record a block against the SYSTEM author,
+    because they were written for the bot's own write path -- so without the
+    endpoint's own audit line the operator who pressed the button appears
+    nowhere."""
+    _astore, cstore, _doc, admin = setup_world()
+    # A stored payload whose own text breaks the house style. Nothing the
+    # request carries can introduce this; it is what a rule change, or a row
+    # from an older build, looks like from here.
+    bad = _post_raw_digest(cstore, [
+        {"url": "https://example.org/a", "headline": "A headline",
+         "why_it_matters": "It matters.", "source": "STAT", "section": "Evals"},
+        {"url": "https://example.org/b", "headline": "Regulators moved, again",
+         "why_it_matters": "This changes triage!", "source": "STAT",
+         "section": "Regulation"},
+    ])
+    before = cstore.get_message(bad["id"])
+
+    r = _set_lead(admin, bad["id"], url="https://example.org/b")
+    assert r.status_code == 422, r.text
+    after = cstore.get_message(bad["id"])
+    assert after["payload_json"] == before["payload_json"]
+    assert after["body"] == before["body"]
+    blocked = [e for e in audit_events("community.digest_lead")
+               if e["outcome"] == "blocked"]
+    assert blocked, "an admin tripped a gate and the ledger does not say who"
+
+
+def _post_raw_digest(cstore, items):
+    from community.system_posts import SYSTEM_USER_ID
+
+    channel = cstore.get_channel_by_slug("medical-ai-news")
+    return cstore.insert_message(
+        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
+        body="Medical AI Digest", kind="digest_news",
+        payload={"title": "Medical AI Digest", "items": items})
+
+
+def test_a_payload_with_a_junk_item_is_refused_rather_than_crashing():
+    """`mark_lead` assigns onto every item to set `lead`, so one non-object in
+    the list turns an admin click into a 500."""
+    _astore, cstore, _doc, admin = setup_world()
+    broken = _post_raw_digest(
+        cstore, [{"url": "https://example.org/a", "headline": "A"}, "junk"])
+    assert _set_lead(admin, broken["id"], url="https://example.org/a").status_code == 400
+
+
+def test_a_stored_item_missing_a_field_the_body_renders_does_not_crash():
+    """The type guard above catches a non-object. It does NOT catch an object
+    with a key missing, and the override renders the plain-text body from
+    whatever is on disk -- so a row written by an older build, or repaired by
+    hand, met a bare subscript and returned a 500 on an admin's click.
+
+    Written as three separately-broken items rather than one, because each
+    missing field is a different subscript and one fixture would only ever
+    prove the first of them."""
+    _astore, cstore, _doc, admin = setup_world()
+    thin = _post_raw_digest(cstore, [
+        {"url": "https://example.org/a", "headline": "A headline", "section": "Evals"},
+        {"url": "https://example.org/b", "headline": "B", "source": "STAT"},
+        {"url": "https://example.org/c", "headline": "C", "why_it_matters": "Why."},
+    ])
+    r = _set_lead(admin, thin["id"], url="https://example.org/c")
+    assert r.status_code == 200, r.text
+    assert r.json()["payload"]["items"][0]["url"] == "https://example.org/c"
+    # The body still renders, leading with the promoted story.
+    body = cstore.get_message(thin["id"])["body"]
+    assert body.index("C") < body.index("A headline"), body
+
+
+def test_clearing_breaking_leaves_everything_else_alone():
+    _astore, cstore, doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    before = _stored_payload(cstore, msg["id"])
+
+    r = _set_lead(admin, msg["id"], urgent=False)
+    assert r.status_code == 200, r.text
+    after = r.json()["payload"]
+    assert after["items"][0]["urgent"] is False
+    assert after["items"][0]["urgent_kind"] is None
+    for key in ("headline", "deck", "why_it_matters", "source", "url", "section"):
+        assert after["items"][0][key] == before["items"][0][key]
+
+
+def test_breaking_cannot_be_granted_from_the_admin_menu():
+    """§2.2: it is earned by one of four same-day events the compose pass can
+    see. A button that granted it would turn a rule into a preference."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    assert _set_lead(admin, msg["id"], urgent=True).status_code == 400
+
+
+def test_a_url_that_is_not_in_the_digest_is_refused_rather_than_ignored():
+    """A silent no-op reads on the admin card exactly like an override that
+    worked, and the operator finds out tomorrow."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    assert _set_lead(admin, msg["id"], url="https://elsewhere.example/x").status_code == 404
+
+
+def test_a_physician_cannot_reorder_the_morning_news():
+    _astore, cstore, doc, _admin = setup_world()
+    msg = _post_digest(cstore)
+    assert _set_lead(doc, msg["id"], url="https://example.org/b").status_code in (401, 403)
+    assert _stored_payload(cstore, msg["id"])["items"][0]["url"] == "https://example.org/a"
+
+
+def test_an_ordinary_post_and_a_legacy_digest_are_both_refused():
+    """A post with no structured payload has no lead to set, and saying so is
+    better than writing a payload onto a message that never had one."""
+    _astore, cstore, doc, admin = setup_world()
+    chatter = post_msg(doc, "general", "Morning all").json()
+    assert _set_lead(admin, chatter["id"], url="https://example.org/a").status_code == 400
+
+    from community.system_posts import SYSTEM_USER_ID
+    channel = cstore.get_channel_by_slug("medical-ai-news")
+    legacy = cstore.insert_message(
+        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
+        body="Medical AI Digest\n\nResearch\nA story", kind="digest_news")
+    assert _set_lead(admin, legacy["id"], url="https://example.org/a").status_code == 400
+    assert _stored_payload(cstore, legacy["id"]) is None
+
+
+def test_a_legacy_payload_cannot_publish_a_badge_nothing_earned():
+    """The compose pass clears stray urgency, but that rule is newer than the
+    digests already in the database. Without a normalisation on the way in,
+    `Set as top story` on a v1 row carrying an unearned flag publishes BREAKING
+    through the endpoint that refuses to grant one."""
+    _astore, cstore, _doc, admin = setup_world()
+    legacy = _post_raw_digest(cstore, [
+        {"url": "https://example.org/a", "headline": "The lead", "deck": "A deck.",
+         "why_it_matters": "It matters.", "source": "STAT", "section": "Regulation",
+         "lead": True, "urgent": False, "urgent_kind": None},
+        # The unearned flag, on an item that never led.
+        {"url": "https://example.org/b", "headline": "Not the lead",
+         "why_it_matters": "Also matters.", "source": "Nature", "section": "Research",
+         "lead": False, "urgent": True, "urgent_kind": "regulatory"},
+    ])
+    # No version key at all is the oldest shape of row there is.
+    assert "version" not in _stored_payload(cstore, legacy["id"])
+
+    r = _set_lead(admin, legacy["id"], url="https://example.org/b")
+    assert r.status_code == 200, r.text
+    items = r.json()["payload"]["items"]
+    assert items[0]["url"] == "https://example.org/b"
+    assert items[0]["urgent"] is False, "a legacy stray flag reached the badge"
+    assert r.json()["payload"]["version"] >= 2, "the row was not normalised"
+
+
+def test_normalising_a_legacy_row_does_not_cost_the_lead_its_own_badge():
+    """The normalisation must not become the destructive clearing §9.7 removed:
+    a badge the compose pass earned on the item that IS the lead stays."""
+    _astore, cstore, _doc, admin = setup_world()
+    legacy = _post_raw_digest(cstore, [
+        {"url": "https://example.org/a", "headline": "The lead", "deck": "A deck.",
+         "why_it_matters": "It matters.", "source": "STAT", "section": "Regulation",
+         "lead": True, "urgent": True, "urgent_kind": "safety"},
+        {"url": "https://example.org/b", "headline": "Not the lead",
+         "why_it_matters": "Also matters.", "source": "Nature", "section": "Research",
+         "lead": False},
+    ])
+    r = _set_lead(admin, legacy["id"], url="https://example.org/b")
+    assert r.status_code == 200, r.text
+    demoted = next(i for i in r.json()["payload"]["items"]
+                   if i["url"] == "https://example.org/a")
+    assert demoted["urgent"] is True, "the lead's earned badge was cleared"
+
+
+def test_the_override_is_audited_like_every_other_admin_write():
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    assert _set_lead(admin, msg["id"], url="https://example.org/b").status_code == 200
+    events = audit_events("community.digest_lead")
+    assert events, "an admin rewrote a published post and nothing recorded it"

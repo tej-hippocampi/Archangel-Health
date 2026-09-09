@@ -300,7 +300,7 @@ def test_system_post_renders_bot_author_and_kind():
     # bot-author rendering this test is about.
     posted = run(post_system_message(
         channel_slug="medical-ai-news",
-        body="Medical AI digest\n\nResearch\nA story about a model\n"
+        body="Medical AI Digest\n\nResearch\nA story about a model\n"
              "It changes what a clinic does. (Fake Wire) https://example.com/x",
         kind="digest_news"))
     assert posted is not None

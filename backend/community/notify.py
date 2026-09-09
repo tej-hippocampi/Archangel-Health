@@ -221,8 +221,9 @@ def digest_payload_of(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not isinstance(payload, dict):
         return None
     items = payload.get("items")
-    # The shape, not just the truthiness. ``grouped_items`` calls ``.get`` on
-    # every entry, so a payload whose items are strings raises AttributeError
+    # The shape, not just the truthiness. ``lead_and_rest`` and the email
+    # builder call ``.get`` on every entry, so a payload whose items are strings
+    # raises AttributeError
     # INSIDE the flush loop, which has no per-member guard: the exception
     # unwinds to the per-realm handler and aborts that realm's whole flush
     # before any later member's mail is built. Deterministic, so it would repeat

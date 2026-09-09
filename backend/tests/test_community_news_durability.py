@@ -137,13 +137,13 @@ def test_a_post_survives_the_process_that_wrote_it(tmp_path):
     first.ensure_default_channels()
     channel = first.get_channel_by_slug("medical-ai-news")
     msg = first.insert_message(channel_id=channel["id"], author_user_id="u-system",
-                               body="Medical AI digest", kind="digest_news")
+                               body="Medical AI Digest", kind="digest_news")
 
     second = _store_at(path)
     again = second.get_channel_by_slug("medical-ai-news")
     msgs, _ = second.list_messages(again["id"])
     assert [m["id"] for m in msgs] == [msg["id"]]
-    assert msgs[0]["body"] == "Medical AI digest"
+    assert msgs[0]["body"] == "Medical AI Digest"
 
 
 def test_the_dedup_ledger_survives_a_restart_on_the_same_day(tmp_path):
@@ -169,14 +169,20 @@ def test_the_dedup_ledger_survives_a_restart_on_the_same_day(tmp_path):
 def _payload(**over):
     items = [
         {"headline": "FDA clears autonomous AI for retinopathy screening",
+         "deck": "The clearance covers screening without a physician in the "
+                 "loop, and reimbursement follows it.",
          "why_it_matters": "First reimbursed autonomous diagnostic; it sets the "
                            "template.",
          "source": "STAT", "url": "https://example.org/a", "section": "Regulation"},
-        {"headline": "Frontier models score under 0.3 kappa on risk of bias",
+        {"headline": "Frontier models score under 0.3 kappa",
+         "deck": "Three leading models graded the same trials and agreed with "
+                 "reviewers about as often as chance.",
          "why_it_matters": "More reasoning did not help; the failure is judgment.",
          "source": "Synthesis Bench", "url": "https://example.org/b",
          "section": "Research"},
-        {"headline": "Health system rolls back its ambient scribe after an audit",
+        {"headline": "Health system rolls back its ambient scribe",
+         "deck": "An internal audit found notes the clinicians had signed but "
+                 "had not read.",
          "why_it_matters": "Deployment risk sits in the audit trail, not the model.",
          "source": "Modern Healthcare", "url": "https://example.org/c",
          "section": "Deployment"},
@@ -192,7 +198,7 @@ def _with_item(index, **fields):
 
 def test_a_conforming_digest_validates_and_keeps_its_items():
     out = contract.validate_payload(_payload(), kind="news")
-    assert out["title"] == "Medical AI digest"
+    assert out["title"] == "Medical AI Digest"
     assert len(out["items"]) == 3
     assert {i["section"] for i in out["items"]} <= set(contract.SECTIONS)
 
@@ -207,9 +213,16 @@ def test_papers_get_their_own_title():
     ({"items": _payload()["items"] + [
         dict(_payload()["items"][0], url=f"https://example.org/x{i}") for i in range(3)]},
      "more than five items"),
-    (_with_item(0, headline=" ".join(["word"] * 13)), "headline over twelve words"),
+    (_with_item(0, headline=" ".join(["word"] * 11)), "headline over ten words"),
     (_with_item(0, headline=""), "empty headline"),
-    (_with_item(0, why_it_matters=" ".join(["word"] * 26)), "why over 25 words"),
+    (_with_item(0, why_it_matters=" ".join(["word"] * 15)), "why over fourteen words"),
+    (_with_item(0, deck=" ".join(["word"] * 26)), "deck over 25 words"),
+    (_with_item(0, deck="One thing happened. Then a second thing happened."),
+     "a two-sentence deck"),
+    (_with_item(0, deck="A groundbreaking result lands in clinic."), "hype in a deck"),
+    (_with_item(0, deck="The clearance landed on March 14."), "a date in a deck"),
+    (_with_item(0, urgent=True), "urgent with no kind at all"),
+    (_with_item(0, urgent=True, urgent_kind="interesting"), "an invented urgent kind"),
     (_with_item(0, why_it_matters="One thing. Then a second thing."), "two sentences"),
     (_with_item(0, why_it_matters=""), "empty why"),
     (_with_item(0, section="Hype"), "invented section"),
@@ -267,9 +280,21 @@ def test_the_plain_text_body_carries_no_markdown():
         assert item["source"] in body
 
 
-def test_sections_render_in_the_contract_order_and_empties_are_dropped():
-    grouped = contract.grouped_items(contract.validate_payload(_payload(), kind="news"))
-    assert [s for s, _ in grouped] == ["Research", "Regulation", "Deployment"]
+def test_the_body_leads_with_the_top_story_and_labels_each_section():
+    """This used to assert ``grouped_items`` put the sections in SECTIONS order.
+    That helper is gone with the design that needed it: the card, the email and
+    the body all lead with the top story now, and grouping by section meant the
+    lead appeared wherever its section happened to fall -- so a digest led by a
+    Regulation story showed a Research story first in every inbox preview."""
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/c")
+    body = contract.plain_text_body(payload)
+    lead, rest = contract.lead_and_rest(payload)
+    assert body.index(lead["headline"]) < min(body.index(i["headline"]) for i in rest)
+    # The section is a label on each item, so every one of them still says which
+    # kind of story it is.
+    for item in payload["items"]:
+        assert item["section"] in body
 
 
 # ═══ §2.4 The email ══════════════════════════════════════════════════════════
@@ -285,7 +310,7 @@ def test_the_digest_email_renders_the_structure_with_no_markdown_left():
     )
 
     payload = contract.validate_payload(_payload(), kind="news")
-    assert digest_email_subject(payload) == "Medical AI digest · 3 items"
+    assert digest_email_subject(payload) == "Medical AI Digest · 3 items"
 
     html_out = build_community_digest_post_email(
         payload=payload, community_url="https://example.test/community",
@@ -295,13 +320,284 @@ def test_the_digest_email_renders_the_structure_with_no_markdown_left():
     for item in payload["items"]:
         assert item["headline"] in visible
         assert item["url"] in html_out           # the headline links out
-    assert "Regulation" in visible and "Research" in visible
+    # The section is the TAG beside a headline now, not a heading over a group
+    # (Digest Design PRD §1.3). Same information, one fewer line.
+    assert "REGULATION" in visible and "RESEARCH" in visible
+
+
+def test_the_email_leads_with_the_top_story_and_renders_one_deck():
+    """§1.3: one hierarchy, two contexts. An email that promoted a different
+    item than the card would be one digest read two ways, and the physician who
+    opens the mail and then the room is exactly who would notice."""
+    import re
+
+    from onboarding_emails import build_community_digest_post_email
+
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/c")
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/community",
+        unsubscribe_url="https://example.test/u?t=tok")
+
+    lead, rest = contract.lead_and_rest(payload)
+    assert lead["url"] == "https://example.org/c"
+    assert out.index(lead["headline"]) < min(out.index(r["headline"]) for r in rest)
+    assert "TOP STORY" in out and "BREAKING" not in out
+    # The deck belongs to the lead alone ON THE PAGE. The compact items keep
+    # the decks the compose pass wrote them -- that is what makes promoting one
+    # of them non-destructive -- and the email simply does not draw them.
+    assert out.count(lead["deck"]) == 1
+    for item in rest:
+        assert item["deck"], "a compact item was stripped of its deck on disk"
+        assert item["deck"] not in out, "a compact item drew a deck"
+    # One primary action per item, said the same way everywhere (§0.5).
+    assert out.count("Full article →") == len(payload["items"])
+    assert re.sub(r"<[^>]+>", " ", out).count("STAT") >= 1
+
+
+def test_breaking_replaces_top_story_only_when_the_lead_is_urgent():
+    """§2.2. The badge is a few mornings a month; a badge that fires by default
+    is a badge that has stopped meaning anything by the second week."""
+    from onboarding_emails import build_community_digest_post_email
+
+    raw = _with_item(0, urgent=True, urgent_kind="regulatory")
+    payload = contract.mark_lead(
+        contract.validate_payload(raw, kind="news"), "https://example.org/a")
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/community",
+        unsubscribe_url="https://example.test/u?t=tok")
+    assert "BREAKING" in out and "TOP STORY" not in out
+
+
+def test_urgency_on_a_story_that_does_not_lead_is_never_drawn():
+    """§2.2: BREAKING belongs to the lead. An item the reader meets fourth
+    carrying it is a badge on something nobody is reading first.
+
+    Kept on the item rather than cleared, though, because clearing it made the
+    admin override destructive -- one promotion permanently erased a badge the
+    compose pass earned, through an endpoint that refuses to grant one. The
+    renderers read the lead's flag and nothing else's, which is what makes
+    keeping it safe."""
+    from onboarding_emails import build_community_digest_post_email
+
+    raw = _with_item(1, urgent=True, urgent_kind="safety")
+    payload = contract.mark_lead(
+        contract.validate_payload(raw, kind="news"), "https://example.org/a")
+    lead, rest = contract.lead_and_rest(payload)
+    assert lead["url"] == "https://example.org/a" and lead["urgent"] is False
+    assert any(item["urgent"] for item in rest), "the flag was destroyed, not just unrendered"
+
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/community",
+        unsubscribe_url="https://example.test/u?t=tok")
+    assert "BREAKING" not in out and "TOP STORY" in out
+
+
+@pytest.mark.parametrize("stray_index", [1, 2])
+def test_a_badge_flagged_off_the_lead_is_cleared_wherever_it_sits(stray_index):
+    """§9.6, and the one fix in its commit that shipped with no test.
+
+    Parametrised over BOTH non-lead positions on purpose. The rule lived inline
+    as a slice of ``items[1:]``, which is this rule written as an assumption
+    about ordering -- and the first version of this test asserted on the
+    module's SOURCE TEXT, so editing that slice to ``[2:]`` (leaving the second
+    item's unearned badge intact) passed it. A rule enforced by a slice needs a
+    case for every index the slice could be wrong about.
+    """
+    payload = contract.validate_payload(
+        _with_item(stray_index, urgent=True, urgent_kind="safety"), kind="news")
+    contract.mark_lead(payload, "https://example.org/a")
+    assert payload["items"][stray_index]["urgent"] is True, \
+        "the fixture no longer sets up the case it is testing"
+
+    cleared = contract.clear_stray_urgency(payload)
+
+    assert len(cleared) == 1
+    assert all(not i.get("urgent") for i in payload["items"][1:])
+    assert all(i.get("urgent_kind") is None for i in payload["items"][1:])
+
+
+def test_clearing_strays_never_touches_the_lead_s_own_badge():
+    """The other half. Clearing indiscriminately is the destructive behaviour
+    §9.7 exists to have removed."""
+    payload = contract.validate_payload(
+        _with_item(0, urgent=True, urgent_kind="regulatory"), kind="news")
+    contract.mark_lead(payload, "https://example.org/a")
+    assert contract.clear_stray_urgency(payload) == []
+    lead, _rest = contract.lead_and_rest(payload)
+    assert lead["urgent"] is True and lead["urgent_kind"] == "regulatory"
+
+
+def test_the_lead_spared_by_the_clearing_is_the_marked_one_not_the_drawn_one():
+    """The hole this rule is easiest to leave open.
+
+    ``lead_and_rest`` skips items no surface would draw, so on a payload whose
+    MARKED lead has no headline it answers with the first item that has one --
+    and a clearing that spared that item would leave an unearned badge exactly
+    where the next promotion publishes it. "Which story did the compose pass
+    choose" is a fact on the record; "what does a reader see first" is a
+    different question."""
+    payload = {"items": [
+        {"url": "https://example.org/a", "headline": "", "lead": True},
+        {"url": "https://example.org/b", "headline": "Not the lead",
+         "urgent": True, "urgent_kind": "regulatory"},
+    ]}
+    # The two disagree, which is the whole point.
+    assert contract.lead_and_rest(payload)[0]["url"] == "https://example.org/b"
+    assert contract.marked_lead(payload)["url"] == "https://example.org/a"
+
+    assert len(contract.clear_stray_urgency(payload)) == 1
+    assert payload["items"][1]["urgent"] is False, "an unearned badge survived"
+
+
+def test_the_marked_lead_falls_back_the_same_way_mark_lead_does():
+    """An unmarked payload must not make the two disagree about item one."""
+    payload = {"items": [{"url": "https://example.org/a", "headline": "One"},
+                         {"url": "https://example.org/b", "headline": "Two"}]}
+    assert contract.marked_lead(payload)["url"] == "https://example.org/a"
+    assert contract.marked_lead({"items": []}) is None
+    assert contract.marked_lead({}) is None
+
+
+def test_a_stray_badge_on_an_item_no_surface_draws_is_still_cleared():
+    """``lead_and_rest`` drops headline-less items, so a rule written over that
+    view would leave a flag on one of them -- invisible until somebody repairs
+    the headline by hand and the badge comes back from nowhere."""
+    payload = contract.validate_payload(_payload(), kind="news")
+    contract.mark_lead(payload, "https://example.org/a")
+    payload["items"][2]["headline"] = ""
+    payload["items"][2]["urgent"] = True
+    payload["items"][2]["urgent_kind"] = "trial"
+    assert len(contract.clear_stray_urgency(payload)) == 1
+    assert payload["items"][2]["urgent"] is False
+
+
+def test_the_compose_pass_and_the_admin_override_share_one_implementation():
+    """Two callers, one rule. Two copies of "only the lead may be urgent" is how
+    the endpoint and the pipeline end up disagreeing about a badge."""
+    from community import digest as cdigest
+    from community import router as crouter
+
+    for mod in (cdigest, crouter):
+        src = Path(mod.__file__).read_text(encoding="utf-8")
+        assert "clear_stray_urgency" in src, f"{mod.__name__} grew its own copy"
+        assert 'item["urgent"] = False' not in src, \
+            f"{mod.__name__} still clears urgency by hand"
+
+
+def test_a_payload_records_the_version_that_cleared_its_stray_badges():
+    """The admin override needs to tell a row whose strays were dealt with from
+    one written before that rule existed. The version is the only fact that
+    separates them."""
+    payload = contract.validate_payload(_payload(), kind="news")
+    assert payload["version"] == contract.PAYLOAD_VERSION >= 2
+
+
+def test_a_headline_less_item_is_dropped_once_for_every_surface():
+    """The card filtered them, the email drew an empty link, and the body
+    omitted them -- so one post said two things about how many stories it had.
+    ``lead_and_rest`` is where that is decided now, for all three."""
+    from onboarding_emails import build_community_digest_post_email
+
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/a")
+    payload["items"][1]["headline"] = "   "
+    lead, rest = contract.lead_and_rest(payload)
+    assert len(rest) == 1, "a headline-less item still reached a renderer"
+    body = contract.plain_text_body(payload)
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/c",
+        unsubscribe_url="https://example.test/u")
+    # The item's other fields do not leak into either surface on their own.
+    assert payload["items"][1]["why_it_matters"] not in body
+    assert payload["items"][1]["why_it_matters"] not in out
+
+
+def test_marking_the_lead_twice_lands_in_the_same_place():
+    """The admin override calls this on a payload that has already been marked,
+    so a second pass that shuffled or re-flagged anything would make the same
+    click do different things on the first and second press."""
+    once = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/b")
+    twice = contract.mark_lead(json.loads(json.dumps(once)), "https://example.org/b")
+    assert once == twice
+    assert sum(1 for i in once["items"] if i.get("lead")) == 1
+
+
+def test_the_lead_falls_back_to_the_models_first_item_when_the_join_misses():
+    """The compose pass may drop the story the select pass ranked highest. The
+    digest still has to lead with something, and ``kept`` is already sorted by
+    relevance, so the model's own first item is the best answer left."""
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://nobody.invalid/x")
+    assert contract.lead_and_rest(payload)[0]["url"] == "https://example.org/a"
+
+
+#: Item fields the gate deliberately does NOT scan, and why. Anything the
+#: contract emits that is not here MUST be in ``_PAYLOAD_VISIBLE_KEYS``.
+_UNSCANNED = {
+    # Masked before every scan: a DOI or PMID is a long digit run and the PHI
+    # rules for MRNs and account numbers fire on it. Structural, not text.
+    "url",
+    # Not model-written text: a boolean, a word from this module's own closed
+    # set of four, and a flag the pipeline sets.
+    "urgent", "urgent_kind", "lead",
+}
+
+
+def test_every_rendered_digest_field_is_scanned_for_phi():
+    """§8.1. A field the card renders but the gate never reads is the one hole
+    worth a test of its own.
+
+    Derived from what the CONTRACT emits rather than from a list written here.
+    The first version of this test walked a hardcoded tuple of five field names
+    and called itself a guard against a sixth being added -- which it was not,
+    because a sixth field would simply not have been in the tuple it walked.
+    """
+    from community import system_posts
+
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/a")
+    scanned = system_posts._payload_text(payload)
+
+    emitted = set()
+    for item in payload["items"]:
+        emitted |= set(item)
+    unaccounted = emitted - _UNSCANNED - set(system_posts._PAYLOAD_VISIBLE_KEYS)
+    assert not unaccounted, (
+        f"the contract emits {sorted(unaccounted)}, which the PHI gate never "
+        "reads. Add each to system_posts._PAYLOAD_VISIBLE_KEYS, or to "
+        "_UNSCANNED here with the reason it carries no model-written text.")
+
+    # And the keys that ARE scanned actually reach the scanned string.
+    for item in payload["items"]:
+        for field in system_posts._PAYLOAD_VISIBLE_KEYS:
+            if item.get(field):
+                assert item[field] in scanned, f"{field} never reaches the PHI gate"
+    assert payload["title"] in scanned
+
+
+def test_the_subject_counts_what_the_email_actually_shows():
+    """The subject is read before the post is opened, and it counted the raw
+    item list while the body counted rendered ones -- so a digest with a
+    headline-less item was subjected "4 items" over a mail showing three."""
+    from onboarding_emails import build_community_digest_post_email, digest_email_subject
+
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/a")
+    assert digest_email_subject(payload) == "Medical AI Digest · 3 items"
+    payload["items"][1]["headline"] = ""
+    assert digest_email_subject(payload) == "Medical AI Digest · 2 items"
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/c",
+        unsubscribe_url="https://example.test/u")
+    assert out.count("Full article →") == 2, "the subject and the body disagree"
 
 
 def test_a_one_item_subject_is_not_pluralised():
-    payload = {"title": "Medical AI digest", "items": [{"headline": "x"}]}
+    payload = {"title": "Medical AI Digest", "items": [{"headline": "x"}]}
     from onboarding_emails import digest_email_subject
-    assert digest_email_subject(payload) == "Medical AI digest · 1 item"
+    assert digest_email_subject(payload) == "Medical AI Digest · 1 item"
 
 
 def test_only_a_matching_cadence_gets_the_digest():
@@ -340,7 +636,7 @@ def test_the_write_path_refuses_a_digest_body_that_breaks_the_style_rules():
     channel = {"slug": "medical-ai-news"}
     assert system_posts._house_style_clear(
         channel, "digest_news",
-        "Medical AI digest\n\nResearch\nA model was cleared\n"
+        "Medical AI Digest\n\nResearch\nA model was cleared\n"
         "It changes triage. (Fake Wire) https://example.org/a") is True
     assert system_posts._house_style_clear(
         channel, "digest_news", "**Medical AI Digest** - a story") is False
@@ -367,7 +663,7 @@ def test_the_payloads_own_strings_are_scanned_not_just_the_body():
     from community import system_posts
 
     text = system_posts._payload_text({
-        "title": "Medical AI digest",
+        "title": "Medical AI Digest",
         "items": [{"headline": "A headline", "why_it_matters": "A reason.",
                    "source": "STAT", "section": "Research",
                    "url": "https://example.org/a"}],
@@ -501,7 +797,7 @@ def test_a_digest_run_stores_its_payload_and_the_api_serves_it(monkeypatch, tmp_
     assert len(msgs) == 1
     stored = json.loads(msgs[0]["payload_json"])
     assert len(stored["items"]) == 3
-    assert stored["title"] == "Medical AI digest"
+    assert stored["title"] == "Medical AI Digest"
     # The body is a plain-text rendering of the same object, not a second
     # description of the post that could drift from it.
     assert stored["items"][0]["headline"] in msgs[0]["body"]
@@ -524,7 +820,7 @@ def test_a_deleted_digest_serves_neither_body_nor_payload():
     from community import router as crouter
 
     row = {"id": 1, "author_user_id": "u-system", "kind": "digest_news",
-           "body": "Medical AI digest", "created_at": "2026-09-08T13:00:00Z",
+           "body": "Medical AI Digest", "created_at": "2026-09-08T13:00:00Z",
            "deleted_at": "2026-09-08T14:00:00Z", "deleted": True,
            "payload_json": json.dumps(_payload()), "cards_json": None,
            "parent_message_id": None, "mentions": [], "attachments": []}
@@ -572,7 +868,7 @@ def test_a_digest_answers_to_the_news_cadence_and_not_to_the_post_toggle(
     asyncio.new_event_loop().run_until_complete(cnotify.flush_pending(
         store, resolve_member=lambda uid: {"email": "d@example.test",
                                            "display_name": "Dr Test"}))
-    assert sent == ["Medical AI digest · 3 items"]
+    assert sent == ["Medical AI Digest · 3 items"]
 
     # News off: nothing goes, and the row is settled rather than retried forever.
     msg2 = store.insert_message(
