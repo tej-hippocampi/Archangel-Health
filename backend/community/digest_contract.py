@@ -52,7 +52,8 @@ MAX_ITEMS = 5
 #: morning a model lands one word over.
 HEADLINE_MAX_WORDS = 10
 WHY_MAX_WORDS = 14
-#: The lead's one-sentence deck. Only the lead carries one; see ``mark_lead``.
+#: The lead's one-sentence deck. Every item is written one and only the lead's
+#: is DRAWN -- see ``mark_lead`` for why they are all kept.
 DECK_MAX_WORDS = 25
 
 DEFAULT_TITLE = "Medical AI Digest"
@@ -454,9 +455,9 @@ def lead_and_rest(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Li
     """``(lead, compact_items)`` — the shape the card, the pinned card and the
     email all draw.
 
-    One definition for the same reason ``grouped_items`` is one: three surfaces
-    that each decide for themselves which story leads will disagree on the day
-    it matters, and the reader will be the one who notices.
+    One definition, and the only one: three surfaces that each decide for
+    themselves which story leads will disagree on the day it matters, and the
+    reader will be the one who notices.
     """
     items = [i for i in (payload.get("items") or []) if isinstance(i, dict)]
     if not items:
@@ -465,21 +466,6 @@ def lead_and_rest(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Li
         if item.get("lead"):
             return item, items[:i] + items[i + 1:]
     return items[0], items[1:]
-
-
-def grouped_items(payload: Dict[str, Any]) -> List[Tuple[str, List[Dict[str, str]]]]:
-    """``[(section, items)]`` in ``SECTIONS`` order, empty sections omitted.
-
-    One definition, because the web card and the email must group identically —
-    two orderings of the same post is the kind of difference nobody notices
-    until a physician forwards the email back asking which one is right.
-    """
-    out = []
-    for section in SECTIONS:
-        rows = [i for i in payload.get("items") or [] if i.get("section") == section]
-        if rows:
-            out.append((section, rows))
-    return out
 
 
 def plain_text_body(payload: Dict[str, Any]) -> str:
@@ -505,10 +491,20 @@ def plain_text_body(payload: Dict[str, Any]) -> str:
     lead, rest = lead_and_rest(payload)
     lines: List[str] = [payload.get("title") or DEFAULT_TITLE]
     for item in ([lead] if lead else []) + rest:
+        # ``.get`` throughout, not subscripting. This used to render only
+        # payloads ``validate_payload`` had just built, where every key is
+        # guaranteed; it now also renders payloads read back off disk for the
+        # admin override, where a row written by an older build or repaired by
+        # hand is missing one and a KeyError is a 500 on an admin's click.
+        # A field that is not there renders as nothing, which is what the card
+        # and the email already do with it.
+        headline = item.get("headline") or ""
+        if not headline:
+            continue
         lines.append("")
         if item.get("section"):
             lines.append(item["section"])
-        lines.append(item["headline"])
+        lines.append(headline)
         # Only the LEAD'S deck, because only the lead's is drawn anywhere else,
         # and a body that carried three decks would not be a view of the card.
         # Every deck is still scanned by the gates: they read
@@ -516,5 +512,11 @@ def plain_text_body(payload: Dict[str, Any]) -> str:
         # precisely so that a derivation like this one cannot become the hole.
         if item is lead and item.get("deck"):
             lines.append(item["deck"])
-        lines.append(f"{item['why_it_matters']} ({item['source']}) {item['url']}")
+        tail = " ".join(p for p in (
+            item.get("why_it_matters") or "",
+            f"({item['source']})" if item.get("source") else "",
+            item.get("url") or "",
+        ) if p)
+        if tail:
+            lines.append(tail)
     return "\n".join(lines).strip()

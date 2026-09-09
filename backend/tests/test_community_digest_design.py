@@ -91,6 +91,11 @@ const opened = [];
 function openThread(id) { opened.push(['thread', id]); }
 function openChannel(slug) { opened.push(['channel', slug]); }
 let api = () => Promise.resolve({ messages: [] });
+// Repaints this harness does not mount. Overridden by any test that extracts
+// the real one, because a later `function` declaration wins over these.
+let repainted = 0;
+function renderMessages() { repainted += 1; }
+function renderRail() { repainted += 1; }
 // The shim gives every ELEMENT a querySelector but not the document. A browser
 // has both, and `openDigestPost` scrolls to a row through the document one.
 document.querySelector = (sel) => document.body.querySelector(sel);
@@ -366,6 +371,7 @@ def test_the_greeting_is_one_line_inside_its_budget():
 def test_the_presence_counts_come_from_state_and_zero_online_is_a_hollow_dot():
     res = _render(
         """
+        function newDigestCount() { return state.__digests || 0; }
         const out = {};
         document.body.appendChild(h('div', { id: 'cmGreet' }));
         const bar = document.getElementById('cmGreet');
@@ -377,11 +383,11 @@ def test_the_presence_counts_come_from_state_and_zero_online_is_a_hollow_dot():
                    digest: digest ? digest.textContent : null };
         };
         state.members = [{ user_id: 'a' }, { user_id: 'b' }, { user_id: 'c' }];
-        state.newDigests = 1;
+        state.__digests = 1;
         state.online = new Set(['a', 'b', 'c']);
         out.three = snap();
         state.online = new Set();
-        state.newDigests = 0;
+        state.__digests = 0;
         out.zero = snap();
         state.preview = true;
         out.preview = snap();
@@ -396,46 +402,117 @@ def test_the_presence_counts_come_from_state_and_zero_online_is_a_hollow_dot():
     assert res["preview"]["text"] == "", "the preview greeted a fixture by name"
 
 
+_ROOM_FUNCS = _CARD_FUNCS + ("loadLatestDigest", "newDigestCount",
+                             "renderGreeting", "greetingWord", "greetingName",
+                             "trackDigestRoom")
+
+
+def _room(body: str) -> dict:
+    """Drive the digest-room loader and counter with a stubbed transport."""
+    return _render(
+        ("""
+        const DIGEST_PAYLOAD = %(p)s;
+        const digest = (id, author) => ({ id, kind: 'digest_news',
+          payload: DIGEST_PAYLOAD, author: author ? { user_id: author } : null,
+          created_at: '2026-09-08T13:00:00Z' });
+        const brief = (id, author) => ({ id, kind: 'morning_brief', body: 'Morning',
+          author: author ? { user_id: author } : null,
+          created_at: '2026-09-08T13:00:00Z' });
+        const seed = (messages, unread) => {
+          state.channels = [{ slug: 'medical-ai-news', unread }];
+          api = () => Promise.resolve({ messages });
+          return loadLatestDigest();
+        };
+        """ % {"p": json.dumps(_PAYLOAD)}) + body,
+        _ROOM_FUNCS, _CARD_CONSTS)
+
+
 def test_the_new_digest_count_counts_digests_and_not_unread_messages():
     """#medical-ai-news is not a digest-only room -- the morning routine posts
     briefs into it (community/morning.py). Reading the channel's unread number
     as a digest count renders three morning briefs as "3 new digests"."""
-    payload = json.dumps(_PAYLOAD)
-    res = _render(
-        """
-        const digest = (id) => ({ id, kind: 'digest_news', payload: %(p)s,
-                                  created_at: '2026-09-08T13:00:00Z' });
-        const brief = (id) => ({ id, kind: 'morning_brief', body: 'Morning',
-                                 created_at: '2026-09-08T13:00:00Z' });
+    res = _room("""
         const out = {};
-        const run = (label, messages, unread) => {
-          state.channels = [{ slug: 'medical-ai-news', unread }];
-          api = () => Promise.resolve({ messages });
-          return loadLatestDigest().then(() => {
-            out[label] = { count: state.newDigests,
-                           latest: state.latestDigest ? state.latestDigest.id : null };
-          });
-        };
+        const run = (label, messages, unread) => seed(messages, unread).then(() => {
+          out[label] = { count: newDigestCount(),
+                         latest: state.latestDigest ? state.latestDigest.id : null };
+        });
         // Oldest first, exactly as the channel endpoint serves it.
         run('threeBriefsOneDigest', [digest(1), brief(2), brief(3), brief(4)], 3)
           .then(() => run('twoNewDigests', [brief(1), digest(2), digest(3)], 2))
           .then(() => run('allRead', [digest(1), digest(2)], 0))
-          // Five newer briefs used to push the digest out of the window
+          // Six newer briefs used to push the digest out of the fetch window
           // entirely and leave the landing page with no card and no explanation.
           .then(() => run('digestBehindSixBriefs',
-            [digest(1)].concat([2, 3, 4, 5, 6, 7].map(brief)), 1))
+            [digest(1)].concat([2, 3, 4, 5, 6, 7].map((i) => brief(i))), 1))
           .then(() => run('noDigestAtAll', [brief(1)], 1))
-          .then(() => { api = () => Promise.reject(new Error('403')); })
-          .then(() => run('refused', [], 0))
+          // The reader's OWN posts are not counted as unread by the server but
+          // ARE in this list, so they come out of the tail first. #medical-ai-news
+          // is admin-post-only, so the reader who trips this is an admin.
+          .then(() => {
+            state.me = { user_id: 'u-me' };
+            return run('myOwnPostAfterADigest', [digest(1), brief(2, 'u-me')], 1);
+          })
           .then(() => console.log(JSON.stringify(out)));
-        """ % {"p": payload},
-        _CARD_FUNCS + ("loadLatestDigest",), _CARD_CONSTS)
+        """)
     assert res["threeBriefsOneDigest"] == {"count": 0, "latest": 1}
     assert res["twoNewDigests"] == {"count": 2, "latest": 3}
     assert res["allRead"] == {"count": 0, "latest": 2}
     assert res["digestBehindSixBriefs"]["latest"] == 1, "the pinned card vanished"
     assert res["noDigestAtAll"] == {"count": 0, "latest": None}
-    assert res["refused"] == {"count": 0, "latest": None}
+    assert res["myOwnPostAfterADigest"]["count"] == 1, \
+        "the admin's own post shifted the tail and hid a digest"
+
+
+def test_a_transport_failure_leaves_no_card_and_no_count():
+    """A reader who cannot see #medical-ai-news, or a room that has never
+    posted. The landing page shows nothing rather than explaining an absence,
+    and nothing throws into boot."""
+    res = _room("""
+        api = () => Promise.reject(new Error('403'));
+        loadLatestDigest().then(() => console.log(JSON.stringify({
+          latest: state.latestDigest, rows: state.digestRoom.length,
+          count: newDigestCount(),
+        })));
+        """)
+    assert res == {"latest": None, "rows": 0, "count": 0}
+
+
+def test_the_count_is_derived_at_render_time_and_not_frozen_at_boot():
+    """A count cached by the boot fetch goes stale twice over: it keeps saying
+    "1 new digest" after the reader has opened the room, and it never appears
+    for a digest that lands while the tab is open. Both surfaces that read it
+    repaint on every rail render and every presence event, so it has to be
+    derived there."""
+    res = _room("""
+        const out = {};
+        seed([brief(1), digest(2)], 1).then(() => {
+          out.atBoot = newDigestCount();
+          // The reader opens the room: the read sync clears the channel unread
+          // and repaints. Nothing re-fetches.
+          state.channels[0].unread = 0;
+          out.afterReading = newDigestCount();
+          // A digest arrives over the socket while the tab is open.
+          trackDigestRoom({ id: 3, channel: 'medical-ai-news', kind: 'digest_news',
+                            payload: DIGEST_PAYLOAD, created_at: 'x' });
+          state.channels[0].unread = 1;
+          out.afterASocketDigest = newDigestCount();
+          out.latest = state.latestDigest.id;
+          // A reply in a thread is not a top-level row and must not join the list.
+          trackDigestRoom({ id: 4, channel: 'medical-ai-news', kind: 'message',
+                            parent_message_id: 3, created_at: 'x' });
+          // Nor may the same message be counted twice if it arrives again.
+          trackDigestRoom({ id: 3, channel: 'medical-ai-news', kind: 'digest_news',
+                            payload: DIGEST_PAYLOAD, created_at: 'x' });
+          out.rows = state.digestRoom.length;
+          console.log(JSON.stringify(out));
+        });
+        """)
+    assert res["atBoot"] == 1
+    assert res["afterReading"] == 0, "the count survived the reader reading it"
+    assert res["afterASocketDigest"] == 1, "a digest posted while the tab was open never showed"
+    assert res["latest"] == 3, "the pinned card did not follow the socket"
+    assert res["rows"] == 3, "a thread reply or a duplicate joined the room's rows"
 
 
 def test_the_digest_fetch_repaints_after_the_first_render_not_before():
@@ -603,13 +680,16 @@ def test_the_stylesheet_balances_and_declares_every_class_the_card_emits():
     """
     assert _CSS.count("{") == _CSS.count("}"), "community.css braces do not balance"
 
-    # Every `cm-*` class this file's new code puts on an element. Read out of
-    # the class strings themselves, so a class added tomorrow is checked too.
+    # Every `cm-*` class this file names, read out of EVERY string literal
+    # rather than out of `class:` properties alone.
+    #
+    # The first version matched `class:` followed by a literal, which missed
+    # every class built by concatenation or passed in as an argument -- thirteen
+    # of them, `cm-digest-headline` among them, which is §1.1's 26px lead
+    # headline. Deleting its rule from the stylesheet left the guard green.
     emitted = set()
-    for literal in re.findall(r"""class:\s*['"]([^'"]+)['"]""", _JS):
-        emitted |= {c for c in literal.split() if c.startswith("cm-")}
-    for literal in re.findall(r"""class:\s*['"]([^'"]+)['"]\s*\+""", _JS):
-        emitted |= {c for c in literal.split() if c.startswith("cm-")}
+    for literal in re.findall(r"""['"]([^'"\n]*cm-[\w-]+[^'"\n]*)['"]""", _JS):
+        emitted |= {c for c in re.split(r"\s+", literal) if re.fullmatch(r"cm-[\w-]+", c)}
 
     styled = set(re.findall(r"\.(cm-[\w-]+)", _CSS))
     # Pre-existing, found BY this check and left alone: #events builds a

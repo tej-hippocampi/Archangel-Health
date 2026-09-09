@@ -265,16 +265,31 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
             (i["url"] for i in payload["items"]
              if feeds.normalize_url(i["url"]) == wanted), None)
     digest_contract.mark_lead(payload, lead_url)
-    # §2.2 allows urgency only on the lead. It is not a reason to discard the
-    # run -- the badge is already unrenderable, since every surface reads the
-    # lead's flag and nothing else's, and refusing a morning's digest over a
-    # decoration on item four is the wrong trade. It IS a reason to be visible:
-    # a prompt that keeps mis-flagging is a prompt to fix, and the PRD says so
-    # ("if it fires more than twice in a week, the prompt is wrong").
-    stray = [i["url"] for i in payload["items"][1:] if i.get("urgent")]
+    # §2.2 allows urgency only on the lead, and this is where that is decided --
+    # AT COMPOSE TIME, once, on the run's own output. Not in ``mark_lead``,
+    # which the admin override also calls: there, clearing the flag would
+    # destroy a badge the compose pass legitimately earned every time somebody
+    # promoted a different story.
+    #
+    # The distinction is which claim is being judged. A flag on the item that
+    # led when the digest was written was earned and is kept, so promoting that
+    # story back restores it. A flag on item four was never earned by anything,
+    # and leaving it in ``payload_json`` means `Set as top story` would later
+    # publish a BREAKING badge through the endpoint that deliberately refuses to
+    # grant one.
+    #
+    # Not a reason to discard the run: refusing a morning's digest over a
+    # decoration on item four is the wrong trade. It IS a reason to be loud --
+    # the PRD's own rule is that a badge firing more than twice in a week means
+    # the prompt is wrong, not the news.
+    stray = [i for i in payload["items"][1:] if i.get("urgent")]
     if stray:
         log.warning("[digest] %s: compose flagged %d non-lead item(s) urgent "
-                    "(%s); the badge is not rendered", kind, len(stray), ", ".join(stray))
+                    "(%s); cleared", kind, len(stray),
+                    ", ".join(i["url"] for i in stray))
+        for item in stray:
+            item["urgent"] = False
+            item["urgent_kind"] = None
 
     # Which fetched items actually reached the post. Matched on the NORMALISED
     # url — the same identity ``upsert_content_items`` dedups on — because an

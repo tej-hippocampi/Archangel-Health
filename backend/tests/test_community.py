@@ -1557,25 +1557,89 @@ def test_an_override_that_asks_for_nothing_changes_nothing():
     write an audit line for a request that asked for nothing."""
     _astore, cstore, _doc, admin = setup_world()
     msg = _post_digest(cstore)
+    before = cstore.get_message(msg["id"])
+    audits_before = len(audit_events("community.digest_lead"))
+
     r = client.post(f"{BASE}/admin/messages/{msg['id']}/digest-lead",
                     json={}, headers=headers_for(admin))
     assert r.status_code == 400
+    # The name says "changes nothing", so check the row and the ledger, not
+    # just the status code the endpoint happened to return.
+    after = cstore.get_message(msg["id"])
+    assert after["payload_json"] == before["payload_json"]
+    assert after["body"] == before["body"]
+    assert len(audit_events("community.digest_lead")) == audits_before
+
+
+def test_an_override_blocked_by_a_gate_leaves_the_row_alone_and_names_the_admin():
+    """The only genuinely new failure path in this endpoint, and the one the
+    gates exist for. The gates record a block against the SYSTEM author,
+    because they were written for the bot's own write path -- so without the
+    endpoint's own audit line the operator who pressed the button appears
+    nowhere."""
+    _astore, cstore, _doc, admin = setup_world()
+    # A stored payload whose own text breaks the house style. Nothing the
+    # request carries can introduce this; it is what a rule change, or a row
+    # from an older build, looks like from here.
+    bad = _post_raw_digest(cstore, [
+        {"url": "https://example.org/a", "headline": "A headline",
+         "why_it_matters": "It matters.", "source": "STAT", "section": "Evals"},
+        {"url": "https://example.org/b", "headline": "Regulators moved, again",
+         "why_it_matters": "This changes triage!", "source": "STAT",
+         "section": "Regulation"},
+    ])
+    before = cstore.get_message(bad["id"])
+
+    r = _set_lead(admin, bad["id"], url="https://example.org/b")
+    assert r.status_code == 422, r.text
+    after = cstore.get_message(bad["id"])
+    assert after["payload_json"] == before["payload_json"]
+    assert after["body"] == before["body"]
+    blocked = [e for e in audit_events("community.digest_lead")
+               if e["outcome"] == "blocked"]
+    assert blocked, "an admin tripped a gate and the ledger does not say who"
+
+
+def _post_raw_digest(cstore, items):
+    from community.system_posts import SYSTEM_USER_ID
+
+    channel = cstore.get_channel_by_slug("medical-ai-news")
+    return cstore.insert_message(
+        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
+        body="Medical AI Digest", kind="digest_news",
+        payload={"title": "Medical AI Digest", "items": items})
 
 
 def test_a_payload_with_a_junk_item_is_refused_rather_than_crashing():
     """`mark_lead` assigns onto every item to set `lead`, so one non-object in
     the list turns an admin click into a 500."""
-    from community.system_posts import SYSTEM_USER_ID
-
     _astore, cstore, _doc, admin = setup_world()
-    channel = cstore.get_channel_by_slug("medical-ai-news")
-    broken = cstore.insert_message(
-        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
-        body="Medical AI Digest", kind="digest_news",
-        payload={"title": "Medical AI Digest",
-                 "items": [{"url": "https://example.org/a", "headline": "A"}, "junk"]})
-    r = _set_lead(admin, broken["id"], url="https://example.org/a")
-    assert r.status_code == 400, r.text
+    broken = _post_raw_digest(
+        cstore, [{"url": "https://example.org/a", "headline": "A"}, "junk"])
+    assert _set_lead(admin, broken["id"], url="https://example.org/a").status_code == 400
+
+
+def test_a_stored_item_missing_a_field_the_body_renders_does_not_crash():
+    """The type guard above catches a non-object. It does NOT catch an object
+    with a key missing, and the override renders the plain-text body from
+    whatever is on disk -- so a row written by an older build, or repaired by
+    hand, met a bare subscript and returned a 500 on an admin's click.
+
+    Written as three separately-broken items rather than one, because each
+    missing field is a different subscript and one fixture would only ever
+    prove the first of them."""
+    _astore, cstore, _doc, admin = setup_world()
+    thin = _post_raw_digest(cstore, [
+        {"url": "https://example.org/a", "headline": "A headline", "section": "Evals"},
+        {"url": "https://example.org/b", "headline": "B", "source": "STAT"},
+        {"url": "https://example.org/c", "headline": "C", "why_it_matters": "Why."},
+    ])
+    r = _set_lead(admin, thin["id"], url="https://example.org/c")
+    assert r.status_code == 200, r.text
+    assert r.json()["payload"]["items"][0]["url"] == "https://example.org/c"
+    # The body still renders, leading with the promoted story.
+    body = cstore.get_message(thin["id"])["body"]
+    assert body.index("C") < body.index("A headline"), body
 
 
 def test_clearing_breaking_leaves_everything_else_alone():

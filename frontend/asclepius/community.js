@@ -65,11 +65,12 @@
     pins: {},           // channel slug -> [pinned message objects]
     bookmarks: {},      // channel slug -> [{id,title,url,added_by}]
     events: { upcoming: [], past: [], pastOpen: false, loadedFor: null },
-    // The newest #medical-ai-news post that carries a payload, fetched once at
-    // boot. Two surfaces read it and neither owns it: the pinned home card
-    // draws it collapsed, and the presence bar counts the unread ones.
+    // #medical-ai-news's recent top-level rows, oldest-first, fetched once at
+    // boot and appended to by the socket. Two surfaces read it and neither owns
+    // it: the pinned home card draws the newest digest collapsed, and the
+    // presence bar counts the unread ones.
+    digestRoom: [],
     latestDigest: null,
-    newDigests: 0,
   };
 
   const QUICK_EMOJI = ['👍', '✅', '🙌', '❤️', '😂', '🤔', '👀', '🎉'];
@@ -549,33 +550,48 @@
    * posted, simply has no card, and a landing page that 500s over a decoration
    * is a worse outcome than a landing page without one. */
   async function loadLatestDigest() {
+    state.digestRoom = [];
     state.latestDigest = null;
-    state.newDigests = 0;
     try {
       const d = await api('/channels/medical-ai-news/messages?limit=25');
-      const msgs = (d.messages || []).filter((m) => !m.deleted);
-      const digests = msgs.filter((m) => digestOf(m));
+      state.digestRoom = (d.messages || []).filter((m) => !m.deleted);
+      const digests = state.digestRoom.filter((m) => digestOf(m));
       // The list arrives oldest-first, like every other channel fetch, so the
       // newest digest is the last row that has a payload.
       state.latestDigest = digests.length ? digests[digests.length - 1] : null;
-
-      /* How many of them are NEW, counted rather than assumed.
-       *
-       * The channel's unread number counts every unread message in the room, of
-       * any kind, so labelling it "3 new digests" reads three morning briefs as
-       * three digests. Unread messages are the LAST `unread` rows in the room,
-       * so the digests among that tail are the digests this reader has not seen
-       * -- which is the number §3.1 actually asks for, from data the client
-       * already holds. */
-      const ch = state.channels.find((c) => c.slug === 'medical-ai-news');
-      const unread = Math.max(0, Math.min((ch && ch.unread) || 0, msgs.length));
-      state.newDigests = unread
-        ? msgs.slice(msgs.length - unread).filter((m) => digestOf(m)).length
-        : 0;
     } catch (e) {
+      state.digestRoom = [];
       state.latestDigest = null;
-      state.newDigests = 0;
     }
+  }
+
+  /* How many digests this reader has not seen — computed at RENDER time.
+   *
+   * Two wrong answers were available here. The channel's raw unread number
+   * counts every unread message in the room, of any kind, and the morning
+   * routine posts briefs into that same room, so "3 new digests" could be three
+   * briefs. Caching a corrected count at boot fixes that and introduces a worse
+   * bug: the number then freezes for the session, still saying "1 new digest"
+   * after the reader has read it and never appearing for a digest that arrives
+   * while the tab is open.
+   *
+   * So it is derived, every time the bar paints, from two things that are both
+   * kept live: the channel's unread count (`bumpUnread` raises it, the read
+   * sync lowers it) and the room's rows (the boot fetch, plus whatever the
+   * socket has appended since).
+   *
+   * Unread messages are the LAST `unread` rows — except that the server does
+   * not count the reader's OWN posts as unread while this list includes them,
+   * so they come out first. Without that, an admin posting in the room shifts
+   * the window and undercounts. */
+  function newDigestCount() {
+    const ch = state.channels.find((c) => c.slug === 'medical-ai-news');
+    const mine = (state.me || {}).user_id;
+    const others = state.digestRoom.filter(
+      (m) => !(mine && m.author && m.author.user_id === mine));
+    const unread = Math.max(0, Math.min((ch && ch.unread) || 0, others.length));
+    if (!unread) return 0;
+    return others.slice(others.length - unread).filter((m) => digestOf(m)).length;
   }
 
   async function loadMembers() {
@@ -638,10 +654,10 @@
       h('span', { class: 'cm-presence-dot' + (online ? ' on' : ''), 'aria-hidden': 'true' }),
       h('span', { class: 'chrome' }, online + ' online'));
 
-    // Counted in loadLatestDigest from the room's own rows, never taken from
-    // the channel's unread number: that counts every unread message in the
-    // room, and the morning brief posts there too.
-    const fresh = Math.max(0, state.newDigests || 0);
+    // Derived here, not cached: the bar repaints on every rail render and every
+    // presence event, and a number frozen at boot goes stale the moment the
+    // reader opens the room or a digest lands over the socket.
+    const fresh = newDigestCount();
     if (fresh) {
       presence.appendChild(h('span', { class: 'chrome cm-presence-sep' }, '·'));
       presence.appendChild(h('button', {
@@ -3470,8 +3486,26 @@
       st.list.sort((a, b) => a.id - b.id);
       if (msg.channel === state.active) renderMessages({});
     }
+    trackDigestRoom(msg);
     bumpUnread(msg);
     if (msg.channel === state.active) markReadIfAtBottom();
+  }
+
+  /* Keep the digest room's rows current. Without this the boot fetch is the
+     whole world: a digest posted while the tab is open never reaches the pinned
+     card and is never counted, and the count would go up by one on a message
+     the tail does not contain. Top-level only, matching what the channel
+     endpoint returns and what `unread` counts. */
+  function trackDigestRoom(msg) {
+    if (!msg || msg.channel !== 'medical-ai-news' || msg.parent_message_id) return;
+    if (state.digestRoom.some((m) => m.id === msg.id)) return;
+    state.digestRoom.push(msg);
+    // Bounded, like the fetch that seeds it. This list only ever answers "what
+    // is at the end of the room".
+    if (state.digestRoom.length > 50) state.digestRoom.shift();
+    if (digestOf(msg)) state.latestDigest = msg;
+    renderGreeting();
+    if (state.active === 'general') renderMessages({});
   }
 
   function bumpUnread(msg) {

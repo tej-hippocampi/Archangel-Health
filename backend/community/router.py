@@ -2133,10 +2133,22 @@ async def set_digest_lead(
     from community import system_posts  # noqa: PLC0415 - avoids an import cycle
 
     visible = "\n".join([new_body, system_posts._payload_text(payload)])
-    if not system_posts._phi_clear(container, kind, visible):
-        raise HTTPException(status_code=422, detail="Blocked by the PHI gate")
-    if not system_posts._house_style_clear(container, kind, visible):
-        raise HTTPException(status_code=422, detail="Blocked by the house style rules")
+    for gate, why in ((system_posts._phi_clear, "phi"),
+                      (system_posts._house_style_clear, "house_style")):
+        if gate(container, kind, visible):
+            continue
+        # The gates record the block against the SYSTEM author, because they
+        # were written for the bot's own write path and that is whose text it
+        # is. A block reached from here was caused by an admin pressing a
+        # button, and the endpoint's own audit line runs after the gates, so
+        # without this the operator who triggered it appears nowhere.
+        _audit(request, admin, "community.digest_lead", "blocked",
+               {"message_id": message_id, "gate": why})
+        raise HTTPException(
+            status_code=422,
+            detail="This digest's own text no longer passes the "
+                   + ("PHI gate" if why == "phi" else "house style rules")
+                   + ", so it cannot be rewritten. Delete the post instead.")
 
     updated = cstore.set_message_payload(message_id, payload, body=new_body)
     if not updated or updated.get("deleted"):

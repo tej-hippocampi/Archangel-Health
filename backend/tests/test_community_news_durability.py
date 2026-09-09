@@ -280,9 +280,21 @@ def test_the_plain_text_body_carries_no_markdown():
         assert item["source"] in body
 
 
-def test_sections_render_in_the_contract_order_and_empties_are_dropped():
-    grouped = contract.grouped_items(contract.validate_payload(_payload(), kind="news"))
-    assert [s for s, _ in grouped] == ["Research", "Regulation", "Deployment"]
+def test_the_body_leads_with_the_top_story_and_labels_each_section():
+    """This used to assert ``grouped_items`` put the sections in SECTIONS order.
+    That helper is gone with the design that needed it: the card, the email and
+    the body all lead with the top story now, and grouping by section meant the
+    lead appeared wherever its section happened to fall -- so a digest led by a
+    Regulation story showed a Research story first in every inbox preview."""
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/c")
+    body = contract.plain_text_body(payload)
+    lead, rest = contract.lead_and_rest(payload)
+    assert body.index(lead["headline"]) < min(body.index(i["headline"]) for i in rest)
+    # The section is a label on each item, so every one of them still says which
+    # kind of story it is.
+    for item in payload["items"]:
+        assert item["section"] in body
 
 
 # ═══ §2.4 The email ══════════════════════════════════════════════════════════
