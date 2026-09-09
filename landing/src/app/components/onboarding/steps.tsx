@@ -150,6 +150,9 @@ export type Fellowship = {
 export type TrainingRow = { rowId?: string; institution: string; year: string };
 
 export type Credentials = {
+  /** Persist CV suggestions separately from transient review chips. */
+  cvSuggestions?: Record<string, unknown>;
+  cvManualFields?: string[];
   fullLegalName: string;
   /* The PHYSICIAN's own mobile — deliberately NOT `OnboardingData.phone`,
      which is the organization's front-office line posted to
@@ -232,7 +235,7 @@ export type Credentials = {
    *
    *  Each entry is an ATOMIC tuple. A jurisdiction and a number that were never
    *  issued together is a wrong credential, not a partial one. */
-  additionalLicenses?: { state: string; number: string; current?: string }[];
+  additionalLicenses?: { rowId?: string; state: string; number: string; current?: string }[];
   residencyCompleted: boolean | null;
   /* Consumed as `post_residency_ge_3yr`, a CAPPED BINARY, and discarded. The
      Choudhry review found an INVERSE relationship between years in practice and
@@ -342,6 +345,7 @@ export function emptyCredentials(fullLegalName = ""): Credentials {
     languages: [],
     licenseNumber: "",
     licenseState: "",
+    additionalLicenses: [],
     residencyCompleted: null,
     residencyCompletionYear: "",
     clinicalHalfDaysPerMonth: "",
@@ -525,6 +529,10 @@ export type CvParsed = {
   npi?: string | null;
   linkedin_url?: string | null;
   years_in_practice?: number | null;
+  years_in_active_practice?: number | null;
+  mobile_phone?: string | null;
+  practice_city?: string | null;
+  clinical_focus?: string | null;
 };
 
 /** The parse stages the CV screen narrates. Mirrors `credentialing.CV_STAGES`. */
@@ -2364,7 +2372,7 @@ export function Step5Credentials({
     // would have the second one restore a chip the first had just cleared.
     const touched = Object.keys(patch).filter((k) => autofilled.has(k));
     setData({
-      credentials: { ...c, ...patch },
+      credentials: { ...c, ...patch, cvManualFields: [...new Set([...(c.cvManualFields || []), ...Object.keys(patch)])] },
       ...(touched.length
         ? { cvAutofilled: (data.cvAutofilled || []).filter((k) => !touched.includes(k)) }
         : {}),
@@ -2676,7 +2684,7 @@ export function Step5Credentials({
           for a different human. Do not merge them. */}
       <div style={TWO_COL}>
         <TextField
-          label="Your mobile number"
+          label={lbl("phone", "Your mobile number")}
           placeholder="+1 (555) 010-7788"
           type="tel"
           value={c.phone}
@@ -2900,6 +2908,16 @@ export function Step5Credentials({
         />
       </div>
 
+      {(c.additionalLicenses || []).map((license, index) => (
+        <RepeatableCard key={license.rowId || `legacy-license-${index}`} removable removeLabel="Remove additional licence" onRemove={() => set({additionalLicenses: c.additionalLicenses!.filter((_, i) => i !== index)})}>
+          <SectionHeading title={<>Additional licence {autofilled.has("additionalLicenses") && <FromCvChip />}</>} />
+          <div style={TWO_COL}>
+            <TextField label="Licence jurisdiction" value={license.state} onChange={(value) => set({additionalLicenses: c.additionalLicenses!.map((l, i) => i === index ? {...l, state: value} : l)})} />
+            <TextField label="Licence number" value={license.number} onChange={(value) => set({additionalLicenses: c.additionalLicenses!.map((l, i) => i === index ? {...l, number: value} : l)})} />
+          </div>
+        </RepeatableCard>
+      ))}
+
       <YesNoToggle
         label="Have you finished residency?"
         value={c.residencyCompleted}
@@ -3039,7 +3057,7 @@ export function Step5Credentials({
         hint="Type and press Enter, or tap a suggestion. Select as many as apply."
       />
       <TextArea
-        label="Tell us more about your specialty"
+        label={lbl("specialtyNiche", "Tell us more about your specialty")}
         optional
         rows={4}
         value={c.specialtyNiche}
@@ -3055,7 +3073,7 @@ export function Step5Credentials({
         suggestions={PRACTICE_SETTING_SUGGESTIONS}
       />
       <TextField
-        label="City you practise in"
+        label={lbl("practiceCity", "City you practise in")}
         optional
         value={c.practiceCity}
         onChange={(v) => set({ practiceCity: v })}

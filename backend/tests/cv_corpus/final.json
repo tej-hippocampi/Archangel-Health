@@ -1,0 +1,8 @@
+{
+  "documents": 100,
+  "field_checks": 1300,
+  "passed": 1300,
+  "documents_passed": 100,
+  "elapsed_seconds": 0.79,
+  "failures": []
+}

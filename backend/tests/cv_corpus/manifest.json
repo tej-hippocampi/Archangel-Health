@@ -1,0 +1,3702 @@
+[
+  {
+    "id": "cv-000",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-000",
+      "licenseNumber": "A900000",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-001",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-001",
+      "licenseNumber": "A900001",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-002",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-002",
+      "licenseNumber": "A900002",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-003",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-003",
+      "licenseNumber": "A900003",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-004",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-004",
+      "licenseNumber": "A900004",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-005",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-005",
+      "licenseNumber": "A900005",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-006",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-006",
+      "licenseNumber": "A900006",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-007",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-007",
+      "licenseNumber": "A900007",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-008",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-008",
+      "licenseNumber": "A900008",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-009",
+    "layout": 0,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-009",
+      "licenseNumber": "A900009",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-010",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-010",
+      "licenseNumber": "A900010",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-011",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-011",
+      "licenseNumber": "A900011",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-012",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-012",
+      "licenseNumber": "A900012",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-013",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-013",
+      "licenseNumber": "A900013",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-014",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-014",
+      "licenseNumber": "A900014",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-015",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-015",
+      "licenseNumber": "A900015",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-016",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-016",
+      "licenseNumber": "A900016",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-017",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-017",
+      "licenseNumber": "A900017",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-018",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-018",
+      "licenseNumber": "A900018",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-019",
+    "layout": 1,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-019",
+      "licenseNumber": "A900019",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-020",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-020",
+      "licenseNumber": "A900020",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-021",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-021",
+      "licenseNumber": "A900021",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-022",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-022",
+      "licenseNumber": "A900022",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-023",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-023",
+      "licenseNumber": "A900023",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-024",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-024",
+      "licenseNumber": "A900024",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-025",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-025",
+      "licenseNumber": "A900025",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-026",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-026",
+      "licenseNumber": "A900026",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-027",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-027",
+      "licenseNumber": "A900027",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-028",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-028",
+      "licenseNumber": "A900028",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-029",
+    "layout": 2,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-029",
+      "licenseNumber": "A900029",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-030",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-030",
+      "licenseNumber": "A900030",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-031",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-031",
+      "licenseNumber": "A900031",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-032",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-032",
+      "licenseNumber": "A900032",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-033",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-033",
+      "licenseNumber": "A900033",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-034",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-034",
+      "licenseNumber": "A900034",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-035",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-035",
+      "licenseNumber": "A900035",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-036",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-036",
+      "licenseNumber": "A900036",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-037",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-037",
+      "licenseNumber": "A900037",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-038",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-038",
+      "licenseNumber": "A900038",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-039",
+    "layout": 3,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-039",
+      "licenseNumber": "A900039",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-040",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-040",
+      "licenseNumber": "A900040",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-041",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-041",
+      "licenseNumber": "A900041",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-042",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-042",
+      "licenseNumber": "A900042",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-043",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-043",
+      "licenseNumber": "A900043",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-044",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-044",
+      "licenseNumber": "A900044",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-045",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-045",
+      "licenseNumber": "A900045",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-046",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-046",
+      "licenseNumber": "A900046",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-047",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-047",
+      "licenseNumber": "A900047",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-048",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-048",
+      "licenseNumber": "A900048",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-049",
+    "layout": 4,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-049",
+      "licenseNumber": "A900049",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-050",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-050",
+      "licenseNumber": "A900050",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-051",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-051",
+      "licenseNumber": "A900051",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-052",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-052",
+      "licenseNumber": "A900052",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-053",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-053",
+      "licenseNumber": "A900053",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-054",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-054",
+      "licenseNumber": "A900054",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-055",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-055",
+      "licenseNumber": "A900055",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-056",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-056",
+      "licenseNumber": "A900056",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-057",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-057",
+      "licenseNumber": "A900057",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-058",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-058",
+      "licenseNumber": "A900058",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-059",
+    "layout": 5,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-059",
+      "licenseNumber": "A900059",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-060",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-060",
+      "licenseNumber": "A900060",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-061",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-061",
+      "licenseNumber": "A900061",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-062",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-062",
+      "licenseNumber": "A900062",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-063",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-063",
+      "licenseNumber": "A900063",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-064",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-064",
+      "licenseNumber": "A900064",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-065",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-065",
+      "licenseNumber": "A900065",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-066",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-066",
+      "licenseNumber": "A900066",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-067",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-067",
+      "licenseNumber": "A900067",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-068",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-068",
+      "licenseNumber": "A900068",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-069",
+    "layout": 6,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-069",
+      "licenseNumber": "A900069",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-070",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-070",
+      "licenseNumber": "A900070",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-071",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-071",
+      "licenseNumber": "A900071",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-072",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-072",
+      "licenseNumber": "A900072",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-073",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-073",
+      "licenseNumber": "A900073",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-074",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-074",
+      "licenseNumber": "A900074",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-075",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-075",
+      "licenseNumber": "A900075",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-076",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-076",
+      "licenseNumber": "A900076",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-077",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-077",
+      "licenseNumber": "A900077",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-078",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-078",
+      "licenseNumber": "A900078",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-079",
+    "layout": 7,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-079",
+      "licenseNumber": "A900079",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-080",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-080",
+      "licenseNumber": "A900080",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-081",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-081",
+      "licenseNumber": "A900081",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-082",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-082",
+      "licenseNumber": "A900082",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-083",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-083",
+      "licenseNumber": "A900083",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-084",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-084",
+      "licenseNumber": "A900084",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-085",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-085",
+      "licenseNumber": "A900085",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-086",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-086",
+      "licenseNumber": "A900086",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-087",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-087",
+      "licenseNumber": "A900087",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-088",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-088",
+      "licenseNumber": "A900088",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-089",
+    "layout": 8,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-089",
+      "licenseNumber": "A900089",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "",
+          "specialty": "",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-090",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Avery Morgan",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Nephrology",
+      "healthSystem": "Example A Medical Center",
+      "yearsInActivePractice": "3",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-090",
+      "licenseNumber": "A900090",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example A University Hospital",
+          "year": "2010"
+        }
+      ],
+      "residencyCompletionYear": "2010",
+      "fellowship": [
+        {
+          "institution": "Example A Medical Center",
+          "specialty": "Nephrology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Nephrology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-091",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "José Alvarez",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Cardiology",
+      "healthSystem": "Example B Medical Center",
+      "yearsInActivePractice": "4",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-091",
+      "licenseNumber": "A900091",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example B University Hospital",
+          "year": "2011"
+        }
+      ],
+      "residencyCompletionYear": "2011",
+      "fellowship": [
+        {
+          "institution": "Example B Medical Center",
+          "specialty": "Cardiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Cardiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-092",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Zoë Laurent",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Internal Medicine",
+      "healthSystem": "Example C Medical Center",
+      "yearsInActivePractice": "5",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-092",
+      "licenseNumber": "A900092",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example C University Hospital",
+          "year": "2012"
+        }
+      ],
+      "residencyCompletionYear": "2012",
+      "fellowship": [
+        {
+          "institution": "Example C Medical Center",
+          "specialty": "Internal Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABIM",
+          "specialty": "Internal Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-093",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Amara Okafor",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Pediatrics",
+      "healthSystem": "Example D Medical Center",
+      "yearsInActivePractice": "6",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-093",
+      "licenseNumber": "A900093",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example D University Hospital",
+          "year": "2013"
+        }
+      ],
+      "residencyCompletionYear": "2013",
+      "fellowship": [
+        {
+          "institution": "Example D Medical Center",
+          "specialty": "Pediatrics",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABP",
+          "specialty": "Pediatrics",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-094",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Priya Shah",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Surgery",
+      "healthSystem": "Example E Medical Center",
+      "yearsInActivePractice": "7",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-094",
+      "licenseNumber": "A900094",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example E University Hospital",
+          "year": "2014"
+        }
+      ],
+      "residencyCompletionYear": "2014",
+      "fellowship": [
+        {
+          "institution": "Example E Medical Center",
+          "specialty": "Surgery",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABS",
+          "specialty": "Surgery",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-095",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Jean-Luc Martin",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Neurology",
+      "healthSystem": "Example F Medical Center",
+      "yearsInActivePractice": "8",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-095",
+      "licenseNumber": "A900095",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example F University Hospital",
+          "year": "2015"
+        }
+      ],
+      "residencyCompletionYear": "2015",
+      "fellowship": [
+        {
+          "institution": "Example F Medical Center",
+          "specialty": "Neurology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Neurology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-096",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Mei Chen",
+      "degree": "DO",
+      "qualification": "DO",
+      "primarySpecialty": "Radiology",
+      "healthSystem": "Example G Medical Center",
+      "yearsInActivePractice": "9",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-096",
+      "licenseNumber": "A900096",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example G University Hospital",
+          "year": "2016"
+        }
+      ],
+      "residencyCompletionYear": "2016",
+      "fellowship": [
+        {
+          "institution": "Example G Medical Center",
+          "specialty": "Radiology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABR",
+          "specialty": "Radiology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-097",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Sofia Rossi",
+      "degree": "MBBS",
+      "qualification": "MBBS",
+      "primarySpecialty": "Family Medicine",
+      "healthSystem": "Example H Medical Center",
+      "yearsInActivePractice": "10",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-097",
+      "licenseNumber": "A900097",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example H University Hospital",
+          "year": "2017"
+        }
+      ],
+      "residencyCompletionYear": "2017",
+      "fellowship": [
+        {
+          "institution": "Example H Medical Center",
+          "specialty": "Family Medicine",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABFM",
+          "specialty": "Family Medicine",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-098",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Omar Hassan",
+      "degree": "MBChB",
+      "qualification": "MBChB",
+      "primarySpecialty": "Dermatology",
+      "healthSystem": "Example I Medical Center",
+      "yearsInActivePractice": "11",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-098",
+      "licenseNumber": "A900098",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example I University Hospital",
+          "year": "2018"
+        }
+      ],
+      "residencyCompletionYear": "2018",
+      "fellowship": [
+        {
+          "institution": "Example I Medical Center",
+          "specialty": "Dermatology",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABD",
+          "specialty": "Dermatology",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  },
+  {
+    "id": "cv-099",
+    "layout": 9,
+    "expected": {
+      "fullLegalName": "Rachel O’Neill",
+      "degree": "MD",
+      "qualification": "MD",
+      "primarySpecialty": "Psychiatry",
+      "healthSystem": "Example J Medical Center",
+      "yearsInActivePractice": "12",
+      "linkedinUrl": "https://linkedin.com/in/synthetic-doctor-099",
+      "licenseNumber": "A900099",
+      "licenseState": "CA",
+      "residency": [
+        {
+          "institution": "Example J University Hospital",
+          "year": "2019"
+        }
+      ],
+      "residencyCompletionYear": "2019",
+      "fellowship": [
+        {
+          "institution": "Example J Medical Center",
+          "specialty": "Psychiatry",
+          "year": "2023"
+        }
+      ],
+      "boardCertifications": [
+        {
+          "board": "ABPN",
+          "specialty": "Psychiatry",
+          "subspecialty": "",
+          "active": null
+        }
+      ]
+    }
+  }
+]
