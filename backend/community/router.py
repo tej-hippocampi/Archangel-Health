@@ -41,7 +41,8 @@ from community import live as clive
 from community import phi_gate
 from community import subspecialties as csubspecialties
 from community.schema import (
-    DmMessageIn, DmOpen, GroupCreate, GroupMembersIn, HandoffRedeem, MessageEdit,
+    DigestLeadIn, DmMessageIn, DmOpen, GroupCreate, GroupMembersIn, HandoffRedeem,
+    MessageEdit,
     MessageIn, ReactionIn, ReadIn,
 )
 from community import store as cstore_mod
@@ -2039,6 +2040,81 @@ async def deactivate_member(
     _cstore().ban_member(user_id=user_id, banned_by=admin["id"])
     _audit(request, admin, "community.member_deactivate", "ok", {"target_user_id": user_id})
     return {"ok": True}
+
+
+@router.post("/admin/messages/{message_id}/digest-lead")
+async def set_digest_lead(
+    message_id: int,
+    body: DigestLeadIn,
+    request: Request,
+    admin: Dict[str, Any] = Depends(require_community_admin),
+):
+    """`Set as top story` / `Clear breaking` (Digest Design PRD §2.2).
+
+    Rewrites ``payload_json`` and re-renders. NO RE-RUN: the model already
+    answered, the contract already accepted what it said, and asking it again
+    to move a rule three inches would spend a call to get a different digest.
+
+    What this can change is which item leads and whether the badge shows. What
+    it cannot change is a single word on the card. That split is the whole
+    design of the endpoint: every string in the payload arrived through
+    ``digest_contract.validate_payload`` and the house-style gate at the write
+    path, and an override that accepted text would be a member-facing route
+    that writes unvalidated prose onto a post signed by the platform.
+
+    Clearing the badge is ``urgent: false``, and it is allowed on any lead.
+    SETTING it is not offered here at all -- ``urgent`` is earned by one of four
+    same-day events that only the compose pass can see, and a button that
+    granted it would turn a rule into a preference.
+    """
+    cstore = _cstore()
+    msg = cstore.get_message(message_id)
+    if not msg or msg.get("deleted"):
+        raise HTTPException(status_code=404, detail="Message not found")
+    if msg.get("kind") not in ("digest_news", "digest_papers"):
+        raise HTTPException(status_code=400, detail="Not a digest post")
+    # A STORE row carries ``payload_json``; only the serializer produces
+    # ``payload``. Reading the serialized key off a raw row silently yields
+    # None, which reads here as "this digest predates the payload column" for
+    # every digest ever written -- so it goes through the same decoder the
+    # serializer uses, and a row that will not parse is absent rather than
+    # fatal, exactly as it is everywhere else.
+    payload = _decode_payload(msg.get("payload_json"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        raise HTTPException(
+            status_code=400,
+            detail="This digest predates the structured payload and has no lead to set")
+
+    from community import digest_contract  # noqa: PLC0415 - avoids an import cycle
+
+    if body.url is not None:
+        known = {str(i.get("url") or "") for i in payload["items"] if isinstance(i, dict)}
+        if body.url not in known:
+            # 404 rather than a silent no-op: an override that quietly did
+            # nothing would read on the admin card exactly like one that worked.
+            raise HTTPException(status_code=404, detail="No item in this digest has that url")
+        digest_contract.mark_lead(payload, body.url)
+
+    if body.urgent is False:
+        lead, _rest = digest_contract.lead_and_rest(payload)
+        if lead:
+            lead["urgent"] = False
+            lead["urgent_kind"] = None
+    elif body.urgent is True:
+        raise HTTPException(
+            status_code=400,
+            detail="Breaking is set by the compose pass, on one of four same-day events")
+
+    updated = cstore.set_message_payload(message_id, payload)
+    if not updated or updated.get("deleted"):
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    _audit(request, admin, "community.digest_lead", "ok", {
+        "message_id": message_id, "url": body.url, "urgent": body.urgent,
+    })
+    serialized = _serialize_one_resolved(updated)
+    await _emit_message_event("message.updated", serialized, None)
+    return serialized
 
 
 @router.post("/admin/members/{user_id}/reactivate")

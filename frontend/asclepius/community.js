@@ -1569,7 +1569,7 @@
       : h('div', { class: cls }, it.headline);
   }
 
-  function digestLeadEl(it) {
+  function digestLeadEl(it, m) {
     const tag = DIGEST_TAGS[it.section];
     const wrap = h('div', {
       class: 'cm-digest-lead' + (tag ? ' cm-tag-' + tag.key : ''),
@@ -1584,10 +1584,57 @@
     if (it.why_it_matters) wrap.appendChild(h('div', { class: 'cm-why' }, it.why_it_matters));
     const src = digestSourceEl(it);
     if (src) wrap.appendChild(src);
+    const admin = m ? digestAdminEl(m, it, true) : null;
+    if (admin) wrap.appendChild(admin);
     return wrap;
   }
 
-  function digestItemEl(it) {
+  /* The admin override (§2.2), on the post itself.
+   *
+   * It lives here rather than on the admin console's community card because
+   * that card's feed carries an author, a channel and a body string -- no
+   * message id and no payload -- so the action would have needed a wider
+   * summary endpoint to reach the thing it acts on. The digest post IS the
+   * admin menu for the digest post.
+   *
+   * Two verbs and no text field. `Set as top story` moves the rule and the
+   * badge; `Clear breaking` takes the badge off. Neither can change a word on
+   * the card, because every word came through the compose contract and the
+   * house-style gate, and an override that accepted prose would be a way to
+   * put unvalidated text on a post signed by the platform. Setting BREAKING is
+   * not offered at all: it is earned by one of four same-day events the
+   * compose pass can see and an admin cannot.
+   *
+   * Invisible to everyone else. A physician reading the morning's news has no
+   * business seeing the levers behind it. */
+  function digestAdminEl(m, it, isLead) {
+    if (!state.isAdmin || state.preview) return null;
+    const row = h('div', { class: 'cm-digest-admin' });
+    const send = (patch, label) => {
+      api('/admin/messages/' + m.id + '/digest-lead', { method: 'POST', body: patch })
+        .then((updated) => {
+          // The server answers with the re-rendered message and the socket
+          // broadcasts the same thing to everyone else in the room. Patching
+          // the row in hand keeps the admin who pressed it from waiting on
+          // their own broadcast to see what they did.
+          Object.assign(m, updated || {});
+          renderMessages({});
+          toast(label, 'success');
+        })
+        .catch((e) => toast(e.message, 'error'));
+    };
+    if (!isLead) {
+      row.appendChild(h('button', { class: 'cm-digest-admin-btn', type: 'button',
+        onClick: () => send({ url: it.url }, 'Top story set') }, 'Set as top story'));
+    }
+    if (isLead && it.urgent) {
+      row.appendChild(h('button', { class: 'cm-digest-admin-btn', type: 'button',
+        onClick: () => send({ urgent: false }, 'Breaking cleared') }, 'Clear breaking'));
+    }
+    return row.childNodes.length ? row : null;
+  }
+
+  function digestItemEl(it, m) {
     const row = h('div', { class: 'cm-digest-item' }, tagChipEl(it.section),
       digestHeadlineEl(it, 'cm-digest-subhead'));
     // Compact items carry no deck by contract; guarded anyway, because a row
@@ -1597,6 +1644,8 @@
     }
     const src = digestSourceEl(it);
     if (src) row.appendChild(src);
+    const admin = m ? digestAdminEl(m, it, false) : null;
+    if (admin) row.appendChild(admin);
     return row;
   }
 
@@ -1625,8 +1674,11 @@
         h('div', { class: 'cm-digest-meta' },
           (weekday ? weekday + ' · ' : '') + n + (n === 1 ? ' story' : ' stories'))));
 
-    card.appendChild(digestLeadEl(lead));
-    if (!collapsed) for (const it of rest) card.appendChild(digestItemEl(it));
+    // The pinned card carries no admin controls: it is the same post seen from
+    // the landing room, and two places to press the same button is two places
+    // to press it twice.
+    card.appendChild(digestLeadEl(lead, collapsed ? null : m));
+    if (!collapsed) for (const it of rest) card.appendChild(digestItemEl(it, m));
 
     card.appendChild(h('button', {
       class: 'cm-digest-foot', type: 'button',

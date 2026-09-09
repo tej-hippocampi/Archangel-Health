@@ -1440,3 +1440,135 @@ def test_app_lifespan_boots_and_stops_community():
         # the app is actually serving while the loop runs
         assert booted.get("/community").status_code == 200
     assert n._loop_task is None  # stop_digest_loop ran on shutdown
+
+
+# ═══ The digest's admin override (Digest Design PRD §2.2) ════════════════════
+#
+# Promoting a different story is a change to which item leads, and the model
+# already answered. So it rewrites `payload_json` and re-renders: no re-run, and
+# no way to change a single word on the card.
+
+def _digest_payload():
+    from community import digest_contract
+
+    return digest_contract.mark_lead(digest_contract.validate_payload({"items": [
+        {"headline": "FDA clears autonomous AI for retinopathy",
+         "deck": "The clearance covers screening with no physician in the loop.",
+         "why_it_matters": "First reimbursed autonomous diagnostic.",
+         "source": "STAT", "url": "https://example.org/a", "section": "Regulation",
+         "urgent": True, "urgent_kind": "regulatory"},
+        {"headline": "Frontier models score under 0.3 kappa",
+         "deck": "Three models graded the same trials and agreed about as often as chance.",
+         "why_it_matters": "More reasoning did not help.",
+         "source": "Synthesis Bench", "url": "https://example.org/b", "section": "Research"},
+        {"headline": "Health system rolls back its ambient scribe",
+         "deck": "An audit found notes clinicians had signed but had not read.",
+         "why_it_matters": "Deployment risk sits in the audit trail.",
+         "source": "Modern Healthcare", "url": "https://example.org/c",
+         "section": "Deployment"},
+    ]}, kind="news"), "https://example.org/a")
+
+
+def _post_digest(cstore):
+    from community.system_posts import SYSTEM_USER_ID
+
+    payload = _digest_payload()
+    channel = cstore.get_channel_by_slug("medical-ai-news")
+    return cstore.insert_message(
+        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
+        body="Medical AI Digest", kind="digest_news", payload=payload)
+
+
+def _stored_payload(cstore, message_id):
+    """What is actually on disk. A store row carries ``payload_json``; only the
+    serializer produces ``payload``, and reading the serialized key off a raw
+    row yields None for every digest ever written."""
+    row = cstore.get_message(message_id)
+    return json.loads(row["payload_json"]) if row and row.get("payload_json") else None
+
+
+def _set_lead(user, message_id, **body):
+    return client.post(f"{BASE}/admin/messages/{message_id}/digest-lead",
+                       json=body, headers=headers_for(user))
+
+
+def test_an_admin_can_promote_a_different_story_without_a_re_run():
+    _astore, cstore, doc, admin = setup_world()
+    msg = _post_digest(cstore)
+
+    r = _set_lead(admin, msg["id"], url="https://example.org/c")
+    assert r.status_code == 200, r.text
+    items = r.json()["payload"]["items"]
+    assert items[0]["url"] == "https://example.org/c" and items[0]["lead"] is True
+    # The promoted item still HAS its deck. Clearing the other decks at post
+    # time made this override destructive: a story promoted on Tuesday
+    # afternoon would render as a 26px headline with nothing under it, because
+    # the deck it needed was deleted at 6am. Only the LEAD'S deck renders, and
+    # that is the renderers' job.
+    assert items[0]["deck"], "the promoted story lost the deck it was written with"
+    # The badge does not travel with the promotion. Urgency belonged to the
+    # story that earned it, not to the position.
+    assert all(i["urgent"] is False for i in items)
+    # And it is on disk, not just in the response.
+    assert _stored_payload(cstore, msg["id"])["items"][0]["url"] == "https://example.org/c"
+
+
+def test_clearing_breaking_leaves_everything_else_alone():
+    _astore, cstore, doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    before = _stored_payload(cstore, msg["id"])
+
+    r = _set_lead(admin, msg["id"], urgent=False)
+    assert r.status_code == 200, r.text
+    after = r.json()["payload"]
+    assert after["items"][0]["urgent"] is False
+    assert after["items"][0]["urgent_kind"] is None
+    for key in ("headline", "deck", "why_it_matters", "source", "url", "section"):
+        assert after["items"][0][key] == before["items"][0][key]
+
+
+def test_breaking_cannot_be_granted_from_the_admin_menu():
+    """§2.2: it is earned by one of four same-day events the compose pass can
+    see. A button that granted it would turn a rule into a preference."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    assert _set_lead(admin, msg["id"], urgent=True).status_code == 400
+
+
+def test_a_url_that_is_not_in_the_digest_is_refused_rather_than_ignored():
+    """A silent no-op reads on the admin card exactly like an override that
+    worked, and the operator finds out tomorrow."""
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    assert _set_lead(admin, msg["id"], url="https://elsewhere.example/x").status_code == 404
+
+
+def test_a_physician_cannot_reorder_the_morning_news():
+    _astore, cstore, doc, _admin = setup_world()
+    msg = _post_digest(cstore)
+    assert _set_lead(doc, msg["id"], url="https://example.org/b").status_code in (401, 403)
+    assert _stored_payload(cstore, msg["id"])["items"][0]["url"] == "https://example.org/a"
+
+
+def test_an_ordinary_post_and_a_legacy_digest_are_both_refused():
+    """A post with no structured payload has no lead to set, and saying so is
+    better than writing a payload onto a message that never had one."""
+    _astore, cstore, doc, admin = setup_world()
+    chatter = post_msg(doc, "general", "Morning all").json()
+    assert _set_lead(admin, chatter["id"], url="https://example.org/a").status_code == 400
+
+    from community.system_posts import SYSTEM_USER_ID
+    channel = cstore.get_channel_by_slug("medical-ai-news")
+    legacy = cstore.insert_message(
+        channel_id=channel["id"], author_user_id=SYSTEM_USER_ID,
+        body="Medical AI Digest\n\nResearch\nA story", kind="digest_news")
+    assert _set_lead(admin, legacy["id"], url="https://example.org/a").status_code == 400
+    assert _stored_payload(cstore, legacy["id"]) is None
+
+
+def test_the_override_is_audited_like_every_other_admin_write():
+    _astore, cstore, _doc, admin = setup_world()
+    msg = _post_digest(cstore)
+    assert _set_lead(admin, msg["id"], url="https://example.org/b").status_code == 200
+    events = audit_events("community.digest_lead")
+    assert events, "an admin rewrote a published post and nothing recorded it"

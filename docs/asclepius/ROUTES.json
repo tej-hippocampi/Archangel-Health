@@ -1,5 +1,5 @@
 {
-  "count": 666,
+  "count": 667,
   "routes": [
     "DELETE /api/asclepius/hs/media/files/{fid}",
     "DELETE /api/asclepius/hs/uploads/sessions/{session_id}",
@@ -520,6 +520,7 @@
     "POST /api/avatar/chat",
     "POST /api/community/admin/members/{user_id}/deactivate",
     "POST /api/community/admin/members/{user_id}/reactivate",
+    "POST /api/community/admin/messages/{message_id}/digest-lead",
     "POST /api/community/attachments",
     "POST /api/community/channels/{slug}/bookmarks",
     "POST /api/community/channels/{slug}/messages",

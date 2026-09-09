@@ -961,6 +961,31 @@ class CommunityStore:
                 )
         return self.get_message(message_id)
 
+    def set_message_payload(
+        self, message_id: int, payload: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Rewrite a message's STRUCTURED payload, leaving the body alone.
+
+        The digest's admin override (Digest Design PRD §2.2) is the only caller:
+        promoting a different story or clearing a BREAKING badge is a change to
+        which item leads, and the plain-text body neither carries nor renders
+        that. No schema change -- ``payload_json`` has held this object since
+        the structured contract landed, and this writes the same column the
+        insert path already writes.
+
+        Deliberately NOT a widening of ``edit_message``: an edit is a member
+        rewriting their own words and stamps ``edited_at``, and an admin
+        reordering a bot's card is neither. Same reason the two have separate
+        audit actions.
+        """
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE community_messages SET payload_json = ? "
+                "WHERE id = ? AND deleted_at IS NULL",
+                (json.dumps(payload), message_id),
+            )
+        return self.get_message(message_id)
+
     def soft_delete_message(self, message_id: int, *, deleted_by: str) -> Optional[Dict[str, Any]]:
         """Soft delete (PRD §7.5): the row stays (audit chain intact), the body
         is cleared so deleted content cannot be re-read through any endpoint."""

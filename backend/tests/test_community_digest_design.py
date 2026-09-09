@@ -108,8 +108,8 @@ def _render(body: str, funcs, consts=()) -> dict:
 
 
 _CARD_FUNCS = ("svgIcon", "tagChipEl", "digestOf", "digestLead", "digestSourceEl",
-               "digestHeadlineEl", "digestLeadEl", "digestItemEl", "digestWeekday",
-               "digestCardEl")
+               "digestHeadlineEl", "digestAdminEl", "digestLeadEl", "digestItemEl",
+               "digestWeekday", "digestCardEl")
 _CARD_CONSTS = ("SVG_NS", "DIGEST_TAGS")
 
 _PAYLOAD = {
@@ -233,12 +233,21 @@ def test_breaking_replaces_top_story_only_when_the_lead_says_urgent():
     assert [b["text"] for b in _classes(_card(msg2), "cm-digest-badge")] == ["TOP STORY"]
 
 
-def test_only_the_lead_carries_a_deck_and_a_lime_wash():
+def test_only_the_lead_draws_a_deck_and_a_lime_wash():
     """§0.5: the compact item is a headline and one line. A deck under it is the
     third line the design deleted, and a second wash makes the first one mean
-    nothing."""
-    res = _card()
+    nothing.
+
+    Every item is GIVEN a deck here on purpose. They keep them on disk so an
+    admin promoting one does not get a headline with nothing under it, which
+    makes "only the lead draws one" a property of this renderer rather than a
+    property of the data it happens to be handed."""
+    msg = _msg()
+    for item in msg["payload"]["items"][1:]:
+        item["deck"] = "A deck the compact row must not draw."
+    res = _card(msg)
     assert len(_classes(res, "cm-digest-deck")) == 1
+    assert res["text"].count("must not draw") == 0
     assert len(_classes(res, "cm-why")) == 1
     # And no label above the wash — the wash is the label.
     assert "WHY IT MATTERS" not in res["text"].upper()
@@ -459,6 +468,50 @@ def test_every_empty_state_is_one_short_sentence_and_the_read_only_rooms_have_no
     assert copy["questions-help"] == ["Ask. One of us answers today.", "Ask"]
     for slug in read_only:
         assert copy[slug][1] is None, f"#{slug} offers a post nobody may make"
+
+
+# ═══ §2.2 the admin override ═════════════════════════════════════════════════
+
+def test_the_override_is_invisible_to_a_physician_and_absent_from_the_pinned_card():
+    """A physician reading the morning's news has no business seeing the levers
+    behind it, and two places to press the same button is two places to press
+    it twice."""
+    msg = _msg()
+    msg["payload"]["items"][0]["urgent"] = True
+    res = _render(
+        """
+        const m = %(m)s;
+        const snap = (admin, collapsed) => {
+          state.isAdmin = admin; state.preview = false;
+          const card = digestCardEl(m, digestOf(m), { collapsed });
+          return card.querySelectorAll('.cm-digest-admin-btn').map((n) => n.textContent);
+        };
+        const out = { member: snap(false, false), admin: snap(true, false),
+                      pinned: snap(true, true) };
+        state.isAdmin = true; state.preview = true;
+        out.preview = digestCardEl(m, digestOf(m), {})
+          .querySelectorAll('.cm-digest-admin-btn').map((n) => n.textContent);
+        console.log(JSON.stringify(out));
+        """ % {"m": json.dumps(msg)},
+        _CARD_FUNCS, _CARD_CONSTS)
+    assert res["member"] == []
+    assert res["preview"] == []
+    assert res["pinned"] == []
+    # The lead can only have its badge cleared; the other two can be promoted.
+    assert res["admin"] == ["Clear breaking", "Set as top story", "Set as top story"]
+
+
+def test_the_override_offers_no_way_to_set_breaking_or_to_write_a_word():
+    """§2.2: BREAKING is earned by one of four same-day events the compose pass
+    can see and an admin cannot. And every string on the card came through the
+    contract, so a lever that accepted prose would be a way to put unvalidated
+    text on a post signed by the platform."""
+    block = _JS.split("function digestAdminEl")[1]
+    block = block[:block.index("\n  function ")]
+    assert "urgent: false" in block
+    assert "urgent: true" not in block
+    for writer in ("textarea", "prompt(", "headline:", "deck:", "why_it_matters:"):
+        assert writer not in block, f"the override can write {writer}"
 
 
 def test_the_phi_footer_is_not_warmed_up_with_the_rest():

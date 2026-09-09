@@ -313,7 +313,7 @@ def test_the_digest_email_renders_the_structure_with_no_markdown_left():
     assert "REGULATION" in visible and "RESEARCH" in visible
 
 
-def test_the_email_leads_with_the_top_story_and_nothing_else_carries_a_deck():
+def test_the_email_leads_with_the_top_story_and_renders_one_deck():
     """§1.3: one hierarchy, two contexts. An email that promoted a different
     item than the card would be one digest read two ways, and the physician who
     opens the mail and then the room is exactly who would notice."""
@@ -331,10 +331,13 @@ def test_the_email_leads_with_the_top_story_and_nothing_else_carries_a_deck():
     assert lead["url"] == "https://example.org/c"
     assert out.index(lead["headline"]) < min(out.index(r["headline"]) for r in rest)
     assert "TOP STORY" in out and "BREAKING" not in out
-    # The deck belongs to the lead alone, so it appears exactly once.
+    # The deck belongs to the lead alone ON THE PAGE. The compact items keep
+    # the decks the compose pass wrote them -- that is what makes promoting one
+    # of them non-destructive -- and the email simply does not draw them.
     assert out.count(lead["deck"]) == 1
     for item in rest:
-        assert item["deck"] == ""
+        assert item["deck"], "a compact item was stripped of its deck on disk"
+        assert item["deck"] not in out, "a compact item drew a deck"
     # One primary action per item, said the same way everywhere (§0.5).
     assert out.count("Full article →") == len(payload["items"])
     assert re.sub(r"<[^>]+>", " ", out).count("STAT") >= 1

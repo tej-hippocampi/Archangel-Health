@@ -413,9 +413,15 @@ def mark_lead(payload: Dict[str, Any], lead_url: Optional[str] = None) -> Dict[s
       pass is allowed to drop items — the first item the model returned.
     * The lead moves to index 0 and carries ``lead: True``. Nothing else in the
       product has to re-derive it.
-    * ``deck`` and ``urgent`` survive on the lead ONLY. A deck under a compact
-      item is the third line the design deleted, and BREAKING on item four is a
-      badge on something nobody is reading first.
+    * ``urgent`` is cleared off everything that is not the lead. BREAKING on
+      item four is a badge on something nobody is reading first, and it is a
+      claim about TODAY'S top slot rather than a property of the story.
+    * ``deck`` is KEPT on every item. Only the lead's is rendered — that is the
+      renderers' job and ``lead_and_rest`` is how they agree on it — but the
+      decks themselves are content the compose pass wrote and the PHI gate
+      scanned. Clearing them made the admin override destructive: promoting a
+      story on Tuesday afternoon produced a 26px headline with nothing under
+      it, because the deck it needed had been deleted at 6am.
 
     Passing no ``lead_url`` is the honest fallback, not a shortcut: the select
     pass has already sorted by relevance, so the first item is the best guess
@@ -434,7 +440,6 @@ def mark_lead(payload: Dict[str, Any], lead_url: Optional[str] = None) -> Dict[s
     lead["lead"] = True
     for item in items:
         item["lead"] = False
-        item["deck"] = ""
         item["urgent"] = False
         item["urgent_kind"] = None
     payload["items"] = [lead] + items

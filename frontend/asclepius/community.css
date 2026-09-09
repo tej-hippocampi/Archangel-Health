@@ -1046,6 +1046,22 @@ a.cm-digest-subhead:hover { color: var(--green-deep); }
 /* The uppercase tracking on the labels swallows a plain margin, so the
    arrow gets a real gap rather than one that reads as a typo. */
 .cm-digest-arrow { margin-left: 6px; letter-spacing: 0; }
+/* Admin only, and it looks it: a mono under-line on the item it acts on, not
+   a button that competes with `Full article ->`. */
+.cm-digest-admin { display: flex; gap: var(--sp-3); margin-top: 7px; }
+.cm-digest-admin-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+}
+.cm-digest-admin-btn:hover { color: var(--ink); text-decoration: underline; }
+
 .cm-digest-foot {
   display: block;
   width: 100%;
