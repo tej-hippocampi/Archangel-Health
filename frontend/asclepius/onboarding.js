@@ -179,6 +179,27 @@
       .catch(function (e) { state.busy = false; setError(e.message); });
   }
 
+  // Onboarding Master PRD §3.2 step 6. The applicant-facing door is the gate
+  // card's "Set my password"; this covers the physician who never reaches it —
+  // the one who emails support, or who gave up at the sign-in form. Same mint
+  // as the forgot door, so nothing new is being handed out here.
+  //
+  // Deliberately NOT wired to `decide`: that helper closes the row and reloads
+  // the queue, which is right for a decision and wrong for this. Mailing a link
+  // decides nothing, and collapsing the dossier an admin is reading would make
+  // a harmless action feel like it filed something.
+  function sendPasswordSetupLink(userId) {
+    state.busy = true; render();
+    api('/verify/queue/' + encodeURIComponent(userId) + '/password-setup-link',
+        { method: 'POST', body: {} })
+      .then(function (res) {
+        state.busy = false;
+        setNotice('Password-setup link sent to ' + ((res && res.email) || 'them') + '.');
+        render();
+      })
+      .catch(function (e) { state.busy = false; setError(e.message); });
+  }
+
   function openCv(userId) {
     fetch(API_BASE + '/verify/queue/' + encodeURIComponent(userId) + '/cv',
           { headers: { 'Authorization': 'Bearer ' + token() } })
@@ -583,6 +604,16 @@
       (d.npi && d.npi.npi && d.npi.recheck_pending)
         ? h('button', { class: 'vq-btn vq-btn-ghost', disabled: state.busy,
                         onclick: function () { recheckNpi(row.user_id); } }, 'Recheck NPI')
+        : null,
+      // Rendered off the SERVER's predicate, never off an empty password field
+      // in the payload — the hash is not in this payload and must not be.
+      d.needs_password_setup
+        ? h('button', { class: 'vq-btn vq-btn-ghost', disabled: state.busy,
+                        title: 'This applicant has no password, so they cannot '
+                               + 'reach their own examination. Mails them a link '
+                               + 'to set one. Does not approve or decide anything.',
+                        onclick: function () { sendPasswordSetupLink(row.user_id); } },
+            'Send password-setup link')
         : null,
       h('div', { class: 'vq-facts' },
         h('span', null, (d.email_domain_class || 'unclassified') + ' email'),
