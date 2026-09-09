@@ -137,13 +137,13 @@ def test_a_post_survives_the_process_that_wrote_it(tmp_path):
     first.ensure_default_channels()
     channel = first.get_channel_by_slug("medical-ai-news")
     msg = first.insert_message(channel_id=channel["id"], author_user_id="u-system",
-                               body="Medical AI digest", kind="digest_news")
+                               body="Medical AI Digest", kind="digest_news")
 
     second = _store_at(path)
     again = second.get_channel_by_slug("medical-ai-news")
     msgs, _ = second.list_messages(again["id"])
     assert [m["id"] for m in msgs] == [msg["id"]]
-    assert msgs[0]["body"] == "Medical AI digest"
+    assert msgs[0]["body"] == "Medical AI Digest"
 
 
 def test_the_dedup_ledger_survives_a_restart_on_the_same_day(tmp_path):
@@ -169,14 +169,20 @@ def test_the_dedup_ledger_survives_a_restart_on_the_same_day(tmp_path):
 def _payload(**over):
     items = [
         {"headline": "FDA clears autonomous AI for retinopathy screening",
+         "deck": "The clearance covers screening without a physician in the "
+                 "loop, and reimbursement follows it.",
          "why_it_matters": "First reimbursed autonomous diagnostic; it sets the "
                            "template.",
          "source": "STAT", "url": "https://example.org/a", "section": "Regulation"},
-        {"headline": "Frontier models score under 0.3 kappa on risk of bias",
+        {"headline": "Frontier models score under 0.3 kappa",
+         "deck": "Three leading models graded the same trials and agreed with "
+                 "reviewers about as often as chance.",
          "why_it_matters": "More reasoning did not help; the failure is judgment.",
          "source": "Synthesis Bench", "url": "https://example.org/b",
          "section": "Research"},
-        {"headline": "Health system rolls back its ambient scribe after an audit",
+        {"headline": "Health system rolls back its ambient scribe",
+         "deck": "An internal audit found notes the clinicians had signed but "
+                 "had not read.",
          "why_it_matters": "Deployment risk sits in the audit trail, not the model.",
          "source": "Modern Healthcare", "url": "https://example.org/c",
          "section": "Deployment"},
@@ -192,7 +198,7 @@ def _with_item(index, **fields):
 
 def test_a_conforming_digest_validates_and_keeps_its_items():
     out = contract.validate_payload(_payload(), kind="news")
-    assert out["title"] == "Medical AI digest"
+    assert out["title"] == "Medical AI Digest"
     assert len(out["items"]) == 3
     assert {i["section"] for i in out["items"]} <= set(contract.SECTIONS)
 
@@ -207,9 +213,16 @@ def test_papers_get_their_own_title():
     ({"items": _payload()["items"] + [
         dict(_payload()["items"][0], url=f"https://example.org/x{i}") for i in range(3)]},
      "more than five items"),
-    (_with_item(0, headline=" ".join(["word"] * 13)), "headline over twelve words"),
+    (_with_item(0, headline=" ".join(["word"] * 11)), "headline over ten words"),
     (_with_item(0, headline=""), "empty headline"),
-    (_with_item(0, why_it_matters=" ".join(["word"] * 26)), "why over 25 words"),
+    (_with_item(0, why_it_matters=" ".join(["word"] * 15)), "why over fourteen words"),
+    (_with_item(0, deck=" ".join(["word"] * 26)), "deck over 25 words"),
+    (_with_item(0, deck="One thing happened. Then a second thing happened."),
+     "a two-sentence deck"),
+    (_with_item(0, deck="A groundbreaking result lands in clinic."), "hype in a deck"),
+    (_with_item(0, deck="The clearance landed on March 14."), "a date in a deck"),
+    (_with_item(0, urgent=True), "urgent with no kind at all"),
+    (_with_item(0, urgent=True, urgent_kind="interesting"), "an invented urgent kind"),
     (_with_item(0, why_it_matters="One thing. Then a second thing."), "two sentences"),
     (_with_item(0, why_it_matters=""), "empty why"),
     (_with_item(0, section="Hype"), "invented section"),
@@ -285,7 +298,7 @@ def test_the_digest_email_renders_the_structure_with_no_markdown_left():
     )
 
     payload = contract.validate_payload(_payload(), kind="news")
-    assert digest_email_subject(payload) == "Medical AI digest · 3 items"
+    assert digest_email_subject(payload) == "Medical AI Digest · 3 items"
 
     html_out = build_community_digest_post_email(
         payload=payload, community_url="https://example.test/community",
@@ -295,13 +308,95 @@ def test_the_digest_email_renders_the_structure_with_no_markdown_left():
     for item in payload["items"]:
         assert item["headline"] in visible
         assert item["url"] in html_out           # the headline links out
-    assert "Regulation" in visible and "Research" in visible
+    # The section is the TAG beside a headline now, not a heading over a group
+    # (Digest Design PRD §1.3). Same information, one fewer line.
+    assert "REGULATION" in visible and "RESEARCH" in visible
+
+
+def test_the_email_leads_with_the_top_story_and_nothing_else_carries_a_deck():
+    """§1.3: one hierarchy, two contexts. An email that promoted a different
+    item than the card would be one digest read two ways, and the physician who
+    opens the mail and then the room is exactly who would notice."""
+    import re
+
+    from onboarding_emails import build_community_digest_post_email
+
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/c")
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/community",
+        unsubscribe_url="https://example.test/u?t=tok")
+
+    lead, rest = contract.lead_and_rest(payload)
+    assert lead["url"] == "https://example.org/c"
+    assert out.index(lead["headline"]) < min(out.index(r["headline"]) for r in rest)
+    assert "TOP STORY" in out and "BREAKING" not in out
+    # The deck belongs to the lead alone, so it appears exactly once.
+    assert out.count(lead["deck"]) == 1
+    for item in rest:
+        assert item["deck"] == ""
+    # One primary action per item, said the same way everywhere (§0.5).
+    assert out.count("Full article →") == len(payload["items"])
+    assert re.sub(r"<[^>]+>", " ", out).count("STAT") >= 1
+
+
+def test_breaking_replaces_top_story_only_when_the_lead_is_urgent():
+    """§2.2. The badge is a few mornings a month; a badge that fires by default
+    is a badge that has stopped meaning anything by the second week."""
+    from onboarding_emails import build_community_digest_post_email
+
+    raw = _with_item(0, urgent=True, urgent_kind="regulatory")
+    payload = contract.mark_lead(
+        contract.validate_payload(raw, kind="news"), "https://example.org/a")
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/community",
+        unsubscribe_url="https://example.test/u?t=tok")
+    assert "BREAKING" in out and "TOP STORY" not in out
+
+
+def test_urgency_on_a_story_that_does_not_lead_is_cleared_not_promoted():
+    """§2.2: urgent is allowed only ON the lead. An item the reader meets
+    fourth carrying BREAKING is a badge on something nobody is reading first."""
+    raw = _with_item(1, urgent=True, urgent_kind="safety")
+    payload = contract.mark_lead(
+        contract.validate_payload(raw, kind="news"), "https://example.org/a")
+    lead, rest = contract.lead_and_rest(payload)
+    assert lead["url"] == "https://example.org/a" and lead["urgent"] is False
+    assert all(item["urgent"] is False for item in rest)
+
+
+def test_the_lead_falls_back_to_the_models_first_item_when_the_join_misses():
+    """The compose pass may drop the story the select pass ranked highest. The
+    digest still has to lead with something, and ``kept`` is already sorted by
+    relevance, so the model's own first item is the best answer left."""
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://nobody.invalid/x")
+    assert contract.lead_and_rest(payload)[0]["url"] == "https://example.org/a"
+
+
+def test_every_rendered_digest_field_is_scanned_for_phi():
+    """§8.1. ``deck`` is model-written text over somebody else's web page, and
+    a field the card renders but the gate never reads is the one hole worth a
+    test of its own. Stated over the whole contract rather than over ``deck``
+    so the NEXT field added has to land in the tuple too."""
+    from community import system_posts
+
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/a")
+    scanned = system_posts._payload_text(payload)
+    lead, rest = contract.lead_and_rest(payload)
+    for field in ("headline", "deck", "why_it_matters", "source", "section"):
+        assert lead[field] in scanned, f"{field} never reaches the PHI gate"
+    for item in rest:
+        for field in ("headline", "why_it_matters", "source", "section"):
+            assert item[field] in scanned
+    assert payload["title"] in scanned
 
 
 def test_a_one_item_subject_is_not_pluralised():
-    payload = {"title": "Medical AI digest", "items": [{"headline": "x"}]}
+    payload = {"title": "Medical AI Digest", "items": [{"headline": "x"}]}
     from onboarding_emails import digest_email_subject
-    assert digest_email_subject(payload) == "Medical AI digest · 1 item"
+    assert digest_email_subject(payload) == "Medical AI Digest · 1 item"
 
 
 def test_only_a_matching_cadence_gets_the_digest():
@@ -340,7 +435,7 @@ def test_the_write_path_refuses_a_digest_body_that_breaks_the_style_rules():
     channel = {"slug": "medical-ai-news"}
     assert system_posts._house_style_clear(
         channel, "digest_news",
-        "Medical AI digest\n\nResearch\nA model was cleared\n"
+        "Medical AI Digest\n\nResearch\nA model was cleared\n"
         "It changes triage. (Fake Wire) https://example.org/a") is True
     assert system_posts._house_style_clear(
         channel, "digest_news", "**Medical AI Digest** - a story") is False
@@ -367,7 +462,7 @@ def test_the_payloads_own_strings_are_scanned_not_just_the_body():
     from community import system_posts
 
     text = system_posts._payload_text({
-        "title": "Medical AI digest",
+        "title": "Medical AI Digest",
         "items": [{"headline": "A headline", "why_it_matters": "A reason.",
                    "source": "STAT", "section": "Research",
                    "url": "https://example.org/a"}],
@@ -501,7 +596,7 @@ def test_a_digest_run_stores_its_payload_and_the_api_serves_it(monkeypatch, tmp_
     assert len(msgs) == 1
     stored = json.loads(msgs[0]["payload_json"])
     assert len(stored["items"]) == 3
-    assert stored["title"] == "Medical AI digest"
+    assert stored["title"] == "Medical AI Digest"
     # The body is a plain-text rendering of the same object, not a second
     # description of the post that could drift from it.
     assert stored["items"][0]["headline"] in msgs[0]["body"]
@@ -524,7 +619,7 @@ def test_a_deleted_digest_serves_neither_body_nor_payload():
     from community import router as crouter
 
     row = {"id": 1, "author_user_id": "u-system", "kind": "digest_news",
-           "body": "Medical AI digest", "created_at": "2026-09-08T13:00:00Z",
+           "body": "Medical AI Digest", "created_at": "2026-09-08T13:00:00Z",
            "deleted_at": "2026-09-08T14:00:00Z", "deleted": True,
            "payload_json": json.dumps(_payload()), "cards_json": None,
            "parent_message_id": None, "mentions": [], "attachments": []}
@@ -572,7 +667,7 @@ def test_a_digest_answers_to_the_news_cadence_and_not_to_the_post_toggle(
     asyncio.new_event_loop().run_until_complete(cnotify.flush_pending(
         store, resolve_member=lambda uid: {"email": "d@example.test",
                                            "display_name": "Dr Test"}))
-    assert sent == ["Medical AI digest · 3 items"]
+    assert sent == ["Medical AI Digest · 3 items"]
 
     # News off: nothing goes, and the row is settled rather than retried forever.
     msg2 = store.insert_message(

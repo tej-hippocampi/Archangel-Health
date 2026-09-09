@@ -393,26 +393,41 @@ def _f_community_digest_post(ctx: _Ctx) -> str:
     Every rule in ``community.digest_contract`` holds for this payload; the
     contract test asserts exactly that, so a rule added there without a fixture
     update fails loudly here rather than silently offline.
+
+    Every item carries a ``deck`` because the compose pass cannot know which
+    item will lead — ``digest_contract.mark_lead`` clears the decks it does not
+    need after the select pass's relevance picks the top story. ``urgent`` is
+    false on all three: BREAKING is a few mornings a month, and a fixture that
+    fired it every offline run would teach the badge to mean nothing.
     """
     return _j({"items": [
-        {"headline": "Fake transport returns a digest instead of a real model",
-         "why_it_matters": "Sandbox runs exercise the card and the email without "
-                           "reaching a vendor.",
+        {"headline": "Fake transport returns a digest, not a model",
+         "deck": "The sandbox answers every digest call from a fixture, so no "
+                 "run here reaches a vendor.",
+         "why_it_matters": "Sandbox runs exercise the card without reaching a "
+                           "vendor.",
          "source": "Archangel Sandbox",
          "url": "https://fake.invalid/digest/transport",
-         "section": "Evals"},
-        {"headline": "Structured posts replace the markdown blob in the digest",
-         "why_it_matters": "The web card and the email now render from one "
-                           "description of the post.",
+         "section": "Evals",
+         "urgent": False},
+        {"headline": "Structured posts replace the digest markdown blob",
+         "deck": "One validated object now feeds the card, the pinned home "
+                 "card and the email.",
+         "why_it_matters": "Card and email render from one description of the "
+                           "post.",
          "source": "Archangel Sandbox",
          "url": "https://fake.invalid/digest/structure",
-         "section": "Deployment"},
-        {"headline": "Contract rules are enforced after the model answers",
-         "why_it_matters": "A prompt is a request, so a validator decides what "
-                           "physicians actually see.",
+         "section": "Deployment",
+         "urgent": False},
+        {"headline": "Contract rules run after the model answers",
+         "deck": "The validator decides what publishes, because a prompt is a "
+                 "request and not a guarantee.",
+         "why_it_matters": "A validator, not a prompt, decides what physicians "
+                           "see.",
          "source": "Archangel Sandbox",
          "url": "https://fake.invalid/digest/contract",
-         "section": "Research"},
+         "section": "Research",
+         "urgent": False},
     ]})
 
 

@@ -116,15 +116,28 @@ _SELECT_SYSTEM = (
 _COMPOSE_SYSTEM = (
     "You shape a news digest for a private community of verified physicians. "
     "Input: a JSON list of kept items (title, url, one_liner, source). Output: "
-    "ONLY a JSON object {\"items\": [{\"headline\", \"why_it_matters\", "
-    "\"source\", \"url\", \"section\"}]}. No prose, no markdown, no code fence.\n"
+    "ONLY a JSON object {\"items\": [{\"headline\", \"deck\", \"why_it_matters\", "
+    "\"source\", \"url\", \"section\", \"urgent\", \"urgent_kind\"}]}. No prose, no "
+    "markdown, no code fence.\n"
     "Rules, all enforced by a validator that DISCARDS the whole run on a "
     "violation:\n"
     "- Return 3 to 5 items. Never more. Choose the strongest; drop the rest.\n"
-    "- headline: at most 12 words, plain declarative, sentence case, no trailing "
-    "period. Say what happened, not why it is interesting.\n"
-    "- why_it_matters: at most 25 words, ONE sentence, written for a practising "
-    "physician: what changes for patient care or for AI evaluation.\n"
+    "- headline: aim for 8 words and never exceed 10, plain declarative, "
+    "sentence case, no trailing period, a verb in every one. Say what happened, "
+    "not why it is interesting.\n"
+    "- deck: aim for 20 words and never exceed 25. ONE sentence, ONE fact, and "
+    "it must NOT repeat the headline. Write one for every item; only the lead "
+    "story keeps its deck.\n"
+    "- why_it_matters: aim for 12 words and never exceed 14. ONE sentence, "
+    "second person allowed, written the way you would say it to a physician "
+    "friend: what changes for patient care or for AI evaluation. Then cut it in "
+    "half.\n"
+    "- urgent: false on every item unless a SAME-DAY event of one of exactly "
+    "four kinds happened, in which case also set urgent_kind to that word: "
+    "'regulatory' (a decision, clearance or approval), 'safety' (a recall or "
+    "safety notice), 'trial' (a major clinical trial readout), 'release' (a lab "
+    "or model release carrying a medical claim). Nothing else is urgent. A few "
+    "times a month, not most mornings.\n"
     "- Banned everywhere: em dash and en dash (use a comma or a period), "
     "hashtags, asterisks, emoji, exclamation marks, and the words game-changer, "
     "revolutionary, exciting, groundbreaking, breakthrough, unprecedented.\n"
@@ -237,6 +250,21 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
     # post-processor that quietly rewrites a 30-word headline is the same
     # problem with an extra step.
     payload = digest_contract.validate_payload(composed, kind=kind)
+
+    # The TOP STORY (§2.2). ``kept`` is already sorted by the select pass's
+    # relevance, so the lead is its first entry — matched into the payload on
+    # the NORMALISED url for the same reason the provenance join below is: a
+    # trailing slash or a re-encoded character is the same story everywhere else
+    # in this pipeline, and an exact compare would silently promote item one
+    # instead. A compose pass that dropped the top story leaves no match, and
+    # ``mark_lead`` falls back to the model's own first item.
+    lead_url = None
+    if kept:
+        wanted = feeds.normalize_url(kept[0].get("url") or "")
+        lead_url = next(
+            (i["url"] for i in payload["items"]
+             if feeds.normalize_url(i["url"]) == wanted), None)
+    digest_contract.mark_lead(payload, lead_url)
 
     # Which fetched items actually reached the post. Matched on the NORMALISED
     # url — the same identity ``upsert_content_items`` dedups on — because an

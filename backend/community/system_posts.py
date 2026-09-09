@@ -65,7 +65,15 @@ def _mask_urls(text: str) -> str:
 #: the PHI gate, whose MRN and account-number rules fire on the long digit runs
 #: in a DOI or a PMID, and the URL-masking above exists precisely because that
 #: is not a finding.
-_PAYLOAD_VISIBLE_KEYS = ("title", "headline", "why_it_matters", "source", "section")
+#:
+#: A hand-maintained list is a list that can fall behind the card, so
+#: ``deck`` was added here in the same change that added it to the contract,
+#: and ``test_every_rendered_digest_field_is_scanned_for_phi`` fails the build
+#: if a future field renders without landing in this tuple. ``urgent`` and
+#: ``urgent_kind`` are deliberately absent: one is a boolean and the other is
+#: one of four fixed words this module chose, so neither carries model text.
+_PAYLOAD_VISIBLE_KEYS = ("title", "headline", "deck", "why_it_matters",
+                         "source", "section")
 
 
 def _payload_text(payload: Optional[Dict[str, Any]]) -> str:
