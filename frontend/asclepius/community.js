@@ -357,20 +357,27 @@
       return renderError(e.message);
     }
     await Promise.all([loadChannels(), loadMembers(), loadDms()]);
-    // NOT awaited. It needs the channel list (it counts against that room's
-    // unread), so it cannot join the group above -- and awaiting it here would
-    // put a whole round trip in front of first paint for every reader,
-    // including the ones who will never scroll to a pinned card. It repaints
-    // the two surfaces that read it when it lands.
-    loadLatestDigest().then(() => {
-      renderGreeting();
-      if (state.active === 'general') renderMessages({});
-    });
+    // STARTED here, awaited below. It needs the channel list (it counts
+    // against that room's unread), so it cannot join the group above, and
+    // awaiting it here would put a whole round trip in front of first paint for
+    // every reader -- including the ones who will never scroll to a pinned
+    // card. Starting it now lets it run under the first render.
+    //
+    // The repaint is attached AFTER renderApp, not here. Both surfaces it
+    // touches are looked up by id and both no-op when the element is missing,
+    // so a fetch that landed before the first paint would have repainted
+    // nothing and then never fired again -- the pinned card silently absent on
+    // exactly the fast connections it loads quickest on.
+    const digestLoaded = loadLatestDigest();
     const hash = (location.hash || '').replace(/^#/, '');
     if (hash && (state.channels.some((c) => c.slug === hash)
         || state.dms.some((d) => d.id === hash))) state.active = hash;
     renderApp();
     await openChannel(state.active, { force: true });
+    digestLoaded.then(() => {
+      renderGreeting();
+      if (state.active === 'general') renderMessages({});
+    });
     connectWs();
     // No force here: returning to the tab while scrolled up in history must
     // not mark unseen messages read (audit finding).

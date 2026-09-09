@@ -102,12 +102,12 @@ exclamation marks, calendar dates. Rejection = no post that day.
 
 ### 1.3 Placement
 - Canonical: the `#medical-ai-news` message (`kind: digest_news`), rendered by
-  `digestCardEl` (`community.js:1714`) whenever `digestOf` (`community.js:1571`)
+  `digestCardEl` (`community.js:1721`) whenever `digestOf` (`community.js:1578`)
   finds a payload on the message.
-- The stream reaches it through `renderMessages` (`community.js:1333`), which
+- The stream reaches it through `renderMessages` (`community.js:1340`), which
   builds each row with `messageEl`.
-- The `cm-msg-digest` branch (`community.js:1788`) styles only the legacy body,
-  and `cardsEl` (`community.js:1465`) is not used for digests.
+- The `cm-msg-digest` branch (`community.js:1795`) styles only the legacy body,
+  and `cardsEl` (`community.js:1472`) is not used for digests.
 - **Pinned home card**: the community landing (the view before a channel is opened)
   shows the latest digest in the same card component, collapsed to title + lead +
   `Read all {n} →` which opens the channel post. One component, two contexts.
@@ -162,18 +162,18 @@ Good morning, Dr. Patel.        ● 3 online · 1 new digest
 
 ### 3.2 Member profile cards
 Click a name anywhere (member list, message author, presence bar) → a card
-(`cm-profile`, `community.js:3031`; upgraded in place): avatar with the specialty
+(`cm-profile`, `community.js:3038`; upgraded in place): avatar with the specialty
 tint, name and one credential line — "Nephrology · 15–19 yrs", built by
-`credentialLine` (`community.js:2896`) — then three stats from `profileStats`
-(`community.js:2928`), and one action: **Message**. Founders' cards add **Book 20 minutes**. No blurb, no
+`credentialLine` (`community.js:2903`) — then three stats from `profileStats`
+(`community.js:2935`), and one action: **Message**. Founders' cards add **Book 20 minutes**. No blurb, no
 earnings, no tier.
 
 The three stats are **Specialty · In practice · Country**, not cases · since ·
 last active — see §9.2.
 
 ### 3.3 Warmer empty states, founders' voice
-Every channel's empty state (`EMPTY_COPY`, `community.js:1176`; rendered through
-`cm-empty-title` at `community.js:1274` and `community.js:1379`): one sentence,
+Every channel's empty state (`EMPTY_COPY`, `community.js:1183`; rendered through
+`cm-empty-title` at `community.js:1281` and `community.js:1386`): one sentence,
 one button. Copy, verbatim:
 - `#general` — "The kitchen table. Say hello." · [Say hello]
 - `#introductions` — "Who are you, and what do you see most in clinic?" · [Introduce yourself]
@@ -335,7 +335,7 @@ read, shortened to one sentence to stay inside the §0.5 budget.
 That console's feed carries an author, a channel and a body string — no message
 id and no payload — so the action would have needed a wider admin summary
 endpoint to reach what it acts on. It ships on the digest post's own menu
-(`digestAdminEl`, `community.js:1654`), admin-only, and absent from the pinned
+(`digestAdminEl`, `community.js:1661`), admin-only, and absent from the pinned
 card. `admin_community.js` is unchanged.
 
 ### 9.5 Word budgets ship with headroom

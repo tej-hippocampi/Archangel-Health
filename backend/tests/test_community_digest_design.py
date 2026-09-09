@@ -438,6 +438,21 @@ def test_the_new_digest_count_counts_digests_and_not_unread_messages():
     assert res["refused"] == {"count": 0, "latest": None}
 
 
+def test_the_digest_fetch_repaints_after_the_first_render_not_before():
+    """Both surfaces the digest feeds are looked up by id and both no-op when
+    the element is missing. A repaint attached to the fetch BEFORE `renderApp`
+    fires into an empty document on a fast connection and never fires again, so
+    the pinned card is silently absent exactly where it loads quickest."""
+    boot = _JS[_JS.index("async function boot()"):]
+    boot = boot[:boot.index("\n  function renderSignedOut")]
+    assert "loadLatestDigest()" in boot
+    # Started before the render (so it runs underneath it), resolved after.
+    assert boot.index("loadLatestDigest()") < boot.index("renderApp()")
+    assert boot.index("renderApp()") < boot.index("digestLoaded.then(")
+    assert "loadLatestDigest().then(" not in boot, \
+        "the repaint is attached to the fetch rather than to the render"
+
+
 def test_a_digest_with_an_unreadable_timestamp_does_not_say_invalid_date():
     """`new Date('x').toLocaleDateString()` returns the STRING "Invalid Date"
     rather than throwing, so a try/catch around it catches nothing that
