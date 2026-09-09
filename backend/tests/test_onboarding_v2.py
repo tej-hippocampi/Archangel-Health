@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import re
 import sys
 import uuid
 from datetime import datetime, timedelta
@@ -121,6 +122,14 @@ def test_physician_order_is_cv_review_and_has_no_password_step():
     # array does not contain it, not that the step is gone.
     idx = src.index(order_line)
     branch = src[src.index('if (product === "asclepius") {'):idx]
+    # COMMENTS STRIPPED FIRST. The property is about the step ARRAY, and
+    # the prose above it necessarily discusses the password (it explains
+    # where the password IS taken, which is the correction §3.2 step 5
+    # made). Grepping raw source conflated "this path has a password
+    # screen" with "this path mentions passwords", and only the first is
+    # the contract.
+    branch = re.sub(r"/\*.*?\*/", "", branch, flags=re.DOTALL)
+    branch = re.sub(r"//[^\n]*", "", branch)
     assert '"password"' not in branch
 
 
