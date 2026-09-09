@@ -809,10 +809,10 @@ def test_build_is_disabled_until_the_specialty_is_set_when_inference_is_below_fl
     assert ok["buildDisabled"] is False, ok
     assert ok["hasPicker"] is False
     assert "Hepatology" in ok["text"]
-    # ingested before the summary existed: nothing measured, so not gated — the
-    # picker is offered, Build stays live, and the copy says why
+    # Legacy charts also require a declaration; missing measurements must not
+    # be described as low-confidence inference.
     old = [r for r in out["rows"] if "Legacy Row" in r["text"]][0]
-    assert old["buildDisabled"] is False, old
+    assert old["buildDisabled"] is True, old
     assert old["hasPicker"] is True
     assert "before specialty inference was recorded" in old["text"]
     assert "too little signal" not in old["text"]

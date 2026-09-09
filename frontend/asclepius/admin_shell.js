@@ -3498,9 +3498,8 @@
       if ((u.specialties || []).length) return { required: false, node: null };
       const c = u.content || {};
       // Three states, not two. `null` means the chart was ingested before the
-      // summary existed — nothing was measured — and a row must not be gated on
-      // a measurement nobody took, nor told its chart "carries too little
-      // signal" when it was never read.
+      // summary existed. A declaration is still required, but missing inference
+      // must not be described as a measured low-confidence result.
       const measured = c.specialty_clears_floor === true || c.specialty_clears_floor === false;
       const required = true;
       const why = !measured
@@ -3509,7 +3508,7 @@
         : (c.specialty_inferred
           ? ('The chart as a whole reads as ' + cap(c.specialty_inferred) + ' at '
              + Number(c.specialty_confidence || 0).toFixed(2)
-             + (required
+             + (c.specialty_clears_floor !== true
                 ? (', below the ' + (c.specialty_floor || 0.6) + ' the planner needs on each encounter it builds. ')
                 : ', which the planner would accept: confirm it, or choose another. '))
           : 'The chart carries too little signal to read a specialty from. ');
