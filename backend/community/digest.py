@@ -282,14 +282,11 @@ async def _curate(kind: str, items: List[Dict[str, Any]]) -> Tuple[Optional[Dict
     # decoration on item four is the wrong trade. It IS a reason to be loud --
     # the PRD's own rule is that a badge firing more than twice in a week means
     # the prompt is wrong, not the news.
-    stray = [i for i in payload["items"][1:] if i.get("urgent")]
+    stray = digest_contract.clear_stray_urgency(payload)
     if stray:
         log.warning("[digest] %s: compose flagged %d non-lead item(s) urgent "
                     "(%s); cleared", kind, len(stray),
-                    ", ".join(i["url"] for i in stray))
-        for item in stray:
-            item["urgent"] = False
-            item["urgent_kind"] = None
+                    ", ".join(str(i.get("url") or "?") for i in stray))
 
     # Which fetched items actually reached the post. Matched on the NORMALISED
     # url — the same identity ``upsert_content_items`` dedups on — because an

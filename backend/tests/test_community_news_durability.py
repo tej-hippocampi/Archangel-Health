@@ -393,28 +393,65 @@ def test_urgency_on_a_story_that_does_not_lead_is_never_drawn():
     assert "BREAKING" not in out and "TOP STORY" in out
 
 
-def test_the_compose_pass_clears_a_badge_it_flagged_off_the_lead():
-    """§9.6, and the one fix in its commit that shipped with no test: deleting
-    the clearing left every community test green.
+@pytest.mark.parametrize("stray_index", [1, 2])
+def test_a_badge_flagged_off_the_lead_is_cleared_wherever_it_sits(stray_index):
+    """§9.6, and the one fix in its commit that shipped with no test.
 
-    Exercised through ``run_digest`` rather than by calling the three lines,
-    because what matters is that a run's OUTPUT cannot carry an unearned flag
-    into the database."""
+    Parametrised over BOTH non-lead positions on purpose. The rule lived inline
+    as a slice of ``items[1:]``, which is this rule written as an assumption
+    about ordering -- and the first version of this test asserted on the
+    module's SOURCE TEXT, so editing that slice to ``[2:]`` (leaving the second
+    item's unearned badge intact) passed it. A rule enforced by a slice needs a
+    case for every index the slice could be wrong about.
+    """
     payload = contract.validate_payload(
-        _with_item(2, urgent=True, urgent_kind="safety"), kind="news")
+        _with_item(stray_index, urgent=True, urgent_kind="safety"), kind="news")
     contract.mark_lead(payload, "https://example.org/a")
-    # Simulate what digest.py does after mark_lead.
-    stray = [i for i in payload["items"][1:] if i.get("urgent")]
-    assert stray, "the fixture no longer sets up the case it is testing"
+    assert payload["items"][stray_index]["urgent"] is True, \
+        "the fixture no longer sets up the case it is testing"
 
+    cleared = contract.clear_stray_urgency(payload)
+
+    assert len(cleared) == 1
+    assert all(not i.get("urgent") for i in payload["items"][1:])
+    assert all(i.get("urgent_kind") is None for i in payload["items"][1:])
+
+
+def test_clearing_strays_never_touches_the_lead_s_own_badge():
+    """The other half. Clearing indiscriminately is the destructive behaviour
+    §9.7 exists to have removed."""
+    payload = contract.validate_payload(
+        _with_item(0, urgent=True, urgent_kind="regulatory"), kind="news")
+    contract.mark_lead(payload, "https://example.org/a")
+    assert contract.clear_stray_urgency(payload) == []
+    lead, _rest = contract.lead_and_rest(payload)
+    assert lead["urgent"] is True and lead["urgent_kind"] == "regulatory"
+
+
+def test_a_stray_badge_on_an_item_no_surface_draws_is_still_cleared():
+    """``lead_and_rest`` drops headline-less items, so a rule written over that
+    view would leave a flag on one of them -- invisible until somebody repairs
+    the headline by hand and the badge comes back from nowhere."""
+    payload = contract.validate_payload(_payload(), kind="news")
+    contract.mark_lead(payload, "https://example.org/a")
+    payload["items"][2]["headline"] = ""
+    payload["items"][2]["urgent"] = True
+    payload["items"][2]["urgent_kind"] = "trial"
+    assert len(contract.clear_stray_urgency(payload)) == 1
+    assert payload["items"][2]["urgent"] is False
+
+
+def test_the_compose_pass_and_the_admin_override_share_one_implementation():
+    """Two callers, one rule. Two copies of "only the lead may be urgent" is how
+    the endpoint and the pipeline end up disagreeing about a badge."""
     from community import digest as cdigest
+    from community import router as crouter
 
-    # The real thing: the module-level statement under test.
-    src = (Path(cdigest.__file__).read_text(encoding="utf-8"))
-    assert 'item["urgent"] = False' in src, \
-        "the compose pass no longer clears a stray badge"
-    assert src.index("mark_lead(payload, lead_url)") < src.index('item["urgent"] = False'), \
-        "the clearing runs before the lead is chosen, so it clears the wrong items"
+    for mod in (cdigest, crouter):
+        src = Path(mod.__file__).read_text(encoding="utf-8")
+        assert "clear_stray_urgency" in src, f"{mod.__name__} grew its own copy"
+        assert 'item["urgent"] = False' not in src, \
+            f"{mod.__name__} still clears urgency by hand"
 
 
 def test_a_payload_records_the_version_that_cleared_its_stray_badges():

@@ -2112,12 +2112,16 @@ async def set_digest_lead(
     # earlier promotion. Clearing those would make promoting a story back lose
     # the badge it arrived with, which is the destructive behaviour §9.7 exists
     # to have removed.
-    if int(payload.get("version") or 1) < digest_contract.PAYLOAD_VERSION:
-        stale_lead, _others = digest_contract.lead_and_rest(payload)
-        for item in items:
-            if item is not stale_lead and item.get("urgent"):
-                item["urgent"] = False
-                item["urgent_kind"] = None
+    try:
+        stored_version = int(payload.get("version") or 1)
+    except (TypeError, ValueError):
+        # A version that is not a number is not a version. Treat it as the
+        # oldest shape there is and normalise, rather than trusting a row we
+        # cannot read.
+        stored_version = 1
+    if stored_version < digest_contract.PAYLOAD_VERSION:
+        # Same function the compose pass uses, so the two cannot drift.
+        digest_contract.clear_stray_urgency(payload)
         payload["version"] = digest_contract.PAYLOAD_VERSION
 
     if body.url is not None:

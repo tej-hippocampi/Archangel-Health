@@ -460,6 +460,37 @@ def mark_lead(payload: Dict[str, Any], lead_url: Optional[str] = None) -> Dict[s
     return payload
 
 
+def clear_stray_urgency(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Strip ``urgent`` from every item that is not the lead. Returns what it
+    cleared, so the caller can say so.
+
+    §2.2 allows BREAKING only on the lead. This is the one implementation of
+    that rule, used twice: by the compose pass on the run's own output, and by
+    the admin override to normalise a payload written before the rule existed.
+    It lived inline in ``digest.py`` as a slice of ``items[1:]``, which is the
+    same rule written as an assumption about ordering -- and a slice is a thing
+    that can be edited to ``[2:]`` without any test noticing.
+
+    Deliberately NOT called from ``mark_lead``: the override calls that on every
+    promotion, and clearing there would destroy a badge the compose pass earned
+    each time somebody promoted a different story (§9.7).
+
+    Iterates the payload's OWN items rather than ``lead_and_rest``'s view, which
+    drops headline-less entries: a flag on one of those still has to go, even
+    though nothing would have drawn it.
+    """
+    lead, _rest = lead_and_rest(payload)
+    cleared: List[Dict[str, Any]] = []
+    for item in payload.get("items") or []:
+        if not isinstance(item, dict) or item is lead:
+            continue
+        if item.get("urgent"):
+            item["urgent"] = False
+            item["urgent_kind"] = None
+            cleared.append(item)
+    return cleared
+
+
 def lead_and_rest(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
     """``(lead, compact_items)`` — the shape the card, the pinned card and the
     email all draw.

@@ -130,7 +130,7 @@ false). Existing: `headline`, `why_it_matters`, `section`, `source`, `url`,
   `mark_lead` (`community/digest_contract.py:414`), which the pipeline calls at
   `community/digest.py:267`. Ties → earliest published.
 - One definition of "which story leads" is read by the card, the pinned card and
-  the email: `lead_and_rest` (`community/digest_contract.py:463`).
+  the email: `lead_and_rest` (`community/digest_contract.py:494`).
 - `urgent: true` is allowed only when the select pass's `one_liner` contains a
   same-day event of one of four kinds — a regulatory decision/approval, a recall or
   safety notice, a major clinical trial readout, or a lab/model release with a
