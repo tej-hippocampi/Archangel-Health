@@ -290,9 +290,17 @@ def test_the_success_screen_no_longer_argues_its_case_four_times():
 
 
 def test_the_success_screen_still_says_the_work_is_saved():
-    screen = _success_screen()
+    """The reassurance stays; the false half of it is gone (§3.2 step 4).
+
+    This asserted "emailed you a link" until that turned out to be a promise
+    nothing kept: no sign-in link is minted at finish. What the physician
+    actually holds is the password they chose on screen 1, so that is what the
+    line now names — and naming it is more useful than the link ever was.
+    """
+    screen = _success_screen(code=True)
     assert "You can stop part way" in screen
-    assert "emailed you a link" in screen
+    assert "password you chose" in screen
+    assert "emailed you a link" not in screen
 
 
 def test_the_cta_deep_links_to_the_examination():
