@@ -1593,6 +1593,7 @@
   function verificationGate(err) {
     if (!err || err.status !== 403) return null;
     const gate = err.authGate === 'pending' || err.authGate === 'rejected'
+      || err.authGate === 'pending_examination'
       ? err.authGate : null;
     // A 403 with no gate header is one of the other deny-by-default role gates
     // (data_partner, buyer). Those are not a waiting state and must not be
@@ -1605,7 +1606,9 @@
         ? detail.trim()
         : (gate === 'pending'
           ? 'Your credentials are still being verified.'
-          : 'This account was not approved for the evaluator portal.'),
+          : gate === 'pending_examination'
+            ? 'One step left: your examination.'
+            : 'This account was not approved for the evaluator portal.'),
     };
   }
 
@@ -2189,7 +2192,14 @@
           // screen that explains it rather than leaving them on a form they have
           // already completed correctly. Every other failure stays inline.
           const gate = verificationGate(err);
-          if (gate && gate.state === 'pending') {
+          if (gate && (gate.state === 'pending'
+                       || gate.state === 'pending_examination')) {
+            // `pending_examination` arrives from the LOGIN call itself (a
+            // passwordless legacy applicant, so authenticate() failed), which is
+            // why the address has to come off the form: there is no state.user
+            // on that path. Without this branch the message lands inline on the
+            // sign-in form — a sentence telling somebody to set a password, next
+            // to no way to set one. That is the bug, not the fix.
             const signedInEmail = (state.user && state.user.email)
               || emailInput.value.trim() || null;
             // The token was minted before the gate rejected the follow-up call;
@@ -2434,11 +2444,106 @@
         body)));
   }
 
+  /** The gate card for an applicant who still owes us the examination
+   *  (Onboarding Master PRD §3.2 step 2).
+   *
+   *  A DIFFERENT SHAPE FROM THE WAITING ROOM, on purpose. The waiting room is
+   *  correct when the ball is in our court: there is nothing to do, so it says
+   *  so and offers "Check again". This card is the opposite case — the ball is
+   *  in theirs — so "Check again" is removed outright. It would re-run the same
+   *  refusal forever, and a button that never changes anything is how somebody
+   *  concludes the product is broken and stops.
+   *
+   *  The door is the ORDINARY forgot-password mint, not a new endpoint and not
+   *  a magic link. `forgot_password` mints a reset for any active user without
+   *  consulting `password_is_unset`, and `set_user_password` clears
+   *  `must_change_password` in the same statement — so for a legacy passwordless
+   *  applicant a "reset" SETS their first password and hands them a normal
+   *  account. No admin, no new server code, no second recovery path to keep
+   *  alive. The button says "Set my password" because that is what it does for
+   *  this person; "reset" would read as the wrong door to somebody who never
+   *  had one to forget.
+   */
+  function renderExaminationOwed(gate, email) {
+    teardownSidePanel();
+    document.getElementById('ascHeader').setAttribute('hidden', '');
+
+    const body = h('div', { class: 'asc-login-body' });
+    // The server's sentence first and unedited, exactly as the waiting room
+    // does it: it is the one that names what is outstanding.
+    body.appendChild(h('div', { class: 'asc-login-error asc-login-notice' },
+      gate.message));
+    body.appendChild(h('p', { class: 'asc-wait-detail' },
+      'Choose a password and you\u2019ll land straight on it.'));
+
+    const notice = h('div', { class: 'asc-login-hint' });
+
+    const set = h('button', {
+      class: 'asc-btn asc-btn-primary asc-btn-block asc-btn-lg', type: 'button',
+    }, 'Set my password');
+    set.addEventListener('click', async () => {
+      if (!email) {
+        // Nothing to mint against. Sending them to the sign-in form is the only
+        // honest move: the address is the input this needs and it is not here.
+        renderLogin('Enter your email to set a password.', 'notice');
+        return;
+      }
+      set.setAttribute('disabled', '');
+      set.textContent = 'Sending\u2026';
+      try {
+        const res = await fetch(API_BASE + '/auth/password/forgot', {
+          method: 'POST',
+          headers: realmHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ email: email }),
+        });
+        const data = await res.json().catch(() => null);
+        // Confirmation INLINE, not a redirect: this person has already been
+        // bounced between screens once, and the next thing they do is leave
+        // for their mail client.
+        notice.classList.add('asc-login-notice');
+        notice.textContent = (data && data.message)
+          || ('We\u2019ve emailed ' + email + ' a link to set your password.');
+        set.textContent = 'Sent \u2713';
+      } catch (_) {
+        // A dead control is the failure this whole card exists to remove, so
+        // the button must come back live on any error.
+        set.removeAttribute('disabled');
+        set.textContent = 'Set my password';
+        notice.classList.add('asc-login-notice');
+        notice.textContent = 'Could not reach the server. Try again in a moment.';
+      }
+    });
+    body.appendChild(set);
+    body.appendChild(notice);
+
+    const other = h('button', {
+      class: 'asc-btn-link', type: 'button', style: 'display:block;margin:14px auto 0',
+    }, 'Sign in with a different account');
+    other.addEventListener('click', () => {
+      // Same reason as the waiting room: an explicit identity choice has to
+      // suppress the silent SSO, or the doctor-portal token pulls them back.
+      try { localStorage.setItem(SUPPRESS_SSO_KEY, '1'); } catch (_) { /* ignore */ }
+      renderLogin();
+    });
+    body.appendChild(other);
+
+    setRoot(h('div', { class: 'asc-login-wrap' },
+      h('div', { class: 'asc-login-card' },
+        h('div', { class: 'asc-login-head' },
+          h('div', { class: 'asc-login-mark', 'aria-hidden': 'true' }),
+          h('h1', {}, 'One step left: your examination'),
+          h('p', {}, 'Archangel Health'),
+        ),
+        body)));
+  }
+
   /** Route a gated 403 to the right screen: the waiting screen for `pending`,
-   *  the login form carrying the reason for `rejected` (there is no wait to
+   *  the password door for `pending_examination` (we are waiting on THEM), the
+   *  login form carrying the reason for `rejected` (there is no wait to
    *  explain, and the account may not be the one they meant to use). */
   function renderGated(gate, email) {
     if (gate.state === 'pending') renderAwaitingVerification(gate, email);
+    else if (gate.state === 'pending_examination') renderExaminationOwed(gate, email);
     else renderLogin(gate.message, 'notice');
   }
 
