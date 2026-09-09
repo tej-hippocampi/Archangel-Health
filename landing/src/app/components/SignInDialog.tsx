@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import * as authApi from "@/lib/auth-api";
+import { isAsclepiusGateError } from "@/lib/auth-api";
 import { authDialogStyles } from "./authDialogStyles";
 
 /**
@@ -87,11 +88,20 @@ export function SignInDialog({ open, onOpenChange }: Props) {
         resetAndClose();
         await authApi.redirectToAsclepiusPortal(asc.token);
         return;
-      } catch {
+      } catch (ascErr) {
         // Not an Asclepius account, or the wrong password for one — Asclepius
         // and the landing table return the same generic 401 for both cases
         // (no account-enumeration leak), so we can't tell which. Fall through
         // to the landing plane; its own error is still accurate either way.
+        //
+        // EXCEPT for a gated 403, which is not ambiguous at all. It says this
+        // IS an Asclepius account and names the state it is in: still under
+        // review, still owing us an examination, or refused. Falling through
+        // there replaces the one true sentence with the landing plane's error
+        // about a different account — and for the applicant who owes us an
+        // examination (Onboarding Master PRD §3.2 step 1) that sentence is the
+        // only thing telling them what to do next.
+        if (isAsclepiusGateError(ascErr)) throw ascErr;
       }
       await login(trimmedEmail, password);
       resetAndClose();

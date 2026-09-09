@@ -66,9 +66,12 @@ def _walk(email: str, stop_at: str) -> str:
     if stop_at == "link":
         return token
 
+    # A password, because screen 1 takes one and a physician signup without one
+    # is refused since §3.2 step 7. This helper stands in for a real applicant,
+    # so it has to send what a real applicant sends.
     assert client.post("/api/onboarding/step1-identity", json={
         "token": token, "first_name": "Ada", "last_name": "Lovelace",
-        "email": email}).status_code == 200
+        "email": email, "password": "Corr3ct-Horse-Battery!"}).status_code == 200
     if stop_at == "identity":
         return token
 
@@ -346,7 +349,8 @@ def test_idle_counts_the_last_thing_they_did_not_the_day_they_asked(env):
         conn.execute("UPDATE health_systems SET created_at = '2026-07-22T09:00:00' WHERE id = ?",
                      (hs["id"],))
     client.post("/api/onboarding/step1-identity", json={
-        "token": token, "first_name": "Ada", "last_name": "Lovelace", "email": email})
+        "token": token, "first_name": "Ada", "last_name": "Lovelace",
+        "email": email, "password": "Corr3ct-Horse-Battery!"})
     team.create_otp_challenge(hs["id"], email, "123456")   # ...but they verified TODAY
     client.post("/api/onboarding/verify-otp", json={"token": token, "code": "123456"})
 

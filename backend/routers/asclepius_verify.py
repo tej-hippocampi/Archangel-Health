@@ -19,7 +19,7 @@ import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -407,6 +407,14 @@ def _queue_row(store: Any, user: Dict[str, Any],
         "email_domain_class": user.get("email_domain_class"),
         "phone": user.get("phone"),
         "linkedin_url": user.get("linkedin_url"),
+        # Onboarding Master PRD §3.2 step 6. The legacy set: accounts that
+        # finished the wizard during the window when it minted no credential,
+        # so they cannot sign in to reach their own examination. The admin
+        # control that mails them a password-setup link renders off THIS, not
+        # off a client-side guess about what an empty password field means —
+        # and off the SAME predicate the endpoint enforces, so the button is
+        # never offered on a row that would answer 400.
+        "needs_password_setup": _password_setup_refusal(user) is None,
         "has_cv": bool(user.get("cv_asset_sha")),
         "cv_ok": bool(cv_parsed.get("ok")),
         "npi": _npi_summary(user),
@@ -681,6 +689,32 @@ class ApproveBody(BaseModel):
 
 class RejectBody(BaseModel):
     note: Optional[str] = None
+
+
+def _password_setup_refusal(user: Dict[str, Any]) -> Optional[str]:
+    """Why this row may NOT be sent a password-setup link, or None if it may.
+
+    ONE predicate for the flag and the endpoint (Onboarding Master PRD §3.2
+    step 6). They were written separately and drifted immediately: the queue
+    rendered the button off ``_needs_credentials`` alone while the endpoint had
+    grown three more guards, so the console offered a control that answered 400.
+    A button whose enabled state disagrees with what pressing it does is how an
+    admin learns to distrust the console.
+
+    Returns the refusal SENTENCE so the endpoint can raise it verbatim and the
+    flag is simply "is this None".
+    """
+    if (user.get("role") or "") != "evaluator":
+        return "This control is for physician applicants only."
+    if (user.get("verification_status") or "pending") == "approved":
+        return ("This physician is already approved. Approval mints their "
+                "credentials; it does not need this.")
+    if not _needs_credentials(user):
+        return ("This physician already has a password. They can use "
+                "Forgot your password on the sign-in page.")
+    if not user.get("active"):
+        return "This account is not active."
+    return None
 
 
 def _needs_credentials(user: Dict[str, Any]) -> bool:
@@ -1067,6 +1101,70 @@ async def recheck_npi(
     refreshed = store.get_user_by_id(user_id)
     return {"ok": True, "user_id": user_id, "npi": _npi_summary(refreshed),
             "npi_verified": refreshed.get("npi_verified")}
+
+
+@router.post("/queue/{user_id}/password-setup-link")
+async def send_password_setup_link(
+    user_id: str,
+    background: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Mail a legacy passwordless applicant a link to set their password.
+
+    Onboarding Master PRD §3.2 step 6. The applicant-facing door is the gate
+    card's "Set my password", and it covers everybody who reaches it. This
+    covers the ones who do not: the physician who emails support instead of
+    clicking, or who never gets far enough to see the card because they gave up
+    at the sign-in form.
+
+    THREE THINGS IT DELIBERATELY IS NOT:
+
+    * Not a new credential path. It mints the ordinary password reset, through
+      the same ``mint_password_reset`` the forgot door uses, so the ceiling on
+      live resets and the provenance row are shared rather than reimplemented.
+    * Not an approval. Setting a password leaves ``verification_status``
+      untouched; this hands somebody the ability to sit their examination, not
+      a decision about them.
+    * Not available for an account that HAS a password. Refused with a 400
+      rather than silently mailing a reset, because an admin clicking this on
+      the wrong row would otherwise be a way to hand out reset links for live
+      accounts — the exact hazard ``_needs_credentials`` exists to bound.
+    """
+    from routers.asclepius import mint_password_reset, _mail_password_reset  # noqa: PLC0415
+
+    store = _store()
+    user = _load_user_or_404(user_id)
+    # BOUND IT TO APPLICANTS, not merely to rows with no password hash.
+    #
+    # `password_is_unset` answers a question about a COLUMN. What this control
+    # is for is a person: a physician who finished the wizard during the window
+    # when it minted no credential. Those two sets coincide today — the SSO path
+    # mints a real random password, and the buyer and data-partner provisioners
+    # both pass one — but that is a fact about provisioning, not a rule, and
+    # nothing enforces it. If some future path ever creates a passwordless
+    # non-applicant, an admin misclick should not mail it a credential link.
+    #
+    # Shared with the queue flag so the console cannot offer a button that this
+    # refuses. Every guard runs BEFORE the mint, so no refusal leaves a token.
+    refusal = _password_setup_refusal(user)
+    if refusal:
+        raise HTTPException(status_code=400, detail=refusal)
+
+    raw = mint_password_reset(store, user, actor=admin["email"])
+    if not raw:
+        # The ceiling, surfaced rather than swallowed: an admin who clicks twice
+        # and is told "sent" both times has no way to learn that the second one
+        # was not.
+        raise HTTPException(
+            status_code=429,
+            detail="This physician already has the maximum number of live "
+                   "reset links. They expire on their own; try again later.")
+    store.log_event(
+        entity_type="user", entity_id=user_id,
+        event_type="password_setup_link_sent", actor=admin["email"],
+    )
+    background.add_task(_mail_password_reset, user["email"], raw)
+    return {"ok": True, "user_id": user_id, "email": user["email"]}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

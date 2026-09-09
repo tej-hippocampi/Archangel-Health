@@ -235,12 +235,16 @@ class Step1Body(OnboardTokenBody):
     first_name: str
     last_name: str
     email: EmailStr
-    #: Screen 1 now sets the account password. OPTIONAL on the wire on purpose:
-    #: a browser holding a cached copy of the previous SPA bundle posts the old
-    #: body, and a 400 there would break signup for everyone mid-deploy. The
-    #: client gates its own Continue button, and ``/asclepius/finish`` still
-    #: falls back to NO_PASSWORD_HASH when no hash was ever set, which is
-    #: exactly the behaviour that shipped before this change.
+    #: Screen 1 sets the account password. Optional on the MODEL, required in
+    #: FACT for an asclepius physician — see the guard in ``step1_identity``,
+    #: which is where the rule can read the invite row and tell a first post
+    #: apart from a re-post.
+    #:
+    #: It stays Optional here rather than becoming a required field because two
+    #: legitimate callers send no password: the non-clinical flavors, whose
+    #: wizard never offers the field, and a physician who navigates back to
+    #: screen 1 to fix a typo after their password is already stored. A required
+    #: field would refuse both with a validation error that explains neither.
     password: Optional[str] = Field(default=None, min_length=1, max_length=200)
     #: Two-letter US state. Optional because a physician licensed outside the US
     #: has no answer to give, and a required field they cannot fill is a wall.
@@ -739,6 +743,37 @@ async def step1_identity(body: Step1Body, request: Request):
     # run_in_threadpool is not optional. pbkdf2 is deliberately slow, and doing
     # it inline would block the event loop for every other request in the
     # process on every signup.
+    # NO CLIENT MAY CREATE A PASSWORDLESS PHYSICIAN ACCOUNT (§3.2 step 7).
+    #
+    # `password` stays Optional on the wire — see the field's own note — but
+    # optional-on-the-model is not the same as optional-in-fact. Until this
+    # check, the ONLY thing standing between us and another stranded account
+    # was the Continue button in one SPA build: any other client, any replayed
+    # request, and any future caller reintroduces the exact population §3 exists
+    # to rescue. That population cannot sign in to reach its own examination,
+    # and every repair for them is manual.
+    #
+    # Two conditions narrow it to the accounts that need it:
+    #   * `product == "asclepius"` — the archangel path has its own screens.
+    #   * clinical — an advisor or referral partner walks a shorter signup and
+    #     lands a CAPPED account (ACCOUNT_KIND_BY_FLAVOR / _BY_ACCOUNT_KIND),
+    #     the same set `/asclepius/finish` already asks less of. Demanding a
+    #     password here would demand something their wizard never offers.
+    #
+    # And it must not fire on a RE-POST. The client hides its password fields
+    # once `director_password_set` is true, so a physician who navigates back to
+    # screen 1 and corrects a typo in their name legitimately sends no password.
+    # Reading the stored hash rather than the request is what keeps that from
+    # being a wall in the middle of their own signup.
+    _product = (row.get("product") or "archangel").strip().lower()
+    _is_clinical = ACCOUNT_KIND_BY_FLAVOR.get(
+        (row.get("signup_flavor") or "").strip().lower()) is None
+    if not body.password and _product == "asclepius" and _is_clinical:
+        if not (row.get("director_password_hash") or "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Choose a password to finish setting up your account.")
+
     pw_hash: Optional[str] = None
     if body.password:
         try:

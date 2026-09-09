@@ -242,17 +242,95 @@ def test_a_weak_password_is_refused_with_a_reason(client, mail):
     assert r.json()["detail"], "refused without telling the physician why"
 
 
-def test_screen_one_still_works_without_a_password(client, mail):
-    """A browser holding the previous bundle posts the old body. It must not 400
-    mid-deploy: the field is optional on the wire and gated on the client."""
+def test_a_physician_signup_without_a_password_is_refused(client, mail):
+    """§3.2 step 7. This asserted the OPPOSITE until the stranded accounts made
+    the trade a bad one.
+
+    The old rule was that a browser holding the previous SPA bundle could post
+    the old body, so a 400 here would break signup mid-deploy. The deploy window
+    is hours; a passwordless physician account is permanent, cannot sign in to
+    reach its own examination, and every repair for it is manual. §3 exists
+    because that population is real.
+
+    So the client's Continue button is no longer the only thing preventing
+    another one — no client can create one.
+    """
     fresh_store()
     email = f"dr-{uniq()}@nephrology-associates.com"
     token, hs_id = _invite(client, email)
 
     r = client.post("/api/onboarding/step1-identity", json={
         "token": token, "first_name": "Amara", "last_name": "Okafor", "email": email})
+    assert r.status_code == 400, r.text
+    assert "password" in r.json()["detail"].lower()
+
+    ts = client.app.state.team_store
+    row = ts.get_health_system_by_id(hs_id)
+    assert not (row.get("director_password_hash") or "").strip()
+
+
+def test_correcting_a_typo_on_screen_one_is_not_walled_off(client, mail):
+    """The re-post the guard must NOT catch, and the reason it reads the stored
+    hash rather than the request body.
+
+    The client hides its password fields once `password_set` is true, so a
+    physician who navigates back to fix a misspelt surname legitimately sends no
+    password. A guard keyed on the request alone would refuse them in the middle
+    of their own signup — a wall built by the fix for a wall.
+    """
+    fresh_store()
+    email = f"dr-{uniq()}@nephrology-associates.com"
+    token, hs_id = _invite(client, email)
+
+    r = client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Amara", "last_name": "Okafor",
+        "email": email, "password": PW})
+    assert r.status_code == 200, r.text
+
+    r = client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Amara", "last_name": "Okonkwo",
+        "email": email})
+    assert r.status_code == 200, r.text
+    assert r.json()["password_set"] is True
+
+    ts = client.app.state.team_store
+    row = ts.get_health_system_by_id(hs_id)
+    assert row["director_last_name"] == "Okonkwo", "the correction did not land"
+    assert ts.verify_team_password(PW, row["director_password_hash"]), (
+        "the re-post must not have cleared the password they already chose"
+    )
+
+
+@pytest.mark.parametrize("flavor", ["advisor", "referrer"])
+def test_a_non_clinical_signup_still_needs_no_password_here(client, mail, flavor):
+    """An advisor or referral partner walks a shorter wizard that never offers
+    the field, and lands a CAPPED account. Demanding a password on their path
+    would demand something their screens do not have — the same reason
+    /asclepius/finish asks less of them."""
+    fresh_store()
+    email = f"dr-{uniq()}@nephrology-associates.com"
+    token, hs_id = _invite(client, email)
+    client.app.state.team_store.set_health_system_signup_flavor(hs_id, flavor)
+
+    r = client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Amara", "last_name": "Okafor", "email": email})
     assert r.status_code == 200, r.text
     assert r.json()["password_set"] is False
+
+
+def test_a_non_asclepius_signup_is_untouched(client, mail):
+    """The archangel path has its own screens and its own rules."""
+    fresh_store()
+    email = f"dir-{uniq()}@stmarys.example.org"
+    ts = client.app.state.team_store
+    invite = ts.create_health_system_invite(
+        invite_base_url="http://localhost:5173", director_email=email,
+        product="archangel")
+    token = invite["onboarding_url"].rsplit("/", 1)[-1]
+
+    r = client.post("/api/onboarding/step1-identity", json={
+        "token": token, "first_name": "Amara", "last_name": "Okafor", "email": email})
+    assert r.status_code == 200, r.text
 
 
 @pytest.mark.parametrize("path,payload", [

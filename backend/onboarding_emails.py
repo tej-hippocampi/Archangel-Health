@@ -170,6 +170,24 @@ def _strong(text: str) -> str:
     return f'<strong style="color:{_INK};font-weight:600;">{html.escape(text)}</strong>'
 
 
+def _exam_url(portal_url: str) -> str:
+    """The portal URL with the examination card focused.
+
+    ``#examination`` is the deep link the applicant home already answers to
+    (asclepius.js), so a mail that names the examination lands ON it rather than
+    on a page the physician then has to read to find it.
+
+    Idempotent, and it never invents a second fragment: a caller that already
+    passed one is left alone, because appending would produce a URL no router
+    resolves. An empty portal_url stays empty — callers treat that as "render
+    the copy without a link" and a bare "#examination" is not a destination.
+    """
+    url = (portal_url or "").strip()
+    if not url or "#" in url:
+        return url
+    return url + "#examination"
+
+
 def _cta(href: str, label: str) -> str:
     """The product's emphatic button: a lime pill with ink text (.btn-lime)."""
     safe_href = html.escape(href, quote=True)
@@ -1190,7 +1208,12 @@ def build_practice_case_nudge_email(*, first_name: str, portal_url: str) -> str:
              "your account. It takes about ten minutes, it is a real piece of "
              "clinical reasoning rather than a form, and physicians who do it "
              "find the examination afterwards much easier.")
-        + _cta(portal_url, "Open my practice case")
+        # Still the practice case — this mail IS the practice-case nudge, and it
+        # says so in its own docstring. Only the link is corrected: it lands on
+        # the applicant home, where the practice case is a row on card 1 and the
+        # examination is the primary button, so a physician who opens it can do
+        # either without being told the wrong thing about which one counts.
+        + _cta(portal_url, "Open my account")
         + _p("No grade is published and there is no time limit on it.",
              muted=True, small=True)
         + _founder_signoff("Tej and Aryaa, founders")
@@ -1329,15 +1352,27 @@ def build_application_submitted_email(*, full_name: str, portal_url: str = "") -
     # also evidence the reviewer reads, so the copy says both: it is waiting,
     # and it counts. Kept BELOW the review paragraph on purpose, so the message
     # still leads with the reassurance rather than with homework.
+    # THE EXAMINATION, NAMED, AND A TRUE SENTENCE ABOUT SIGNING IN (§3.2 step 4).
+    #
+    # This block used to point at the practice case and tell the physician
+    # "there is no password to remember yet: signing in is a single-use link we
+    # email you". Both halves stopped being true. Screen 1 of the wizard takes
+    # a password, so they have an ordinary credential; and no sign-in link is
+    # minted at finish, so the link the sentence promised did not exist. A mail
+    # that names the wrong case AND describes a door that was never built is
+    # how an applicant ends up doing neither thing.
+    #
+    # The CTA carries the fragment so the card is focused on arrival rather than
+    # leaving them to find it.
     waiting = (
         _section_label("While you wait")
-        + _p("There is one short practice case sitting in your account. It takes "
-             "about ten minutes, it is real clinical reasoning rather than a form, "
-             "and it is the part of your application we read most closely.")
-        + _cta(portal_url, "Open my practice case")
-        + _p("There is no password to remember yet: signing in is a single-use "
-             "link we email you. Credentials arrive if we approve your "
-             "application.", muted=True, small=True)
+        + _p("There is one short examination sitting in your account. It is one "
+             "real case in your specialty, it takes about fifteen minutes, and "
+             "it is the part of your application we read most closely.")
+        + _cta(_exam_url(portal_url), "Open my examination")
+        + _p("Sign in with the email and password you chose. If you forget it, "
+             "use Forgot your password on the sign-in page.",
+             muted=True, small=True)
     ) if portal_url else ""
     body = (
         _eyebrow("Application received")

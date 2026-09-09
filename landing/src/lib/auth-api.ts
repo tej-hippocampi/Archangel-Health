@@ -334,6 +334,23 @@ export type AsclepiusLoginResponse = {
   user: Record<string, unknown>;
 };
 
+/** An Asclepius sign-in failure that carries WHY, not just a sentence. */
+export interface AsclepiusLoginError extends Error {
+  status?: number;
+  /** "pending" | "pending_examination" | "rejected", or null for anything that
+   *  is not a credential-verification gate (a 401, a 500). */
+  authGate?: string | null;
+}
+
+/** True for a 403 naming a credential-verification state. Never true for a
+ *  401, which is deliberately ambiguous across both planes. */
+export function isAsclepiusGateError(err: unknown): err is AsclepiusLoginError {
+  return Boolean(
+    err && typeof err === "object" && "authGate" in err &&
+    (err as AsclepiusLoginError).authGate,
+  );
+}
+
 /**
  * Sign in against Asclepius's own auth plane (own secret, own user table —
  * completely separate from the landing/tenant login above). Used by the
@@ -352,7 +369,22 @@ export async function asclepiusLogin(email: string, password: string): Promise<A
     throw networkError();
   }
   if (!res.ok) {
-    throw new Error(await errorDetail(res, "Sign in failed"));
+    // CARRY THE GATE, not just the sentence.
+    //
+    // SignInDialog swallows a failed Asclepius attempt and falls through to the
+    // landing plane. That is right for a 401: both planes answer the same
+    // generic 401 whether the account is absent or the password wrong, so there
+    // is genuinely nothing to tell apart. A 403 with this header is the
+    // opposite — it is unambiguous, and it carries the ONLY true thing anybody
+    // can say to that physician. Swallowing it shows them the landing plane's
+    // error about an account that is not the one they asked about.
+    //
+    // Reading the header cross-origin works because the API exposes it (see
+    // main.py's CORS expose_headers).
+    const err = new Error(await errorDetail(res, "Sign in failed")) as AsclepiusLoginError;
+    err.status = res.status;
+    err.authGate = res.headers.get("X-Asclepius-Auth-Gate");
+    throw err;
   }
   return res.json();
 }

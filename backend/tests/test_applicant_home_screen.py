@@ -39,23 +39,12 @@ _STEPS = (_LANDING / "app" / "components" / "onboarding" / "steps.tsx").read_tex
 _AUTH_API = (_LANDING / "lib" / "auth-api.ts").read_text(encoding="utf-8")
 
 
-def _strip_js_comments(source: str) -> str:
-    """This codebase explains its rules in prose beside the code, and a grep
-    that reads the prose as code fails on its own documentation."""
-    out, i, n = [], 0, len(source)
-    while i < n:
-        if source.startswith("/*", i):
-            end = source.find("*/", i + 2)
-            i = n if end == -1 else end + 2
-        elif source.startswith("//", i):
-            end = source.find("\n", i)
-            i = n if end == -1 else end
-        else:
-            out.append(source[i])
-            i += 1
-    return "".join(out)
-
-
+# The local stripper here treated `//` as a comment start without tracking
+# string literals, so it ate `'https://calendly.com/…'` down to `'https:` —
+# silently defeating test_no_founders_no_calendly_no_mission_paragraph's
+# `assert "calendly" not in view.lower()`. Re-add a Calendly href and that
+# assertion still passed. Shared, string-aware version instead.
+from tests._js_source import strip_js_comments as _strip_js_comments  # noqa: E402
 _CODE = _strip_js_comments(_JS)
 
 
@@ -290,9 +279,17 @@ def test_the_success_screen_no_longer_argues_its_case_four_times():
 
 
 def test_the_success_screen_still_says_the_work_is_saved():
-    screen = _success_screen()
+    """The reassurance stays; the false half of it is gone (§3.2 step 4).
+
+    This asserted "emailed you a link" until that turned out to be a promise
+    nothing kept: no sign-in link is minted at finish. What the physician
+    actually holds is the password they chose on screen 1, so that is what the
+    line now names — and naming it is more useful than the link ever was.
+    """
+    screen = _success_screen(code=True)
     assert "You can stop part way" in screen
-    assert "emailed you a link" in screen
+    assert "password you chose" in screen
+    assert "emailed you a link" not in screen
 
 
 def test_the_cta_deep_links_to_the_examination():
