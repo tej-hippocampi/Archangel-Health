@@ -560,8 +560,9 @@
       // newest digest is the last row that has a payload.
       state.latestDigest = digests.length ? digests[digests.length - 1] : null;
     } catch (e) {
-      state.digestRoom = [];
-      state.latestDigest = null;
+      // Both are already cleared above; this exists so a refused fetch is a
+      // no-op rather than a rejected promise reaching boot.
+      return;
     }
   }
 
@@ -2528,6 +2529,12 @@
     } catch (e) { toast(e.message, 'error'); }
   }
   function applyDelete(mid, parentId) {
+    // The digest room's own rows are a second list, so a delete has to reach
+    // them too. The server stops counting a deleted message as unread
+    // (`store.py unread_counts` is `deleted_at IS NULL`), so leaving it here
+    // counts a digest nobody can read any more -- and the pinned card would go
+    // on drawing it until a reload.
+    forgetDigestRow(mid);
     for (const slug in state.msgs) {
       const st = state.msgs[slug];
       // A deleted REPLY decrements its root's thread teaser (audit finding —
@@ -3321,6 +3328,12 @@
         const msg = ev.message;
         const st = state.msgs[msg.channel];
         if (st) st.list = st.list.map((m) => (m.id === msg.id ? msg : m));
+        // The admin override arrives as an update, so the pinned card has to
+        // pick up the new lead rather than go on drawing the old one.
+        // Replaced IN PLACE, not removed and re-appended: an edit to an older
+        // message would otherwise jump to the end of the list and be read as
+        // the newest digest in the room.
+        replaceDigestRow(msg);
         if (state.thread) {
           if (state.thread.root.id === msg.id) state.thread.root = msg;
           state.thread.replies = state.thread.replies.map((r) => (r.id === msg.id ? msg : r));
@@ -3503,9 +3516,38 @@
     // Bounded, like the fetch that seeds it. This list only ever answers "what
     // is at the end of the room".
     if (state.digestRoom.length > 50) state.digestRoom.shift();
-    if (digestOf(msg)) state.latestDigest = msg;
+    // One place decides what the rows imply, so an append, an edit and a
+    // delete cannot leave `latestDigest` pointing at three different things.
+    refreshDigestRoom();
+  }
+
+  /* Re-derive what the digest room's rows imply, after any change to them. */
+  function refreshDigestRoom() {
+    const digests = state.digestRoom.filter((m) => digestOf(m));
+    state.latestDigest = digests.length ? digests[digests.length - 1] : null;
     renderGreeting();
     if (state.active === 'general') renderMessages({});
+  }
+
+  /* A row is gone. The server stops counting a deleted message as unread
+     (`store.py unread_counts` is `deleted_at IS NULL`), so leaving it here
+     counts a digest nobody can read any more, and the pinned card would go on
+     drawing it until a reload. */
+  function forgetDigestRow(mid) {
+    const before = state.digestRoom.length;
+    state.digestRoom = state.digestRoom.filter((m) => m.id !== mid);
+    if (state.digestRoom.length !== before) refreshDigestRoom();
+  }
+
+  /* A row we already hold has changed -- an edit, or the admin override
+     rewriting which story leads. Position is preserved, because this list is
+     ordered oldest-first and its last entry is what "the newest digest" means. */
+  function replaceDigestRow(msg) {
+    if (!msg || !msg.id) return;
+    const at = state.digestRoom.findIndex((m) => m.id === msg.id);
+    if (at === -1) return;
+    state.digestRoom[at] = msg;
+    refreshDigestRoom();
   }
 
   function bumpUnread(msg) {

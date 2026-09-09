@@ -93,9 +93,8 @@ function openChannel(slug) { opened.push(['channel', slug]); }
 let api = () => Promise.resolve({ messages: [] });
 // Repaints this harness does not mount. Overridden by any test that extracts
 // the real one, because a later `function` declaration wins over these.
-let repainted = 0;
-function renderMessages() { repainted += 1; }
-function renderRail() { repainted += 1; }
+function renderMessages() {}
+function renderRail() {}
 // The shim gives every ELEMENT a querySelector but not the document. A browser
 // has both, and `openDigestPost` scrolls to a row through the document one.
 document.querySelector = (sel) => document.body.querySelector(sel);
@@ -404,7 +403,8 @@ def test_the_presence_counts_come_from_state_and_zero_online_is_a_hollow_dot():
 
 _ROOM_FUNCS = _CARD_FUNCS + ("loadLatestDigest", "newDigestCount",
                              "renderGreeting", "greetingWord", "greetingName",
-                             "trackDigestRoom")
+                             "refreshDigestRoom", "trackDigestRoom",
+                             "forgetDigestRow", "replaceDigestRow")
 
 
 def _room(body: str) -> dict:
@@ -528,6 +528,57 @@ def test_the_digest_fetch_repaints_after_the_first_render_not_before():
     assert boot.index("renderApp()") < boot.index("digestLoaded.then(")
     assert "loadLatestDigest().then(" not in boot, \
         "the repaint is attached to the fetch rather than to the render"
+
+
+def test_a_deleted_or_re_led_digest_stops_being_counted_and_drawn():
+    """Two exclusions the room's own rows have to mirror. The server stops
+    counting a deleted message as unread (`store.py unread_counts` is
+    `deleted_at IS NULL`), so a deleted digest left in this list is counted
+    forever and the pinned card keeps drawing it until a reload. And the admin
+    override arrives as an update, so the card has to pick up the new lead."""
+    res = _room("""
+        const out = {};
+        seed([brief(1), digest(2), digest(3)], 2).then(() => {
+          out.start = { count: newDigestCount(), latest: state.latestDigest.id };
+          // The newest digest is deleted.
+          forgetDigestRow(3);
+          out.afterDelete = { count: newDigestCount(),
+                              latest: state.latestDigest ? state.latestDigest.id : null };
+          // Deleting something we never held changes nothing.
+          forgetDigestRow(999);
+          out.afterUnknownDelete = state.digestRoom.length;
+          // An edit to an OLDER row must not jump it to the end of the list,
+          // where it would be read as the newest digest in the room.
+          replaceDigestRow({ id: 1, channel: 'medical-ai-news', kind: 'morning_brief',
+                             body: 'edited', created_at: 'x' });
+          out.orderKept = state.digestRoom.map((m) => m.id);
+          out.latestAfterEdit = state.latestDigest ? state.latestDigest.id : null;
+          console.log(JSON.stringify(out));
+        });
+        """)
+    assert res["start"] == {"count": 2, "latest": 3}
+    assert res["afterDelete"] == {"count": 1, "latest": 2}, \
+        "a deleted digest is still counted or still drawn"
+    assert res["afterUnknownDelete"] == 2
+    assert res["orderKept"] == [1, 2], "an edit reordered the room's rows"
+    assert res["latestAfterEdit"] == 2
+
+
+def test_the_rooms_row_list_stays_bounded():
+    """It only ever answers "what is at the end of the room", and a tab left
+    open for a week must not accumulate one entry per post."""
+    res = _room("""
+        seed([], 0).then(() => {
+          for (let i = 1; i <= 80; i++) {
+            trackDigestRoom({ id: i, channel: 'medical-ai-news',
+                              kind: 'morning_brief', created_at: 'x' });
+          }
+          console.log(JSON.stringify({ rows: state.digestRoom.length,
+                                       first: state.digestRoom[0].id }));
+        });
+        """)
+    assert res["rows"] == 50
+    assert res["first"] == 31, "the list dropped from the wrong end"
 
 
 def test_a_digest_with_an_unreadable_timestamp_does_not_say_invalid_date():

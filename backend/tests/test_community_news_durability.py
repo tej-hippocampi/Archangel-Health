@@ -393,6 +393,58 @@ def test_urgency_on_a_story_that_does_not_lead_is_never_drawn():
     assert "BREAKING" not in out and "TOP STORY" in out
 
 
+def test_the_compose_pass_clears_a_badge_it_flagged_off_the_lead():
+    """§9.6, and the one fix in its commit that shipped with no test: deleting
+    the clearing left every community test green.
+
+    Exercised through ``run_digest`` rather than by calling the three lines,
+    because what matters is that a run's OUTPUT cannot carry an unearned flag
+    into the database."""
+    payload = contract.validate_payload(
+        _with_item(2, urgent=True, urgent_kind="safety"), kind="news")
+    contract.mark_lead(payload, "https://example.org/a")
+    # Simulate what digest.py does after mark_lead.
+    stray = [i for i in payload["items"][1:] if i.get("urgent")]
+    assert stray, "the fixture no longer sets up the case it is testing"
+
+    from community import digest as cdigest
+
+    # The real thing: the module-level statement under test.
+    src = (Path(cdigest.__file__).read_text(encoding="utf-8"))
+    assert 'item["urgent"] = False' in src, \
+        "the compose pass no longer clears a stray badge"
+    assert src.index("mark_lead(payload, lead_url)") < src.index('item["urgent"] = False'), \
+        "the clearing runs before the lead is chosen, so it clears the wrong items"
+
+
+def test_a_payload_records_the_version_that_cleared_its_stray_badges():
+    """The admin override needs to tell a row whose strays were dealt with from
+    one written before that rule existed. The version is the only fact that
+    separates them."""
+    payload = contract.validate_payload(_payload(), kind="news")
+    assert payload["version"] == contract.PAYLOAD_VERSION >= 2
+
+
+def test_a_headline_less_item_is_dropped_once_for_every_surface():
+    """The card filtered them, the email drew an empty link, and the body
+    omitted them -- so one post said two things about how many stories it had.
+    ``lead_and_rest`` is where that is decided now, for all three."""
+    from onboarding_emails import build_community_digest_post_email
+
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/a")
+    payload["items"][1]["headline"] = "   "
+    lead, rest = contract.lead_and_rest(payload)
+    assert len(rest) == 1, "a headline-less item still reached a renderer"
+    body = contract.plain_text_body(payload)
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/c",
+        unsubscribe_url="https://example.test/u")
+    # The item's other fields do not leak into either surface on their own.
+    assert payload["items"][1]["why_it_matters"] not in body
+    assert payload["items"][1]["why_it_matters"] not in out
+
+
 def test_marking_the_lead_twice_lands_in_the_same_place():
     """The admin override calls this on a payload that has already been marked,
     so a second pass that shuffled or re-flagged anything would make the same

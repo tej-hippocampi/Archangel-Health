@@ -1695,6 +1695,51 @@ def test_an_ordinary_post_and_a_legacy_digest_are_both_refused():
     assert _stored_payload(cstore, legacy["id"]) is None
 
 
+def test_a_legacy_payload_cannot_publish_a_badge_nothing_earned():
+    """The compose pass clears stray urgency, but that rule is newer than the
+    digests already in the database. Without a normalisation on the way in,
+    `Set as top story` on a v1 row carrying an unearned flag publishes BREAKING
+    through the endpoint that refuses to grant one."""
+    _astore, cstore, _doc, admin = setup_world()
+    legacy = _post_raw_digest(cstore, [
+        {"url": "https://example.org/a", "headline": "The lead", "deck": "A deck.",
+         "why_it_matters": "It matters.", "source": "STAT", "section": "Regulation",
+         "lead": True, "urgent": False, "urgent_kind": None},
+        # The unearned flag, on an item that never led.
+        {"url": "https://example.org/b", "headline": "Not the lead",
+         "why_it_matters": "Also matters.", "source": "Nature", "section": "Research",
+         "lead": False, "urgent": True, "urgent_kind": "regulatory"},
+    ])
+    # No version key at all is the oldest shape of row there is.
+    assert "version" not in _stored_payload(cstore, legacy["id"])
+
+    r = _set_lead(admin, legacy["id"], url="https://example.org/b")
+    assert r.status_code == 200, r.text
+    items = r.json()["payload"]["items"]
+    assert items[0]["url"] == "https://example.org/b"
+    assert items[0]["urgent"] is False, "a legacy stray flag reached the badge"
+    assert r.json()["payload"]["version"] >= 2, "the row was not normalised"
+
+
+def test_normalising_a_legacy_row_does_not_cost_the_lead_its_own_badge():
+    """The normalisation must not become the destructive clearing §9.7 removed:
+    a badge the compose pass earned on the item that IS the lead stays."""
+    _astore, cstore, _doc, admin = setup_world()
+    legacy = _post_raw_digest(cstore, [
+        {"url": "https://example.org/a", "headline": "The lead", "deck": "A deck.",
+         "why_it_matters": "It matters.", "source": "STAT", "section": "Regulation",
+         "lead": True, "urgent": True, "urgent_kind": "safety"},
+        {"url": "https://example.org/b", "headline": "Not the lead",
+         "why_it_matters": "Also matters.", "source": "Nature", "section": "Research",
+         "lead": False},
+    ])
+    r = _set_lead(admin, legacy["id"], url="https://example.org/b")
+    assert r.status_code == 200, r.text
+    demoted = next(i for i in r.json()["payload"]["items"]
+                   if i["url"] == "https://example.org/a")
+    assert demoted["urgent"] is True, "the lead's earned badge was cleared"
+
+
 def test_the_override_is_audited_like_every_other_admin_write():
     _astore, cstore, _doc, admin = setup_world()
     msg = _post_digest(cstore)

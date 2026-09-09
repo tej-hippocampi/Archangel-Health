@@ -2100,6 +2100,26 @@ async def set_digest_lead(
 
     from community import digest_contract  # noqa: PLC0415 - avoids an import cycle
 
+    # Legacy normalisation, and ONLY legacy. The compose pass clears urgency off
+    # non-lead items, but that rule is newer than the digests already in the
+    # database: a row written before it can carry a flag nothing earned, and
+    # promoting that item would publish BREAKING through the endpoint that
+    # deliberately refuses to grant one.
+    #
+    # Gated on the payload version rather than applied to every row, because in
+    # a current payload an `urgent` flag on a non-lead item means something
+    # specific and worth keeping: a badge that WAS earned and then demoted by an
+    # earlier promotion. Clearing those would make promoting a story back lose
+    # the badge it arrived with, which is the destructive behaviour §9.7 exists
+    # to have removed.
+    if int(payload.get("version") or 1) < digest_contract.PAYLOAD_VERSION:
+        stale_lead, _others = digest_contract.lead_and_rest(payload)
+        for item in items:
+            if item is not stale_lead and item.get("urgent"):
+                item["urgent"] = False
+                item["urgent_kind"] = None
+        payload["version"] = digest_contract.PAYLOAD_VERSION
+
     if body.url is not None:
         if body.url not in {str(i.get("url") or "") for i in items}:
             # 404 rather than a silent no-op: an override that quietly did

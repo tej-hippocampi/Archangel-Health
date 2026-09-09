@@ -40,6 +40,15 @@ SECTIONS: Tuple[str, ...] = ("Research", "Regulation", "Deployment", "Evals", "O
 #: Lowercased, for tolerant matching of what the model returns.
 _SECTION_BY_LOWER = {s.lower(): s for s in SECTIONS}
 
+#: Bumped from 1 when the compose pass started clearing urgency off non-lead
+#: items (Digest Design PRD §9.6). It is the ONE fact that separates a payload
+#: whose stray badges have been dealt with from one written before that rule
+#: existed, and the admin override needs to tell them apart: in a v2 payload an
+#: `urgent` flag on a non-lead item is a badge that was earned and then demoted
+#: by a promotion, and must survive so promoting it back restores it; in a v1
+#: payload it may be a flag nothing ever earned.
+PAYLOAD_VERSION = 2
+
 MIN_ITEMS = 3
 MAX_ITEMS = 5
 
@@ -395,7 +404,7 @@ def validate_payload(raw: Any, *, kind: str) -> Dict[str, Any]:
         items.append(item)
 
     return {
-        "version": 1,
+        "version": PAYLOAD_VERSION,
         "kind": kind,
         "title": TITLE_BY_KIND.get(kind, DEFAULT_TITLE),
         "items": items,
@@ -459,7 +468,14 @@ def lead_and_rest(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Li
     themselves which story leads will disagree on the day it matters, and the
     reader will be the one who notices.
     """
-    items = [i for i in (payload.get("items") or []) if isinstance(i, dict)]
+    # A headline-less item is dropped HERE, once, rather than by each surface
+    # deciding for itself. The web card already skipped them (`digestOf`
+    # filters on `headline`) while the email drew an empty link and the
+    # plain-text body omitted them entirely -- so one post said two different
+    # things about how many stories it had. The PHI gate is unaffected: it
+    # walks the payload's own items, not this view.
+    items = [i for i in (payload.get("items") or [])
+             if isinstance(i, dict) and (i.get("headline") or "").strip()]
     if not items:
         return None, []
     for i, item in enumerate(items):

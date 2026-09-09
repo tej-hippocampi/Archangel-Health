@@ -102,12 +102,12 @@ exclamation marks, calendar dates. Rejection = no post that day.
 
 ### 1.3 Placement
 - Canonical: the `#medical-ai-news` message (`kind: digest_news`), rendered by
-  `digestCardEl` (`community.js:1737`) whenever `digestOf` (`community.js:1594`)
+  `digestCardEl` (`community.js:1738`) whenever `digestOf` (`community.js:1595`)
   finds a payload on the message.
-- The stream reaches it through `renderMessages` (`community.js:1356`), which
+- The stream reaches it through `renderMessages` (`community.js:1357`), which
   builds each row with `messageEl`.
 - The `cm-msg-digest` branch (`community.js:1795`) styles only the legacy body,
-  and `cardsEl` (`community.js:1488`) is not used for digests.
+  and `cardsEl` (`community.js:1489`) is not used for digests.
 - **Pinned home card**: the community landing (the view before a channel is opened)
   shows the latest digest in the same card component, collapsed to title + lead +
   `Read all {n} →` which opens the channel post. One component, two contexts.
@@ -127,10 +127,10 @@ false). Existing: `headline`, `why_it_matters`, `section`, `source`, `url`,
 ### 2.2 Lead selection and "Breaking"
 - Lead = highest `relevance` from the select pass (`community/digest.py:100`),
   joined into the accepted payload on the normalised url and marked by
-  `mark_lead` (`community/digest_contract.py:405`), which the pipeline calls at
+  `mark_lead` (`community/digest_contract.py:414`), which the pipeline calls at
   `community/digest.py:267`. Ties → earliest published.
 - One definition of "which story leads" is read by the card, the pinned card and
-  the email: `lead_and_rest` (`community/digest_contract.py:454`).
+  the email: `lead_and_rest` (`community/digest_contract.py:463`).
 - `urgent: true` is allowed only when the select pass's `one_liner` contains a
   same-day event of one of four kinds — a regulatory decision/approval, a recall or
   safety notice, a major clinical trial readout, or a lab/model release with a
@@ -164,15 +164,15 @@ Good morning, Dr. Patel.        ● 3 online · 1 new digest
 Click a name anywhere (member list, message author, presence bar) → a card
 (`cm-profile`, `community.js:3038`; upgraded in place): avatar with the specialty
 tint, name and one credential line — "Nephrology · 15–19 yrs", built by
-`credentialLine` (`community.js:2919`) — then three stats from `profileStats`
-(`community.js:2935`), and one action: **Message**. Founders' cards add **Book 20 minutes**. No blurb, no
+`credentialLine` (`community.js:2926`) — then three stats from `profileStats`
+(`community.js:2958`), and one action: **Message**. Founders' cards add **Book 20 minutes**. No blurb, no
 earnings, no tier.
 
 The three stats are **Specialty · In practice · Country**, not cases · since ·
 last active — see §9.2.
 
 ### 3.3 Warmer empty states, founders' voice
-Every channel's empty state (`EMPTY_COPY`, `community.js:1199`; rendered through
+Every channel's empty state (`EMPTY_COPY`, `community.js:1200`; rendered through
 `cm-empty-title` at `community.js:1281` and `community.js:1386`): one sentence,
 one button. Copy, verbatim:
 - `#general` — "The kitchen table. Say hello." · [Say hello]
@@ -335,7 +335,7 @@ read, shortened to one sentence to stay inside the §0.5 budget.
 That console's feed carries an author, a channel and a body string — no message
 id and no payload — so the action would have needed a wider admin summary
 endpoint to reach what it acts on. It ships on the digest post's own menu
-(`digestAdminEl`, `community.js:1677`), admin-only, and absent from the pinned
+(`digestAdminEl`, `community.js:1678`), admin-only, and absent from the pinned
 card. `admin_community.js` is unchanged.
 
 ### 9.5 Word budgets ship with headroom
@@ -352,12 +352,19 @@ The caps are exact (`HEADLINE_MAX_WORDS = 10`,
 §2.2 allows `urgent: true` only for a same-day regulatory decision, recall,
 trial readout or model release with a medical claim. A post-processor cannot
 read a one-liner and decide which of those happened. So the model must also
-name the kind, and `URGENT_KINDS` (`community/digest_contract.py:74`) is the
+name the kind, and `URGENT_KINDS` (`community/digest_contract.py:83`) is the
 closed set the validator checks against — a claim with no kind, or a kind
 outside the four, fails the run.
 
 A flag on an item that is **not** the lead is cleared once, at compose time
-(`community/digest.py`, after `mark_lead`), and logged. Not in `mark_lead`
+(`community/digest.py`, after `mark_lead`), and logged. That rule is newer than
+the digests already in the database, so the admin override normalises a payload
+below `PAYLOAD_VERSION` on the way in — otherwise `Set as top story` on a legacy
+row carrying an unearned flag would publish BREAKING through the endpoint that
+refuses to grant one. Gated on the version rather than applied to every row,
+because in a current payload an `urgent` flag on a non-lead item means something
+worth keeping: a badge that *was* earned and then demoted by an earlier
+promotion. Not in `mark_lead`
 itself, which the admin override also calls: clearing there would destroy a
 badge the compose pass legitimately earned, every time somebody promoted a
 different story — see §9.7. The distinction is which claim is being judged. A
