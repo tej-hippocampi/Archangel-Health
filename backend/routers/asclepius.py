@@ -460,6 +460,40 @@ async def _mail_password_changed(email: str) -> None:
         log.exception("[asclepius] password-changed notice failed")
 
 
+def mint_password_reset(store, user: Dict[str, Any], *,
+                        requested_ip: Optional[str] = None,
+                        actor: Optional[str] = None) -> Optional[str]:
+    """Create one password-reset token and return its RAW value, or None when
+    the account is already at its ceiling of live resets.
+
+    Extracted so the admin's "send password-setup link" (Onboarding Master PRD
+    §3.2 step 6) mints exactly what the applicant's own "Forgot your password?"
+    mints — same ceiling, same expiry, same provenance row. Two hand-rolled
+    copies of this would drift, and the direction they drift in is an admin
+    button that quietly issues tokens the ceiling was meant to cap.
+
+    The RAW token is returned rather than mailed here: the caller decides who
+    it goes to and on which background task, and the plaintext must never be
+    stored, so it exists only in the return value and the mail.
+    """
+    if store.count_live_password_resets(user["id"]) >= asc_passwords.MAX_LIVE_RESETS:
+        return None
+    raw, hashed = asc_passwords.new_reset_token()
+    store.create_password_reset(
+        user_id=user["id"],
+        token_hash=hashed,
+        expires_at=asc_passwords.reset_expires_at(),
+        requested_ip=requested_ip,
+    )
+    store.log_event(
+        entity_type="user",
+        entity_id=user["id"],
+        event_type="password_reset_requested",
+        actor=actor or user["id"],
+    )
+    return raw
+
+
 @router.post(
     "/auth/password/forgot",
     dependencies=[Depends(rate_limiter("asclepius_pw_forgot", 5, 900))],
@@ -477,20 +511,12 @@ async def forgot_password(
         # A rejected account still gets a working link. Refusing here would be
         # the loudest oracle in the set, and the reset grants them nothing that
         # the verification gate does not already refuse.
-        if store.count_live_password_resets(user["id"]) < asc_passwords.MAX_LIVE_RESETS:
-            raw, hashed = asc_passwords.new_reset_token()
-            store.create_password_reset(
-                user_id=user["id"],
-                token_hash=hashed,
-                expires_at=asc_passwords.reset_expires_at(),
-                requested_ip=(request.client.host if request.client else None),
-            )
-            store.log_event(
-                entity_type="user",
-                entity_id=user["id"],
-                event_type="password_reset_requested",
-                actor=user["id"],
-            )
+        raw = mint_password_reset(
+            store, user,
+            requested_ip=(request.client.host if request.client else None),
+            actor=user["id"],
+        )
+        if raw:
             background.add_task(_mail_password_reset, user["email"], raw)
     else:
         # Recorded WITHOUT an entity_id, so the provenance log never implies an

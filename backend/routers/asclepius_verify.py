@@ -19,7 +19,7 @@ import secrets
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -407,6 +407,12 @@ def _queue_row(store: Any, user: Dict[str, Any],
         "email_domain_class": user.get("email_domain_class"),
         "phone": user.get("phone"),
         "linkedin_url": user.get("linkedin_url"),
+        # Onboarding Master PRD §3.2 step 6. The legacy set: accounts that
+        # finished the wizard during the window when it minted no credential,
+        # so they cannot sign in to reach their own examination. The admin
+        # control that mails them a password-setup link renders off THIS, not
+        # off a client-side guess about what an empty password field means.
+        "needs_password_setup": _needs_credentials(user),
         "has_cv": bool(user.get("cv_asset_sha")),
         "cv_ok": bool(cv_parsed.get("ok")),
         "npi": _npi_summary(user),
@@ -1067,6 +1073,62 @@ async def recheck_npi(
     refreshed = store.get_user_by_id(user_id)
     return {"ok": True, "user_id": user_id, "npi": _npi_summary(refreshed),
             "npi_verified": refreshed.get("npi_verified")}
+
+
+@router.post("/queue/{user_id}/password-setup-link")
+async def send_password_setup_link(
+    user_id: str,
+    background: BackgroundTasks,
+    admin: Dict[str, Any] = Depends(asc_auth.require_admin),
+):
+    """Mail a legacy passwordless applicant a link to set their password.
+
+    Onboarding Master PRD §3.2 step 6. The applicant-facing door is the gate
+    card's "Set my password", and it covers everybody who reaches it. This
+    covers the ones who do not: the physician who emails support instead of
+    clicking, or who never gets far enough to see the card because they gave up
+    at the sign-in form.
+
+    THREE THINGS IT DELIBERATELY IS NOT:
+
+    * Not a new credential path. It mints the ordinary password reset, through
+      the same ``mint_password_reset`` the forgot door uses, so the ceiling on
+      live resets and the provenance row are shared rather than reimplemented.
+    * Not an approval. Setting a password leaves ``verification_status``
+      untouched; this hands somebody the ability to sit their examination, not
+      a decision about them.
+    * Not available for an account that HAS a password. Refused with a 400
+      rather than silently mailing a reset, because an admin clicking this on
+      the wrong row would otherwise be a way to hand out reset links for live
+      accounts — the exact hazard ``_needs_credentials`` exists to bound.
+    """
+    from routers.asclepius import mint_password_reset, _mail_password_reset  # noqa: PLC0415
+
+    store = _store()
+    user = _load_user_or_404(user_id)
+    if not _needs_credentials(user):
+        raise HTTPException(
+            status_code=400,
+            detail="This physician already has a password. They can use "
+                   "Forgot your password on the sign-in page.")
+    if not user.get("active"):
+        raise HTTPException(status_code=400, detail="This account is not active.")
+
+    raw = mint_password_reset(store, user, actor=admin["email"])
+    if not raw:
+        # The ceiling, surfaced rather than swallowed: an admin who clicks twice
+        # and is told "sent" both times has no way to learn that the second one
+        # was not.
+        raise HTTPException(
+            status_code=429,
+            detail="This physician already has the maximum number of live "
+                   "reset links. They expire on their own; try again later.")
+    store.log_event(
+        entity_type="user", entity_id=user_id,
+        event_type="password_setup_link_sent", actor=admin["email"],
+    )
+    background.add_task(_mail_password_reset, user["email"], raw)
+    return {"ok": True, "user_id": user_id, "email": user["email"]}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
