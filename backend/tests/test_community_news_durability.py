@@ -428,6 +428,37 @@ def test_clearing_strays_never_touches_the_lead_s_own_badge():
     assert lead["urgent"] is True and lead["urgent_kind"] == "regulatory"
 
 
+def test_the_lead_spared_by_the_clearing_is_the_marked_one_not_the_drawn_one():
+    """The hole this rule is easiest to leave open.
+
+    ``lead_and_rest`` skips items no surface would draw, so on a payload whose
+    MARKED lead has no headline it answers with the first item that has one --
+    and a clearing that spared that item would leave an unearned badge exactly
+    where the next promotion publishes it. "Which story did the compose pass
+    choose" is a fact on the record; "what does a reader see first" is a
+    different question."""
+    payload = {"items": [
+        {"url": "https://example.org/a", "headline": "", "lead": True},
+        {"url": "https://example.org/b", "headline": "Not the lead",
+         "urgent": True, "urgent_kind": "regulatory"},
+    ]}
+    # The two disagree, which is the whole point.
+    assert contract.lead_and_rest(payload)[0]["url"] == "https://example.org/b"
+    assert contract.marked_lead(payload)["url"] == "https://example.org/a"
+
+    assert len(contract.clear_stray_urgency(payload)) == 1
+    assert payload["items"][1]["urgent"] is False, "an unearned badge survived"
+
+
+def test_the_marked_lead_falls_back_the_same_way_mark_lead_does():
+    """An unmarked payload must not make the two disagree about item one."""
+    payload = {"items": [{"url": "https://example.org/a", "headline": "One"},
+                         {"url": "https://example.org/b", "headline": "Two"}]}
+    assert contract.marked_lead(payload)["url"] == "https://example.org/a"
+    assert contract.marked_lead({"items": []}) is None
+    assert contract.marked_lead({}) is None
+
+
 def test_a_stray_badge_on_an_item_no_surface_draws_is_still_cleared():
     """``lead_and_rest`` drops headline-less items, so a rule written over that
     view would leave a flag on one of them -- invisible until somebody repairs
@@ -544,6 +575,23 @@ def test_every_rendered_digest_field_is_scanned_for_phi():
             if item.get(field):
                 assert item[field] in scanned, f"{field} never reaches the PHI gate"
     assert payload["title"] in scanned
+
+
+def test_the_subject_counts_what_the_email_actually_shows():
+    """The subject is read before the post is opened, and it counted the raw
+    item list while the body counted rendered ones -- so a digest with a
+    headline-less item was subjected "4 items" over a mail showing three."""
+    from onboarding_emails import build_community_digest_post_email, digest_email_subject
+
+    payload = contract.mark_lead(
+        contract.validate_payload(_payload(), kind="news"), "https://example.org/a")
+    assert digest_email_subject(payload) == "Medical AI Digest · 3 items"
+    payload["items"][1]["headline"] = ""
+    assert digest_email_subject(payload) == "Medical AI Digest · 2 items"
+    out = build_community_digest_post_email(
+        payload=payload, community_url="https://example.test/c",
+        unsubscribe_url="https://example.test/u")
+    assert out.count("Full article →") == 2, "the subject and the body disagree"
 
 
 def test_a_one_item_subject_is_not_pluralised():

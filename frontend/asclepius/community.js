@@ -3324,23 +3324,7 @@
        * because the client stops polling while the socket is healthy and the
        * server never pushed anything when it wrote them. */
       case 'dm.created': applyDmSummary(ev.dm); break;
-      case 'message.updated': {
-        const msg = ev.message;
-        const st = state.msgs[msg.channel];
-        if (st) st.list = st.list.map((m) => (m.id === msg.id ? msg : m));
-        // The admin override arrives as an update, so the pinned card has to
-        // pick up the new lead rather than go on drawing the old one.
-        // Replaced IN PLACE, not removed and re-appended: an edit to an older
-        // message would otherwise jump to the end of the list and be read as
-        // the newest digest in the room.
-        replaceDigestRow(msg);
-        if (state.thread) {
-          if (state.thread.root.id === msg.id) state.thread.root = msg;
-          state.thread.replies = state.thread.replies.map((r) => (r.id === msg.id ? msg : r));
-        }
-        renderMessages({}); renderThreadPanel();
-        break;
-      }
+      case 'message.updated': applyUpdate(ev.message); break;
       case 'message.deleted': applyDelete(ev.id, ev.parent_message_id); break;
       case 'reaction': applyReactions(ev.message_id, ev.reactions); break;
       // ── v2.1 social events ──
@@ -3534,9 +3518,23 @@
      counts a digest nobody can read any more, and the pinned card would go on
      drawing it until a reload. */
   function forgetDigestRow(mid) {
-    const before = state.digestRoom.length;
-    state.digestRoom = state.digestRoom.filter((m) => m.id !== mid);
-    if (state.digestRoom.length !== before) refreshDigestRoom();
+    const at = state.digestRoom.findIndex((m) => m.id === mid);
+    if (at === -1) return;
+    /* Drop the channel's unread with it when the row was one of the unread
+       ones. `newDigestCount` reads the LAST `unread` rows, so removing a row
+       without lowering the count slides that window one place earlier and an
+       already-read digest starts being counted as new. The server agrees:
+       `unread_counts` is `deleted_at IS NULL`, so it stops counting a deleted
+       message too -- this is the client keeping up, not inventing a rule. */
+    const ch = state.channels.find((c) => c.slug === 'medical-ai-news');
+    const mine = (state.me || {}).user_id;
+    const others = state.digestRoom.filter(
+      (m) => !(mine && m.author && m.author.user_id === mine));
+    const unread = Math.max(0, Math.min((ch && ch.unread) || 0, others.length));
+    const wasUnread = others.slice(others.length - unread).some((m) => m.id === mid);
+    state.digestRoom.splice(at, 1);
+    if (ch && wasUnread) ch.unread = Math.max(0, (ch.unread || 0) - 1);
+    refreshDigestRoom();
   }
 
   /* A row we already hold has changed -- an edit, or the admin override
@@ -3548,6 +3546,26 @@
     if (at === -1) return;
     state.digestRoom[at] = msg;
     refreshDigestRoom();
+  }
+
+  /* An edited or re-led message, applied everywhere it is held.
+     A named function rather than a case body so the wiring itself can be
+     tested: an audit deleted the digest-room line from inside the switch and
+     every test stayed green, because nothing could reach the case. */
+  function applyUpdate(msg) {
+    if (!msg || !msg.id) return;
+    const st = state.msgs[msg.channel];
+    if (st) st.list = st.list.map((m) => (m.id === msg.id ? msg : m));
+    // The admin override arrives as an update, so the pinned card has to pick
+    // up the new lead rather than go on drawing the old one. Replaced IN
+    // PLACE, not removed and re-appended: an edit to an older message would
+    // otherwise jump to the end of the list and be read as the newest digest.
+    replaceDigestRow(msg);
+    if (state.thread) {
+      if (state.thread.root.id === msg.id) state.thread.root = msg;
+      state.thread.replies = state.thread.replies.map((r) => (r.id === msg.id ? msg : r));
+    }
+    renderMessages({}); renderThreadPanel();
   }
 
   function bumpUnread(msg) {

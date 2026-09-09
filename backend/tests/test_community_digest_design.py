@@ -57,6 +57,18 @@ def _extract(name: str, kind: str = "function") -> str:
     depth, quote, i = 0, "", _JS.index("(" if kind == "function" else "=", start)
     while i < len(_JS):
         ch = _JS[i]
+        # Comments first, and before the quote rules: a backtick or an
+        # apostrophe inside a comment would otherwise open a string state that
+        # never closes, and the extractor runs off the end of the file. (The
+        # `\\` guard keeps an escaped slash inside a regex literal from reading
+        # as the start of a line comment.)
+        if not quote and _JS[i:i + 2] == "/*":
+            i = _JS.index("*/", i) + 2
+            continue
+        if not quote and _JS[i:i + 2] == "//" and _JS[i - 1] != "\\":
+            nl = _JS.find("\n", i)
+            i = len(_JS) if nl == -1 else nl
+            continue
         if quote:
             if ch == "\\":
                 i += 2
@@ -95,6 +107,7 @@ let api = () => Promise.resolve({ messages: [] });
 // the real one, because a later `function` declaration wins over these.
 function renderMessages() {}
 function renderRail() {}
+function renderThreadPanel() {}
 // The shim gives every ELEMENT a querySelector but not the document. A browser
 // has both, and `openDigestPost` scrolls to a row through the document one.
 document.querySelector = (sel) => document.body.querySelector(sel);
@@ -404,7 +417,7 @@ def test_the_presence_counts_come_from_state_and_zero_online_is_a_hollow_dot():
 _ROOM_FUNCS = _CARD_FUNCS + ("loadLatestDigest", "newDigestCount",
                              "renderGreeting", "greetingWord", "greetingName",
                              "refreshDigestRoom", "trackDigestRoom",
-                             "forgetDigestRow", "replaceDigestRow")
+                             "forgetDigestRow", "replaceDigestRow", "applyUpdate")
 
 
 def _room(body: str) -> dict:
@@ -562,6 +575,62 @@ def test_a_deleted_or_re_led_digest_stops_being_counted_and_drawn():
     assert res["afterUnknownDelete"] == 2
     assert res["orderKept"] == [1, 2], "an edit reordered the room's rows"
     assert res["latestAfterEdit"] == 2
+
+
+def test_deleting_a_digest_lowers_the_unread_it_was_counted_in():
+    """`newDigestCount` reads the LAST `unread` rows. Removing a row without
+    lowering the count slides that window one place earlier, so an
+    already-read digest starts being counted as new. The server agrees --
+    `unread_counts` is `deleted_at IS NULL` -- so this is the client keeping
+    up, not inventing a rule."""
+    res = _room("""
+        const out = {};
+        seed([digest(1), digest(2), digest(3)], 2).then(() => {
+          out.start = newDigestCount();
+          forgetDigestRow(3);                 // an UNREAD one
+          out.afterUnreadDelete = { count: newDigestCount(),
+                                    unread: state.channels[0].unread };
+          forgetDigestRow(1);                 // an already-READ one
+          out.afterReadDelete = { count: newDigestCount(),
+                                  unread: state.channels[0].unread };
+          console.log(JSON.stringify(out));
+        });
+        """)
+    assert res["start"] == 2
+    assert res["afterUnreadDelete"] == {"count": 1, "unread": 1}, \
+        "deleting an unread digest left the count sliding onto a read one"
+    assert res["afterReadDelete"] == {"count": 1, "unread": 1}, \
+        "deleting an already-read digest changed the unread count"
+
+
+def test_the_update_handler_itself_carries_the_digest_row_forward():
+    """Reached through `applyUpdate`, which is what the socket calls, rather
+    than by calling `replaceDigestRow` directly. An audit deleted the
+    digest-room line from inside the switch and every test stayed green,
+    because no test could reach the case body."""
+    res = _room("""
+        const out = {};
+        state.msgs = { 'medical-ai-news': { list: [] } };
+        seed([brief(1), digest(2)], 0).then(() => {
+          out.before = state.latestDigest.id;
+          // The admin override arrives as an update: same id, new payload.
+          const reled = { id: 2, channel: 'medical-ai-news', kind: 'digest_news',
+                          created_at: 'x',
+                          payload: Object.assign({}, DIGEST_PAYLOAD, { title: 'Re-led' }) };
+          applyUpdate(reled);
+          out.title = state.latestDigest.payload.title;
+          out.rows = state.digestRoom.map((m) => m.id);
+          // An update for a message the room does not hold changes nothing.
+          applyUpdate({ id: 99, channel: 'medical-ai-news', kind: 'digest_news',
+                        created_at: 'x', payload: DIGEST_PAYLOAD });
+          out.rowsAfterUnknown = state.digestRoom.map((m) => m.id);
+          console.log(JSON.stringify(out));
+        });
+        """)
+    assert res["before"] == 2
+    assert res["title"] == "Re-led", "the pinned card kept drawing the old digest"
+    assert res["rows"] == [1, 2]
+    assert res["rowsAfterUnknown"] == [1, 2]
 
 
 def test_the_rooms_row_list_stays_bounded():

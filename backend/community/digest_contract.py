@@ -475,11 +475,15 @@ def clear_stray_urgency(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     promotion, and clearing there would destroy a badge the compose pass earned
     each time somebody promoted a different story (§9.7).
 
-    Iterates the payload's OWN items rather than ``lead_and_rest``'s view, which
-    drops headline-less entries: a flag on one of those still has to go, even
-    though nothing would have drawn it.
+    Both the items it walks AND the lead it spares come from the payload's own
+    list, never from ``lead_and_rest``. That view drops headline-less entries,
+    so on a payload whose marked lead has no headline it answers with the first
+    item that does -- and sparing THAT item is how an unearned badge survives a
+    normalisation and gets published by the next promotion. The rule here is
+    about which item the compose pass chose, which is a fact on the payload;
+    what any surface would draw is a different question.
     """
-    lead, _rest = lead_and_rest(payload)
+    lead = marked_lead(payload)
     cleared: List[Dict[str, Any]] = []
     for item in payload.get("items") or []:
         if not isinstance(item, dict) or item is lead:
@@ -489,6 +493,24 @@ def clear_stray_urgency(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
             item["urgent_kind"] = None
             cleared.append(item)
     return cleared
+
+
+def marked_lead(payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The item ``mark_lead`` chose, over the payload's UNFILTERED list.
+
+    Distinct from ``lead_and_rest``, and the distinction matters. That function
+    answers "what does a reader see first", so it skips items no surface would
+    draw. This one answers "which story did the compose pass promote", which is
+    a property of the record and is still true of an item whose headline is
+    missing or was cleared by hand.
+
+    Falls back to the first item, which is what ``mark_lead`` itself falls back
+    to, so the two cannot disagree about an unmarked payload.
+    """
+    items = [i for i in (payload.get("items") or []) if isinstance(i, dict)]
+    if not items:
+        return None
+    return next((i for i in items if i.get("lead")), items[0])
 
 
 def lead_and_rest(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:

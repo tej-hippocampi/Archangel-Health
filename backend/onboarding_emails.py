@@ -2044,7 +2044,13 @@ def digest_email_subject(payload: Dict[str, Any]) -> str:
     from community import digest_contract  # noqa: PLC0415 - avoids an import cycle
 
     title = str((payload or {}).get("title") or digest_contract.DEFAULT_TITLE)
-    n = len((payload or {}).get("items") or [])
+    # Counted the way the body counts, not off the raw list. A headline-less
+    # item is drawn by nothing, so subjecting a mail "4 items" over a mail
+    # showing three is the same "one post says two things about how many
+    # stories it has" split -- in the one surface read before the post is even
+    # opened.
+    lead, rest = digest_contract.lead_and_rest(payload or {})
+    n = (1 if lead else 0) + len(rest)
     return f"{title} · {n} item" + ("" if n == 1 else "s")
 
 
