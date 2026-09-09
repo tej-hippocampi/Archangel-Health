@@ -2986,13 +2986,15 @@
       }
       loadIngestionLists();
     };
-    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, p, onRowRefresh)));
+    const declarationRequired = trajectory && !plan.specialty_hint;
+    if (declarationRequired) list.appendChild(specialtyResolver(upload.upload_id, () => onRowRefresh('specialty')));
+    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, declarationRequired ? { ...p, generatable: false } : p, onRowRefresh)));
 
     const status = h('div', { style: 'margin-top:12px' });
     const nGen = plan.generatable || 0;
     const allBtn = h('button', { class: 'asc-btn asc-btn-primary' },
       'Generate all ' + nGen + ' case(s)');
-    if (!nGen) allBtn.setAttribute('disabled', '');
+    if (!nGen || declarationRequired) allBtn.setAttribute('disabled', '');
     allBtn.addEventListener('click', async () => {
       allBtn.setAttribute('disabled', '');
       allBtn.textContent = 'Generating…';
@@ -3029,7 +3031,7 @@
     const nVerifiable = plan.verifiable_decision_points || 0;
     const trajBtn = h('button', { class: 'asc-btn asc-btn-primary' },
       'Chain ' + nPoints + ' decision point(s) into one trajectory');
-    if (!nPoints) trajBtn.setAttribute('disabled', '');
+    if (!nPoints || declarationRequired) trajBtn.setAttribute('disabled', '');
     trajBtn.addEventListener('click', async () => {
       const cost = (nPoints * 75).toLocaleString();
       if (!window.confirm(
@@ -3075,6 +3077,11 @@
         (ic.patient_key || '') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
         + nGen + ' generatable'
         + (plan.specialty_hint ? ' · specialty ' + plan.specialty_hint : '')),
+      plan.why ? h('div', { class: 'asc-dim' }, plan.why) : null,
+      h('div', { class: 'asc-dim' }, 'Chart threads across encounters: ' + Object.entries(proposals.reduce((scores, p) => {
+        Object.entries(p.specialty_scores || {}).forEach(([key, value]) => { scores[key] = Math.max(scores[key] || 0, value); });
+        return scores;
+      }, {})).filter(([, value]) => value > 0).sort((a, b) => b[1] - a[1]).map(([key, value]) => key + ' ' + value.toFixed(2)).join(' / ')),
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:6px' },
         'Nothing here has been written. Difficulty is measured only when you generate, '
         + 'a band shown as "proposed" is the structural prior, not a frontier failure rate.'),
@@ -3366,7 +3373,7 @@
     function reingestControl(u) {
       const c = u.content || {};
       if (!c.reingest_available) return null;
-      const blocked = !!(u.case_counts || {}).promoted;
+      const blocked = !!(u.case_counts || {}).promoted || ['received', 'scanning', 'parsing'].includes(u.status);
       const button = h('button', { class: 'asc-btn-link', type: 'button', disabled: blocked,
         title: blocked ? 'This upload already has tasks; retry is unavailable.' : null }, 'Re-ingest');
       button.addEventListener('click', async () => {
@@ -3445,6 +3452,7 @@
       if (c.encounters) bits.push(c.encounters + ' encounter' + (c.encounters === 1 ? '' : 's'));
       if (c.notes) bits.push(c.notes + ' note' + (c.notes === 1 ? '' : 's'));
       if (c.lab_panels) bits.push(c.lab_panels + ' panel' + (c.lab_panels === 1 ? '' : 's'));
+      if (c.omitted_implausible_dates) bits.push(c.omitted_implausible_dates + ' documents carry dates the chart cannot support');
       if (c.studies) bits.push(c.studies + ' stud' + (c.studies === 1 ? 'y' : 'ies'));
       if (counts.needs_review) bits.push(counts.needs_review + ' need review');
       if (counts.quarantined) bits.push(counts.quarantined + ' quarantined');
@@ -3471,11 +3479,10 @@
       // a measurement nobody took, nor told its chart "carries too little
       // signal" when it was never read.
       const measured = c.specialty_clears_floor === true || c.specialty_clears_floor === false;
-      const required = measured && !c.specialty_clears_floor;
+      const required = true;
       const why = !measured
         ? ('This chart was ingested before specialty inference was recorded, so '
-           + 'nothing has been measured. Set the specialty here, or build and let '
-           + 'the planner read each encounter. ')
+           + 'nothing has been measured. Set the specialty before building. ')
         : (c.specialty_inferred
           ? ('The chart as a whole reads as ' + cap(c.specialty_inferred) + ' at '
              + Number(c.specialty_confidence || 0).toFixed(2)

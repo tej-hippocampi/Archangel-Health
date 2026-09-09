@@ -36,7 +36,26 @@ That claim is not taken on trust. Every bundle runs the shipped
 `deid_verify.verify_deid` hard guard on the way in, and three of the four pass it
 clean. The fourth does not, and it does not for a reason worth reading:
 
-## Measured yield — 55 encounters → 22 decision points → 18 verifiable
+## Proposed pipeline v5 yield — release acceptance unresolved
+
+Applying the longitudinal-fix PRD literally yields **47 encounters → 18 decision
+points → 14 verifiable** across these exact fixture trees:
+
+| bundle | encounters | decision points | verifiable | status |
+|---|---|---|---|---|
+| patient-1 | 22 | 9 | 8 | ingested |
+| patient-2 | 12 | 2 | 1 | quarantined; diagnostic counts only |
+| patient-3 | 5 | 4 | 3 | ingested |
+| patient-4 | 8 | 3 | 2 | ingested; 167 curated notes, 157 panels |
+
+**Do not release on these numbers yet.** The original front-door assertions remain
+unchanged to expose the PRD conflicts: excluding duplicated panel text removes
+four patient-1 decision points; the exact three-year rule leaves patient-4's
+medication sheet at day −1429 (only 1,021 days before its earliest structured
+item). The PRD's required 13 and 7 cannot both be reproduced with its rules.
+See `prd-longitudinal-fix/IMPLEMENTATION_STATUS.md` for the acceptance decisions.
+
+## Previous pipeline yield — 55 encounters → 22 decision points → 18 verifiable
 
 Measured on these exact trees, through the shipped ingestion path, and pinned by
 `tests/test_longitudinal_front_door.py` so a gate change cannot move it quietly.

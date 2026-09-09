@@ -5913,7 +5913,10 @@ class AsclepiusStore:
                 crow = conn.execute(
                     "SELECT ingest_case_id, status FROM ingest_cases "
                     "WHERE upload_id = ? AND patient_key = ? AND status != 'superseded' "
-                    "AND created_at >= ? ORDER BY created_at ASC LIMIT 1",
+                    "AND created_at >= ? AND NOT EXISTS (SELECT 1 FROM ingest_cases old "
+                    "WHERE old.upload_id = ingest_cases.upload_id "
+                    "AND old.patient_key = ingest_cases.patient_key AND old.status = 'superseded') "
+                    "ORDER BY created_at ASC LIMIT 1",
                     (rec.get("upload_id"), rec.get("patient_key"), rec.get("created_at")),
                 ).fetchone()
                 if crow:
@@ -6717,6 +6720,7 @@ class AsclepiusStore:
         # "is part of a walk" and "is not released yet" are different facts and a
         # future single-point send would need to set one without the other.
         distribution: Optional[str] = None,
+        ingest_case_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         from asclepius.constants import normalize_independent_mode
 
@@ -6797,6 +6801,16 @@ class AsclepiusStore:
             (generation or {}).get("empirical_difficulty")
         )
         with self._conn() as conn:
+            if ingest_case_id is not None:
+                # Shares SQLite's write lock with begin_ingest_retry: either the
+                # task wins and retry refuses, or retry wins and no task is inserted.
+                cur = conn.execute(
+                    "UPDATE ingest_cases SET status = 'promoted', "
+                    "task_id = COALESCE(NULLIF(task_id, ''), ?), updated_at = ? "
+                    "WHERE ingest_case_id = ? AND status IN ('ingested', 'promoted')",
+                    (tid, _utcnow_iso(), ingest_case_id))
+                if not cur.rowcount:
+                    raise ValueError("ingest_case_changed: chart was superseded or held during generation; re-plan it")
             conn.execute(
                 """
                 INSERT OR REPLACE INTO tasks

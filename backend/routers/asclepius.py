@@ -6687,8 +6687,8 @@ def _upload_content_view(cases: List[Dict[str, Any]]) -> Dict[str, Any]:
         summary = ((c.get("report") or {}).get("content_summary")) or {}
         body = c.get("case") or {}
         if summary:
-            for k in ("notes", "lab_panels", "studies", "encounters", "decision_points"):
-                out[k] += int(summary.get(k) or 0)
+            for k in ("notes", "lab_panels", "studies", "encounters", "decision_points", "omitted_implausible_dates"):
+                out[k] = out.get(k, 0) + int(summary.get(k) or 0)
         else:
             out["notes"] += len(body.get("notes") or [])
             out["lab_panels"] += len(body.get("lab_panels") or [])
@@ -6812,6 +6812,8 @@ async def list_ingestion_uploads(
         # ingest recorded; a row that predates the summary gets the cheap counts
         # from its stored case and no inference.
         u["content"] = _upload_content_view(cases)
+        if not cases and u.get("status") == "rejected":
+            u["content"]["reingest_available"] = True
         promotable = [c for c in ingested
                       if not asc_ingestion.blocks_promotion(
                           c.get("purpose") or u.get("purpose"))]
@@ -7368,6 +7370,7 @@ def _commit_promoted_task(
         grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
         independent_mode=independent_mode or DEFAULT_INDEPENDENT_MODE,
         case=conv["case"], generation=conv["generation"], created_by=admin["id"],
+        ingest_case_id=ic["ingest_case_id"],
         # Launch-week fan-out (V4 PRD §4): VISIBILITY only, never max_labels.
         open_to_all_specialties=bool(open_to_all_specialties),
     )
@@ -7921,6 +7924,7 @@ async def _generate_one_real_case(
         grounding_mode=grounding_mode or DEFAULT_GROUNDING_MODE,
         independent_mode=independent_mode or DEFAULT_INDEPENDENT_MODE,
         case=case, generation=generation, created_by=admin["id"],
+        ingest_case_id=ic["ingest_case_id"],
         # Launch-week fan-out (V4 PRD §4): VISIBILITY only, never max_labels.
         open_to_all_specialties=bool(open_to_all_specialties),
         trajectory_id=trajectory_id, sequence_index=sequence_index,
@@ -7997,7 +8001,7 @@ async def generate_real_cases(
         plan = await real_cases.plan_cases(
             ic.get("case") or {}, max_cases=body.max_cases,
             min_gap_days=max(1, int(body.min_gap_days or 7)),
-            specialty_hint=hint, derive_questions=body.derive_questions,
+            specialty_hint=hint, derive_questions=body.derive_questions, trajectory=body.trajectory,
             # On a live per-case generate, author ONLY the question we are about to
             # use. A dry run authors all of them, which is the point of the preview.
             question_indices=(None if body.dry_run else body.encounter_indices))
@@ -8035,6 +8039,8 @@ async def generate_real_cases(
         "patient_key": ic.get("patient_key"),
         "encounters": plan["encounters"],
         "generatable": plan["generatable"],
+        "why": plan.get("why"),
+        "omitted_implausible_dates": plan.get("omitted_implausible_dates", 0),
         "selected": len(selected),
         "specialty_hint": hint,
         "dry_run": bool(body.dry_run),

@@ -55,3 +55,50 @@ def test_duplicate_retry_is_reserved_once():
     with pytest.raises(ValueError, match='retry_in_progress'):
         st.begin_ingest_retry(uid)
     assert len(st.list_ingest_cases(upload_id=uid)) == 3
+
+
+def test_retry_winning_race_prevents_task_from_stale_conversion():
+    st, _, uid = _seed()
+    old = next(c for c in st.list_ingest_cases(upload_id=uid) if c['status'] == 'ingested')
+    st.begin_ingest_retry(uid)
+    with pytest.raises(ValueError, match='ingest_case_changed'):
+        st.insert_task(prompt='Already converted', ingest_case_id=old['ingest_case_id'], task_id='race-task')
+    assert st.get_task('race-task') is None
+    assert st.get_ingest_case(old['ingest_case_id'])['status'] == 'superseded'
+
+
+def test_task_winning_race_blocks_retry_atomically():
+    st, _, uid = _seed()
+    old = next(c for c in st.list_ingest_cases(upload_id=uid) if c['status'] == 'ingested')
+    task = st.insert_task(prompt='Converted', ingest_case_id=old['ingest_case_id'])
+    with pytest.raises(ValueError, match='promoted_cases'):
+        st.begin_ingest_retry(uid)
+    assert st.get_ingest_case(old['ingest_case_id'])['task_id'] == task['task_id']
+
+
+def test_zero_generatable_explains_no_model_call(monkeypatch):
+    st, admin, uid = _seed()
+    old = next(c for c in st.list_ingest_cases(upload_id=uid) if c['status'] == 'ingested')
+    from asclepius import real_cases
+    async def unexpected(*args, **kwargs):
+        raise AssertionError('zero generatable must not author a question')
+    monkeypatch.setattr(real_cases, 'derive_clinical_question', unexpected)
+    r = client.post(f"/api/asclepius/ingestion/cases/{old['ingest_case_id']}/generate",
+                    headers=admin, json={'dry_run': True, 'trajectory': True})
+    assert r.status_code == 200, r.text
+    assert r.json()['generatable'] == 0
+    assert r.json()['why'] == 'no model was called: 0 encounters cleared the gate'
+
+
+def test_old_unbound_key_never_attaches_to_retried_generation():
+    st, _, uid = _seed()
+    old = next(c for c in st.list_ingest_cases(upload_id=uid) if c['status'] == 'ingested')
+    sid = st.stage_sealed_ground_truth(upload_id=uid, patient_key=old['patient_key'],
+                                       payload={'answer': 'previous generation'})
+    st.begin_ingest_retry(uid)
+    new = st.insert_ingest_case(upload_id=uid, patient_key=old['patient_key'],
+                                specialty='cardiology', case=old['case'], status='ingested', report={})
+    result = st.reconcile_sealed_ground_truth(older_than_seconds=0)
+    assert any(o['sealed_id'] == sid for o in result['orphans'])
+    assert result['bound'] == 0
+    assert st.get_ingest_case(new['ingest_case_id'])['status'] == 'ingested'

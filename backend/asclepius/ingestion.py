@@ -2131,6 +2131,8 @@ def process_upload(store: Any, upload_id: str, *, specialty_override: Optional[s
             # list request (Case Generation Fix PRD §B1). Advisory only — a
             # failure here must never change the ingest outcome.
             try:
+                from asclepius.real_cases import prepare_longitudinal_chart
+                case = prepare_longitudinal_chart(case)
                 report["content_summary"] = content_summary(case)
             except Exception as exc:  # pragma: no cover - defensive
                 log.warning("content summary failed for upload %s: %s", upload_id, exc)
@@ -2258,7 +2260,7 @@ def content_summary(case: Dict[str, Any]) -> Dict[str, Any]:
     """
     from asclepius import real_cases as rc
 
-    c = case or {}
+    c = rc.prepare_longitudinal_chart(case)
     encounters = rc.segment_longitudinal_record(c)
     undated = len(encounters) == 1 and bool(encounters[0].get("undated"))
     decision_points = 0 if undated else sum(
@@ -2268,6 +2270,7 @@ def content_summary(case: Dict[str, Any]) -> Dict[str, Any]:
     if _scores:
         best = max(_scores, key=lambda s: _scores[s])
     return {
+        "omitted_implausible_dates": sum(n.get("withheld_reason") == "implausible_date" for n in c.get("notes") or []),
         "notes": len(c.get("notes") or []),
         "lab_panels": len(c.get("lab_panels") or []),
         "studies": len(c.get("studies") or []),
