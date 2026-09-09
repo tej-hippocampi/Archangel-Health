@@ -194,3 +194,55 @@ def test_the_dossier_still_never_carries_the_hash(client):
                       headers=headers_for(admin)).text
     assert "password_hash" not in body
     assert asc_store_mod.NO_PASSWORD_HASH not in body
+
+
+# ─── The bound is "an applicant", not "a row with no hash" ───────────────────
+
+def test_it_refuses_a_passwordless_non_applicant(client):
+    """`password_is_unset` answers a question about a COLUMN; this control is
+    for a PERSON. The two sets coincide today only because of how the SSO,
+    buyer and data-partner provisioners happen to behave — a fact about
+    provisioning, not a rule, and nothing enforces it."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    for role in ("buyer", "data_partner", "qa_reviewer"):
+        odd = store.provision_user(
+            email=f"x_{uuid.uuid4().hex[:8]}@example.org",
+            password_hash=asc_store_mod.NO_PASSWORD_HASH,
+            role=role, full_name="Not An Applicant",
+            credentials={}, attestations={},
+        )
+        r = client.post(_url(odd["id"]), json={}, headers=headers_for(admin))
+        assert r.status_code == 400, f"{role}: {r.text}"
+        assert store.count_live_password_resets(odd["id"]) == 0
+
+
+def test_it_refuses_an_already_approved_physician(client):
+    """Approval mints credentials itself (`_needs_credentials`). Reaching this
+    control for an approved row means something else is wrong, and mailing a
+    reset would paper over it."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    applicant = _legacy_applicant(store)
+    store.set_verification_status(applicant["id"], "approved")
+
+    r = client.post(_url(applicant["id"]), json={}, headers=headers_for(admin))
+    assert r.status_code == 400, r.text
+    assert store.count_live_password_resets(applicant["id"]) == 0
+
+
+def test_it_refuses_an_inactive_account_rather_than_claiming_it_sent(client):
+    """forgot_password skips an inactive account silently, because answering
+    differently would be an enumeration oracle. An admin is not who that
+    uniformity protects against, and "sent" about a mail that was never queued
+    is the dead end this whole section exists to remove."""
+    store = fresh_store()
+    admin = make_user(store, role="admin")
+    applicant = _legacy_applicant(store)
+    # No public setter for this; the column is what the endpoint reads.
+    with store._conn() as conn:
+        conn.execute("UPDATE users SET active = 0 WHERE id = ?", (applicant["id"],))
+
+    r = client.post(_url(applicant["id"]), json={}, headers=headers_for(admin))
+    assert r.status_code == 400, r.text
+    assert "not active" in r.json()["detail"].lower()

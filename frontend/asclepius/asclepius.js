@@ -2240,19 +2240,22 @@
         const addr = (emailInput && emailInput.value || '').trim();
         if (!addr) { errBox.classList.add('asc-login-notice'); errBox.textContent = 'Enter your email above first.'; return; }
         try {
-          const res = await fetch(API_BASE + '/auth/password/forgot', {
-            method: 'POST',
-            headers: realmHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({ email: addr }),
+          // Same reason as renderExaminationOwed's door: `fetch` does not reject
+          // on an HTTP error, so the rate limiter's 429 used to render as "we've
+          // sent a reset link". This is the door the legacy-applicant hint below
+          // points at, so a silent lie here strands exactly the people §3 is for.
+          const data = await api('/auth/password/forgot', {
+            method: 'POST', body: { email: addr }, noAuthHandler: true,
           });
-          const data = await res.json().catch(() => null);
           errBox.classList.add('asc-login-notice');
           errBox.textContent = (data && data.message)
             || "If that email has an Archangel Health account, we've sent a reset link.";
-        } catch (_) {
+        } catch (e) {
           errBox.classList.add('asc-login-notice');
-          errBox.textContent = 'Could not reach the server. Try again in a moment.';
+          errBox.textContent = (e && e.message)
+            || 'Could not reach the server. Try again in a moment.';
         }
+        errBox.removeAttribute('hidden');
       },
     }, 'Forgot your password?');
 
@@ -2491,26 +2494,45 @@
       set.setAttribute('disabled', '');
       set.textContent = 'Sending\u2026';
       try {
-        const res = await fetch(API_BASE + '/auth/password/forgot', {
-          method: 'POST',
-          headers: realmHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ email: email }),
+        // THROUGH api(), NOT A HAND-ROLLED fetch. `fetch` does not reject on an
+        // HTTP error, so a bare `await fetch(...)` falls through to the success
+        // path on every 4xx and 5xx. Three of those are reachable here and none
+        // is exotic: /auth/password/forgot is rate-limited per IP, so a
+        // hospital behind one NAT gets a 429; the live-reset ceiling answers
+        // 200 but mails nothing; and the server can simply be unwell. Reporting
+        // "sent" for any of them sends the applicant to a mailbox that will
+        // never receive anything and leaves this button dead on "Sent" — which
+        // is strictly worse than the "Check again" this card replaced, because
+        // that one at least stayed clickable.
+        //
+        // noAuthHandler: nobody is signed in on this screen, so the global
+        // session-expired redirect must not fire on anything that comes back.
+        const data = await api('/auth/password/forgot', {
+          method: 'POST', body: { email: email }, noAuthHandler: true,
         });
-        const data = await res.json().catch(() => null);
         // Confirmation INLINE, not a redirect: this person has already been
         // bounced between screens once, and the next thing they do is leave
         // for their mail client.
+        //
+        // The SERVER's sentence is preferred and it is deliberately hedged
+        // ("if that email has an account"). Ours must hedge too: the endpoint
+        // answers identically for an address it will not mail — an inactive
+        // account, an unknown one — because answering differently would be an
+        // enumeration oracle. Promising delivery we cannot confirm is how the
+        // next dead end gets built.
         notice.classList.add('asc-login-notice');
         notice.textContent = (data && data.message)
-          || ('We\u2019ve emailed ' + email + ' a link to set your password.');
+          || ('If ' + email + ' has an account with us, we\u2019ve sent a link '
+              + 'to set your password.');
         set.textContent = 'Sent \u2713';
-      } catch (_) {
+      } catch (e) {
         // A dead control is the failure this whole card exists to remove, so
-        // the button must come back live on any error.
+        // the button comes back live on ANY failure, transport or HTTP.
         set.removeAttribute('disabled');
         set.textContent = 'Set my password';
         notice.classList.add('asc-login-notice');
-        notice.textContent = 'Could not reach the server. Try again in a moment.';
+        notice.textContent = (e && e.message)
+          || 'Could not reach the server. Try again in a moment.';
       }
     });
     body.appendChild(set);

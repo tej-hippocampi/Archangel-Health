@@ -1106,12 +1106,36 @@ async def send_password_setup_link(
 
     store = _store()
     user = _load_user_or_404(user_id)
+    # BOUND IT TO APPLICANTS, not merely to rows with no password hash.
+    #
+    # `password_is_unset` answers a question about a COLUMN. What this control
+    # is for is a person: a physician who finished the wizard during the window
+    # when it minted no credential. Those two sets coincide today — the SSO path
+    # mints a real random password, and the buyer and data-partner provisioners
+    # both pass one — but that is a fact about provisioning, not a rule, and
+    # nothing enforces it. If some future path ever creates a passwordless
+    # non-applicant, an admin misclick should not mail it a credential link.
+    #
+    # So state the rule the PRD actually wrote: a NO_PASSWORD_HASH *applicant*.
+    if (user.get("role") or "") != "evaluator":
+        raise HTTPException(
+            status_code=400,
+            detail="This control is for physician applicants only.")
+    if (user.get("verification_status") or "pending") == "approved":
+        raise HTTPException(
+            status_code=400,
+            detail="This physician is already approved. Approval mints their "
+                   "credentials; it does not need this.")
     if not _needs_credentials(user):
         raise HTTPException(
             status_code=400,
             detail="This physician already has a password. They can use "
                    "Forgot your password on the sign-in page.")
     if not user.get("active"):
+        # The forgot endpoint skips an inactive account silently (it answers
+        # uniformly so as not to be an enumeration oracle). An ADMIN is not
+        # who that uniformity protects against, and telling them "sent" about a
+        # mail that was never queued is how the next dead end gets built.
         raise HTTPException(status_code=400, detail="This account is not active.")
 
     raw = mint_password_reset(store, user, actor=admin["email"])

@@ -120,17 +120,28 @@ def test_physician_order_is_cv_review_and_has_no_password_step():
     # The password screen must not be reachable on this path. It still exists
     # for member mode and the short signup, so the check is that the physician
     # array does not contain it, not that the step is gone.
-    idx = src.index(order_line)
-    branch = src[src.index('if (product === "asclepius") {'):idx]
-    # COMMENTS STRIPPED FIRST. The property is about the step ARRAY, and
-    # the prose above it necessarily discusses the password (it explains
-    # where the password IS taken, which is the correction §3.2 step 5
-    # made). Grepping raw source conflated "this path has a password
-    # screen" with "this path mentions passwords", and only the first is
-    # the contract.
-    branch = re.sub(r"/\*.*?\*/", "", branch, flags=re.DOTALL)
-    branch = re.sub(r"//[^\n]*", "", branch)
-    assert '"password"' not in branch
+    # ASSERT ON THE ARRAY, which is the contract, rather than on the source
+    # slice above it. Two earlier versions of this test grepped that slice: the
+    # first read the prose (which necessarily discusses passwords, since it
+    # explains where the password IS taken), and the second stripped comments
+    # and was left with `if (product === "asclepius") {` plus whitespace — an
+    # assertion that could not fail for any possible content of the branch.
+    #
+    # The array literal is what drives the stepper, Back, and every resume
+    # target, so parsing it is both stricter and honest about what it covers.
+    steps = [s.strip().strip('"') for s in
+             order_line.strip("[]").split(",")]
+    assert "password" not in steps, (
+        f"the physician path must not carry a password STEP; got {steps}"
+    )
+    assert steps == ["identity", "verify", "cv", "review", "attestations",
+                     "submitted"]
+    # And the asclepius branch is what returns it — otherwise the array could
+    # be some other path's and this would prove nothing about the physician.
+    branch_start = src.index('if (product === "asclepius") {')
+    assert branch_start < src.index(order_line), (
+        "the v2 order must be the asclepius branch's return value"
+    )
 
 
 def test_member_and_short_signup_orders_are_unchanged():

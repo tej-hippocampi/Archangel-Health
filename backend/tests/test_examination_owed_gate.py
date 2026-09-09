@@ -63,6 +63,35 @@ def _extract_fn(source: str, name: str) -> str:
     raise AssertionError(f"unbalanced braces extracting {name}")
 
 
+def _code(source: str) -> str:
+    """JS with comments removed.
+
+    This codebase explains its rules in prose beside the code that follows them,
+    which makes a raw grep over a renderer ambiguous in BOTH directions: a
+    comment naming the control we removed fails an assertion that the control is
+    gone, and a comment quoting a call satisfies an assertion that the call is
+    made. Neither is the contract. Strip first, then assert.
+    """
+    out, i, n = [], 0, len(source)
+    while i < n:
+        if source.startswith("/*", i):
+            end = source.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+        elif source.startswith("//", i):
+            end = source.find("\n", i)
+            i = n if end == -1 else end
+        elif source[i] in "\"'":
+            quote, j = source[i], i + 1
+            while j < n and source[j] != quote:
+                j += 2 if source[j] == "\\" else 1
+            out.append(source[i:j + 1])
+            i = j + 1
+        else:
+            out.append(source[i])
+            i += 1
+    return "".join(out)
+
+
 def _passwordless_applicant(store, exam_state=None):
     applicant = store.provision_user(
         email=f"dr_{uuid.uuid4().hex[:8]}@hospital.example.org",
@@ -210,7 +239,7 @@ def test_a_converted_account_can_sign_in_and_is_still_provisional():
 # ─── The card ────────────────────────────────────────────────────────────────
 
 def test_the_gate_router_sends_the_new_state_to_the_new_card():
-    fn = _extract_fn(_PORTAL_JS, "renderGated")
+    fn = _code(_extract_fn(_PORTAL_JS, "renderGated"))
     assert "pending_examination" in fn
     assert "renderExaminationOwed" in fn
 
@@ -218,7 +247,7 @@ def test_the_gate_router_sends_the_new_state_to_the_new_card():
 def test_verification_gate_accepts_the_new_header_value():
     """A 403 the client does not recognise is rendered as a plain refusal, so
     the header has to be on the allowlist or the card is unreachable."""
-    fn = _extract_fn(_PORTAL_JS, "verificationGate")
+    fn = _code(_extract_fn(_PORTAL_JS, "verificationGate"))
     assert "pending_examination" in fn
 
 
@@ -226,7 +255,7 @@ def test_the_login_form_routes_the_new_gate_to_the_card_not_inline():
     """The path that matters. This gate arrives from the LOGIN call itself, so
     if renderLogin's catch does not know the state, the applicant reads 'set a
     password' inline on a form with nothing that sets one."""
-    fn = _extract_fn(_PORTAL_JS, "renderLogin")
+    fn = _code(_extract_fn(_PORTAL_JS, "renderLogin"))
     assert "pending_examination" in fn, (
         "renderLogin's catch must route pending_examination to the card; "
         "otherwise the message lands inline with no door"
@@ -234,7 +263,7 @@ def test_the_login_form_routes_the_new_gate_to_the_card_not_inline():
 
 
 def test_the_card_offers_a_password_door_and_no_check_again():
-    fn = _extract_fn(_PORTAL_JS, "renderExaminationOwed")
+    fn = _code(_extract_fn(_PORTAL_JS, "renderExaminationOwed"))
     assert "Set my password" in fn
     assert "/auth/password/forgot" in fn
     assert "Sign in with a different account" in fn
@@ -245,7 +274,7 @@ def test_the_card_offers_a_password_door_and_no_check_again():
 
 def test_the_waiting_room_keeps_check_again():
     """The other card is correct as it stands — nothing here may regress it."""
-    fn = _extract_fn(_PORTAL_JS, "renderAwaitingVerification")
+    fn = _code(_extract_fn(_PORTAL_JS, "renderAwaitingVerification"))
     assert "Check again" in fn
     assert "Set my password" not in fn
 
@@ -253,7 +282,7 @@ def test_the_waiting_room_keeps_check_again():
 def test_the_card_never_leaves_a_dead_control():
     """A button stuck on 'Sending…' is how a blocked physician concludes the
     product is broken — the same failure mode the waiting room guards."""
-    fn = _extract_fn(_PORTAL_JS, "renderExaminationOwed")
+    fn = _code(_extract_fn(_PORTAL_JS, "renderExaminationOwed"))
     catch = fn[fn.find("catch"):]
     assert "removeAttribute('disabled')" in catch
 
@@ -271,7 +300,7 @@ def test_a_provisional_account_is_routed_home_before_the_tutorial_can_grab_it():
     instead of onto the examination, and the whole repair lands them one screen
     short of the thing it was for.
     """
-    fn = _extract_fn(_PORTAL_JS, "enterApp")
+    fn = _code(_extract_fn(_PORTAL_JS, "enterApp"))
     guard = fn.find("sessionIsProvisional() && !isAdvisor()")
     launch = fn.find("startTutorial(")
     assert guard != -1, "enterApp must route a provisional account explicitly"
@@ -285,5 +314,219 @@ def test_a_provisional_account_is_routed_home_before_the_tutorial_can_grab_it():
 
 def test_the_provisional_landing_is_the_applicant_home():
     """And the screen it routes to is the one carrying the examination card."""
-    fn = _extract_fn(_PORTAL_JS, "renderDashboardView")
+    fn = _code(_extract_fn(_PORTAL_JS, "renderDashboardView"))
     assert "renderApplicantHome" in fn
+
+
+# ─── The door must not lie about having sent anything ────────────────────────
+
+def test_the_card_does_not_report_success_on_an_http_error():
+    """`fetch` does not reject on 4xx/5xx, so a hand-rolled `await fetch(...)`
+    falls straight through to the success path on every HTTP error.
+
+    Three reachable ones, none exotic: /auth/password/forgot is rate-limited per
+    IP, so a hospital behind one NAT gets a 429; the live-reset ceiling answers
+    200 but mails nothing; and the server can be unwell. Reporting "sent" for
+    any of them sends the applicant to a mailbox that will never receive
+    anything AND leaves this button dead on "Sent" — strictly worse than the
+    "Check again" the card replaced, which at least stayed clickable.
+
+    So the call goes through `api()`, which throws on !res.ok.
+    """
+    fn = _code(_extract_fn(_PORTAL_JS, "renderExaminationOwed"))
+    assert "api('/auth/password/forgot'" in fn, (
+        "the door must go through api(), which raises on a non-2xx"
+    )
+    assert "fetch(" not in fn, (
+        "a bare fetch here cannot tell success from a 429 — that is the bug"
+    )
+
+
+def test_the_card_reports_the_servers_reason_when_it_fails():
+    """A generic "could not reach the server" on a 429 is a lie in the other
+    direction: the server was reached and said something useful."""
+    fn = _code(_extract_fn(_PORTAL_JS, "renderExaminationOwed"))
+    # The catch belonging to the MINT, not the last catch in the function (that
+    # one is the localStorage guard on the secondary button, and it is correctly
+    # silent). Anchored to the call so this cannot drift onto the wrong handler.
+    after = fn[fn.index("api('/auth/password/forgot'"):]
+    catch = after[after.index("catch"):]
+    assert "e.message" in catch, (
+        "a generic 'could not reach the server' on a 429 is a lie in the other "
+        "direction: the server was reached and said something useful"
+    )
+
+
+def test_the_card_never_promises_delivery_it_cannot_confirm():
+    """The endpoint answers identically for an address it will NOT mail — an
+    inactive account, an unknown one — because answering differently would be
+    an enumeration oracle. So the client cannot claim delivery either; it hedges
+    exactly as the server's own sentence does."""
+    fn = _code(_extract_fn(_PORTAL_JS, "renderExaminationOwed"))
+    assert "has an account with us" in fn, "the fallback copy must hedge"
+    assert "We\\u2019ve emailed " not in fn, (
+        "an unconditional 'we've emailed you' claims a delivery the server "
+        "never promised"
+    )
+
+
+def test_the_sign_in_forms_forgot_button_has_the_same_guard():
+    """It is the door the legacy-applicant hint on that screen points at, so a
+    silent lie there strands exactly the people §3 exists for."""
+    fn = _code(_extract_fn(_PORTAL_JS, "renderLogin"))
+    start = fn.index("Forgot your password?") if "Forgot your password?" in fn else 0
+    assert "api('/auth/password/forgot'" in fn
+    assert "/auth/password/forgot', {\n            method: 'POST',\n            headers:" not in fn
+
+
+def test_the_sign_in_forms_forgot_notice_is_actually_visible():
+    """errBox is created hidden when the screen opens without an error, so a
+    handler that only sets textContent writes into an invisible div. The
+    physician clicks, nothing appears, and the door reads as broken."""
+    fn = _code(_extract_fn(_PORTAL_JS, "renderLogin"))
+    i = fn.index("Forgot your password?")
+    handler = fn[max(0, i - 2000):i]
+    assert "errBox.removeAttribute('hidden')" in handler, (
+        "the forgot handler must unhide errBox or its message is never seen"
+    )
+
+
+# ─── The coupling, driven rather than assumed (PRD §3.3, last line) ──────────
+
+def test_the_gate_agrees_with_what_the_exam_endpoints_actually_write():
+    """EVERY OTHER TEST HERE HAND-BUILDS THE BLOB, and that is the gap.
+
+    A fixture encodes a belief about what the server writes. It is correct
+    today, but the coupling is what matters: rename `exam.state`, or have a
+    writer replace the blob instead of round-tripping it, and `exam_state`
+    quietly answers `not_started` forever. The gate then tells an applicant who
+    HAS filed their examination that they still owe us one — with every test
+    above still green, because they all assert against the same belief.
+
+    So this one touches no blob. It drives `/exam/task` and `/exam/submit` and
+    reads the answer back through the login gate, which is the whole chain the
+    repair depends on.
+    """
+    from tests._asclepius import make_user
+
+    store = fresh_store()
+    # An applicant, exactly as test_exam_task_access builds one: no tier, no
+    # practice case, pending. Inheriting an approved account's tier would make
+    # the assertions vacuous.
+    user = make_user(store, role="evaluator", specialty="nephrology",
+                     tier=None, practice_case=False)
+    store.set_verification_status(user["id"], "pending")
+    user = store.get_user_by_id(user["id"])
+
+    c = TestClient(app)
+    hdrs = {"Authorization": "Bearer " + asc_auth.create_token(user)}
+
+    # Nothing drawn yet: the examination is owed.
+    assert exam_case.exam_state(store, user) == "not_started"
+
+    res = c.get("/api/asclepius/exam/task", headers=hdrs)
+    assert res.status_code == 200, res.text
+    task_id = res.json()["task"]["task_id"]
+
+    # The DRAW alone must move the gate, or somebody who closes the tab
+    # mid-examination is told to start something they are halfway through.
+    assert exam_case.exam_state(store, user) == "in_progress"
+
+    res = c.post("/api/asclepius/exam/submit", headers=hdrs,
+                 json={"task_id": task_id, "time_spent_sec": 900})
+    assert res.status_code == 200, res.text
+    assert exam_case.exam_state(store, user) == "submitted"
+
+
+def test_a_filed_examination_stops_the_gate_asking_for_it_again():
+    """The other half of the same chain, through the front door.
+
+    A passwordless applicant who has actually sat and filed their examination
+    must get the waiting room, not "one step left". Driven through the real
+    endpoints for the same reason as above.
+    """
+    store = fresh_store()
+    applicant = _passwordless_applicant(store)
+    c = TestClient(app)
+    hdrs = {"Authorization": "Bearer " + asc_auth.create_token(applicant)}
+
+    # Before: we are waiting on them.
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": applicant["email"], "password": "x"})
+    assert r.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending_examination"
+
+    res = c.get("/api/asclepius/exam/task", headers=hdrs)
+    assert res.status_code == 200, res.text
+    task_id = res.json()["task"]["task_id"]
+    res = c.post("/api/asclepius/exam/submit", headers=hdrs,
+                 json={"task_id": task_id, "time_spent_sec": 900})
+    assert res.status_code == 200, res.text
+
+    # After: they are waiting on us, and the copy says so.
+    r = c.post("/api/asclepius/auth/login",
+               json={"email": applicant["email"], "password": "x"})
+    assert r.headers.get(asc_auth.AUTH_GATE_HEADER) == "pending", r.text
+    assert "24–48 hours" in r.json()["detail"]
+
+
+# ─── The third sign-in surface (the landing site's own dialog) ───────────────
+
+_AUTH_API_TS = (pathlib.Path(__file__).resolve().parents[2] / "landing" / "src"
+                / "lib" / "auth-api.ts")
+_SIGNIN_DIALOG_TSX = (pathlib.Path(__file__).resolve().parents[2] / "landing" / "src"
+                      / "app" / "components" / "SignInDialog.tsx")
+
+
+def test_the_landing_dialog_stops_swallowing_an_unambiguous_403():
+    """There are THREE sign-in surfaces, and step 1's copy has to reach all of
+    them or the repair is partial.
+
+    SignInDialog deliberately swallows a failed Asclepius attempt and falls
+    through to the landing plane. That is correct for a 401 — both planes answer
+    the same generic 401 whether the account is absent or the password wrong, so
+    there is nothing to tell apart. A gated 403 is the opposite: it says this IS
+    an Asclepius account and names its state. Swallowing that shows the
+    physician the landing plane's error about a different account, and for the
+    applicant who owes us an examination it discards the only sentence telling
+    them what to do.
+    """
+    src = _SIGNIN_DIALOG_TSX.read_text(encoding="utf-8")
+    assert "isAsclepiusGateError" in src
+    assert "catch {" not in src.split("asclepiusLogin")[1][:600], (
+        "the Asclepius attempt's catch must bind the error to inspect it"
+    )
+
+
+def test_the_401_is_still_swallowed():
+    """The anti-enumeration fall-through is the reason that catch exists, and
+    narrowing it must not become removing it."""
+    src = _SIGNIN_DIALOG_TSX.read_text(encoding="utf-8")
+    after = src.split("asclepiusLogin")[1][:1600]
+    assert "login(trimmedEmail, password)" in src
+    # Rethrow is CONDITIONAL — an unconditional throw would break every
+    # tenant/landing account whose address is simply not an Asclepius one.
+    assert "if (isAsclepiusGateError(ascErr)) throw ascErr;" in after
+
+
+def test_the_login_error_carries_the_gate_not_just_a_sentence():
+    """A plain Error() drops the status and the header, which is why the dialog
+    could not tell the two cases apart in the first place."""
+    src = _AUTH_API_TS.read_text(encoding="utf-8")
+    assert "X-Asclepius-Auth-Gate" in src
+    assert "AsclepiusLoginError" in src
+
+
+def test_the_gate_header_is_readable_cross_origin():
+    """The landing app is a different origin in production, so a header that is
+    not in expose_headers is invisible to it however carefully the client asks.
+    Without this the fix above is inert in prod and works only in dev."""
+    import main as main_mod
+
+    exposed = []
+    for mw in main_mod.app.user_middleware:
+        opts = getattr(mw, "kwargs", None) or getattr(mw, "options", {})
+        if "expose_headers" in (opts or {}):
+            exposed = opts["expose_headers"]
+    assert asc_auth.AUTH_GATE_HEADER in exposed, (
+        f"CORS must expose {asc_auth.AUTH_GATE_HEADER!r}; exposed={exposed}"
+    )
