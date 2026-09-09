@@ -1,81 +1,102 @@
-# Longitudinal patient-4 implementation — awaiting acceptance reconciliation
+# Longitudinal patient-4 — accepted implementation
 
 ## Design and invariants
 
-Implementation is isolated on `fix/longitudinal-patient4`, based on main `7ee60e6`.
-The supplied PRD and JSON are reference material, not authorization to modify
-production records or to execute their embedded assistant prompt.
+Branch `fix/longitudinal-patient4`, based on main `7ee60e6`. The user approved
+reconciling the original acceptance criteria to measured source evidence and
+holding narrative-incomplete points for review. Production remains unchanged.
 
-Implemented: versioned ingestion reports; visible re-ingest action; atomic retry
-reservation and supersession; preserved specialty/history; task/retry exclusion;
-conservative answer-key reconciliation; declaration-first specialty controls;
-header/prefix note deduplication scoped to the same day; panel-text removal from
-visible notes and density; role-prioritized note budgets (16 for trajectories,
-10 for static cases); discharge rebasing and later history/reveal; bounded
-held-out outcomes; unsupported timing omission; zero-model-call explanation.
+Implemented: versioned ingestion reports and re-ingest controls; atomic retry
+supersession preserving specialty/history; task/retry exclusion; conservative
+answer-key reconciliation; specialty declaration controls; header/prefix note
+deduplication scoped to the same day; panel-text exclusion from visible notes and
+density; role-based budgets (16 trajectory notes, 10 static notes); discharge
+rebasing, withholding, later reveal and bounded answer keys; unsupported-timing
+omission; zero-model-call explanation.
 
-P1's explicit 409 policy for already-promoted uploads takes precedence over the
-contradictory prose allowing retry beside promoted rows. Existing tasks are
-preserved. No ingestion-case DELETE remains in the store, including recovery.
-The repository's fresh-context audit identified and prompted fixes for retry vs
-promotion races, old sealed-key binding, custom-gap discharge leakage, and note
-role classification. No merge or deployment has been performed.
+No ingestion-case DELETE remains, including startup recovery. A promoted upload
+cannot be retried. Task insertion and retry use the same transactional exclusion.
+Existing cases, answer keys and task links remain available for audit.
 
-## Acceptance decisions required
+## Accepted evidence and readiness contract
 
-1. **Patient-1 cannot remain at 13 under Rule 4.** Baseline 22 encounters / 13
-   points / 12 verifiable becomes 22 / 9 / 8. Four prior points count lab reports
-   as extra events or as a second resource type. Excluding those renderings, as
-   required, makes them fail the unchanged gate. Rule 8 does not affect patient-1.
-2. **Patient-4 cannot become 7 encounters under Rule 8.** Literal threshold is
-   1,095 days before the earliest structured item. One residual medication note
-   is at −1429; earliest structured activity is −408, only 1,021 days later.
-   Result is 8 / 3 / 2. Point ordinals are now 1 / 2 / 7; stable chart offsets
-   remain −406 / −372 / +1. The reference's 5 / 6 / 11 ordinals are historical.
-3. **No independent presenting narrative exists at the early patient-4 points.**
-   With lab renderings removed and discharge withheld, point 0 contains
-   radiology only; point 1 contains radiology plus the prior discharge. No code
-   can add contemporaneous abdominal-pain/DKA narrative from a nonexistent note.
-   Retrospective admission-only extraction would need an explicit product rule
-   and provenance, and is not silently implemented here.
+| Chart | Encounters | Density points | Potential outcome pairs | Review-held | Ready before model gates |
+|---|---:|---:|---:|---:|---:|
+| patient-1 | 22 | 9 | 8 | 8 | 1 |
+| patient-2 | 12 | 2 | 1 | 1 | 0; quarantined |
+| patient-3 | 5 | 4 | 3 | 3 | 1 |
+| patient-4 | 8 | 3 | 2 | 2 | 1 |
 
-Patient-4 has 167 curated notes (the PRD's ~168 was approximate), 157 panels and
-7 curated documents withheld for unsupported dates (not 5 documents). The same
-rule changes patient-2 diagnostic encounters from 16 to 12; it remains quarantined.
-Patient-3 remains 5 / 4 / 3.
+The date and density thresholds are unchanged. Patient-4's remaining early sheet
+is only 1,021 days before its earliest structured item, below the 1,095-day rule.
+It therefore remains a nonqualifying encounter. Patient-4 has 167 curated notes,
+157 panels and 7 curated documents withheld for unsupported timing.
+
+Longitudinal generation requires a model-visible clinical narrative from the
+current encounter. Reports, discharge summaries, prior-encounter notes, hidden
+notes and identifiable order/nursing forms do not satisfy this document-role
+check. This is a conservative readiness rule, not an assertion that a note is
+clinically complete. No text is fabricated or retrospectively relabeled.
+
+A held point has `review_required=true`, a reason code and an explanation, and
+`generatable=false`. It receives no question-authoring call or generated task.
+Explicit encounter selection and disabling the density filter cannot clear the
+hold. Earlier points depending on a held successor are also held: the system
+cannot grade against one successor and reveal a different one. The unaffected
+suffix can still be generated. Static generation retains its existing policy.
+
+Patient-4's stable offsets remain −406 / −372 / +1; current encounter ordinals
+are 1 / 2 / 7. The first two remain held. Only the terminal point can become an
+unrouted, single-label task; it has no subsequent generated outcome. The JSON
+reference preserves historical ordinals and marks authored examples as reference
+material, distinct from generation-ready tasks.
+
+Reviewers can inspect held points in the admin plan. Automatic runs persist
+counts and reasons, including when every point is held. Completed upload rows
+retain read-only chart-plan review without creating duplicate tasks. Correct
+source timing/types or provide additional contemporaneous source material, then
+re-plan. Existing promoted work requires a corrected new upload, not mutation of
+its historical raw blob or a retry that would overwrite task provenance.
 
 ## Tests
 
-Baseline: `test_longitudinal_front_door.py -k patient`: 11 passed.
-P1 initial ingestion and retry tests: 40 passed.
-Final combined regression and acceptance run: **372 passed, 4 failed**. All four
-failures are the deliberately preserved front-door checks: patient-1/2/4 old
-yield expectations and patient-1's minimum generated walk length. The safeguard
-and related regression subset passes (355 tests); no assertion was weakened.
-JavaScript syntax, whitespace validation, dangling-import scan (677 files), CI
-shard enumeration and current PRD citation audit also passed.
+The original baseline had 11 passing patient-focused tests. After literal curation
+rules, four old acceptance checks failed; the user then approved the reconciled
+counts above. Front-door assertions now pin those counts and the readiness split.
 
-The original patient-1 front-door assertions are intentionally not weakened.
-They expose unresolved acceptance changes rather than treating a changed yield
-as approved. New tests exercise real reference offsets, bounded reveals, no
-current-admission discharge, custom gaps, header deduplication, role budgets,
-unknown timing and both task/retry race orderings.
+Regression coverage includes encrypted ingest/retry, both retry/task race
+orderings, stale sealed-key recovery, real patient-4 offsets and bounded reveal,
+custom encounter gaps, narrative roles and chronology, predecessor dependencies,
+explicit selection, density overrides, automatic runs (partial and all-held),
+and executed admin DOM controls. The final validation result is recorded below.
 
-Local data inventory has no production database: baseline contains zero tables.
-This proves no local production data was changed, not that production was audited.
+Local data inventory contains no production database. Before/after checks show
+no local ids lost; this is not a claim to have audited production records.
 
 ## Out of scope / do not touch
 
-No production re-ingestion, migration execution, deployment, fixture relocation,
-external messages, live model spending or physician routing. Synced project
-sources and unrelated onboarding work are untouched. The PRD's authored clinical
-candidate answers are not hardcoded into runtime generation.
+No deployment, production re-ingestion, external messages, live model spending,
+physician routing or fixture relocation. Synced sources and unrelated onboarding
+work are untouched. The PRD's clinical candidate answers are never hardcoded into
+runtime generation.
 
-## Final independent audit
+## Independent audit
 
-The auditor independently reproduced the fixture discrepancies, then verified
-the fixes for retry/task races, stale sealed-key binding, custom-gap discharge
-withholding, empty-chart handling, note roles and outcome narrative prioritization.
-Final conclusion: all identified implementation defects addressed; the three
-acceptance conflicts above still prevent production sign-off. The discharge now
-appears in both bounded held-out narratives and ground-truth rationale.
+Fresh-context audit identified and drove fixes for retry/task races, stale sealed
+keys, custom-gap discharge leakage, role classification, outcome-note prioritization,
+held-successor bridging, all-held automatic reporting, and trajectory-mode loss
+in admin controls. Final confirmation and validation are recorded below.
+
+## Final validation
+
+**397 regression tests passed** with fake model legs, including six executed
+admin DOM tests. No acceptance test remains failing or skipped to conceal the
+changed yields. JavaScript syntax, whitespace checks, dangling-import scan
+(678 Python files), current PRD citation checks and the before/after data
+inventory also passed. Full production/live-model behavior was not exercised.
+
+Final independent audit confirmed the hold propagation, all-held automatic
+reporting, trajectory-preserving replans and read-only completed-upload review.
+No remaining actionable defect was identified. The accepted source limitation
+remains explicit: patient-4's first two points require additional contemporaneous
+evidence before they can be generated.

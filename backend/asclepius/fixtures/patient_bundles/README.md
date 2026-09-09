@@ -36,7 +36,7 @@ That claim is not taken on trust. Every bundle runs the shipped
 `deid_verify.verify_deid` hard guard on the way in, and three of the four pass it
 clean. The fourth does not, and it does not for a reason worth reading:
 
-## Proposed pipeline v5 yield — release acceptance unresolved
+## Accepted pipeline v5 yield — detection and evidence readiness
 
 Applying the longitudinal-fix PRD literally yields **47 encounters → 18 decision
 points → 14 verifiable** across these exact fixture trees:
@@ -48,12 +48,24 @@ points → 14 verifiable** across these exact fixture trees:
 | patient-3 | 5 | 4 | 3 | ingested |
 | patient-4 | 8 | 3 | 2 | ingested; 167 curated notes, 157 panels |
 
-**Do not release on these numbers yet.** The original front-door assertions remain
-unchanged to expose the PRD conflicts: excluding duplicated panel text removes
-four patient-1 decision points; the exact three-year rule leaves patient-4's
-medication sheet at day −1429 (only 1,021 days before its earliest structured
-item). The PRD's required 13 and 7 cannot both be reproduced with its rules.
-See `prd-longitudinal-fix/IMPLEMENTATION_STATUS.md` for the acceptance decisions.
+The user approved these measured yields. Density thresholds and the three-year
+date rule were not relaxed. Detected decision points are distinct from points
+that can safely become physician tasks:
+
+| bundle | detected points | held for evidence review | ready before model gates |
+|---|---|---|---|
+| patient-1 | 9 | 8 | 1 |
+| patient-2 | 2 | 1 | 0; upload remains quarantined |
+| patient-3 | 4 | 3 | 1 |
+| patient-4 | 3 | 2 | 1 |
+
+A point needs a visible contemporaneous clinical narrative. Prior discharge
+summaries, reports and order/nursing forms do not satisfy that requirement.
+Predecessors whose next outcome is held are also held; generation cannot silently
+bridge across unresolved evidence. The ready suffix can be built independently.
+For patient-4, the first two points remain review-only and the terminal point is
+ready. No three-point labelable walk is claimed. See
+`prd-longitudinal-fix/IMPLEMENTATION_STATUS.md` for the accepted policy.
 
 ## Previous pipeline yield — 55 encounters → 22 decision points → 18 verifiable
 

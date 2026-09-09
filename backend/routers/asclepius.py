@@ -7706,6 +7706,9 @@ def _proposal_view(p: Dict[str, Any]) -> Dict[str, Any]:
         "index_rationale": p.get("index_rationale"),
         "generatable": bool(p.get("generatable")),
         "blockers": p.get("blockers") or [],
+        "review_required": bool(p.get("review_required")),
+        "review_reasons": p.get("review_reasons") or [],
+        "specialty_scores": p.get("specialty_scores") or {},
         "question": p.get("question"),
         # The proposed question is MODEL OUTPUT until a physician accepts it, and
         # the console's colour semantics turn on exactly that distinction — the UI
@@ -7769,6 +7772,9 @@ async def _generate_one_real_case(
     fall for is not the trap, and keying the flawed answer to an invented one is
     what makes an A/B pair two guesses instead of a preference pair.
     """
+    if p.get("review_required"):
+        return {"encounter_index": p.get("encounter_index"), "review_required": True,
+                "error": "Point is held for evidence review", "review_reasons": p.get("review_reasons") or []}
     from asclepius import real_cases
     from asclepius.constants import (
         case_coherence_min, case_divergence_min, case_mm_necessity_min,
@@ -8049,6 +8055,8 @@ async def generate_real_cases(
         # trajectory or not, because they are what an admin needs to decide whether
         # this chart is worth walking.
         "decision_points": plan.get("decision_points"),
+        "review_required_points": plan.get("review_required_points", 0),
+        "ready_decision_points": plan.get("ready_decision_points", 0),
         "verifiable_decision_points": plan.get("verifiable_decision_points"),
         "density_gate": plan.get("density_gate"),
         "trajectory": trajectory_mode,
@@ -8064,6 +8072,16 @@ async def generate_real_cases(
         raise HTTPException(
             status_code=422,
             detail={"error": "nothing_generatable",
+                    "review_required_points": plan.get("review_required_points", 0),
+                    "held": [{"encounter_index": p["encounter_index"],
+                              "review_reasons": p.get("review_reasons") or []}
+                             for p in plan["proposals"] if p.get("review_required")
+                             and p.get("qualifies_as_decision_point")],
+                    "message": ("Review required: no requested decision points are ready. "
+                                "Resolve the narrative evidence holds in the chart-walk preview."
+                                if any(p.get("review_required") for p in plan["proposals"]
+                                       if not wanted or p["encounter_index"] in wanted)
+                                else "No requested encounters cleared generation gates."),
                     "blockers": {p["encounter_index"]: p.get("blockers") or []
                                  for p in plan["proposals"]}})
 
@@ -8134,7 +8152,11 @@ async def generate_real_cases(
     response.update({
         "generated": len(generated), "gated": len(gated), "failed": len(failed),
         "task_ids": [g["task_id"] for g in generated],
-        "details": {"generated": generated, "gated": gated, "failed": failed},
+        "details": {"generated": generated, "gated": gated, "failed": failed,
+                    "held": [{"encounter_index": p["encounter_index"],
+                              "review_reasons": p.get("review_reasons") or []}
+                             for p in plan["proposals"] if p.get("review_required")
+                             and p.get("qualifies_as_decision_point")]},
     })
     if trajectory_mode and generated:
         n = len(generated)

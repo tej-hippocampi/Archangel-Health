@@ -52,15 +52,21 @@ An **encounter** is a cluster of recorded activity separated by a gap of more th
 | recorded events | ≥ 8 |
 | resource types (labs / notes / studies / vitals) | ≥ 2 |
 
-**Proposed pipeline v5 (not release-approved):** applying note de-duplication,
-panel-text exclusion and the exact unsupported-date rule yields **47 → 18 → 14**.
-Per chart: patient-1 **22 → 9 → 8**, patient-2 **12 → 2 → 1** (quarantined),
-patient-3 **5 → 4 → 3**, patient-4 **8 → 3 → 2**. No density threshold was changed.
-These results conflict with the longitudinal-fix PRD's patient-1 preservation and
-patient-4 encounter target. The existing front-door assertions remain release
-blockers while those requirements are reconciled. Patient-4's first admission
-also lacks an independent presenting narrative after its discharge is withheld.
-See `prd-longitudinal-fix/IMPLEMENTATION_STATUS.md`.
+**Accepted pipeline v5:** note de-duplication, panel-text exclusion and the exact
+unsupported-date rule yield **47 → 18 → 14**. Per chart: patient-1 **22 → 9 → 8**,
+patient-2 **12 → 2 → 1** (quarantined), patient-3 **5 → 4 → 3**, patient-4
+**8 → 3 → 2**. The user approved these measured results without changing any
+density threshold.
+
+Detection is not readiness. A trajectory point without a visible clinical
+narrative from its own encounter is held for evidence review. Order/nursing forms,
+reports, model-hidden notes and prior discharge summaries cannot clear it. An
+earlier point that depends on a held successor is also held, so its answer key
+and reveal cannot refer to different successor encounters. The ready suffix may
+be built. Current ready counts before model gates: patient-1 **1**, patient-2 **0**
+(quarantined), patient-3 **1**, patient-4 **1**. Patient-4's first two points remain
+review-only. The plan reports detected, review-held and ready counts separately;
+automatic runs retain the same holds. See `prd-longitudinal-fix/IMPLEMENTATION_STATUS.md`.
 
 Previous pipeline measured across `patient-1` … `patient-4`: **55 encounters → 22 decision points →
 18 verifiable ones.** The rest fail, and they fail because they are single-date,

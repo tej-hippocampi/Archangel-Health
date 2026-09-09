@@ -1,3 +1,11 @@
+> **Accepted revision:** the user approved the measured yields and holding
+> narrative-incomplete points for review. Patient-4 detects **8 encounters / 3
+> points / 2 potential outcome pairs**; **2 points are held, 1 is ready**.
+> Patient-1 detects **9 points**, not 13. This revision supersedes conflicting
+> historical acceptance targets below. No density/date threshold is weakened and
+> no retrospective presenting narrative is invented. Predecessors depending on a
+> held outcome are held too. See `IMPLEMENTATION_STATUS.md` for the current contract.
+
 > Implementation copy: the supplied document describes an older audited archive.
 > Its original line citations below are labeled historical; 27 of 30 were stale
 > or ambiguous against this branch. The current symbol map is appended below.
@@ -187,13 +195,13 @@ Each rule maps to one of §3's findings and to the code that owns it.
 
 No case rows are deleted. Retry is excluded atomically from task insertion.
 Calendar anchors remain absent from generated cases. Density and date thresholds
-are unchanged. This branch is not release-approved: see IMPLEMENTATION_STATUS.md.
+are unchanged. Acceptance has been reconciled by the user; see IMPLEMENTATION_STATUS.md.
 
 ## Current tests
 
 `backend/tests/test_patient4_reference_walk.py` and
 `backend/tests/test_ingest_retry_supersedes.py` cover the implemented safeguards.
-Original front-door yield assertions are retained as unresolved acceptance checks.
+Front-door yield assertions now pin the user-approved measured results and review holds.
 
 ## Out of scope / do not touch
 
@@ -212,7 +220,7 @@ local implementation. The embedded Claude prompt above is historical reference.
 | `_budget` | `backend/asclepius/real_cases.py:896` |
 | `_held_out_summary` | `backend/asclepius/real_cases.py:1085` |
 | `build_encounter_case` | `backend/asclepius/real_cases.py:1188` |
-| `plan_cases` | `backend/asclepius/real_cases.py:1980` |
+| `plan_cases` | `backend/asclepius/real_cases.py:2020` |
 | `retry_ingestion_upload` | `backend/routers/asclepius.py:7084` |
-| `reingestControl` | `frontend/asclepius/admin_shell.js:3373` |
-| `specialtyGate` | `frontend/asclepius/admin_shell.js:3474` |
+| `reingestControl` | `frontend/asclepius/admin_shell.js:3396` |
+| `specialtyGate` | `frontend/asclepius/admin_shell.js:3497` |

@@ -2851,7 +2851,7 @@
       'Below the decision-point gate: ' + (d.reasons || []).join('; '));
   }
 
-  function renderProposalRow(ic, p, refresh) {
+  function renderProposalRow(ic, p, refresh, trajectory = false) {
     const wrap = h('div', {
       class: 'asc-card-pad',
       style: 'border:1px solid var(--asc-line);border-radius:10px;margin-bottom:12px'
@@ -2915,7 +2915,7 @@
         class: 'asc-card-sub',
         style: 'margin-top:8px;padding:8px 10px;border-radius:8px;'
           + 'background:var(--lime-wash);border:1px solid var(--lime-line);color:var(--lime-deep)',
-      }, 'Not generatable: ' + (p.blockers || []).join(' · ')));
+      }, (p.review_required ? 'Held for evidence review: ' : 'Not generatable: ') + (p.blockers || []).join(' · ')));
       // §A5 — when the blocker is the specialty, the picker is the fix, and it
       // belongs on the row that names the problem. Re-plans once the server
       // confirms, so the operator sees the encounter turn generatable rather
@@ -2941,7 +2941,7 @@
       try {
         const r = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate', {
           method: 'POST',
-          body: { dry_run: false, encounter_indices: [p.encounter_index] },
+          body: { dry_run: false, trajectory, encounter_indices: [p.encounter_index] },
         });
         const ok = (r.task_ids || []).length;
         status.appendChild(h('div', { class: ok ? 'asc-inline-ok' : 'asc-inline-warn' },
@@ -2968,6 +2968,7 @@
    * to the static behaviour, so the ingestion page's existing call is unchanged. */
   function openCasePlanModal(upload, ic, plan, statusBox, opts) {
     const trajectory = !!(opts && opts.trajectory);
+    const reviewOnly = !!(opts && opts.reviewOnly);
     const overlay = h('div', {
       class: 'call-team-overlay is-open',
       onClick: (e) => { if (e.target === overlay) overlay.remove(); },
@@ -2988,13 +2989,13 @@
     };
     const declarationRequired = trajectory && !plan.specialty_hint;
     if (declarationRequired) list.appendChild(specialtyResolver(upload.upload_id, () => onRowRefresh('specialty')));
-    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, declarationRequired ? { ...p, generatable: false } : p, onRowRefresh)));
+    proposals.forEach((p) => list.appendChild(renderProposalRow(ic, (declarationRequired || reviewOnly) ? { ...p, generatable: false, blockers: reviewOnly && !p.review_required ? ['Existing tasks are preserved; this is a read-only review.'] : p.blockers } : p, onRowRefresh, trajectory)));
 
     const status = h('div', { style: 'margin-top:12px' });
-    const nGen = plan.generatable || 0;
+    const nGen = trajectory ? (plan.ready_decision_points || 0) : (plan.generatable || 0);
     const allBtn = h('button', { class: 'asc-btn asc-btn-primary' },
       'Generate all ' + nGen + ' case(s)');
-    if (!nGen || declarationRequired) allBtn.setAttribute('disabled', '');
+    if (!nGen || declarationRequired || reviewOnly) allBtn.setAttribute('disabled', '');
     allBtn.addEventListener('click', async () => {
       allBtn.setAttribute('disabled', '');
       allBtn.textContent = 'Generating…';
@@ -3009,6 +3010,7 @@
             ? 'Built a chart walk of ' + r.generated + ' decision point(s). They are '
               + 'held back from every queue until you send them from Task Routing.'
             : 'Generated ' + r.generated + ' V4 case(s)')
+          + (r.review_required_points ? ' · ' + r.review_required_points + ' held for evidence review' : '')
           + (r.gated ? ' · ' + r.gated + ' gated' : '')
           + (r.failed ? ' · ' + r.failed + ' failed' : '') + '.'));
         toast('Generated ' + r.generated + ' case(s) from this chart.', 'success');
@@ -3027,12 +3029,28 @@
     // ceremony: this writes N tasks at $75 a completed submission, and §9.3 exists
     // because "a trajectory is not a discount on physician time — it is N tasks
     // that happen to share a chart".
-    const nPoints = plan.decision_points || 0;
-    const nVerifiable = plan.verifiable_decision_points || 0;
+    const nDensityPoints = plan.decision_points || 0;
+    const nPoints = trajectory ? (plan.ready_decision_points || 0) : nDensityPoints;
+    const nVerifiable = trajectory ? Math.max(0, nPoints - 1) : (plan.verifiable_decision_points || 0);
     const trajBtn = h('button', { class: 'asc-btn asc-btn-primary' },
       'Chain ' + nPoints + ' decision point(s) into one trajectory');
-    if (!nPoints || declarationRequired) trajBtn.setAttribute('disabled', '');
+    if (!nPoints || declarationRequired || reviewOnly) trajBtn.setAttribute('disabled', '');
+    const replanTrajectory = async () => {
+      const walkPlan = await api('/ingestion/cases/' + ic.ingest_case_id + '/generate',
+        { method: 'POST', body: { dry_run: true, trajectory: true } });
+      overlay.remove();
+      openCasePlanModal(upload, ic, walkPlan, statusBox,
+        { ...opts, trajectory: true, replan: replanTrajectory });
+    };
     trajBtn.addEventListener('click', async () => {
+      if (!trajectory) {
+        // A static preview has not applied longitudinal evidence holds.
+        trajBtn.disabled = true;
+        try {
+          await replanTrajectory();
+        } catch (e) { trajBtn.disabled = false; toast(errText(e, 'Could not plan this walk.'), 'error'); }
+        return;
+      }
       const cost = (nPoints * 75).toLocaleString();
       if (!window.confirm(
         'Create a ' + nPoints + '-point longitudinal trajectory from this chart?\n\n'
@@ -3077,6 +3095,7 @@
         (ic.patient_key || '') + ' · ' + (plan.encounters || 0) + ' encounters detected · '
         + nGen + ' generatable'
         + (plan.specialty_hint ? ' · specialty ' + plan.specialty_hint : '')),
+      reviewOnly ? h('div', { class: 'asc-inline-warn' }, 'Read-only chart review: existing tasks are preserved. Provide a corrected upload to build additional points.') : null,
       plan.why ? h('div', { class: 'asc-dim' }, plan.why) : null,
       h('div', { class: 'asc-dim' }, 'Chart threads across encounters: ' + Object.entries(proposals.reduce((scores, p) => {
         Object.entries(p.specialty_scores || {}).forEach(([key, value]) => { scores[key] = Math.max(scores[key] || 0, value); });
@@ -3088,9 +3107,12 @@
       // Both numbers, always, because they are what a chart walk is priced on and
       // they are never the same number.
       h('div', { class: 'asc-card-sub', style: 'margin-bottom:14px' },
-        nPoints + ' encounter(s) clear the decision-point gate (≥2 dates, ≥8 events, '
+        nDensityPoints + ' encounter(s) clear the decision-point gate (≥2 dates, ≥8 events, '
         + '≥2 resource types) · ' + nVerifiable + ' have a later encounter to be checked '
         + 'against. Encounters below the gate are single-contact draws, not decisions.'),
+      trajectory ? h('div', { class: 'asc-inline-warn' }, (plan.review_required_points || 0)
+        + ' decision point(s) held for evidence review · ' + nPoints + ' ready to build. '
+        + 'Held points and predecessors that depend on them cannot be generated until the evidence is resolved.') : null,
       list,
       status,
       h('div', { style: 'display:flex;gap:10px;margin-top:16px;flex-wrap:wrap' },
@@ -3334,14 +3356,15 @@
       statusBox.appendChild(loadingCard('Planning the chart walk…'));
       api('/ingestion/uploads/' + encodeURIComponent(upload.upload_id))
         .then((full) => {
-          const first = (full.cases || []).find((c) => c.status === 'ingested');
+          const first = (full.cases || []).find((c) => c.status === 'ingested')
+            || (full.cases || []).find((c) => c.status === 'promoted');
           if (!first) throw new Error('No ingested cases left to plan in this upload.');
           return api('/ingestion/cases/' + encodeURIComponent(first.ingest_case_id) + '/generate',
-                     { method: 'POST', body: { dry_run: true, trajectory: true } })
+                     { method: 'POST', body: { dry_run: true, trajectory: true, derive_questions: false } })
             .then((plan) => {
               clear(statusBox);
               openCasePlanModal(upload, first, plan, statusBox, {
-                trajectory: true,
+                trajectory: true, reviewOnly: first.status === 'promoted',
                 // A specialty set from inside the modal re-plans the walk (§A5)
                 // and refreshes the rows, so the chip on the row agrees with it.
                 replan: () => { load(); previewLongitudinal(upload, statusBox); },
@@ -3707,6 +3730,10 @@
 
     function doneRow(u) {
       const counts = u.case_counts || {};
+      const statusBox = h('div', {});
+      const review = u.task_mode === 'longitudinal'
+        ? h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button',
+            onClick: () => previewLongitudinal(u, statusBox) }, 'Review chart plan') : null;
       const go = h('button', { class: 'asc-btn asc-btn-ghost asc-btn-sm', type: 'button' },
         'view in Task Routing →');
       go.addEventListener('click', () => {
@@ -3718,7 +3745,7 @@
           '✓ ' + (counts.promoted || 0) + ' task(s) created · '
           + (u.partner_label || 'Unknown sender') + ' · ' + (u.filename || 'bundle')
           + (u.task_mode ? (' · ' + u.task_mode) : '')),
-        go);
+        go, review, autoGenerateFailures(u), statusBox);
     }
 
     // ─── Paint ──────────────────────────────────────────────────────────────

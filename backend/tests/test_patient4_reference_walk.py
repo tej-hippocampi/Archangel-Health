@@ -1,8 +1,8 @@
 """Temporal safeguards, tested on the real reference chart and adversarial cases.
 
-The PRD's 7-encounter/13-patient1-point/narrative expectations are unresolved
-acceptance conflicts. Existing front-door assertions intentionally still expose
-those discrepancies rather than weakening a density or leakage threshold.
+The user accepted the measured yields and evidence-review holds. Detection
+counts remain distinct from readiness: patient-4 detects three points, holds
+two narrative-incomplete points, and permits only the terminal point to build.
 """
 import asyncio
 import copy
@@ -27,10 +27,16 @@ def test_reference_offsets_verifiability_and_bounded_reveal(store):
     assert chart == before
     points = [p for p in plan['proposals'] if p['qualifies_as_decision_point']]
     assert len(points) == REFERENCE['source']['decision_points']
+    assert plan['encounters'] == 8
+    assert plan['review_required_points'] == 2
+    assert plan['ready_decision_points'] == 1
+    assert [p['generatable'] for p in points] == [False, False, True]
     assert plan['verifiable_decision_points'] == REFERENCE['source']['verifiable_decision_points']
-    # The reference's encounter ordinals predate removal of unsupported dates.
-    # Chart-relative index offsets remain the stable identity of each point.
+    # The accepted reference retains historical ordinals separately for audit.
     for point, ref in zip(points, REFERENCE['points']):
+        assert point['encounter_index'] == ref['encounter_index']
+        assert bool(point.get('review_required')) == ref['review_required']
+        assert point['generatable'] == ref['generation_ready']
         assert point['index_event_offset'] == ref['index_event_offset_chart_days']
         assert point['outcome_verifiable'] == ref['outcome_verifiable']
         assert point['qualifies_as_decision_point'] == ref['qualifies_as_decision_point']
@@ -114,3 +120,129 @@ def test_note_role_budget_prefers_narrative_over_reports():
 def test_empty_chart_still_errors():
     with pytest.raises(RC.RealCaseError, match='empty case'):
         asyncio.run(RC.plan_cases(None, derive_questions=False))
+
+
+@pytest.mark.parametrize('kind,text,offset,extra,expected', [
+    ('Progress', 'Patient seen and examined; symptoms improving on current treatment. ', 0, {}, True),
+    ('Consult', 'New presentation reviewed; assessment and treatment discussed. ', -1, {}, True),
+    ('Progress', 'Form: Fresh Orders\nContinue scheduled medication chart. ', 0, {}, False),
+    ('Progress', 'Form: Medication Form\nAdminister the scheduled doses. ', 0, {}, False),
+    ('Progress', 'Patient Assessment\nSkin intact; routine nursing assessment. ', 0, {}, False),
+    ('Radiology', 'Chest image reviewed; findings and interpretation follow. ', 0, {}, False),
+    ('Discharge', 'Presenting complaints and final discharge treatment summary. ', 0, {}, False),
+    ('Progress', 'Patient seen and examined; symptoms improving on current treatment. ', -20, {}, False),
+    ('Progress', 'Patient seen and examined; symptoms improving on current treatment. ', 0, {'model_visible': False}, False),
+    ('Progress', 'Patient seen and examined; symptoms improving on current treatment. ', None, {}, False),
+])
+def test_only_visible_contemporaneous_narratives_clear_review(kind, text, offset, extra, expected):
+    case = {'notes': [{**_note(kind, offset, text), **extra}]}
+    assert RC.has_encounter_narrative(case, {'start_offset': -2}, 0) is expected
+
+
+def test_chain_does_not_bridge_a_held_outcome(monkeypatch):
+    from tests.test_asclepius_longitudinal_e2e import build_chart
+    chart = build_chart()
+    encs = RC.segment_longitudinal_record(chart)
+    middle = encs[1]
+    for note in chart['notes']:
+        if middle['start_offset'] <= note['collected_offset_days'] <= middle['end_offset']:
+            note['note_type'] = 'Radiology'
+    calls = []
+    async def author(case, held, specialty):
+        calls.append(case)
+        return 'A question grounded in the current encounter.', 'test'
+    monkeypatch.setattr(RC, 'derive_clinical_question', author)
+    plan = asyncio.run(RC.plan_cases(chart, specialty_hint='hepatology', trajectory=True))
+    points = [p for p in plan['proposals'] if p['qualifies_as_decision_point']]
+    assert points[0]['review_reasons'][0]['reason'] == 'outcome_requires_review'
+    assert points[1]['review_reasons'][0]['reason'] == 'missing_encounter_narrative'
+    assert not points[0]['generatable'] and not points[1]['generatable']
+    assert points[-1]['generatable']
+    assert len(calls) == plan['generatable']
+    assert all('question' not in p for p in points[:2])
+
+
+def test_explicit_selection_cannot_override_patient4_holds(store, monkeypatch):
+    from fastapi.testclient import TestClient
+    from tests import _asclepius as A
+    res = _run(store, bundles=['patient-4'])
+    uid = res['bundles'][0]['upload_id']
+    store.set_upload_purpose(uid, 'task_creation')
+    ic = store.list_ingest_cases(upload_id=uid)[0]
+    admin = A.headers_for(A.make_user(store, role='admin'))
+    async def forbidden(*args, **kwargs):
+        raise AssertionError('held point reached a model call')
+    monkeypatch.setattr(RC, 'derive_clinical_question', forbidden)
+    r = TestClient(A.app).post(f"/api/asclepius/ingestion/cases/{ic['ingest_case_id']}/generate",
+        headers=admin, json={'dry_run': False, 'trajectory': True, 'encounter_indices': [1, 2],
+                             'apply_density_gate': False})
+    assert r.status_code == 422, r.text
+    assert 'Review required' in r.text
+    assert store.upload_task_counts(uid)['promoted'] == 0
+
+
+def test_auto_generation_preserves_and_reports_patient4_holds(store, monkeypatch):
+    from asclepius import auto_generate as AG
+    from tests.test_asclepius_longitudinal_e2e import _stub_model_legs
+    import routers.asclepius as router
+    _stub_model_legs(monkeypatch)
+    res = _run(store, bundles=['patient-4'])
+    uid = res['bundles'][0]['upload_id']
+    store.set_upload_purpose(uid, 'task_creation')
+    store.set_upload_task_mode(uid, 'longitudinal')
+    seen = []
+    original = router._generate_one_real_case
+    async def checked(st, ic, point, admin, **kw):
+        seen.append(point['encounter_index'])
+        assert not point.get('review_required')
+        return await original(st, ic, point, admin, **kw)
+    monkeypatch.setattr(router, '_generate_one_real_case', checked)
+    report = asyncio.run(AG.run_upload(store, uid, 'admin-test'))
+    assert seen == [7]
+    assert report['generated'] == 1 and report['review_required_points'] == 2
+    summary = AG.failure_summary(store.get_ingest_upload(uid))
+    assert summary['count'] == 2
+    assert all(d['review_required'] for d in summary['dropped'])
+    points = store.trajectory_points(report['trajectories'][0])
+    assert len(points) == 1
+    assert points[0]['distribution'] == 'assigned_only'
+
+
+def test_density_override_cannot_bridge_a_held_successor():
+    from tests.test_asclepius_longitudinal_e2e import build_chart
+    chart = build_chart()
+    encs = RC.segment_longitudinal_record(chart)
+    first, second = encs[:2]
+    chart['lab_panels'] = [p for p in chart['lab_panels']
+        if not first['start_offset'] <= p['collected_offset_days'] <= first['end_offset']]
+    chart['studies'] = [p for p in chart['studies']
+        if not first['start_offset'] <= p['collected_offset_days'] <= first['end_offset']]
+    for note in chart['notes']:
+        if second['start_offset'] <= note['collected_offset_days'] <= second['end_offset']:
+            note['note_type'] = 'Radiology'
+    plan = asyncio.run(RC.plan_cases(chart, specialty_hint='hepatology', trajectory=True, derive_questions=False))
+    first_point = plan['proposals'][0]
+    assert not first_point['qualifies_as_decision_point']
+    assert first_point['review_required'] and not first_point['generatable']
+    assert first_point['review_reasons'][0]['reason'] == 'outcome_requires_review'
+
+
+def test_all_held_auto_run_is_reported_as_evidence_review(store, monkeypatch):
+    from asclepius import auto_generate as AG
+    res = _run(store, bundles=['patient-4'])
+    uid = res['bundles'][0]['upload_id']
+    store.set_upload_purpose(uid, 'task_creation')
+    store.set_upload_task_mode(uid, 'longitudinal')
+    ic = store.list_ingest_cases(upload_id=uid)[0]
+    chart = ic['case']
+    for note in chart['notes']:
+        note['note_type'] = 'Radiology'
+    store.update_ingest_case(ic['ingest_case_id'], case_json=chart)
+    async def forbidden(*args, **kwargs):
+        raise AssertionError('all-held run reached a model')
+    monkeypatch.setattr(RC, 'derive_clinical_question', forbidden)
+    report = asyncio.run(AG.run_upload(store, uid, 'admin-test'))
+    assert report['generated'] == report['cases_failed'] == 0
+    assert report['review_required_points'] == 3
+    assert AG.failure_summary(store.get_ingest_upload(uid))['count'] == 3
+    assert store.upload_task_counts(uid)['promoted'] == 0

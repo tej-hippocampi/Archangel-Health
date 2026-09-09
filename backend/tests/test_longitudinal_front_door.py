@@ -175,18 +175,14 @@ def test_the_authorizing_link_is_dead_on_arrival(store):
 
 # ── what the real charts actually yield (§2.3) ────────────────────────────────
 #
-# MEASURED on the committed trees, not inherited from the PRD. ``LONGITUDINAL_CASES.md``
-# quotes 59 → 25 → 21 from a measurement taken elsewhere; the charts in this
-# repository give 55 → 22 → 18, and patient-1's thirteen-point walk — the number
-# the product is demoed on — reproduces exactly. The totals are asserted as floors
-# rather than equalities: a gate change that RAISES yield should not fail a test,
-# and one that lowers it must.
+# User-approved reconciliation: the literal curation/timing rules yield 47/18/14.
+# These are density counts, not promises about narrative readiness or model gates.
 _EXPECTED = {
     #  bundle:      (encounters, decision points, verifiable)
-    "patient-1": (22, 13, 12),
-    "patient-2": (16, 2, 1),
+    "patient-1": (22, 9, 8),
+    "patient-2": (12, 2, 1),
     "patient-3": (5, 4, 3),
-    "patient-4": (12, 3, 2),
+    "patient-4": (8, 3, 2),
 }
 
 
@@ -203,11 +199,9 @@ def test_density_gate_yield_per_chart(store, bundle):
         "before changing the constants — the gate IS the product.")
 
 
-def test_patient_one_is_the_thirteen_point_walk(store):
-    """Called out on its own because it is the number the PRD names and the demo
-    shows. It reproduces exactly, which is the strongest evidence the gate has
-    not drifted since the yield was first measured."""
-    assert _EXPECTED["patient-1"][1] == 13
+def test_patient_one_has_nine_density_qualified_points(store):
+    """Accepted yield after removing panel renderings from the event count."""
+    assert _EXPECTED["patient-1"][1] == 9
 
 
 def test_patient_two_quarantines_and_says_why(store):
@@ -286,7 +280,11 @@ def test_patient_one_becomes_a_sealed_ordered_walk(store, monkeypatch):
     assert r.status_code == 200, r.text
     body = r.json()
 
-    assert body["trajectory_points"] >= 10, body
+    assert body["decision_points"] == 9
+    assert body["review_required_points"] == 8
+    assert body["ready_decision_points"] == 1
+    assert body["trajectory_points"] == 1, body
+    assert body["trajectory_points"] <= body["ready_decision_points"], body
     points = store.trajectory_points(body["trajectory_id"])
     assert len(points) == body["trajectory_points"]
 

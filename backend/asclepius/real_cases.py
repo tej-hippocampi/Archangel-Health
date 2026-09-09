@@ -1977,6 +1977,46 @@ def _content_blockers(visible: Dict[str, Any]) -> List[str]:
     return blockers
 
 
+_NARRATIVE_TYPE_RE = re.compile(
+    r"^(?:progress(?: note)?|consult(?:ation)?(?: note)?|h&p|history(?: and physical)?|"
+    r"admission(?: note)?|emergency(?: note)?|er|triage|clinical note|note)$", re.I)
+_NON_NARRATIVE_OPENING_RE = re.compile(
+    r"^(?:form:\s*)?(?:fresh orders|medication form|medication administration|"
+    r"head to toe assessment|patient assessment|intake\s*/\s*output|"
+    r"nursing (?:assessment|chart)|vital signs|orders?\s*:)", re.I)
+
+
+def has_encounter_narrative(visible: Dict[str, Any], encounter: Dict[str, Any],
+                            index_offset: int) -> bool:
+    """A visible clinical narrative from THIS encounter, not a prior resolution.
+
+    This is a conservative document-role check, not a clinical quality judgment.
+    Known order/nursing forms sometimes arrive mislabeled as Progress; they do
+    not establish a presenting narrative merely by carrying that type label.
+    """
+    lo = encounter.get("start_offset")
+    if not isinstance(lo, int):
+        return False
+    for note in visible.get("notes") or []:
+        off = _offset_of(note)
+        text = str(note.get("text") or "").strip()
+        if (off is not None and lo <= off + index_offset <= index_offset
+                and note.get("model_visible") is not False
+                and not note.get("withheld_reason")
+                and len(text) >= 40
+                and _NARRATIVE_TYPE_RE.fullmatch(str(note.get("note_type") or "").strip())
+                and not _NON_NARRATIVE_OPENING_RE.match(text)):
+            return True
+    return False
+
+
+def _hold_proposal(proposal: Dict[str, Any], reason: str, message: str) -> None:
+    proposal["review_required"] = True
+    proposal.setdefault("review_reasons", []).append({"reason": reason, "message": message})
+    proposal["blockers"].append(message)
+    proposal["generatable"] = False
+
+
 async def plan_cases(
     case: Optional[Dict[str, Any]], *, max_cases: Optional[int] = None,
     min_gap_days: int = 7, specialty_hint: Optional[str] = None,
@@ -2072,7 +2112,25 @@ async def plan_cases(
                 f"confidence floor for any enabled specialty (best {confidence:.2f} "
                 f"of {sorted(scores)}) — an admin must set it")
         proposal["generatable"] = not proposal["blockers"]
+        if trajectory and not has_encounter_narrative(visible, enc, index_offset):
+            _hold_proposal(proposal, "missing_encounter_narrative",
+                "Review required: no visible clinical narrative from this encounter. "
+                "Review source timing/type or upload additional contemporaneous notes; historical discharge "
+                "summaries and report/order forms cannot clear this hold.")
         proposals.append(proposal)
+
+    if trajectory:
+        # A's answer key ends at B. If B is held, do not silently connect A to C
+        # and grade it against a different reveal. Propagate the hold backwards;
+        # the unaffected suffix can still become an ordered, bounded walk.
+        successor = None
+        for point in reversed(proposals):
+            if successor and successor.get("review_required") and not point.get("review_required"):
+                _hold_proposal(point, "outcome_requires_review",
+                    "Review required: the next decision point's evidence is held. "
+                    "Resolve its narrative hold before building this preceding point.")
+            if point.get("qualifies_as_decision_point"):
+                successor = point
 
     # Authoring a question is the ONE plan step that costs a model call, so it is
     # scoped: generating a single encounter must not author six questions.
@@ -2102,6 +2160,10 @@ async def plan_cases(
         "encounters": total_encounters,
         "proposals": proposals,
         "generatable": len(generatable),
+        "review_required_points": sum(bool(p.get("review_required")) for p in proposals
+                                      if p.get("qualifies_as_decision_point")),
+        "ready_decision_points": sum(bool(p.get("generatable")) for p in proposals
+                                     if p.get("qualifies_as_decision_point")),
         "min_gap_days": min_gap_days,
         "why": "no model was called: 0 encounters cleared the gate" if not generatable else None,
         "omitted_implausible_dates": sum(n.get("withheld_reason") == "implausible_date" for n in c.get("notes") or []),
