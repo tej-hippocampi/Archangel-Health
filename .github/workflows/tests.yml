@@ -216,7 +216,12 @@ jobs:
         # it the launch fails and every test in the file SKIPS, which would look
         # green while checking nothing.
         run: python -m playwright install --with-deps chromium
-      - name: Run the rendered-appearance gate
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build the public site for health-system onboarding checks
+        run: npm --prefix ../landing ci --no-audit --no-fund && npm --prefix ../landing run build
+      - name: Run the rendered-appearance and health-system onboarding gates
         # A silent skip is the failure mode this job exists to prevent: the file
         # skips cleanly when no browser is present, which is right for a laptop
         # and useless here — it would report green while checking nothing. So the
@@ -226,7 +231,7 @@ jobs:
         # a genuine test failure would pass silently.
         run: |
           set -o pipefail
-          pytest tests/test_asclepius_visual.py tests/test_physician_onboarding_browser.py -q -rs | tee /tmp/visual.log
+          pytest tests/test_asclepius_visual.py tests/test_hs_onboarding_browser.py tests/test_physician_onboarding_browser.py -q -rs | tee /tmp/visual.log
           if grep -qE "[0-9]+ skipped" /tmp/visual.log; then
             echo "::error::the rendered-appearance gate skipped instead of running \
           — Chromium was not available to playwright"
