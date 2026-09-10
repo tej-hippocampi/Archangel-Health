@@ -4232,15 +4232,22 @@
   //
   // Rendered from ``state.trajectoryProgress``, hydrated by ``openTaskById`` on the
   // way in. Absent on every ordinary case, so V1–V4 render byte-for-byte as before.
+  function trajectoryStepLabel(task, sequenceIndex) {
+    const step = sequenceIndex == null ? null : sequenceIndex + 1;
+    const prog = state.trajectoryProgress;
+    const of = prog && prog.n_points ? (' of ' + prog.n_points) : '';
+    const pointClass = (task.generation || {}).point_class;
+    const label = pointClass === 'interval' ? ' · interval visit'
+      : pointClass === 'decision' ? ' · decision point' : '';
+    return (step ? 'Step ' + step + of : 'Longitudinal case') + label;
+  }
+
   function renderTrajectoryBanner() {
     const task = state.task;
     if (!task || !task.trajectory_id) return null;
-    const prog = state.trajectoryProgress;
-    const step = (task.sequence_index == null) ? null : (task.sequence_index + 1);
-    const of = prog && prog.n_points ? (' of ' + prog.n_points) : '';
     return h('div', { class: 'asc-meta-row', style: 'margin-top:6px' },
       h('span', { class: 'asc-badge asc-badge-accent' },
-        step ? ('Decision ' + step + of) : 'Longitudinal case'),
+        trajectoryStepLabel(task, task.sequence_index)),
       h('span', { class: 'asc-case-note-meta' },
         'One patient, in order. You are seeing this chart as it stood at this '
         + 'moment; what happened afterwards is sealed until you submit.'));
@@ -4291,11 +4298,11 @@
     const outcome = data.outcome;
     const expected = (data.expected_trajectory || {}).expectations || [];
     const falsifiers = (data.expected_trajectory || {}).falsifiers || [];
-    const step = (data.sequence_index == null) ? null : (data.sequence_index + 1);
 
     const head = h('div', { class: 'asc-card asc-card-pad' },
       h('div', { class: 'asc-substage-head' },
-        h('div', { class: 'asc-substage-step' }, step ? ('Step ' + step) : 'Outcome'),
+        h('div', { class: 'asc-substage-step' }, data.sequence_index == null
+          ? 'Outcome' : trajectoryStepLabel(task, data.sequence_index)),
         h('div', { class: 'asc-substage-title' }, 'What happened next')),
       h('div', { class: 'asc-help' },
         outcome
