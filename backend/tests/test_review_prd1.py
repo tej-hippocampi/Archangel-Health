@@ -182,17 +182,19 @@ def test_step_divergence_is_stored_when_both_sides_carried_steps():
     assert stored[0]["judged_submission_id"]
 
 
-def test_the_judged_side_is_canonicalized_like_stronger_is():
+def test_the_judged_side_is_canonicalized_like_stronger_is(monkeypatch):
     """Audit R H1, applied to §3. ``judged`` arrives as a position in what THIS
     reviewer was shown; the A/B order is seeded per reviewer, so half of the
     stored rows would name the wrong physician if the raw position were kept.
 
-    Six reviewers exercise both permutations of the seed, and in every one the
-    canonical letter and the submission id agree with each other."""
+    Explicitly exercise both permutations. Random reviewer/task IDs can all
+    hash to the same order, so sampling them cannot guarantee this coverage.
+    In each order, the canonical letter and submission id must agree."""
     admin_h = _admin_h()
     store = asc_store.get_store()
     seen_swapped = set()
-    for _ in range(8):
+    for swapped in (False, True):
+        monkeypatch.setattr(asc_routing, "ab_swapped", lambda task_id, reviewer_id, value=swapped: value)
         tid = _paired_task(admin_h, steps_a=_STEPS, steps_b=_STEPS)
         rv = _reviewer()
         _draw_pair(rv)
@@ -213,6 +215,7 @@ def test_the_judged_side_is_canonicalized_like_stronger_is():
         assert stored[0]["judged_submission_id"] == shown_a["submission_id"]
         assert stored[0]["judged"] == asc_routing.canonical_side(
             shown_a["submission_id"], subs)
+        assert stored[0]["judged"] == ("B" if swapped else "A")
     assert seen_swapped == {True, False}, "only one A/B permutation was exercised"
 
 
